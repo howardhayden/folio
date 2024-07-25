@@ -229,6 +229,8 @@ label {
 .progress-bar-fill {
   background-color: black;
   text-align: left;
+  color: whitesmoke;
+  font-size: small;
   transition: background-color 0.25s ease-in 0.1s, filter 0.3s ease-in;
 }
 
