@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HAH</title>
+  <meta name="shelf" content="Digital bookshelf">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400&display=swap">
+  <link rel="stylesheet" href="stylesheets/style.css">
+  <link rel="shortcut icon" type="image/png" href="/content/favicon.ico">
+</head>
+<body>
+  <noscript>
+    <style>
+      .nav-btn#navbarDropdown {
+        display: none;
+      }
+    </style>
+  </noscript>
+
+  <nav class="navbar navbar-expand navbar-light bg-light">
+    <a class="navbar-brand" href="#">HAH</a>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item"><a class="nav-link" href="/index">Home</a></li>
+        <li class="nav-item"><a class="nav-link" href="/resume">Resume</a></li>
+        <li class="nav-item"><a class="nav-link" href="/tools">Tools</a></li>
+        <li class="nav-item"><a class="nav-link" href="/shelf">Shelf</a></li>
+        <li class="nav-item dropdown">
+          <button type="button" class="nav-btn nav-link dropdown-toggle" id="navbarDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            Search
+          </button>          
+          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
+              <form>
+                  <div class="form-group">
+                      <label for="languageInput">Language</label>
+                      <input type="text" class="form-control px-0 px-sm-2" id="languageInput" placeholder=" Search Language">
+                  </div>
+                  <div class="form-group">
+                      <label for="publisherInput">Search Publisher</label>
+                      <input type="text" class="form-control px-0 px-sm-2" id="publisherInput" placeholder=" Search Publisher">
+                  </div>
+                  <div class="form-group">
+                      <label for="authorInput">Search Author</label>
+                      <input type="text" class="form-control px-0 px-sm-2" id="authorInput" placeholder=" Search Author">
+                  </div>
+                  <div class="form-group">
+                    <label for="collectionInput">Search Collection</label>
+                    <input type="text" class="form-control px-0 px-sm-2" id="collectionInput" placeholder=" Search Collection">
+                </div>
+              </form>
+          </div>
+      </li>      
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    <div class="row">
+      <div class="col-lg-3">
+        <h1 class="text-center">Shelf</h1>
+      </div>
+      <div class="col-lg-9">
+        <noscript>
+          <div id="papershelf" class="card-columns">
+            <div class="card noscript-card">
+              <div class="card-body">
+                <h5 class="card-title">Javascript is Disabled</h5>
+                <dl class="paper-info">
+                  <div class="paper-info-item">
+                    <dt>Language</dt>
+                    <dd>English</dd>
+                  </div>
+                  <div class="paper-info-item">
+                    <dt>Author(s)</dt>
+                    <dd>Hayden Howard</dd>
+                  </div>
+                  <div class="paper-info-item">
+                    <dt>Date</dt>
+                    <dd>Now</dd>
+                  </div>
+                  <div class="paper-info-item">
+                    <dt>Host</dt>
+                    <dd>GitHub</dd>
+                  </div>
+                  <div class="paper-info-item">
+                    <dt>Collection(s)</dt>
+                    <dd>Error</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>            
+          </div>
+        </noscript>
+        <div id="papershelf" class="card-columns">
+          <!-- Papers -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="scripts/papers.js" async></script>
+  <script src="scripts/shelf-script.js" async></script>
+  <script src="scripts/search.js" async></script>
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" async></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" async></script>
+</body>
+</html>
