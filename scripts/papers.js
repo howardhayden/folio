@@ -191,5 +191,13 @@ var papers = [
     "2023-06-15",
     ["Critical Rabbit"],
     ["Gaming"]
+  ),
+  new Paper(
+    "Poor Charlie's Almanack: The Essential Wit and Wisdom of Charles T. Munger",
+    ["English"],
+    ["Stripe Matter, Inc."],
+    "2023-12-05",
+    ["Charles T. Munger"],
+    ["Lifestyle"]
   )
 ];
