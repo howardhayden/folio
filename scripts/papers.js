@@ -62,7 +62,7 @@ var papers = [
     ["Wiley"],
     "2014-02-10",
     ["Joseph McCormack"],
-    ["Communication"]
+    ["Lifestyle", "Business"]
   ),
   new Paper(
     "Nice Racism: How Progressive White People Perpetuate Racial Harm",
@@ -70,7 +70,7 @@ var papers = [
     ["Beacon Press"],
     "2021-06-29",
     ["Robin Diangelo"],
-    ["Social"]
+    ["Civil"]
   ),
   new Paper(
     "Revolutionary Mathematics: Artificial Intelligence, Statistics and the Logic of Capitalism",
@@ -86,7 +86,7 @@ var papers = [
     ["Library Juice Press"],
     "2019-06-01",
     ["Matthew Reidsma"],
-    ["Libraries"]
+    ["Civil"]
   ),
   new Paper(
     "Managing Data for Patron Privacy: Comprehensive Strategies for Libraries",
@@ -94,7 +94,7 @@ var papers = [
     ["ALA Editions"],
     "2022-08-08",
     ["Kristin Briney", "Becky Yoose"],
-    ["Libraries"]
+    ["Civil"]
   ),
   new Paper(
     "Anonymity",
@@ -102,7 +102,7 @@ var papers = [
     ["ALA Neal-Schuman"],
     "2019-05-21",
     ["Alison Macrina", "Talya Cooper"],
-    ["Libraries"]
+    ["Civil"]
   ),
   new Paper(
     "Algorithms of Oppression: How Search Engines Reinforce Racism",
@@ -110,7 +110,7 @@ var papers = [
     ["NYU Press"],
     "2018-02-20",
     ["Safiya Umoja Noble"],
-    ["Technology", "Social", "Civil"]
+    ["Technology", "Civil"]
   ),
   new Paper(
     "Night in the Woods",
@@ -150,7 +150,7 @@ var papers = [
     ["Simon & Schuster"],
     "2016-05-03",
     ["Angela Duckworth"],
-    ["Productivity"]
+    ["Lifestyle"]
   ),
   new Paper(
     "The Life-Changing Magic of Tidying Up: the Japanese Art of Decluttering and Organizing",
@@ -174,7 +174,7 @@ var papers = [
     ["Norton, W. W. & Company, Inc."],
     "2019-10-15",
     ["Fuschia Dunlop"],
-    ["Cooking"]
+    ["Lifestyle"]
   ),
   new Paper(
     "Never Eat Alone, Expanded and Updated: And Other Secrets to Success, One Relationship at a Time",
@@ -198,6 +198,14 @@ var papers = [
     ["Stripe Matter, Inc."],
     "2023-12-05",
     ["Charles T. Munger"],
+    ["Lifestyle"]
+  ),
+  new Paper(
+    "The Ivy Portfolio: How to Invest Like the Top Endowments and Avoid Bear Markets",
+    ["English"],
+    ["Wiley"],
+    "2011-04-11",
+    ["Mebane T. Faber", "Eric W. Richardson"],
     ["Lifestyle"]
   )
 ];
