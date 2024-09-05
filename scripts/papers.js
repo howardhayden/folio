@@ -204,7 +204,7 @@ var papers = [
     "The Ivy Portfolio: How to Invest Like the Top Endowments and Avoid Bear Markets",
     ["English"],
     ["Wiley"],
-    "2011-04-11",
+    "2011-04-05",
     ["Mebane T. Faber", "Eric W. Richardson"],
     ["Lifestyle"]
   )
