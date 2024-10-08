@@ -532,3 +532,21 @@ a:hover {
   justify-self: center;
   transition: font-size 1s;
 }
+
+/* Pulse effect */
+@keyframes pulse {
+  0% {
+    color: whitesmoke;
+  }
+  50% {
+    color: #950F22;
+  }
+  100% {
+    color: whitesmoke;
+  }
+}
+
+.pulse-effect {
+  animation: pulse 0.86s infinite;
+  color: whitesmoke;
+}
