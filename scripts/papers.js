@@ -207,5 +207,13 @@ var papers = [
     "2011-04-05",
     ["Mebane T. Faber", "Eric W. Richardson"],
     ["Lifestyle"]
+  ),
+  new Paper(
+    "The Hate Next Door: Undercover within the New Face of White Supremacy",
+    ["English"],
+    ["Sourcebooks"],
+    "2023-07-04",
+    ["Matson Browning", "Tawni Browning"],
+    ["Civil"]
   )
 ];
