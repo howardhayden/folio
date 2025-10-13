@@ -140,7 +140,7 @@ var papers = [
     "Meditations",
     ["English"],
     ["N/A"],
-    "Incomplete Information: 180",
+    "180", // Incomplete Information.
     ["Marcus Aurelius"],
     ["Lifestyle"]
   ),
@@ -155,25 +155,25 @@ var papers = [
   new Paper(
     "On Liberty",
     ["English"],
-    ["John W. Parker and Son"],
-    "Incomplete Information: 1859",
     ["John Stuart Mill"],
+    "1859", // Incomplete Information.
+    ["John W. Parker and Son"],
     ["Civil"]
   ),
   new Paper(
     "Individualism and the Economic Order",
     ["English"],
-    ["Friedrich Hayek"],
-    "Incomplete Information: April 1947",
     ["Routledge Press"],
+    "April 1947", // Incomplete Information.
+    ["Friedrich Hayek"],
     ["Civil"]
   ),
   new Paper(
     "Self-Reliance",
     ["English"],
-    ["Ralph Emerson"],
-    "Incomplete Information: 1841",
     ["James Munroe and Company"],
+    "1841", // Incomplete Information.
+    ["Ralph Emerson"],
     ["Lifestyle"]
   ),
 ];
