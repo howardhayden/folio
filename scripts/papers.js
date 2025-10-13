@@ -22,31 +22,7 @@ var papers = [
     ["Carolina Academic Press"],
     "1999-05-26",
     ["Richard Fischl", "Jeremy Paul"],
-    ["Legal"],
-  ),
-  new Paper(
-    "Commencer à Vivre Humainement - Lettres",
-    ["French"],
-    ["LIBERTALIA"],
-    "2022-01-11",
-    ["Rosa Luxemburg"],
-    ["Civil"]
-  ),
-  new Paper(
-    "La police du futur - le marché de la violence et ce qui lui résiste",
-    ["French"],
-    ["Revue du Crieur"],
-    "2022-03-17",
-    ["Mathieu Rigouste"],
-    ["Civil"]
-  ),
-  new Paper(
-    "Défaire la police",
-    ["French"],
-    ["Divergences"],
-    "2021-11-15",
-    ["Jérôme Baschet", "Elsa Dorlin", "Irene", "Guy Lerouge", "Serge Quadruppani", "Collectif"],
-    ["Civil"]
+    ["Business"],
   ),
   new Paper(
     "Modern Grantmaking: A Guide for Funders who Believe Better Is Possible",
@@ -65,30 +41,6 @@ var papers = [
     ["Lifestyle", "Business"]
   ),
   new Paper(
-    "Nice Racism: How Progressive White People Perpetuate Racial Harm",
-    ["English"],
-    ["Beacon Press"],
-    "2021-06-29",
-    ["Robin Diangelo"],
-    ["Civil"]
-  ),
-  new Paper(
-    "Revolutionary Mathematics: Artificial Intelligence, Statistics and the Logic of Capitalism",
-    ["English"],
-    ["Verso"],
-    "2022-01-18",
-    ["Justin Joque"],
-    ["Technology", "Business", "Civil"]
-  ),
-  new Paper(
-    "Masked by Trust: Bias in Library Discovery",
-    ["English"],
-    ["Library Juice Press"],
-    "2019-06-01",
-    ["Matthew Reidsma"],
-    ["Civil"]
-  ),
-  new Paper(
     "Managing Data for Patron Privacy: Comprehensive Strategies for Libraries",
     ["English"],
     ["ALA Editions"],
@@ -105,44 +57,12 @@ var papers = [
     ["Civil"]
   ),
   new Paper(
-    "Algorithms of Oppression: How Search Engines Reinforce Racism",
-    ["English"],
-    ["NYU Press"],
-    "2018-02-20",
-    ["Safiya Umoja Noble"],
-    ["Technology", "Civil"]
-  ),
-  new Paper(
-    "Night in the Woods",
-    ["English", "Japanese"],
-    ["Finji"],
-    "2017-02-21",
-    ["Infinite Fall"],
-    ["Gaming"]
-  ),
-  new Paper(
     "A Short Hike",
     ["English", "Spanish - Latin America", "French", "Japanese", "Portuguese - Brazil"],
     ["Whippoorwill"],
     "2019-04-05",
     ["Adam Robinson-Yu", "Adamgryu"],
-    ["Gaming"]
-  ),
-  new Paper(
-    "Kentucky Route Zero",
-    ["English", "Spanish - Latin America", "Spanish - Spain", "Portuguese - Brazil", "Russian", "Arabic", "French", "German", "Italian", "Japanese", "Korean", "Polish", "Chinese - Simplified", "Chinese - Traditional", "Swedish", "Thai", "Turkish"],
-    ["Annapurna Interactive"],
-    "2020-01-28",
-    ["Cardboard Computer"],
-    ["Gaming"]
-  ),
-  new Paper(
-    "Where the Water Tastes Like Wine",
-    ["English", "French", "German", "Russian", "Chinese - Simplified"],
-    ["Good Shepherd Entertainment", "Serenity Forge"],
-    "2018-02-28",
-    ["Dim Bulb Games", "Serenity Forge"],
-    ["Gaming"]
+    ["Entertainment"]
   ),
   new Paper(
     "Grit: The Power of Passion and Perseverance",
@@ -190,7 +110,7 @@ var papers = [
     ["Assemble Entertainment"],
     "2023-06-15",
     ["Critical Rabbit"],
-    ["Gaming"]
+    ["Entertainment"]
   ),
   new Paper(
     "Poor Charlie's Almanack: The Essential Wit and Wisdom of Charles T. Munger",
@@ -209,11 +129,51 @@ var papers = [
     ["Lifestyle"]
   ),
   new Paper(
-    "The Hate Next Door: Undercover within the New Face of White Supremacy",
+    "The Wind Rises",
+    ["Japanese", "English"],
+    ["Studio Ghibli"],
+    "2013-7-20",
+    ["Hayao Miyazaki", "Toshio Suzuki"],
+    ["Entertainment"]
+  ),
+  new Paper(
+    "Meditations",
     ["English"],
-    ["Sourcebooks"],
-    "2023-07-04",
-    ["Matson Browning", "Tawni Browning"],
+    ["N/A"],
+    "Incomplete Information: 180",
+    ["Marcus Aurelius"],
+    ["Lifestyle"]
+  ),
+  new Paper(
+    "Mastery",
+    ["English"],
+    ["Penguin Books"],
+    "2013-10-29",
+    ["Robert Greene"],
+    ["Lifestyle"]
+  ),
+  new Paper(
+    "On Liberty",
+    ["English"],
+    ["John W. Parker and Son"],
+    "Incomplete Information: 1859",
+    ["John Stuart Mill"],
     ["Civil"]
-  )
+  ),
+  new Paper(
+    "Individualism and the Economic Order",
+    ["English"],
+    ["Friedrich Hayek"],
+    "Incomplete Information: April 1947",
+    ["Routledge Press"],
+    ["Civil"]
+  ),
+  new Paper(
+    "Self-Reliance",
+    ["English"],
+    ["Ralph Emerson"],
+    "Incomplete Information: 1841",
+    ["James Munroe and Company"],
+    ["Lifestyle"]
+  ),
 ];
