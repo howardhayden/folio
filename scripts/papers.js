@@ -164,7 +164,7 @@ var papers = [
     "Individualism and the Economic Order",
     ["English"],
     ["Routledge Press"],
-    "April 1947", // Incomplete Information.
+    "1947", // Incomplete Information. April Suspected.
     ["Friedrich Hayek"],
     ["Civil"]
   ),
