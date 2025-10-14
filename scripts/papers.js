@@ -2,7 +2,7 @@ function Paper(title, language, publisher, date, authors, collections) {
   this.title = title;
   this.language = language;
   this.publisher = publisher;
-  this.date = new Date(date);
+  this.date = date;
   this.authors = authors;
   this.collections = collections;
 }
@@ -70,7 +70,7 @@ var papers = [
     ["Simon & Schuster"],
     "2016-05-03",
     ["Angela Duckworth"],
-    ["Lifestyle"]
+    ["Lifestyle", "Personal Resilience"]
   ),
   new Paper(
     "The Life-Changing Magic of Tidying Up: the Japanese Art of Decluttering and Organizing",
@@ -81,19 +81,11 @@ var papers = [
     ["Lifestyle"]
   ),
   new Paper(
-    "Spark Joy: An Illustrated Master Class on the Art of Organizing and Tidying Up",
-    ["English"],
-    ["Clarkson Potter", "Ten Speed Press"],
-    "2016-01-05",
-    ["Marie Kondo"],
-    ["Lifestyle"]
-  ),
-  new Paper(
     "The Food of Sichuan",
     ["English"],
-    ["Norton, W. W. & Company, Inc."],
+    ["Norton, W. W. & Company"],
     "2019-10-15",
-    ["Fuschia Dunlop"],
+    ["Fuchsia Dunlop"],
     ["Lifestyle"]
   ),
   new Paper(
@@ -103,14 +95,6 @@ var papers = [
     "2014-06-03",
     ["Keith Ferrazzi", "Tahl Raz"],
     ["Lifestyle"]
-  ),
-  new Paper(
-    "Fall of Porcupine",
-    ["English", "German", "French", "Japanese", "Korean", "Chinese - Simplified"],
-    ["Assemble Entertainment"],
-    "2023-06-15",
-    ["Critical Rabbit"],
-    ["Entertainment"]
   ),
   new Paper(
     "Poor Charlie's Almanack: The Essential Wit and Wisdom of Charles T. Munger",
@@ -134,15 +118,15 @@ var papers = [
     ["Studio Ghibli"],
     "2013-7-20",
     ["Hayao Miyazaki", "Toshio Suzuki"],
-    ["Entertainment"]
+    ["Entertainment", "Technology", "Societal Resilience"]
   ),
   new Paper(
     "Meditations",
     ["English"],
     ["N/A"],
-    "180", // Incomplete Information.
+    "180", // 161-180 C.E. Est.
     ["Marcus Aurelius"],
-    ["Lifestyle"]
+    ["Lifestyle", "Personal Resilience"]
   ),
   new Paper(
     "Mastery",
@@ -155,16 +139,16 @@ var papers = [
   new Paper(
     "On Liberty",
     ["English"],
-    ["John Stuart Mill"],
-    "1859", // Incomplete Information.
     ["John W. Parker and Son"],
+    "1859",
+    ["John Stuart Mill"],
     ["Civil"]
   ),
   new Paper(
     "Individualism and the Economic Order",
     ["English"],
     ["Routledge Press"],
-    "1947", // Incomplete Information. April Suspected.
+    "1947", // April Suspected.
     ["Friedrich Hayek"],
     ["Civil"]
   ),
@@ -172,8 +156,48 @@ var papers = [
     "Self-Reliance",
     ["English"],
     ["James Munroe and Company"],
-    "1841", // Incomplete Information.
-    ["Ralph Emerson"],
+    "1841",
+    ["Ralph Waldo Emerson"],
     ["Lifestyle"]
+  ),
+  new Paper(
+    "Orb: On the Movements of the Earth",
+    ["Japanese", "English", "Spanish - Latin America", "French", "German", "Italian", "Portuguese - Brazil", "Polish", "Arabic", "Simplified Chinese", "Traditional Chinese"],
+    ["Studio Madhouse", "Netflix"],
+    "2025-03-15",
+    ["Shingo Irie", "Kenichi Shimizu", "Tetsuya Nakatake"],
+    ["Entertainment", "Personal Resilience", "Societal Resilience"]
+  ),
+  new Paper(
+    "Terror in Resonance",
+    ["Japanese", "English", "Spanish - Latin America", "Spanish - Spain", "French", "German", "Italian", "Portuguese - Brazil", "Russian", "Arabic", "Czech", "Hungarian"],
+    ["MAPPA", "Aniplex"],
+    "2014-09-25",
+    ["Shinichirō Watanabe", "Koji Yamamoto", "Takamitsu Inoue"],
+    ["Entertainment", "Civil", "Societal Resilience"]
+  ),
+  new Paper(
+    "Psycho-Pass",
+    ["Japanese", "English", "Spanish - Latin America", "Spanish - Spain", "French", "German", "Italian", "Portuguese - Brazil", "Russian"],
+    ["Production I.G.", "Fuji TV"],
+    "2013-03-22",
+    ["Gen Urobuchi", "Katsuyuki Motohiro", "Naoyoshi Shiotani", "Makoto Fukami", "Tow Ubukata"],
+    ["Entertainment", "Technology", "Civil", "Societal Resilience"]
+  ),
+  new Paper(
+    "Where the Water Tastes Like Wine",
+    ["English", "French", "German", "Russian", "Simplified Chinese"],
+    ["Dim Bulb Games", "Serenity Forge"],
+    "2018-02-28",
+    ["Johnnemann Nordhagen", "Rami Ismael", "Cara Ellison", "Leigh Alexander", "Ryan Ike"],
+    ["Entertainment", "Societal Resilience"]
+  ),
+  new Paper(
+    "Kentucky Route Zero",
+    ["English", "French", "Italian", "German", "Spanish - Spain", "Japanese", "Korean", "Portuguese - Brazil", "Russian", "Simplified Chinese", "Traditional Chinese", "Turkish", "Czech", "Hungarian", "Polish", "Romanian"],
+    ["Cardboard Computer", "Annapurna Interactive"],
+    "2020-01-28",
+    ["Jake Elliott", "Tamas Kemenczy", "Hussein Neemat", "Ben Babbitt"],
+    ["Entertainment", "Societal Resilience"]
   ),
 ];
