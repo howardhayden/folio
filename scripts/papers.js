@@ -116,7 +116,7 @@ var papers = [
     "The Wind Rises",
     ["Japanese", "English"],
     ["Studio Ghibli"],
-    "2013-7-20",
+    "2013-07-20",
     ["Hayao Miyazaki", "Toshio Suzuki"],
     ["Entertainment", "Technology", "Societal Resilience"]
   ),
