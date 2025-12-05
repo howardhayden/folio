@@ -200,4 +200,12 @@ var papers = [
     ["Jake Elliott", "Tamas Kemenczy", "Hussein Neemat", "Ben Babbitt"],
     ["Entertainment", "Societal Resilience"]
   ),
+  new Paper(
+    "Becoming Bulletproof: Protect Yourself, Read People, Influence Situations, and Live Fearlessly",
+    ["English"],
+    ["Atria Books"],
+    "2020-04-21",
+    ["Evy Poumpouras"],
+    ["Lifestyle", "Personal Resilience"]
+  )
 ];
