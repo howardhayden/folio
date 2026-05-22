@@ -214,6 +214,6 @@ var papers = [
     ["11 bit studios"],
     "2024-09-20",
     ["Alexandre Boiret", "Jakub Dzierżykraj-Stokalski", "Łukasz Juszczyk"],
-    ["Entertainment", "Societal Resilience", "Civil"]
+    ["Entertainment", "Civil", "Societal Resilience"]
   )
 ];
