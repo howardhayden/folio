@@ -207,5 +207,13 @@ var papers = [
     "2020-04-21",
     ["Evy Poumpouras"],
     ["Lifestyle", "Personal Resilience"]
+  ),
+  new Paper(
+    "Frostpunk 2",
+    ["English", "French", "Italian", "German", "Spanish - Spain", "Japanese", "Korean", "Polish", "Portuguese - Brazil", "Russian", "Simplified Chinese", "Turkish", "Traditional Chinese", "Ukrainian"],
+    ["11 bit studios"],
+    "2024-09-20",
+    ["Alexandre Boiret", "Jakub Dzierżykraj-Stokalski", "Łukasz Juszczyk"],
+    ["Entertainment", "Societal Resilience", "Civil"]
   )
 ];
