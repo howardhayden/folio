@@ -15,9 +15,7 @@
 <body>
    <noscript>
       <style>
-         .progress-bar-fill:hover {
-            cursor: auto;
-         }
+         .progress-bar-fill:hover { cursor: auto; }
       </style>
    </noscript>
 
@@ -34,8 +32,8 @@
    </nav>
 
    <div class="container">
-    <h1 class="text-center" style="margin-top: 4vh; margin-bottom: -4vh;">Resume</h1>
-  </div>
+      <h1 class="text-center" style="margin-top: 4vh; margin-bottom: -4vh;">Resume</h1>
+   </div>
 
   <div class="container">
    <h2 class="text-center" style="margin-bottom: 3vh; margin-top: 12vh;">Skill Stacks</h2>
@@ -157,13 +155,15 @@
       <h2 class="text-center" style="margin-bottom: -6vh">Timeline</h2>
       <section class="design-section-container">
          <div class="timeline">
-            <div class="timeline-entry left">
-               <h3>Booked</h3>
-               <p>December 2025 – Current<br>Unavailable</p>
-               <p><small>Information Not Yet Available</small></p>
-               <svg xmlns="http://www.w3.org/2000/svg" class="rotate-right bi bi-arrows-move" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                  <path fill-rule="evenodd" d="M7.646.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 1.707V5.5a.5.5 0 0 1-1 0V1.707L6.354 2.854a.5.5 0 1 1-.708-.708zM8 10a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7.5 14.293V10.5A.5.5 0 0 1 8 10M.146 8.354a.5.5 0 0 1 0-.708l2-2a.5.5 0 1 1 .708.708L1.707 7.5H5.5a.5.5 0 0 1 0 1H1.707l1.147 1.146a.5.5 0 0 1-.708.708zM10 8a.5.5 0 0 1 .5-.5h3.793l-1.147-1.146a.5.5 0 0 1 .708-.708l2 2a.5.5 0 0 1 0 .708l-2 2a.5.5 0 0 1-.708-.708L14.293 8.5H10.5A.5.5 0 0 1 10 8"/>
-                </svg>
+            <div class="timeline-entry left" onclick="openModal('officerCandidateModal')">
+               <h3>Officer Candidate</h3>
+               <p>December 2025 – Current<br>United States Navy</p>
+               <p><small>Pressurized Operations and Collaboration<br>Operational, Informational Constraints / #FogOfWar<br>High-Friction Institutional Environment<br>Emergency Preparedness</small></p>
+               <a href="javascript:void(0);" title="Officer Candidate">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="rotate-right bi bi-arrows-move" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                     <path d="M7.646.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 1.707V5.5a.5.5 0 0 1-1 0V1.707L6.354 2.854a.5.5 0 1 1-.708-.708zM8 10a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7.5 14.293V10.5A.5.5 0 0 1 8 10M.146 8.354a.5.5 0 0 1 0-.708l2-2a.5.5 0 1 1 .708.708L1.707 7.5H5.5a.5.5 0 0 1 0 1H1.707l1.147 1.146a.5.5 0 0 1-.708.708zM10 8a.5.5 0 0 1 .5-.5h3.793l-1.147-1.146a.5.5 0 0 1 .708-.708l2 2a.5.5 0 0 1 0 .708l-2 2a.5.5 0 0 1-.708-.708L14.293 8.5H10.5A.5.5 0 0 1 10 8"/>
+                  </svg>
+               </a>
             </div>
             <div class="timeline-entry right">
                <h3>Substitute Teacher</h3>
@@ -360,6 +360,24 @@
       </section>
    </div>
    
+   <div id="officerCandidateModal" class="modal">
+      <div class="modal-content">
+         <h3>Officer Candidate</h3>
+         <p class="lead text-center">#ForgedInIce</p>
+         <p>Military Discipline, Professional Bearing, Basic Naval Indoctrination</p>
+         <p>Physical Readiness, Mental Resilience</p>
+         <p>Attention to Detail, Performance, Standards Compliance, Execution in High-Stress and Minimally-Informative Environments</p>
+         <p>Collaborative Cohesion</p>
+         <p>Close-Order Drill, Precision Formations</p>
+         <p>Water Survival, Swim Qualification</p>
+         <p>Shipboard Engineering Principles, Propulsion Systems</p>
+         <p>Naval Weapons Systems, Combat Systems Fundamentals</p>
+         <p>Marine Navigation, Seamanship, Shiphandling, Rules of the Road</p>
+         <p>Shipboard Damage Control, Firefighting Operations</p>
+         <p>Naval Network Infrastructure, Cyber Warfare Awareness</p>
+      </div>
+   </div>
+
    <div id="ohioLinkModal" class="modal">
       <div class="modal-content">
          <h3>Luminary</h3>
