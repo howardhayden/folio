@@ -215,5 +215,29 @@ var papers = [
     "2024-09-20",
     ["Alexandre Boiret", "Jakub Dzierżykraj-Stokalski", "Łukasz Juszczyk"],
     ["Entertainment", "Civil", "Societal Resilience"]
+  ),
+  new Paper(
+    "The Apothecary Diaries",
+    ["Japanese", "English", "Spanish - Latin America", "French", "German", "Italian", "Portuguese - Brazil", "Arabic", "Hindi", "Indonesian", "Malay", "Thai", "Vietnamese"],
+    ["Toho Animation Studio", "OLM", "Crunchyroll"],
+    "2023-10-21",
+    ["Natsu Hyūga", "Touko Shino", "Norihiro Naganuma"],
+    ["Entertainment", "Civil", "Personal Resilience"],
+  ),
+  new Paper(
+    "Night in the Woods",
+    ["English", "French", "German", "Spanish - Spain", "Italian", "Portuguese - Brazil", "Russian", "Japanese", "Simplified Chinese"],
+    ["Infinite Fall", "Finji"],
+    "2017-02-21",
+    ["Scott Benson", "Bethany Hockenberry", "Alec Holowka"],
+    ["Entertainment", "Civil", "Personal Resilience", "Societal Resilience"],
+  ),
+  new Paper(
+    "Ascendance of a Bookworm",
+    ["Japanese", "English", "Spanish - Latin America", "French", "German", "Italian", "Portuguese - Brazil", "Russian", "Arabic"],
+    ["Ajia-do Animation Works", "Crunchyroll"],
+    "2019-10-02",
+    ["Miya Kazuki", "You Shiina", "Mitsuru Hongo"],
+    ["Entertainment", "Technology", "Business", "Personal Resilience", "Societal Resilience"],
   )
 ];
