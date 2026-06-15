@@ -229,7 +229,7 @@ var papers = [
     ["English", "French", "German", "Spanish - Spain", "Italian", "Portuguese - Brazil", "Russian", "Japanese", "Simplified Chinese"],
     ["Infinite Fall", "Finji"],
     "2017-02-21",
-    ["Scott Benson", "Bethany Hockenberry", "Alec Holowka"],
+    ["Scott Benson", "Bethany Hockenvberry", "Alec Holowka"],
     ["Entertainment", "Civil", "Personal Resilience", "Societal Resilience"],
   ),
   new Paper(
