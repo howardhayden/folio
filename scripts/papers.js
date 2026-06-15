@@ -229,14 +229,14 @@ var papers = [
     ["English", "French", "German", "Spanish - Spain", "Italian", "Portuguese - Brazil", "Russian", "Japanese", "Simplified Chinese"],
     ["Infinite Fall", "Finji"],
     "2017-02-21",
-    ["Scott Benson", "Bethany Hockenvberry", "Alec Holowka"],
+    ["Scott Benson", "Bethany Hockenberry", "Alec Holowka"],
     ["Entertainment", "Civil", "Personal Resilience", "Societal Resilience"],
   ),
   new Paper(
     "Ascendance of a Bookworm",
     ["Japanese", "English", "Spanish - Latin America", "French", "German", "Italian", "Portuguese - Brazil", "Russian", "Arabic"],
     ["Ajia-do Animation Works", "Crunchyroll"],
-    "2019-10-02",
+    "2019-10-03",
     ["Miya Kazuki", "You Shiina", "Mitsuru Hongo"],
     ["Entertainment", "Technology", "Business", "Personal Resilience", "Societal Resilience"],
   )
