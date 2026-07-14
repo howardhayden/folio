@@ -1,2 +1,0 @@
-import{r as e}from"./rolldown-runtime-S-ySWqyJ.js";import{i as t,r as n}from"./framework-CXnKph_e.js";var r=e(t(),1),i=n();function a({art:e}){let t=(0,r.useRef)(null);return(0,r.useEffect)(()=>{let n=t.current,r=n?.parentElement;if(!n||!r)return;let i=Math.max(...e.split(`
-`).map(e=>e.length)),a=()=>{n.style.fontSize=`${r.offsetWidth/i*1.82}px`};a();let o=new ResizeObserver(a);return o.observe(r),()=>o.disconnect()},[e]),(0,i.jsx)(`pre`,{ref:t,"aria-label":`ASCII art`,title:`A guy sitting beneath a tree, interacting with a tablet`,children:e})}export{a as AsciiArt};

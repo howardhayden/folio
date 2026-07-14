@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function loadWorker() {
@@ -55,4 +56,16 @@ test("renders shelf records before client hydration", async () => {
   assert.match(html, />1859</);
   assert.match(html, />180 C\.E\.<\/dd>/);
   assert.match(html, /Orb: On the Movements of the Earth/i);
+});
+
+test("produces a complete static Pages artifact", async () => {
+  const routes = ["index.html", "resume/index.html", "tools/index.html", "shelf/index.html", "404.html"];
+
+  for (const route of routes) {
+    const html = await readFile(new URL(`../site/${route}`, import.meta.url), "utf8");
+    assert.match(html, /<!DOCTYPE html>/i, route);
+  }
+
+  const cname = await readFile(new URL("../site/CNAME", import.meta.url), "utf8");
+  assert.equal(cname.trim(), "hah.dev");
 });

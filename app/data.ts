@@ -181,7 +181,7 @@ export const tools = [
     url: "https://appflowy.io",
     category: "Workspace",
     summary: "Productivity manager.",
-    traits: ["Open-source", "Full native, offline support", "No account required", "Data privacy", "Optional API integration", "Community-driven"],
+    traits: ["Open-source", "Full native, offline support", "No account required", "Data privacy", "Community-driven"],
   },
   {
     name: "Newsflow",

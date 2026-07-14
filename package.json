@@ -8,9 +8,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vinext build",
+    "build:pages": "npm run build && node scripts/build-pages.mjs",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
+    "test": "npm run build:pages && node --test tests/rendered-html.test.mjs",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern site"
   },
   "dependencies": {
     "bootstrap": "^4.5.2",
@@ -31,8 +32,13 @@
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vinext": "0.0.50",
-    "vite": "8.0.13"
+    "vite": "^8.0.16"
   },
   "type": "module",
-  "displayName": "Hayden Howard Portfolio"
+  "displayName": "Hayden Howard Portfolio",
+  "allowScripts": {
+    "fsevents@2.3.3": true,
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.11.1": true
+  }
 }
