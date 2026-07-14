@@ -1,0 +1,516 @@
+import { useEffect, useMemo, useState } from "react";
+import { Fragment as Fragment$1, jsx, jsxs } from "react/jsx-runtime";
+//#region app/components/LegacyIcon.tsx
+var paths = {
+	"lightning-charge": "<path d=\"M11.251.068a.5.5 0 0 1 .227.58L9.677 6.5H13a.5.5 0 0 1 .364.843l-8 8.5a.5.5 0 0 1-.842-.49L6.323 9.5H3a.5.5 0 0 1-.364-.843l8-8.5a.5.5 0 0 1 .615-.09zM4.157 8.5H7a.5.5 0 0 1 .478.647L6.11 13.59l5.732-6.09H9a.5.5 0 0 1-.478-.647L9.89 2.41z\"/>",
+	"tools": "<path d=\"M1 0 0 1l2.2 3.081a1 1 0 0 0 .815.419h.07a1 1 0 0 1 .708.293l2.675 2.675-2.617 2.654A3.003 3.003 0 0 0 0 13a3 3 0 1 0 5.878-.851l2.654-2.617.968.968-.305.914a1 1 0 0 0 .242 1.023l3.27 3.27a.997.997 0 0 0 1.414 0l1.586-1.586a.997.997 0 0 0 0-1.414l-3.27-3.27a1 1 0 0 0-1.023-.242L10.5 9.5l-.96-.96 2.68-2.643A3.005 3.005 0 0 0 16 3q0-.405-.102-.777l-2.14 2.141L12 4l-.364-1.757L13.777.102a3 3 0 0 0-3.675 3.68L7.462 6.46 4.793 3.793a1 1 0 0 1-.293-.707v-.071a1 1 0 0 0-.419-.814zm9.646 10.646a.5.5 0 0 1 .708 0l2.914 2.915a.5.5 0 0 1-.707.707l-2.915-2.914a.5.5 0 0 1 0-.708M3 11l.471.242.529.026.287.445.445.287.026.529L5 13l-.242.471-.026.529-.445.287-.287.445-.529.026L3 15l-.471-.242L2 14.732l-.287-.445L1.268 14l-.026-.529L1 13l.242-.471.026-.529.445-.287.287-.445.529-.026z\"/>",
+	"map": "<path fill-rule=\"evenodd\" d=\"M15.817.113A.5.5 0 0 1 16 .5v14a.5.5 0 0 1-.402.49l-5 1a.5.5 0 0 1-.196 0L5.5 15.01l-4.902.98A.5.5 0 0 1 0 15.5v-14a.5.5 0 0 1 .402-.49l5-1a.5.5 0 0 1 .196 0L10.5.99l4.902-.98a.5.5 0 0 1 .415.103M10 1.91l-4-.8v12.98l4 .8zm1 12.98 4-.8V1.11l-4 .8zm-6-.8V1.11l-4 .8v12.98z\"/>",
+	"stopwatch": "<path d=\"M8.5 5.6a.5.5 0 1 0-1 0v2.9h-3a.5.5 0 0 0 0 1H8a.5.5 0 0 0 .5-.5z\"/> <path d=\"M6.5 1A.5.5 0 0 1 7 .5h2a.5.5 0 0 1 0 1v.57c1.36.196 2.594.78 3.584 1.64l.012-.013.354-.354-.354-.353a.5.5 0 0 1 .707-.708l1.414 1.415a.5.5 0 1 1-.707.707l-.353-.354-.354.354-.013.012A7 7 0 1 1 7 2.071V1.5a.5.5 0 0 1-.5-.5M8 3a6 6 0 1 0 .001 12A6 6 0 0 0 8 3\"/>",
+	"app-indicator": "<path d=\"M5.5 2A3.5 3.5 0 0 0 2 5.5v5A3.5 3.5 0 0 0 5.5 14h5a3.5 3.5 0 0 0 3.5-3.5V8a.5.5 0 0 1 1 0v2.5a4.5 4.5 0 0 1-4.5 4.5h-5A4.5 4.5 0 0 1 1 10.5v-5A4.5 4.5 0 0 1 5.5 1H8a.5.5 0 0 1 0 1z\"/> <path d=\"M16 3a3 3 0 1 1-6 0 3 3 0 0 1 6 0\"/>",
+	"bar-chart-steps": "<path d=\"M.5 0a.5.5 0 0 1 .5.5v15a.5.5 0 0 1-1 0V.5A.5.5 0 0 1 .5 0M2 1.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-4a.5.5 0 0 1-.5-.5zm2 4a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5zm2 4a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-6a.5.5 0 0 1-.5-.5zm2 4a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5z\"/>",
+	"floppy2": "<path d=\"M1.5 0h11.586a1.5 1.5 0 0 1 1.06.44l1.415 1.414A1.5 1.5 0 0 1 16 2.914V14.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 14.5v-13A1.5 1.5 0 0 1 1.5 0M1 1.5v13a.5.5 0 0 0 .5.5H2v-4.5A1.5 1.5 0 0 1 3.5 9h9a1.5 1.5 0 0 1 1.5 1.5V15h.5a.5.5 0 0 0 .5-.5V2.914a.5.5 0 0 0-.146-.353l-1.415-1.415A.5.5 0 0 0 13.086 1H13v3.5A1.5 1.5 0 0 1 11.5 6h-7A1.5 1.5 0 0 1 3 4.5V1H1.5a.5.5 0 0 0-.5.5m9.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5z\" />",
+	"arrows-move": "<path d=\"M7.646.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 1.707V5.5a.5.5 0 0 1-1 0V1.707L6.354 2.854a.5.5 0 1 1-.708-.708zM8 10a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7.5 14.293V10.5A.5.5 0 0 1 8 10M.146 8.354a.5.5 0 0 1 0-.708l2-2a.5.5 0 1 1 .708.708L1.707 7.5H5.5a.5.5 0 0 1 0 1H1.707l1.147 1.146a.5.5 0 0 1-.708.708zM10 8a.5.5 0 0 1 .5-.5h3.793l-1.147-1.146a.5.5 0 0 1 .708-.708l2 2a.5.5 0 0 1 0 .708l-2 2a.5.5 0 0 1-.708-.708L14.293 8.5H10.5A.5.5 0 0 1 10 8\"/>",
+	"clipboard-check": "<path d=\"M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0\" /> <path d=\"M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1z\" /> <path d=\"M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0z\" />",
+	"mortarboard": "<path d=\"M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5M2 2a1 1 0 0 0-1 1v1h14V3a1 1 0 0 0-1-1zm13 3H1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z\"/> <path d=\"M9 7.5a.5.5 0 0 1 .5-.5H15v2H9.5a.5.5 0 0 1-.5-.5zm-2 3v1a.5.5 0 0 1-.5.5H1v-2h5.5a.5.5 0 0 1 .5.5\"/>",
+	"book-half": "<path d=\"M8.5 2.687c.654-.689 1.782-.886 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111-2.278-.039-3.213.492zM8 1.783C7.015.936 5.587.81 4.287.94c-1.514.153-3.042.672-3.994 1.105A.5.5 0 0 0 0 2.5v11a.5.5 0 0 0 .707.455c.882-.4 2.303-.881 3.68-1.02 1.409-.142 2.59.087 3.223.877a.5.5 0 0 0 .78 0c.633-.79 1.814-1.019 3.222-.877 1.378.139 2.8.62 3.681 1.02A.5.5 0 0 0 16 13.5v-11a.5.5 0 0 0-.293-.455c-.952-.433-2.48-.952-3.994-1.105C10.413.809 8.985.936 8 1.783\" />",
+	"body-text": "<path d=\"M0 .5A.5.5 0 0 1 .5 0h4a.5.5 0 0 1 0 1h-4A.5.5 0 0 1 0 .5m0 2A.5.5 0 0 1 .5 2h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m9 0a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5m-9 2A.5.5 0 0 1 .5 4h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5m5 0a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5m7 0a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5m-12 2A.5.5 0 0 1 .5 6h6a.5.5 0 0 1 0 1h-6a.5.5 0 0 1-.5-.5m8 0a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5m-8 2A.5.5 0 0 1 .5 8h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5m7 0a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m-7 2a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 0 1h-8a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5\"/>",
+	"capsule": "<path d=\"M1.828 8.9 8.9 1.827a4 4 0 1 1 5.657 5.657l-7.07 7.071A4 4 1 1 1 1.827 8.9Zm9.128.771 2.893-2.893a3 3 0 1 0-4.243-4.242L6.713 5.429z\"/>",
+	"calendar-week": "<path d=\"M11 6.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1zm-3 0a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1zm-5 3a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1zm3 0a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1z\"/> <path d=\"M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z\"/>",
+	"newspaper": "<path d=\"M0 2.5A1.5 1.5 0 0 1 1.5 1h11A1.5 1.5 0 0 1 14 2.5v10.528c0 .3-.05.654-.238.972h.738a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 1 1 0v9a1.5 1.5 0 0 1-1.5 1.5H1.497A1.497 1.497 0 0 1 0 13.5v-11zM12 14c.37 0 .654-.211.853-.441.092-.106.147-.279.147-.531V2.5a.5.5 0 0 0-.5-.5h-11a.5.5 0 0 0-.5.5v11c0 .278.223.5.497.5H12z\"/> <path d=\"M2 3h10v2H2V3zm0 3h4v3H2V6zm0 4h4v1H2v-1zm0 2h4v1H2v-1zm5-6h2v1H7V6zm3 0h2v1h-2V6zM7 8h2v1H7V8zm3 0h2v1h-2V8zm-3 2h2v1H7v-1zm3 0h2v1h-2V10zm-3 2h2v1H7v-1zm3 0h2v1h-2V12z\"/>",
+	"browser-firefox": "<path fill-rule=\"evenodd\" d=\"M13.384 3.408c.535.276 1.22 1.152 1.556 1.963a7.98 7.98 0 0 1 .503 3.897l-.009.077a8.533 8.533 0 0 1-.026.224A7.758 7.758 0 0 1 .006 8.257v-.04c.016-.363.055-.724.114-1.082.01-.074.075-.42.09-.489l.01-.051a6.551 6.551 0 0 1 1.041-2.35c.217-.31.46-.6.725-.87.233-.238.487-.456.758-.65a1.5 1.5 0 0 1 .26-.137c-.018.268-.04 1.553.268 1.943h.003a5.744 5.744 0 0 1 1.868-1.443 3.597 3.597 0 0 0 .021 1.896c.07.047.137.098.2.152.107.09.226.207.454.433l.068.066.009.009a1.933 1.933 0 0 0 .213.18c.383.287.943.563 1.306.741.201.1.342.168.359.193l.004.008c-.012.193-.695.858-.933.858-2.206 0-2.564 1.335-2.564 1.335.087.997.714 1.839 1.517 2.357a3.72 3.72 0 0 0 .439.241c.076.034.152.065.228.094.325.115.665.18 1.01.194 3.043.143 4.155-2.804 3.129-4.745v-.001a3.005 3.005 0 0 0-.731-.9 2.945 2.945 0 0 0-.571-.37l-.003-.002a2.679 2.679 0 0 1 1.87.454 3.915 3.915 0 0 0-3.396-1.983c-.078 0-.153.005-.23.01l-.042.003V4.31h-.002a3.882 3.882 0 0 0-.8.14 6.454 6.454 0 0 0-.333-.314 2.321 2.321 0 0 0-.2-.152 3.594 3.594 0 0 1-.088-.383 4.88 4.88 0 0 1 1.352-.289l.05-.003c.052-.004.125-.01.205-.012C7.996 2.212 8.733.843 10.17.002l-.003.005.003-.001.002-.002h.002l.002-.002a.028.028 0 0 1 .015 0 .02.02 0 0 1 .012.007 2.408 2.408 0 0 0 .206.48c.06.103.122.2.183.297.49.774 1.023 1.379 1.543 1.968.771.874 1.512 1.715 2.036 3.02l-.001-.013a8.06 8.06 0 0 0-.786-2.353Z\"/>",
+	"laptop": "<path d=\"M13.5 3a.5.5 0 0 1 .5.5V11H2V3.5a.5.5 0 0 1 .5-.5h11zm-11-1A1.5 1.5 0 0 0 1 3.5V12h14V3.5A1.5 1.5 0 0 0 13.5 2h-11zM0 12.5h16a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 12.5z\"/>",
+	"mailbox2": "<path d=\"M9 8.5h2.793l.853.854A.5.5 0 0 0 13 9.5h1a.5.5 0 0 0 .5-.5V8a.5.5 0 0 0-.5-.5H9v1z\"/> <path d=\"M12 3H4a4 4 0 0 0-4 4v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V7a4 4 0 0 0-4-4zM8 7a3.99 3.99 0 0 0-1.354-3H12a3 3 0 0 1 3 3v6H8V7zm-3.415.157C4.42 7.087 4.218 7 4 7c-.218 0-.42.086-.585.157C3.164 7.264 3 7.334 3 7a1 1 0 0 1 2 0c0 .334-.164.264-.415.157z\"/>",
+	"search": "<path d=\"M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z\"/>",
+	"linkedin": "<path d=\"M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854V1.146zm4.943 12.248V6.169H2.542v7.225h2.401zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248-.822 0-1.359.54-1.359 1.248 0 .694.521 1.248 1.327 1.248h.016zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016a5.54 5.54 0 0 1 .016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225h2.4z\"/>",
+	"feather": "<path d=\"M15.807.531c-.174-.177-.41-.289-.64-.363a3.8 3.8 0 0 0-.833-.15c-.62-.049-1.394 0-2.252.175C10.365.545 8.264 1.415 6.315 3.1S3.147 6.824 2.557 8.523c-.294.847-.44 1.634-.429 2.268.005.316.05.62.154.88q.025.061.056.122A68 68 0 0 0 .08 15.198a.53.53 0 0 0 .157.72.504.504 0 0 0 .705-.16 68 68 0 0 1 2.158-3.26c.285.141.616.195.958.182.513-.02 1.098-.188 1.723-.49 1.25-.605 2.744-1.787 4.303-3.642l1.518-1.55a.53.53 0 0 0 0-.739l-.729-.744 1.311.209a.5.5 0 0 0 .443-.15l.663-.684c.663-.68 1.292-1.325 1.763-1.892.314-.378.585-.752.754-1.107.163-.345.278-.773.112-1.188a.5.5 0 0 0-.112-.172M3.733 11.62C5.385 9.374 7.24 7.215 9.309 5.394l1.21 1.234-1.171 1.196-.027.03c-1.5 1.789-2.891 2.867-3.977 3.393-.544.263-.99.378-1.324.39a1.3 1.3 0 0 1-.287-.018Zm6.769-7.22c1.31-1.028 2.7-1.914 4.172-2.6a7 7 0 0 1-.4.523c-.442.533-1.028 1.134-1.681 1.804l-.51.524zm3.346-3.357C9.594 3.147 6.045 6.8 3.149 10.678c.007-.464.121-1.086.37-1.806.533-1.535 1.65-3.415 3.455-4.976 1.807-1.561 3.746-2.36 5.31-2.68a8 8 0 0 1 1.564-.173\"/>",
+	"graduation-cap": "<path d=\"M8.211 2.047a.5.5 0 0 0-.422 0l-7.5 3.5a.5.5 0 0 0 .025.917l7.5 3a.5.5 0 0 0 .372 0L14 7.14V13a1 1 0 0 0-1 1v2h3v-2a1 1 0 0 0-1-1V6.739l.686-.275a.5.5 0 0 0 .025-.917l-7.5-3.5ZM8 8.46 1.758 5.965 8 3.052l6.242 2.913L8 8.46Z\"/><path d=\"M4.176 9.032a.5.5 0 0 0-.656.327l-.5 1.7a.5.5 0 0 0 .294.605l4.5 1.8a.5.5 0 0 0 .372 0l4.5-1.8a.5.5 0 0 0 .294-.605l-.5-1.7a.5.5 0 0 0-.656-.327L8 10.466 4.176 9.032Zm-.068 1.873.22-.748 3.496 1.311a.5.5 0 0 0 .352 0l3.496-1.311.22.748L8 12.46l-3.892-1.556Z\"/>"
+};
+function LegacyIcon({ name, className = "", label }) {
+	return /* @__PURE__ */ jsx("svg", {
+		xmlns: "http://www.w3.org/2000/svg",
+		width: "16",
+		height: "16",
+		fill: "currentColor",
+		className: ("bi bi-" + name + " " + className).trim(),
+		viewBox: "0 0 16 16",
+		role: label ? "img" : void 0,
+		"aria-label": label,
+		"aria-hidden": label ? void 0 : true,
+		dangerouslySetInnerHTML: { __html: paths[name] }
+	});
+}
+//#endregion
+//#region app/data.ts
+var timeline = [
+	{
+		role: "Continuing Education",
+		organization: "King’s College London",
+		period: "June 2026 — present",
+		details: []
+	},
+	{
+		role: "Officer Candidate",
+		organization: "United States Navy",
+		period: "December 2025 — June 2026",
+		details: [
+			"Pressurized Operations and Collaboration",
+			"Operational, Informational Constraints / #FogOfWar",
+			"High-Friction Institutional Environment",
+			"Emergency Preparedness"
+		],
+		featured: true
+	},
+	{
+		role: "Substitute Teacher",
+		organization: "Madison Consolidated Schools",
+		period: "August 2025 — November 2025",
+		details: ["Instruction", "In-School Suspension Coordinator"]
+	},
+	{
+		role: "Student",
+		organization: "American Public University System",
+		period: "July 2025 — August 2025",
+		details: ["Readings in Military Philosophy"]
+	},
+	{
+		role: "Continuing Education",
+		organization: "iSchool, University of Wisconsin-Madison",
+		period: "June 2024 — present",
+		details: [
+			"Basics of Archives",
+			"Introduction to Digitization Projects",
+			"Supporting the Business Community at the Library",
+			"Digital Asset Management"
+		]
+	},
+	{
+		role: "Library Assistant Intern",
+		organization: "Germantown Public Library",
+		period: "March 2024 — September 2024",
+		details: [
+			"Process and Data Architecture",
+			"Technical Documentation",
+			"Business Documentation Qualitative Review",
+			"Library Operations Support"
+		]
+	},
+	{
+		role: "Substitute Teacher",
+		organization: "Dayton Area School Consortium",
+		period: "November 2023 — March 2025",
+		details: ["Instruction", "Exam Proctoring"]
+	},
+	{
+		role: "Student Researcher, Student",
+		organization: "University of Tartu",
+		period: "July 2022 — February 2025",
+		details: [
+			"Building Digital Governments",
+			"Diffusion and Impact of Internet Voting",
+			"Cybersecurity Governance in the Digital Age: Insights from Estonia and Beyond"
+		]
+	},
+	{
+		role: "OhioLINK Luminary",
+		organization: "OhioLINK",
+		period: "August 2021 — May 2023",
+		details: [
+			"Web development and digital-accessibility remediation",
+			"Productivity and contract analysis",
+			"Metadata, makerspace instruction, and course design",
+			"People’s Choice poster award for strategic project management at ALAO 2022"
+		],
+		featured: true
+	},
+	{
+		role: "Undergraduate Teaching Assistant",
+		organization: "Miami University College of Engineering and Computing",
+		period: "May 2022 — May 2023",
+		details: [
+			"Training and assessment",
+			"Coordination and mediation",
+			"Collection development"
+		]
+	},
+	{
+		role: "Volunteer",
+		organization: "Kettering Health Network",
+		period: "March 2019 — August 2019",
+		details: []
+	}
+];
+//#endregion
+//#region app/resume/ResumeExperience.tsx
+var modalContent = {
+	officer: {
+		title: "Officer Candidate",
+		subtitle: "#ForgedInIce",
+		period: "December 2025 – June 2026",
+		details: [
+			"Military Discipline, Professional Bearing, Basic Naval Indoctrination",
+			"Physical Readiness, Mental Resilience",
+			"Attention to Detail, Performance, Standards Compliance, Execution in High-Stress and Minimally-Informative Environments",
+			"Collaborative Cohesion",
+			"Close-Order Drill, Precision Formations",
+			"Water Survival, Swim Qualification",
+			"Shipboard Engineering Principles, Propulsion Systems",
+			"Naval Weapons Systems, Combat Systems Fundamentals",
+			"Marine Navigation, Seamanship, Shiphandling, Rules of the Road",
+			"Shipboard Damage Control, Firefighting Operations",
+			"Naval Network Infrastructure, Cyber Warfare Awareness"
+		]
+	},
+	ohiolink: {
+		title: "Luminary",
+		subtitle: "OhioLINK",
+		period: "August 2021 – May 2023",
+		details: [
+			"Web Development",
+			"Digital Accessibility Remediation",
+			"Productivity Analysis",
+			"Contract Analysis and CLM",
+			"Course Design, Mentorship",
+			"Metadata",
+			"Makerspace Instruction",
+			"Won Poster, People’s Choice for Strategic Project Management in the OhioLINK Luminaries Program at ALAO 2022 in Dublin, OH."
+		]
+	},
+	undergrad: {
+		title: "Miami University",
+		subtitle: "",
+		period: "August 2019 – May 2023",
+		details: []
+	},
+	teaching: {
+		title: "Teaching Assistant",
+		subtitle: "College of Engineering and Computing",
+		period: "May 2022 – May 2023",
+		details: [
+			"Training, Assessment",
+			"Coordination, Mediation",
+			"Collection Development"
+		]
+	}
+};
+var timelineIcons = {
+	"King’s College London": "floppy2",
+	"United States Navy": "arrows-move",
+	"Madison Consolidated Schools": "clipboard-check",
+	"American Public University System": "mortarboard",
+	"iSchool, University of Wisconsin-Madison": "floppy2",
+	"Germantown Public Library": "book-half",
+	"Dayton Area School Consortium": "clipboard-check",
+	"University of Tartu": "body-text"
+};
+function ResumeExperience() {
+	const [selected, setSelected] = useState(null);
+	const mainTimeline = useMemo(() => timeline.filter((entry) => ![
+		"OhioLINK Luminary",
+		"Undergraduate Teaching Assistant",
+		"Volunteer"
+	].includes(entry.role)), []);
+	const blurred = selected ? " resume-content-is-blurred" : "";
+	useEffect(() => {
+		document.body.classList.toggle("resume-modal-open", Boolean(selected));
+		if (!selected) return () => document.body.classList.remove("resume-modal-open");
+		const close = (event) => event.key === "Escape" && setSelected(null);
+		document.addEventListener("keydown", close);
+		return () => {
+			document.removeEventListener("keydown", close);
+			document.body.classList.remove("resume-modal-open");
+		};
+	}, [selected]);
+	return /* @__PURE__ */ jsxs(Fragment$1, { children: [
+		/* @__PURE__ */ jsxs("div", {
+			className: `container${blurred}`,
+			children: [/* @__PURE__ */ jsx("h2", {
+				className: "text-center",
+				style: { marginBottom: "-6vh" },
+				children: "Timeline"
+			}), /* @__PURE__ */ jsx("section", {
+				className: "design-section-container",
+				"aria-label": "Career timeline",
+				children: /* @__PURE__ */ jsx("div", {
+					className: "timeline",
+					children: mainTimeline.map((entry, index) => {
+						const className = `timeline-entry ${index % 2 ? "left" : "right"}`;
+						return entry.role === "Officer Candidate" ? /* @__PURE__ */ jsx("div", {
+							className: `${className} timeline-button`,
+							role: "button",
+							tabIndex: 0,
+							onClick: () => setSelected("officer"),
+							onKeyDown: (event) => {
+								if (event.key === "Enter" || event.key === " ") {
+									event.preventDefault();
+									setSelected("officer");
+								}
+							},
+							children: /* @__PURE__ */ jsx(TimelineEntry, {
+								entry,
+								icon: timelineIcons[entry.organization],
+								index
+							})
+						}, `${entry.period}-${entry.organization}`) : /* @__PURE__ */ jsx("article", {
+							className,
+							children: /* @__PURE__ */ jsx(TimelineEntry, {
+								entry,
+								icon: timelineIcons[entry.organization],
+								index
+							})
+						}, `${entry.period}-${entry.organization}`);
+					})
+				})
+			})]
+		}),
+		/* @__PURE__ */ jsxs("div", {
+			className: `container${blurred}`,
+			children: [
+				/* @__PURE__ */ jsxs("h2", {
+					className: "text-red text-center",
+					style: { marginTop: "-3vh" },
+					children: [
+						/* @__PURE__ */ jsx(LegacyIcon, { name: "graduation-cap" }),
+						" \xA0University\xA0 ",
+						/* @__PURE__ */ jsx(LegacyIcon, { name: "graduation-cap" })
+					]
+				}),
+				/* @__PURE__ */ jsx("p", {
+					className: "lead text-center",
+					style: { marginBottom: "9vh" },
+					children: "Graduated May 2023"
+				}),
+				/* @__PURE__ */ jsx(Progress, {
+					label: "Digital Humanities Forum Committee",
+					start: "August 2021",
+					width: "49%"
+				}),
+				/* @__PURE__ */ jsx(Progress, {
+					label: "Diversity, Equity, and Inclusion Committee",
+					start: "August 2022",
+					width: "22%"
+				}),
+				/* @__PURE__ */ jsx(Progress, {
+					label: "OhioLINK Luminary",
+					start: "August 2021",
+					width: "49%",
+					onClick: () => setSelected("ohiolink")
+				}),
+				/* @__PURE__ */ jsx(Progress, {
+					label: "B.A. Computer Science – Miami University",
+					start: "August 2019",
+					width: "100%",
+					gradient: true,
+					onClick: () => setSelected("undergrad")
+				}),
+				/* @__PURE__ */ jsx(Progress, {
+					label: "Teaching Assistant",
+					start: "May 2022",
+					width: "29%",
+					onClick: () => setSelected("teaching")
+				}),
+				/* @__PURE__ */ jsx(NoScriptUniversityDetails, {})
+			]
+		}),
+		/* @__PURE__ */ jsx("div", {
+			className: `container${blurred}`,
+			children: /* @__PURE__ */ jsx("section", {
+				className: "design-section-container",
+				"aria-label": "Earlier experience",
+				children: /* @__PURE__ */ jsx("div", {
+					className: "timeline",
+					children: /* @__PURE__ */ jsxs("article", {
+						className: "timeline-entry right",
+						children: [
+							/* @__PURE__ */ jsx("h3", { children: "Volunteer" }),
+							/* @__PURE__ */ jsxs("p", { children: [
+								"March 2019 – August 2019",
+								/* @__PURE__ */ jsx("br", {}),
+								"Kettering Health Network"
+							] }),
+							/* @__PURE__ */ jsx(LegacyIcon, {
+								name: "capsule",
+								className: "rotate-left timeline-icon"
+							})
+						]
+					})
+				})
+			})
+		}),
+		selected && /* @__PURE__ */ jsx("div", {
+			className: "modal resume-modal",
+			role: "presentation",
+			onPointerDown: () => setSelected(null),
+			children: /* @__PURE__ */ jsxs("div", {
+				className: "modal-content",
+				role: "dialog",
+				"aria-modal": "true",
+				"aria-labelledby": "resume-modal-title",
+				onPointerDown: (event) => event.stopPropagation(),
+				children: [
+					/* @__PURE__ */ jsx("h3", {
+						id: "resume-modal-title",
+						children: modalContent[selected].title
+					}),
+					modalContent[selected].subtitle && /* @__PURE__ */ jsx("p", {
+						className: "lead text-center",
+						children: modalContent[selected].subtitle
+					}),
+					/* @__PURE__ */ jsx("p", {
+						className: "small text-center",
+						children: modalContent[selected].period
+					}),
+					selected === "undergrad" ? /* @__PURE__ */ jsx(UndergraduateDetails, {}) : modalContent[selected].details.map((detail) => /* @__PURE__ */ jsx("p", { children: selected === "ohiolink" && detail.startsWith("Won Poster") ? /* @__PURE__ */ jsx("small", { children: detail }) : detail }, detail)),
+					selected === "teaching" && /* @__PURE__ */ jsx(CourseChart, {})
+				]
+			})
+		})
+	] });
+}
+function NoScriptUniversityDetails() {
+	return /* @__PURE__ */ jsx("noscript", { dangerouslySetInnerHTML: { __html: `<style>.progress-bar-fill:hover{cursor:auto}</style>
+    <div class="resume-noscript-degree">
+      <p class="text-center">Bachelor of <kbd>Arts</kbd></p>
+      <p class="text-center">Major in <kbd>Computer Science</kbd></p>
+      <p class="text-center">Minor in <kbd>Commerce</kbd></p>
+      <p class="text-center">Thematic Sequence of <kbd>LUX 3</kbd><br><small>*European Culture and Society</small></p>
+    </div>
+    <section class="design-section-container" aria-label="University experience details"><div class="timeline">
+      <article class="timeline-entry left"><h3>Luminary</h3><p>August 2021 – May 2023<br>OhioLINK</p>
+        <p><small>Web Development; Digital Accessibility Remediation; Metadata</small></p>
+        <p><small>Productivity Analysis; Contract Analysis and CLM</small></p>
+        <p><small>Course Design, Mentorship; Makerspace Instruction</small></p>
+        <p><small>Won Poster, People's Choice for Strategic Project Management in the OhioLINK Luminaries Program at ALAO 2022 in Dublin, OH.</small></p></article>
+      <article class="timeline-entry right"><h3>Undergraduate Teaching Assistant</h3><p>May 2022 – May 2023<br>Miami University College of Engineering and Computing</p>
+        <p><small>Training; Assessment</small></p><p><small>Coordination; Mediation</small></p><p><small>Collection Development</small></p></article>
+    </div></section>` } });
+}
+function UndergraduateDetails() {
+	return /* @__PURE__ */ jsxs(Fragment$1, { children: [
+		/* @__PURE__ */ jsxs("p", { children: ["Bachelor of ", /* @__PURE__ */ jsx("kbd", { children: "Arts" })] }),
+		/* @__PURE__ */ jsxs("p", { children: ["Major in ", /* @__PURE__ */ jsx("kbd", { children: "Computer Science" })] }),
+		/* @__PURE__ */ jsxs("p", { children: ["Minor in ", /* @__PURE__ */ jsx("kbd", { children: "Commerce" })] }),
+		/* @__PURE__ */ jsxs("p", { children: ["Thematic Sequence of ", /* @__PURE__ */ jsx("kbd", { children: "LUX 3" })] }),
+		/* @__PURE__ */ jsx("p", {
+			className: "small",
+			children: "*European Culture and Society"
+		})
+	] });
+}
+function TimelineEntry({ entry, icon, index }) {
+	return /* @__PURE__ */ jsxs(Fragment$1, { children: [
+		/* @__PURE__ */ jsx("h3", { children: entry.role }),
+		/* @__PURE__ */ jsxs("p", { children: [
+			entry.period,
+			/* @__PURE__ */ jsx("br", {}),
+			entry.organization
+		] }),
+		entry.details.length > 0 && /* @__PURE__ */ jsx("p", { children: /* @__PURE__ */ jsx("small", { children: entry.details.map((detail) => /* @__PURE__ */ jsxs("span", { children: [detail, /* @__PURE__ */ jsx("br", {})] }, detail)) }) }),
+		/* @__PURE__ */ jsx(LegacyIcon, {
+			name: icon,
+			className: `${index % 2 ? "rotate-right" : "rotate-left"} timeline-icon`
+		})
+	] });
+}
+function Progress({ label, start, width, gradient = false, onClick }) {
+	const className = `progress-bar-fill ml-auto ${gradient ? "background-gradient-green-blue" : ""}`;
+	return /* @__PURE__ */ jsxs("div", {
+		className: "progress-container",
+		children: [/* @__PURE__ */ jsx("div", {
+			className: "progress-bar-wrapper rounded-0",
+			children: onClick ? /* @__PURE__ */ jsx("button", {
+				className: `${className} button-reset`,
+				style: { width },
+				onClick,
+				type: "button",
+				children: /* @__PURE__ */ jsxs("span", {
+					className: "progress-value",
+					children: ["\xA0", start]
+				})
+			}) : /* @__PURE__ */ jsx("div", {
+				className,
+				style: {
+					width,
+					cursor: "auto"
+				},
+				children: /* @__PURE__ */ jsxs("span", {
+					className: "progress-value",
+					children: ["\xA0", start]
+				})
+			})
+		}), /* @__PURE__ */ jsx("label", { children: label })]
+	});
+}
+function CourseChart() {
+	return /* @__PURE__ */ jsxs("div", {
+		className: "progress-container",
+		children: [/* @__PURE__ */ jsxs("svg", {
+			viewBox: "0 0 36 36",
+			className: "circular-chart",
+			"aria-label": "Courses supported",
+			children: [
+				/* @__PURE__ */ jsx("circle", {
+					className: "circle-background",
+					cx: "18",
+					cy: "18",
+					r: "15.9155",
+					fill: "none",
+					stroke: "#efefef",
+					strokeWidth: "2"
+				}),
+				/* @__PURE__ */ jsx("circle", {
+					className: "circle-3",
+					cx: "18",
+					cy: "18",
+					r: "15.9155",
+					fill: "none",
+					stroke: "#950F22",
+					strokeWidth: "2",
+					strokeDasharray: "73, 27",
+					strokeDashoffset: "0"
+				}),
+				/* @__PURE__ */ jsx("circle", {
+					className: "circle-2",
+					cx: "18",
+					cy: "18",
+					r: "15.9155",
+					fill: "none",
+					stroke: "#077995",
+					strokeWidth: "2",
+					strokeDasharray: "17, 83",
+					strokeDashoffset: "17.5"
+				}),
+				/* @__PURE__ */ jsx("circle", {
+					className: "circle-1",
+					cx: "18",
+					cy: "18",
+					r: "15.9155",
+					fill: "none",
+					stroke: "#6c757d",
+					strokeWidth: "2",
+					strokeDasharray: "10, 90",
+					strokeDashoffset: "26.5"
+				})
+			]
+		}), /* @__PURE__ */ jsxs("div", {
+			className: "labelContainer small",
+			children: [
+				/* @__PURE__ */ jsx("span", {
+					className: "label text-blue",
+					children: "Technology, Ethics, and Global Society"
+				}),
+				/* @__PURE__ */ jsx("br", {}),
+				/* @__PURE__ */ jsx("span", {
+					className: "label text-red",
+					children: "Software Engineering for User Interface and User Experience Design"
+				}),
+				/* @__PURE__ */ jsx("br", {}),
+				/* @__PURE__ */ jsx("span", {
+					className: "label text-secondary",
+					children: "Introduction to Software Engineering"
+				})
+			]
+		})]
+	});
+}
+//#endregion
+export { ResumeExperience as default };
