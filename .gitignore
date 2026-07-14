@@ -1,7 +1,0 @@
-node_modules/
-dist/
-site/
-.vite/
-.wrangler/
-.DS_Store
-*.tsbuildinfo
