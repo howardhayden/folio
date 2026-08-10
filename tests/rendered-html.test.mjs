@@ -51,7 +51,7 @@ test("renders every primary route with its page heading", async () => {
 
 test("renders shelf records before client hydration", async () => {
   const { html } = await render("/shelf");
-  assert.equal((html.match(/<article class="card">/g) ?? []).length, 29);
+  assert.equal((html.match(/<article class="card">/g) ?? []).length, 30);
   assert.match(html, /Ethical Machines/i);
   assert.match(html, /20 Sep 2022/);
   assert.match(html, />1859</);

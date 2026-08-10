@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LegacyIcon, type LegacyIconName } from "../components/LegacyIcon";
 import { timeline } from "../data";
 
@@ -57,7 +57,7 @@ const modalContent = {
 const timelineIcons: Record<string, LegacyIconName> = {
   "King’s College London": "floppy2",
   "United States Navy": "arrows-move",
-  "Madison Correctional Facility": "clipboard-check",
+  "Madison Correctional Facility": "camera-video-off-fill",
   "Madison Consolidated Schools": "clipboard-check",
   "American Public University System": "mortarboard",
   "iSchool, University of Wisconsin-Madison": "floppy2",
@@ -68,17 +68,81 @@ const timelineIcons: Record<string, LegacyIconName> = {
 
 export default function ResumeExperience() {
   const [selected, setSelected] = useState<ModalId>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const mainTimeline = useMemo(() => timeline.filter((entry) => !["OhioLINK Luminary", "Undergraduate Teaching Assistant", "Volunteer"].includes(entry.role)), []);
   const blurred = selected ? " resume-content-is-blurred" : "";
+
+  const openModal = (modal: Exclude<ModalId, null>, trigger: HTMLElement) => {
+    returnFocusRef.current = trigger;
+    setSelected(modal);
+  };
+
+  const closeModal = () => setSelected(null);
 
   useEffect(() => {
     document.body.classList.toggle("resume-modal-open", Boolean(selected));
     if (!selected) return () => document.body.classList.remove("resume-modal-open");
-    const close = (event: KeyboardEvent) => event.key === "Escape" && setSelected(null);
-    document.addEventListener("keydown", close);
+
+    const dialog = dialogRef.current;
+    const focusableSelector = [
+      "a[href]",
+      "button:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "[tabindex]:not([tabindex='-1'])",
+      "[contenteditable='true']",
+    ].join(",");
+    const focusableElements = () => Array.from(dialog?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+      .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeModal();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialog) return;
+      const elements = focusableElements();
+
+      if (elements.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      const activeElement = document.activeElement;
+
+      if (event.shiftKey && (activeElement === first || !dialog.contains(activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (activeElement === last || !dialog.contains(activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      if (dialog && !dialog.contains(event.target as Node)) {
+        (focusableElements()[0] ?? dialog).focus();
+      }
+    };
+
+    dialog?.focus({ preventScroll: true });
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("focusin", handleFocusIn);
+
     return () => {
-      document.removeEventListener("keydown", close);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("focusin", handleFocusIn);
       document.body.classList.remove("resume-modal-open");
+      const returnFocus = returnFocusRef.current;
+      returnFocusRef.current = null;
+      if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
     };
   }, [selected]);
 
@@ -91,7 +155,7 @@ export default function ResumeExperience() {
             {mainTimeline.map((entry, index) => {
               const className = `timeline-entry ${index % 2 ? "left" : "right"}`;
               return entry.role === "Officer Candidate" ? (
-                <div className={`${className} timeline-button`} role="button" tabIndex={0} onClick={() => setSelected("officer")} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelected("officer"); } }} key={`${entry.period}-${entry.organization}`}>
+                <div className={`${className} timeline-button`} role="button" tabIndex={0} onClick={(event) => openModal("officer", event.currentTarget)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openModal("officer", event.currentTarget); } }} key={`${entry.period}-${entry.organization}`}>
                   <TimelineEntry entry={entry} icon={timelineIcons[entry.organization]} index={index} />
                 </div>
               ) : (
@@ -111,9 +175,9 @@ export default function ResumeExperience() {
         <p className="lead text-center" style={{ marginBottom: "9vh" }}>Graduated May 2023</p>
         <Progress label="Digital Humanities Forum Committee" start="August 2021" width="49%" />
         <Progress label="Diversity, Equity, and Inclusion Committee" start="August 2022" width="22%" />
-        <Progress label="OhioLINK Luminary" start="August 2021" width="49%" onClick={() => setSelected("ohiolink")} />
-        <Progress label="B.A. Computer Science – Miami University" start="August 2019" width="100%" gradient onClick={() => setSelected("undergrad")} />
-        <Progress label="Teaching Assistant" start="May 2022" width="29%" onClick={() => setSelected("teaching")} />
+        <Progress label="OhioLINK Luminary" start="August 2021" width="49%" onClick={(trigger) => openModal("ohiolink", trigger)} />
+        <Progress label="B.A. Computer Science – Miami University" start="August 2019" width="100%" gradient onClick={(trigger) => openModal("undergrad", trigger)} />
+        <Progress label="Teaching Assistant" start="May 2022" width="29%" onClick={(trigger) => openModal("teaching", trigger)} />
         <NoScriptUniversityDetails />
       </div>
 
@@ -130,8 +194,8 @@ export default function ResumeExperience() {
       </div>
 
       {selected && (
-        <div className="modal resume-modal" role="presentation" onPointerDown={() => setSelected(null)}>
-          <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="resume-modal-title" onPointerDown={(event) => event.stopPropagation()}>
+        <div className="modal resume-modal" role="presentation" onPointerDown={closeModal}>
+          <div ref={dialogRef} className="modal-content" role="dialog" aria-modal="true" aria-labelledby="resume-modal-title" aria-keyshortcuts="Escape" tabIndex={-1} onPointerDown={(event) => event.stopPropagation()}>
             <h3 id="resume-modal-title">{modalContent[selected].title}</h3>
             {modalContent[selected].subtitle && <p className="lead text-center">{modalContent[selected].subtitle}</p>}
             <p className="small text-center">{modalContent[selected].period}</p>
@@ -189,13 +253,13 @@ function TimelineEntry({ entry, icon, index }: { entry: (typeof timeline)[number
   );
 }
 
-function Progress({ label, start, width, gradient = false, onClick }: { label: string; start: string; width: string; gradient?: boolean; onClick?: () => void }) {
+function Progress({ label, start, width, gradient = false, onClick }: { label: string; start: string; width: string; gradient?: boolean; onClick?: (trigger: HTMLButtonElement) => void }) {
   const className = `progress-bar-fill ml-auto ${gradient ? "background-gradient-green-blue" : ""}`;
   return (
     <div className="progress-container">
       <div className="progress-bar-wrapper rounded-0">
         {onClick ? (
-          <button className={`${className} button-reset`} style={{ width }} onClick={onClick} type="button"><span className="progress-value">&nbsp;{start}</span></button>
+          <button className={`${className} button-reset`} style={{ width }} onClick={(event) => onClick(event.currentTarget)} type="button"><span className="progress-value">&nbsp;{start}</span></button>
         ) : (
           <div className={className} style={{ width, cursor: "auto" }}><span className="progress-value">&nbsp;{start}</span></div>
         )}

@@ -2,7 +2,7 @@ const projects = [
   {
     name: "Evenward.rest",
     url: "https://evenward.rest/",
-    summary: "Privacy-first, client-side web app for self-regulation.",
+    summary: "A privacy-first, client-side web app for self-regulation.",
     publication: "July 2026",
   },
 ];

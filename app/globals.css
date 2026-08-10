@@ -533,16 +533,25 @@ a:hover {
 /* ASCII Art */
 #ascii {
   display: grid;
-  grid-template-columns: minmax(min-content, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
   padding-right: 0;
 }
 
 #ascii pre {
   display: block;
-  white-space: pre-wrap;
-  word-wrap: break-word;
   justify-self: center;
+  max-width: none;
   transition: font-size 1s;
+  white-space: pre;
+  width: max-content;
+}
+
+@media (min-width: 768px) {
+  #ascii {
+    overflow: visible;
+  }
 }
 
 /* Pulse effect */

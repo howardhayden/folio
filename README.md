@@ -7,7 +7,7 @@ A small, multi-page portfolio for Hayden Howard, centered on systems, informatio
 - `/` — introduction, ASCII illustration, and Q&A
 - `/resume` — structured skill stacks, career timeline, and education
 - `/tools` — a considered productivity and technology stack
-- `/shelf` — a client-side, filterable catalogue of 29 works
+- `/shelf` — a client-side, filterable catalogue of 30 works
 
 ## Architecture
 
