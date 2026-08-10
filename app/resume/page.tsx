@@ -3,6 +3,7 @@ import { SiteHeader } from "../components/SiteChrome";
 import { LegacyIcon, type LegacyIconName } from "../components/LegacyIcon";
 import { skillStacks } from "../data";
 import ResumeExperience from "./ResumeExperience";
+import ResumeProjects from "./ResumeProjects";
 
 export const metadata: Metadata = {
   title: "Resume",
@@ -54,6 +55,7 @@ export default function ResumePage() {
             ))}
           </div>
         </div>
+        <ResumeProjects />
         <ResumeExperience />
       </main>
     </>

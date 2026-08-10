@@ -82,6 +82,12 @@ export const skillStacks = [
 
 export const timeline = [
   {
+    role: "Corrections Officer",
+    organization: "Madison Correctional Facility",
+    period: "August 2026 — present",
+    details: [],
+  },
+  {
     role: "Continuing Education",
     organization: "King’s College London",
     period: "June 2026 — present",
@@ -248,6 +254,7 @@ export const papers: Paper[] = [
   { title: "Becoming Bulletproof: Protect Yourself, Read People, Influence Situations, and Live Fearlessly", languages: ["English"], publishers: ["Atria Books"], date: "2020-04-21", authors: ["Evy Poumpouras"], collections: ["Lifestyle", "Personal Resilience"] },
   { title: "Frostpunk 2", languages: ["English", "French", "Italian", "German", "Spanish — Spain", "Japanese", "Korean", "Polish", "Portuguese — Brazil", "Russian", "Simplified Chinese", "Turkish", "Traditional Chinese", "Ukrainian"], publishers: ["11 bit studios"], date: "2024-09-20", authors: ["Alexandre Boiret", "Jakub Dzierżykraj-Stokalski", "Łukasz Juszczyk"], collections: ["Entertainment", "Civil", "Societal Resilience"] },
   { title: "The Apothecary Diaries", languages: ["Japanese", "English", "Spanish — Latin America", "French", "German", "Italian", "Portuguese — Brazil", "Arabic", "Hindi", "Indonesian", "Malay", "Thai", "Vietnamese"], publishers: ["Toho Animation Studio", "OLM", "Crunchyroll"], date: "2023-10-21", authors: ["Natsu Hyūga", "Touko Shino", "Norihiro Naganuma"], collections: ["Entertainment", "Civil", "Personal Resilience"] },
+  { title: "A Witch's Life in Mongol", languages: ["Japanese", "English"], publishers: ["Akita Shoten", "Yen Press"], date: "2021-09-25", authors: ["Tomato Soup"], collections: ["Civil", "Personal Resilience", "Societal Resilience", "Entertainment"] },
   { title: "Night in the Woods", languages: ["English", "French", "German", "Spanish — Spain", "Italian", "Portuguese — Brazil", "Russian", "Japanese", "Simplified Chinese"], publishers: ["Infinite Fall", "Finji"], date: "2017-02-21", authors: ["Scott Benson", "Bethany Hockenberry", "Alec Holowka"], collections: ["Entertainment", "Civil", "Personal Resilience", "Societal Resilience"] },
   { title: "Ascendance of a Bookworm", languages: ["Japanese", "English", "Spanish — Latin America", "French", "German", "Italian", "Portuguese — Brazil", "Russian", "Arabic"], publishers: ["Ajia-do Animation Works", "Crunchyroll"], date: "2019-10-03", authors: ["Miya Kazuki", "You Shiina", "Mitsuru Hongo"], collections: ["Entertainment", "Technology", "Business", "Personal Resilience", "Societal Resilience"] },
 ];
