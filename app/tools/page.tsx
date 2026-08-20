@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SiteHeader } from "../components/SiteChrome";
+import { BranchLead, BranchReturn, SiteHeader } from "../components/SiteChrome";
 import { LegacyIcon, type LegacyIconName } from "../components/LegacyIcon";
 import { tools } from "../data";
 
@@ -20,9 +20,15 @@ export default function ToolsPage() {
 
   return (
     <>
-      <SiteHeader />
-      <main>
-        <div className="container"><h1 className="text-center tools-title">Tools</h1></div>
+      <SiteHeader current="tools" />
+      <main className="site-main site-branch site-branch--tools" id="main-content" tabIndex={-1}>
+        <div className="container">
+          <BranchLead
+            current="tools"
+            title="Tools"
+            description="A considered productivity and technology stack used by Hayden Howard."
+          />
+        </div>
         <section className="container" aria-labelledby="productivity-title">
           <h2 className="lead text-center tools-subtitle" id="productivity-title">General Productivity Stack</h2>
           <div className="card-columns" id="papershelf">
@@ -49,6 +55,7 @@ export default function ToolsPage() {
             </div>
           </div>
         </section>
+        <div className="container"><BranchReturn current="tools" /></div>
       </main>
     </>
   );

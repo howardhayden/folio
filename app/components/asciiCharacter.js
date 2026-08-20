@@ -2,7 +2,7 @@ export const ASCII_COLUMNS = 70;
 export const ASCII_ROWS = 34;
 
 export const ASCII_CHARACTER_DESCRIPTION =
-  "A person sitting beneath a tree writes on a tablet and occasionally notices and swats toward a moving mouse pointer.";
+  "A person sitting beneath a tree writes on a tablet, turns toward a moving mouse pointer, and occasionally raises a bent arm overhead to swat while keeping a pen in hand.";
 
 export const asciiPortrait = String.raw`MMMMMMMMMMMMMMMMMMMKl'.;:'...         .....';oxkkkkOKXNNNNNWWMMNkol:''
 MMMMMMMMMMMMMMMMMMW0c. ...            ..,;:oO0Oxdllldk0KKXNNNWWNKOkxdo
@@ -73,114 +73,308 @@ export const ASCII_POSES = Object.freeze({
     Object.freeze({ row: 30, column: 36, text: ",;;,,'.." }),
   ]),
   "notice-left": Object.freeze([
-    Object.freeze({ row: 26, column: 33, text: ";:cc:;;o" }),
-    Object.freeze({ row: 27, column: 33, text: ";,'<,::l" }),
-    Object.freeze({ row: 28, column: 38, text: ";,,:lxl." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:cc:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lxKWXl." }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,:lxl." }),
   ]),
   "notice-right": Object.freeze([
-    Object.freeze({ row: 26, column: 33, text: ";:cc:;;o" }),
-    Object.freeze({ row: 27, column: 33, text: ";,'>,::l" }),
-    Object.freeze({ row: 28, column: 38, text: ";,,:lxl." }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:cc:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lxKWXl." }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,,:lxl." }),
+  ]),
+  "notice-upper-left": Object.freeze([
+    Object.freeze({ row: 24, column: 38, text: "\\MMNKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:^c:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lxKWXl." }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,:lxl." }),
+  ]),
+  "notice-upper-right": Object.freeze([
+    Object.freeze({ row: 24, column: 38, text: "MM/NKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:^c:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lxKWXl." }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,,:lxl." }),
   ]),
   "right-windup": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'>,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 38, text: ";,,<lxl.  _" }),
-    Object.freeze({ row: 29, column: 38, text: "'..',,.__/ " }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:cc:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lxK//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,,//OOO" }),
+    Object.freeze({ row: 21, column: 48, text: "(@)=====>" }),
+    Object.freeze({ row: 22, column: 49, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 50, text: "OOO\\" }),
+    Object.freeze({ row: 24, column: 50, text: "(OOO)" }),
+    Object.freeze({ row: 25, column: 48, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 45, text: "//OOO" }),
   ]),
   "right-extend": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'>,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 38, text: ";,,:lxl.      /" }),
-    Object.freeze({ row: 29, column: 38, text: "'..',,.__/----o" }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:cc:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,//OOO" }),
+    Object.freeze({ row: 19, column: 48, text: "(@)=====>" }),
+    Object.freeze({ row: 20, column: 49, text: "OOO\\" }),
+    Object.freeze({ row: 21, column: 50, text: "OOO\\" }),
+    Object.freeze({ row: 22, column: 51, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 51, text: "(OOO)" }),
+    Object.freeze({ row: 24, column: 49, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 47, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 44, text: "//OOO" }),
   ]),
   "right-contact": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'>,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 38, text: ";,,:lxl.   __/-----O" }),
-    Object.freeze({ row: 29, column: 38, text: "'..',,.__/" }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:cc:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,//OOO" }),
+    Object.freeze({ row: 18, column: 48, text: "(@)=====>" }),
+    Object.freeze({ row: 19, column: 49, text: "OOO\\" }),
+    Object.freeze({ row: 20, column: 50, text: "OOO\\" }),
+    Object.freeze({ row: 21, column: 51, text: "OOO\\" }),
+    Object.freeze({ row: 22, column: 52, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 51, text: "(OOO)" }),
+    Object.freeze({ row: 24, column: 49, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 47, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 44, text: "//OOO" }),
   ]),
   "right-recoil": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'>,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 38, text: ";,,:lxl.  __/" }),
-    Object.freeze({ row: 29, column: 38, text: "'...',,." }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:cc:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lxK//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,,//OOO" }),
+    Object.freeze({ row: 21, column: 47, text: "(@)=====>" }),
+    Object.freeze({ row: 22, column: 48, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 50, text: "OOO\\" }),
+    Object.freeze({ row: 24, column: 50, text: "(OOO)" }),
+    Object.freeze({ row: 25, column: 48, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 45, text: "//OOO" }),
   ]),
   "upper-right-windup": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'>,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 38, text: ";,,<lxl. _/" }),
-    Object.freeze({ row: 29, column: 38, text: "'..',,." }),
+    Object.freeze({ row: 24, column: 38, text: "MM/NKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:^c:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lxK//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,,//OOO" }),
+    Object.freeze({ row: 20, column: 48, text: "(@)=====>" }),
+    Object.freeze({ row: 21, column: 49, text: "OOO\\" }),
+    Object.freeze({ row: 22, column: 50, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 51, text: "(OOO)" }),
+    Object.freeze({ row: 24, column: 49, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 47, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 44, text: "//OOO" }),
   ]),
   "upper-right-extend": Object.freeze([
-    Object.freeze({ row: 25, column: 46, text: ":      o" }),
-    Object.freeze({ row: 26, column: 46, text: ":     /" }),
-    Object.freeze({ row: 27, column: 46, text: ".    /" }),
-    Object.freeze({ row: 28, column: 45, text: ".  _/" }),
-    Object.freeze({ row: 29, column: 38, text: "'..',,./" }),
+    Object.freeze({ row: 24, column: 38, text: "MM/NKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:^c:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,//OOO" }),
+    Object.freeze({ row: 17, column: 48, text: "(@)=====>" }),
+    Object.freeze({ row: 18, column: 49, text: "OOO\\" }),
+    Object.freeze({ row: 19, column: 50, text: "OOO\\" }),
+    Object.freeze({ row: 20, column: 51, text: "OOO\\" }),
+    Object.freeze({ row: 21, column: 51, text: "(OOO)" }),
+    Object.freeze({ row: 22, column: 50, text: "//OOO" }),
+    Object.freeze({ row: 23, column: 48, text: "//OOO" }),
+    Object.freeze({ row: 24, column: 46, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 44, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 43, text: "//OOO" }),
   ]),
   "upper-right-contact": Object.freeze([
-    Object.freeze({ row: 24, column: 47, text: "      O" }),
-    Object.freeze({ row: 25, column: 46, text: ":    _/" }),
-    Object.freeze({ row: 26, column: 46, text: ":   /" }),
-    Object.freeze({ row: 27, column: 46, text: ".  /" }),
-    Object.freeze({ row: 28, column: 45, text: "._/" }),
+    Object.freeze({ row: 24, column: 38, text: "MM/NKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:^c:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,//OOO" }),
+    Object.freeze({ row: 16, column: 48, text: "(@)=====>" }),
+    Object.freeze({ row: 17, column: 49, text: "OOO\\" }),
+    Object.freeze({ row: 18, column: 50, text: "OOO\\" }),
+    Object.freeze({ row: 19, column: 51, text: "OOO\\" }),
+    Object.freeze({ row: 20, column: 52, text: "OOO\\" }),
+    Object.freeze({ row: 21, column: 52, text: "OOO\\" }),
+    Object.freeze({ row: 22, column: 51, text: "(OOO)" }),
+    Object.freeze({ row: 23, column: 49, text: "//OOO" }),
+    Object.freeze({ row: 24, column: 47, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 45, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 43, text: "//OOO" }),
   ]),
   "upper-right-recoil": Object.freeze([
-    Object.freeze({ row: 26, column: 46, text: ":   o" }),
-    Object.freeze({ row: 27, column: 46, text: ".  /" }),
-    Object.freeze({ row: 28, column: 45, text: "._/" }),
-    Object.freeze({ row: 29, column: 38, text: "'...',,." }),
+    Object.freeze({ row: 24, column: 38, text: "MM/NKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:^c:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lxK//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,,//OOO" }),
+    Object.freeze({ row: 20, column: 48, text: "(@)=====>" }),
+    Object.freeze({ row: 21, column: 49, text: "OOO\\" }),
+    Object.freeze({ row: 22, column: 50, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 51, text: "(OOO)" }),
+    Object.freeze({ row: 24, column: 49, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 47, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 44, text: "//OOO" }),
   ]),
   "left-windup": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'<,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 35, text: "lc:;,,lxl._" }),
-    Object.freeze({ row: 29, column: 32, text: "dxkOxc'..\\,,." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:cc:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lxK//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,://OOO" }),
+    Object.freeze({ row: 21, column: 39, text: "(@)=====>" }),
+    Object.freeze({ row: 22, column: 41, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 43, text: "OOO\\" }),
+    Object.freeze({ row: 24, column: 44, text: "(OOO)" }),
+    Object.freeze({ row: 25, column: 44, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 42, text: "//OOO" }),
   ]),
   "left-extend": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'<,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 20, text: ".;o<----------\\;,,,:lxl." }),
-    Object.freeze({ row: 29, column: 32, text: "dxkOxc'...',,." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:cc:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,:/OOO" }),
+    Object.freeze({ row: 19, column: 35, text: "(@)=====>" }),
+    Object.freeze({ row: 20, column: 38, text: "OOO\\" }),
+    Object.freeze({ row: 21, column: 40, text: "OOO\\" }),
+    Object.freeze({ row: 22, column: 42, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 44, text: "(OOO)" }),
+    Object.freeze({ row: 24, column: 44, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 43, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 42, text: "//OOO" }),
   ]),
   "left-contact": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'<,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 17, text: "O<-------------\\;,,,:lxl." }),
-    Object.freeze({ row: 29, column: 32, text: "dxkOxc'...',,." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:cc:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,:/OOO" }),
+    Object.freeze({ row: 18, column: 32, text: "(@)=====>" }),
+    Object.freeze({ row: 19, column: 35, text: "OOO\\" }),
+    Object.freeze({ row: 20, column: 37, text: "OOO\\" }),
+    Object.freeze({ row: 21, column: 39, text: "OOO\\" }),
+    Object.freeze({ row: 22, column: 42, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 44, text: "(OOO)" }),
+    Object.freeze({ row: 24, column: 44, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 43, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 42, text: "//OOO" }),
   ]),
   "left-recoil": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'<,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 24, text: ":;o<----\\c:;,,:lxl." }),
-    Object.freeze({ row: 29, column: 32, text: "dxkOxc'...',,." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:cc:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lxK//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,://OOO" }),
+    Object.freeze({ row: 21, column: 39, text: "(@)=====>" }),
+    Object.freeze({ row: 22, column: 41, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 43, text: "OOO\\" }),
+    Object.freeze({ row: 24, column: 44, text: "(OOO)" }),
+    Object.freeze({ row: 25, column: 44, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 42, text: "//OOO" }),
   ]),
   "upper-left-windup": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'<,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 35, text: "lc:;,<lxl.\\" }),
-    Object.freeze({ row: 29, column: 32, text: "dxkOxc'...',,." }),
+    Object.freeze({ row: 24, column: 38, text: "\\MMNKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:^c:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lxK//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,://OOO" }),
+    Object.freeze({ row: 20, column: 38, text: "(@)=====>" }),
+    Object.freeze({ row: 21, column: 40, text: "OOO\\" }),
+    Object.freeze({ row: 22, column: 42, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 44, text: "(OOO)" }),
+    Object.freeze({ row: 24, column: 44, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 43, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 42, text: "//OOO" }),
   ]),
   "upper-left-extend": Object.freeze([
-    Object.freeze({ row: 24, column: 24, text: "o\\MMMMMMWWW" }),
-    Object.freeze({ row: 25, column: 28, text: "\\MMMMWNXX" }),
-    Object.freeze({ row: 26, column: 32, text: "\\;:cc:;;o" }),
-    Object.freeze({ row: 27, column: 36, text: "\\,::lxKW" }),
-    Object.freeze({ row: 28, column: 40, text: "\\:lxl." }),
+    Object.freeze({ row: 24, column: 38, text: "\\MMNKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:^c:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,:/OOO" }),
+    Object.freeze({ row: 17, column: 34, text: "(@)=====>" }),
+    Object.freeze({ row: 18, column: 37, text: "OOO\\" }),
+    Object.freeze({ row: 19, column: 39, text: "OOO\\" }),
+    Object.freeze({ row: 20, column: 41, text: "OOO\\" }),
+    Object.freeze({ row: 21, column: 42, text: "OOO\\" }),
+    Object.freeze({ row: 22, column: 44, text: "(OOO)" }),
+    Object.freeze({ row: 23, column: 44, text: "//OOO" }),
+    Object.freeze({ row: 24, column: 43, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 42, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 42, text: "//OOO" }),
   ]),
   "upper-left-contact": Object.freeze([
-    Object.freeze({ row: 23, column: 20, text: "O\\0OkxdxOK" }),
-    Object.freeze({ row: 24, column: 24, text: " \\MMMMMMWWW" }),
-    Object.freeze({ row: 25, column: 28, text: " \\MMWNXX" }),
-    Object.freeze({ row: 26, column: 32, text: " \\:cc:;;" }),
-    Object.freeze({ row: 27, column: 36, text: " \\,::lx" }),
+    Object.freeze({ row: 24, column: 38, text: "\\MMNKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:^c:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,:/OOO" }),
+    Object.freeze({ row: 16, column: 31, text: "(@)=====>" }),
+    Object.freeze({ row: 17, column: 34, text: "OOO\\" }),
+    Object.freeze({ row: 18, column: 36, text: "OOO\\" }),
+    Object.freeze({ row: 19, column: 38, text: "OOO\\" }),
+    Object.freeze({ row: 20, column: 40, text: "OOO\\" }),
+    Object.freeze({ row: 21, column: 42, text: "OOO\\" }),
+    Object.freeze({ row: 22, column: 44, text: "(OOO)" }),
+    Object.freeze({ row: 23, column: 44, text: "//OOO" }),
+    Object.freeze({ row: 24, column: 43, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 42, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 42, text: "//OOO" }),
   ]),
   "upper-left-recoil": Object.freeze([
-    Object.freeze({ row: 25, column: 28, text: "o\\MMWNXX" }),
-    Object.freeze({ row: 26, column: 32, text: " \\:cc:;;" }),
-    Object.freeze({ row: 27, column: 36, text: " \\,::lx" }),
-    Object.freeze({ row: 28, column: 40, text: " \\lxl." }),
+    Object.freeze({ row: 24, column: 38, text: "\\MMNKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:^c:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lxK//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,://OOO" }),
+    Object.freeze({ row: 20, column: 38, text: "(@)=====>" }),
+    Object.freeze({ row: 21, column: 40, text: "OOO\\" }),
+    Object.freeze({ row: 22, column: 42, text: "OOO\\" }),
+    Object.freeze({ row: 23, column: 44, text: "(OOO)" }),
+    Object.freeze({ row: 24, column: 44, text: "//OOO" }),
+    Object.freeze({ row: 25, column: 43, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 42, text: "//OOO" }),
   ]),
   "recover-left": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'<,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 38, text: ";,,:lxl._" }),
-    Object.freeze({ row: 29, column: 38, text: "'...',,." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:cc:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,:/OOO" }),
+    Object.freeze({ row: 22, column: 39, text: "(@)=====>" }),
+    Object.freeze({ row: 23, column: 42, text: "OOO\\" }),
+    Object.freeze({ row: 24, column: 44, text: "(OOO)" }),
+    Object.freeze({ row: 25, column: 43, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 42, text: "//OOO" }),
   ]),
   "recover-right": Object.freeze([
-    Object.freeze({ row: 27, column: 33, text: ";,'>,::lxKWXl." }),
-    Object.freeze({ row: 28, column: 38, text: ";,,:lxl._" }),
-    Object.freeze({ row: 29, column: 38, text: "'...',,." }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:cc:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,//OOO" }),
+    Object.freeze({ row: 22, column: 48, text: "(@)=====>" }),
+    Object.freeze({ row: 23, column: 49, text: "OOO\\" }),
+    Object.freeze({ row: 24, column: 49, text: "(OOO)" }),
+    Object.freeze({ row: 25, column: 47, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 44, text: "//OOO" }),
+  ]),
+  "recover-upper-left": Object.freeze([
+    Object.freeze({ row: 24, column: 38, text: "\\MMNKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "N\\N0xxkXNo." }),
+    Object.freeze({ row: 26, column: 30, text: "W0/;:^c:;;oKWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Oo/;,'<,::lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc\\;,,:/OOO" }),
+    Object.freeze({ row: 22, column: 39, text: "(@)=====>" }),
+    Object.freeze({ row: 23, column: 42, text: "OOO\\" }),
+    Object.freeze({ row: 24, column: 44, text: "(OOO)" }),
+    Object.freeze({ row: 25, column: 43, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 42, text: "//OOO" }),
+  ]),
+  "recover-upper-right": Object.freeze([
+    Object.freeze({ row: 24, column: 38, text: "MM/NKXNd." }),
+    Object.freeze({ row: 25, column: 34, text: "NWN0xxkXNo./" }),
+    Object.freeze({ row: 26, column: 30, text: "W0l;:^c:;;\\KWMMK:" }),
+    Object.freeze({ row: 27, column: 30, text: "Ooc;,'>,:/lx//OOO" }),
+    Object.freeze({ row: 28, column: 30, text: ";:ddolc/:;,//OOO" }),
+    Object.freeze({ row: 22, column: 48, text: "(@)=====>" }),
+    Object.freeze({ row: 23, column: 49, text: "OOO\\" }),
+    Object.freeze({ row: 24, column: 49, text: "(OOO)" }),
+    Object.freeze({ row: 25, column: 47, text: "//OOO" }),
+    Object.freeze({ row: 26, column: 44, text: "//OOO" }),
   ]),
 });
 
@@ -200,37 +394,45 @@ export const ASCII_SEQUENCES = Object.freeze({
   notice: Object.freeze({
     left: Object.freeze([
       Object.freeze({ pose: "write-pause", durationMs: 90 }),
-      Object.freeze({ pose: "notice-left", durationMs: 230 }),
+      Object.freeze({ pose: "notice-left", durationMs: 280 }),
     ]),
     right: Object.freeze([
       Object.freeze({ pose: "write-pause", durationMs: 90 }),
-      Object.freeze({ pose: "notice-right", durationMs: 230 }),
+      Object.freeze({ pose: "notice-right", durationMs: 280 }),
+    ]),
+    "upper-left": Object.freeze([
+      Object.freeze({ pose: "write-pause", durationMs: 90 }),
+      Object.freeze({ pose: "notice-upper-left", durationMs: 280 }),
+    ]),
+    "upper-right": Object.freeze([
+      Object.freeze({ pose: "write-pause", durationMs: 90 }),
+      Object.freeze({ pose: "notice-upper-right", durationMs: 280 }),
     ]),
   }),
   swat: Object.freeze({
     left: Object.freeze([
-      Object.freeze({ pose: "left-windup", durationMs: 95 }),
-      Object.freeze({ pose: "left-extend", durationMs: 105 }),
-      Object.freeze({ pose: "left-contact", durationMs: 115 }),
-      Object.freeze({ pose: "left-recoil", durationMs: 145 }),
+      Object.freeze({ pose: "left-windup", durationMs: 135 }),
+      Object.freeze({ pose: "left-extend", durationMs: 150 }),
+      Object.freeze({ pose: "left-contact", durationMs: 190 }),
+      Object.freeze({ pose: "left-recoil", durationMs: 175 }),
     ]),
     right: Object.freeze([
-      Object.freeze({ pose: "right-windup", durationMs: 95 }),
-      Object.freeze({ pose: "right-extend", durationMs: 105 }),
-      Object.freeze({ pose: "right-contact", durationMs: 115 }),
-      Object.freeze({ pose: "right-recoil", durationMs: 145 }),
+      Object.freeze({ pose: "right-windup", durationMs: 135 }),
+      Object.freeze({ pose: "right-extend", durationMs: 150 }),
+      Object.freeze({ pose: "right-contact", durationMs: 190 }),
+      Object.freeze({ pose: "right-recoil", durationMs: 175 }),
     ]),
     "upper-left": Object.freeze([
-      Object.freeze({ pose: "upper-left-windup", durationMs: 95 }),
-      Object.freeze({ pose: "upper-left-extend", durationMs: 105 }),
-      Object.freeze({ pose: "upper-left-contact", durationMs: 115 }),
-      Object.freeze({ pose: "upper-left-recoil", durationMs: 145 }),
+      Object.freeze({ pose: "upper-left-windup", durationMs: 135 }),
+      Object.freeze({ pose: "upper-left-extend", durationMs: 150 }),
+      Object.freeze({ pose: "upper-left-contact", durationMs: 190 }),
+      Object.freeze({ pose: "upper-left-recoil", durationMs: 175 }),
     ]),
     "upper-right": Object.freeze([
-      Object.freeze({ pose: "upper-right-windup", durationMs: 95 }),
-      Object.freeze({ pose: "upper-right-extend", durationMs: 105 }),
-      Object.freeze({ pose: "upper-right-contact", durationMs: 115 }),
-      Object.freeze({ pose: "upper-right-recoil", durationMs: 145 }),
+      Object.freeze({ pose: "upper-right-windup", durationMs: 135 }),
+      Object.freeze({ pose: "upper-right-extend", durationMs: 150 }),
+      Object.freeze({ pose: "upper-right-contact", durationMs: 190 }),
+      Object.freeze({ pose: "upper-right-recoil", durationMs: 175 }),
     ]),
   }),
   recover: Object.freeze({
@@ -242,10 +444,60 @@ export const ASCII_SEQUENCES = Object.freeze({
       Object.freeze({ pose: "recover-right", durationMs: 170 }),
       Object.freeze({ pose: "write-pause", durationMs: 220 }),
     ]),
+    "upper-left": Object.freeze([
+      Object.freeze({ pose: "recover-upper-left", durationMs: 170 }),
+      Object.freeze({ pose: "write-pause", durationMs: 220 }),
+    ]),
+    "upper-right": Object.freeze([
+      Object.freeze({ pose: "recover-upper-right", durationMs: 170 }),
+      Object.freeze({ pose: "write-pause", durationMs: 220 }),
+    ]),
   }),
 });
 
-export const ASCII_SHOULDER = Object.freeze({ row: 28, column: 41 });
+export const ASCII_SHOULDER = Object.freeze({ row: 28, column: 42 });
+export const ASCII_GAZE_ANCHOR = Object.freeze({ row: 26, column: 39 });
+
+/**
+ * Authored landmarks keep the gesture reviewable as anatomy rather than as an
+ * arbitrary line aimed at the pointer. The hand is above the head, the elbow
+ * is displaced far enough to create a real bend, and the pen continues behind
+ * the grip toward the portrait's back-right.
+ */
+export const ASCII_ANATOMY = Object.freeze({
+  head: Object.freeze({ top: 24, right: 48, bottom: 28, left: 30 }),
+  shoulder: ASCII_SHOULDER,
+  contact: Object.freeze({
+    left: Object.freeze({
+      pose: "left-contact",
+      hand: Object.freeze({ row: 18, column: 33 }),
+      elbow: Object.freeze({ row: 23, column: 46 }),
+      penTip: Object.freeze({ row: 18, column: 40 }),
+      gazePose: "notice-left",
+    }),
+    right: Object.freeze({
+      pose: "right-contact",
+      hand: Object.freeze({ row: 18, column: 49 }),
+      elbow: Object.freeze({ row: 23, column: 53 }),
+      penTip: Object.freeze({ row: 18, column: 56 }),
+      gazePose: "notice-right",
+    }),
+    "upper-left": Object.freeze({
+      pose: "upper-left-contact",
+      hand: Object.freeze({ row: 16, column: 32 }),
+      elbow: Object.freeze({ row: 22, column: 46 }),
+      penTip: Object.freeze({ row: 16, column: 39 }),
+      gazePose: "notice-upper-left",
+    }),
+    "upper-right": Object.freeze({
+      pose: "upper-right-contact",
+      hand: Object.freeze({ row: 16, column: 49 }),
+      elbow: Object.freeze({ row: 22, column: 53 }),
+      penTip: Object.freeze({ row: 16, column: 56 }),
+      gazePose: "notice-upper-right",
+    }),
+  }),
+});
 
 export const ASCII_REGIONS = Object.freeze({
   tablet: Object.freeze({ top: 28, right: 46, bottom: 32, left: 29 }),
@@ -427,8 +679,8 @@ export function classifyAsciiPoint(lines, row, column) {
  * @returns {SwatDirection}
  */
 export function directionForAsciiPoint(row, column) {
-  const side = column < ASCII_SHOULDER.column ? "left" : "right";
-  const isUpper = row <= ASCII_SHOULDER.row - 2;
+  const side = column < ASCII_GAZE_ANCHOR.column ? "left" : "right";
+  const isUpper = row <= ASCII_GAZE_ANCHOR.row - 2;
   return isUpper ? `upper-${side}` : side;
 }
 
@@ -495,6 +747,146 @@ export function validateAsciiCharacterDefinition(art = asciiPortrait) {
     validateSequence(sequence, `recover.${side}`);
   }
 
+  const directions = ["left", "right", "upper-left", "upper-right"];
+  for (const sequenceName of ["notice", "swat", "recover"]) {
+    const authoredDirections = Object.keys(ASCII_SEQUENCES[sequenceName]).sort();
+    if (authoredDirections.join("|") !== [...directions].sort().join("|")) {
+      throw new Error(
+        `ASCII ${sequenceName} must author all four pointer directions.`,
+      );
+    }
+  }
+
+  const articulatedPoses = new Set([
+    ...Object.values(ASCII_SEQUENCES.swat).flatMap((sequence) =>
+      sequence.map(({ pose }) => pose),
+    ),
+    ...Object.values(ASCII_SEQUENCES.recover).flatMap((sequence) =>
+      sequence
+        .map(({ pose }) => pose)
+        .filter((pose) => pose.startsWith("recover-")),
+    ),
+  ]);
+
+  for (const poseName of articulatedPoses) {
+    const patches = ASCII_POSES[poseName];
+    const frame = applyAsciiPose(art, poseName);
+    const frameLines = frame.split("\n");
+    const handPatch = patches.find(
+      ({ text }) => text.includes("@") && text.includes(">"),
+    );
+    const elbowPatch = patches.find(({ text }) => text.includes("(OOO)"));
+
+    if (!handPatch || !elbowPatch || handPatch.row >= ASCII_ANATOMY.head.top) {
+      throw new Error(`ASCII pose ${poseName} must keep its hand above the head.`);
+    }
+
+    const handColumn = handPatch.column + handPatch.text.indexOf("@");
+    const elbowColumn =
+      elbowPatch.column + elbowPatch.text.indexOf("OOO") + 1;
+    const armSegments = patches
+      .filter(({ text }) => text.includes("OOO"))
+      .map(({ row, column, text }) => ({
+        row,
+        column: column + text.indexOf("OOO") + 1,
+      }))
+      .sort((a, b) => a.row - b.row);
+    const armRows = new Set(armSegments.map(({ row }) => row));
+
+    for (let row = handPatch.row + 1; row <= ASCII_ANATOMY.shoulder.row; row += 1) {
+      if (!armRows.has(row)) {
+        throw new Error(`ASCII pose ${poseName} disconnects the arm at row ${row}.`);
+      }
+    }
+
+    for (let index = 1; index < armSegments.length; index += 1) {
+      const previous = armSegments[index - 1];
+      const current = armSegments[index];
+      if (
+        current.row - previous.row > 1 ||
+        Math.abs(current.column - previous.column) > 5
+      ) {
+        throw new Error(`ASCII pose ${poseName} breaks the arm's lateral path.`);
+      }
+    }
+
+    const firstArmSegment = armSegments[0];
+    const lastArmSegment = armSegments[armSegments.length - 1];
+    const rowAspect = 2.25;
+    const handVector = [
+      handColumn - elbowColumn,
+      (handPatch.row - elbowPatch.row) * rowAspect,
+    ];
+    const shoulderVector = [
+      ASCII_ANATOMY.shoulder.column - elbowColumn,
+      (ASCII_ANATOMY.shoulder.row - elbowPatch.row) * rowAspect,
+    ];
+    const cosine =
+      (handVector[0] * shoulderVector[0] +
+        handVector[1] * shoulderVector[1]) /
+      (Math.hypot(...handVector) * Math.hypot(...shoulderVector));
+    const elbowAngle =
+      (Math.acos(Math.max(-1, Math.min(1, cosine))) * 180) / Math.PI;
+
+    if (
+      Math.abs(firstArmSegment.column - handColumn) > 5 ||
+      Math.abs(
+        lastArmSegment.column - ASCII_ANATOMY.shoulder.column,
+      ) > 5
+    ) {
+      throw new Error(`ASCII pose ${poseName} floats away from a joint.`);
+    }
+    if (elbowAngle < 98 || elbowAngle > 155) {
+      throw new Error(`ASCII pose ${poseName} lost its slight elbow bend.`);
+    }
+
+    const penLength =
+      handPatch.text.indexOf(">") - handPatch.text.indexOf("@");
+    if (
+      penLength < 5 ||
+      penLength > 7 ||
+      frame.includes("-----") ||
+      frame.includes("lxl._")
+    ) {
+      throw new Error(`ASCII pose ${poseName} regressed to a rod-like gesture.`);
+    }
+    if (
+      frameLines[ASCII_ANATOMY.shoulder.row][
+        ASCII_ANATOMY.shoulder.column
+      ] !== "/"
+    ) {
+      throw new Error(`ASCII pose ${poseName} detached from the shoulder.`);
+    }
+  }
+
+  for (const direction of directions) {
+    const gazeMarker = direction.endsWith("left") ? "<" : ">";
+    const directionalPoses = [
+      ...ASCII_SEQUENCES.swat[direction],
+      ...ASCII_SEQUENCES.recover[direction].filter(({ pose }) =>
+        pose.startsWith("recover-"),
+      ),
+    ];
+
+    for (const { pose } of directionalPoses) {
+      const frameLines = applyAsciiPose(art, pose).split("\n");
+      const face = frameLines[27].slice(
+        ASCII_ANATOMY.head.left,
+        ASCII_ANATOMY.head.right + 1,
+      );
+      const brow = frameLines[26].slice(
+        ASCII_ANATOMY.head.left,
+        ASCII_ANATOMY.head.right + 1,
+      );
+      if (
+        !face.includes(gazeMarker) ||
+        (direction.startsWith("upper-") && !brow.includes("^"))
+      ) {
+        throw new Error(`ASCII pose ${pose} looks away from ${direction}.`);
+      }
+    }
+  }
+
   for (const [regionName, region] of Object.entries(ASCII_REGIONS)) {
     if (
       region.top < 0 ||
@@ -505,6 +897,79 @@ export function validateAsciiCharacterDefinition(art = asciiPortrait) {
       region.left > region.right
     ) {
       throw new Error(`ASCII region ${regionName} exceeds the portrait grid.`);
+    }
+  }
+
+  for (const [direction, anatomy] of Object.entries(ASCII_ANATOMY.contact)) {
+    const contactFrame = applyAsciiPose(art, anatomy.pose).split("\n");
+    const gazePatches = ASCII_POSES[anatomy.gazePose].filter(
+      ({ row, column, text }) =>
+        row >= ASCII_ANATOMY.head.top &&
+        row <= ASCII_ANATOMY.head.bottom &&
+        column <= ASCII_ANATOMY.head.right &&
+        column + text.length - 1 >= ASCII_ANATOMY.head.left,
+    );
+    const headRows = new Set(gazePatches.map(({ row }) => row));
+    const gazeMarker = direction.endsWith("left") ? "<" : ">";
+    const changedHeadRows = new Set();
+    for (
+      let row = ASCII_ANATOMY.head.top;
+      row <= ASCII_ANATOMY.head.bottom;
+      row += 1
+    ) {
+      const baseHead = baseLines[row].slice(
+        ASCII_ANATOMY.head.left,
+        ASCII_ANATOMY.head.right + 1,
+      );
+      const contactHead = contactFrame[row].slice(
+        ASCII_ANATOMY.head.left,
+        ASCII_ANATOMY.head.right + 1,
+      );
+      if (baseHead !== contactHead) changedHeadRows.add(row);
+    }
+    const elbowToHand = {
+      row: anatomy.hand.row - anatomy.elbow.row,
+      column: anatomy.hand.column - anatomy.elbow.column,
+    };
+    const elbowToShoulder = {
+      row: ASCII_ANATOMY.shoulder.row - anatomy.elbow.row,
+      column: ASCII_ANATOMY.shoulder.column - anatomy.elbow.column,
+    };
+    const bend = Math.abs(
+      elbowToHand.column * elbowToShoulder.row -
+        elbowToHand.row * elbowToShoulder.column,
+    );
+
+    if (anatomy.hand.row >= ASCII_ANATOMY.head.top) {
+      throw new Error(`ASCII ${direction} hand must rise above the head.`);
+    }
+    if (anatomy.elbow.row >= ASCII_ANATOMY.shoulder.row || bend < 24) {
+      throw new Error(`ASCII ${direction} arm must retain a visible elbow bend.`);
+    }
+    if (
+      anatomy.penTip.row !== anatomy.hand.row ||
+      anatomy.penTip.column <= anatomy.hand.column + 4 ||
+      anatomy.penTip.column - anatomy.hand.column > 7
+    ) {
+      throw new Error(`ASCII ${direction} pen must point behind the raised hand.`);
+    }
+    if (
+      contactFrame[anatomy.hand.row][anatomy.hand.column] !== "@" ||
+      contactFrame[anatomy.elbow.row][anatomy.elbow.column] !== "O" ||
+      contactFrame[anatomy.penTip.row][anatomy.penTip.column] !== ">" ||
+      contactFrame[ASCII_ANATOMY.shoulder.row][ASCII_ANATOMY.shoulder.column] !==
+        "/"
+    ) {
+      throw new Error(`ASCII ${direction} contact pose lost an anatomy landmark.`);
+    }
+    if (
+      headRows.size < 3 ||
+      changedHeadRows.size < 3 ||
+      !contactFrame[27]
+        .slice(ASCII_ANATOMY.head.left, ASCII_ANATOMY.head.right + 1)
+        .includes(gazeMarker)
+    ) {
+      throw new Error(`ASCII ${direction} gaze must tilt the full head.`);
     }
   }
 

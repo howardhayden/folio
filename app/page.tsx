@@ -1,19 +1,36 @@
+import Link from "next/link";
 import { AsciiArt } from "./components/AsciiArt";
 import { asciiPortrait } from "./components/asciiCharacter.js";
-import { SiteHeader } from "./components/SiteChrome";
+import { SITE_ROUTES, SiteHeader } from "./components/SiteChrome";
 
 export default function Home() {
   return (
     <>
-      <SiteHeader />
+      <SiteHeader current="home" />
       <noscript dangerouslySetInnerHTML={{ __html: "<style>#ascii{container-type:inline-size;overflow:hidden}#ascii pre{font-size:min(14px,2cqw);max-width:none;white-space:pre;width:max-content}</style>" }} />
-      <main>
-        <section className="container mt-4 container-vertical-center" aria-labelledby="home-title">
+      <main className="site-main site-main--home" id="main-content" tabIndex={-1}>
+        <section className="container mt-4 container-vertical-center home-root" aria-labelledby="home-title">
           <div className="row">
-            <div className="col-lg-6 order-lg-2">
+            <div className="col-lg-6 order-lg-2 home-intro-copy">
               <h1 id="home-title">Yes, my initials spell &quot;hah.&quot;</h1>
               <p>I’m Hayden Howard, a techie from Dayton. I develop and operate resilient systems that people can trust under pressure.</p>
               <p>I live for good cold brew, meaningful work, and passionate people.</p>
+              <nav className="index-directory" aria-labelledby="index-directory-title">
+                <p className="index-directory-title" id="index-directory-title">Continue from the index</p>
+                <ol>
+                  {SITE_ROUTES.filter((route) => route.key !== "home").map((route) => (
+                    <li key={route.key}>
+                      <Link className="index-directory-link" href={route.href}>
+                        <span className="index-directory-number" aria-hidden="true">{route.index}</span>
+                        <span className="index-directory-copy">
+                          <strong>{route.navLabel}</strong>
+                          <small>{route.description}</small>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
             </div>
             <div className="col-lg-6 order-lg-1 ascii-container" id="ascii">
               <AsciiArt art={asciiPortrait} />
@@ -21,7 +38,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="container mt-4 container-vertical-center" aria-labelledby="qa-title">
+        <section className="container mt-4 container-vertical-center home-branch-section" aria-labelledby="qa-title">
           <div className="row qa-columns">
             <div className="col-lg-6 order-lg-2">
               <div>
