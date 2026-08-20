@@ -49,6 +49,18 @@ test("renders every primary route with its page heading", async () => {
   }
 });
 
+test("renders CHORUS and consistent project documentation icons", async () => {
+  const { html } = await render("/resume");
+
+  assert.match(html, /href="https:\/\/chorus\.observer\/">CHORUS<\/a>/);
+  assert.match(
+    html,
+    /Social simulation of influence, uncertainty, and collective belief\./,
+  );
+  assert.match(html, /href="https:\/\/chorus\.observer\/notebooks\/"/);
+  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 2);
+});
+
 test("renders shelf records before client hydration", async () => {
   const { html } = await render("/shelf");
   assert.equal((html.match(/<article class="card">/g) ?? []).length, 30);
