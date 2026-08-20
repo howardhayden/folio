@@ -7,45 +7,26 @@ import {
   ASCII_COLUMNS,
   ASCII_ROWS,
   ASCII_SEQUENCES,
-  classifyAsciiPoint,
   createAsciiFrames,
   directionForAsciiPoint,
   normalizeAsciiArt,
 } from "./asciiCharacter.js";
 
-type AsciiHit = "blank" | "image" | "near-person" | "person" | "tablet";
-type CharacterMode = "writing" | "notice" | "swat" | "recover";
-type SwatDirection = "left" | "right" | "upper-left" | "upper-right";
+type CatMode = "idle" | "track" | "bat" | "settle";
+type BatDirection = "left" | "right" | "upper-left" | "upper-right";
 type TimedPose = Readonly<{ pose: string; durationMs: number }>;
 
-type CharacterSequences = Readonly<{
-  writing: readonly TimedPose[];
-  notice: Readonly<Record<SwatDirection, readonly TimedPose[]>>;
-  swat: Readonly<Record<SwatDirection, readonly TimedPose[]>>;
-  recover: Readonly<Record<SwatDirection, readonly TimedPose[]>>;
+type CatSequences = Readonly<{
+  idle: readonly TimedPose[];
+  track: Readonly<Record<BatDirection, readonly TimedPose[]>>;
+  bat: Readonly<Record<BatDirection, readonly TimedPose[]>>;
+  settle: Readonly<Record<BatDirection, readonly TimedPose[]>>;
 }>;
 
-const NOTICE_DISTANCE = 5;
-const MOTION_RECENCY_MS = 430;
-const MOTION_EPISODE_RESET_MS = 720;
-const SWAT_COOLDOWN_MS = 620;
-const MAX_MOVEMENT_BUDGET = 180;
-
-const HIT_MULTIPLIER: Record<AsciiHit, number> = {
-  blank: 0,
-  image: 0.78,
-  "near-person": 1,
-  person: 1.32,
-  tablet: 1.58,
-};
-
-const SWAT_THRESHOLD: Record<AsciiHit, number> = {
-  blank: Number.POSITIVE_INFINITY,
-  image: 48,
-  "near-person": 36,
-  person: 28,
-  tablet: 22,
-};
+const BAT_MOVEMENT_THRESHOLD = 16;
+const BAT_DWELL_MS = 520;
+const BAT_COOLDOWN_MS = 980;
+const MAX_MOVEMENT_BUDGET = 96;
 
 const hostStyle: CSSProperties = {
   display: "grid",
@@ -78,11 +59,8 @@ export function AsciiArt({
   const hostRef = useRef<HTMLDivElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const baseLines = useMemo(() => normalizeAsciiArt(art), [art]);
-  const frames = useMemo(
-    () => createAsciiFrames(art) as Record<string, string>,
-    [art],
-  );
-  const baseFrame = frames["write-rest"];
+  const frames = useMemo(() => createAsciiFrames(art) as Record<string, string>, [art]);
+  const baseFrame = frames["loaf-center"];
 
   useEffect(() => {
     const host = hostRef.current;
@@ -99,20 +77,10 @@ export function AsciiArt({
       const paddingLeft = Number.parseFloat(containerStyle.paddingLeft) || 0;
       const paddingRight = Number.parseFloat(containerStyle.paddingRight) || 0;
       const contentCenter =
-        (containerBox.left +
-          paddingLeft +
-          containerBox.right -
-          paddingRight) /
-        2;
+        (containerBox.left + paddingLeft + containerBox.right - paddingRight) / 2;
       const pageSafeWidth =
-        2 *
-        Math.max(
-          0,
-          Math.min(contentCenter, window.innerWidth - contentCenter),
-        ) *
-        0.98;
-      const intendedFontSize =
-        (container.clientWidth / ASCII_COLUMNS) * 1.82;
+        2 * Math.max(0, Math.min(contentCenter, window.innerWidth - contentCenter)) * 0.98;
+      const intendedFontSize = (container.clientWidth / ASCII_COLUMNS) * 1.82;
       const probe = pre.cloneNode(false) as HTMLPreElement;
 
       probe.textContent = baseFrame;
@@ -136,8 +104,7 @@ export function AsciiArt({
 
       if (referenceWidth > 0 && pageSafeWidth > 0) {
         const intendedWidth = (referenceWidth / 100) * intendedFontSize;
-        const safetyScale = Math.min(1, pageSafeWidth / intendedWidth);
-        pre.style.fontSize = `${intendedFontSize * safetyScale}px`;
+        pre.style.fontSize = `${intendedFontSize * Math.min(1, pageSafeWidth / intendedWidth)}px`;
       }
     };
 
@@ -148,7 +115,6 @@ export function AsciiArt({
     };
 
     scheduleResize();
-
     const observer = new ResizeObserver(scheduleResize);
     observer.observe(container);
     void document.fonts?.ready.then(scheduleResize);
@@ -165,57 +131,50 @@ export function AsciiArt({
     const pre = preRef.current;
     if (!host || !pre) return;
 
-    const sequences = ASCII_SEQUENCES as CharacterSequences;
-    const reducedMotionQuery = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    );
-    const finePointerQuery = window.matchMedia(
-      "(any-hover: hover) and (any-pointer: fine)",
-    );
+    const sequences = ASCII_SEQUENCES as CatSequences;
+    const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const finePointerQuery = window.matchMedia("(any-hover: hover) and (any-pointer: fine)");
 
     let disposed = false;
     let animationFrame = 0;
     let reducedMotion = reducedMotionQuery.matches;
     let finePointer = finePointerQuery.matches;
-    let reducedMotionReset = 0;
-
     const now = performance.now();
+
     const runtime = {
-      mode: "writing" as CharacterMode,
-      sequence: sequences.writing,
+      mode: "idle" as CatMode,
+      sequence: sequences.idle,
       sequenceIndex: 0,
-      nextPoseAt: now + sequences.writing[0].durationMs,
-      currentPose: "write-rest",
-      direction: "right" as SwatDirection,
-      actionDirection: "right" as SwatDirection,
-      hit: "blank" as AsciiHit,
+      nextPoseAt: now + sequences.idle[0].durationMs,
+      currentPose: "loaf-center",
+      direction: "right" as BatDirection,
+      actionDirection: "right" as BatDirection,
       pointerInside: false,
+      pointerEnteredAt: Number.POSITIVE_INFINITY,
       hasPointerSample: false,
       lastClientX: 0,
       lastClientY: 0,
       pendingClientX: 0,
       pendingClientY: 0,
       pendingDistance: 0,
+      pendingSample: false,
       pendingLeave: false,
       movementBudget: 0,
-      noticedEpisode: false,
-      lastMoveAt: Number.NEGATIVE_INFINITY,
-      lastSwatAt: Number.NEGATIVE_INFINITY,
+      lastBatAt: Number.NEGATIVE_INFINITY,
       lastTickAt: now,
-      lastPointerProcessAt: now,
     };
 
     const setPose = (poseName: string) => {
       if (runtime.currentPose === poseName) return;
-      const frame = frames[poseName];
-      if (!frame) return;
-      pre.textContent = frame;
+      const nextFrame = frames[poseName];
+      if (!nextFrame) return;
+      pre.textContent = nextFrame;
       pre.dataset.asciiFrame = poseName;
       runtime.currentPose = poseName;
     };
 
     const beginSequence = (
-      mode: CharacterMode,
+      mode: CatMode,
       sequence: readonly TimedPose[],
       sequenceStart: number,
     ) => {
@@ -227,79 +186,45 @@ export function AsciiArt({
       setPose(sequence[0].pose);
     };
 
-    const beginWriting = (sequenceStart: number) => {
-      beginSequence("writing", sequences.writing, sequenceStart);
-    };
+    const beginIdle = (time: number) => beginSequence("idle", sequences.idle, time);
 
-    const beginNotice = (sequenceStart: number) => {
+    const beginTrack = (time: number) => {
       runtime.actionDirection = runtime.direction;
-      runtime.noticedEpisode = true;
-      beginSequence(
-        "notice",
-        sequences.notice[runtime.direction],
-        sequenceStart,
-      );
+      beginSequence("track", sequences.track[runtime.direction], time);
     };
 
-    const thresholdForCurrentHit = () => SWAT_THRESHOLD[runtime.hit];
+    const beginBat = (time: number) => {
+      runtime.actionDirection = runtime.direction;
+      runtime.lastBatAt = time;
+      runtime.movementBudget = 0;
+      beginSequence("bat", sequences.bat[runtime.actionDirection], time);
+    };
 
-    const canSwat = (sampleTime: number) =>
+    const beginSettle = (time: number) =>
+      beginSequence("settle", sequences.settle[runtime.actionDirection], time);
+
+    const canBat = (time: number) =>
       finePointer &&
       !reducedMotion &&
       runtime.pointerInside &&
-      runtime.hit !== "blank" &&
-      sampleTime - runtime.lastMoveAt <= MOTION_RECENCY_MS &&
-      sampleTime - runtime.lastSwatAt >= SWAT_COOLDOWN_MS &&
-      runtime.movementBudget >= thresholdForCurrentHit();
+      time - runtime.lastBatAt >= BAT_COOLDOWN_MS &&
+      (runtime.movementBudget >= BAT_MOVEMENT_THRESHOLD ||
+        time - runtime.pointerEnteredAt >= BAT_DWELL_MS);
 
-    const beginSwat = (sequenceStart: number) => {
-      const threshold = thresholdForCurrentHit();
-      runtime.actionDirection = runtime.direction;
-      runtime.lastSwatAt = sequenceStart;
-      runtime.noticedEpisode = true;
-      runtime.movementBudget = Math.max(
-        0,
-        runtime.movementBudget - threshold * 0.65,
-      );
-      beginSequence(
-        "swat",
-        sequences.swat[runtime.actionDirection],
-        sequenceStart,
-      );
-    };
-
-    const beginRecover = (sequenceStart: number) => {
-      beginSequence(
-        "recover",
-        sequences.recover[runtime.actionDirection],
-        sequenceStart,
-      );
-    };
-
-    const finishSequence = (sequenceEnd: number) => {
-      if (runtime.mode === "writing") {
-        beginWriting(sequenceEnd);
-        return;
-      }
-
-      if (runtime.mode === "notice") {
-        if (canSwat(sequenceEnd)) {
-          beginSwat(sequenceEnd);
-        } else {
-          beginWriting(sequenceEnd);
-        }
-        return;
-      }
-
-      if (runtime.mode === "swat") {
-        beginRecover(sequenceEnd);
-        return;
-      }
-
-      if (canSwat(sequenceEnd)) {
-        beginSwat(sequenceEnd);
+    const finishSequence = (time: number) => {
+      if (runtime.mode === "idle") {
+        if (runtime.pointerInside && finePointer) beginTrack(time);
+        else beginIdle(time);
+      } else if (runtime.mode === "track") {
+        if (canBat(time)) beginBat(time);
+        else if (runtime.pointerInside) beginTrack(time);
+        else beginSettle(time);
+      } else if (runtime.mode === "bat") {
+        beginSettle(time);
+      } else if (runtime.pointerInside && finePointer) {
+        beginTrack(time);
       } else {
-        beginWriting(sequenceEnd);
+        beginIdle(time);
       }
     };
 
@@ -312,7 +237,6 @@ export function AsciiArt({
           finishSequence(runtime.nextPoseAt);
           return;
         }
-
         runtime.sequenceIndex = nextIndex;
         const nextPose = runtime.sequence[nextIndex];
         setPose(nextPose.pose);
@@ -320,144 +244,82 @@ export function AsciiArt({
       }
     };
 
-    const showReducedMotionGlance = (direction: SwatDirection) => {
-      window.clearTimeout(reducedMotionReset);
-      const glanceSequence = sequences.notice[direction];
-      const glance = glanceSequence[glanceSequence.length - 1];
-      if (glance) setPose(glance.pose);
-      reducedMotionReset = window.setTimeout(() => {
-        if (!disposed && reducedMotion) {
-          setPose("write-rest");
-        }
-      }, 180);
+    const showReducedMotionGaze = () => {
+      const pose = sequences.track[runtime.direction][0]?.pose;
+      if (pose) setPose(pose);
+      runtime.mode = "track";
+      host.dataset.asciiMode = "track";
     };
 
-    const processPointerMovement = (sampleTime: number) => {
+    const updateDirection = (clientX: number, clientY: number) => {
+      const rect = pre.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const relativeX = (clientX - rect.left) / rect.width;
+      const relativeY = (clientY - rect.top) / rect.height;
+      if (relativeX < 0 || relativeX >= 1 || relativeY < 0 || relativeY >= 1) return;
+      const column = Math.min(ASCII_COLUMNS - 1, Math.floor(relativeX * ASCII_COLUMNS));
+      const row = Math.min(ASCII_ROWS - 1, Math.floor(relativeY * ASCII_ROWS));
+      const nextDirection = directionForAsciiPoint(row, column) as BatDirection;
+      if (nextDirection === runtime.direction) return;
+      runtime.direction = nextDirection;
+      if (reducedMotion) {
+        showReducedMotionGaze();
+      } else if (runtime.mode === "track") {
+        beginTrack(performance.now());
+      }
+    };
+
+    const processPointer = (sampleTime: number) => {
       if (runtime.pendingLeave) {
         runtime.pendingLeave = false;
         runtime.pointerInside = false;
         runtime.hasPointerSample = false;
         runtime.pendingDistance = 0;
         runtime.movementBudget = 0;
-        runtime.noticedEpisode = false;
-        runtime.hit = "blank";
-        if (!reducedMotion && runtime.mode === "swat") {
-          beginRecover(sampleTime);
-        } else if (!reducedMotion && runtime.mode !== "writing") {
-          beginWriting(sampleTime);
-        } else if (reducedMotion) {
-          setPose("write-rest");
+        if (reducedMotion) {
+          runtime.mode = "idle";
+          host.dataset.asciiMode = "idle";
+          setPose("loaf-center");
+        } else if (runtime.mode !== "bat" && runtime.mode !== "settle") {
+          beginSettle(sampleTime);
         }
         return;
       }
 
-      if (!finePointer || runtime.pendingDistance <= 0) return;
-
-      const pointerDistance = runtime.pendingDistance;
-      const clientX = runtime.pendingClientX;
-      const clientY = runtime.pendingClientY;
-      runtime.pendingDistance = 0;
-
-      const rect = pre.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return;
-
-      const relativeX = (clientX - rect.left) / rect.width;
-      const relativeY = (clientY - rect.top) / rect.height;
-      if (
-        relativeX < 0 ||
-        relativeX >= 1 ||
-        relativeY < 0 ||
-        relativeY >= 1
-      ) {
-        return;
-      }
-
-      const column = Math.min(
-        ASCII_COLUMNS - 1,
-        Math.floor(relativeX * ASCII_COLUMNS),
-      );
-      const row = Math.min(ASCII_ROWS - 1, Math.floor(relativeY * ASCII_ROWS));
-      const hit = classifyAsciiPoint(baseLines, row, column) as AsciiHit;
-      runtime.hit = hit;
-
-      const nextDirection = directionForAsciiPoint(
-        row,
-        column,
-      ) as SwatDirection;
-      const directionChanged = nextDirection !== runtime.direction;
-      runtime.direction = nextDirection;
-
-      if (directionChanged && runtime.mode === "notice") {
-        runtime.actionDirection = nextDirection;
-        runtime.sequence = sequences.notice[nextDirection];
-        runtime.sequenceIndex = Math.min(
-          runtime.sequenceIndex,
-          runtime.sequence.length - 1,
-        );
-        setPose(runtime.sequence[runtime.sequenceIndex].pose);
-      }
-
-      const elapsed = Math.max(1, sampleTime - runtime.lastPointerProcessAt);
-      const velocity = pointerDistance / elapsed;
-      const velocityMultiplier = velocity >= 0.7 ? 1.32 : 1;
-      runtime.lastMoveAt = sampleTime;
-      runtime.lastPointerProcessAt = sampleTime;
-
-      if (reducedMotion) {
-        showReducedMotionGlance(runtime.direction);
-        return;
-      }
-
-      if (hit === "blank") {
-        if (
-          runtime.mode === "writing" &&
-          !runtime.noticedEpisode &&
-          pointerDistance >= NOTICE_DISTANCE
-        ) {
-          beginNotice(sampleTime);
-        }
-        return;
-      }
-
+      if (!runtime.pendingSample || !finePointer) return;
+      runtime.pendingSample = false;
+      updateDirection(runtime.pendingClientX, runtime.pendingClientY);
       runtime.movementBudget = Math.min(
         MAX_MOVEMENT_BUDGET,
-        runtime.movementBudget +
-          pointerDistance * HIT_MULTIPLIER[hit] * velocityMultiplier,
+        runtime.movementBudget + runtime.pendingDistance,
       );
+      runtime.pendingDistance = 0;
 
-      if (
-        runtime.mode === "writing" &&
-        !runtime.noticedEpisode &&
-        runtime.movementBudget >= NOTICE_DISTANCE
-      ) {
-        beginNotice(sampleTime);
-        return;
-      }
-
-      if (
-        runtime.mode === "writing" &&
-        runtime.noticedEpisode &&
-        canSwat(sampleTime)
-      ) {
-        beginSwat(sampleTime);
+      if (reducedMotion) {
+        showReducedMotionGaze();
+      } else if (runtime.mode === "idle" || runtime.mode === "settle") {
+        beginTrack(sampleTime);
+      } else if (runtime.mode === "track" && canBat(sampleTime)) {
+        beginBat(sampleTime);
       }
     };
 
     const acceptsPointer = (event: PointerEvent) =>
       finePointer &&
-      (event.pointerType === "mouse" ||
-        event.pointerType === "pen" ||
-        event.pointerType === "");
+      (event.pointerType === "mouse" || event.pointerType === "pen" || event.pointerType === "");
 
     const onPointerEnter = (event: PointerEvent) => {
       if (!acceptsPointer(event)) return;
       runtime.pointerInside = true;
+      runtime.pointerEnteredAt = performance.now();
       runtime.pendingLeave = false;
       runtime.hasPointerSample = true;
       runtime.lastClientX = event.clientX;
       runtime.lastClientY = event.clientY;
       runtime.pendingClientX = event.clientX;
       runtime.pendingClientY = event.clientY;
+      runtime.pendingSample = true;
+      requestTick();
     };
 
     const onPointerMove = (event: PointerEvent) => {
@@ -466,18 +328,16 @@ export function AsciiArt({
         onPointerEnter(event);
         return;
       }
-
-      const deltaX = event.clientX - runtime.lastClientX;
-      const deltaY = event.clientY - runtime.lastClientY;
-      const distance = Math.hypot(deltaX, deltaY);
+      runtime.pendingDistance = Math.min(
+        MAX_MOVEMENT_BUDGET,
+        runtime.pendingDistance +
+          Math.hypot(event.clientX - runtime.lastClientX, event.clientY - runtime.lastClientY),
+      );
       runtime.lastClientX = event.clientX;
       runtime.lastClientY = event.clientY;
       runtime.pendingClientX = event.clientX;
       runtime.pendingClientY = event.clientY;
-      runtime.pendingDistance = Math.min(
-        MAX_MOVEMENT_BUDGET,
-        runtime.pendingDistance + distance,
-      );
+      runtime.pendingSample = true;
       runtime.pointerInside = true;
       requestTick();
     };
@@ -494,25 +354,20 @@ export function AsciiArt({
       finePointer = finePointerQuery.matches;
       host.dataset.asciiMotion = reducedMotion ? "reduced" : "animated";
       host.dataset.asciiPointer = finePointer ? "fine" : "non-hover";
-      window.clearTimeout(reducedMotionReset);
-
-      const preferenceTime = performance.now();
       runtime.pendingDistance = 0;
+      runtime.pendingSample = false;
       runtime.pendingLeave = false;
       runtime.movementBudget = 0;
-      runtime.noticedEpisode = false;
-      runtime.hit = "blank";
       if (!finePointer) {
         runtime.pointerInside = false;
         runtime.hasPointerSample = false;
       }
-
       if (reducedMotion) {
-        runtime.mode = "writing";
-        host.dataset.asciiMode = "writing";
-        setPose("write-rest");
+        runtime.mode = "idle";
+        host.dataset.asciiMode = "idle";
+        setPose("loaf-center");
       } else {
-        beginWriting(preferenceTime);
+        beginIdle(performance.now());
       }
       requestTick();
     };
@@ -525,33 +380,18 @@ export function AsciiArt({
     function tick(sampleTime: number) {
       animationFrame = 0;
       if (disposed) return;
-
       const elapsed = sampleTime - runtime.lastTickAt;
       runtime.lastTickAt = sampleTime;
-
       if (elapsed > 1000 && !reducedMotion) {
-        beginWriting(sampleTime);
+        if (runtime.pointerInside && finePointer) beginTrack(sampleTime);
+        else beginIdle(sampleTime);
       }
-
-      processPointerMovement(sampleTime);
-
+      processPointer(sampleTime);
       if (!reducedMotion) {
-        const idleFor = sampleTime - runtime.lastMoveAt;
-        if (idleFor > 180 && runtime.movementBudget > 0) {
-          runtime.movementBudget = Math.max(
-            0,
-            runtime.movementBudget - Math.min(elapsed, 64) * 0.08,
-          );
-        }
-        if (
-          idleFor > MOTION_EPISODE_RESET_MS &&
-          runtime.mode === "writing"
-        ) {
-          runtime.noticedEpisode = false;
-        }
+        if (runtime.mode === "track" && canBat(sampleTime)) beginBat(sampleTime);
         advanceSequence(sampleTime);
         requestTick();
-      } else if (runtime.pendingDistance > 0 || runtime.pendingLeave) {
+      } else if (runtime.pendingSample || runtime.pendingLeave) {
         requestTick();
       }
     }
@@ -562,13 +402,11 @@ export function AsciiArt({
     pre.addEventListener("pointercancel", onPointerLeave, { passive: true });
     reducedMotionQuery.addEventListener("change", syncPreferences);
     finePointerQuery.addEventListener("change", syncPreferences);
-
     syncPreferences();
 
     return () => {
       disposed = true;
       window.cancelAnimationFrame(animationFrame);
-      window.clearTimeout(reducedMotionReset);
       pre.removeEventListener("pointerenter", onPointerEnter);
       pre.removeEventListener("pointermove", onPointerMove);
       pre.removeEventListener("pointerleave", onPointerLeave);
@@ -582,16 +420,16 @@ export function AsciiArt({
     <div
       ref={hostRef}
       aria-label={description}
-      data-ascii-character="writer"
-      data-ascii-interaction="pointer-swat"
-      data-ascii-mode="writing"
+      data-ascii-character="glass-table-cat"
+      data-ascii-interaction="pointer-bat"
+      data-ascii-mode="idle"
       role="img"
       style={hostStyle}
     >
       <pre
         ref={preRef}
         aria-hidden="true"
-        data-ascii-frame="write-rest"
+        data-ascii-frame="loaf-center"
         style={preStyle}
       >
         {baseFrame}

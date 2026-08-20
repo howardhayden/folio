@@ -16,20 +16,7 @@ import {
   validateAsciiCharacterDefinition,
 } from "../app/components/asciiCharacter.js";
 
-const SWAT_DIRECTIONS = ["left", "right", "upper-left", "upper-right"];
-
-function articulatedPoseNames() {
-  return new Set([
-    ...Object.values(ASCII_SEQUENCES.swat).flatMap((sequence) =>
-      sequence.map(({ pose }) => pose),
-    ),
-    ...Object.values(ASCII_SEQUENCES.recover).flatMap((sequence) =>
-      sequence
-        .map(({ pose }) => pose)
-        .filter((pose) => pose.startsWith("recover-")),
-    ),
-  ]);
-}
+const BAT_DIRECTIONS = ["left", "right", "upper-left", "upper-right"];
 
 async function loadWorker() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -67,156 +54,60 @@ test("validates every authored ASCII pose without changing frame geometry", () =
   }
 });
 
-test("authors notice, swat, and recovery sequences for all four directions", () => {
-  const expected = [...SWAT_DIRECTIONS].sort();
+test("authors tracking, batting, and settling sequences for all four directions", () => {
+  const expected = [...BAT_DIRECTIONS].sort();
 
-  for (const phase of ["notice", "swat", "recover"]) {
+  assert.ok(ASCII_SEQUENCES.idle.length >= 3, "idle loaf includes a tail cycle");
+  for (const phase of ["track", "bat", "settle"]) {
     assert.deepEqual(Object.keys(ASCII_SEQUENCES[phase]).sort(), expected, phase);
-    for (const direction of SWAT_DIRECTIONS) {
+    for (const direction of BAT_DIRECTIONS) {
       assert.ok(ASCII_SEQUENCES[phase][direction].length > 0, `${phase}.${direction}`);
     }
   }
 });
 
-test("classifies portrait collisions and aims from the face center, including blank cells", () => {
+test("classifies the cat, glass-facing paws, and pointer direction", () => {
   const lines = normalizeAsciiArt(asciiPortrait);
 
-  assert.equal(classifyAsciiPoint(lines, 29, 40), "tablet");
-  assert.equal(classifyAsciiPoint(lines, 0, 0), "image");
+  assert.equal(classifyAsciiPoint(lines, 24, 25), "paw");
+  assert.equal(classifyAsciiPoint(lines, 16, 35), "cat");
+  assert.equal(classifyAsciiPoint(lines, 4, 45), "image");
+  assert.equal(classifyAsciiPoint(lines, 0, 0), "blank");
   assert.equal(classifyAsciiPoint(lines, 33, 69), "blank");
-  assert.deepEqual(ASCII_GAZE_ANCHOR, { row: 26, column: 39 });
-  assert.equal(directionForAsciiPoint(24, 38), "upper-left");
-  assert.equal(directionForAsciiPoint(24, 39), "upper-right");
-  assert.equal(directionForAsciiPoint(25, 38), "left");
-  assert.equal(directionForAsciiPoint(25, 39), "right");
+  assert.deepEqual(ASCII_GAZE_ANCHOR, { row: 16, column: 35 });
+  assert.equal(directionForAsciiPoint(10, 34), "upper-left");
+  assert.equal(directionForAsciiPoint(10, 35), "upper-right");
+  assert.equal(directionForAsciiPoint(20, 34), "left");
+  assert.equal(directionForAsciiPoint(20, 35), "right");
+});
 
-  for (const [row, column, direction] of [
-    [0, 30, "upper-left"],
-    [16, 60, "upper-right"],
-    [26, 10, "left"],
-    [25, 60, "right"],
-  ]) {
-    assert.equal(classifyAsciiPoint(lines, row, column), "blank", `${row},${column}`);
-    assert.equal(directionForAsciiPoint(row, column), direction, `${row},${column}`);
+test("keeps the cat loafed above the glass while its tail swishes", () => {
+  const frames = createAsciiFrames(asciiPortrait);
+  const loaf = frames["loaf-center"].split("\n");
+  assert.equal(loaf[ASCII_ANATOMY.loafPaws.left.row][ASCII_ANATOMY.loafPaws.left.column], "o");
+  assert.equal(loaf[ASCII_ANATOMY.loafPaws.right.row][ASCII_ANATOMY.loafPaws.right.column], "o");
+  assert.equal(
+    new Set([frames["loaf-tail-left"], frames["loaf-center"], frames["loaf-tail-right"]]).size,
+    3,
+    "tail has three visibly distinct positions",
+  );
+  for (const frame of Object.values(frames)) {
+    assert.doesNotMatch(frame, /\(@\)=====>|\(OOO\)/, "human rig is fully superseded");
   }
 });
 
-test("keeps every swat arm raised, connected, bent, and holding a short pen", () => {
+test("tracks every pointer quadrant and bats with a visible glass-facing paw", () => {
   const frames = createAsciiFrames(asciiPortrait);
-
-  for (const poseName of articulatedPoseNames()) {
-    const patches = ASCII_POSES[poseName];
-    const lines = frames[poseName].split("\n");
-    const handPatch = patches.find(
-      ({ text }) => text.includes("@") && text.includes(">"),
-    );
-    const elbowPatch = patches.find(({ text }) => text.includes("(OOO)"));
-
-    assert.ok(handPatch, `${poseName} has a hand gripping a pen`);
-    assert.ok(elbowPatch, `${poseName} has an authored elbow`);
-    assert.ok(handPatch.row < ASCII_ANATOMY.head.top, `${poseName} raises its hand`);
-
-    const handColumn = handPatch.column + handPatch.text.indexOf("@");
-    const penTipColumn = handPatch.column + handPatch.text.indexOf(">");
-    assert.ok(
-      penTipColumn - handColumn >= 5 && penTipColumn - handColumn <= 7,
-      `${poseName} keeps the pen short`,
-    );
-
-    const elbowColumn = elbowPatch.column + elbowPatch.text.indexOf("OOO") + 1;
-    const armSegments = patches
-      .filter(({ text }) => text.includes("OOO"))
-      .map(({ row, column, text }) => ({
-        row,
-        column: column + text.indexOf("OOO") + 1,
-      }))
-      .sort((a, b) => a.row - b.row);
-    const armRows = new Set(armSegments.map(({ row }) => row));
-
-    assert.ok(
-      ASCII_ANATOMY.shoulder.row < ASCII_ANATOMY.lowerTorso.top,
-      `${poseName} roots above the lower torso`,
-    );
-    assert.ok(
-      ASCII_ANATOMY.shoulder.column >= ASCII_ANATOMY.head.right - 1,
-      `${poseName} roots at the portrait's outer shoulder`,
-    );
-    assert.ok(
-      armSegments.every(({ row }) => row < ASCII_ANATOMY.lowerTorso.top),
-      `${poseName} keeps all animated limb ink clear of the lower torso`,
-    );
-
-    for (let row = handPatch.row + 1; row <= ASCII_ANATOMY.shoulder.row; row += 1) {
-      assert.ok(armRows.has(row), `${poseName} connects through row ${row}`);
-    }
-    for (let index = 1; index < armSegments.length; index += 1) {
-      const previous = armSegments[index - 1];
-      const current = armSegments[index];
-      assert.equal(current.row - previous.row, 1, `${poseName} has contiguous rows`);
-      assert.ok(
-        Math.abs(current.column - previous.column) <= 5,
-        `${poseName} keeps adjacent segments connected`,
-      );
-    }
-
-    const rowAspect = 2.25;
-    const handVector = [
-      handColumn - elbowColumn,
-      (handPatch.row - elbowPatch.row) * rowAspect,
-    ];
-    const shoulderVector = [
-      ASCII_ANATOMY.shoulder.column - elbowColumn,
-      (ASCII_ANATOMY.shoulder.row - elbowPatch.row) * rowAspect,
-    ];
-    const cosine =
-      (handVector[0] * shoulderVector[0] + handVector[1] * shoulderVector[1]) /
-      (Math.hypot(...handVector) * Math.hypot(...shoulderVector));
-    const elbowAngle =
-      (Math.acos(Math.max(-1, Math.min(1, cosine))) * 180) / Math.PI;
-    assert.ok(
-      elbowAngle >= 98 && elbowAngle <= 155,
-      `${poseName} keeps a slight elbow bend`,
-    );
-    assert.equal(
-      lines[ASCII_ANATOMY.shoulder.row][ASCII_ANATOMY.shoulder.column],
-      "/",
-      `${poseName} remains attached at the shoulder`,
-    );
-    assert.doesNotMatch(frames[poseName], /O<-{4,}|__\/{1,2}-{4,}|lxl\._|-----/);
-  }
-});
-
-test("turns the full head toward each swat target", () => {
-  const frames = createAsciiFrames(asciiPortrait);
-
-  for (const direction of SWAT_DIRECTIONS) {
+  for (const direction of BAT_DIRECTIONS) {
     const anatomy = ASCII_ANATOMY.contact[direction];
     const contactLines = frames[anatomy.pose].split("\n");
-    assert.equal(contactLines[anatomy.hand.row][anatomy.hand.column], "@");
-    assert.equal(contactLines[anatomy.elbow.row][anatomy.elbow.column], "O");
-    assert.equal(contactLines[anatomy.penTip.row][anatomy.penTip.column], ">");
-
-    const gazeMarker = direction.endsWith("left") ? "<" : ">";
-    for (const { pose } of [
-      ...ASCII_SEQUENCES.swat[direction],
-      ...ASCII_SEQUENCES.recover[direction].filter(({ pose }) =>
-        pose.startsWith("recover-"),
-      ),
-    ]) {
-      const poseLines = frames[pose].split("\n");
-      const face = poseLines[27].slice(
-        ASCII_ANATOMY.head.left,
-        ASCII_ANATOMY.head.right + 1,
-      );
-      const brow = poseLines[26].slice(
-        ASCII_ANATOMY.head.left,
-        ASCII_ANATOMY.head.right + 1,
-      );
-      assert.ok(face.includes(gazeMarker), `${pose} faces ${direction}`);
-      if (direction.startsWith("upper-")) {
-        assert.ok(brow.includes("^"), `${pose} retains its upward gaze`);
-      }
-    }
+    assert.equal(contactLines[anatomy.paw.row][anatomy.paw.column], "o", `${direction} contact pad`);
+    assert.ok(
+      ASCII_SEQUENCES.bat[direction].some(({ pose }) => pose === anatomy.pose),
+      `${direction} contact is part of its bat`,
+    );
+    const tracking = frames[anatomy.gazePose];
+    assert.notEqual(tracking, frames["loaf-center"], `${direction} changes the gaze`);
   }
 });
 
@@ -234,13 +125,13 @@ test("renders document metadata", async () => {
 test("renders the ASCII character accessibly before client hydration", async () => {
   const { html } = await render("/");
 
-  assert.match(html, /data-ascii-character="writer"/);
-  assert.match(html, /data-ascii-interaction="pointer-swat"/);
-  assert.match(html, /data-ascii-frame="write-rest"/);
+  assert.match(html, /data-ascii-character="glass-table-cat"/);
+  assert.match(html, /data-ascii-interaction="pointer-bat"/);
+  assert.match(html, /data-ascii-frame="loaf-center"/);
   assert.match(html, /role="img"/);
   assert.match(
     html,
-    /aria-label="A person sitting beneath a tree writes on a tablet, turns toward a moving mouse pointer, and occasionally raises a bent arm overhead to swat while keeping a pen in hand\."/,
+    /aria-label="A cat loafs on a glass table above the viewer, follows the pointer with its eyes, swishes its tail, and reaches down to bat at it with a soft paw\."/,
   );
   assert.match(html, /<pre[^>]*aria-hidden="true"/);
 });
