@@ -133,6 +133,19 @@ test("keeps every swat arm raised, connected, bent, and holding a short pen", ()
       .sort((a, b) => a.row - b.row);
     const armRows = new Set(armSegments.map(({ row }) => row));
 
+    assert.ok(
+      ASCII_ANATOMY.shoulder.row < ASCII_ANATOMY.lowerTorso.top,
+      `${poseName} roots above the lower torso`,
+    );
+    assert.ok(
+      ASCII_ANATOMY.shoulder.column >= ASCII_ANATOMY.head.right - 1,
+      `${poseName} roots at the portrait's outer shoulder`,
+    );
+    assert.ok(
+      armSegments.every(({ row }) => row < ASCII_ANATOMY.lowerTorso.top),
+      `${poseName} keeps all animated limb ink clear of the lower torso`,
+    );
+
     for (let row = handPatch.row + 1; row <= ASCII_ANATOMY.shoulder.row; row += 1) {
       assert.ok(armRows.has(row), `${poseName} connects through row ${row}`);
     }

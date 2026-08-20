@@ -20,11 +20,12 @@ The direction that launches a swat is copied into a locked `actionDirection`. Th
 The swat is an articulated overhead gesture, not a line stretched from the torso to the pointer.
 
 - the face-direction anchor is row 26, column 39;
-- the shoulder attachment is row 28, column 42;
+- the shoulder attachment is row 25, column 47, at the portrait's outer edge rather than inside the torso;
 - every wind-up, extension, contact, recoil, and recovery keeps the hand above the authored head box;
 - `OOO` runs give the upper arm and forearm visible mass across every intervening row;
 - `(OOO)` marks a deliberate elbow joint whose render-aspect-corrected angle remains between 98° and 155°;
 - the arm path remains laterally connected from the hand through the elbow to the shoulder;
+- all animated limb ink ends at the shoulder and stays above the lower-torso region beginning on row 26;
 - `(@)=====>` reads as a hand retaining a short pen, with its point trailing toward the back-right rather than becoming the swatting limb;
 - upper-left and upper-right poses keep the upward head tilt through recovery.
 
@@ -72,6 +73,7 @@ It also rejects semantic anatomy regressions:
 - missing notice, swat, or recovery sequences for any of the four directions;
 - a hand at or below the head;
 - a disconnected row or lateral jump in the arm path;
+- an arm rooted inside, or descending into, the lower torso;
 - a missing shoulder, hand, elbow, or pen landmark;
 - an elbow outside the authored slight-bend range;
 - a pen that is too short to read or long enough to become a rod;
