@@ -11,20 +11,18 @@ import {
   createAsciiFrames,
   directionForAsciiPoint,
   normalizeAsciiArt,
-  sideForSwatDirection,
 } from "./asciiCharacter.js";
 
 type AsciiHit = "blank" | "image" | "near-person" | "person" | "tablet";
 type CharacterMode = "writing" | "notice" | "swat" | "recover";
-type Side = "left" | "right";
 type SwatDirection = "left" | "right" | "upper-left" | "upper-right";
 type TimedPose = Readonly<{ pose: string; durationMs: number }>;
 
 type CharacterSequences = Readonly<{
   writing: readonly TimedPose[];
-  notice: Readonly<Record<Side, readonly TimedPose[]>>;
+  notice: Readonly<Record<SwatDirection, readonly TimedPose[]>>;
   swat: Readonly<Record<SwatDirection, readonly TimedPose[]>>;
-  recover: Readonly<Record<Side, readonly TimedPose[]>>;
+  recover: Readonly<Record<SwatDirection, readonly TimedPose[]>>;
 }>;
 
 const NOTICE_DISTANCE = 5;
@@ -189,6 +187,7 @@ export function AsciiArt({
       nextPoseAt: now + sequences.writing[0].durationMs,
       currentPose: "write-rest",
       direction: "right" as SwatDirection,
+      actionDirection: "right" as SwatDirection,
       hit: "blank" as AsciiHit,
       pointerInside: false,
       hasPointerSample: false,
@@ -233,9 +232,13 @@ export function AsciiArt({
     };
 
     const beginNotice = (sequenceStart: number) => {
-      const side = sideForSwatDirection(runtime.direction) as Side;
+      runtime.actionDirection = runtime.direction;
       runtime.noticedEpisode = true;
-      beginSequence("notice", sequences.notice[side], sequenceStart);
+      beginSequence(
+        "notice",
+        sequences.notice[runtime.direction],
+        sequenceStart,
+      );
     };
 
     const thresholdForCurrentHit = () => SWAT_THRESHOLD[runtime.hit];
@@ -251,6 +254,7 @@ export function AsciiArt({
 
     const beginSwat = (sequenceStart: number) => {
       const threshold = thresholdForCurrentHit();
+      runtime.actionDirection = runtime.direction;
       runtime.lastSwatAt = sequenceStart;
       runtime.noticedEpisode = true;
       runtime.movementBudget = Math.max(
@@ -259,14 +263,17 @@ export function AsciiArt({
       );
       beginSequence(
         "swat",
-        sequences.swat[runtime.direction],
+        sequences.swat[runtime.actionDirection],
         sequenceStart,
       );
     };
 
     const beginRecover = (sequenceStart: number) => {
-      const side = sideForSwatDirection(runtime.direction) as Side;
-      beginSequence("recover", sequences.recover[side], sequenceStart);
+      beginSequence(
+        "recover",
+        sequences.recover[runtime.actionDirection],
+        sequenceStart,
+      );
     };
 
     const finishSequence = (sequenceEnd: number) => {
@@ -315,8 +322,9 @@ export function AsciiArt({
 
     const showReducedMotionGlance = (direction: SwatDirection) => {
       window.clearTimeout(reducedMotionReset);
-      const side = sideForSwatDirection(direction) as Side;
-      setPose(side === "left" ? "notice-left" : "notice-right");
+      const glanceSequence = sequences.notice[direction];
+      const glance = glanceSequence[glanceSequence.length - 1];
+      if (glance) setPose(glance.pose);
       reducedMotionReset = window.setTimeout(() => {
         if (!disposed && reducedMotion) {
           setPose("write-rest");
@@ -333,8 +341,10 @@ export function AsciiArt({
         runtime.movementBudget = 0;
         runtime.noticedEpisode = false;
         runtime.hit = "blank";
-        if (!reducedMotion && runtime.mode !== "writing") {
+        if (!reducedMotion && runtime.mode === "swat") {
           beginRecover(sampleTime);
+        } else if (!reducedMotion && runtime.mode !== "writing") {
+          beginWriting(sampleTime);
         } else if (reducedMotion) {
           setPose("write-rest");
         }
@@ -370,22 +380,26 @@ export function AsciiArt({
       const hit = classifyAsciiPoint(baseLines, row, column) as AsciiHit;
       runtime.hit = hit;
 
-      if (hit === "blank") {
-        return;
-      }
-
-      runtime.direction = directionForAsciiPoint(
+      const nextDirection = directionForAsciiPoint(
         row,
         column,
       ) as SwatDirection;
+      const directionChanged = nextDirection !== runtime.direction;
+      runtime.direction = nextDirection;
+
+      if (directionChanged && runtime.mode === "notice") {
+        runtime.actionDirection = nextDirection;
+        runtime.sequence = sequences.notice[nextDirection];
+        runtime.sequenceIndex = Math.min(
+          runtime.sequenceIndex,
+          runtime.sequence.length - 1,
+        );
+        setPose(runtime.sequence[runtime.sequenceIndex].pose);
+      }
+
       const elapsed = Math.max(1, sampleTime - runtime.lastPointerProcessAt);
       const velocity = pointerDistance / elapsed;
       const velocityMultiplier = velocity >= 0.7 ? 1.32 : 1;
-      runtime.movementBudget = Math.min(
-        MAX_MOVEMENT_BUDGET,
-        runtime.movementBudget +
-          pointerDistance * HIT_MULTIPLIER[hit] * velocityMultiplier,
-      );
       runtime.lastMoveAt = sampleTime;
       runtime.lastPointerProcessAt = sampleTime;
 
@@ -393,6 +407,23 @@ export function AsciiArt({
         showReducedMotionGlance(runtime.direction);
         return;
       }
+
+      if (hit === "blank") {
+        if (
+          runtime.mode === "writing" &&
+          !runtime.noticedEpisode &&
+          pointerDistance >= NOTICE_DISTANCE
+        ) {
+          beginNotice(sampleTime);
+        }
+        return;
+      }
+
+      runtime.movementBudget = Math.min(
+        MAX_MOVEMENT_BUDGET,
+        runtime.movementBudget +
+          pointerDistance * HIT_MULTIPLIER[hit] * velocityMultiplier,
+      );
 
       if (
         runtime.mode === "writing" &&
