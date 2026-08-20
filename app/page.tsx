@@ -1,5 +1,5 @@
-import { AsciiArt } from "./components/AsciiArt";
 import { asciiPortrait } from "./components/asciiCharacter.js";
+import { NaturalSwatAsciiArt } from "./components/NaturalSwatAsciiArt";
 import { SiteHeader } from "./components/SiteChrome";
 
 export default function Home() {
@@ -16,7 +16,7 @@ export default function Home() {
               <p>I live for good cold brew, meaningful work, and passionate people.</p>
             </div>
             <div className="col-lg-6 order-lg-1 ascii-container" id="ascii">
-              <AsciiArt art={asciiPortrait} />
+              <NaturalSwatAsciiArt art={asciiPortrait} />
             </div>
           </div>
         </section>
