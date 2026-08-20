@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { BranchLead, BranchReturn, SiteHeader } from "../components/SiteChrome";
+import { SiteHeader } from "../components/SiteChrome";
 import { LegacyIcon, type LegacyIconName } from "../components/LegacyIcon";
 import { skillStacks } from "../data";
 import ResumeExperience from "./ResumeExperience";
@@ -33,15 +33,9 @@ export default function ResumePage() {
 
   return (
     <>
-      <SiteHeader current="resume" />
-      <main className="site-main site-branch site-branch--resume" id="main-content" tabIndex={-1}>
-        <div className="container">
-          <BranchLead
-            current="resume"
-            title="Resume"
-            description="Hayden Howard’s experience, education, projects, and interdisciplinary skill stacks."
-          />
-        </div>
+      <SiteHeader />
+      <main>
+        <div className="container"><h1 className="text-center resume-title">Resume</h1></div>
         <div className="container">
           <h2 className="text-center skill-stack-heading">Skill Stacks</h2>
           <div className="card-columns" id="papershelf">
@@ -63,7 +57,6 @@ export default function ResumePage() {
         </div>
         <ResumeProjects />
         <ResumeExperience />
-        <div className="container"><BranchReturn current="resume" /></div>
       </main>
     </>
   );
