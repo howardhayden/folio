@@ -5,15 +5,20 @@ import { useEffect, useMemo, useRef } from "react";
 import {
   ASCII_CHARACTER_DESCRIPTION,
   ASCII_COLUMNS,
+  ASCII_INTERACTION_TIMING,
   ASCII_ROWS,
   ASCII_SEQUENCES,
+  createAsciiBatSequence,
   createAsciiFrames,
+  createAsciiMotionClock,
+  createAsciiTargetedBatFrames,
   directionForAsciiPoint,
   normalizeAsciiArt,
 } from "./asciiCharacter.js";
 
-type CatMode = "idle" | "track" | "bat" | "settle";
+type CatMode = "idle" | "track" | "bat" | "settle" | "follow";
 type BatDirection = "left" | "right" | "upper-left" | "upper-right";
+type TailPosition = "left" | "left-mid" | "center" | "right-mid" | "right";
 type TimedPose = Readonly<{ pose: string; durationMs: number }>;
 
 type CatSequences = Readonly<{
@@ -23,10 +28,19 @@ type CatSequences = Readonly<{
   settle: Readonly<Record<BatDirection, readonly TimedPose[]>>;
 }>;
 
-const BAT_MOVEMENT_THRESHOLD = 16;
-const BAT_DWELL_MS = 520;
-const BAT_COOLDOWN_MS = 980;
+const BAT_MOVEMENT_THRESHOLD = ASCII_INTERACTION_TIMING.movementThreshold;
+const BAT_DWELL_MS = ASCII_INTERACTION_TIMING.dwellMs;
 const MAX_MOVEMENT_BUDGET = 96;
+const TAIL_PHASES = [
+  "center",
+  "left-mid",
+  "left",
+  "left-mid",
+  "center",
+  "right-mid",
+  "right",
+  "right-mid",
+] as const;
 
 const hostStyle: CSSProperties = {
   display: "grid",
@@ -38,6 +52,7 @@ const hostStyle: CSSProperties = {
 
 const preStyle: CSSProperties = {
   cursor: "default",
+  lineHeight: 1.05,
   margin: 0,
   maxWidth: "none",
   pointerEvents: "auto",
@@ -131,25 +146,28 @@ export function AsciiArt({
     const pre = preRef.current;
     if (!host || !pre) return;
 
-    const sequences = ASCII_SEQUENCES as CatSequences;
+    const sequences = ASCII_SEQUENCES as unknown as CatSequences;
     const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const finePointerQuery = window.matchMedia("(any-hover: hover) and (any-pointer: fine)");
 
     let disposed = false;
     let animationFrame = 0;
+    let reducedFollowTimer = 0;
     let reducedMotion = reducedMotionQuery.matches;
     let finePointer = finePointerQuery.matches;
     const now = performance.now();
+    const motionClock = createAsciiMotionClock(now);
 
     const runtime = {
       mode: "idle" as CatMode,
       sequence: sequences.idle,
       sequenceIndex: 0,
-      nextPoseAt: now + sequences.idle[0].durationMs,
+      nextPoseAt: Number.POSITIVE_INFINITY,
       currentPose: "loaf-center",
       direction: "right" as BatDirection,
       actionDirection: "right" as BatDirection,
       pointerInside: false,
+      hasEngagedPointer: false,
       pointerEnteredAt: Number.POSITIVE_INFINITY,
       hasPointerSample: false,
       lastClientX: 0,
@@ -158,23 +176,53 @@ export function AsciiArt({
       pendingClientY: 0,
       pendingDistance: 0,
       pendingSample: false,
+      pendingOutsideSample: false,
       pendingLeave: false,
       movementBudget: 0,
-      lastBatAt: Number.NEGATIVE_INFINITY,
+      batOrdinal: 0,
+      targetRow: 20,
+      targetColumn: 35,
+      batFrames: null as Readonly<Record<string, string>> | null,
       lastTickAt: now,
     };
 
+    const currentTail = () => TAIL_PHASES[motionClock.tailPhaseIndex] as TailPosition;
+
     const setPose = (poseName: string) => {
       if (runtime.currentPose === poseName) return;
-      const nextFrame = frames[poseName];
+      const nextFrame =
+        (runtime.mode === "bat" || runtime.mode === "settle"
+          ? runtime.batFrames?.[poseName]
+          : undefined) ??
+        frames[poseName];
       if (!nextFrame) return;
       pre.textContent = nextFrame;
       pre.dataset.asciiFrame = poseName;
       runtime.currentPose = poseName;
     };
 
-    const beginSequence = (
-      mode: CatMode,
+    const enterAmbient = (mode: "idle" | "track" | "follow") => {
+      runtime.mode = mode;
+      runtime.batFrames = null;
+      host.dataset.asciiMode = mode;
+      const tail = currentTail();
+      setPose(
+        mode === "idle"
+          ? tail === "center" ? "loaf-center" : `loaf-tail-${tail}`
+          : `track-${runtime.direction}-${tail}-tail`,
+      );
+    };
+
+    const advanceTail = (sampleTime: number) => {
+      const advances = motionClock.advanceTail(sampleTime);
+      if (advances > 0 &&
+          (runtime.mode === "idle" || runtime.mode === "track" || runtime.mode === "follow")) {
+        enterAmbient(runtime.mode);
+      }
+    };
+
+    const beginAction = (
+      mode: "bat" | "settle",
       sequence: readonly TimedPose[],
       sequenceStart: number,
     ) => {
@@ -186,55 +234,70 @@ export function AsciiArt({
       setPose(sequence[0].pose);
     };
 
-    const beginIdle = (time: number) => beginSequence("idle", sequences.idle, time);
-
-    const beginTrack = (time: number) => {
-      runtime.actionDirection = runtime.direction;
-      beginSequence("track", sequences.track[runtime.direction], time);
-    };
-
     const beginBat = (time: number) => {
       runtime.actionDirection = runtime.direction;
-      runtime.lastBatAt = time;
       runtime.movementBudget = 0;
-      beginSequence("bat", sequences.bat[runtime.actionDirection], time);
+      motionClock.freezeTail(time);
+      const sequence = createAsciiBatSequence(
+        runtime.actionDirection,
+        runtime.batOrdinal,
+      ) as readonly TimedPose[];
+      runtime.batFrames = createAsciiTargetedBatFrames(
+        baseFrame,
+        runtime.actionDirection,
+        runtime.targetRow,
+        runtime.targetColumn,
+        currentTail(),
+      ) as Readonly<Record<string, string>>;
+      runtime.batOrdinal += 1;
+      beginAction("bat", sequence, time);
     };
 
-    const beginSettle = (time: number) =>
-      beginSequence("settle", sequences.settle[runtime.actionDirection], time);
+    const beginSettle = (
+      time: number,
+      direction = runtime.direction,
+      tailAlreadyFrozen = false,
+    ) => {
+      if (!tailAlreadyFrozen) motionClock.freezeTail(time);
+      if (!runtime.batFrames?.[`settle-${direction}`]) {
+        runtime.batFrames = createAsciiTargetedBatFrames(
+          baseFrame,
+          direction,
+          runtime.targetRow,
+          runtime.targetColumn,
+          currentTail(),
+        ) as Readonly<Record<string, string>>;
+      }
+      beginAction("settle", sequences.settle[direction], time);
+    };
 
     const canBat = (time: number) =>
       finePointer &&
       !reducedMotion &&
       runtime.pointerInside &&
-      time - runtime.lastBatAt >= BAT_COOLDOWN_MS &&
+      !motionClock.batCoolingDown(time) &&
       (runtime.movementBudget >= BAT_MOVEMENT_THRESHOLD ||
         time - runtime.pointerEnteredAt >= BAT_DWELL_MS);
 
-    const finishSequence = (time: number) => {
-      if (runtime.mode === "idle") {
-        if (runtime.pointerInside && finePointer) beginTrack(time);
-        else beginIdle(time);
-      } else if (runtime.mode === "track") {
-        if (canBat(time)) beginBat(time);
-        else if (runtime.pointerInside) beginTrack(time);
-        else beginSettle(time);
-      } else if (runtime.mode === "bat") {
-        beginSettle(time);
-      } else if (runtime.pointerInside && finePointer) {
-        beginTrack(time);
+    const finishAction = (time: number) => {
+      if (runtime.mode === "bat") {
+        motionClock.markBatEnded(time);
+        beginSettle(time, runtime.actionDirection, true);
       } else {
-        beginIdle(time);
+        motionClock.resumeTail(time);
+        if (runtime.pointerInside && finePointer) enterAmbient("track");
+        else if (!motionClock.followExpired(time) && finePointer) enterAmbient("follow");
+        else enterAmbient("idle");
       }
     };
 
     const advanceSequence = (sampleTime: number) => {
       let advances = 0;
-      while (sampleTime >= runtime.nextPoseAt && advances < 8) {
+      while (sampleTime >= runtime.nextPoseAt && advances < 16) {
         advances += 1;
         const nextIndex = runtime.sequenceIndex + 1;
         if (nextIndex >= runtime.sequence.length) {
-          finishSequence(runtime.nextPoseAt);
+          finishAction(sampleTime);
           return;
         }
         runtime.sequenceIndex = nextIndex;
@@ -245,50 +308,84 @@ export function AsciiArt({
     };
 
     const showReducedMotionGaze = () => {
-      const pose = sequences.track[runtime.direction][0]?.pose;
-      if (pose) setPose(pose);
-      runtime.mode = "track";
-      host.dataset.asciiMode = "track";
+      runtime.mode = runtime.pointerInside ? "track" : "follow";
+      runtime.batFrames = null;
+      host.dataset.asciiMode = runtime.mode;
+      setPose(`track-${runtime.direction}-center-tail`);
     };
 
-    const updateDirection = (clientX: number, clientY: number) => {
+    const scheduleReducedFollowExpiry = () => {
+      window.clearTimeout(reducedFollowTimer);
+      if (!reducedMotion || runtime.pointerInside || !Number.isFinite(motionClock.followUntil)) return;
+      reducedFollowTimer = window.setTimeout(() => {
+        if (disposed || runtime.pointerInside || !motionClock.followExpired(performance.now())) return;
+        runtime.mode = "idle";
+        runtime.batFrames = null;
+        host.dataset.asciiMode = "idle";
+        setPose("loaf-center");
+      }, Math.max(0, motionClock.followUntil - performance.now()) + 16);
+    };
+
+    const updateDirection = (clientX: number, clientY: number, allowOutside = false) => {
       const rect = pre.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return;
+      if (rect.width <= 0 || rect.height <= 0) return false;
       const relativeX = (clientX - rect.left) / rect.width;
       const relativeY = (clientY - rect.top) / rect.height;
-      if (relativeX < 0 || relativeX >= 1 || relativeY < 0 || relativeY >= 1) return;
-      const column = Math.min(ASCII_COLUMNS - 1, Math.floor(relativeX * ASCII_COLUMNS));
-      const row = Math.min(ASCII_ROWS - 1, Math.floor(relativeY * ASCII_ROWS));
+      if (!allowOutside && (relativeX < 0 || relativeX >= 1 || relativeY < 0 || relativeY >= 1)) {
+        return false;
+      }
+      const column = Math.floor(relativeX * ASCII_COLUMNS);
+      const row = Math.floor(relativeY * ASCII_ROWS);
+      runtime.targetRow = row;
+      runtime.targetColumn = column;
       const nextDirection = directionForAsciiPoint(row, column) as BatDirection;
-      if (nextDirection === runtime.direction) return;
+      if (nextDirection === runtime.direction) return false;
       runtime.direction = nextDirection;
       if (reducedMotion) {
         showReducedMotionGaze();
-      } else if (runtime.mode === "track") {
-        beginTrack(performance.now());
+      } else if (runtime.mode === "track" || runtime.mode === "follow") {
+        enterAmbient(runtime.mode);
       }
+      return true;
     };
 
     const processPointer = (sampleTime: number) => {
       if (runtime.pendingLeave) {
         runtime.pendingLeave = false;
+        runtime.pendingSample = false;
         runtime.pointerInside = false;
         runtime.hasPointerSample = false;
         runtime.pendingDistance = 0;
         runtime.movementBudget = 0;
+        motionClock.refreshFollow(sampleTime);
+        updateDirection(runtime.pendingClientX, runtime.pendingClientY, true);
+        runtime.pendingOutsideSample = false;
         if (reducedMotion) {
-          runtime.mode = "idle";
-          host.dataset.asciiMode = "idle";
-          setPose("loaf-center");
+          showReducedMotionGaze();
+          scheduleReducedFollowExpiry();
         } else if (runtime.mode !== "bat" && runtime.mode !== "settle") {
-          beginSettle(sampleTime);
+          enterAmbient("follow");
         }
         return;
       }
 
       if (!runtime.pendingSample || !finePointer) return;
       runtime.pendingSample = false;
-      updateDirection(runtime.pendingClientX, runtime.pendingClientY);
+      const outsideSample = runtime.pendingOutsideSample;
+      runtime.pendingOutsideSample = false;
+      updateDirection(runtime.pendingClientX, runtime.pendingClientY, outsideSample);
+      if (outsideSample) {
+        motionClock.refreshFollow(sampleTime);
+        runtime.pendingDistance = 0;
+        runtime.movementBudget = 0;
+        if (reducedMotion) {
+          showReducedMotionGaze();
+          scheduleReducedFollowExpiry();
+        } else if (runtime.mode !== "bat" && runtime.mode !== "settle" && runtime.mode !== "follow") {
+          enterAmbient("follow");
+        }
+        return;
+      }
       runtime.movementBudget = Math.min(
         MAX_MOVEMENT_BUDGET,
         runtime.movementBudget + runtime.pendingDistance,
@@ -297,10 +394,8 @@ export function AsciiArt({
 
       if (reducedMotion) {
         showReducedMotionGaze();
-      } else if (runtime.mode === "idle" || runtime.mode === "settle") {
-        beginTrack(sampleTime);
-      } else if (runtime.mode === "track" && canBat(sampleTime)) {
-        beginBat(sampleTime);
+      } else if (runtime.mode === "idle" || runtime.mode === "follow") {
+        enterAmbient("track");
       }
     };
 
@@ -311,8 +406,12 @@ export function AsciiArt({
     const onPointerEnter = (event: PointerEvent) => {
       if (!acceptsPointer(event)) return;
       runtime.pointerInside = true;
+      runtime.hasEngagedPointer = true;
       runtime.pointerEnteredAt = performance.now();
+      motionClock.clearFollow();
+      window.clearTimeout(reducedFollowTimer);
       runtime.pendingLeave = false;
+      runtime.pendingOutsideSample = false;
       runtime.hasPointerSample = true;
       runtime.lastClientX = event.clientX;
       runtime.lastClientY = event.clientY;
@@ -339,35 +438,75 @@ export function AsciiArt({
       runtime.pendingClientY = event.clientY;
       runtime.pendingSample = true;
       runtime.pointerInside = true;
+      runtime.pendingOutsideSample = false;
       requestTick();
     };
 
     const onPointerLeave = (event: PointerEvent) => {
       if (!acceptsPointer(event)) return;
+      runtime.pointerInside = false;
+      runtime.pointerEnteredAt = Number.POSITIVE_INFINITY;
+      motionClock.refreshFollow(performance.now());
       runtime.pendingLeave = true;
       runtime.hasPointerSample = false;
+      runtime.pendingClientX = event.clientX;
+      runtime.pendingClientY = event.clientY;
+      runtime.pendingOutsideSample = true;
+      requestTick();
+    };
+
+    const onWindowPointerMove = (event: PointerEvent) => {
+      if (
+        !acceptsPointer(event) ||
+        runtime.pointerInside ||
+        !runtime.hasEngagedPointer ||
+        motionClock.followExpired(performance.now())
+      ) {
+        return;
+      }
+      runtime.pendingClientX = event.clientX;
+      runtime.pendingClientY = event.clientY;
+      runtime.pendingSample = true;
+      runtime.pendingOutsideSample = true;
       requestTick();
     };
 
     const syncPreferences = () => {
+      const syncTime = performance.now();
       reducedMotion = reducedMotionQuery.matches;
       finePointer = finePointerQuery.matches;
+      window.clearTimeout(reducedFollowTimer);
       host.dataset.asciiMotion = reducedMotion ? "reduced" : "animated";
       host.dataset.asciiPointer = finePointer ? "fine" : "non-hover";
       runtime.pendingDistance = 0;
       runtime.pendingSample = false;
+      runtime.pendingOutsideSample = false;
       runtime.pendingLeave = false;
       runtime.movementBudget = 0;
+      if (runtime.mode === "bat") motionClock.markBatEnded(syncTime);
+      runtime.batFrames = null;
+      motionClock.resetTail(syncTime);
       if (!finePointer) {
         runtime.pointerInside = false;
+        runtime.hasEngagedPointer = false;
         runtime.hasPointerSample = false;
+        motionClock.clearFollow();
       }
       if (reducedMotion) {
-        runtime.mode = "idle";
-        host.dataset.asciiMode = "idle";
-        setPose("loaf-center");
+        if (runtime.pointerInside && finePointer) {
+          showReducedMotionGaze();
+        } else if (!motionClock.followExpired(syncTime) && finePointer) {
+          showReducedMotionGaze();
+          scheduleReducedFollowExpiry();
+        } else {
+          runtime.mode = "idle";
+          host.dataset.asciiMode = "idle";
+          setPose("loaf-center");
+        }
       } else {
-        beginIdle(performance.now());
+        if (runtime.pointerInside && finePointer) enterAmbient("track");
+        else if (!motionClock.followExpired(syncTime) && finePointer) enterAmbient("follow");
+        else enterAmbient("idle");
       }
       requestTick();
     };
@@ -383,13 +522,29 @@ export function AsciiArt({
       const elapsed = sampleTime - runtime.lastTickAt;
       runtime.lastTickAt = sampleTime;
       if (elapsed > 1000 && !reducedMotion) {
-        if (runtime.pointerInside && finePointer) beginTrack(sampleTime);
-        else beginIdle(sampleTime);
+        if (runtime.mode === "bat") motionClock.markBatEnded(sampleTime);
+        runtime.batFrames = null;
+        motionClock.resetTail(sampleTime, motionClock.tailPhaseIndex);
+        if (runtime.pointerInside && finePointer) enterAmbient("track");
+        else if (!motionClock.followExpired(sampleTime) && finePointer) enterAmbient("follow");
+        else enterAmbient("idle");
+        runtime.pointerEnteredAt = runtime.pointerInside
+          ? sampleTime
+          : Number.POSITIVE_INFINITY;
       }
       processPointer(sampleTime);
       if (!reducedMotion) {
-        if (runtime.mode === "track" && canBat(sampleTime)) beginBat(sampleTime);
-        advanceSequence(sampleTime);
+        if (runtime.mode === "idle" || runtime.mode === "track" || runtime.mode === "follow") {
+          advanceTail(sampleTime);
+        }
+        if (runtime.mode === "follow" && motionClock.followExpired(sampleTime)) {
+          beginSettle(sampleTime);
+        } else if (runtime.mode === "track" && canBat(sampleTime)) {
+          beginBat(sampleTime);
+        }
+        if (runtime.mode === "bat" || runtime.mode === "settle") {
+          advanceSequence(sampleTime);
+        }
         requestTick();
       } else if (runtime.pendingSample || runtime.pendingLeave) {
         requestTick();
@@ -400,6 +555,7 @@ export function AsciiArt({
     pre.addEventListener("pointermove", onPointerMove, { passive: true });
     pre.addEventListener("pointerleave", onPointerLeave, { passive: true });
     pre.addEventListener("pointercancel", onPointerLeave, { passive: true });
+    window.addEventListener("pointermove", onWindowPointerMove, { passive: true });
     reducedMotionQuery.addEventListener("change", syncPreferences);
     finePointerQuery.addEventListener("change", syncPreferences);
     syncPreferences();
@@ -407,14 +563,16 @@ export function AsciiArt({
     return () => {
       disposed = true;
       window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(reducedFollowTimer);
       pre.removeEventListener("pointerenter", onPointerEnter);
       pre.removeEventListener("pointermove", onPointerMove);
       pre.removeEventListener("pointerleave", onPointerLeave);
       pre.removeEventListener("pointercancel", onPointerLeave);
+      window.removeEventListener("pointermove", onWindowPointerMove);
       reducedMotionQuery.removeEventListener("change", syncPreferences);
       finePointerQuery.removeEventListener("change", syncPreferences);
     };
-  }, [baseLines, frames]);
+  }, [baseFrame, baseLines, frames]);
 
   return (
     <div
