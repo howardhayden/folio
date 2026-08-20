@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import {
+  ASCII_COLUMNS,
+  ASCII_POSES,
+  ASCII_ROWS,
+  asciiPortrait,
+  classifyAsciiPoint,
+  createAsciiFrames,
+  directionForAsciiPoint,
+  normalizeAsciiArt,
+  validateAsciiCharacterDefinition,
+} from "../app/components/asciiCharacter.js";
 
 async function loadWorker() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -22,6 +33,34 @@ async function render(pathname) {
   return { response, html: await response.text() };
 }
 
+test("validates every authored ASCII pose without changing frame geometry", () => {
+  assert.equal(validateAsciiCharacterDefinition(asciiPortrait), true);
+
+  const frames = createAsciiFrames(asciiPortrait);
+  assert.equal(Object.keys(frames).length, Object.keys(ASCII_POSES).length);
+
+  for (const [poseName, frame] of Object.entries(frames)) {
+    const lines = frame.split("\n");
+    assert.equal(lines.length, ASCII_ROWS, poseName);
+    assert.ok(
+      lines.every((line) => line.length === ASCII_COLUMNS),
+      `${poseName} preserves ${ASCII_COLUMNS} columns`,
+    );
+  }
+});
+
+test("classifies portrait collisions and selects one of four authored swat directions", () => {
+  const lines = normalizeAsciiArt(asciiPortrait);
+
+  assert.equal(classifyAsciiPoint(lines, 29, 40), "tablet");
+  assert.equal(classifyAsciiPoint(lines, 0, 0), "image");
+  assert.equal(classifyAsciiPoint(lines, 33, 69), "blank");
+  assert.equal(directionForAsciiPoint(10, 10), "upper-left");
+  assert.equal(directionForAsciiPoint(10, 60), "upper-right");
+  assert.equal(directionForAsciiPoint(30, 10), "left");
+  assert.equal(directionForAsciiPoint(30, 60), "right");
+});
+
 test("renders document metadata", async () => {
   const { response, html } = await render("/");
 
@@ -31,6 +70,20 @@ test("renders document metadata", async () => {
     /^text\/html\b/i,
   );
   assert.match(html, /<title>hah\.dev<\/title>/);
+});
+
+test("renders the ASCII character accessibly before client hydration", async () => {
+  const { html } = await render("/");
+
+  assert.match(html, /data-ascii-character="writer"/);
+  assert.match(html, /data-ascii-interaction="pointer-swat"/);
+  assert.match(html, /data-ascii-frame="write-rest"/);
+  assert.match(html, /role="img"/);
+  assert.match(
+    html,
+    /aria-label="A person sitting beneath a tree writes on a tablet and occasionally notices and swats toward a moving mouse pointer\."/,
+  );
+  assert.match(html, /<pre[^>]*aria-hidden="true"/);
 });
 
 test("renders every primary route with its page heading", async () => {

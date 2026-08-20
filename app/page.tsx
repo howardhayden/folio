@@ -1,40 +1,6 @@
-import { SiteHeader } from "./components/SiteChrome";
 import { AsciiArt } from "./components/AsciiArt";
-
-const asciiArt = String.raw`MMMMMMMMMMMMMMMMMMMKl'.;:'...         .....';oxkkkkOKXNNNNNWWMMNkol:''
-MMMMMMMMMMMMMMMMMMW0c. ...            ..,;:oO0Oxdllldk0KKXNNNWWNKOkxdo
-MMMMMMMMMMMMMWWMMWk;.              ...':dOOOkdl;'...';::cox0XNNWWMMMMM
-MMMMMXo;:ccc:,','.....         .';oxkKNNXKOxl;,;'....,......'lOXNWWWWW
-WWWWMWk;,'.........           .';d000Okdl:;'..'.. ...........:kXXXKKKK
-0kxONMXxc'..                  .;okxdl:'...........       ....,dKXK0Okk
-kdodKWMWXOdc,.................;xKKOkkkkxo;.... ...,'..    ...'cOXKOkxd
-OkkO00KXNNWNKOko;''''''''';codONWNNNNNWN0xc,'....'::,'.    ...;xKKOxdd
-Okxxdddxxk0KXNNNOc,'',:ldOKNWWWNNNXXXNNW0occoo:'';:;'''.......,coodddd
-OOOOOOOOO00KKKXNWN0OO0XWMWWNNNNXXXXXXNNNXOxddo:;:::,.';;;,'.',cdxk0K0k
-XXXXXXXNNNNNNNNNNNWWWWWNNXXNNWWWWWWWWWWWMMWKd:,;;::;',::::;;;:ldxxOOkd
-NNWWWWWWWWWWMMMMWWWNNNNNNNNWWWMMMMMMMMMMMMMXd:;;;;;,'';ccllc:,''..... 
-MMMMMMMMMMMMMMMMMMMWWWWWWWMMMMMMMMMMMMMMMMMN0xo:;;'...';:c:,.         
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN0dc;....',;'.           
-MMMMMMMMMMMMMMMMMWWMMMMMMMMWWWWWWWWWWMMMMMMMMMMNOc;cdo;..             
-MMMMMMMWWWWWWWWWWWWWWWWWWWNNNNNNNNNNWWWWWMMMMMMMWNNW0:.               
-MMMMMMWWWNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNWWWMMMMMMW0;.                
-MMMMMMMMWWWNWWWNNNNNNNNNNXXXXXXXXXXXXNNNNNNWWWMMW0l.                  
-MMMMMMMMMWWWWWWWNNXXXKKK0OOkkkkkkkkOOOO0KKKXXNWWk'                    
-MMMWWWWWWWWNNNNNXXK00OOkkkkkkkkkkkOOOOO00KKXWWWO,.                    
-NNXK00OOOkkkkkkkkkkxxxxkkOOOO00000000KXNNNNNWMK:.                     
-OOOOOkxxdddddxxxxxxkO00KKXXXXNNNNNNNWWMMMMWWMWx.                      
-OOkkOO0OkxxkkkOOOO0XNNNNNNNNNNNNWWWWWMMMMMMMMWx.                      
-KKK0KKKKK000OkxdxOKXNWWWWWWWNNNWWWMMMMMMMMMMMKc.                      
-NXKOOkxdlc;,,,,;;:oOXWMMMMMMWWWMMMMMMMMMMNKXNd.                       
-N0l'.....   .......'ckXWMMMMMMMMWNXXNWN0xxkXNo.                       
-WNKd;.               .'l0WMMMMW0l;:cc:;;oKWMMK:                       
-WWMWXOo,.               .:kXMWOoc;,'',::lxKWXl.                       
-NWMMWWWXx;.         .;:;:;'ckd;:ddolc:;,,:lxl.                        
-KXWWWWWWWXkc.     .ck0KKKkdc'.,ldxkOxc'...',,.                        
-kKWNKOxdodxdl;'..,ok0KX0kxdoc;'...'',;;,,'..                          
-dk0xl;'......',;;coxO00Oxkkkxo;..     .,oc.                           
-:clc;'..........',,,;coxk0XXXXOdc::;;'.''.                            
-:clc'... ..............;dOXNWWWNNNXXKd,..`;
+import { asciiPortrait } from "./components/asciiCharacter.js";
+import { SiteHeader } from "./components/SiteChrome";
 
 export default function Home() {
   return (
@@ -50,7 +16,7 @@ export default function Home() {
               <p>I live for good cold brew, meaningful work, and passionate people.</p>
             </div>
             <div className="col-lg-6 order-lg-1 ascii-container" id="ascii">
-              <AsciiArt art={asciiArt} />
+              <AsciiArt art={asciiPortrait} />
             </div>
           </div>
         </section>
