@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SiteHeader } from "../components/SiteChrome";
 import type { Paper } from "../data";
+import { arrangeShelfPapers } from "./shelfLogic.js";
 
 const MONTH_CODES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
@@ -33,29 +34,26 @@ const formatDate = (value: string) => {
   return sourceDate;
 };
 
-const shuffle = <T,>(items: T[]) => {
-  const shuffled = [...items];
-  for (let currentIndex = shuffled.length; currentIndex > 0;) {
-    const randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex -= 1;
-    [shuffled[currentIndex], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[currentIndex]];
-  }
-  return shuffled;
-};
-
 export default function ShelfExplorer({ papers }: { papers: Paper[] }) {
   const [open, setOpen] = useState(false);
-  const [language, setLanguage] = useState("");
-  const [publisher, setPublisher] = useState("");
-  const [author, setAuthor] = useState("");
-  const [collection, setCollection] = useState("");
-  const [hydrated, setHydrated] = useState(false);
+  const [filters, setFilters] = useState({ language: "", publisher: "", author: "", collection: "" });
+  const [filtered, setFiltered] = useState(papers);
   const menuRef = useRef<HTMLLIElement>(null);
+  const filtersRef = useRef(filters);
+  const arrangementRevisionRef = useRef(0);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => setHydrated(true));
+    const frame = window.requestAnimationFrame(() => {
+      arrangementRevisionRef.current = 1;
+      setFiltered((current) => arrangeShelfPapers(
+        papers,
+        filtersRef.current,
+        arrangementRevisionRef.current,
+        current.map((paper) => paper.title),
+      ));
+    });
     return () => window.cancelAnimationFrame(frame);
-  }, []);
+  }, [papers]);
 
   useEffect(() => {
     const handlePointer = (event: MouseEvent) => {
@@ -70,23 +68,30 @@ export default function ShelfExplorer({ papers }: { papers: Paper[] }) {
     };
   }, [open]);
 
-  const filtered = useMemo(() => {
-    const includes = (values: string[], needle: string) => !needle || values.join(", ").toLowerCase().includes(needle.toLowerCase());
-    const matches = papers.filter((paper) => includes(paper.languages, language) && includes(paper.publishers, publisher) && includes(paper.authors, author) && includes(paper.collections, collection));
-    return hydrated ? shuffle(matches) : matches;
-  }, [author, collection, hydrated, language, papers, publisher]);
+  const changeFilter = (field: keyof typeof filters, value: string) => {
+    const nextFilters = { ...filtersRef.current, [field]: value };
+    filtersRef.current = nextFilters;
+    arrangementRevisionRef.current += 1;
+    setFilters(nextFilters);
+    setFiltered((current) => arrangeShelfPapers(
+      papers,
+      nextFilters,
+      arrangementRevisionRef.current,
+      current.map((paper) => paper.title),
+    ));
+  };
 
   const searchItem = (
     <li className={`nav-item dropdown ${open ? "show" : ""}`} ref={menuRef}>
       <button type="button" className="nav-btn nav-link dropdown-toggle" id="navbarDropdown" aria-haspopup="true" aria-expanded={open} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}>
-        Search
+        <span className="signal-fuzz signal-fuzz--nav">Search</span>
       </button>
       <div className={`dropdown-menu dropdown-menu-right ${open ? "show" : ""}`} aria-labelledby="navbarDropdown">
         <form onSubmit={(event) => event.preventDefault()}>
-          <SearchField id="languageInput" label="Language" placeholder=" Search Language" value={language} onChange={setLanguage} />
-          <SearchField id="publisherInput" label="Search Publisher" placeholder=" Search Publisher" value={publisher} onChange={setPublisher} />
-          <SearchField id="authorInput" label="Search Author" placeholder=" Search Author" value={author} onChange={setAuthor} />
-          <SearchField id="collectionInput" label="Search Collection" placeholder=" Search Collection" value={collection} onChange={setCollection} />
+          <SearchField id="languageInput" label="Language" placeholder=" Search Language" value={filters.language} onChange={(value) => changeFilter("language", value)} />
+          <SearchField id="publisherInput" label="Search Publisher" placeholder=" Search Publisher" value={filters.publisher} onChange={(value) => changeFilter("publisher", value)} />
+          <SearchField id="authorInput" label="Search Author" placeholder=" Search Author" value={filters.author} onChange={(value) => changeFilter("author", value)} />
+          <SearchField id="collectionInput" label="Search Collection" placeholder=" Search Collection" value={filters.collection} onChange={(value) => changeFilter("collection", value)} />
         </form>
       </div>
     </li>
@@ -95,8 +100,13 @@ export default function ShelfExplorer({ papers }: { papers: Paper[] }) {
   return (
     <>
       <noscript dangerouslySetInnerHTML={{ __html: "<style>.nav-btn#navbarDropdown{display:none}</style>" }} />
-      <SiteHeader shelfSearch={searchItem} />
-      <main className={open ? "container mt-4 shelf-page shelf-page-is-blurred" : "container mt-4 shelf-page"}>
+      <SiteHeader current="shelf" shelfSearch={searchItem} />
+      <main
+        className={open
+          ? "container mt-4 shelf-page page-view page-view--shelf shelf-page-is-blurred"
+          : "container mt-4 shelf-page page-view page-view--shelf"}
+        data-page-view="shelf"
+      >
         <div className="row">
           <aside className="col-lg-3 shelf-intro">
             <h1 className="text-center">Shelf</h1>

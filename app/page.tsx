@@ -5,9 +5,9 @@ import { SiteHeader } from "./components/SiteChrome";
 export default function Home() {
   return (
     <>
-      <SiteHeader />
+      <SiteHeader current="home" />
       <noscript dangerouslySetInnerHTML={{ __html: "<style>#ascii{container-type:inline-size;overflow:hidden}#ascii pre{font-size:min(14px,2cqw);max-width:none;white-space:pre;width:max-content}</style>" }} />
-      <main>
+      <main className="page-view page-view--home" data-page-view="home">
         <section className="container mt-4 container-vertical-center" aria-labelledby="home-title">
           <div className="row">
             <div className="col-lg-6 order-lg-2">
@@ -25,7 +25,9 @@ export default function Home() {
           <div className="row qa-columns">
             <div className="col-lg-6 order-lg-2">
               <div>
-                <h2 className="pulse-effect text-center" id="qa-title">Q &amp; A</h2>
+                <h2 className="pulse-effect text-center" id="qa-title">
+                  <span className="signal-fuzz signal-fuzz--pulse">Q &amp; A</span>
+                </h2>
                 <h3>What is your favorite programming language?</h3>
                 <p>C++, though it didn&apos;t usurp Java until my second Systems course, wherein I adopted some of Professor &quot;DJ&quot; Rao&apos;s passion for it. Today, it&apos;s my go-to language for scripting and general coding practice. I admire its efficiency, versatility, and integrative capacity.</p>
                 <h3>Do you prefer in-person or remote work?</h3>

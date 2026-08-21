@@ -229,7 +229,7 @@ export default function ResumeProjects() {
                   className="card-title tools-card-title row justify-content-center"
                   id={headingId}
                 >
-                  <a href={project.url}>{project.name}</a>
+                  <a className="signal-fuzz" href={project.url}>{project.name}</a>
                 </h3>
 
                 {project.summary.map((paragraph, index) => (
@@ -254,6 +254,7 @@ export default function ResumeProjects() {
                         return (
                           <li key={resource.url}>
                             <a
+                              className="signal-fuzz"
                               href={resource.url}
                               target={
                                 opensInNewTab ? "_blank" : undefined

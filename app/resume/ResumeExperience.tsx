@@ -169,7 +169,7 @@ export default function ResumeExperience() {
       </div>
 
       <div className={`container${blurred}`}>
-        <h2 className="text-red text-center" style={{ marginTop: "-3vh" }}>
+        <h2 className="text-red text-center signal-fuzz" style={{ marginTop: "-3vh" }}>
           <LegacyIcon name="graduation-cap" /> &nbsp;University&nbsp; <LegacyIcon name="graduation-cap" />
         </h2>
         <p className="lead text-center" style={{ marginBottom: "9vh" }}>Graduated May 2023</p>
@@ -187,7 +187,7 @@ export default function ResumeExperience() {
             <article className="timeline-entry right">
               <h3>Volunteer</h3>
               <p>March 2019 – August 2019<br />Kettering Health Network</p>
-              <LegacyIcon name="capsule" className="rotate-left timeline-icon" />
+              <LegacyIcon name="capsule" className="rotate-left timeline-icon signal-fuzz" />
             </article>
           </div>
         </section>
@@ -248,7 +248,7 @@ function TimelineEntry({ entry, icon, index }: { entry: (typeof timeline)[number
       <h3>{entry.role}</h3>
       <p>{entry.period}<br />{entry.organization}</p>
       {entry.details.length > 0 && <p><small>{entry.details.map((detail) => <span key={detail}>{detail}<br /></span>)}</small></p>}
-      <LegacyIcon name={icon} className={`${index % 2 ? "rotate-right" : "rotate-left"} timeline-icon`} />
+      <LegacyIcon name={icon} className={`${index % 2 ? "rotate-right" : "rotate-left"} timeline-icon signal-fuzz`} />
     </>
   );
 }
@@ -272,16 +272,16 @@ function Progress({ label, start, width, gradient = false, onClick }: { label: s
 function CourseChart() {
   return (
     <div className="progress-container">
-      <svg viewBox="0 0 36 36" className="circular-chart" aria-label="Courses supported">
+      <svg viewBox="0 0 36 36" className="circular-chart signal-fuzz" aria-label="Courses supported">
         <circle className="circle-background" cx="18" cy="18" r="15.9155" fill="none" stroke="#efefef" strokeWidth="2" />
         <circle className="circle-3" cx="18" cy="18" r="15.9155" fill="none" stroke="#950F22" strokeWidth="2" strokeDasharray="73, 27" strokeDashoffset="0" />
         <circle className="circle-2" cx="18" cy="18" r="15.9155" fill="none" stroke="#077995" strokeWidth="2" strokeDasharray="17, 83" strokeDashoffset="17.5" />
         <circle className="circle-1" cx="18" cy="18" r="15.9155" fill="none" stroke="#6c757d" strokeWidth="2" strokeDasharray="10, 90" strokeDashoffset="26.5" />
       </svg>
       <div className="labelContainer small">
-        <span className="label text-blue">Technology, Ethics, and Global Society</span><br />
-        <span className="label text-red">Software Engineering for User Interface and User Experience Design</span><br />
-        <span className="label text-secondary">Introduction to Software Engineering</span>
+        <span className="label text-blue signal-fuzz">Technology, Ethics, and Global Society</span><br />
+        <span className="label text-red signal-fuzz">Software Engineering for User Interface and User Experience Design</span><br />
+        <span className="label text-secondary signal-fuzz">Introduction to Software Engineering</span>
       </div>
     </div>
   );

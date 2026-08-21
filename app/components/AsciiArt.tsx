@@ -87,15 +87,8 @@ export function AsciiArt({
     let frame = 0;
 
     const resize = () => {
-      const containerBox = container.getBoundingClientRect();
-      const containerStyle = window.getComputedStyle(container);
-      const paddingLeft = Number.parseFloat(containerStyle.paddingLeft) || 0;
-      const paddingRight = Number.parseFloat(containerStyle.paddingRight) || 0;
-      const contentCenter =
-        (containerBox.left + paddingLeft + containerBox.right - paddingRight) / 2;
-      const pageSafeWidth =
-        2 * Math.max(0, Math.min(contentCenter, window.innerWidth - contentCenter)) * 0.98;
-      const intendedFontSize = (container.clientWidth / ASCII_COLUMNS) * 1.82;
+      const desktopLayout = window.matchMedia("(min-width: 992px)").matches;
+      const availableWidth = Math.max(0, host.clientWidth * 0.98);
       const probe = pre.cloneNode(false) as HTMLPreElement;
 
       probe.textContent = baseFrame;
@@ -117,9 +110,26 @@ export function AsciiArt({
       const referenceWidth = probe.getBoundingClientRect().width;
       probe.remove();
 
-      if (referenceWidth > 0 && pageSafeWidth > 0) {
+      if (referenceWidth <= 0) return;
+
+      if (desktopLayout) {
+        const containerBox = container.getBoundingClientRect();
+        const containerStyle = window.getComputedStyle(container);
+        const paddingLeft = Number.parseFloat(containerStyle.paddingLeft) || 0;
+        const paddingRight = Number.parseFloat(containerStyle.paddingRight) || 0;
+        const contentCenter =
+          (containerBox.left + paddingLeft + containerBox.right - paddingRight) / 2;
+        const pageBoundaryWidth =
+          2 * Math.max(0, Math.min(contentCenter, window.innerWidth - contentCenter)) * 0.98;
+        const pageSafeWidth = Math.min(availableWidth, pageBoundaryWidth);
+        const intendedFontSize = (container.clientWidth / ASCII_COLUMNS) * 1.82;
         const intendedWidth = (referenceWidth / 100) * intendedFontSize;
-        pre.style.fontSize = `${intendedFontSize * Math.min(1, pageSafeWidth / intendedWidth)}px`;
+
+        if (pageSafeWidth > 0 && intendedWidth > 0) {
+          pre.style.fontSize = `${intendedFontSize * Math.min(1, pageSafeWidth / intendedWidth)}px`;
+        }
+      } else if (availableWidth > 0) {
+        pre.style.fontSize = `${Math.min(14, (availableWidth / referenceWidth) * 100)}px`;
       }
     };
 
@@ -131,13 +141,18 @@ export function AsciiArt({
 
     scheduleResize();
     const observer = new ResizeObserver(scheduleResize);
+    observer.observe(host);
     observer.observe(container);
+    window.addEventListener("resize", scheduleResize, { passive: true });
+    window.visualViewport?.addEventListener("resize", scheduleResize, { passive: true });
     void document.fonts?.ready.then(scheduleResize);
 
     return () => {
       disposed = true;
       window.cancelAnimationFrame(frame);
       observer.disconnect();
+      window.removeEventListener("resize", scheduleResize);
+      window.visualViewport?.removeEventListener("resize", scheduleResize);
     };
   }, [baseFrame]);
 
@@ -587,6 +602,7 @@ export function AsciiArt({
       <pre
         ref={preRef}
         aria-hidden="true"
+        className="signal-fuzz signal-fuzz--ascii"
         data-ascii-frame="loaf-center"
         style={preStyle}
       >
