@@ -1,18 +1,19 @@
 # Hayden Howard Portfolio
 
-A small, multi-page portfolio for Hayden Howard, centered on systems, information, resilience, and public service. The refactor deliberately preserves the original Bootstrap-era presentation and interaction design: its Jost typography, light navigation, interactive ASCII landing composition, pulsing Q&A, masonry cards, alternating timeline, modal details, hover motion, and blurred shelf-search overlay.
+A single-document portfolio for Hayden Howard, centered on systems, information, resilience, and public service. The state-based refactor deliberately preserves the original Bootstrap-era presentation and interaction design: its Jost typography, light navigation, interactive ASCII landing composition, pulsing Q&A, masonry cards, alternating timeline, modal details, hover motion, and blurred shelf-search overlay.
 
-## Routes
+## Views
 
-- `/` — introduction, animated ASCII illustration, and Q&A
-- `/resume` — structured skill stacks, career timeline, and education
-- `/tools` — a considered productivity and technology stack
-- `/shelf` — a client-side, filterable catalogue of 30 works
+- `/#home` — introduction, animated ASCII illustration, and Q&A
+- `/#resume` — structured skill stacks, career timeline, and education
+- `/#tools` — a considered productivity and technology stack
+- `/#shelf` — a client-side, filterable catalogue of 30 works
 
 ## Architecture
 
-- Next-compatible App Router pages rendered through Vinext
-- Reusable page chrome and page components
+- One Next-compatible index entry rendered through Vinext
+- An index-owned client state shell with hash/history synchronization
+- Reusable shared chrome and conditionally mounted view components
 - Typed data for skills, roles, tools, and shelf records
 - A fixed-geometry, patch-based ASCII character with writing, attention, directional swat, recovery, and collision states
 - One focused client component for shelf filtering and sorting
@@ -36,11 +37,11 @@ npm run lint
 npm test
 ```
 
-The test command validates every ASCII pose, performs a production build, validates the worker artifact, and checks rendered route output.
+The test command validates every ASCII pose, performs a production build, validates the worker artifact, and checks the index shell and each rendered state.
 
 ## Accessibility and performance notes
 
-- Semantic landmarks and heading order across all routes
+- One visible semantic main landmark with a consistent heading order in every state
 - Visible focus treatment and keyboard-native controls
 - Accessible labels and keyboard dismissal for Shelf search
 - Stable accessible description for changing ASCII frames, with the character data hidden from repeated assistive-technology announcements

@@ -106,6 +106,8 @@ export default function ShelfExplorer({ papers }: { papers: Paper[] }) {
           ? "container mt-4 shelf-page page-view page-view--shelf shelf-page-is-blurred"
           : "container mt-4 shelf-page page-view page-view--shelf"}
         data-page-view="shelf"
+        id="view-shelf"
+        tabIndex={-1}
       >
         <div className="row">
           <aside className="col-lg-3 shelf-intro">
