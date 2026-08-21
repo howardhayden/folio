@@ -667,54 +667,60 @@ test("renders the ASCII character accessibly before client hydration", async () 
   assert.match(html, /<pre[^>]*style="[^"]*line-height:1\.05/);
 });
 
-test("renders every primary route with its page heading", async () => {
-  const routes = [
-    ["/", "home", "Yes, my initials spell", "hah.dev"],
-    ["/resume", "resume", "Resume", "Resume | hah.dev."],
-    ["/tools", "tools", "Tools", "Tools | hah.dev."],
-    ["/shelf", "shelf", "Shelf", "Shelf | hah.dev."],
+test("renders every primary state from the one index-owned shell", async () => {
+  const states = [
+    ["/", "home", "Yes, my initials spell"],
+    ["/?view=resume", "resume", "Resume"],
+    ["/?view=tools", "tools", "Tools"],
+    ["/?view=shelf", "shelf", "Shelf"],
   ];
 
-  for (const [pathname, view, heading, title] of routes) {
+  for (const [pathname, view, heading] of states) {
     const { response, html } = await render(pathname);
     assert.equal(response.status, 200, pathname);
     assert.match(html, new RegExp(`<h1[^>]*>[^<]*${heading}`, "i"), pathname);
-    assert.ok(html.includes(`<title>${title}</title>`), `${pathname} title`);
+    assert.match(html, /data-portfolio-shell="true"/, `${pathname} index shell`);
+    assert.match(html, new RegExp(`data-active-view="${view}"`), `${pathname} active state`);
     assert.match(html, new RegExp(`<main[^>]*data-page-view="${view}"`), `${pathname} view identity`);
+  }
+
+  for (const pathname of ["/resume", "/tools", "/shelf"]) {
+    const { response } = await render(pathname);
+    assert.equal(response.status, 404, `${pathname} is no longer a separate route document`);
   }
 });
 
-test("centers one shared route map without restoring the superseded redesign", async () => {
-  const routes = [
+test("centers one shared state map without restoring the superseded redesign", async () => {
+  const states = [
     ["/", "Home"],
-    ["/resume", "Resume"],
-    ["/tools", "Tools"],
-    ["/shelf", "Shelf"],
+    ["/?view=resume", "Resume"],
+    ["/?view=tools", "Tools"],
+    ["/?view=shelf", "Shelf"],
   ];
   const expectedLinks = [
-    ["/", "Home"],
-    ["/resume", "Resume"],
-    ["/tools", "Tools"],
-    ["/shelf", "Shelf"],
+    ["/#home", "Home"],
+    ["/#resume", "Resume"],
+    ["/#tools", "Tools"],
+    ["/#shelf", "Shelf"],
   ];
 
-  for (const [pathname, currentLabel] of routes) {
+  for (const [pathname, currentLabel] of states) {
     const { html } = await render(pathname);
     assert.match(html, /class="navbar navbar-expand navbar-light bg-light site-header"/);
-    assert.match(html, /<a href="\/" class="navbar-brand">HAH<\/a>/);
+    assert.match(html, /<a class="navbar-brand" href="\/#home">HAH<\/a>/);
     assert.equal((html.match(/aria-current="page"/g) ?? []).length, 1, `${pathname} has one current view`);
     assert.match(
       html,
-      new RegExp(`<a href="[^"]*" class="nav-link[^"]*" aria-current="page"><span class="signal-fuzz signal-fuzz--nav">${currentLabel}</span>`),
+      new RegExp(`<a class="nav-link" href="[^"]*" aria-current="page"><span class="signal-fuzz signal-fuzz--nav">${currentLabel}</span>`),
       `${pathname} identifies ${currentLabel}`,
     );
     const renderedLinks = [...html.matchAll(
-      /<a href="(\/(?:resume|tools|shelf)?)" class="nav-link[^"]*"(?: aria-current="page")?><span class="signal-fuzz signal-fuzz--nav">(Home|Resume|Tools|Shelf)<\/span>/g,
+      /<a class="nav-link" href="(\/#(?:home|resume|tools|shelf))"(?: aria-current="page")?><span class="signal-fuzz signal-fuzz--nav">(Home|Resume|Tools|Shelf)<\/span>/g,
     )].map((match) => [match[1], match[2]]);
-    assert.deepEqual(renderedLinks, expectedLinks, `${pathname} retains the four route links in order`);
+    assert.deepEqual(renderedLinks, expectedLinks, `${pathname} retains the four state links in order`);
     assert.equal(
       (html.match(/class="signal-fuzz signal-fuzz--nav"/g) ?? []).length,
-      pathname === "/shelf" ? 5 : 4,
+      currentLabel === "Shelf" ? 5 : 4,
       `${pathname} textures every green or gray navigation label`,
     );
     assert.doesNotMatch(
@@ -724,17 +730,27 @@ test("centers one shared route map without restoring the superseded redesign", a
     );
   }
 
-  const { html: resume } = await render("/resume");
+  const { html: resume } = await render("/?view=resume");
   assert.doesNotMatch(resume, /Hayden Howard’s experience, education, projects/);
   assert.match(resume, /<h1[^>]*>Resume<\/h1>/);
+
+  const shellSource = await readFile(new URL("../app/components/PortfolioShell.tsx", import.meta.url), "utf8");
+  const chromeSource = await readFile(new URL("../app/components/SiteChrome.tsx", import.meta.url), "utf8");
+  assert.match(shellSource, /useState<PortfolioView>\(initialView\)/);
+  assert.match(shellSource, /window\.addEventListener\("hashchange", synchronizeView\)/);
+  assert.match(shellSource, /window\.addEventListener\("popstate", synchronizeView\)/);
+  assert.match(shellSource, /activeView === "resume" \? <ResumeView \/>/);
+  assert.match(shellSource, /activeView === "tools" \? <ToolsView \/>/);
+  assert.match(shellSource, /activeView === "home" \? <HomeView \/>/);
+  assert.doesNotMatch(chromeSource, /next\/link|href: "\/(?:resume|tools|shelf)"/);
 });
 
 test("keeps every page's information intact while its view sprouts from the index", async () => {
   const approvedMainCopy = {
     "/": [1771, "379a2291b5b9c898b16542d53e3647f60a6b25425b745fa76f28e487327a0a70"],
-    "/resume": [4048, "a5ff701bed028b74342c911135a8bd8bebadabb73acaee6e7558e107cd04b290"],
-    "/tools": [822, "f95964d9567ab733bbb9e14be3d80b68033f3b49c6100c2e807a885f598e02bc"],
-    "/shelf": [6785, "c1b29d690c2d6cf7eb3f62015f23e2fe8a998ddcc641e9b1fd16f7e1b205a973"],
+    "/?view=resume": [4048, "a5ff701bed028b74342c911135a8bd8bebadabb73acaee6e7558e107cd04b290"],
+    "/?view=tools": [822, "f95964d9567ab733bbb9e14be3d80b68033f3b49c6100c2e807a885f598e02bc"],
+    "/?view=shelf": [6785, "c1b29d690c2d6cf7eb3f62015f23e2fe8a998ddcc641e9b1fd16f7e1b205a973"],
   };
 
   for (const [pathname, [approvedLength, approvedHash]] of Object.entries(approvedMainCopy)) {
@@ -813,8 +829,8 @@ test("keeps every page's information intact while its view sprouts from the inde
 test("applies equal subtle film grain and weave inside red, green, blue, gray, and cat glyphs and vectors", async () => {
   const [{ html: home }, { html: resume }, { html: tools }] = await Promise.all([
     render("/"),
-    render("/resume"),
-    render("/tools"),
+    render("/?view=resume"),
+    render("/?view=tools"),
   ]);
 
   assert.match(home, /class="pulse-effect text-center"[^>]*id="qa-title"|id="qa-title"[^>]*class="pulse-effect text-center"/);
@@ -928,7 +944,7 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
 });
 
 test("renders CHORUS and consistent project documentation icons", async () => {
-  const { html } = await render("/resume");
+  const { html } = await render("/?view=resume");
 
   assert.match(html, /href="https:\/\/chorus\.observer\/">CHORUS<\/a>/);
   assert.match(
@@ -940,7 +956,7 @@ test("renders CHORUS and consistent project documentation icons", async () => {
 });
 
 test("renders shelf records before client hydration", async () => {
-  const { html } = await render("/shelf");
+  const { html } = await render("/?view=shelf");
   const searchFields = [...html.matchAll(
     /<label for="([^"]+)">([^<]+)<\/label><input type="text"[^>]*id="\1"[^>]*placeholder="([^"]+)"/g,
   )].map((match) => [match[1], match[2], match[3]]);
@@ -1006,11 +1022,19 @@ test("filters and visibly rearranges Shelf in one deterministic input revision",
 });
 
 test("produces a complete static Pages artifact", async () => {
-  const routes = ["index.html", "resume/index.html", "tools/index.html", "shelf/index.html", "404.html"];
+  const routes = ["index.html", "404.html"];
 
   for (const route of routes) {
     const html = await readFile(new URL(`../site/${route}`, import.meta.url), "utf8");
     assert.match(html, /<!DOCTYPE html>/i, route);
+  }
+
+  for (const supersededRoute of ["resume/index.html", "tools/index.html", "shelf/index.html"]) {
+    await assert.rejects(
+      readFile(new URL(`../site/${supersededRoute}`, import.meta.url), "utf8"),
+      { code: "ENOENT" },
+      `${supersededRoute} is not emitted as a separate document`,
+    );
   }
 
   const cname = await readFile(new URL("../site/CNAME", import.meta.url), "utf8");

@@ -725,10 +725,13 @@ a:hover {
 .shelf-intro p { text-align: center; z-index: 100; position: relative; }
 .shelf-empty { padding: 5rem 1rem; }
 
-/* Route views retain their separate URLs and content while opening from the
-   same top-center origin. */
+/* Index-owned state views open from the same top-center origin. */
 .site-header.bg-light {
   background-color: transparent !important;
+}
+
+.page-view[tabindex="-1"]:focus {
+  outline: none;
 }
 
 @media (max-width: 991.98px) {

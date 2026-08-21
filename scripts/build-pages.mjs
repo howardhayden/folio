@@ -14,9 +14,6 @@ await cp(clientAssets, output, { recursive: true });
 const { default: render } = await import(`${pathToFileURL(serverEntry).href}?build=${Date.now()}`);
 const routes = [
   ["/", "index.html"],
-  ["/resume", "resume/index.html"],
-  ["/tools", "tools/index.html"],
-  ["/shelf", "shelf/index.html"],
   ["/not-found", "404.html"],
 ];
 
