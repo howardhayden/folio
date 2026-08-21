@@ -33,8 +33,8 @@ export default function ResumePage() {
 
   return (
     <>
-      <SiteHeader />
-      <main>
+      <SiteHeader current="resume" />
+      <main className="page-view page-view--resume" data-page-view="resume">
         <div className="container"><h1 className="text-center resume-title">Resume</h1></div>
         <div className="container">
           <h2 className="text-center skill-stack-heading">Skill Stacks</h2>
