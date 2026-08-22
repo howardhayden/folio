@@ -748,7 +748,7 @@ test("centers one shared state map without restoring the superseded redesign", a
 test("keeps every page's information intact while its view sprouts from the index", async () => {
   const approvedMainCopy = {
     "/": [1771, "379a2291b5b9c898b16542d53e3647f60a6b25425b745fa76f28e487327a0a70"],
-    "/?view=resume": [4453, "8d26d7bb7dad67615ab1967675b30300aad24bb16c5f714bbccdf19ce23812b2"],
+    "/?view=resume": [5052, "6b60a4834f1f806e8b35cd0938870b9f62b4d57156ae17e146741feda85df132"],
     "/?view=tools": [822, "f95964d9567ab733bbb9e14be3d80b68033f3b49c6100c2e807a885f598e02bc"],
     "/?view=shelf": [6785, "c1b29d690c2d6cf7eb3f62015f23e2fe8a998ddcc641e9b1fd16f7e1b205a973"],
   };
@@ -824,6 +824,32 @@ test("keeps every page's information intact while its view sprouts from the inde
     "the completed sprout must not leave a transformed containing block around fixed modals",
   );
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.page-view \{[\s\S]*?animation: none/);
+});
+
+test("places progressively disclosed skill bullets between projects and experience", async () => {
+  const { html } = await render("/?view=resume");
+  const projectsIndex = html.indexOf('id="projects-title"');
+  const skillStacksIndex = html.indexOf('id="skill-stacks-title"');
+  const timelineIndex = html.indexOf(">Timeline</h2>");
+
+  assert.ok(projectsIndex >= 0, "Projects heading renders");
+  assert.ok(skillStacksIndex > projectsIndex, "Skill Stacks follows Projects");
+  assert.ok(timelineIndex > skillStacksIndex, "experience follows Skill Stacks");
+  assert.equal((html.match(/class="skill-stack-disclosure"/g) ?? []).length, 7);
+  assert.equal((html.match(/<summary aria-label="[^"]+ skills">Skills<\/summary>/g) ?? []).length, 7);
+  assert.equal(
+    (html.match(/<details class="skill-stack-disclosure"><summary[^>]*>Skills<\/summary><ul>/g) ?? []).length,
+    7,
+    "only each card's bullet list is progressively disclosed",
+  );
+  assert.match(html, />Continuous Integration and Deployment \(CI\/CD\)<\/li>/);
+  assert.match(html, />Three\.js<\/li>/);
+  assert.match(html, />IndexedDB<\/li>/);
+  assert.match(html, />Threat Modeling<\/li>/);
+
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.skill-stack-disclosure > summary \{[\s\S]*?cursor: pointer/);
+  assert.match(css, /@media print \{[\s\S]*?\.skill-stack-disclosure:not\(\[open\]\) > ul \{[\s\S]*?display: block !important/);
 });
 
 test("applies equal subtle film grain and weave inside red, green, blue, gray, and cat glyphs and vectors", async () => {
