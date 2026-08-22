@@ -27,8 +27,9 @@ export default function ResumeView() {
   return (
     <main className="page-view page-view--resume" data-page-view="resume" id="view-resume" tabIndex={-1}>
       <div className="container"><h1 className="text-center resume-title">Resume</h1></div>
-      <div className="container">
-        <h2 className="text-center skill-stack-heading">Skill Stacks</h2>
+      <ResumeProjects />
+      <section className="container" aria-labelledby="skill-stacks-title">
+        <h2 className="text-center skill-stack-heading" id="skill-stacks-title">Skill Stacks</h2>
         <div className="card-columns" id="papershelf">
           {orderedStacks.map((stack) => (
             <article className="card" key={stack.title}>
@@ -40,13 +41,15 @@ export default function ResumeView() {
                     <p className="card-text">Systems and Software Languages.<br /><small>Emphasis on SOLID principles.</small></p>
                   ) : <p className="card-text">{stack.description}</p>
                 )}
-                <ul>{stack.items.map((item) => <li key={item}>{item}</li>)}</ul>
+                <details className="skill-stack-disclosure">
+                  <summary aria-label={`${stack.title} skills`}>Skills</summary>
+                  <ul>{stack.items.map((item) => <li key={item}>{item}</li>)}</ul>
+                </details>
               </div>
             </article>
           ))}
         </div>
-      </div>
-      <ResumeProjects />
+      </section>
       <ResumeExperience />
     </main>
   );

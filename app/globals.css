@@ -206,6 +206,14 @@ svg.signal-fuzz,
     animation: none !important;
     filter: none !important;
   }
+
+  .skill-stack-disclosure > summary {
+    display: none;
+  }
+
+  .skill-stack-disclosure:not([open]) > ul {
+    display: block !important;
+  }
 }
 
 .card-title-tools {
@@ -550,6 +558,24 @@ svg.signal-fuzz,
 
 #papershelf .card-columns {
   margin: 0;
+}
+
+.skill-stack-disclosure {
+  margin-top: 1rem;
+}
+
+.skill-stack-disclosure > summary {
+  cursor: pointer;
+}
+
+.skill-stack-disclosure > summary:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.skill-stack-disclosure > ul {
+  margin-bottom: 0;
+  margin-top: .75rem;
 }
 
 .folio-card-grid {
