@@ -2,6 +2,7 @@ type ProjectIconName =
   | "airplane-engines"
   | "tree"
   | "diagram-3"
+  | "bricks"
   | "backpack4"
   | "archive";
 
@@ -52,6 +53,29 @@ const projects: Project[] = [
       {
         label: "Documentation",
         url: "https://chorus.observer/notebooks/",
+        icon: "backpack4",
+        opensInNewTab: true,
+      },
+    ],
+    publication: "August 2026",
+  },
+  {
+    name: "IN KEEPING",
+    url: "https://inkeep.ing/",
+    icon: "bricks",
+    summary: [
+      "Local-first library continuity lab with user-created workspaces, explicit persistence, integrity-linked revisions, structured safeguards, and notebooks. Models dependencies and access paths; records custody, fixity, rights, metadata, conditions, decisions, and recovery actions; preserves provenance and continuity through disruption and handoff.",
+    ],
+    resources: [
+      {
+        label: "Technical report",
+        url: "https://inkeep.ing/?view=reports",
+        icon: "backpack4",
+        opensInNewTab: true,
+      },
+      {
+        label: "Public notice",
+        url: "https://inkeep.ing/?view=reports",
         icon: "backpack4",
         opensInNewTab: true,
       },
@@ -132,6 +156,23 @@ function Diagram3Icon() {
   );
 }
 
+function BricksIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      fill="currentColor"
+      className="bi bi-bricks"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M0 .5A.5.5 0 0 1 .5 0h15a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H14v2h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H14v2h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H.5a.5.5 0 0 1-.5-.5v-3a.5.5 0 0 1 .5-.5H2v-2H.5a.5.5 0 0 1-.5-.5v-3A.5.5 0 0 1 .5 6H2V4H.5a.5.5 0 0 1-.5-.5zM3 4v2h4.5V4zm5.5 0v2H13V4zM3 10v2h4.5v-2zm5.5 0v2H13v-2zM1 1v2h3.5V1zm4.5 0v2h5V1zm6 0v2H15V1zM1 7v2h3.5V7zm4.5 0v2h5V7zm6 0v2H15V7zM1 13v2h3.5v-2zm4.5 0v2h5v-2zm6 0v2H15v-2z" />
+    </svg>
+  );
+}
+
 function Backpack4Icon() {
   return (
     <svg
@@ -177,6 +218,9 @@ function ProjectIcon({ icon }: { icon: ProjectIconName }) {
 
     case "diagram-3":
       return <Diagram3Icon />;
+
+    case "bricks":
+      return <BricksIcon />;
 
     case "backpack4":
       return <Backpack4Icon />;
@@ -252,7 +296,7 @@ export default function ResumeProjects() {
                           resource.opensInNewTab === true;
 
                         return (
-                          <li key={resource.url}>
+                          <li key={`${resource.label}-${resource.url}`}>
                             <a
                               className="signal-fuzz"
                               href={resource.url}

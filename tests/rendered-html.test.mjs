@@ -748,7 +748,7 @@ test("centers one shared state map without restoring the superseded redesign", a
 test("keeps every page's information intact while its view sprouts from the index", async () => {
   const approvedMainCopy = {
     "/": [1771, "379a2291b5b9c898b16542d53e3647f60a6b25425b745fa76f28e487327a0a70"],
-    "/?view=resume": [4048, "a5ff701bed028b74342c911135a8bd8bebadabb73acaee6e7558e107cd04b290"],
+    "/?view=resume": [4453, "8d26d7bb7dad67615ab1967675b30300aad24bb16c5f714bbccdf19ce23812b2"],
     "/?view=tools": [822, "f95964d9567ab733bbb9e14be3d80b68033f3b49c6100c2e807a885f598e02bc"],
     "/?view=shelf": [6785, "c1b29d690c2d6cf7eb3f62015f23e2fe8a998ddcc641e9b1fd16f7e1b205a973"],
   };
@@ -943,7 +943,7 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
   assert.match(css, /@media \(forced-colors: active\)[\s\S]*?filter: none !important/);
 });
 
-test("renders CHORUS and consistent project documentation icons", async () => {
+test("renders current projects and consistent project documentation icons", async () => {
   const { html } = await render("/?view=resume");
 
   assert.match(html, /href="https:\/\/chorus\.observer\/">CHORUS<\/a>/);
@@ -952,7 +952,21 @@ test("renders CHORUS and consistent project documentation icons", async () => {
     /Social simulation of influence, uncertainty, and collective belief\./,
   );
   assert.match(html, /href="https:\/\/chorus\.observer\/notebooks\/"/);
-  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 2);
+  assert.match(html, /href="https:\/\/inkeep\.ing\/">IN KEEPING<\/a>/);
+  assert.equal((html.match(/class="bi bi-bricks"/g) ?? []).length, 1);
+  assert.match(
+    html,
+    /Local-first library continuity lab with user-created workspaces, explicit persistence, integrity-linked revisions, structured safeguards, and notebooks\. Models dependencies and access paths; records custody, fixity, rights, metadata, conditions, decisions, and recovery actions; preserves provenance and continuity through disruption and handoff\./,
+  );
+  assert.match(
+    html,
+    /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="Technical report for IN KEEPING, opens in a new tab"/,
+  );
+  assert.match(
+    html,
+    /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="Public notice for IN KEEPING, opens in a new tab"/,
+  );
+  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 4);
 });
 
 test("renders shelf records before client hydration", async () => {
