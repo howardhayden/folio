@@ -1,0 +1,67 @@
+{
+  "format": "howardhayden-license-map-v2",
+  "audited": "2026-08-24",
+  "project": "hah.dev portfolio",
+  "source_available_not_open_source": true,
+  "default_license": "PolyForm-Noncommercial-1.0.0",
+  "commercial_use_granted": false,
+  "precedence": [
+    "explicit-file-notice",
+    "third-party-or-source-specific-notice",
+    "ordered-rules-below",
+    "default-license"
+  ],
+  "rules": [
+    {
+      "paths": [
+        "README.md",
+        "app/data.ts",
+        "app/resume/**",
+        "app/components/AsciiArt.tsx",
+        "app/components/asciiCharacter.js",
+        "app/components/SignalFuzz.tsx",
+        "app/globals.css",
+        "docs/ascii-character.md",
+        "public/favicon.ico",
+        "public/favicon.svg"
+      ],
+      "license": "LicenseRef-Hayden-Portfolio-Content",
+      "scope": "personal/professional content, original ASCII character and animation work, and distinctive visual identity"
+    },
+    {
+      "paths": [
+        "dist/**",
+        "out/**",
+        "site/**",
+        "build/**"
+      ],
+      "license": "SOURCE-COMPONENT-TERMS",
+      "scope": "generated artifact; embedded components retain source terms"
+    },
+    {
+      "paths": [
+        "LICENSES/**",
+        "THIRD_PARTY_LICENSES.txt",
+        "THIRD_PARTY_NOTICES.md",
+        "SBOM*.json",
+        "SBOM*.spdx.json"
+      ],
+      "license": "SOURCE-SPECIFIC-NOTICES",
+      "scope": "license texts, notices, or metadata; underlying components retain their own terms"
+    }
+  ],
+  "workflow_scope": [
+    "the single-index state routing and progressive-disclosure presentation",
+    "the ASCII character state machine, collision map, writing, attention, swat, and recovery behavior",
+    "the shelf filtering, ordering, resume-project, skill-stack, and modal presentation workflows",
+    "the distinctive film-grain, signal, motion, typography, icon, and visual-identity integration"
+  ],
+  "permissive_exceptions": [],
+  "permissive_exception_requirements": {
+    "license": "MIT",
+    "requires_separate_file_or_package": true,
+    "requires_spdx_header": true,
+    "requires_explicit_map_entry": true
+  },
+  "historical_notice": "Earlier copies retain permissions attached to the license under which those copies were distributed."
+}

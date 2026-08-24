@@ -1,32 +1,78 @@
-# Repository licensing
+# Licensing
 
-This repository contains software implementation, personal portfolio material, original identity assets, and third-party components. They are not all offered under the same terms.
+Copyright (c) 2024-2026 Hayden Howard.
 
-## Software implementation — MIT
+This repository is **source-available for noncommercial use**. It is not offered
+as open-source software because the public software license excludes commercial
+purposes.
 
-Unless a file carries a more specific notice, the reusable implementation code and configuration in this repository are licensed under the [MIT License](LICENSE). This includes application source, tests, build and deployment configuration, and technical documentation that primarily explains how the software operates.
+Apply terms in this order:
 
-## Portfolio content and identity — all rights reserved
+1. an explicit notice in a file;
+2. a third-party or source-specific notice;
+3. this document and `LICENSE-MAP.json`;
+4. the default software license.
 
-Copyright (c) 2026 Hayden Howard. All rights reserved for the following material, except where a file expressly says otherwise:
+## Original software — PolyForm-Noncommercial-1.0.0
 
-- biography, resume, career history, project descriptions, and other personal or portfolio prose;
-- the copyrightable selection, arrangement, and annotations of curated shelf and tool content;
-- personal photographs and likeness;
-- original logos, source-identifying marks, illustrations, and branded visual assets.
+Unless a narrower category below applies, original source code, stylesheets,
+configuration, tests, scripts, workers, code-defined schemas, code-embedded
+content or data, and generated executable software are licensed under the
+PolyForm Noncommercial License 1.0.0. The root `LICENSE` and
+`LICENSES/PolyForm-Noncommercial-1.0.0.txt` contain the complete terms.
 
-No license to reuse those materials is granted by the MIT software license. This reservation does not limit fair use, fair dealing, accurate attribution, factual reference, or nominative use permitted by law.
+The public license grants no commercial-use permission. See
+`COMMERCIAL-LICENSE.md` for the repository policy summary.
+
+## Project-specific workflow implementation
+
+The default software license covers the copyrightable expression and
+implementation of:
+
+- the single-index state routing and progressive-disclosure presentation
+- the ASCII character state machine, collision map, writing, attention, swat, and recovery behavior
+- the shelf filtering, ordering, resume-project, skill-stack, and modal presentation workflows
+- the distinctive film-grain, signal, motion, typography, icon, and visual-identity integration
+
+This identification does not claim exclusive rights over abstract ideas,
+methods, systems, facts, or functionality that copyright law does not protect.
+
+## General-purpose coding functions
+
+No function inside a covered file becomes permissively licensed merely because
+it could be useful elsewhere. At introduction of this policy, **no original
+source file or function is licensed under MIT**.
+
+A future utility may receive a permissive exception only after extraction into
+a separate file or package, removal of project-specific workflow expression, an
+explicit `SPDX-License-Identifier: MIT` notice, independent tests, and an exact
+entry in `LICENSE-MAP.json`. See `PERMISSIVE-EXCEPTIONS.md`.
+
+## Portfolio content and identity — rights reserved
+
+The personal, professional, ASCII-character, animation, and distinctive visual
+identity files listed in `LICENSE-MAP.json` are governed by
+`LicenseRef-Hayden-Portfolio-Content`, not by the repository's software terms.
+
+## Generated artifacts
+
+Generation does not erase source licenses. Executable bundles remain governed
+by the software terms for covered code; embedded documentation, media, fonts,
+and third-party components retain their source terms.
 
 ## Third-party material
 
-Third-party libraries, fonts, icons, quotations, images, and other incorporated material remain governed by their own copyright notices and license terms. Their notices take precedence over the repository defaults above. The MIT license grants rights only in material for which the licensor has authority to grant them.
+Third-party packages, fonts, algorithms, icons, photographs, audio, datasets,
+and other materials are not relicensed. Their own notices control.
 
-## File-level priority
+## Earlier snapshots
 
-The most specific notice controls. A notice within a file or its containing directory overrides this repository-level map. A source file that combines executable code with embedded portfolio copy remains MIT-licensed only as to the software implementation; the separately copyrightable personal copy remains reserved unless expressly licensed.
+This policy is prospective. It does not withdraw permissions already attached
+to earlier copies distributed under MIT or another license. It governs files as
+offered from the commit introducing this policy forward, subject to ownership,
+file history, and source-specific notices.
 
-## Revision history
+## Names and marks
 
-This licensing map applies to revisions committed on or after **August 24, 2026**. It does not revoke rights already received in an earlier copy under the license that accompanied that copy. Earlier MIT-licensed revisions remain available under their prior terms.
-
-Project names, domains, logos, and trade dress are not licensed as trademarks or service marks. Descriptive and nominative uses allowed by law remain unaffected.
+No copyright license grants trademark, likeness, endorsement, or official-status
+rights. See `TRADEMARKS.md`.

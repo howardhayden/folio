@@ -1,0 +1,26 @@
+LicenseRef-Hayden-Portfolio-Content
+
+Copyright (c) 2024-2026 Hayden Howard. All rights reserved.
+
+No additional copyright permission is granted for files identified as
+LicenseRef-Hayden-Portfolio-Content in LICENSING.md and LICENSE-MAP.json beyond
+rights supplied by applicable law and by the hosting platform's terms.
+
+A person may make copies technically necessary to view and evaluate an
+unmodified version of the portfolio. No permission is granted to reproduce,
+modify, publish, distribute, sublicense, sell, commercially exploit, train on
+as a distinct curated asset, or incorporate protected material into another
+product, portfolio, template, dataset, model, or service.
+
+Protected material includes, where identified by the license map, personal and
+professional biography, resume content, project descriptions, original ASCII
+art and character design, custom animation frames, distinctive visual identity,
+custom icons, and closely integrated presentation expression.
+
+No rights are granted in names, marks, logos, likeness, privacy or publicity
+rights, or endorsement. Permission requires separate written authorization.
+
+THE MATERIAL IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER WILL NOT
+BE LIABLE FOR CLAIMS, DAMAGES, OR OTHER LIABILITY ARISING FROM THE MATERIAL OR
+ITS USE.

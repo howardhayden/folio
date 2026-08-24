@@ -52,6 +52,11 @@ The test command validates every ASCII pose, performs a production build, valida
 - Reduced-motion support and mobile-first layout fallbacks
 - No jQuery, Bootstrap JavaScript, or page-specific global scripts
 
-## License
+## Licensing
 
-Implementation code is licensed under the [MIT License](LICENSE). Personal and portfolio prose, identity materials, and original branding or visual assets are not licensed for reuse. Third-party materials retain their own terms. See [LICENSING.md](LICENSING.md) for the controlling scope and revision-history notice.
+hah.dev portfolio is **source-available for noncommercial use** under
+**PolyForm-Noncommercial-1.0.0**; commercial use requires a separate written license. Personal, résumé, ASCII-character, animation, and distinctive identity material remains rights-reserved.
+No current source file or function has a permissive commercial-use exception.
+See [`LICENSING.md`](LICENSING.md),
+[`WORKFLOW-BOUNDARIES.md`](WORKFLOW-BOUNDARIES.md), and
+[`LICENSE-MAP.json`](LICENSE-MAP.json) for scope and historical limits.
