@@ -54,4 +54,4 @@ The test command validates every ASCII pose, performs a production build, valida
 
 ## License
 
-MIT
+Implementation code is licensed under the [MIT License](LICENSE). Personal and portfolio prose, identity materials, and original branding or visual assets are not licensed for reuse. Third-party materials retain their own terms. See [LICENSING.md](LICENSING.md) for the controlling scope and revision-history notice.
