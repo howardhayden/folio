@@ -901,6 +901,10 @@ a:hover {
 .lattice-output-register:empty {
   margin-bottom: 0;
 }
+.lattice-output-outcome {
+  font-size: 1rem;
+  margin-bottom: .625rem;
+}
 .lattice-output-text {
   margin-bottom: .75rem;
 }

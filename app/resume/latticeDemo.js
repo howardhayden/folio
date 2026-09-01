@@ -4,7 +4,7 @@
 // passage, applies a closed set of auditable rewrites, and fails closed when a
 // material candidate cannot clear its preservation checks.
 
-export const TEXT_TO_LATTICE_VERSION = "folio-text-to-lattice.v2";
+export const TEXT_TO_LATTICE_VERSION = "folio-text-to-lattice.v3";
 export const LATTICE_WORD_LIMIT = 700;
 export const LATTICE_INPUT_SAFETY_LIMIT = 50_000;
 
@@ -39,8 +39,12 @@ const EXPERIENTIAL_ACTION = /\b(?:breathe[sd]?|brush(?:ed|es|ing)?|clean(?:ed|s|
 const SENSORY_STATE = /\b(?:bright|cold|cool|dark|dry|hot|rough|soft|warm|wet|smooth|quiet|loud|heavy|light)\b/iu;
 const RELATIONAL_REFERENT = /\b(?:argument|care|child|colleague|conversation|family|friend|landlord|memory|mother|neighbor|parent|relationship|sister|student|tenant|worker|workers)\b/iu;
 const PERCEPTION_OR_REFLECTION = /\b(?:feel|feels|felt|hear|heard|notice|noticed|recall|recalled|remember|remembered|said|saw|see|sees|thought|watched)\b/iu;
-const RELATIONAL_SPEECH = /\b(?:he|i|she|they|we)\s+(?:replied|said|told|wrote)\b/iu;
+const RELATIONAL_SPEECH = /\b(?:[\p{Lu}][\p{L}\p{M}’'.-]*|he|i|she|they|we)\s+(?:answered|asked|called|drawled|exclaimed|murmured|replied|said|shouted|told|whispered|wrote)\b/u;
 const ORNAMENTAL_ABSTRACTION = /\b(?:abyss|ethereal|haunting|incandescent|ineffable|liminal|melancholy|poignant|profound|sublime|tapestry|visceral|whisper)\b/iu;
+
+const NARRATIVE_ACTION = /\b(?:[\p{Lu}][\p{L}\p{M}’'.-]*|he|i|she|they|we)\s+(?:broke|burst|continued|covered|cut|dipped|exchanged|fled|followed|frowned|glared|grabbed|grinned|huffed|joined|kept|laughed|leaned|lifted|looked|pressed|put|raised|reached|rose|sat|scowled|shot|sighed|smiled|smirked|spun|stared|stormed|took|trailed|tried|turned|waited|walked|watched)\b/gu;
+const NARRATIVE_ATTRIBUTION = /\b(?:[\p{Lu}][\p{L}\p{M}’'.-]*|he|i|she|they|we)\s+(?:answered|asked|called|drawled|exclaimed|murmured|replied|said|shouted|told|whispered)\b/gu;
+const NARRATIVE_FIXED_POINT = /(?:\b(?:[\p{Lu}][\p{L}\p{M}’'.-]*|He|I|She|They)\s+(?:broke into laughter|exchanged another look|kept (?:glaring|laughing|smiling|smirking|staring|watching)|put (?:his|her|their) hands on|said, rose, and walked out|shot (?:him|her|them) a vicious glance|(?:are|is|was|were) still smirking|tried to smooth)\b|\bdipped again\b)/gu;
 
 const INSTITUTIONAL_REFERENT = /\b(?:access|administrat(?:or|ors|ion)|agency|archive|authority|board|checksum|court|custody|digest|evidence|hearing|institution|landlord|management|network|organization|policy|power|process|provenance|record|records|regulation|system|testimony)\b/iu;
 const ANALYTIC_RELATION = /\b(?:adjust(?:ed|s|ing)?|affect(?:ed|s|ing)?|bar(?:red|s|ring)?|cause[ds]?|change[ds]?|close[ds]?|control(?:led|s|ling)?|decid(?:e|ed|es|ing)|depend(?:ed|s|ing)?|demonstrat(?:e|ed|es|ing)|explain(?:ed|s|ing)?|expos(?:e|ed|es|ing)|indicat(?:e|ed|es|ing)|match(?:ed|es|ing)?|reinforc(?:e|ed|es|ing)|restrict(?:ed|s|ing)?|reveal(?:ed|s|ing)?|separat(?:e|ed|es|ing)|shape[ds]?|show(?:ed|s|ing)?|withh(?:eld|old|olds|olding))\b/iu;
@@ -136,7 +140,7 @@ function isProtectedOperative(value) {
     || resetAndTest(PROHIBITION_SIGNAL, value);
 }
 
-export function scoreLatticeLayers(value) {
+function scoreLayerText(value, { narrative = false, hasDialogue = false } = {}) {
   const text = String(value ?? "").trim();
   const protectedOperative = isProtectedOperative(text);
   let operative = protectedOperative ? 20 : 0;
@@ -152,6 +156,8 @@ export function scoreLatticeLayers(value) {
   if (hasMaterial && resetAndTest(SENSORY_STATE, text)) experiential += 5;
   if (resetAndTest(RELATIONAL_REFERENT, text) && resetAndTest(PERCEPTION_OR_REFLECTION, text)) experiential += 5;
   if (resetAndTest(RELATIONAL_SPEECH, text)) experiential += 5;
+  if (narrative && resetAndTest(NARRATIVE_ACTION, text)) experiential += 7;
+  if (narrative && hasDialogue && resetAndTest(NARRATIVE_ATTRIBUTION, text)) experiential += 7;
 
   if (resetAndTest(CAUSAL_RELATION, text)) interpretive += 7;
   if (resetAndTest(INSTITUTIONAL_REFERENT, text) && resetAndTest(ANALYTIC_RELATION, text)) interpretive += 7;
@@ -164,6 +170,16 @@ export function scoreLatticeLayers(value) {
   if (/\b(?:agency|institution|policy|system)\b[^.!?]{0,40}\bfeels?\b[^.!?]{0,20}\b(?:cold|warm)\b/iu.test(text)) interpretive += 5;
 
   return Object.freeze({ operative, experiential, interpretive, protectedOperative });
+}
+
+export function scoreLatticeLayers(value) {
+  const source = String(value ?? "").trim();
+  const protectedText = protectVerbatim(source);
+  const mode = detectDocumentMode(source, protectedText);
+  return scoreLayerText(classificationView(protectedText.masked, protectedText.values), {
+    narrative: mode === "narrative",
+    hasDialogue: protectedText.values.some((item) => item.kind === "quote"),
+  });
 }
 
 function layerFromScores(scores) {
@@ -186,29 +202,57 @@ function protectVerbatim(source) {
   while (source.includes(markerPrefix)) markerPrefix += "X";
   const values = [];
   const patterns = [
-    /`[^`\n]*`/gu,
-    /\[[^\]\n]+\]\([^\n)]+\)/gu,
-    /https?:\/\/[^\s<>]+/giu,
-    /\b[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}\b/giu,
-    /“[^”\n]*”/gu,
-    /‘[^’\n]*’/gu,
-    /"[^"\n]*"/gu,
-    /<[^>\n]{1,500}>/gu,
+    { kind: "quote", pattern: /“[^”]*”/gu },
+    { kind: "quote", pattern: /‘[^’]*’/gu },
+    { kind: "quote", pattern: /"[^"]*"/gu },
+    { kind: "code", pattern: /`[^`\n]*`/gu },
+    { kind: "link", pattern: /\[[^\]\n]+\]\([^\n)]+\)/gu },
+    { kind: "url", pattern: /https?:\/\/[^\s<>]+/giu },
+    { kind: "email", pattern: /\b[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}\b/giu },
+    { kind: "markup", pattern: /<[^>\n]{1,500}>/gu },
   ];
   let masked = source;
-  for (const pattern of patterns) {
+  for (const { kind, pattern } of patterns) {
     masked = masked.replace(pattern, (match) => {
       const marker = `${markerPrefix}${values.length}\uE001`;
-      values.push({ marker, value: match });
+      values.push({ marker, value: match, kind });
       return marker;
     });
   }
   const restore = (value) => {
     let restored = value;
-    for (const item of values) restored = restored.split(item.marker).join(item.value);
+    for (const item of [...values].reverse()) {
+      restored = restored.split(item.marker).join(item.value);
+    }
     return restored;
   };
   return { masked, values, restore };
+}
+
+function classificationView(value, protectedValues) {
+  let classified = value;
+  for (const item of protectedValues) {
+    const label = item.kind === "quote"
+      ? " dialogue "
+      : item.kind === "email"
+        ? " contact detail "
+        : item.kind === "url" || item.kind === "link"
+          ? " linked reference "
+          : " protected content ";
+    classified = classified.split(item.marker).join(label);
+  }
+  return classified;
+}
+
+function detectDocumentMode(source, protectedText) {
+  const classification = classificationView(protectedText.masked, protectedText.values);
+  const quoteCount = protectedText.values.filter((item) => item.kind === "quote").length;
+  const attributionCount = countMatches(classification, NARRATIVE_ATTRIBUTION);
+  const actionCount = countMatches(classification, NARRATIVE_ACTION);
+  if (hasNarrativeRuleEvidence(protectedText.masked)) return "narrative";
+  if (quoteCount > 0 && (attributionCount > 0 || actionCount > 0)) return "narrative";
+  if (actionCount >= 2 && /[.!?](?:\s|\n|$)/u.test(source)) return "narrative";
+  return "general";
 }
 
 function splitSentenceParts(paragraph) {
@@ -241,15 +285,16 @@ function splitClauses(sentence) {
   return clauses.map((clause) => clause.trim()).filter(Boolean);
 }
 
-function analyzeDocument(masked, restore) {
-  const pieces = masked.split(/(\n{2,})/u);
+function analyzeDocument(protectedText, mode) {
+  const { masked, restore, values } = protectedText;
+  const pieces = masked.split(/(\n+)/u);
   const sentenceParts = [];
   const decisions = [];
   let paragraphIndex = 0;
   let sentenceIndex = 0;
 
   for (const piece of pieces) {
-    if (/^\n{2,}$/u.test(piece)) {
+    if (/^\n+$/u.test(piece)) {
       sentenceParts.push({ kind: "separator", text: piece });
       paragraphIndex += 1;
       continue;
@@ -264,13 +309,35 @@ function analyzeDocument(masked, restore) {
         sentenceIndex: currentSentenceIndex,
       });
       for (const clause of splitClauses(part.core)) {
-        const scores = scoreLatticeLayers(restore(clause));
+        const dialogueItems = values.filter((item) =>
+          item.kind === "quote" && clause.includes(item.marker));
+        const hasDialogue = dialogueItems.length > 0;
+        const hasVerbatim = values.some((item) => clause.includes(item.marker));
+        const classifiedText = classificationView(clause, values);
+        const outsideScores = scoreLayerText(classifiedText, {
+          narrative: mode === "narrative",
+          hasDialogue,
+        });
+        const dialogueScores = mode === "narrative" && hasDialogue
+          ? scoreLayerText(dialogueItems
+            .map((item) => item.value.slice(1, -1))
+            .join(" "))
+          : { experiential: 0, interpretive: 0 };
+        const scores = Object.freeze({
+          operative: outsideScores.operative,
+          experiential: outsideScores.experiential + dialogueScores.experiential,
+          interpretive: outsideScores.interpretive + dialogueScores.interpretive,
+          protectedOperative: outsideScores.protectedOperative,
+        });
         const layer = layerFromScores(scores);
         decisions.push({
           text: restore(clause),
           maskedText: clause,
+          classifiedText,
           layerId: layer.id,
           protected: scores.protectedOperative,
+          hasDialogue,
+          hasVerbatim,
           inherited: false,
           paragraphIndex,
           sentenceIndex: currentSentenceIndex,
@@ -332,10 +399,10 @@ const PHRASE_RULES = Object.freeze([
   { id: "adjust-third-person", pattern: /\bmakes an adjustment to\b/giu, replacement: "adjusts" },
   { id: "adjust-past", pattern: /\bmade an adjustment to\b/giu, replacement: "adjusted" },
   { id: "adjust-progressive", pattern: /\bmaking an adjustment to\b/giu, replacement: "adjusting" },
-  { id: "change-present", pattern: /\bmake a change\b/giu, replacement: "change" },
-  { id: "change-third-person", pattern: /\bmakes a change\b/giu, replacement: "changes" },
-  { id: "change-past", pattern: /\bmade a change\b/giu, replacement: "changed" },
-  { id: "change-progressive", pattern: /\bmaking a change\b/giu, replacement: "changing" },
+  { id: "change-present", pattern: /\bmake a change\b(?=\s*(?:[.;!?]|$)|\s+(?:although|because|but|despite|due|if|since|so|unless|when|while)\b)/giu, replacement: "change" },
+  { id: "change-third-person", pattern: /\bmakes a change\b(?=\s*(?:[.;!?]|$)|\s+(?:although|because|but|despite|due|if|since|so|unless|when|while)\b)/giu, replacement: "changes" },
+  { id: "change-past", pattern: /\bmade a change\b(?=\s*(?:[.;!?]|$)|\s+(?:although|because|but|despite|due|if|since|so|unless|when|while)\b)/giu, replacement: "changed" },
+  { id: "change-progressive", pattern: /\bmaking a change\b(?=\s*(?:[.;!?]|$)|\s+(?:although|because|but|despite|due|if|since|so|unless|when|while)\b)/giu, replacement: "changing" },
   { id: "explain-past", pattern: /\bprovided an explanation of\b/giu, replacement: "explained" },
   { id: "investigate-past", pattern: /\bconducted an investigation of\b/giu, replacement: "investigated" },
   { id: "analyze-past", pattern: /\bconducted an analysis of\b/giu, replacement: "analyzed" },
@@ -358,15 +425,100 @@ function applyExactRules(source, rules) {
   return { text, changes };
 }
 
-function applyLexicalRules(source) {
+const NARRATIVE_RULES = Object.freeze([
+  {
+    id: "narrative-continuation",
+    pattern: /\b(continued|continues) to (smirk|glare|smile|laugh|watch|stare)\b/giu,
+    replacement: (before, tense, action) => {
+      const continuative = tense.toLocaleLowerCase("en-US") === "continues" ? "keeps" : "kept";
+      const gerunds = {
+        glare: "glaring",
+        laugh: "laughing",
+        smile: "smiling",
+        smirk: "smirking",
+        stare: "staring",
+        watch: "watching",
+      };
+      return replacementCase(before, `${continuative} ${gerunds[action.toLocaleLowerCase("en-US")]}`);
+    },
+  },
+  {
+    id: "narrative-redundant-manner",
+    pattern: /\bstill (smirking) smugly\b/giu,
+    replacement: (before, action) => replacementCase(before, `still ${action.toLocaleLowerCase("en-US")}`),
+  },
+  {
+    id: "narrative-direction",
+    pattern: /\bdipped down again\b/giu,
+    replacement: (before) => replacementCase(before, "dipped again"),
+  },
+  {
+    id: "narrative-idiom-smooth",
+    pattern: /\btried to smoothen out\b/giu,
+    replacement: (before) => replacementCase(before, "tried to smooth"),
+  },
+  {
+    id: "narrative-recurrence",
+    pattern: /\bexchanged a look again\b/giu,
+    replacement: (before) => replacementCase(before, "exchanged another look"),
+  },
+  {
+    id: "narrative-laughter",
+    pattern: /\bburst out laughing\b/giu,
+    replacement: (before) => replacementCase(before, "broke into laughter"),
+  },
+  {
+    id: "narrative-departure",
+    pattern: /\b([\p{Lu}][\p{L}\p{M}’'.-]*|He|I|She|They) said and got up and walked out\b/gu,
+    replacement: (_before, actor) => `${actor} said, rose, and walked out`,
+  },
+  {
+    id: "narrative-placement-repair",
+    pattern: /\b([\p{Lu}][\p{L}\p{M}’'.-]*|He|She|They) out (his|her|their) hands on\b/gu,
+    replacement: (_before, actor, possessive) => `${actor} put ${possessive} hands on`,
+  },
+  {
+    id: "narrative-glance-idiom",
+    pattern: /\bcut (him|her|them) a vicious glance\b/giu,
+    replacement: (before, object) => replacementCase(before, `shot ${object.toLocaleLowerCase("en-US")} a vicious glance`),
+  },
+]);
+
+function hasNarrativeRuleEvidence(value) {
+  return NARRATIVE_RULES.some((rule) => resetAndTest(rule.pattern, value))
+    || resetAndTest(NARRATIVE_FIXED_POINT, value);
+}
+
+function applyNarrativeRules(source) {
   let text = source;
   const changes = [];
-  for (const [replacement, pattern] of CONTRACTION_RULES) {
-    text = text.replace(pattern, (before) => {
-      const after = replacementCase(before, replacement);
-      changes.push({ id: "expand-contraction", before, after });
+  for (const rule of NARRATIVE_RULES) {
+    text = text.replace(rule.pattern, (...args) => {
+      const before = args[0];
+      const after = rule.replacement(...args);
+      if (after === before) return before;
+      changes.push({ id: rule.id, before, after });
       return after;
     });
+  }
+  return { text, changes };
+}
+
+function applyLexicalRules(source, mode) {
+  let text = source;
+  const changes = [];
+  if (mode !== "narrative") {
+    for (const [replacement, pattern] of CONTRACTION_RULES) {
+      text = text.replace(pattern, (before) => {
+        const after = replacementCase(before, replacement);
+        changes.push({ id: "expand-contraction", before, after });
+        return after;
+      });
+    }
+  } else {
+    const narrative = applyNarrativeRules(text);
+    text = narrative.text;
+    changes.push(...narrative.changes);
   }
   const phrases = applyExactRules(text, PHRASE_RULES);
   text = phrases.text;
@@ -389,7 +541,7 @@ function applyLexicalRules(source) {
 
 function applyStructuralRule(source, layerId) {
   if (layerId === "experiential") {
-    const body = /^(She|He|They) felt (the [\p{L}\p{M}][\p{L}\p{M} -]{0,50}) in (her|his|their) (hand|hands|palm|palms|finger|fingers|arm|arms|foot|feet)\.$/iu.exec(source);
+    const body = /^(She|He|They) felt (the (?:ache|chill|cold|coolness|dampness|heat|pressure|pulse|roughness|smoothness|sting|texture|tremor|vibration|warmth|weight|wetness)) in (her|his|their) (hand|hands|palm|palms|finger|fingers|arm|arms|foot|feet)\.$/iu.exec(source);
     if (body) {
       const agreement = { she: "her", he: "his", they: "their" }[body[1].toLocaleLowerCase("en-US")];
       if (agreement === body[3].toLocaleLowerCase("en-US")) {
@@ -451,6 +603,14 @@ function semanticSentinels(value) {
     chronologyAfter: countMatches(value, /\b(?:after|subsequent to)\b/iu),
     frequencyAlways: countMatches(value, /\b(?:always|at all times)\b/iu),
     frequencyDaily: countMatches(value, /\b(?:daily|on a daily basis)\b/iu),
+    only: countMatches(value, /\bonly\b/iu),
+    still: countMatches(value, /\bstill\b/iu),
+    attempt: countMatches(value, /\b(?:try|tries|tried|trying)\b/iu),
+    continuation: countMatches(value, /\b(?:(?:continue[ds]?|continued) to (?:glare|laugh|smile|smirk|stare|watch)|keep(?:s)? (?:glaring|laughing|smiling|smirking|staring|watching)|kept (?:glaring|laughing|smiling|smirking|staring|watching))\b/iu),
+    recurrence: countMatches(value, /\b(?:again|another look)\b/iu),
+    departure: countMatches(value, /\b(?:got up|rose)(?:,| and)\s+(?:and\s+)?walked out\b/iu),
+    laughterOnset: countMatches(value, /\b(?:burst out laughing|broke into laughter)\b/iu),
+    evidence: traceMatches(value, /\b(?:appeared|believed|felt|forgot|knew|looked|remembered|seemed|thought)\b/giu),
     quantities: traceMatches(value, /\b\d+(?:[.,]\d+)?(?:\s?(?:%|°[CF]|hours?|hrs?|kg|mg|mcg|mL|ml|minutes?|mins?|seconds?|secs?))?\b/giu),
   };
 }
@@ -473,12 +633,25 @@ function candidatePasses(source, candidate, protectedValues) {
   for (const item of protectedValues) {
     if (source.split(item.marker).length !== candidate.split(item.marker).length) return false;
   }
+  const markerOrder = (value) => protectedValues
+    .flatMap((item) => {
+      const offsets = [];
+      let offset = value.indexOf(item.marker);
+      while (offset >= 0) {
+        offsets.push({ marker: item.marker, offset });
+        offset = value.indexOf(item.marker, offset + item.marker.length);
+      }
+      return offsets;
+    })
+    .sort((left, right) => left.offset - right.offset)
+    .map(({ marker }) => marker);
+  if (!sameArray(markerOrder(source), markerOrder(candidate))) return false;
   if (JSON.stringify(semanticSentinels(source)) !== JSON.stringify(semanticSentinels(candidate))) return false;
   return !sameArray(normalizedWordSequence(source), normalizedWordSequence(candidate));
 }
 
-function candidateForSentence(source, layerId, protectedValues) {
-  const lexical = applyLexicalRules(source);
+function candidateForSentence(source, layerId, protectedValues, mode) {
+  const lexical = applyLexicalRules(source, mode);
   const structuralFromLexical = applyStructuralRule(lexical.text, layerId);
   const structural = applyStructuralRule(source, layerId);
   const variants = [
@@ -517,9 +690,17 @@ function summarizeLayers(decisions) {
 
 const ACTIONABLE_SOURCE = /\b(?:am|are|be|been|being|is|was|were)\s+[\p{L}\p{M}-]+ed\s+by\b|\b(?:make|made|makes|making)\s+(?:a|an|the)\s+(?:adjustment|change|decision|evaluation|recommendation|review)\b|\b(?:as if|as though|like a|like an|velvet fist)\b/iu;
 
-function decisionClearsPositiveCheck(decision) {
+function decisionClearsPositiveCheck(decision, mode) {
   if (decision.layerId === "unresolved" || decision.inherited) return false;
   if (decision.protected) return decision.layerId === "operative";
+  if (mode === "narrative" && decision.layerId === "experiential") {
+    return decision.wordCount <= 45
+      && decision.scores.experiential >= 5
+      && (
+        resetAndTest(NARRATIVE_ACTION, decision.classifiedText)
+        || resetAndTest(RELATIONAL_SPEECH, decision.classifiedText)
+      );
+  }
   if (decision.wordCount > 25 || resetAndTest(ACTIONABLE_SOURCE, decision.text)) return false;
   if (decision.layerId === "experiential") {
     return decision.wordCount <= 18
@@ -543,23 +724,32 @@ function decisionClearsPositiveCheck(decision) {
   return false;
 }
 
-function qualityFindings(source, decisions, transformedDecisions) {
+function qualityFindings(reviewSource, decisions, transformedDecisions, mode) {
   const findings = [];
   if (decisions.some((decision) => decision.layerId === "unresolved")) {
-    findings.push({ id: "unresolved-layer", message: "At least one passage lacks enough layer evidence." });
+    findings.push({
+      id: "unresolved-layer",
+      message: "Some passages were retained because their content layer remained ambiguous.",
+    });
   }
-  if (/\b(?:bad|good|nice|something|somehow|stuff|thing)\b/iu.test(source)) {
-    findings.push({ id: "underspecified-language", message: "The source contains language the bounded rules cannot safely make more specific." });
+  if (/\b(?:bad|good|nice|something|somehow|stuff|thing)\b/iu.test(reviewSource)) {
+    findings.push({
+      id: "underspecified-language",
+      message: "Some general terms were retained because a more specific replacement could change meaning.",
+    });
   }
-  const sentences = source.match(/[^.!?]+[.!?]?/gu) ?? [];
+  const sentences = reviewSource.match(/[^.!?]+[.!?]?/gu) ?? [];
   if (sentences.some((sentence) => countLatticeWords(sentence) > 45)) {
-    findings.push({ id: "long-scope", message: "A long sentence exceeds the bounded structural checks." });
+    findings.push({
+      id: "long-scope",
+      message: "A long passage was retained outside the bounded structural rewrites.",
+    });
   }
   if (decisions.some((decision, index) =>
-    !transformedDecisions.has(index) && !decisionClearsPositiveCheck(decision))) {
+    !transformedDecisions.has(index) && !decisionClearsPositiveCheck(decision, mode))) {
     findings.push({
       id: "conformance-not-established",
-      message: "At least one unchanged passage did not clear the narrow positive conformance check.",
+      message: "Some unchanged passages remain outside the bounded positive check.",
     });
   }
   return findings;
@@ -580,7 +770,8 @@ export function textToLattice(value) {
   }
 
   const protectedText = protectVerbatim(source);
-  const analysis = analyzeDocument(protectedText.masked, protectedText.restore);
+  const mode = detectDocumentMode(source, protectedText);
+  const analysis = analyzeDocument(protectedText, mode);
   const changes = [];
   const transformedDecisions = new Set();
   const outputPieces = [];
@@ -601,7 +792,7 @@ export function textToLattice(value) {
       rewritten += part.core.slice(cursor, clauseStart);
       const candidate = decision.protected
         ? null
-        : candidateForSentence(decision.maskedText, decision.layerId, protectedText.values);
+        : candidateForSentence(decision.maskedText, decision.layerId, protectedText.values, mode);
       rewritten += candidate?.text ?? decision.maskedText;
       cursor = clauseStart + decision.maskedText.length;
       if (candidate) {
@@ -614,22 +805,33 @@ export function textToLattice(value) {
   }
 
   const summary = summarizeLayers(analysis.decisions);
-  const findings = qualityFindings(source, analysis.decisions, transformedDecisions);
-  const publicSegments = analysis.decisions.map((decision) => Object.freeze({
+  const reviewSource = classificationView(protectedText.masked, protectedText.values);
+  const findings = qualityFindings(reviewSource, analysis.decisions, transformedDecisions, mode);
+  const publicSegments = analysis.decisions.map((decision, index) => Object.freeze({
     text: decision.text,
     layerId: decision.layerId,
     protected: decision.protected,
+    hasDialogue: decision.hasDialogue,
+    hasVerbatim: decision.hasVerbatim,
     inherited: decision.inherited,
+    revised: transformedDecisions.has(index),
   }));
+  const passageCount = analysis.decisions.length;
+  const revisedPassageCount = transformedDecisions.size;
+  const retainedPassageCount = passageCount - revisedPassageCount;
+  const protectedPassageCount = analysis.decisions.filter((decision) =>
+    decision.protected || decision.hasVerbatim).length;
+  const quoteCount = protectedText.values.filter((item) => item.kind === "quote").length;
 
-  if (changes.length > 0 && findings.length === 0) {
+  if (changes.length > 0) {
     const text = protectedText.restore(outputPieces.join(""));
     return Object.freeze({
       version: TEXT_TO_LATTICE_VERSION,
       status: "transformed",
-      conformance: "bounded-checks-passed",
+      conformance: findings.length > 0 ? "bounded-candidate-with-review" : "bounded-checks-passed",
       text,
       wordCount,
+      mode,
       primaryLayer: summary.primary.id,
       layerId: summary.primary.id,
       layerLabel: summary.label,
@@ -638,6 +840,11 @@ export function textToLattice(value) {
       changes: Object.freeze(changes),
       revisions: Object.freeze(changes),
       revisionCount: changes.length,
+      passageCount,
+      revisedPassageCount,
+      retainedPassageCount,
+      protectedPassageCount,
+      quoteCount,
       findings: Object.freeze(findings),
     });
   }
@@ -649,6 +856,7 @@ export function textToLattice(value) {
       conformance: "bounded-checks-passed",
       text: source,
       wordCount,
+      mode,
       primaryLayer: summary.primary.id,
       layerId: summary.primary.id,
       layerLabel: summary.label,
@@ -657,6 +865,11 @@ export function textToLattice(value) {
       changes: Object.freeze([]),
       revisions: Object.freeze([]),
       revisionCount: 0,
+      passageCount,
+      revisedPassageCount: 0,
+      retainedPassageCount: passageCount,
+      protectedPassageCount,
+      quoteCount,
       findings: Object.freeze([]),
     });
   }
@@ -667,6 +880,7 @@ export function textToLattice(value) {
     conformance: "not-established",
     text: null,
     wordCount,
+    mode,
     primaryLayer: summary.primary.id,
     layerId: summary.primary.id,
     layerLabel: summary.label,
@@ -675,6 +889,11 @@ export function textToLattice(value) {
     changes: Object.freeze([]),
     revisions: Object.freeze([]),
     revisionCount: 0,
+    passageCount,
+    revisedPassageCount: 0,
+    retainedPassageCount: passageCount,
+    protectedPassageCount,
+    quoteCount,
     findings: Object.freeze(findings),
   });
 }

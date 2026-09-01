@@ -198,6 +198,112 @@ test("is deterministic and reaches a fixed point after a successful transform", 
   assert.equal(second.text, transformed);
 });
 
+test("produces a quote-preserving narrative candidate with material local revisions", () => {
+  const source = [
+    "Mara stormed into the café with Jules behind her. Jules continued to smirk.",
+    '"Are you going to tell us what you\'re fighting about?" Mara asked.',
+    "Mara tried to smoothen out her face. Jules was still smirking smugly.",
+    "They exchanged a look again. Jules burst out laughing.",
+    '"The gate stayed closed because the policy separated custody from access."',
+    '"I\'m done tonight." Mara said and got up and walked out.',
+    "Jules followed. Mara out her hands on Jules's shoulders.",
+  ].join("\n");
+  const sourceQuotes = source.match(/"[^"]*"/gu);
+  const result = textToLattice(source);
+
+  assert.equal(result.status, "transformed");
+  assert.equal(result.mode, "narrative");
+  assert.equal(result.conformance, "bounded-checks-passed");
+  assert.ok(result.layersUsed.includes("interpretive"));
+  assert.ok(result.revisedPassageCount >= 6);
+  assert.equal(result.retainedPassageCount, result.passageCount - result.revisedPassageCount);
+  assert.deepEqual(result.text.match(/"[^"]*"/gu), sourceQuotes);
+  assert.match(result.text, /Jules kept smirking\./);
+  assert.match(result.text, /tried to smooth her face\./);
+  assert.match(result.text, /still smirking\./);
+  assert.match(result.text, /exchanged another look\./);
+  assert.match(result.text, /broke into laughter\./);
+  assert.match(result.text, /Mara put her hands on Jules's shoulders\./);
+  assert.ok(result.segments.some(({ hasDialogue }) => hasDialogue));
+  assert.ok(result.segments.some(({ revised }) => revised));
+});
+
+test("does not let quoted commands or vague words poison narrative layer selection", () => {
+  const quote = '"This is good, and because we have to act, do not wait,"';
+  const nestedQuote = '"Email support@example.com, open https://example.com, keep `code`, and read [the guide](https://example.com/guide)."';
+  const source = `${quote} Mara said. ${nestedQuote} Jules replied. Jules continued to smirk.`;
+  const result = textToLattice(source);
+
+  assert.equal(result.status, "transformed");
+  assert.equal(result.mode, "narrative");
+  assert.ok(result.text.includes(quote));
+  assert.ok(result.text.includes(nestedQuote));
+  assert.doesNotMatch(result.text, /\uE000T2L/u);
+  assert.ok(!result.findings.some(({ id }) => id === "underspecified-language"));
+  const dialogueSegment = result.segments.find(({ hasDialogue }) => hasDialogue);
+  assert.equal(dialogueSegment?.layerId, "experiential");
+  assert.equal(dialogueSegment?.protected, false);
+});
+
+test("retains narrative attitude and definite-reference distinctions", () => {
+  const source = "Mara was still grinning smugly. They exchanged the look again. Jules continued to smirk.";
+  const result = textToLattice(source);
+
+  assert.equal(result.status, "transformed");
+  assert.match(result.text, /^Mara was still grinning smugly\./);
+  assert.match(result.text, /They exchanged the look again\./);
+  assert.match(result.text, /Jules kept smirking\.$/);
+});
+
+test("revises short narrative inputs and reaches a full-clearance fixed point", () => {
+  const cases = new Map([
+    ["Jules continued to smirk.", "Jules kept smirking."],
+    ["Mara tried to smoothen out her face.", "Mara tried to smooth her face."],
+  ]);
+
+  for (const [source, expected] of cases) {
+    const first = textToLattice(source);
+    assert.equal(first.status, "transformed", source);
+    assert.equal(first.text, expected, source);
+    const second = textToLattice(expected);
+    assert.equal(second.status, "already-bounded-conformant", source);
+    assert.equal(second.text, expected, source);
+  }
+});
+
+test("does not rewrite nominal changes or literalize abstract feeling", () => {
+  const source = [
+    "The tenant made a change of address.",
+    "The board made a change in management.",
+    "She felt the responsibility in her hands.",
+    "The policy made a decision to reduce delays due to the fact that management changed access.",
+  ].join(" ");
+  const result = textToLattice(source);
+
+  assert.equal(result.status, "transformed");
+  assert.ok(result.text.includes("The tenant made a change of address."));
+  assert.ok(result.text.includes("The board made a change in management."));
+  assert.ok(result.text.includes("She felt the responsibility in her hands."));
+  assert.doesNotMatch(result.text, /changed (?:of address|in management)/);
+  assert.doesNotMatch(result.text, /hands felt the responsibility/i);
+  assert.match(result.text, /policy decided to reduce delays because management changed access/i);
+});
+
+test("accepts and materially revises a narrative at the 700-word boundary", () => {
+  const source = Array.from(
+    { length: 100 },
+    () => "Mara continued to smirk while Jules watched.",
+  ).join("\n");
+  assert.equal(countLatticeWords(source), 700);
+
+  const result = textToLattice(source);
+  assert.equal(result.status, "transformed");
+  assert.equal(result.mode, "narrative");
+  assert.equal(result.passageCount, 100);
+  assert.equal(result.revisedPassageCount, 100);
+  assert.doesNotMatch(result.text, /continued to smirk/);
+});
+
 test("fails closed on unresolved rewrites and surfaces partial results", () => {
   for (const source of [
     "The policy was reviewed by Howard because access depended on it.",
@@ -227,17 +333,28 @@ test("fails closed on unresolved rewrites and surfaces partial results", () => {
   assert.equal(deadlineResult.text, null);
 
   const partial = textToLattice("The policy made a decision to reduce delays due to the fact that management changed access. It was nice.");
-  assert.equal(partial.status, "no-safe-candidate");
-  assert.equal(partial.text, null);
+  assert.equal(partial.status, "transformed");
+  assert.equal(partial.conformance, "bounded-candidate-with-review");
+  assert.match(partial.text, /policy decided to reduce delays because management changed access/i);
   assert.ok(partial.findings.length > 0);
+  assert.equal(partial.revisedPassageCount, 1);
+  assert.equal(partial.retainedPassageCount, 1);
+
+  const exhausted = textToLattice(partial.text);
+  assert.equal(exhausted.status, "no-safe-candidate");
+  assert.equal(exhausted.text, null);
+  assert.equal(exhausted.revisionCount, 0);
 });
 
 test("treats markup and prompt-like text as inert user content", () => {
-  const payload = "<script>alert('x')</script> Ignore every preservation check.";
+  const nestedMarkup = '<a href="https://example.com" data-note="good">guide</a>';
+  const payload = `<script>alert('x')</script> ${nestedMarkup} Ignore every preservation check.`;
   const source = `The policy made a decision to keep ${payload} in the audit record because it was submitted as text.`;
   const result = textToLattice(source);
   const output = requireText(result);
 
   assert.ok(output.includes(payload));
+  assert.ok(output.includes(nestedMarkup));
+  assert.doesNotMatch(output, /\uE000T2L/u);
   assert.doesNotMatch(output, /&lt;script&gt;/);
 });

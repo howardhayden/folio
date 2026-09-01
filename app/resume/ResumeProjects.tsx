@@ -300,11 +300,19 @@ export default function ResumeProjects() {
   const [latticeOpen, setLatticeOpen] = useState(false);
   const [latticeInput, setLatticeInput] = useState("");
   const [latticeError, setLatticeError] = useState("");
+  const [latticeInputInvalid, setLatticeInputInvalid] = useState(false);
   const [latticeResult, setLatticeResult] = useState<ReturnType<typeof textToLattice> | null>(null);
   const latticeDialogRef = useRef<HTMLDivElement>(null);
   const latticeInputRef = useRef<HTMLTextAreaElement>(null);
   const latticeTriggerRef = useRef<HTMLButtonElement | null>(null);
   const wordCount = countLatticeWords(latticeInput);
+  const latticeOutcomeLabel = latticeResult
+    ? latticeResult.status === "transformed"
+      ? latticeResult.mode === "narrative" ? "Narrative candidate" : "Prose candidate"
+      : latticeResult.status === "already-bounded-conformant"
+        ? "Source retained"
+        : "No candidate produced"
+    : "";
 
   const closeLattice = () => setLatticeOpen(false);
 
@@ -381,6 +389,7 @@ export default function ResumeProjects() {
   const openLattice = (trigger: HTMLButtonElement) => {
     latticeTriggerRef.current = trigger;
     setLatticeError("");
+    setLatticeInputInvalid(false);
     setLatticeOpen(true);
   };
 
@@ -389,11 +398,13 @@ export default function ResumeProjects() {
 
     if (countLatticeWords(value) > LATTICE_WORD_LIMIT) {
       setLatticeError(`The ${LATTICE_WORD_LIMIT}-word limit was exceeded. The added text was not accepted.`);
+      setLatticeInputInvalid(false);
       return;
     }
 
     setLatticeInput(value);
     setLatticeError("");
+    setLatticeInputInvalid(false);
   };
 
   const runLattice = (event: FormEvent<HTMLFormElement>) => {
@@ -401,9 +412,11 @@ export default function ResumeProjects() {
     try {
       setLatticeResult(textToLattice(latticeInput));
       setLatticeError("");
+      setLatticeInputInvalid(false);
     } catch (error) {
       setLatticeResult(null);
       setLatticeError(error instanceof Error ? error.message : "Text-to-Lattice could not process that text.");
+      setLatticeInputInvalid(true);
     }
   };
 
@@ -562,8 +575,8 @@ export default function ResumeProjects() {
                 value={latticeInput}
                 rows={9}
                 aria-describedby={`lattice-demo-help lattice-word-count${latticeError ? " lattice-input-error" : ""}`}
-                aria-errormessage={latticeError ? "lattice-input-error" : undefined}
-                aria-invalid={latticeError ? "true" : undefined}
+                aria-errormessage={latticeInputInvalid ? "lattice-input-error" : undefined}
+                aria-invalid={latticeInputInvalid ? "true" : undefined}
                 onChange={(event) => updateLatticeInput(event.currentTarget.value)}
               />
               <div className="lattice-input-meta">
@@ -581,20 +594,15 @@ export default function ResumeProjects() {
             </form>
 
             <section className="lattice-output" aria-labelledby="lattice-output-title">
-              <h4 id="lattice-output-title">Latticed text</h4>
+              <h4 id="lattice-output-title">Text-to-Lattice result</h4>
               <p className="lattice-output-register" role="status" aria-live="polite">
                 {latticeResult
-                  ? `${latticeResult.layerLabel}${
-                    latticeResult.status === "transformed"
-                      ? ` · ${latticeResult.revisionCount} bounded ${latticeResult.revisionCount === 1 ? "revision" : "revisions"}${latticeResult.findings.length ? ` · ${latticeResult.findings.length} unresolved ${latticeResult.findings.length === 1 ? "finding" : "findings"}` : ""}`
-                      : latticeResult.status === "already-bounded-conformant"
-                        ? " · already aligned with Text-to-Lattice checks"
-                        : " · no safe candidate"
-                  }`
+                  ? `${latticeOutcomeLabel} · ${latticeResult.layerLabel} · ${latticeResult.passageCount} ${latticeResult.passageCount === 1 ? "passage" : "passages"} reviewed · ${latticeResult.revisedPassageCount} revised · ${latticeResult.retainedPassageCount} retained${latticeResult.protectedPassageCount ? ` · ${latticeResult.protectedPassageCount} protected` : ""}`
                   : ""}
               </p>
               {latticeResult ? (
                 <>
+                  <h5 className="lattice-output-outcome">{latticeOutcomeLabel}</h5>
                   {latticeResult.text ? (
                     <div className="lattice-output-text">
                       {latticeResult.text.split(/\n{2,}/u).map((paragraph, index) => (
@@ -603,12 +611,12 @@ export default function ResumeProjects() {
                     </div>
                   ) : (
                     <p className="lattice-output-note">
-                      Text-to-Lattice found issues, but no material candidate cleared its preservation checks. The source was not returned as transformed text.
+                      Text-to-Lattice reviewed the source, but none of its bounded revisions cleared the preservation checks. The source was not returned as transformed text.
                     </p>
                   )}
                   {latticeResult.findings.length ? (
                     <div className="lattice-output-findings">
-                      <p>Passages still outside the bounded checks:</p>
+                      <p>Review notes:</p>
                       <ul>
                         {latticeResult.findings.map((finding) => (
                           <li key={finding.id}>{finding.message}</li>
