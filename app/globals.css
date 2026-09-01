@@ -805,10 +805,10 @@ a:hover {
 }
 .lattice-modal-content {
   box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 16%);
-  max-width: 44rem;
+  max-width: 52rem;
   padding: clamp(1.25rem, 4vw, 2.5rem);
   text-align: left;
-  width: min(100%, 44rem);
+  width: min(100%, 52rem);
 }
 .lattice-modal-heading {
   align-items: flex-start;
@@ -817,14 +817,7 @@ a:hover {
   justify-content: space-between;
 }
 .lattice-modal-heading h3 {
-  margin-bottom: .25rem;
-}
-.lattice-modal-kicker {
-  color: #6c757d;
-  font-size: .875rem;
-  letter-spacing: .06em;
-  margin: 0;
-  text-transform: uppercase;
+  margin-bottom: 0;
 }
 .lattice-modal-close {
   background: transparent;
@@ -851,7 +844,7 @@ a:hover {
   color: black;
   font: inherit;
   line-height: 1.5;
-  min-height: 9rem;
+  min-height: 13rem;
   padding: .875rem;
   resize: vertical;
 }
@@ -905,15 +898,35 @@ a:hover {
   letter-spacing: .02em;
   margin-bottom: .75rem;
 }
+.lattice-output-register:empty {
+  margin-bottom: 0;
+}
 .lattice-output-text {
   margin-bottom: .75rem;
+}
+.lattice-output-text p {
   white-space: pre-wrap;
+}
+.lattice-output-text > :last-child {
+  margin-bottom: 0;
 }
 .lattice-output-note,
 .lattice-output-placeholder {
-  color: #6c757d;
+  color: #545454;
   font-size: .875rem;
   margin-bottom: 0;
+}
+.lattice-output-findings {
+  color: #545454;
+  font-size: .875rem;
+  margin-top: .875rem;
+}
+.lattice-output-findings p {
+  margin-bottom: .25rem;
+}
+.lattice-output-findings ul {
+  margin-bottom: 0;
+  padding-left: 1.25rem;
 }
 
 @media screen and (max-width: 600px) {

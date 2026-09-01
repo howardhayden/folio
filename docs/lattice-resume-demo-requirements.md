@@ -1,10 +1,11 @@
-# Lattice resume demonstrator requirements
+# Text-to-Lattice resume demonstrator requirements
 
-This file records the bounded contract for the Lattice project card and its browser-only demonstrator. It does not restate or redistribute the Relational Systems Register profile.
+This file records the public contract for the Lattice project card and its browser-only **Text-to-Lattice** demonstrator. It does not restate or redistribute the Relational Systems Register profile.
 
 ## Sources
 
-- **U1:** Site-owner brief, 2026-09-01.
+- **U1:** Site-owner brief, 2026-09-01: add the Lattice project, supplied summary, icon, documentation link, pop-up interaction, and initial 250-character limit.
+- **U2:** Site-owner correction, 2026-09-01: name the tool Text-to-Lattice, raise the limit to 700 words, require material rewriting unless the input already clears the bounded checks, and select content layers below the whole-document level without defaulting to experiential.
 - **L1:** `howardhayden/lattice` v0.1.1 README, architecture, requirements, context types, validators, and license scope at commit `d6cc85b275e3f14163a5a547f626832fd21b27b0`.
 - **F1:** Existing `hah.dev` resume project-card, progressive-disclosure, resource-link, and modal patterns.
 
@@ -12,20 +13,52 @@ This file records the bounded contract for the Lattice project card and its brow
 
 | ID | Requirement | Source | Evidence |
 | --- | --- | --- | --- |
-| LAT-UI-001 | Add Lattice to Resume → Projects. | U1 | `ResumeProjects.tsx` project data |
-| LAT-UI-002 | Use Bootstrap’s `pen-fill` path and existing project-icon treatment. | U1, F1 | `PenFillIcon` |
+| LAT-UI-001 | Add Lattice to Resume → Projects. | U1 | `ResumeProjects.tsx` project data; SSR tests |
+| LAT-UI-002 | Use Bootstrap’s `pen-fill` path and the existing project-icon treatment. | U1, F1 | `PenFillIcon`; SSR tests |
 | LAT-COPY-001 | Render the supplied first paragraph openly and conceal the remaining three under “Read me.” | U1, F1 | `.project-readme` disclosure; SSR tests |
-| LAT-LINK-001 | Link Documentation to `https://github.com/howardhayden/lattice` using existing resource formatting. | U1, F1 | project resource data; SSR tests |
-| LAT-INT-001 | Open the interaction in the resume’s established pop-up treatment. | U1, F1 | `.modal.resume-modal.lattice-modal` |
-| LAT-INT-002 | Accept no more than 250 user-perceived characters and fail without silent truncation. | U1, L1 | grapheme counter, controlled input, engine guard, boundary tests |
-| LAT-INT-003 | Select one official Lattice layer—operative, experiential, or interpretive—using deterministic host heuristics. | U1, L1 | `selectLatticeLayer`; classification tests |
-| LAT-SAF-001 | Protected instructions, constraints, quantities, timings, and accessibility language take precedence and remain literal. | L1 | operative precedence patterns; safety tests |
-| LAT-SEM-001 | When shaping cadence, preserve every source word and its order; fail closed to the source text if the invariant fails. | L1 | word-inventory gate; semantic tests |
-| LAT-SEM-002 | Never claim that arbitrary free text has passed Lattice’s full semantic-contract pipeline. | L1 | bounded-demo copy and implementation note |
-| LAT-LIC-001 | Do not embed or redistribute the exclusive 69-rule register profile or fixtures in public client code. | L1 | local host heuristics only |
-| LAT-A11Y-001 | Provide a labelled modal, labelled textarea, counter, inline error, live output, Escape close, focus containment, and focus return. | U1, F1 | dialog markup and focus lifecycle |
-| LAT-SEC-001 | Render all submitted and output text through React text nodes, never HTML injection. | L1 | component rendering; injection test |
+| LAT-LINK-001 | Link Documentation to `https://github.com/howardhayden/lattice` using the existing resource formatting. | U1, F1 | project resource data; SSR tests |
+| TTL-NAME-001 | Name the interactive tool exactly “Text-to-Lattice”; do not present a competing tool name or register subtitle inside the dialog. | U2 | dialog heading; source-contract tests |
+| TTL-UI-001 | Open Text-to-Lattice in the resume’s established labelled, focus-managed pop-up treatment. | U1, U2, F1 | `.modal.resume-modal.lattice-modal`; dialog tests |
+| TTL-LIM-001 | Accept between 1 and 700 Unicode-aware words, inclusively, and reject 701 words without truncation. | U2 | shared word counter and engine guard; 700/701 tests |
+| TTL-LIM-002 | Reject a payload above 50,000 input code units before analysis, independently of the user-facing word limit. | L1 | engine safety guard; ceiling test |
+| TTL-LAY-001 | Select the operative, experiential, or interpretive content layer for each sentence or bounded clause; report mixed-layer input when applicable. | U2, L1 | segment analysis and layer metadata; mixed-layer test |
+| TTL-LAY-002 | Do not use experiential as a generic fallback. Leave insufficiently evidenced content unresolved, or inherit a single evidenced layer only within its local paragraph. | U2, L1 | scoring thresholds and local inheritance; classification tests |
+| TTL-XFM-001 | A successful transformation of nonconformant text must change its normalized word sequence; capitalization, punctuation, or paragraph spacing alone is insufficient. | U2 | candidate materiality gate; interpretive and experiential tests |
+| TTL-XFM-002 | Return the source text unchanged only with the explicit `already-bounded-conformant` outcome after the bounded checks find no actionable issue. | U2, L1 | result state; fixed-point and known-good tests |
+| TTL-XFM-003 | If no material candidate clears every preservation gate, return `no-safe-candidate` and no transformed text; never relabel the source as a successful conversion. | U2, L1 | result state and findings; vague-input test |
+| TTL-SEM-001 | Preserve explicit actors, actions, objects, polarity, modality, uncertainty, quantities, units, conditions, exceptions, timing, causality, consequences, and recovery relationships. Invent none. | L1 | semantic sentinels and rule-local guards; preservation tests |
+| TTL-PRO-001 | Keep direct safety, medical, contact, timing, recovery, and accessibility instructions literal in their local protected spans, including within mixed input. | L1 | protected-segment precedence; exact-substring tests |
+| TTL-DET-001 | Produce deterministic results, and make a successful output a fixed point of the same bounded engine. | U2, L1 | deterministic ranking; repetition and idempotence tests |
+| TTL-LIC-001 | Do not embed or redistribute the exclusive register profile, its rule inventory, or its fixtures in public client code. | L1 | independently authored bounded host rules; source review |
+| TTL-A11Y-001 | Provide a labelled dialog and textarea, shared word counter, inline error, short live status, Escape close, focus containment, and focus return. Do not mark the potentially 700-word result as one atomic live announcement. | U2, F1 | dialog markup and focus lifecycle; source-contract tests |
+| TTL-SEC-001 | Treat submitted text as inert data and render source, findings, and output through React text nodes, never HTML injection. | L1 | component rendering; injection tests |
 
-## Scope boundary
+## Word-count policy
 
-The published interaction is a deterministic, short-form portfolio demonstrator. The current Lattice package requires caller-supplied semantic atoms, context, and candidates; it does not infer a complete context or synthesize arbitrary prose from raw text. Accordingly, this demonstrator selects a provisional layer with small host-owned heuristics, reshapes punctuation or line cadence only when its word-order invariant passes, and leaves protected or unverifiable wording unchanged. It neither executes nor represents the exclusive Relational Systems Register profile.
+The counter and engine use the same `Intl.Segmenter("en", { granularity: "word" })` policy and count only `isWordLike` segments, with a Unicode word-pattern fallback for runtimes without `Intl.Segmenter`. Contractions such as “can’t” normally count as one word; Unicode segmentation may count a hyphenated compound as multiple word-like segments. The displayed count is therefore the engine’s count, not a separate approximation.
+
+The 50,000-code-unit ceiling is a defensive implementation limit, not an additional authoring allowance: input must clear both it and the 700-word limit.
+
+## Outcome and preservation boundary
+
+Text-to-Lattice is an independently authored, deterministic public host over a bounded set of transparent transformations. Its order is:
+
+1. validate limits;
+2. segment paragraphs, sentences, clauses, and protected spans;
+3. score a content layer locally;
+4. generate only guarded candidates;
+5. reject candidates that fail materiality or semantic-preservation checks;
+6. rank the survivors deterministically; and
+7. report `transformed`, `already-bounded-conformant`, or `no-safe-candidate`.
+
+The full Lattice pipeline expects caller-supplied semantic atoms, context, and candidates. Text-to-Lattice cannot infer that full contract from arbitrary prose and does not certify text as “perfectly Latticed.” Its unchanged outcome means only that the text is already aligned with this host’s bounded checks. Its transformed outcome likewise means that the selected candidate cleared those checks, not that it passed the complete private profile.
+
+Unchanged output is admitted only by a narrow positive check on every passage: protected operative copy must remain direct; experiential copy must use compact, concrete material or relational evidence without unresolved ornament; and interpretive copy must expose an active institutional and causal relationship. Local inheritance, unsupported structure, or any unresolved finding prevents an output and produces `no-safe-candidate`, even when another passage had a usable revision.
+
+## Supersession history
+
+| Earlier requirement | Status | Replaced by | Reason |
+| --- | --- | --- | --- |
+| LAT-INT-002: maximum 250 user-perceived characters | Superseded by U2 | TTL-LIM-001, TTL-LIM-002 | The owner raised the authoring limit to 700 words; a separate defensive ceiling remains. |
+| LAT-INT-003: select one layer for the entire input | Superseded by U2 | TTL-LAY-001, TTL-LAY-002 | Mixed inputs require sentence- or clause-level selection, and experiential is not a fallback. |
+| LAT-SEM-001: preserve every word and its order while changing cadence | Superseded by U2 | TTL-XFM-001–003, TTL-SEM-001 | The tool must materially rewrite when safe; punctuation-only or paragraph-only changes do not satisfy the interaction. |

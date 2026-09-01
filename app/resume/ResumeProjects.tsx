@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
-  countLatticeCharacters,
-  latticeize,
-  LATTICE_INPUT_LIMIT,
+  countLatticeWords,
+  LATTICE_WORD_LIMIT,
+  textToLattice,
 } from "./latticeDemo.js";
 
 type ProjectIconName =
@@ -300,11 +300,11 @@ export default function ResumeProjects() {
   const [latticeOpen, setLatticeOpen] = useState(false);
   const [latticeInput, setLatticeInput] = useState("");
   const [latticeError, setLatticeError] = useState("");
-  const [latticeResult, setLatticeResult] = useState<ReturnType<typeof latticeize> | null>(null);
+  const [latticeResult, setLatticeResult] = useState<ReturnType<typeof textToLattice> | null>(null);
   const latticeDialogRef = useRef<HTMLDivElement>(null);
   const latticeInputRef = useRef<HTMLTextAreaElement>(null);
   const latticeTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const characterCount = countLatticeCharacters(latticeInput);
+  const wordCount = countLatticeWords(latticeInput);
 
   const closeLattice = () => setLatticeOpen(false);
 
@@ -385,24 +385,25 @@ export default function ResumeProjects() {
   };
 
   const updateLatticeInput = (value: string) => {
-    if (countLatticeCharacters(value) > LATTICE_INPUT_LIMIT) {
-      setLatticeError(`The ${LATTICE_INPUT_LIMIT}-character limit was reached. The added text was not accepted.`);
+    setLatticeResult(null);
+
+    if (countLatticeWords(value) > LATTICE_WORD_LIMIT) {
+      setLatticeError(`The ${LATTICE_WORD_LIMIT}-word limit was exceeded. The added text was not accepted.`);
       return;
     }
 
     setLatticeInput(value);
     setLatticeError("");
-    setLatticeResult(null);
   };
 
   const runLattice = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     try {
-      setLatticeResult(latticeize(latticeInput));
+      setLatticeResult(textToLattice(latticeInput));
       setLatticeError("");
     } catch (error) {
       setLatticeResult(null);
-      setLatticeError(error instanceof Error ? error.message : "Lattice could not process that text.");
+      setLatticeError(error instanceof Error ? error.message : "Text-to-Lattice could not process that text.");
     }
   };
 
@@ -540,37 +541,34 @@ export default function ResumeProjects() {
             onPointerDown={(event) => event.stopPropagation()}
           >
             <div className="lattice-modal-heading">
-              <div>
-                <p className="lattice-modal-kicker">Relational Systems Register</p>
-                <h3 id="lattice-demo-title">Lattice</h3>
-              </div>
+              <h3 id="lattice-demo-title">Text-to-Lattice</h3>
               <button className="lattice-modal-close" type="button" onClick={closeLattice}>
                 Close
               </button>
             </div>
 
             <p id="lattice-demo-description" className="lattice-modal-description">
-              Enter up to {LATTICE_INPUT_LIMIT} characters. This short-form demonstrator selects an operative, experiential, or interpretive layer, then reshapes cadence only when every word can remain in order.
+              Enter up to {LATTICE_WORD_LIMIT} words. Text-to-Lattice selects content layers passage by passage and applies only bounded revisions that preserve protected instructions, quantities, negation, uncertainty, and explicit relationships.
             </p>
 
             <form onSubmit={runLattice} noValidate>
               <label className="lattice-input-label" htmlFor="lattice-demo-input">
-                Text to Lattice-icize
+                Source text
               </label>
               <textarea
                 ref={latticeInputRef}
                 className="form-control lattice-input"
                 id="lattice-demo-input"
                 value={latticeInput}
-                rows={5}
-                aria-describedby={`lattice-demo-help lattice-character-count${latticeError ? " lattice-input-error" : ""}`}
+                rows={9}
+                aria-describedby={`lattice-demo-help lattice-word-count${latticeError ? " lattice-input-error" : ""}`}
                 aria-errormessage={latticeError ? "lattice-input-error" : undefined}
                 aria-invalid={latticeError ? "true" : undefined}
                 onChange={(event) => updateLatticeInput(event.currentTarget.value)}
               />
               <div className="lattice-input-meta">
-                <small id="lattice-demo-help">Protected instructions remain direct.</small>
-                <small id="lattice-character-count">{characterCount} / {LATTICE_INPUT_LIMIT}</small>
+                <small id="lattice-demo-help">Safety, contact, timing, and accessibility instructions remain direct.</small>
+                <small id="lattice-word-count">{wordCount} / {LATTICE_WORD_LIMIT} words</small>
               </div>
               {latticeError ? (
                 <p className="lattice-input-error" id="lattice-input-error" role="alert">
@@ -578,19 +576,46 @@ export default function ResumeProjects() {
                 </p>
               ) : null}
               <button className="lattice-run-button" type="submit">
-                Lattice-icize
+                Convert
               </button>
             </form>
 
-            <section className="lattice-output" aria-labelledby="lattice-output-title" aria-live="polite" aria-atomic="true">
-              <h4 id="lattice-output-title">Lattice-icized text</h4>
+            <section className="lattice-output" aria-labelledby="lattice-output-title">
+              <h4 id="lattice-output-title">Latticed text</h4>
+              <p className="lattice-output-register" role="status" aria-live="polite">
+                {latticeResult
+                  ? `${latticeResult.layerLabel}${
+                    latticeResult.status === "transformed"
+                      ? ` · ${latticeResult.revisionCount} bounded ${latticeResult.revisionCount === 1 ? "revision" : "revisions"}${latticeResult.findings.length ? ` · ${latticeResult.findings.length} unresolved ${latticeResult.findings.length === 1 ? "finding" : "findings"}` : ""}`
+                      : latticeResult.status === "already-bounded-conformant"
+                        ? " · already aligned with Text-to-Lattice checks"
+                        : " · no safe candidate"
+                  }`
+                  : ""}
+              </p>
               {latticeResult ? (
                 <>
-                  <p className="lattice-output-register">
-                    {latticeResult.layerLabel} · {latticeResult.conformance === "literal" ? "wording preserved" : "cadence shaped"}
-                  </p>
-                  <p className="lattice-output-text">{latticeResult.text}</p>
-                  <p className="lattice-output-note">{latticeResult.layerDescription}</p>
+                  {latticeResult.text ? (
+                    <div className="lattice-output-text">
+                      {latticeResult.text.split(/\n{2,}/u).map((paragraph, index) => (
+                        <p key={`lattice-output-${index}`}>{paragraph}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="lattice-output-note">
+                      Text-to-Lattice found issues, but no material candidate cleared its preservation checks. The source was not returned as transformed text.
+                    </p>
+                  )}
+                  {latticeResult.findings.length ? (
+                    <div className="lattice-output-findings">
+                      <p>Passages still outside the bounded checks:</p>
+                      <ul>
+                        {latticeResult.findings.map((finding) => (
+                          <li key={finding.id}>{finding.message}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <p className="lattice-output-placeholder">Your result will appear here.</p>

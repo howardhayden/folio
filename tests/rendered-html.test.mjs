@@ -1013,7 +1013,7 @@ test("renders current projects and consistent project documentation icons", asyn
   assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 5);
 });
 
-test("implements the bounded and accessible Lattice dialog contract", async () => {
+test("implements the bounded and accessible Text-to-Lattice dialog contract", async () => {
   const source = await readFile(
     new URL("../app/resume/ResumeProjects.tsx", import.meta.url),
     "utf8",
@@ -1024,9 +1024,22 @@ test("implements the bounded and accessible Lattice dialog contract", async () =
   assert.match(source, /aria-labelledby="lattice-demo-title"/);
   assert.match(source, /aria-describedby="lattice-demo-description"/);
   assert.match(source, /aria-live="polite"/);
+  assert.ok(
+    source.indexOf('className="lattice-output-register"')
+      < source.indexOf("{latticeResult ? (", source.indexOf('className="lattice-output-register"')),
+    "the live status must exist before a result is mounted",
+  );
   assert.match(source, /event\.key === "Escape"/);
-  assert.match(source, /countLatticeCharacters\(value\) > LATTICE_INPUT_LIMIT/);
-  assert.match(source, /Lattice-icized text/);
+  assert.match(source, /Text-to-Lattice<\/h3>/);
+  assert.match(source, /Source text/);
+  assert.match(source, /Latticed text/);
+  assert.match(source, /countLatticeWords\(value\) > LATTICE_WORD_LIMIT/);
+  assert.match(source, /\{wordCount\} \/ \{LATTICE_WORD_LIMIT\} words/);
+  assert.match(source, />\s*Convert\s*<\/button>/);
+  assert.match(source, /latticeResult\.findings\.map/);
+  assert.doesNotMatch(source, /lattice-modal-kicker/);
+  assert.doesNotMatch(source, /Lattice-iciz(?:e|ed|ing)/);
+  assert.doesNotMatch(source, /aria-atomic/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
