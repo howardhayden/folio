@@ -1,9 +1,19 @@
+"use client";
+
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  countLatticeCharacters,
+  latticeize,
+  LATTICE_INPUT_LIMIT,
+} from "./latticeDemo.js";
+
 type ProjectIconName =
   | "airplane-engines"
   | "tree"
   | "diagram-3"
   | "bricks"
   | "backpack4"
+  | "pen-fill"
   | "archive";
 
 type ProjectResource = {
@@ -20,9 +30,33 @@ type Project = {
   summary: string[];
   publication: string;
   resources?: ProjectResource[];
+  interaction?: "lattice-demo";
+  readmeAfterFirstParagraph?: boolean;
 };
 
 const projects: Project[] = [
+  {
+    name: "Lattice",
+    url: "https://github.com/howardhayden/lattice",
+    icon: "pen-fill",
+    summary: [
+      "Lattice turns linguistic register into an explicit, testable system.",
+      "It separates meaning from expression by decomposing content into semantic atoms that candidate prose must preserve. Outputs are evaluated in order of safety, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament, preventing style from obscuring instructions, altering causality, or assuming relative education, while welcoming inference.",
+      "Its Relational Systems Register connects embodied experience, relationships, institutions, causality, and ethical stakes through consequential detail, subtext, and systems-conscious realism.",
+      "Lattice demonstrates that expressive language can be distinctive without becoming semantically unaccountable.",
+    ],
+    resources: [
+      {
+        label: "Documentation",
+        url: "https://github.com/howardhayden/lattice",
+        icon: "backpack4",
+        opensInNewTab: true,
+      },
+    ],
+    publication: "September 2026",
+    interaction: "lattice-demo",
+    readmeAfterFirstParagraph: true,
+  },
   {
     name: "FOG OF SEA",
     url: "https://fogofsea.app/",
@@ -191,6 +225,23 @@ function Backpack4Icon() {
   );
 }
 
+function PenFillIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      fill="currentColor"
+      className="bi bi-pen-fill"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="m13.498.795.149-.149a1.207 1.207 0 1 1 1.707 1.708l-.149.148a1.5 1.5 0 0 1-.059 2.059L4.854 14.854a.5.5 0 0 1-.233.131l-4 1a.5.5 0 0 1-.606-.606l1-4a.5.5 0 0 1 .131-.232l9.642-9.642a.5.5 0 0 0-.642.056L6.854 4.854a.5.5 0 1 1-.708-.708L9.44.854A1.5 1.5 0 0 1 11.5.796a1.5 1.5 0 0 1 1.998-.001" />
+    </svg>
+  );
+}
+
 function ArchiveIcon() {
   return (
     <svg
@@ -225,6 +276,9 @@ function ProjectIcon({ icon }: { icon: ProjectIconName }) {
     case "backpack4":
       return <Backpack4Icon />;
 
+    case "pen-fill":
+      return <PenFillIcon />;
+
     case "archive":
       return <ArchiveIcon />;
 
@@ -243,100 +297,308 @@ function projectHeadingId(name: string) {
 }
 
 export default function ResumeProjects() {
+  const [latticeOpen, setLatticeOpen] = useState(false);
+  const [latticeInput, setLatticeInput] = useState("");
+  const [latticeError, setLatticeError] = useState("");
+  const [latticeResult, setLatticeResult] = useState<ReturnType<typeof latticeize> | null>(null);
+  const latticeDialogRef = useRef<HTMLDivElement>(null);
+  const latticeInputRef = useRef<HTMLTextAreaElement>(null);
+  const latticeTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const characterCount = countLatticeCharacters(latticeInput);
+
+  const closeLattice = () => setLatticeOpen(false);
+
+  useEffect(() => {
+    if (!latticeOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const dialog = latticeDialogRef.current;
+    const focusableSelector = [
+      "a[href]",
+      "button:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "[tabindex]:not([tabindex='-1'])",
+    ].join(",");
+    const focusableElements = () => Array.from(
+      dialog?.querySelectorAll<HTMLElement>(focusableSelector) ?? [],
+    ).filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeLattice();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialog) return;
+      const elements = focusableElements();
+      if (elements.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      if (dialog && !dialog.contains(event.target as Node)) {
+        (focusableElements()[0] ?? dialog).focus();
+      }
+    };
+
+    document.body.classList.add("resume-modal-open");
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("focusin", handleFocusIn);
+    const focusFrame = window.requestAnimationFrame(() => {
+      (latticeInputRef.current ?? dialog)?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("focusin", handleFocusIn);
+      document.body.classList.remove("resume-modal-open");
+      document.body.style.overflow = previousOverflow;
+      const trigger = latticeTriggerRef.current;
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    };
+  }, [latticeOpen]);
+
+  const openLattice = (trigger: HTMLButtonElement) => {
+    latticeTriggerRef.current = trigger;
+    setLatticeError("");
+    setLatticeOpen(true);
+  };
+
+  const updateLatticeInput = (value: string) => {
+    if (countLatticeCharacters(value) > LATTICE_INPUT_LIMIT) {
+      setLatticeError(`The ${LATTICE_INPUT_LIMIT}-character limit was reached. The added text was not accepted.`);
+      return;
+    }
+
+    setLatticeInput(value);
+    setLatticeError("");
+    setLatticeResult(null);
+  };
+
+  const runLattice = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    try {
+      setLatticeResult(latticeize(latticeInput));
+      setLatticeError("");
+    } catch (error) {
+      setLatticeResult(null);
+      setLatticeError(error instanceof Error ? error.message : "Lattice could not process that text.");
+    }
+  };
+
   return (
-    <section className="container" aria-labelledby="projects-title">
-      <h2 className="text-center skill-stack-heading" id="projects-title">
-        Projects
-      </h2>
+    <>
+      <section className="container" aria-labelledby="projects-title">
+        <h2 className="text-center skill-stack-heading" id="projects-title">
+          Projects
+        </h2>
 
-      <div className="folio-card-grid">
-        {projects.map((project) => {
-          const headingId = projectHeadingId(project.name);
+        <div className="folio-card-grid">
+          {projects.map((project) => {
+            const headingId = projectHeadingId(project.name);
+            const firstParagraph = project.summary[0];
+            const remainingParagraphs = project.summary.slice(1);
 
-          return (
-            <article
-              className="card"
-              key={project.name}
-              aria-labelledby={headingId}
-            >
-              <div className="card-body">
-                <div
-                  className="row justify-content-center"
-                  aria-hidden="true"
-                >
-                  <span className="tool-icon">
-                    <ProjectIcon icon={project.icon} />
-                  </span>
-                </div>
-
-                <h3
-                  className="card-title tools-card-title row justify-content-center"
-                  id={headingId}
-                >
-                  <a className="signal-fuzz" href={project.url}>{project.name}</a>
-                </h3>
-
-                {project.summary.map((paragraph, index) => (
-                  <p
-                    className="card-text"
-                    key={`${project.name}-summary-${index}`}
+            return (
+              <article
+                className="card"
+                key={project.name}
+                aria-labelledby={headingId}
+              >
+                <div className="card-body">
+                  <div
+                    className="row justify-content-center"
+                    aria-hidden="true"
                   >
-                    {paragraph}
-                  </p>
-                ))}
+                    <span className="tool-icon">
+                      <ProjectIcon icon={project.icon} />
+                    </span>
+                  </div>
 
-                {project.resources?.length ? (
-                  <nav
-                    className="project-resources"
-                    aria-label={`${project.name} supporting materials`}
+                  <h3
+                    className="card-title tools-card-title row justify-content-center"
+                    id={headingId}
                   >
-                    <ul className="list-unstyled">
-                      {project.resources.map((resource) => {
-                        const opensInNewTab =
-                          resource.opensInNewTab === true;
+                    {project.interaction === "lattice-demo" ? (
+                      <button
+                        type="button"
+                        className="project-title-button signal-fuzz"
+                        aria-haspopup="dialog"
+                        aria-controls="lattice-demo-dialog"
+                        onClick={(event) => openLattice(event.currentTarget)}
+                      >
+                        {project.name}
+                      </button>
+                    ) : (
+                      <a className="signal-fuzz" href={project.url}>{project.name}</a>
+                    )}
+                  </h3>
 
-                        return (
-                          <li key={`${resource.label}-${resource.url}`}>
-                            <a
-                              className="signal-fuzz"
-                              href={resource.url}
-                              target={
-                                opensInNewTab ? "_blank" : undefined
-                              }
-                              rel={
-                                opensInNewTab
-                                  ? "noopener noreferrer"
-                                  : undefined
-                              }
-                              aria-label={
-                                opensInNewTab
-                                  ? `${resource.label} for ${project.name}, opens in a new tab`
-                                  : `${resource.label} for ${project.name}`
-                              }
+                  {project.readmeAfterFirstParagraph ? (
+                    <>
+                      <p className="card-text">{firstParagraph}</p>
+                      <details className="project-readme">
+                        <summary>Read me</summary>
+                        <div className="project-readme-copy">
+                          {remainingParagraphs.map((paragraph, index) => (
+                            <p
+                              className="card-text"
+                              key={`${project.name}-summary-${index + 1}`}
                             >
-                              <span aria-hidden="true">
-                                <ProjectIcon icon={resource.icon} />
-                              </span>{" "}
-                              <span>{resource.label}</span>
-                              {opensInNewTab ? (
-                                <span aria-hidden="true"> ↗</span>
-                              ) : null}
-                            </a>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </nav>
-                ) : null}
+                              {paragraph}
+                            </p>
+                          ))}
+                        </div>
+                      </details>
+                    </>
+                  ) : project.summary.map((paragraph, index) => (
+                    <p
+                      className="card-text"
+                      key={`${project.name}-summary-${index}`}
+                    >
+                      {paragraph}
+                    </p>
+                  ))}
 
-                <p className="card-text">
-                  <small>{project.publication}</small>
-                </p>
+                  {project.resources?.length ? (
+                    <nav
+                      className="project-resources"
+                      aria-label={`${project.name} supporting materials`}
+                    >
+                      <ul className="list-unstyled">
+                        {project.resources.map((resource) => {
+                          const opensInNewTab = resource.opensInNewTab === true;
+
+                          return (
+                            <li key={`${resource.label}-${resource.url}`}>
+                              <a
+                                className="signal-fuzz"
+                                href={resource.url}
+                                target={opensInNewTab ? "_blank" : undefined}
+                                rel={opensInNewTab ? "noopener noreferrer" : undefined}
+                                aria-label={
+                                  opensInNewTab
+                                    ? `${resource.label} for ${project.name}, opens in a new tab`
+                                    : `${resource.label} for ${project.name}`
+                                }
+                              >
+                                <span aria-hidden="true">
+                                  <ProjectIcon icon={resource.icon} />
+                                </span>{" "}
+                                <span>{resource.label}</span>
+                                {opensInNewTab ? <span aria-hidden="true"> ↗</span> : null}
+                              </a>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </nav>
+                  ) : null}
+
+                  <p className="card-text">
+                    <small>{project.publication}</small>
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {latticeOpen ? (
+        <div className="modal resume-modal lattice-modal" role="presentation" onPointerDown={closeLattice}>
+          <div
+            ref={latticeDialogRef}
+            className="modal-content lattice-modal-content"
+            id="lattice-demo-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lattice-demo-title"
+            aria-describedby="lattice-demo-description"
+            aria-keyshortcuts="Escape"
+            tabIndex={-1}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <div className="lattice-modal-heading">
+              <div>
+                <p className="lattice-modal-kicker">Relational Systems Register</p>
+                <h3 id="lattice-demo-title">Lattice</h3>
               </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
+              <button className="lattice-modal-close" type="button" onClick={closeLattice}>
+                Close
+              </button>
+            </div>
+
+            <p id="lattice-demo-description" className="lattice-modal-description">
+              Enter up to {LATTICE_INPUT_LIMIT} characters. This short-form demonstrator selects an operative, experiential, or interpretive layer, then reshapes cadence only when every word can remain in order.
+            </p>
+
+            <form onSubmit={runLattice} noValidate>
+              <label className="lattice-input-label" htmlFor="lattice-demo-input">
+                Text to Lattice-icize
+              </label>
+              <textarea
+                ref={latticeInputRef}
+                className="form-control lattice-input"
+                id="lattice-demo-input"
+                value={latticeInput}
+                rows={5}
+                aria-describedby={`lattice-demo-help lattice-character-count${latticeError ? " lattice-input-error" : ""}`}
+                aria-errormessage={latticeError ? "lattice-input-error" : undefined}
+                aria-invalid={latticeError ? "true" : undefined}
+                onChange={(event) => updateLatticeInput(event.currentTarget.value)}
+              />
+              <div className="lattice-input-meta">
+                <small id="lattice-demo-help">Protected instructions remain direct.</small>
+                <small id="lattice-character-count">{characterCount} / {LATTICE_INPUT_LIMIT}</small>
+              </div>
+              {latticeError ? (
+                <p className="lattice-input-error" id="lattice-input-error" role="alert">
+                  {latticeError}
+                </p>
+              ) : null}
+              <button className="lattice-run-button" type="submit">
+                Lattice-icize
+              </button>
+            </form>
+
+            <section className="lattice-output" aria-labelledby="lattice-output-title" aria-live="polite" aria-atomic="true">
+              <h4 id="lattice-output-title">Lattice-icized text</h4>
+              {latticeResult ? (
+                <>
+                  <p className="lattice-output-register">
+                    {latticeResult.layerLabel} · {latticeResult.conformance === "literal" ? "wording preserved" : "cadence shaped"}
+                  </p>
+                  <p className="lattice-output-text">{latticeResult.text}</p>
+                  <p className="lattice-output-note">{latticeResult.layerDescription}</p>
+                </>
+              ) : (
+                <p className="lattice-output-placeholder">Your result will appear here.</p>
+              )}
+            </section>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

@@ -191,6 +191,16 @@ svg.signal-fuzz,
     animation: none !important;
     filter: none !important;
   }
+
+  .form-control.lattice-input,
+  .lattice-modal-close,
+  .lattice-run-button {
+    border: 1px solid ButtonText;
+  }
+
+  .lattice-output {
+    border-left-color: Highlight;
+  }
 }
 
 @media print {
@@ -212,6 +222,14 @@ svg.signal-fuzz,
   }
 
   .skill-stack-disclosure:not([open]) > ul {
+    display: block !important;
+  }
+
+  .project-readme > summary {
+    display: none;
+  }
+
+  .project-readme:not([open]) > .project-readme-copy {
     display: block !important;
   }
 }
@@ -578,6 +596,49 @@ svg.signal-fuzz,
   margin-top: .75rem;
 }
 
+.project-readme {
+  margin-bottom: 1rem;
+  margin-top: 1rem;
+}
+
+.project-readme > summary {
+  color: #0b4705;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.project-readme > summary:focus-visible,
+.project-title-button:focus-visible,
+.lattice-modal-close:focus-visible,
+.lattice-run-button:focus-visible,
+.lattice-input:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.project-readme-copy {
+  margin-top: .75rem;
+}
+
+.project-readme-copy > :last-child {
+  margin-bottom: 0;
+}
+
+.project-title-button {
+  background: none;
+  border: 0;
+  color: #0b4705;
+  cursor: pointer;
+  font: inherit;
+  margin: 0;
+  padding: 0;
+}
+
+.project-title-button:hover {
+  color: whitesmoke;
+  filter: grayscale(70%) brightness(70%);
+}
+
 .folio-card-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -737,6 +798,137 @@ a:hover {
 .resume-content-is-blurred,
 .shelf-page-is-blurred { filter: blur(5px); }
 .resume-modal-open main > .container { filter: blur(5px); }
+.lattice-modal {
+  background: rgb(255 255 255 / 38%);
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+.lattice-modal-content {
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 16%);
+  max-width: 44rem;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  text-align: left;
+  width: min(100%, 44rem);
+}
+.lattice-modal-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.lattice-modal-heading h3 {
+  margin-bottom: .25rem;
+}
+.lattice-modal-kicker {
+  color: #6c757d;
+  font-size: .875rem;
+  letter-spacing: .06em;
+  margin: 0;
+  text-transform: uppercase;
+}
+.lattice-modal-close {
+  background: transparent;
+  border: 1px solid lightgray;
+  color: black;
+  cursor: pointer;
+  font: inherit;
+  min-height: 2.75rem;
+  padding: .5rem .875rem;
+}
+.lattice-modal-description {
+  margin-bottom: 1.5rem;
+}
+.lattice-input-label {
+  font-size: 1rem;
+  margin-bottom: .5rem;
+  text-align: left;
+}
+.form-control.lattice-input {
+  background-color: whitesmoke;
+  border: 1px solid lightgray;
+  border-radius: 0;
+  box-shadow: none;
+  color: black;
+  font: inherit;
+  line-height: 1.5;
+  min-height: 9rem;
+  padding: .875rem;
+  resize: vertical;
+}
+.form-control.lattice-input:focus {
+  background-color: white;
+  border-color: #0b4705;
+  box-shadow: none;
+}
+.lattice-input-meta {
+  align-items: baseline;
+  color: #6c757d;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-top: .5rem;
+}
+.lattice-input-error {
+  color: #950F22;
+  margin: .75rem 0 0;
+}
+.lattice-run-button {
+  background: black;
+  border: 1px solid black;
+  color: whitesmoke;
+  cursor: pointer;
+  font: inherit;
+  margin-top: 1rem;
+  min-height: 2.75rem;
+  padding: .625rem 1rem;
+  transition: background-color .25s ease-in, color .25s ease-in;
+}
+.lattice-run-button:hover {
+  background: whitesmoke;
+  color: black;
+}
+.lattice-output {
+  background: whitesmoke;
+  border-left: 3px solid #0b4705;
+  margin-top: 2rem;
+  min-height: 8rem;
+  overflow-wrap: anywhere;
+  padding: 1.25rem;
+}
+.lattice-output h4 {
+  font-size: 1.15rem;
+  margin-bottom: .75rem;
+}
+.lattice-output-register {
+  color: #0b4705;
+  font-size: .875rem;
+  letter-spacing: .02em;
+  margin-bottom: .75rem;
+}
+.lattice-output-text {
+  margin-bottom: .75rem;
+  white-space: pre-wrap;
+}
+.lattice-output-note,
+.lattice-output-placeholder {
+  color: #6c757d;
+  font-size: .875rem;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 600px) {
+  .modal-content.lattice-modal-content {
+    max-width: none;
+    padding: 1.25rem;
+    width: 100%;
+  }
+
+  .lattice-input-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: .25rem;
+  }
+}
 .progress-bar-fill.button-reset {
   display: block;
   height: 100%;

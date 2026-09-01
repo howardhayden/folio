@@ -748,7 +748,7 @@ test("centers one shared state map without restoring the superseded redesign", a
 test("keeps every page's information intact while its view sprouts from the index", async () => {
   const approvedMainCopy = {
     "/": [1771, "379a2291b5b9c898b16542d53e3647f60a6b25425b745fa76f28e487327a0a70"],
-    "/?view=resume": [5052, "6b60a4834f1f806e8b35cd0938870b9f62b4d57156ae17e146741feda85df132"],
+    "/?view=resume": [5843, "ab7ffcf20d5a2478de5867e75f2f13f71ca110ae5d950258f5eb51ffa0f53b39"],
     "/?view=tools": [822, "f95964d9567ab733bbb9e14be3d80b68033f3b49c6100c2e807a885f598e02bc"],
     "/?view=shelf": [6785, "c1b29d690c2d6cf7eb3f62015f23e2fe8a998ddcc641e9b1fd16f7e1b205a973"],
   };
@@ -972,6 +972,24 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
 test("renders current projects and consistent project documentation icons", async () => {
   const { html } = await render("/?view=resume");
 
+  assert.match(html, /class="bi bi-pen-fill"/);
+  assert.match(
+    html,
+    /aria-haspopup="dialog"[^>]*aria-controls="lattice-demo-dialog"[^>]*>Lattice<\/button>/,
+  );
+  assert.match(
+    html,
+    /Lattice turns linguistic register into an explicit, testable system\./,
+  );
+  assert.match(html, /<summary>Read me<\/summary>/);
+  assert.match(
+    html,
+    /It separates meaning from expression by decomposing content into semantic atoms that candidate prose must preserve\./,
+  );
+  assert.match(
+    html,
+    /href="https:\/\/github\.com\/howardhayden\/lattice"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="Documentation for Lattice, opens in a new tab"/,
+  );
   assert.match(html, /href="https:\/\/chorus\.observer\/">CHORUS<\/a>/);
   assert.match(
     html,
@@ -992,7 +1010,24 @@ test("renders current projects and consistent project documentation icons", asyn
     html,
     /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="Public notice for IN KEEPING, opens in a new tab"/,
   );
-  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 4);
+  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 5);
+});
+
+test("implements the bounded and accessible Lattice dialog contract", async () => {
+  const source = await readFile(
+    new URL("../app/resume/ResumeProjects.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /role="dialog"/);
+  assert.match(source, /aria-modal="true"/);
+  assert.match(source, /aria-labelledby="lattice-demo-title"/);
+  assert.match(source, /aria-describedby="lattice-demo-description"/);
+  assert.match(source, /aria-live="polite"/);
+  assert.match(source, /event\.key === "Escape"/);
+  assert.match(source, /countLatticeCharacters\(value\) > LATTICE_INPUT_LIMIT/);
+  assert.match(source, /Lattice-icized text/);
+  assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
 test("renders shelf records before client hydration", async () => {
