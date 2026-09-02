@@ -127,8 +127,14 @@ export const timeline = [
   {
     role: "Continuing Education",
     organization: "King’s College London",
-    period: "June 2026 — present",
-    details: [],
+    period: "June 2026 — August 2026",
+    details: [
+      "Professional Certificate in Grand Strategy:",
+      "Strategic Communications",
+      "Artificial Intelligence in National Security",
+      "Sanctions and Statecraft",
+      "Wargaming and Strategy",
+    ],
   },
   {
     role: "Officer Candidate",
