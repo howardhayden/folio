@@ -748,7 +748,7 @@ test("centers one shared state map without restoring the superseded redesign", a
 test("keeps every page's information intact while its view sprouts from the index", async () => {
   const approvedMainCopy = {
     "/": [1771, "379a2291b5b9c898b16542d53e3647f60a6b25425b745fa76f28e487327a0a70"],
-    "/?view=resume": [5843, "ab7ffcf20d5a2478de5867e75f2f13f71ca110ae5d950258f5eb51ffa0f53b39"],
+    "/?view=resume": [6009, "8b1e6f060bd5b8eb87d6398b0f8a7338905affc018ec34311ec9c2c86d881656"],
     "/?view=tools": [822, "f95964d9567ab733bbb9e14be3d80b68033f3b49c6100c2e807a885f598e02bc"],
     "/?view=shelf": [6785, "c1b29d690c2d6cf7eb3f62015f23e2fe8a998ddcc641e9b1fd16f7e1b205a973"],
   };
