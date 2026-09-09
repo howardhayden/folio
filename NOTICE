@@ -10,3 +10,8 @@ Policy effective: revisions beginning with the merge commit that introduces this
 See LICENSING.md, WORKFLOW-BOUNDARIES.md, LICENSE-MAP.json, and
 COMMERCIAL-LICENSE.md. Third-party and source-specific notices take precedence.
 No trademark or endorsement rights are granted.
+
+Text to Lattice uses a Qwen3 generator, a Llama 3.2 verifier, WebLLM,
+and Web Tokenizers. See THIRD_PARTY_NOTICES.md and LICENSES/.
+Built with Llama.
+Llama 3.2 is licensed under the Llama 3.2 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved.

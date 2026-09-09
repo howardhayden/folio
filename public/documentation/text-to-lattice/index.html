@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Interactive, downloadable maps for the upstream Lattice engine and its bounded Text to Lattice wrapper.">
+<meta name="theme-color" content="#ffffff">
+<meta name="generator" content="scripts/docs/build-text-to-lattice-documentation.mjs">
+<link rel="canonical" href="https://hah.dev/documentation/text-to-lattice/index.html">
+<title>Lattice documentation · Lattice documentation</title>
+<style>
+:root {
+  color-scheme: light;
+  --ink: #20231f;
+  --muted: #5f655f;
+  --paper: #ffffff;
+  --field: #f7faf5;
+  --green: #0b4705;
+  --green-soft: #e8f1e5;
+  --red: #950f22;
+  --red-soft: #f8e9ec;
+  --line: #cfd6cd;
+  --focus: #077995;
+  font-family: "Jost", "Avenir Next", Avenir, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); color: var(--ink); scroll-behavior: smooth; }
+body { margin: 0; min-width: 280px; background: linear-gradient(180deg, var(--field), var(--paper) 22rem); line-height: 1.62; }
+a { color: var(--green); text-underline-offset: .18em; }
+a:hover { color: var(--red); text-decoration-thickness: .14em; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.skip-link { position: absolute; z-index: 20; left: 1rem; top: -6rem; padding: .75rem 1rem; background: var(--ink); color: white; border-radius: .25rem; }
+.skip-link:focus { top: 1rem; }
+.site-header { padding: clamp(2.4rem, 7vw, 5.6rem) max(1rem, calc((100vw - 76rem) / 2)); border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .92); }
+.eyebrow, .identifier { color: var(--red); font: 700 .76rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .11em; text-transform: uppercase; }
+h1, h2, h3 { line-height: 1.16; text-wrap: balance; }
+h1 { max-width: 20ch; margin: 0; color: var(--green); font-size: clamp(2.25rem, 6vw, 5.4rem); font-weight: 500; letter-spacing: -.04em; }
+h2 { color: var(--green); font-size: clamp(1.5rem, 3vw, 2.15rem); }
+h3 { color: var(--ink); }
+.lede { max-width: 75ch; margin: 1.25rem 0 0; color: var(--muted); font-size: clamp(1rem, 2vw, 1.22rem); }
+.doc-nav, .link-row, .button-row { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: 1.4rem; }
+.doc-nav a, .button-link, .link-row a { display: inline-flex; align-items: center; min-height: 44px; padding: .55rem .85rem; border: 1px solid var(--line); border-radius: 999px; background: white; text-decoration: none; }
+.doc-nav a[aria-current="page"] { border-color: var(--red); color: var(--red); }
+main { width: min(76rem, calc(100% - 2rem)); margin: 0 auto; padding: 2.2rem 0 5rem; }
+.panel { margin: 0 0 1.35rem; padding: clamp(1rem, 3vw, 1.65rem); border: 1px solid var(--line); border-radius: .2rem; background: rgba(255, 255, 255, .96); }
+.panel > :first-child { margin-top: 0; }
+.boundary { border-left: .25rem solid var(--red); }
+.method-note { border-left: .25rem solid var(--green); background: var(--green-soft); }
+.method-note strong { color: var(--green); }
+.toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .8rem; align-items: end; margin: 1rem 0; padding: 1rem; border: 1px solid var(--line); background: var(--field); }
+.toolbar label { display: block; color: var(--green); font-weight: 650; }
+.toolbar input, .toolbar select, .toolbar button { min-height: 44px; width: 100%; margin-top: .3rem; border: 1px solid var(--line); border-radius: .2rem; background: white; color: var(--ink); font: inherit; }
+.toolbar input, .toolbar select { padding: .55rem .65rem; }
+.toolbar button { padding: .55rem .75rem; cursor: pointer; }
+.toolbar button:hover { border-color: var(--red); color: var(--red); }
+.status-line { min-height: 1.55em; margin: .5rem 0; color: var(--green); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.record-grid, .index-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)); gap: 1rem; }
+.record, .index-card { min-width: 0; border: 1px solid var(--line); border-top: .2rem solid var(--green); background: white; }
+.record[hidden] { display: none !important; }
+.record details { height: 100%; }
+.record summary { min-height: 44px; padding: 1rem; cursor: pointer; }
+.record summary::marker { color: var(--red); }
+.record-title { display: inline; font-weight: 700; }
+.record-body { padding: 0 1rem 1rem; border-top: 1px solid var(--line); }
+.record-body dl { margin: .75rem 0 0; }
+.record-body dt { margin-top: .65rem; color: var(--green); font-weight: 700; }
+.record-body dd { margin: .1rem 0 0; }
+.tag { display: inline-block; margin: .15rem .2rem .15rem 0; padding: .12rem .45rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: 650 .73rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.table-wrap, .radar-wrap { max-width: 100%; overflow: auto; border: 1px solid var(--line); background: white; overscroll-behavior: contain; }
+table { width: 100%; min-width: 48rem; border-collapse: collapse; }
+caption { padding: .9rem; color: var(--red); font-weight: 700; text-align: left; }
+th, td { padding: .72rem; border-top: 1px solid var(--line); vertical-align: top; text-align: left; }
+thead th { background: var(--green-soft); color: var(--green); }
+tbody th { color: var(--red); }
+.relation-table { min-width: 60rem; }
+.blueprint-table { min-width: 94rem; }
+.source-list { padding-left: 1.25rem; }
+.source-list code { overflow-wrap: anywhere; }
+.index-card { padding: 1rem; border-top-color: var(--red); }
+.index-card h2 { margin: .25rem 0 .6rem; font-size: 1.45rem; }
+.radar-wrap svg { display: block; width: min(100%, 46rem); min-width: 40rem; height: auto; margin: auto; }
+.radar-ring, .radar-axis { fill: none; stroke: var(--line); stroke-width: 1; }
+.radar-shape { fill: rgba(11, 71, 5, .14); stroke: var(--green); stroke-width: 3; }
+.radar-point { fill: var(--red); stroke: white; stroke-width: 2; }
+.radar-label { fill: var(--ink); font: 700 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.score { color: var(--red); font-weight: 750; }
+.overview-wrap { max-width: 100%; overflow: auto; border: 1px solid var(--line); background: var(--field); }
+.overview-wrap svg { display: block; width: min(100%, 52rem); min-width: 38rem; height: auto; margin: auto; }
+.overview-line { fill: none; stroke: var(--green); stroke-width: 2; marker-end: url(#overview-arrow); }
+.overview-branch { stroke: var(--red); stroke-dasharray: 6 5; }
+.overview-node { fill: white; stroke: var(--green); stroke-width: 2; rx: 4; }
+.overview-node-branch { stroke: var(--red); }
+.overview-title { fill: var(--green); font: 700 16px "Jost", "Avenir Next", sans-serif; }
+.overview-caption { fill: var(--ink); font: 12px "Jost", "Avenir Next", sans-serif; }
+.boundary-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: .7rem; padding: 0; list-style: none; }
+.boundary-list li { padding: 1rem; border: 1px solid var(--line); border-left: .25rem solid var(--red); background: var(--field); }
+.classification-high { border-top-color: var(--red); }
+.classification-moderate { border-top-color: #9a6500; }
+.gate-open-before-publication { border-left: .25rem solid var(--red); }
+.gate-satisfied-in-source { border-left: .25rem solid var(--green); }
+.no-script { color: var(--muted); }
+.js .no-script { display: none; }
+.site-footer { padding: 1.5rem max(1rem, calc((100vw - 76rem) / 2)); border-top: 1px solid var(--line); color: var(--muted); }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+@media (max-width: 42rem) { main { width: min(100% - 1rem, 76rem); } .toolbar { grid-template-columns: 1fr; } .panel { padding: 1rem; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
+@media (forced-colors: active) { * { box-shadow: none !important; } .panel, .record, .index-card, .toolbar, .table-wrap, .radar-wrap, .overview-wrap, .boundary-list li { border-color: CanvasText; } .radar-ring, .radar-axis, .radar-shape, .overview-line, .overview-node { stroke: CanvasText; } .radar-shape, .overview-node { fill: Canvas; } .radar-point { fill: CanvasText; stroke: Canvas; } .overview-title, .overview-caption { fill: CanvasText; } }
+@media print { html, body, .site-header, .panel, .record, .index-card { background: white; color: #111; } .doc-nav, .toolbar, .skip-link, .button-row, .no-script { display: none !important; } main { width: 100%; } .record-grid, .index-grid { display: block; } .record, .index-card { break-inside: avoid; margin-bottom: .8rem; } details, details:not([open]) > :not(summary) { display: block !important; } .table-wrap, .radar-wrap, .overview-wrap { overflow: visible; } table { min-width: 0; font-size: 8pt; } a { color: #111; } }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to documentation</a>
+<header class="site-header">
+  <p class="eyebrow">Lattice technical record · revision 2026-09-08</p>
+  <h1>Lattice documentation</h1>
+  <p class="lede">Interactive, downloadable maps for the upstream Lattice engine and its bounded Text to Lattice wrapper.</p>
+  <nav class="doc-nav" aria-label="Lattice documentation navigation"><a href="index.html" aria-current="page">Documentation</a><a href="lattice-concept-map.html">Concept map</a><a href="lattice-skill-map.html">System skill map</a><a href="text-to-lattice-service-blueprint.html">Service blueprint</a><a href="text-to-lattice-security-model.html">Security model</a></nav>
+</header>
+<main id="main"><section class="panel boundary"><p class="eyebrow">Method beside implementation</p><h2>Two authorities, four coordinated views</h2><p>The concept and system skill maps describe the upstream typed Lattice engine. The service blueprint and security model describe the separate Text to Lattice wrapper. The wrapper infers bounded meaning from prose and does not inherit a caller-supplied typed authority guarantee.</p><p>Every document remains complete without JavaScript. Scripting adds read-only search, filters, disclosure controls, and local Markdown export.</p></section>
+  <section class="index-grid" aria-label="Available Lattice documentation"><article class="index-card"><p class="eyebrow">method-and-ecosystem</p><h2>Lattice concept and ecosystem map</h2><p>Trace caller authority through meaning contracts, protected evaluation, evidence, host duties, and four ecosystem applications.</p><div class="link-row"><a href="lattice-concept-map.html">Open interactive edition</a><a href="LATTICE-CONCEPT-MAP.md" download>Download Markdown</a></div></article><article class="index-card"><p class="eyebrow">method</p><h2>Lattice system skill map</h2><p>Inspect the upstream engine&#39;s capability shape on a zero-to-five system-evidence scale adapted from NN/g skill mapping.</p><div class="link-row"><a href="lattice-skill-map.html">Open interactive edition</a><a href="LATTICE-SKILL-MAP.md" download>Download Markdown</a></div></article><article class="index-card"><p class="eyebrow">wrapper</p><h2>Text to Lattice service blueprint</h2><p>Follow the wrapper across eight stages, six service layers, four accountability lines, and eight lifecycle owners.</p><div class="link-row"><a href="text-to-lattice-service-blueprint.html">Open interactive edition</a><a href="TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md" download>Download Markdown</a></div></article><article class="index-card"><p class="eyebrow">wrapper</p><h2>Text to Lattice security model</h2><p>Review assets, boundaries, SEC-01 through SEC-10, marginal value, pre-publication gates, and honest residuals.</p><div class="link-row"><a href="text-to-lattice-security-model.html">Open interactive edition</a><a href="TEXT-TO-LATTICE-SECURITY-MODEL.md" download>Download Markdown</a></div></article></section>
+  <section class="panel"><h2>Authority and integrity</h2><p><a class="button-link" href="documentation-atlas.json">Machine-readable authoritative register</a> <a class="button-link" href="artifact-manifest.json">SHA-256 artifact manifest</a></p><p>These pages load no remote fonts, icons, scripts, analytics, or media. Reviewed source links leave this documentation only when activated.</p></section>
+  <section class="panel" aria-labelledby="terms-heading"><h2 id="terms-heading">Terms and provenance</h2><p>Authored documentation follows the hah.dev portfolio-content terms. The generator and executable documentation shell retain the applicable source-component terms. The separately licensed Relational Systems Register profile is not reproduced.</p></section></main>
+<footer class="site-footer"><p>One authoritative register · deterministic Markdown and HTML · authored documentation follows hah.dev portfolio-content terms · executable shell retains source-component terms · the separately licensed RSR profile is not reproduced</p></footer>
+
+</body>
+</html>

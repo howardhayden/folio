@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Eight stages expose visitor action, frontstage, browser-local work, support systems, recovery evidence, and every data crossing.">
+<meta name="theme-color" content="#ffffff">
+<meta name="generator" content="scripts/docs/build-text-to-lattice-documentation.mjs">
+<link rel="canonical" href="https://hah.dev/documentation/text-to-lattice/text-to-lattice-service-blueprint.html">
+<link rel="alternate" type="text/markdown" href="https://hah.dev/documentation/text-to-lattice/TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md">
+<title>Text to Lattice service blueprint · Lattice documentation</title>
+<style>
+:root {
+  color-scheme: light;
+  --ink: #20231f;
+  --muted: #5f655f;
+  --paper: #ffffff;
+  --field: #f7faf5;
+  --green: #0b4705;
+  --green-soft: #e8f1e5;
+  --red: #950f22;
+  --red-soft: #f8e9ec;
+  --line: #cfd6cd;
+  --focus: #077995;
+  font-family: "Jost", "Avenir Next", Avenir, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); color: var(--ink); scroll-behavior: smooth; }
+body { margin: 0; min-width: 280px; background: linear-gradient(180deg, var(--field), var(--paper) 22rem); line-height: 1.62; }
+a { color: var(--green); text-underline-offset: .18em; }
+a:hover { color: var(--red); text-decoration-thickness: .14em; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.skip-link { position: absolute; z-index: 20; left: 1rem; top: -6rem; padding: .75rem 1rem; background: var(--ink); color: white; border-radius: .25rem; }
+.skip-link:focus { top: 1rem; }
+.site-header { padding: clamp(2.4rem, 7vw, 5.6rem) max(1rem, calc((100vw - 76rem) / 2)); border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .92); }
+.eyebrow, .identifier { color: var(--red); font: 700 .76rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .11em; text-transform: uppercase; }
+h1, h2, h3 { line-height: 1.16; text-wrap: balance; }
+h1 { max-width: 20ch; margin: 0; color: var(--green); font-size: clamp(2.25rem, 6vw, 5.4rem); font-weight: 500; letter-spacing: -.04em; }
+h2 { color: var(--green); font-size: clamp(1.5rem, 3vw, 2.15rem); }
+h3 { color: var(--ink); }
+.lede { max-width: 75ch; margin: 1.25rem 0 0; color: var(--muted); font-size: clamp(1rem, 2vw, 1.22rem); }
+.doc-nav, .link-row, .button-row { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: 1.4rem; }
+.doc-nav a, .button-link, .link-row a { display: inline-flex; align-items: center; min-height: 44px; padding: .55rem .85rem; border: 1px solid var(--line); border-radius: 999px; background: white; text-decoration: none; }
+.doc-nav a[aria-current="page"] { border-color: var(--red); color: var(--red); }
+main { width: min(76rem, calc(100% - 2rem)); margin: 0 auto; padding: 2.2rem 0 5rem; }
+.panel { margin: 0 0 1.35rem; padding: clamp(1rem, 3vw, 1.65rem); border: 1px solid var(--line); border-radius: .2rem; background: rgba(255, 255, 255, .96); }
+.panel > :first-child { margin-top: 0; }
+.boundary { border-left: .25rem solid var(--red); }
+.method-note { border-left: .25rem solid var(--green); background: var(--green-soft); }
+.method-note strong { color: var(--green); }
+.toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .8rem; align-items: end; margin: 1rem 0; padding: 1rem; border: 1px solid var(--line); background: var(--field); }
+.toolbar label { display: block; color: var(--green); font-weight: 650; }
+.toolbar input, .toolbar select, .toolbar button { min-height: 44px; width: 100%; margin-top: .3rem; border: 1px solid var(--line); border-radius: .2rem; background: white; color: var(--ink); font: inherit; }
+.toolbar input, .toolbar select { padding: .55rem .65rem; }
+.toolbar button { padding: .55rem .75rem; cursor: pointer; }
+.toolbar button:hover { border-color: var(--red); color: var(--red); }
+.status-line { min-height: 1.55em; margin: .5rem 0; color: var(--green); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.record-grid, .index-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)); gap: 1rem; }
+.record, .index-card { min-width: 0; border: 1px solid var(--line); border-top: .2rem solid var(--green); background: white; }
+.record[hidden] { display: none !important; }
+.record details { height: 100%; }
+.record summary { min-height: 44px; padding: 1rem; cursor: pointer; }
+.record summary::marker { color: var(--red); }
+.record-title { display: inline; font-weight: 700; }
+.record-body { padding: 0 1rem 1rem; border-top: 1px solid var(--line); }
+.record-body dl { margin: .75rem 0 0; }
+.record-body dt { margin-top: .65rem; color: var(--green); font-weight: 700; }
+.record-body dd { margin: .1rem 0 0; }
+.tag { display: inline-block; margin: .15rem .2rem .15rem 0; padding: .12rem .45rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: 650 .73rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.table-wrap, .radar-wrap { max-width: 100%; overflow: auto; border: 1px solid var(--line); background: white; overscroll-behavior: contain; }
+table { width: 100%; min-width: 48rem; border-collapse: collapse; }
+caption { padding: .9rem; color: var(--red); font-weight: 700; text-align: left; }
+th, td { padding: .72rem; border-top: 1px solid var(--line); vertical-align: top; text-align: left; }
+thead th { background: var(--green-soft); color: var(--green); }
+tbody th { color: var(--red); }
+.relation-table { min-width: 60rem; }
+.blueprint-table { min-width: 94rem; }
+.source-list { padding-left: 1.25rem; }
+.source-list code { overflow-wrap: anywhere; }
+.index-card { padding: 1rem; border-top-color: var(--red); }
+.index-card h2 { margin: .25rem 0 .6rem; font-size: 1.45rem; }
+.radar-wrap svg { display: block; width: min(100%, 46rem); min-width: 40rem; height: auto; margin: auto; }
+.radar-ring, .radar-axis { fill: none; stroke: var(--line); stroke-width: 1; }
+.radar-shape { fill: rgba(11, 71, 5, .14); stroke: var(--green); stroke-width: 3; }
+.radar-point { fill: var(--red); stroke: white; stroke-width: 2; }
+.radar-label { fill: var(--ink); font: 700 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.score { color: var(--red); font-weight: 750; }
+.overview-wrap { max-width: 100%; overflow: auto; border: 1px solid var(--line); background: var(--field); }
+.overview-wrap svg { display: block; width: min(100%, 52rem); min-width: 38rem; height: auto; margin: auto; }
+.overview-line { fill: none; stroke: var(--green); stroke-width: 2; marker-end: url(#overview-arrow); }
+.overview-branch { stroke: var(--red); stroke-dasharray: 6 5; }
+.overview-node { fill: white; stroke: var(--green); stroke-width: 2; rx: 4; }
+.overview-node-branch { stroke: var(--red); }
+.overview-title { fill: var(--green); font: 700 16px "Jost", "Avenir Next", sans-serif; }
+.overview-caption { fill: var(--ink); font: 12px "Jost", "Avenir Next", sans-serif; }
+.boundary-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: .7rem; padding: 0; list-style: none; }
+.boundary-list li { padding: 1rem; border: 1px solid var(--line); border-left: .25rem solid var(--red); background: var(--field); }
+.classification-high { border-top-color: var(--red); }
+.classification-moderate { border-top-color: #9a6500; }
+.gate-open-before-publication { border-left: .25rem solid var(--red); }
+.gate-satisfied-in-source { border-left: .25rem solid var(--green); }
+.no-script { color: var(--muted); }
+.js .no-script { display: none; }
+.site-footer { padding: 1.5rem max(1rem, calc((100vw - 76rem) / 2)); border-top: 1px solid var(--line); color: var(--muted); }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+@media (max-width: 42rem) { main { width: min(100% - 1rem, 76rem); } .toolbar { grid-template-columns: 1fr; } .panel { padding: 1rem; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
+@media (forced-colors: active) { * { box-shadow: none !important; } .panel, .record, .index-card, .toolbar, .table-wrap, .radar-wrap, .overview-wrap, .boundary-list li { border-color: CanvasText; } .radar-ring, .radar-axis, .radar-shape, .overview-line, .overview-node { stroke: CanvasText; } .radar-shape, .overview-node { fill: Canvas; } .radar-point { fill: CanvasText; stroke: Canvas; } .overview-title, .overview-caption { fill: CanvasText; } }
+@media print { html, body, .site-header, .panel, .record, .index-card { background: white; color: #111; } .doc-nav, .toolbar, .skip-link, .button-row, .no-script { display: none !important; } main { width: 100%; } .record-grid, .index-grid { display: block; } .record, .index-card { break-inside: avoid; margin-bottom: .8rem; } details, details:not([open]) > :not(summary) { display: block !important; } .table-wrap, .radar-wrap, .overview-wrap { overflow: visible; } table { min-width: 0; font-size: 8pt; } a { color: #111; } }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to documentation</a>
+<header class="site-header">
+  <p class="eyebrow">Lattice technical record · revision 2026-09-08</p>
+  <h1>Text to Lattice service blueprint</h1>
+  <p class="lede">Eight stages expose visitor action, frontstage, browser-local work, support systems, recovery evidence, and every data crossing.</p>
+  <nav class="doc-nav" aria-label="Lattice documentation navigation"><a href="index.html">Documentation</a><a href="lattice-concept-map.html">Concept map</a><a href="lattice-skill-map.html">System skill map</a><a href="text-to-lattice-service-blueprint.html" aria-current="page">Service blueprint</a><a href="text-to-lattice-security-model.html">Security model</a></nav>
+</header>
+<main id="main"><section class="panel boundary" aria-labelledby="authority-heading">
+  <p class="eyebrow">Claim boundary</p>
+  <h2 id="authority-heading">Authority stays typed</h2>
+  <p>This register describes the Lattice method at an architectural level and the bounded Text to Lattice implementation evidenced in this repository. It does not redistribute the exclusive register profile, certify universal conformance, or convert source tests into deployed proof.</p>
+  <p>Stable identifiers persist. A claim changes here with cited evidence; a rendered filter, expansion, or downloaded view never changes authoritative state.</p>
+  <p>Markdown and HTML are deterministic projections of this register. Filtered browser exports are nonauthoritative reading views.</p>
+</section>
+  <section class="panel method-note"><p class="eyebrow">Specific actor · specific goal · exact crossings</p><h2>Scenario contract</h2><p><strong>Scenario:</strong> A visitor converts authorized prose into one bounded Lattice outcome in the résumé demonstrator.</p><p><strong>Actor:</strong> A visitor using a secure, JavaScript-capable browser with Unicode segmentation, WebGPU, and sufficient local storage.</p><p><strong>Goal:</strong> Receive a materially revised, locally checked result; an unchanged context-bounded clearance; a review-marked draft; one precise clarification; or an honest refusal without transmitting prose to the lease service.</p><p>The blueprint follows NN/g&#39;s service-blueprint separation of user action, visible service, backstage process, and support process, then adds evidence and data-boundary rows because trust and recovery are part of this service. <a href="https://www.nngroup.com/articles/service-blueprints-definition/">Read NN/g's definition</a>.</p></section>
+  <section class="panel" aria-labelledby="lines-heading"><h2 id="lines-heading">Four lines of accountability</h2><ul class="boundary-list"><li><p class="identifier">BP-LINE-01</p><strong>Line of interaction</strong><br>Visitor action and frontstage<p>What the visitor directly acts upon and what the interface returns.</p></li><li><p class="identifier">BP-LINE-02</p><strong>Line of visibility</strong><br>Frontstage and backstage browser-local<p>What is disclosed as status or outcome versus what remains internal pipeline work.</p></li><li><p class="identifier">BP-LINE-03</p><strong>Line of trust and network</strong><br>Backstage browser-local and support/network<p>The only crossings are bounded attestation, lease metadata, and revision-pinned model assets; prose stays local.</p></li><li><p class="identifier">BP-LINE-04</p><strong>Line of accountability</strong><br>As-built evidence and release claims<p>Source and tests support repository claims; deployment, provider measurement, and manual exercises require separate evidence.</p></li></ul></section>
+  <section class="panel" data-interactive-register data-export-title="Text to Lattice service blueprint" data-export-filename="text-to-lattice-service-blueprint-visible.md" aria-labelledby="explore-heading">
+  <h2 id="explore-heading">Explore this register</h2>
+  <p class="no-script">The complete register follows. Search, filters, expansion controls, and local Markdown export require JavaScript; no content does.</p>
+  <div class="toolbar">
+    <label>Search actions, systems, crossings, failures, or recovery<input type="search" data-doc-search autocomplete="off"></label>
+    <label>Lifecycle stage
+    <select data-filter-key="stage">
+      <option value="">All stages</option>
+      <option value="BP-01">BP-01 · Read the boundary</option><option value="BP-02">BP-02 · Compose and preflight</option><option value="BP-03">BP-03 · Attest and admit</option><option value="BP-04">BP-04 · Prepare local models</option><option value="BP-05">BP-05 · Atomize and select register</option><option value="BP-06">BP-06 · Clarify or draft</option><option value="BP-07">BP-07 · Verify and certify</option><option value="BP-08">BP-08 · Return and release</option>
+    </select>
+  </label>
+    <label>View controls<span class="sr-only"> for visible records</span><button type="button" data-reset>Reset filters</button></label>
+    <label>Disclosure controls<button type="button" data-expand>Expand visible</button></label>
+    <label>Disclosure controls<button type="button" data-collapse>Collapse visible</button></label>
+    <label>Local export<button type="button" data-download-visible>Download visible Markdown</button></label>
+  </div>
+  <p class="status-line" data-doc-status role="status" aria-live="polite" aria-label="Visible service-stage count"></p><div class="record-grid"><article class="record" data-record data-stage="BP-01">
+    <details id="bp-01">
+      <summary><span class="identifier">BP-01</span><br><span class="record-title" data-record-title>Read the boundary</span></summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Visitor action</dt><dd>Opens Text to Lattice and reads the purpose, limits, privacy caution, and capability requirements.</dd>
+        <dt>Frontstage</dt><dd>The dialog names a local, bounded demonstration and keeps the canonical documentation path available.</dd>
+        <dt>Backstage browser-local</dt><dd>The interface probes secure context, Unicode segmentation, WebGPU, storage estimate, and cached-model state.</dd>
+        <dt>Support/network</dt><dd>No service call and no model download occurs during source preflight or capability explanation.</dd>
+        <dt>Evidence/recovery</dt><dd>Unsupported capability yields a precise unavailable state and preserves access to the semantic documentation page.</dd>
+        <dt>Data crossing boundary</dt><dd>Capability metadata remains in the browser; no prose exists yet.</dd>
+        <dt>Failure</dt><dd>A browser cannot support the runtime or cannot establish a secure context.</dd>
+        <dt>Recovery</dt><dd>Read the method and limitation record; use a compatible browser or device without losing entered work.</dd>
+      </dl></div>
+    </details>
+  </article><article class="record" data-record data-stage="BP-02">
+    <details id="bp-02">
+      <summary><span class="identifier">BP-02</span><br><span class="record-title" data-record-title>Compose and preflight</span></summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Visitor action</dt><dd>Enters one to 700 Unicode-aware words and chooses Convert.</dd>
+        <dt>Frontstage</dt><dd>The shared counter, inline validation, and concise status expose only actionable limits.</dd>
+        <dt>Backstage browser-local</dt><dd>The host validates control characters, Unicode structure, 12,000 code units, passage count, initial work groups, clarification limits, and completion ceilings before requesting capacity.</dd>
+        <dt>Support/network</dt><dd>None; admission and model systems remain untouched until complete preflight succeeds.</dd>
+        <dt>Evidence/recovery</dt><dd>The source stays editable. Rejection is local, bounded, and does not truncate or relabel text.</dd>
+        <dt>Data crossing boundary</dt><dd>Source and structural findings stay in the browser document.</dd>
+        <dt>Failure</dt><dd>Input exceeds a published boundary or contains unsafe structure.</dd>
+        <dt>Recovery</dt><dd>Revise the source locally; no quota was consumed.</dd>
+      </dl></div>
+    </details>
+  </article><article class="record" data-record data-stage="BP-03">
+    <details id="bp-03">
+      <summary><span class="identifier">BP-03</span><br><span class="record-title" data-record-title>Attest and admit</span></summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Visitor action</dt><dd>Continues through human verification when the service requires it.</dd>
+        <dt>Frontstage</dt><dd>A dedicated verification surface reports pending, interactive, completed, limited, or unavailable state.</dd>
+        <dt>Backstage browser-local</dt><dd>The parent creates a fresh correlation identifier, accepts only the exact frame origin and Window, then requests a lease with no request body.</dd>
+        <dt>Support/network</dt><dd>The verify.hah.dev frame obtains one Turnstile token; the lease Worker validates request safety, secrets, challenge, exact global admission, visitor eligibility, and lease state.</dd>
+        <dt>Evidence/recovery</dt><dd>Bounded Retry-After values become a local retry ETA; every terminal path removes the frame and stale listeners.</dd>
+        <dt>Data crossing boundary</dt><dd>Only closed attestation messages, a token, request metadata, an opaque signed cookie, and lease credentials cross. Source, clarification, candidate, and output do not.</dd>
+        <dt>Failure</dt><dd>Verification rejects, the global or visitor budget is ineligible, or the support service is unavailable.</dd>
+        <dt>Recovery</dt><dd>Fail closed, show a bounded reason or ETA, and leave canonical documentation public.</dd>
+      </dl></div>
+    </details>
+  </article><article class="record" data-record data-stage="BP-04">
+    <details id="bp-04">
+      <summary><span class="identifier">BP-04</span><br><span class="record-title" data-record-title>Prepare local models</span></summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Visitor action</dt><dd>Waits while actual preparation progress is announced and may cancel.</dd>
+        <dt>Frontstage</dt><dd>The interface reports real generator or verifier loading progress without simulated delay.</dd>
+        <dt>Backstage browser-local</dt><dd>A dedicated worker installs its network boundary before importing model libraries, validates closed RPC, loads one role at a time, and disables WebLLM&#39;s IndexedDB cache path. Public model cache may remain and contains no prose.</dd>
+        <dt>Support/network</dt><dd>Only manifest-enumerated, revision-pinned HTTPS model shards, tokenizers, and WASM assets may be requested with credentials omitted and no referrer.</dd>
+        <dt>Evidence/recovery</dt><dd>Cancel interrupts generation, terminates the worker when necessary, and releases the lease through bounded idempotent handling.</dd>
+        <dt>Data crossing boundary</dt><dd>Pinned asset requests reveal ordinary network metadata and selected public model revisions; prose is not part of any URL, header, or asset body.</dd>
+        <dt>Failure</dt><dd>Storage, WebGPU, CORS, pinned assets, upstream availability, or runtime preparation fails.</dd>
+        <dt>Recovery</dt><dd>Unload local runtime, release capacity, and return unavailable without candidate text.</dd>
+      </dl></div>
+    </details>
+  </article><article class="record" data-record data-stage="BP-05">
+    <details id="bp-05">
+      <summary><span class="identifier">BP-05</span><br><span class="record-title" data-record-title>Atomize and select register</span></summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Visitor action</dt><dd>Reads bounded progress; no additional action is required unless ambiguity is material.</dd>
+        <dt>Frontstage</dt><dd>Status names analysis rather than claiming completion.</dd>
+        <dt>Backstage browser-local</dt><dd>Lossless passages are serialized as inert JSON, analyzed without clarification history, schema-checked, host-normalized, and checked against evidence spans and context budgets.</dd>
+        <dt>Support/network</dt><dd>No support service receives model prompts or prose; inference runs inside the browser worker.</dd>
+        <dt>Evidence/recovery</dt><dd>Malformed, oversized, mismatched, or under-evidenced analysis is rejected before it can authorize drafting.</dd>
+        <dt>Data crossing boundary</dt><dd>Source crosses the document-to-worker boundary through closed RPC; it does not cross the browser network boundary.</dd>
+        <dt>Failure</dt><dd>The model cannot return a complete, closed, evidence-linked analysis within fixed budgets.</dd>
+        <dt>Recovery</dt><dd>Return unable-to-attempt, or ask one provenance-bound clarification when the analyzer identifies a resolvable ambiguity.</dd>
+      </dl></div>
+    </details>
+  </article><article class="record" data-record data-stage="BP-06">
+    <details id="bp-06">
+      <summary><span class="identifier">BP-06</span><br><span class="record-title" data-record-title>Clarify or draft</span></summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Visitor action</dt><dd>Answers one short, enumerated clarification when asked, or continues waiting for a draft.</dd>
+        <dt>Frontstage</dt><dd>The interface exposes only a precise host-normalized question and bounded answer controls; candidate text remains hidden.</dd>
+        <dt>Backstage browser-local</dt><dd>One exact matching answer authorizes one analyzer recheck. The generator drafts a material candidate subject to protected spans, semantic obligations, word materiality, and fixed completion budgets.</dd>
+        <dt>Support/network</dt><dd>Lease renewal may extend bounded capacity; its request carries the credential but no prose.</dd>
+        <dt>Evidence/recovery</dt><dd>A repeated question cannot become acceptance. A draft that merely changes punctuation, casing, or spacing is not material.</dd>
+        <dt>Data crossing boundary</dt><dd>Clarification and draft remain inside the browser and local worker; renewal metadata alone crosses the network.</dd>
+        <dt>Failure</dt><dd>Ambiguity remains, provenance mismatches, or no material candidate can be produced safely.</dd>
+        <dt>Recovery</dt><dd>Return needs-clarification or unable-to-attempt without exposing a candidate-dependent trace.</dd>
+      </dl></div>
+    </details>
+  </article><article class="record" data-record data-stage="BP-07">
+    <details id="bp-07">
+      <summary><span class="identifier">BP-07</span><br><span class="record-title" data-record-title>Verify and certify</span></summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Visitor action</dt><dd>Waits through explicit verification and bounded repair states.</dd>
+        <dt>Frontstage</dt><dd>The interface reports checking, repair, or certification without presenting rejected work as a result.</dd>
+        <dt>Backstage browser-local</dt><dd>A distinct verifier model, deterministic validators, post-candidate re-atomization, bounded repair, and whole-document certification test fidelity, coverage, domain correctness, accessibility, clarity, register fit, and materiality.</dd>
+        <dt>Support/network</dt><dd>No verifier finding, atom identifier, candidate, or certification record leaves the browser.</dd>
+        <dt>Evidence/recovery</dt><dd>Rejected candidates are withheld. The public projection removes candidate-dependent identifiers, counts, layers, and issue categories.</dd>
+        <dt>Data crossing boundary</dt><dd>Candidate data crosses only the closed document-to-worker boundary; support services receive no semantic content.</dd>
+        <dt>Failure</dt><dd>A release gate fails, budgets exhaust, or a lower-priority issue remains.</dd>
+        <dt>Recovery</dt><dd>Repair within fixed ceilings; otherwise return review-required when semantically releasable or unable-to-attempt with one host-authored record.</dd>
+      </dl></div>
+    </details>
+  </article><article class="record" data-record data-stage="BP-08">
+    <details id="bp-08">
+      <summary><span class="identifier">BP-08</span><br><span class="record-title" data-record-title>Return and release</span></summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Visitor action</dt><dd>Reads the outcome, copies nothing through routine controls, then dismisses or starts over.</dd>
+        <dt>Frontstage</dt><dd>The interface presents exactly one outcome state, explicit limitation, and protected result region; it never calls review-required complete clearance.</dd>
+        <dt>Backstage browser-local</dt><dd>The host keeps output transient, conceals it on blur, page invisibility, print, and detectable Print Screen events, and tears down model and modal state on exit.</dd>
+        <dt>Support/network</dt><dd>The browser releases the opaque lease with bounded idempotent retries; the global authority updates lifecycle state and expiry alarms.</dd>
+        <dt>Evidence/recovery</dt><dd>A release failure remains bounded and retryable. Static HTML, Markdown, JSON, JSON-LD, sitemap, and llms surfaces remain available when the service fails closed.</dd>
+        <dt>Data crossing boundary</dt><dd>Release credentials and operation identifiers may cross; result text stays transient in browser memory and is never sent to the lease service or static evidence surfaces.</dd>
+        <dt>Failure</dt><dd>Output capture cannot be fully prevented, release can race unload, or the remote authority can be unavailable.</dd>
+        <dt>Recovery</dt><dd>State is torn down locally; lease expiry is the final backstop. Documentation states that browser, operating-system, camera, and assistive-technology capture cannot be guaranteed away.</dd>
+      </dl></div>
+    </details>
+  </article></div></section>
+  <section class="panel" aria-labelledby="blueprint-heading"><h2 id="blueprint-heading">Complete six-layer blueprint</h2><p>This canonical table remains complete when the interactive cards are filtered.</p><div class="table-wrap" tabindex="0" aria-label="Scrollable complete Text to Lattice service blueprint"><table class="blueprint-table"><caption>Eight lifecycle stages across six service layers</caption><thead><tr><th scope="col">Stage</th><th scope="col">Visitor action</th><th scope="col">Frontstage</th><th scope="col">Backstage browser-local</th><th scope="col">Support/network</th><th scope="col">Evidence/recovery</th><th scope="col">Data crossing boundary</th></tr></thead><tbody><tr><th scope="row">BP-01<br>Read the boundary</th><td>Opens Text to Lattice and reads the purpose, limits, privacy caution, and capability requirements.</td><td>The dialog names a local, bounded demonstration and keeps the canonical documentation path available.</td><td>The interface probes secure context, Unicode segmentation, WebGPU, storage estimate, and cached-model state.</td><td>No service call and no model download occurs during source preflight or capability explanation.</td><td>Unsupported capability yields a precise unavailable state and preserves access to the semantic documentation page.</td><td>Capability metadata remains in the browser; no prose exists yet.</td></tr><tr><th scope="row">BP-02<br>Compose and preflight</th><td>Enters one to 700 Unicode-aware words and chooses Convert.</td><td>The shared counter, inline validation, and concise status expose only actionable limits.</td><td>The host validates control characters, Unicode structure, 12,000 code units, passage count, initial work groups, clarification limits, and completion ceilings before requesting capacity.</td><td>None; admission and model systems remain untouched until complete preflight succeeds.</td><td>The source stays editable. Rejection is local, bounded, and does not truncate or relabel text.</td><td>Source and structural findings stay in the browser document.</td></tr><tr><th scope="row">BP-03<br>Attest and admit</th><td>Continues through human verification when the service requires it.</td><td>A dedicated verification surface reports pending, interactive, completed, limited, or unavailable state.</td><td>The parent creates a fresh correlation identifier, accepts only the exact frame origin and Window, then requests a lease with no request body.</td><td>The verify.hah.dev frame obtains one Turnstile token; the lease Worker validates request safety, secrets, challenge, exact global admission, visitor eligibility, and lease state.</td><td>Bounded Retry-After values become a local retry ETA; every terminal path removes the frame and stale listeners.</td><td>Only closed attestation messages, a token, request metadata, an opaque signed cookie, and lease credentials cross. Source, clarification, candidate, and output do not.</td></tr><tr><th scope="row">BP-04<br>Prepare local models</th><td>Waits while actual preparation progress is announced and may cancel.</td><td>The interface reports real generator or verifier loading progress without simulated delay.</td><td>A dedicated worker installs its network boundary before importing model libraries, validates closed RPC, loads one role at a time, and disables WebLLM&#39;s IndexedDB cache path. Public model cache may remain and contains no prose.</td><td>Only manifest-enumerated, revision-pinned HTTPS model shards, tokenizers, and WASM assets may be requested with credentials omitted and no referrer.</td><td>Cancel interrupts generation, terminates the worker when necessary, and releases the lease through bounded idempotent handling.</td><td>Pinned asset requests reveal ordinary network metadata and selected public model revisions; prose is not part of any URL, header, or asset body.</td></tr><tr><th scope="row">BP-05<br>Atomize and select register</th><td>Reads bounded progress; no additional action is required unless ambiguity is material.</td><td>Status names analysis rather than claiming completion.</td><td>Lossless passages are serialized as inert JSON, analyzed without clarification history, schema-checked, host-normalized, and checked against evidence spans and context budgets.</td><td>No support service receives model prompts or prose; inference runs inside the browser worker.</td><td>Malformed, oversized, mismatched, or under-evidenced analysis is rejected before it can authorize drafting.</td><td>Source crosses the document-to-worker boundary through closed RPC; it does not cross the browser network boundary.</td></tr><tr><th scope="row">BP-06<br>Clarify or draft</th><td>Answers one short, enumerated clarification when asked, or continues waiting for a draft.</td><td>The interface exposes only a precise host-normalized question and bounded answer controls; candidate text remains hidden.</td><td>One exact matching answer authorizes one analyzer recheck. The generator drafts a material candidate subject to protected spans, semantic obligations, word materiality, and fixed completion budgets.</td><td>Lease renewal may extend bounded capacity; its request carries the credential but no prose.</td><td>A repeated question cannot become acceptance. A draft that merely changes punctuation, casing, or spacing is not material.</td><td>Clarification and draft remain inside the browser and local worker; renewal metadata alone crosses the network.</td></tr><tr><th scope="row">BP-07<br>Verify and certify</th><td>Waits through explicit verification and bounded repair states.</td><td>The interface reports checking, repair, or certification without presenting rejected work as a result.</td><td>A distinct verifier model, deterministic validators, post-candidate re-atomization, bounded repair, and whole-document certification test fidelity, coverage, domain correctness, accessibility, clarity, register fit, and materiality.</td><td>No verifier finding, atom identifier, candidate, or certification record leaves the browser.</td><td>Rejected candidates are withheld. The public projection removes candidate-dependent identifiers, counts, layers, and issue categories.</td><td>Candidate data crosses only the closed document-to-worker boundary; support services receive no semantic content.</td></tr><tr><th scope="row">BP-08<br>Return and release</th><td>Reads the outcome, copies nothing through routine controls, then dismisses or starts over.</td><td>The interface presents exactly one outcome state, explicit limitation, and protected result region; it never calls review-required complete clearance.</td><td>The host keeps output transient, conceals it on blur, page invisibility, print, and detectable Print Screen events, and tears down model and modal state on exit.</td><td>The browser releases the opaque lease with bounded idempotent retries; the global authority updates lifecycle state and expiry alarms.</td><td>A release failure remains bounded and retryable. Static HTML, Markdown, JSON, JSON-LD, sitemap, and llms surfaces remain available when the service fails closed.</td><td>Release credentials and operation identifiers may cross; result text stays transient in browser memory and is never sent to the lease service or static evidence surfaces.</td></tr></tbody></table></div></section>
+  <section class="panel" aria-labelledby="owners-heading"><h2 id="owners-heading">Lifecycle ownership</h2><p>External providers are dependencies, not assumed accountable owners. Each handoff names retained accountability and required evidence.</p><div class="table-wrap" tabindex="0" aria-label="Scrollable lifecycle ownership matrix"><table><caption>Accountable owner and handoff evidence</caption><thead><tr><th scope="col">ID</th><th scope="col">Surface</th><th scope="col">Accountable owner</th><th scope="col">Responsibility</th><th scope="col">Handoff evidence</th></tr></thead><tbody><tr><th scope="row">OWN-01</th><td>Lattice contract</td><td>Lattice maintainer</td><td>Govern the method, licensed profile boundary, version, and authorized conformance claims.</td><td>A cited upstream revision, applicable license terms, and an explicit public claim boundary.</td></tr><tr><th scope="row">OWN-02</th><td>hah.dev client</td><td>Portfolio implementation maintainer</td><td>Keep input, interaction, local pipeline, accessibility, privacy, teardown, and public outcome behavior aligned with the requirements.</td><td>Exact source revision, automated contracts, manual interaction matrix, and built static artifact inspection.</td></tr><tr><th scope="row">OWN-03</th><td>Supply-chain and model pins</td><td>Text to Lattice release maintainer</td><td>Approve exact model, tokenizer, runtime, and WASM revisions plus their integrity, provenance, and license boundary.</td><td>Pinned URLs and versions, tokenizer hashes, fetched artifact record, licenses, and a recorded disposition for the WASM provenance gap.</td></tr><tr><th scope="row">OWN-04</th><td>Cloudflare lease service</td><td>hah.dev service operator</td><td>Operate request safety, secrets, signed credentials, exact admission, lifecycle accounting, alarms, retention, and fail-closed capacity policy.</td><td>Reviewed Worker revision, binding and secret-name inventory, deployed route evidence, provider metrics, and bounded load results.</td></tr><tr><th scope="row">OWN-05</th><td>verify.hah.dev frame</td><td>hah.dev verification-surface operator</td><td>Keep the dedicated static frame, origin policy, message protocol, CSP, provider action, and teardown boundary exact.</td><td>Deployed header capture, route and origin inspection, protocol tests, provider hostname/action evidence, and accessibility exercise.</td></tr><tr><th scope="row">OWN-06</th><td>Static Pages and documentation export</td><td>Portfolio documentation maintainer</td><td>Publish complete no-JavaScript semantics, deterministic projections, working links, escaped register content, and matching integrity metadata.</td><td>Documentation drift check, SHA-256 manifest, generated-page inspection, and static-route test results.</td></tr><tr><th scope="row">OWN-07</th><td>Exact-revision release approval</td><td>Site owner</td><td>Accept or reject residuals and approve only the exact source, configuration, artifacts, provider controls, and evidence that were reviewed.</td><td>Dated gate record naming the revision and artifact digests, with every open exception assigned or explicitly deferred.</td></tr><tr><th scope="row">OWN-08</th><td>Visitor input and device choice</td><td>Visitor</td><td>Use text they are authorized to process, choose whether to download large local models, and decide whether the published device and provider residuals are acceptable.</td><td>Visible purpose, size, privacy, capability, provider, outcome, and residual disclosures before consequential action.</td></tr></tbody></table></div></section>
+  <section class="panel boundary"><h2>Binding data-flow rule</h2><p>Source, clarification, candidate, verifier findings, and result text cross only between the résumé document and the same-device model worker in the official client. Model hosts receive public asset requests. Attestation and lease services receive closed tokens, opaque credentials, request metadata, and lifecycle state—never prose.</p></section>
+  <section class="panel"><h2>Sources and exports</h2><p><a class="button-link" href="TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md" download>Download complete Markdown</a> <a class="button-link" href="documentation-atlas.json" download>Download authoritative JSON</a> <a class="button-link" href="artifact-manifest.json">Inspect integrity manifest</a></p></section>
+  <section class="panel" aria-labelledby="sources-heading"><h2 id="sources-heading">Source register</h2><ul class="source-list"><li><strong>SRC-REQUIREMENTS — Text to Lattice public requirements:</strong> <code>docs/lattice-resume-demo-requirements.md</code></li><li><strong>SRC-DEMO — Bounded pipeline coordinator:</strong> <code>app/resume/latticeDemo.js</code></li><li><strong>SRC-INPUT — Input and clarification policy:</strong> <code>app/resume/lattice/inputPolicy.js</code></li><li><strong>SRC-SEGMENTS — Lossless segmentation:</strong> <code>app/resume/lattice/segments.js</code></li><li><strong>SRC-PROTECTED — Protected-span handling:</strong> <code>app/resume/lattice/protectedSpans.js</code></li><li><strong>SRC-PROMPTS — Closed prompts and schemas:</strong> <code>app/resume/lattice/promptContract.js</code></li><li><strong>SRC-VALIDATORS — Deterministic semantic validators:</strong> <code>app/resume/lattice/validators.js</code></li><li><strong>SRC-LOCAL-MODEL — Local model adapter:</strong> <code>app/resume/lattice/localModel.js</code></li><li><strong>SRC-MODEL-CONTRACT — Pinned model contract:</strong> <code>app/resume/lattice/modelContract.js</code></li><li><strong>SRC-MODEL-WORKER — Isolated model worker:</strong> <code>app/resume/lattice/latticeWebllm.worker.ts</code></li><li><strong>SRC-ASSET-POLICY — Model-asset request policy:</strong> <code>app/resume/lattice/assetRequestPolicy.js</code></li><li><strong>SRC-ATTESTATION — Cross-origin attestation protocol:</strong> <code>app/resume/lattice/attestation.js</code></li><li><strong>SRC-USAGE-LEASE — Browser lease client:</strong> <code>app/resume/lattice/usageLease.js</code></li><li><strong>SRC-USAGE-POLICY — Published usage and capacity policy:</strong> <code>app/resume/lattice/usagePolicy.js</code></li><li><strong>SRC-OUTPUT — Output protection controls:</strong> <code>app/resume/lattice/outputProtection.js</code></li><li><strong>SRC-LEASE-WORKER — Lease Worker request coordinator:</strong> <code>workers/text-to-lattice-lease/worker.js</code></li><li><strong>SRC-USAGE-STORAGE — Global usage authority:</strong> <code>workers/text-to-lattice-lease/usageStorage.js</code></li><li><strong>SRC-FRAME — Dedicated verification bridge:</strong> <code>workers/text-to-lattice-attestation-frame/public/turnstile/bridge.js</code></li><li><strong>SRC-TEST-ENGINE — Engine executable contracts:</strong> <code>tests/lattice-demo.test.mjs</code></li><li><strong>SRC-TEST-SECURITY — Security executable contracts:</strong> <code>tests/lattice-security.test.mjs</code></li><li><strong>SRC-TEST-ISOLATE — Isolate hardening executable contracts:</strong> <code>tests/lattice-isolate-hardening.test.mjs</code></li><li><strong>SRC-TEST-CAPACITY — Protocol capacity executable contracts:</strong> <code>tests/lattice-protocol-capacity.test.mjs</code></li><li><strong>SRC-TEST-A11Y — Modal accessibility source contracts:</strong> <code>tests/lattice-modal-accessibility.test.mjs</code></li><li><strong>SRC-PROJECTS — Portfolio project and ecosystem register:</strong> <code>app/resume/projects.js</code></li><li><strong>SRC-LAT-README — Lattice README at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/README.md">Reviewed source</a></li><li><strong>SRC-LAT-ARCH — Lattice architecture at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/architecture.md">Reviewed source</a></li><li><strong>SRC-LAT-REQ — Lattice requirements at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/requirements.md">Reviewed source</a></li><li><strong>SRC-LAT-SEMANTIC — Lattice semantic core at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/semantic.ts">Reviewed source</a></li><li><strong>SRC-LAT-CONTEXT — Lattice context core at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/context.ts">Reviewed source</a></li><li><strong>SRC-LAT-PROFILE — Lattice profile compiler at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/profile.ts">Reviewed source</a></li><li><strong>SRC-LAT-ENGINE — Lattice engine at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/engine.ts">Reviewed source</a></li><li><strong>SRC-LAT-ADVERSARIAL — Lattice adversarial executable contracts at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/test/adversarial.test.mjs">Reviewed source</a></li><li><strong>SRC-NNG-SKILL — NN/g skill mapping:</strong> <a href="https://www.nngroup.com/articles/skill-mapping/">Reviewed source</a></li><li><strong>SRC-NNG-BLUEPRINT — NN/g service blueprint definition:</strong> <a href="https://www.nngroup.com/articles/service-blueprints-definition/">Reviewed source</a></li><li><strong>SRC-LATTICE-UPSTREAM — Lattice upstream repository:</strong> <a href="https://github.com/howardhayden/lattice">Reviewed source</a></li></ul></section><section class="panel" aria-labelledby="terms-heading"><h2 id="terms-heading">Terms and provenance</h2><p>Authored documentation follows the hah.dev portfolio-content terms. The generator and executable documentation shell retain the applicable source-component terms. The separately licensed Relational Systems Register profile is not reproduced.</p></section></main>
+<footer class="site-footer"><p>One authoritative register · deterministic Markdown and HTML · authored documentation follows hah.dev portfolio-content terms · executable shell retains source-component terms · the separately licensed RSR profile is not reproduced</p></footer>
+<script>
+(function () {
+  document.documentElement.classList.add("js");
+  var root = document.querySelector("[data-interactive-register]");
+  if (!root) return;
+  var records = Array.from(root.querySelectorAll("[data-record]"));
+  var search = root.querySelector("[data-doc-search]");
+  var filters = Array.from(root.querySelectorAll("[data-filter-key]"));
+  var status = root.querySelector("[data-doc-status]");
+  var normalize = function (value) {
+    return String(value || "").normalize("NFKC").toLocaleLowerCase("und");
+  };
+  var apply = function () {
+    var query = normalize(search && search.value).trim();
+    var count = 0;
+    records.forEach(function (record) {
+      var matchesSearch = !query || normalize(record.textContent).indexOf(query) !== -1;
+      var matchesFilters = filters.every(function (filter) {
+        var selected = filter.value;
+        if (!selected) return true;
+        var values = String(record.dataset[filter.dataset.filterKey] || "").split(" ");
+        return values.indexOf(selected) !== -1;
+      });
+      record.hidden = !(matchesSearch && matchesFilters);
+      if (!record.hidden) count += 1;
+    });
+    if (status) status.textContent = count + " of " + records.length + " records visible.";
+  };
+  if (search) search.addEventListener("input", apply);
+  filters.forEach(function (filter) { filter.addEventListener("change", apply); });
+  var reset = root.querySelector("[data-reset]");
+  if (reset) reset.addEventListener("click", function () {
+    if (search) search.value = "";
+    filters.forEach(function (filter) { filter.value = ""; });
+    apply();
+    if (search) search.focus();
+  });
+  var setExpanded = function (expanded) {
+    records.forEach(function (record) {
+      if (record.hidden) return;
+      record.querySelectorAll("details").forEach(function (detail) { detail.open = expanded; });
+    });
+  };
+  var expand = root.querySelector("[data-expand]");
+  var collapse = root.querySelector("[data-collapse]");
+  if (expand) expand.addEventListener("click", function () { setExpanded(true); });
+  if (collapse) collapse.addEventListener("click", function () { setExpanded(false); });
+  var download = root.querySelector("[data-download-visible]");
+  if (download) download.addEventListener("click", function () {
+    var lines = ["# " + root.dataset.exportTitle + " — visible view", "", "> Non-authoritative filtered projection. The complete Markdown and JSON register govern.", ""];
+    records.forEach(function (record) {
+      if (record.hidden) return;
+      var title = record.querySelector("[data-record-title]");
+      var body = record.querySelector("[data-record-body]");
+      lines.push("## " + (title ? title.textContent.trim() : "Record"), "");
+      if (body) lines.push(body.textContent.replace(/\s+/g, " ").trim(), "");
+    });
+    var objectUrl = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" }));
+    var link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = root.dataset.exportFilename;
+    link.hidden = true;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 0);
+    if (status) status.textContent = "Downloaded " + lines.length + " lines from the visible, non-authoritative view.";
+  });
+  apply();
+}());
+</script>
+</body>
+</html>

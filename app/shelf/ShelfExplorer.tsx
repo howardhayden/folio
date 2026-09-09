@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SiteHeader } from "../components/SiteChrome";
+import { SiteHeader, type SiteRouteKey } from "../components/SiteChrome";
 import type { Paper } from "../data";
 import { arrangeShelfPapers } from "./shelfLogic.js";
+import { shelfNotice } from "../content/siteContent.js";
 
 const MONTH_CODES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
@@ -34,7 +35,7 @@ const formatDate = (value: string) => {
   return sourceDate;
 };
 
-export default function ShelfExplorer({ papers }: { papers: Paper[] }) {
+export default function ShelfExplorer({ papers, onNavigate }: { papers: Paper[]; onNavigate?: (route: SiteRouteKey, event: React.MouseEvent<HTMLAnchorElement>) => void }) {
   const [open, setOpen] = useState(false);
   const [filters, setFilters] = useState({ language: "", publisher: "", author: "", collection: "" });
   const [filtered, setFiltered] = useState(papers);
@@ -100,7 +101,7 @@ export default function ShelfExplorer({ papers }: { papers: Paper[] }) {
   return (
     <>
       <noscript dangerouslySetInnerHTML={{ __html: "<style>.nav-btn#navbarDropdown{display:none}</style>" }} />
-      <SiteHeader current="shelf" shelfSearch={searchItem} />
+      <SiteHeader current="shelf" shelfSearch={searchItem} onNavigate={onNavigate} />
       <main
         className={open
           ? "container mt-4 shelf-page page-view page-view--shelf shelf-page-is-blurred"
@@ -112,14 +113,14 @@ export default function ShelfExplorer({ papers }: { papers: Paper[] }) {
         <div className="row">
           <aside className="col-lg-3 shelf-intro">
             <h1 className="text-center">Shelf</h1>
-            <p>The following materials contain insightful value per their associated collections. They do not reflect my views or those of any employers or associated organizations.</p>
+            <p>{shelfNotice}</p>
           </aside>
           <section className="col-lg-9" aria-label={`${filtered.length} shelf results`}>
             <div id="papershelf" className="card-columns">
               {filtered.map((paper) => (
                 <article className="card" key={paper.title}>
                   <div className="card-body">
-                    <h5 className="card-title">{paper.title}</h5>
+                    <h2 className="card-title">{paper.title}</h2>
                     <dl className="paper-meta">
                       <Meta label="Language" value={paper.languages.join(", ")} />
                       <Meta label="Publisher" value={paper.publishers.join(", ")} />
@@ -143,7 +144,7 @@ function SearchField({ id, label, placeholder, value, onChange }: { id: string; 
   return (
     <div className="form-group">
       <label htmlFor={id}>{label}</label>
-      <input type="text" className="form-control px-0 px-sm-2" id={id} placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} />
+      <input type="text" className="form-control shelf-search-entry px-0 px-sm-2" id={id} placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
 }

@@ -1,0 +1,128 @@
+{
+  "format": "TEXT_TO_LATTICE_DOCUMENTATION_ARTIFACT_MANIFEST",
+  "schemaVersion": 1,
+  "revision": "2026-09-08",
+  "algorithm": "SHA-256",
+  "authority": {
+    "canonicalSource": "docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json",
+    "canonicalSourceSha256": "04408451e2dfe23c04a77e68abc941b368ea6af2d0455ca7c04386b8d439ab74",
+    "builder": "scripts/docs/build-text-to-lattice-documentation.mjs",
+    "builderSha256": "b7f8ebdb98188a174c05408f96aedecc8c8fe05fcb56e874323b3d7a1577ea3a"
+  },
+  "publicRoot": "/documentation/text-to-lattice/",
+  "artifactPairs": [
+    {
+      "artifactId": "DOC-CONCEPT",
+      "title": "Lattice concept and ecosystem map",
+      "scope": "method-and-ecosystem",
+      "html": "lattice-concept-map.html",
+      "markdown": "LATTICE-CONCEPT-MAP.md",
+      "sourcePath": "docs/text-to-lattice/LATTICE-CONCEPT-MAP.md",
+      "publicPath": "public/documentation/text-to-lattice/LATTICE-CONCEPT-MAP.md",
+      "sha256": "0bdd97276b7b240e01404f662e7a2fd0c356bd8f18682846be6e4c03c6c51766"
+    },
+    {
+      "artifactId": "DOC-SKILL",
+      "title": "Lattice system skill map",
+      "scope": "method",
+      "html": "lattice-skill-map.html",
+      "markdown": "LATTICE-SKILL-MAP.md",
+      "sourcePath": "docs/text-to-lattice/LATTICE-SKILL-MAP.md",
+      "publicPath": "public/documentation/text-to-lattice/LATTICE-SKILL-MAP.md",
+      "sha256": "8ce344912aa6f7cf4b9109922bd5091aafb6fa0284bb3b3d0262da5535ed8053"
+    },
+    {
+      "artifactId": "DOC-BLUEPRINT",
+      "title": "Text to Lattice service blueprint",
+      "scope": "wrapper",
+      "html": "text-to-lattice-service-blueprint.html",
+      "markdown": "TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md",
+      "sourcePath": "docs/text-to-lattice/TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md",
+      "publicPath": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md",
+      "sha256": "ff39ba608cb9e323c09969cc7657f92ae7ce4f028b51fcb1a25bca1b03f6d0e2"
+    },
+    {
+      "artifactId": "DOC-SECURITY",
+      "title": "Text to Lattice security model",
+      "scope": "wrapper",
+      "html": "text-to-lattice-security-model.html",
+      "markdown": "TEXT-TO-LATTICE-SECURITY-MODEL.md",
+      "sourcePath": "docs/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
+      "publicPath": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
+      "sha256": "afdd89c82c51fd48a9f2bf93fe63e2f2245f539378b2b597acb0009da045b03a"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "docs/text-to-lattice/LATTICE-CONCEPT-MAP.md",
+      "bytes": 32037,
+      "sha256": "0bdd97276b7b240e01404f662e7a2fd0c356bd8f18682846be6e4c03c6c51766"
+    },
+    {
+      "path": "docs/text-to-lattice/LATTICE-SKILL-MAP.md",
+      "bytes": 17334,
+      "sha256": "8ce344912aa6f7cf4b9109922bd5091aafb6fa0284bb3b3d0262da5535ed8053"
+    },
+    {
+      "path": "docs/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
+      "bytes": 37488,
+      "sha256": "afdd89c82c51fd48a9f2bf93fe63e2f2245f539378b2b597acb0009da045b03a"
+    },
+    {
+      "path": "docs/text-to-lattice/TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md",
+      "bytes": 20945,
+      "sha256": "ff39ba608cb9e323c09969cc7657f92ae7ce4f028b51fcb1a25bca1b03f6d0e2"
+    },
+    {
+      "path": "public/documentation/text-to-lattice/documentation-atlas.json",
+      "bytes": 72786,
+      "sha256": "04408451e2dfe23c04a77e68abc941b368ea6af2d0455ca7c04386b8d439ab74"
+    },
+    {
+      "path": "public/documentation/text-to-lattice/index.html",
+      "bytes": 13280,
+      "sha256": "01b6169e623f18cfeea9b34270d53921854c26253ca3e20debe920adf37ff7b3"
+    },
+    {
+      "path": "public/documentation/text-to-lattice/lattice-concept-map.html",
+      "bytes": 64623,
+      "sha256": "3ccdd4034360752c9b72167cc19f2eac9064adc2e4fca40349c53074204540fe"
+    },
+    {
+      "path": "public/documentation/text-to-lattice/LATTICE-CONCEPT-MAP.md",
+      "bytes": 32037,
+      "sha256": "0bdd97276b7b240e01404f662e7a2fd0c356bd8f18682846be6e4c03c6c51766"
+    },
+    {
+      "path": "public/documentation/text-to-lattice/lattice-skill-map.html",
+      "bytes": 38242,
+      "sha256": "3fec7be72374da0b5f74a6c3e42176b67161d634648547ec6d88d7cd0df3f046"
+    },
+    {
+      "path": "public/documentation/text-to-lattice/LATTICE-SKILL-MAP.md",
+      "bytes": 17334,
+      "sha256": "8ce344912aa6f7cf4b9109922bd5091aafb6fa0284bb3b3d0262da5535ed8053"
+    },
+    {
+      "path": "public/documentation/text-to-lattice/text-to-lattice-security-model.html",
+      "bytes": 55177,
+      "sha256": "66428018d79778ae5f774741ed76796bbad7de320cbee701de292fe5e4f627ba"
+    },
+    {
+      "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
+      "bytes": 37488,
+      "sha256": "afdd89c82c51fd48a9f2bf93fe63e2f2245f539378b2b597acb0009da045b03a"
+    },
+    {
+      "path": "public/documentation/text-to-lattice/text-to-lattice-service-blueprint.html",
+      "bytes": 48370,
+      "sha256": "e4f64d09fdacebd621f54f6e4e042ed7ee0b4d61aac81cfdb80f59662f77aa94"
+    },
+    {
+      "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md",
+      "bytes": 20945,
+      "sha256": "ff39ba608cb9e323c09969cc7657f92ae7ce4f028b51fcb1a25bca1b03f6d0e2"
+    }
+  ],
+  "note": "The manifest does not hash itself. Source and public Markdown pairs are byte-identical. A manifest proves bytes in this tree, not deployed identity."
+}

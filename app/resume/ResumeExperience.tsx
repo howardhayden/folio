@@ -1,58 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { LegacyIcon, type LegacyIconName } from "../components/LegacyIcon";
 import { timeline } from "../data";
+import { resumeEducationOverview } from "../content/siteContent.js";
+import { resumeDetails } from "./resumeDetails.js";
 
-type ModalId = "officer" | "ohiolink" | "undergrad" | "teaching" | null;
-
-const modalContent = {
-  officer: {
-    title: "Officer Candidate",
-    subtitle: "#ForgedInIce",
-    period: "December 2025 – June 2026",
-    details: [
-      "Military Discipline, Professional Bearing, Basic Naval Indoctrination",
-      "Physical Readiness, Mental Resilience",
-      "Attention to Detail, Performance, Standards Compliance, Execution in High-Stress and Minimally-Informative Environments",
-      "Collaborative Cohesion",
-      "Close-Order Drill, Precision Formations",
-      "Water Survival, Swim Qualification",
-      "Shipboard Engineering Principles, Propulsion Systems",
-      "Naval Weapons Systems, Combat Systems Fundamentals",
-      "Marine Navigation, Seamanship, Shiphandling, Rules of the Road",
-      "Shipboard Damage Control, Firefighting Operations",
-      "Naval Network Infrastructure, Cyber Warfare Awareness",
-    ],
-  },
-  ohiolink: {
-    title: "Luminary",
-    subtitle: "OhioLINK",
-    period: "August 2021 – May 2023",
-    details: [
-      "Web Development",
-      "Digital Accessibility Remediation",
-      "Productivity Analysis",
-      "Contract Analysis and CLM",
-      "Course Design, Mentorship",
-      "Metadata",
-      "Makerspace Instruction",
-      "Won Poster, People’s Choice for Strategic Project Management in the OhioLINK Luminaries Program at ALAO 2022 in Dublin, OH.",
-    ],
-  },
-  undergrad: {
-    title: "Miami University",
-    subtitle: "",
-    period: "August 2019 – May 2023",
-    details: [],
-  },
-  teaching: {
-    title: "Teaching Assistant",
-    subtitle: "College of Engineering and Computing",
-    period: "May 2022 – May 2023",
-    details: ["Training, Assessment", "Coordination, Mediation", "Collection Development"],
-  },
-} as const;
+type ModalKey = keyof typeof resumeDetails;
+type ModalId = ModalKey | null;
 
 const timelineIcons: Record<string, LegacyIconName> = {
   "King’s College London": "floppy2",
@@ -65,6 +20,15 @@ const timelineIcons: Record<string, LegacyIconName> = {
   "Dayton Area School Consortium": "clipboard-check",
   "University of Tartu": "body-text",
 };
+
+function shouldInterceptResumeModalLink(event: ReactMouseEvent<HTMLAnchorElement>) {
+  return !event.defaultPrevented
+    && event.button === 0
+    && !event.metaKey
+    && !event.ctrlKey
+    && !event.shiftKey
+    && !event.altKey;
+}
 
 export default function ResumeExperience() {
   const [selected, setSelected] = useState<ModalId>(null);
@@ -155,11 +119,15 @@ export default function ResumeExperience() {
             {mainTimeline.map((entry, index) => {
               const className = `timeline-entry ${index % 2 ? "left" : "right"}`;
               return entry.role === "Officer Candidate" ? (
-                <div className={`${className} timeline-button`} role="button" tabIndex={0} onClick={(event) => openModal("officer", event.currentTarget)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openModal("officer", event.currentTarget); } }} key={`${entry.period}-${entry.organization}`}>
+                <a className={`${className} timeline-button`} data-record-id={entry.id} id={entry.id} href={resumeDetails.officer.canonicalPath} onClick={(event) => {
+                  if (!shouldInterceptResumeModalLink(event)) return;
+                  event.preventDefault();
+                  openModal("officer", event.currentTarget);
+                }} key={`${entry.period}-${entry.organization}`}>
                   <TimelineEntry entry={entry} icon={timelineIcons[entry.organization]} index={index} />
-                </div>
+                </a>
               ) : (
-                <article className={className} key={`${entry.period}-${entry.organization}`}>
+                <article className={className} data-record-id={entry.id} id={entry.id} key={`${entry.period}-${entry.organization}`}>
                   <TimelineEntry entry={entry} icon={timelineIcons[entry.organization]} index={index} />
                 </article>
               );
@@ -172,19 +140,19 @@ export default function ResumeExperience() {
         <h2 className="text-red text-center signal-fuzz" style={{ marginTop: "-3vh" }}>
           <LegacyIcon name="graduation-cap" /> &nbsp;University&nbsp; <LegacyIcon name="graduation-cap" />
         </h2>
-        <p className="lead text-center" style={{ marginBottom: "9vh" }}>Graduated May 2023</p>
-        <Progress label="Digital Humanities Forum Committee" start="August 2021" width="49%" />
-        <Progress label="Diversity, Equity, and Inclusion Committee" start="August 2022" width="22%" />
-        <Progress label="OhioLINK Luminary" start="August 2021" width="49%" onClick={(trigger) => openModal("ohiolink", trigger)} />
-        <Progress label="B.A. Computer Science – Miami University" start="August 2019" width="100%" gradient onClick={(trigger) => openModal("undergrad", trigger)} />
-        <Progress label="Teaching Assistant" start="May 2022" width="29%" onClick={(trigger) => openModal("teaching", trigger)} />
-        <NoScriptUniversityDetails />
+        <p className="lead text-center" style={{ marginBottom: "9vh" }}>Graduated {resumeEducationOverview.graduated}</p>
+        {resumeEducationOverview.activities.map((activity, index) => (
+          <Progress label={activity.label} start={activity.start} width={index === 0 ? "49%" : "22%"} key={activity.label} />
+        ))}
+        <Progress label="OhioLINK Luminary" start="August 2021" width="49%" href={resumeDetails.ohiolink.canonicalPath} onClick={(trigger) => openModal("ohiolink", trigger)} />
+        <Progress label="B.A. Computer Science – Miami University" start="August 2019" width="100%" href={resumeDetails.undergrad.canonicalPath} gradient onClick={(trigger) => openModal("undergrad", trigger)} />
+        <Progress label="Teaching Assistant" start="May 2022" width="29%" href={resumeDetails.teaching.canonicalPath} onClick={(trigger) => openModal("teaching", trigger)} />
       </div>
 
       <div className={`container${blurred}`}>
         <section className="design-section-container" aria-label="Earlier experience">
           <div className="timeline">
-            <article className="timeline-entry right">
+            <article className="timeline-entry right" data-record-id="kettering-health-network-volunteer">
               <h3>Volunteer</h3>
               <p>March 2019 – August 2019<br />Kettering Health Network</p>
               <LegacyIcon name="capsule" className="rotate-left timeline-icon signal-fuzz" />
@@ -193,41 +161,21 @@ export default function ResumeExperience() {
         </section>
       </div>
 
-      {selected && (
-        <div className="modal resume-modal" role="presentation" onPointerDown={closeModal}>
-          <div ref={dialogRef} className="modal-content" role="dialog" aria-modal="true" aria-labelledby="resume-modal-title" aria-keyshortcuts="Escape" tabIndex={-1} onPointerDown={(event) => event.stopPropagation()}>
-            <h3 id="resume-modal-title">{modalContent[selected].title}</h3>
-            {modalContent[selected].subtitle && <p className="lead text-center">{modalContent[selected].subtitle}</p>}
-            <p className="small text-center">{modalContent[selected].period}</p>
-            {selected === "undergrad" ? <UndergraduateDetails /> : modalContent[selected].details.map((detail) => (
-              <p key={detail}>{selected === "ohiolink" && detail.startsWith("Won Poster") ? <small>{detail}</small> : detail}</p>
+      {(Object.entries(resumeDetails) as [ModalKey, (typeof resumeDetails)[ModalKey]][]).map(([id, content]) => (
+        <div className="modal resume-modal" role="presentation" onPointerDown={closeModal} hidden={selected !== id} key={id}>
+          <div ref={selected === id ? dialogRef : undefined} className="modal-content" role="dialog" aria-modal="true" aria-labelledby={`resume-modal-title-${id}`} aria-keyshortcuts="Escape" tabIndex={-1} onPointerDown={(event) => event.stopPropagation()}>
+            <h3 id={`resume-modal-title-${id}`}>{content.title}</h3>
+            {content.subtitle && <p className="lead text-center">{content.subtitle}</p>}
+            <p className="small text-center">{content.period}</p>
+            {id === "undergrad" ? <UndergraduateDetails /> : content.details.map((detail) => (
+              <p key={detail}>{id === "ohiolink" && detail.startsWith("Won Poster") ? <small>{detail}</small> : detail}</p>
             ))}
-            {selected === "teaching" && <CourseChart />}
+            {id === "teaching" && <CourseChart />}
           </div>
         </div>
-      )}
+      ))}
     </>
   );
-}
-
-function NoScriptUniversityDetails() {
-  const html = `<style>.progress-bar-fill:hover{cursor:auto}</style>
-    <div class="resume-noscript-degree">
-      <p class="text-center">Bachelor of <kbd>Arts</kbd></p>
-      <p class="text-center">Major in <kbd>Computer Science</kbd></p>
-      <p class="text-center">Minor in <kbd>Commerce</kbd></p>
-      <p class="text-center">Thematic Sequence of <kbd>LUX 3</kbd><br><small>*European Culture and Society</small></p>
-    </div>
-    <section class="design-section-container" aria-label="University experience details"><div class="timeline">
-      <article class="timeline-entry left"><h3>Luminary</h3><p>August 2021 – May 2023<br>OhioLINK</p>
-        <p><small>Web Development; Digital Accessibility Remediation; Metadata</small></p>
-        <p><small>Productivity Analysis; Contract Analysis and CLM</small></p>
-        <p><small>Course Design, Mentorship; Makerspace Instruction</small></p>
-        <p><small>Won Poster, People's Choice for Strategic Project Management in the OhioLINK Luminaries Program at ALAO 2022 in Dublin, OH.</small></p></article>
-      <article class="timeline-entry right"><h3>Undergraduate Teaching Assistant</h3><p>May 2022 – May 2023<br>Miami University College of Engineering and Computing</p>
-        <p><small>Training; Assessment</small></p><p><small>Coordination; Mediation</small></p><p><small>Collection Development</small></p></article>
-    </div></section>`;
-  return <noscript dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 function UndergraduateDetails() {
@@ -253,18 +201,28 @@ function TimelineEntry({ entry, icon, index }: { entry: (typeof timeline)[number
   );
 }
 
-function Progress({ label, start, width, gradient = false, onClick }: { label: string; start: string; width: string; gradient?: boolean; onClick?: (trigger: HTMLButtonElement) => void }) {
+function Progress({ label, start, width, gradient = false, href, onClick }: { label: string; start: string; width: string; gradient?: boolean; href?: string; onClick?: (trigger: HTMLAnchorElement) => void }) {
   const className = `progress-bar-fill ml-auto ${gradient ? "background-gradient-green-blue" : ""}`;
   return (
     <div className="progress-container">
       <div className="progress-bar-wrapper rounded-0">
-        {onClick ? (
-          <button className={`${className} button-reset`} style={{ width }} onClick={(event) => onClick(event.currentTarget)} type="button"><span className="progress-value">&nbsp;{start}</span></button>
+        {onClick && href ? (
+          <a
+            aria-label={`${label}, beginning ${start}`}
+            className={`${className} button-reset`}
+            style={{ width }}
+            href={href}
+            onClick={(event) => {
+              if (!shouldInterceptResumeModalLink(event)) return;
+              event.preventDefault();
+              onClick(event.currentTarget);
+            }}
+          ><span className="progress-value" aria-hidden="true">&nbsp;{start}</span></a>
         ) : (
           <div className={className} style={{ width, cursor: "auto" }}><span className="progress-value">&nbsp;{start}</span></div>
         )}
       </div>
-      <label>{label}</label>
+      <div className="progress-label">{label}</div>
     </div>
   );
 }
@@ -279,9 +237,11 @@ function CourseChart() {
         <circle className="circle-1" cx="18" cy="18" r="15.9155" fill="none" stroke="#6c757d" strokeWidth="2" strokeDasharray="10, 90" strokeDashoffset="26.5" />
       </svg>
       <div className="labelContainer small">
-        <span className="label text-blue signal-fuzz">Technology, Ethics, and Global Society</span><br />
-        <span className="label text-red signal-fuzz">Software Engineering for User Interface and User Experience Design</span><br />
-        <span className="label text-secondary signal-fuzz">Introduction to Software Engineering</span>
+        {resumeDetails.teaching.courses.map((course, index) => (
+          <span className={`label ${["text-blue", "text-red", "text-secondary"][index]} signal-fuzz`} key={course}>
+            {course}{index < resumeDetails.teaching.courses.length - 1 ? <br /> : null}
+          </span>
+        ))}
       </div>
     </div>
   );

@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Assets, trust boundaries, ten consequential threats, as-built controls, pre-publication gates, and residuals—classified by marginal value.">
+<meta name="theme-color" content="#ffffff">
+<meta name="generator" content="scripts/docs/build-text-to-lattice-documentation.mjs">
+<link rel="canonical" href="https://hah.dev/documentation/text-to-lattice/text-to-lattice-security-model.html">
+<link rel="alternate" type="text/markdown" href="https://hah.dev/documentation/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md">
+<title>Text to Lattice security model · Lattice documentation</title>
+<style>
+:root {
+  color-scheme: light;
+  --ink: #20231f;
+  --muted: #5f655f;
+  --paper: #ffffff;
+  --field: #f7faf5;
+  --green: #0b4705;
+  --green-soft: #e8f1e5;
+  --red: #950f22;
+  --red-soft: #f8e9ec;
+  --line: #cfd6cd;
+  --focus: #077995;
+  font-family: "Jost", "Avenir Next", Avenir, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); color: var(--ink); scroll-behavior: smooth; }
+body { margin: 0; min-width: 280px; background: linear-gradient(180deg, var(--field), var(--paper) 22rem); line-height: 1.62; }
+a { color: var(--green); text-underline-offset: .18em; }
+a:hover { color: var(--red); text-decoration-thickness: .14em; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.skip-link { position: absolute; z-index: 20; left: 1rem; top: -6rem; padding: .75rem 1rem; background: var(--ink); color: white; border-radius: .25rem; }
+.skip-link:focus { top: 1rem; }
+.site-header { padding: clamp(2.4rem, 7vw, 5.6rem) max(1rem, calc((100vw - 76rem) / 2)); border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .92); }
+.eyebrow, .identifier { color: var(--red); font: 700 .76rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .11em; text-transform: uppercase; }
+h1, h2, h3 { line-height: 1.16; text-wrap: balance; }
+h1 { max-width: 20ch; margin: 0; color: var(--green); font-size: clamp(2.25rem, 6vw, 5.4rem); font-weight: 500; letter-spacing: -.04em; }
+h2 { color: var(--green); font-size: clamp(1.5rem, 3vw, 2.15rem); }
+h3 { color: var(--ink); }
+.lede { max-width: 75ch; margin: 1.25rem 0 0; color: var(--muted); font-size: clamp(1rem, 2vw, 1.22rem); }
+.doc-nav, .link-row, .button-row { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: 1.4rem; }
+.doc-nav a, .button-link, .link-row a { display: inline-flex; align-items: center; min-height: 44px; padding: .55rem .85rem; border: 1px solid var(--line); border-radius: 999px; background: white; text-decoration: none; }
+.doc-nav a[aria-current="page"] { border-color: var(--red); color: var(--red); }
+main { width: min(76rem, calc(100% - 2rem)); margin: 0 auto; padding: 2.2rem 0 5rem; }
+.panel { margin: 0 0 1.35rem; padding: clamp(1rem, 3vw, 1.65rem); border: 1px solid var(--line); border-radius: .2rem; background: rgba(255, 255, 255, .96); }
+.panel > :first-child { margin-top: 0; }
+.boundary { border-left: .25rem solid var(--red); }
+.method-note { border-left: .25rem solid var(--green); background: var(--green-soft); }
+.method-note strong { color: var(--green); }
+.toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .8rem; align-items: end; margin: 1rem 0; padding: 1rem; border: 1px solid var(--line); background: var(--field); }
+.toolbar label { display: block; color: var(--green); font-weight: 650; }
+.toolbar input, .toolbar select, .toolbar button { min-height: 44px; width: 100%; margin-top: .3rem; border: 1px solid var(--line); border-radius: .2rem; background: white; color: var(--ink); font: inherit; }
+.toolbar input, .toolbar select { padding: .55rem .65rem; }
+.toolbar button { padding: .55rem .75rem; cursor: pointer; }
+.toolbar button:hover { border-color: var(--red); color: var(--red); }
+.status-line { min-height: 1.55em; margin: .5rem 0; color: var(--green); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.record-grid, .index-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)); gap: 1rem; }
+.record, .index-card { min-width: 0; border: 1px solid var(--line); border-top: .2rem solid var(--green); background: white; }
+.record[hidden] { display: none !important; }
+.record details { height: 100%; }
+.record summary { min-height: 44px; padding: 1rem; cursor: pointer; }
+.record summary::marker { color: var(--red); }
+.record-title { display: inline; font-weight: 700; }
+.record-body { padding: 0 1rem 1rem; border-top: 1px solid var(--line); }
+.record-body dl { margin: .75rem 0 0; }
+.record-body dt { margin-top: .65rem; color: var(--green); font-weight: 700; }
+.record-body dd { margin: .1rem 0 0; }
+.tag { display: inline-block; margin: .15rem .2rem .15rem 0; padding: .12rem .45rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: 650 .73rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.table-wrap, .radar-wrap { max-width: 100%; overflow: auto; border: 1px solid var(--line); background: white; overscroll-behavior: contain; }
+table { width: 100%; min-width: 48rem; border-collapse: collapse; }
+caption { padding: .9rem; color: var(--red); font-weight: 700; text-align: left; }
+th, td { padding: .72rem; border-top: 1px solid var(--line); vertical-align: top; text-align: left; }
+thead th { background: var(--green-soft); color: var(--green); }
+tbody th { color: var(--red); }
+.relation-table { min-width: 60rem; }
+.blueprint-table { min-width: 94rem; }
+.source-list { padding-left: 1.25rem; }
+.source-list code { overflow-wrap: anywhere; }
+.index-card { padding: 1rem; border-top-color: var(--red); }
+.index-card h2 { margin: .25rem 0 .6rem; font-size: 1.45rem; }
+.radar-wrap svg { display: block; width: min(100%, 46rem); min-width: 40rem; height: auto; margin: auto; }
+.radar-ring, .radar-axis { fill: none; stroke: var(--line); stroke-width: 1; }
+.radar-shape { fill: rgba(11, 71, 5, .14); stroke: var(--green); stroke-width: 3; }
+.radar-point { fill: var(--red); stroke: white; stroke-width: 2; }
+.radar-label { fill: var(--ink); font: 700 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.score { color: var(--red); font-weight: 750; }
+.overview-wrap { max-width: 100%; overflow: auto; border: 1px solid var(--line); background: var(--field); }
+.overview-wrap svg { display: block; width: min(100%, 52rem); min-width: 38rem; height: auto; margin: auto; }
+.overview-line { fill: none; stroke: var(--green); stroke-width: 2; marker-end: url(#overview-arrow); }
+.overview-branch { stroke: var(--red); stroke-dasharray: 6 5; }
+.overview-node { fill: white; stroke: var(--green); stroke-width: 2; rx: 4; }
+.overview-node-branch { stroke: var(--red); }
+.overview-title { fill: var(--green); font: 700 16px "Jost", "Avenir Next", sans-serif; }
+.overview-caption { fill: var(--ink); font: 12px "Jost", "Avenir Next", sans-serif; }
+.boundary-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: .7rem; padding: 0; list-style: none; }
+.boundary-list li { padding: 1rem; border: 1px solid var(--line); border-left: .25rem solid var(--red); background: var(--field); }
+.classification-high { border-top-color: var(--red); }
+.classification-moderate { border-top-color: #9a6500; }
+.gate-open-before-publication { border-left: .25rem solid var(--red); }
+.gate-satisfied-in-source { border-left: .25rem solid var(--green); }
+.no-script { color: var(--muted); }
+.js .no-script { display: none; }
+.site-footer { padding: 1.5rem max(1rem, calc((100vw - 76rem) / 2)); border-top: 1px solid var(--line); color: var(--muted); }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+@media (max-width: 42rem) { main { width: min(100% - 1rem, 76rem); } .toolbar { grid-template-columns: 1fr; } .panel { padding: 1rem; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
+@media (forced-colors: active) { * { box-shadow: none !important; } .panel, .record, .index-card, .toolbar, .table-wrap, .radar-wrap, .overview-wrap, .boundary-list li { border-color: CanvasText; } .radar-ring, .radar-axis, .radar-shape, .overview-line, .overview-node { stroke: CanvasText; } .radar-shape, .overview-node { fill: Canvas; } .radar-point { fill: CanvasText; stroke: Canvas; } .overview-title, .overview-caption { fill: CanvasText; } }
+@media print { html, body, .site-header, .panel, .record, .index-card { background: white; color: #111; } .doc-nav, .toolbar, .skip-link, .button-row, .no-script { display: none !important; } main { width: 100%; } .record-grid, .index-grid { display: block; } .record, .index-card { break-inside: avoid; margin-bottom: .8rem; } details, details:not([open]) > :not(summary) { display: block !important; } .table-wrap, .radar-wrap, .overview-wrap { overflow: visible; } table { min-width: 0; font-size: 8pt; } a { color: #111; } }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to documentation</a>
+<header class="site-header">
+  <p class="eyebrow">Lattice technical record · revision 2026-09-08</p>
+  <h1>Text to Lattice security model</h1>
+  <p class="lede">Assets, trust boundaries, ten consequential threats, as-built controls, pre-publication gates, and residuals—classified by marginal value.</p>
+  <nav class="doc-nav" aria-label="Lattice documentation navigation"><a href="index.html">Documentation</a><a href="lattice-concept-map.html">Concept map</a><a href="lattice-skill-map.html">System skill map</a><a href="text-to-lattice-service-blueprint.html">Service blueprint</a><a href="text-to-lattice-security-model.html" aria-current="page">Security model</a></nav>
+</header>
+<main id="main"><section class="panel boundary" aria-labelledby="authority-heading">
+  <p class="eyebrow">Claim boundary</p>
+  <h2 id="authority-heading">Authority stays typed</h2>
+  <p>This register describes the Lattice method at an architectural level and the bounded Text to Lattice implementation evidenced in this repository. It does not redistribute the exclusive register profile, certify universal conformance, or convert source tests into deployed proof.</p>
+  <p>Stable identifiers persist. A claim changes here with cited evidence; a rendered filter, expansion, or downloaded view never changes authoritative state.</p>
+  <p>Markdown and HTML are deterministic projections of this register. Filtered browser exports are nonauthoritative reading views.</p>
+</section>
+  <section class="panel boundary"><p class="eyebrow">As-built source model</p><h2>Not a penetration test or deployed attestation</h2><p>The browser wrapper, isolated model worker, dedicated verification frame, public lease endpoint, global usage authority, pinned model-asset origins, and generated documentation surfaces.</p><p>Threats are release-relevant when consequence, plausibility, and lifecycle value together justify action. Each entry separates as-built controls from pre-publication evidence and from the residual boundary that the browser or provider cannot erase.</p><p><strong>Decision rule:</strong> marginal value is proportional to consequence × plausibility × lifecycle value. Unusual findings remain eligible; novelty alone neither promotes nor dismisses them.</p></section>
+  <section class="panel" aria-labelledby="assets-heading"><h2 id="assets-heading">Protected assets</h2><div class="table-wrap" tabindex="0" aria-label="Scrollable protected asset table"><table><caption>Security and trust objectives</caption><thead><tr><th scope="col">ID</th><th scope="col">Asset</th><th scope="col">Objective</th></tr></thead><tbody><tr><th scope="row">ASSET-01</th><td>Source, clarification, candidate, and result text</td><td>Confidentiality and semantic integrity</td></tr><tr><th scope="row">ASSET-02</th><td>Semantic obligations and outcome truthfulness</td><td>Integrity and nondeceptive release</td></tr><tr><th scope="row">ASSET-03</th><td>Lease, visitor, and attestation credentials</td><td>Confidentiality, authenticity, and bounded replay</td></tr><tr><th scope="row">ASSET-04</th><td>Free-tier capacity and global fairness</td><td>Availability and exact accounting</td></tr><tr><th scope="row">ASSET-05</th><td>Model, tokenizer, WASM, and runtime integrity</td><td>Supply-chain integrity and provenance</td></tr><tr><th scope="row">ASSET-06</th><td>Accessible public evidence and honest limitations</td><td>Availability, comprehension, and auditability</td></tr></tbody></table></div></section>
+  <section class="panel" aria-labelledby="boundaries-heading"><h2 id="boundaries-heading">Trust boundaries</h2><ul class="boundary-list"><li><p class="identifier">TB-01</p><strong>Visitor ↔ résumé interface</strong><p>Untrusted prose and interaction events enter a semantic React surface.</p></li><li><p class="identifier">TB-02</p><strong>Document ↔ isolated model worker</strong><p>Closed RPC carries bounded inert model data and validated responses.</p></li><li><p class="identifier">TB-03</p><strong>Model worker ↔ pinned asset origins</strong><p>Only enumerated HTTPS model, tokenizer, and WASM assets may cross.</p></li><li><p class="identifier">TB-04</p><strong>Résumé origin ↔ verify.hah.dev frame</strong><p>Closed postMessage schemas carry correlation state and an attestation token, never prose.</p></li><li><p class="identifier">TB-05</p><strong>Browser ↔ lease Worker and global authority</strong><p>No-body acquisition plus authenticated lifecycle calls govern capacity without semantic content.</p></li><li><p class="identifier">TB-06</p><strong>Source register ↔ generated public documentation</strong><p>Escaped deterministic projections expose claims and citations but no private profile inventory or visitor content.</p></li></ul></section>
+  <section class="panel" data-interactive-register data-export-title="Text to Lattice security model" data-export-filename="text-to-lattice-security-model-visible.md" aria-labelledby="explore-heading">
+  <h2 id="explore-heading">Explore this register</h2>
+  <p class="no-script">The complete register follows. Search, filters, expansion controls, and local Markdown export require JavaScript; no content does.</p>
+  <div class="toolbar">
+    <label>Search threats, controls, gates, or residuals<input type="search" data-doc-search autocomplete="off"></label>
+    <label>Marginal value
+    <select data-filter-key="marginal">
+      <option value="">All classifications</option>
+      <option value="high">High</option><option value="moderate">Moderate</option>
+    </select>
+  </label><label>Trust boundary
+    <select data-filter-key="boundary">
+      <option value="">All trust boundaries</option>
+      <option value="TB-01">TB-01 · Visitor ↔ résumé interface</option><option value="TB-02">TB-02 · Document ↔ isolated model worker</option><option value="TB-03">TB-03 · Model worker ↔ pinned asset origins</option><option value="TB-04">TB-04 · Résumé origin ↔ verify.hah.dev frame</option><option value="TB-05">TB-05 · Browser ↔ lease Worker and global authority</option><option value="TB-06">TB-06 · Source register ↔ generated public documentation</option>
+    </select>
+  </label>
+    <label>View controls<span class="sr-only"> for visible records</span><button type="button" data-reset>Reset filters</button></label>
+    <label>Disclosure controls<button type="button" data-expand>Expand visible</button></label>
+    <label>Disclosure controls<button type="button" data-collapse>Collapse visible</button></label>
+    <label>Local export<button type="button" data-download-visible>Download visible Markdown</button></label>
+  </div>
+  <p class="status-line" data-doc-status role="status" aria-live="polite" aria-label="Visible threat count"></p><div class="record-grid"><article class="record classification-high" data-record data-marginal="high" data-boundary="TB-03 TB-04 TB-05">
+    <details id="sec-01">
+      <summary><span class="identifier">SEC-01</span><br><span class="record-title" data-record-title>Prose crosses a network boundary</span> · High marginal value</summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Vector</dt><dd>A URL, header, request body, telemetry hook, attestation message, or error report incorporates source, clarification, candidate, or result text.</dd>
+        <dt>Consequence</dt><dd>Private or sensitive prose leaves the visitor&#39;s browser and contradicts the core privacy claim.</dd>
+        <dt>Plausibility</dt><dd>Realistic whenever a model runtime, verification provider, or usage service performs network work.</dd>
+        <dt>Lifecycle value</dt><dd>A single enforced data-flow boundary is reusable across every pipeline stage and dependency revision.</dd>
+        <dt>Classification</dt><dd>High consequence, ordinary integration plausibility, and architectural reuse make this release-blocking.</dd>
+        <dt>As built</dt><dd><ul><li>The official lease acquisition has no request body and the published policy forbids source transmission.</li><li>Model asset URLs and headers are constant, enumerated, credentialless, and independent of user content.</li><li>The attestation protocol uses closed messages without source or output.</li></ul></dd>
+        <dt>Required before publication</dt><dd><ul><li>Exercise production network traces for acquisition, renewal, release, asset fetches, errors, and verification.</li><li>Confirm CSP and deployed telemetry configuration do not add unmodeled egress.</li></ul></dd>
+        <dt>Residual boundary</dt><dd><ul><li>IP address, user agent, timing, public model choice, and ordinary transport metadata remain visible to contacted providers.</li><li>The repository test suite is not a capture of deployed traffic.</li></ul></dd>
+        <dt>Assets and boundaries</dt><dd><span class="tag">ASSET-01</span><span class="tag">TB-03</span><span class="tag">TB-04</span><span class="tag">TB-05</span></dd>
+        <dt>Sources</dt><dd><span class="tag">SRC-ASSET-POLICY</span><span class="tag">SRC-MODEL-WORKER</span><span class="tag">SRC-ATTESTATION</span><span class="tag">SRC-USAGE-LEASE</span><span class="tag">SRC-USAGE-POLICY</span><span class="tag">SRC-TEST-SECURITY</span></dd>
+      </dl></div>
+    </details>
+  </article><article class="record classification-high" data-record data-marginal="high" data-boundary="TB-01 TB-02 TB-06">
+    <details id="sec-02">
+      <summary><span class="identifier">SEC-02</span><br><span class="record-title" data-record-title>Hostile prose acquires authority or execution</span> · High marginal value</summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Vector</dt><dd>Prompt injection, control characters, bidi abuse, HTML-like content, or model-authored issue text becomes an instruction, executable markup, or public authority.</dd>
+        <dt>Consequence</dt><dd>The pipeline can ignore its contract, misrepresent a finding, execute injected content, or expose unsafe markup.</dd>
+        <dt>Plausibility</dt><dd>Directly plausible because arbitrary prose is the intended input.</dd>
+        <dt>Lifecycle value</dt><dd>Inert serialization and text-only rendering protect every future model and document revision.</dd>
+        <dt>Classification</dt><dd>The input channel is necessarily hostile, so containment is a primary release boundary.</dd>
+        <dt>As built</dt><dd><ul><li>Complete Unicode and structural preflight precedes lease acquisition and model load.</li><li>System instructions are separated from escaped JSON user data and constrained by closed schemas.</li><li>Public findings are host-authored and React renders visitor and model text as text nodes.</li></ul></dd>
+        <dt>Required before publication</dt><dd><ul><li>Re-run injection, Unicode, recursive noninterference, and generated-document escaping checks on the release artifact.</li><li>Review any new renderer or model transport for HTML interpretation or dynamic authority.</li></ul></dd>
+        <dt>Residual boundary</dt><dd><ul><li>A local model can still misunderstand inert data; later release gates, not prompt wording alone, contain that risk.</li></ul></dd>
+        <dt>Assets and boundaries</dt><dd><span class="tag">ASSET-01</span><span class="tag">ASSET-02</span><span class="tag">ASSET-06</span><span class="tag">TB-01</span><span class="tag">TB-02</span><span class="tag">TB-06</span></dd>
+        <dt>Sources</dt><dd><span class="tag">SRC-INPUT</span><span class="tag">SRC-PROMPTS</span><span class="tag">SRC-DEMO</span><span class="tag">SRC-REQUIREMENTS</span><span class="tag">SRC-TEST-ISOLATE</span></dd>
+      </dl></div>
+    </details>
+  </article><article class="record classification-high" data-record data-marginal="high" data-boundary="TB-01 TB-02">
+    <details id="sec-03">
+      <summary><span class="identifier">SEC-03</span><br><span class="record-title" data-record-title>Semantic drift is released as success</span> · High marginal value</summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Vector</dt><dd>Generation drops, invents, negates, broadens, narrows, or reorders a material obligation and a correlated checker accepts the candidate.</dd>
+        <dt>Consequence</dt><dd>Safety instructions, conditions, quantities, uncertainty, causality, consequences, or recovery relationships can change while the interface claims successful transformation.</dd>
+        <dt>Plausibility</dt><dd>Probabilistic generation makes drift realistic even under structured output.</dd>
+        <dt>Lifecycle value</dt><dd>Independent verification, deterministic sentinels, and honest withholding remain useful across model upgrades.</dd>
+        <dt>Classification</dt><dd>Meaning preservation is the product&#39;s central consequence; an incorrect success is worse than a refusal.</dd>
+        <dt>As built</dt><dd><ul><li>Protected spans and semantic sentinels preserve explicit high-consequence content.</li><li>A distinct verifier, deterministic validators, re-atomization, repair, and whole-document certification gate release.</li><li>Five outcome states prevent withheld or unresolved work from being relabeled as complete.</li></ul></dd>
+        <dt>Required before publication</dt><dd><ul><li>Run the full adversarial and semantic regression corpus against exact release revisions.</li><li>Record manual review across realistic genres without treating those samples as universal proof.</li></ul></dd>
+        <dt>Residual boundary</dt><dd><ul><li>No bounded corpus or model pair proves equivalence for all prose.</li><li>Review-required is semantically releasable but explicitly not complete bounded clearance.</li></ul></dd>
+        <dt>Assets and boundaries</dt><dd><span class="tag">ASSET-01</span><span class="tag">ASSET-02</span><span class="tag">TB-01</span><span class="tag">TB-02</span></dd>
+        <dt>Sources</dt><dd><span class="tag">SRC-PROTECTED</span><span class="tag">SRC-VALIDATORS</span><span class="tag">SRC-DEMO</span><span class="tag">SRC-LOCAL-MODEL</span><span class="tag">SRC-TEST-ENGINE</span></dd>
+      </dl></div>
+    </details>
+  </article><article class="record classification-high" data-record data-marginal="high" data-boundary="TB-01 TB-02">
+    <details id="sec-04">
+      <summary><span class="identifier">SEC-04</span><br><span class="record-title" data-record-title>Input or inference exhausts browser resources</span> · High marginal value</summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Vector</dt><dd>Pathological Unicode, dense passages, oversized tokens, retry subdivision, completion loops, worker queues, or memory pressure trigger unbounded local work.</dd>
+        <dt>Consequence</dt><dd>The page stalls, a device becomes unstable, accessibility degrades, or capacity remains occupied without useful work.</dd>
+        <dt>Plausibility</dt><dd>Realistic for arbitrary prose and multi-gigabyte browser models, especially on constrained devices.</dd>
+        <dt>Lifecycle value</dt><dd>Central ceilings and early preflight bound new pipeline stages as the implementation evolves.</dd>
+        <dt>Classification</dt><dd>Common resource variability and meaningful reliability consequences justify fixing and testing the boundary now.</dd>
+        <dt>As built</dt><dd><ul><li>Word, code-unit, grapheme, token, control, passage, batch, executed-group, context, completion, queue, and response ceilings are explicit.</li><li>Preflight completes before lease or model load, and worker operations have timeouts and cancellation paths.</li></ul></dd>
+        <dt>Required before publication</dt><dd><ul><li>Measure representative supported devices for memory, storage, cancellation, thermal load, and worst-case completion time.</li><li>Verify deployed limits match the documented constants after bundling.</li></ul></dd>
+        <dt>Residual boundary</dt><dd><ul><li>WebGPU drivers and browser memory management remain outside application control.</li><li>A supported capability probe cannot guarantee stable inference on every device.</li></ul></dd>
+        <dt>Assets and boundaries</dt><dd><span class="tag">ASSET-04</span><span class="tag">ASSET-06</span><span class="tag">TB-01</span><span class="tag">TB-02</span></dd>
+        <dt>Sources</dt><dd><span class="tag">SRC-INPUT</span><span class="tag">SRC-DEMO</span><span class="tag">SRC-LOCAL-MODEL</span><span class="tag">SRC-MODEL-WORKER</span><span class="tag">SRC-TEST-ENGINE</span></dd>
+      </dl></div>
+    </details>
+  </article><article class="record classification-high" data-record data-marginal="high" data-boundary="TB-03">
+    <details id="sec-05">
+      <summary><span class="identifier">SEC-05</span><br><span class="record-title" data-record-title>Pinned supply-chain artifact is substituted or unusable</span> · High marginal value</summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Vector</dt><dd>A model shard, tokenizer, WASM binary, runtime package, CDN response, or upstream license changes or is served contrary to the reviewed revision.</dd>
+        <dt>Consequence</dt><dd>Inference semantics, code execution, availability, or redistribution authority can diverge from the reviewed build.</dd>
+        <dt>Plausibility</dt><dd>Revision pinning lowers accidental drift but third-party hosting, binary provenance, and model-use terms remain realistic dependencies.</dd>
+        <dt>Lifecycle value</dt><dd>One manifest and provenance gate scales across upgrades and incident response.</dd>
+        <dt>Classification</dt><dd>Executable third-party artifacts cross a privileged boundary; the WASM provenance gap and the public-prose model-use disposition remain open.</dd>
+        <dt>As built</dt><dd><ul><li>Models, runtime versions, tokenizer hashes, WASM commit, and exact asset paths are pinned in source.</li><li>The worker installs its request policy before loading model modules and rejects unexpected transports.</li><li>The model contract links the Llama 3.2 community license and acceptable-use policy without treating those links as approval.</li></ul></dd>
+        <dt>Required before publication</dt><dd><ul><li>Resolve or explicitly accept the pinned WASM binary license and provenance boundary before public enablement.</li><li>Record an owner-approved Llama 3.2 license and acceptable-use disposition for arbitrary public prose.</li><li>Fetch, hash, archive, and compare release artifacts through the authorized supply-chain process.</li></ul></dd>
+        <dt>Residual boundary</dt><dd><ul><li>The source currently records that standalone license metadata is absent from the pinned binary repository.</li><li>Source pins do not establish binary reproducibility or resolve the Llama acceptable-use and licensing decision.</li></ul></dd>
+        <dt>Assets and boundaries</dt><dd><span class="tag">ASSET-05</span><span class="tag">ASSET-06</span><span class="tag">TB-03</span></dd>
+        <dt>Sources</dt><dd><span class="tag">SRC-MODEL-CONTRACT</span><span class="tag">SRC-ASSET-POLICY</span><span class="tag">SRC-MODEL-WORKER</span><span class="tag">SRC-TEST-SECURITY</span></dd>
+      </dl></div>
+    </details>
+  </article><article class="record classification-high" data-record data-marginal="high" data-boundary="TB-04 TB-05">
+    <details id="sec-06">
+      <summary><span class="identifier">SEC-06</span><br><span class="record-title" data-record-title>Cross-origin attestation is forged, replayed, or confused</span> · High marginal value</summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Vector</dt><dd>A sibling frame, stale token, mismatched hostname/action, guessed correlation identifier, unexpected message shape, or replayed attestation reaches grant accounting.</dd>
+        <dt>Consequence</dt><dd>Automated or cross-site traffic can consume scarce capacity or bind verification to the wrong visitor flow.</dd>
+        <dt>Plausibility</dt><dd>Cross-origin messaging and bearer tokens create a routine web attack surface.</dd>
+        <dt>Lifecycle value</dt><dd>A closed versioned protocol and server-side binding remain reusable if the provider or frame changes.</dd>
+        <dt>Classification</dt><dd>The boundary protects shared availability and credential authenticity with realistic web vectors.</dd>
+        <dt>As built</dt><dd><ul><li>The parent checks exact origin, exact Window source, protocol version, closed keys, and a fresh 144-bit correlation identifier.</li><li>The server validates hostname, action, freshness, and single use before grant accounting; every terminal path removes the frame.</li></ul></dd>
+        <dt>Required before publication</dt><dd><ul><li>Verify production frame headers, origin routing, site key, action, hostname, and replay storage with real provider responses.</li><li>Exercise keyboard and assistive-technology behavior for interactive challenges.</li></ul></dd>
+        <dt>Residual boundary</dt><dd><ul><li>Provider availability, accessibility, fraud scoring, and privacy practices remain external dependencies.</li></ul></dd>
+        <dt>Assets and boundaries</dt><dd><span class="tag">ASSET-03</span><span class="tag">ASSET-04</span><span class="tag">TB-04</span><span class="tag">TB-05</span></dd>
+        <dt>Sources</dt><dd><span class="tag">SRC-ATTESTATION</span><span class="tag">SRC-FRAME</span><span class="tag">SRC-LEASE-WORKER</span><span class="tag">SRC-USAGE-POLICY</span><span class="tag">SRC-TEST-SECURITY</span></dd>
+      </dl></div>
+    </details>
+  </article><article class="record classification-high" data-record data-marginal="high" data-boundary="TB-05">
+    <details id="sec-07">
+      <summary><span class="identifier">SEC-07</span><br><span class="record-title" data-record-title>Lease or accounting state is abused</span> · High marginal value</summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Vector</dt><dd>Forged, expired, replayed, cross-method, cross-owner, or concurrently mutated credentials cause duplicate grants, stolen renewals, missed releases, or inconsistent counts.</dd>
+        <dt>Consequence</dt><dd>One visitor can monopolize capacity, legitimate work can be denied, or the global authority can drift from real lifecycle state.</dd>
+        <dt>Plausibility</dt><dd>Any public signed-credential lifecycle is exposed to replay and concurrency races.</dd>
+        <dt>Lifecycle value</dt><dd>Exact state transitions and one global authority simplify every future quota policy.</dd>
+        <dt>Classification</dt><dd>Shared capacity depends on exact lifecycle integrity under ordinary concurrency and hostile replay.</dd>
+        <dt>As built</dt><dd><ul><li>Distinct HMAC secrets bind visitor cookies and lease credentials; canonical encoding, expiry, method, and actor checks precede state work.</li><li>One globally named SQLite-backed Durable Object serializes exact admissions, grants, renewals, releases, ownership, and expiry.</li></ul></dd>
+        <dt>Required before publication</dt><dd><ul><li>Deploy with independent encrypted secrets and exercise concurrent production transitions, alarm recovery, and secret rotation.</li><li>Confirm idempotent client release behavior against deployed Retry-After variants.</li></ul></dd>
+        <dt>Residual boundary</dt><dd><ul><li>Provider point-in-time recovery may retain pseudonymous state for the published recovery window.</li><li>Network loss can leave a lease until bounded expiry even when local teardown succeeds.</li></ul></dd>
+        <dt>Assets and boundaries</dt><dd><span class="tag">ASSET-03</span><span class="tag">ASSET-04</span><span class="tag">TB-05</span></dd>
+        <dt>Sources</dt><dd><span class="tag">SRC-USAGE-LEASE</span><span class="tag">SRC-USAGE-POLICY</span><span class="tag">SRC-LEASE-WORKER</span><span class="tag">SRC-USAGE-STORAGE</span><span class="tag">SRC-TEST-CAPACITY</span></dd>
+      </dl></div>
+    </details>
+  </article><article class="record classification-high" data-record data-marginal="high" data-boundary="TB-05">
+    <details id="sec-08">
+      <summary><span class="identifier">SEC-08</span><br><span class="record-title" data-record-title>Distributed traffic exhausts the free-tier budget</span> · High marginal value</summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Vector</dt><dd>Requests distributed across IPs or Cloudflare locations invoke the public Worker before in-Worker shaping and exceed the accounting assumptions.</dd>
+        <dt>Consequence</dt><dd>The demonstrator fails closed for legitimate visitors or consumes shared account capacity; other static evidence must remain available.</dd>
+        <dt>Plausibility</dt><dd>Plausible for any public endpoint; location-local permissive counters cannot guarantee an aggregate Worker-invocation ceiling.</dd>
+        <dt>Lifecycle value</dt><dd>Separating exact downstream accounting from best-effort edge shedding prevents false capacity claims in later deployments.</dd>
+        <dt>Classification</dt><dd>The free-tier boundary is consequential and the provider architecture leaves a known distributed-traffic gap.</dd>
+        <dt>As built</dt><dd><ul><li>Exact global minute and UTC-day admission precedes Siteverify and lifecycle work; visitor, grant, and active-lease caps protect downstream resources.</li><li>Ingress, method, path, and credential shapers shed local load, while policy states they do not guarantee billed invocation limits.</li><li>Quota exhaustion fails closed and static semantic pages remain unrestricted.</li></ul></dd>
+        <dt>Required before publication</dt><dd><ul><li>Install and verify the required path-scoped edge rule before public enablement.</li><li>Measure Worker, Durable Object, row, alarm, CPU, storage, and cross-location traffic in the provider dashboard; recalculate carryover from observed latency.</li></ul></dd>
+        <dt>Residual boundary</dt><dd><ul><li>The Cloudflare Free plan does not provide an exact in-application bound on all hostile Worker invocations.</li><li>Distributed adversarial traffic remains outside the published deterministic budget proof.</li></ul></dd>
+        <dt>Assets and boundaries</dt><dd><span class="tag">ASSET-04</span><span class="tag">ASSET-06</span><span class="tag">TB-05</span></dd>
+        <dt>Sources</dt><dd><span class="tag">SRC-USAGE-POLICY</span><span class="tag">SRC-LEASE-WORKER</span><span class="tag">SRC-USAGE-STORAGE</span><span class="tag">SRC-TEST-CAPACITY</span></dd>
+      </dl></div>
+    </details>
+  </article><article class="record classification-moderate" data-record data-marginal="moderate" data-boundary="TB-01">
+    <details id="sec-09">
+      <summary><span class="identifier">SEC-09</span><br><span class="record-title" data-record-title>Generated output is captured despite interface friction</span> · Moderate marginal value</summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Vector</dt><dd>Selection APIs, clipboard events, printing, page capture, browser extensions, developer tools, accessibility APIs, operating-system screenshots, cameras, or memory inspection obtain result text.</dd>
+        <dt>Consequence</dt><dd>A visitor or third party retains output despite the interface&#39;s deterrent treatment, and an overstated claim would mislead users about control.</dd>
+        <dt>Plausibility</dt><dd>Browser event controls can block routine paths, but privileged and out-of-band capture is always plausible.</dd>
+        <dt>Lifecycle value</dt><dd>An honest limitation prevents future styling or browser changes from becoming a false security promise.</dd>
+        <dt>Classification</dt><dd>The privacy consequence is meaningful, but bespoke escalation cannot close the browser and operating-system boundary; the bounded fix is deterrence plus precise disclosure.</dd>
+        <dt>As built</dt><dd><ul><li>Routine selection, copy, cut, drag, context menu, touch callout, and print paths are disabled for generated output.</li><li>Visibility, blur, print, and detectable Print Screen events conceal output behind a reduced-motion-compatible veil.</li><li>Semantic access is preserved and the canonical limitation rejects guarantees of capture prevention or AI unreadability.</li></ul></dd>
+        <dt>Required before publication</dt><dd><ul><li>Manually exercise keyboard, touch, print, visibility, blur, reduced-motion, forced-colors, and assistive-technology paths.</li><li>Review copy after each control change so deterrence is never described as prevention.</li></ul></dd>
+        <dt>Residual boundary</dt><dd><ul><li>Browser, extension, operating-system, accessibility, camera, and physical observation remain outside application control.</li><li>Additional anti-capture complexity can reduce accessibility while failing to remove the residual risk.</li></ul></dd>
+        <dt>Assets and boundaries</dt><dd><span class="tag">ASSET-01</span><span class="tag">ASSET-06</span><span class="tag">TB-01</span></dd>
+        <dt>Sources</dt><dd><span class="tag">SRC-OUTPUT</span><span class="tag">SRC-REQUIREMENTS</span><span class="tag">SRC-TEST-A11Y</span></dd>
+      </dl></div>
+    </details>
+  </article><article class="record classification-high" data-record data-marginal="high" data-boundary="TB-03 TB-04 TB-05 TB-06">
+    <details id="sec-10">
+      <summary><span class="identifier">SEC-10</span><br><span class="record-title" data-record-title>Release or configuration drift invalidates the documented model</span> · High marginal value</summary>
+      <div class="record-body" data-record-body><dl>
+        <dt>Vector</dt><dd>Bundled constants, Worker secrets, routes, CSP, edge rules, model revisions, provider bindings, generated documents, or deployed artifacts diverge from the reviewed register.</dd>
+        <dt>Consequence</dt><dd>Controls exist in source but not in production, public evidence becomes stale, or a release claim silently exceeds its proof.</dd>
+        <dt>Plausibility</dt><dd>Configuration drift is routine across independent origins, Workers, static export, and third-party artifacts.</dd>
+        <dt>Lifecycle value</dt><dd>Deterministic generation, drift checks, explicit gates, and traceable identifiers reduce every later release review.</dd>
+        <dt>Classification</dt><dd>The architecture spans several independent release surfaces, making drift both plausible and consequential.</dd>
+        <dt>As built</dt><dd><ul><li>Requirements use stable identifiers and this documentation is deterministically generated with SHA-256 manifests.</li><li>Model, protocol, endpoint, and policy constants are centralized and source-tested.</li></ul></dd>
+        <dt>Required before publication</dt><dd><ul><li>Run build, lint, type, full test, documentation drift, static-artifact inspection, and secret-name checks from the exact release tree.</li><li>Verify both origins, Worker routes, CSP, bindings, edge rules, provider limits, and public links after deployment.</li></ul></dd>
+        <dt>Residual boundary</dt><dd><ul><li>A repository manifest proves bytes in one tree, not remote deployment identity or provider configuration.</li><li>Manual and operational evidence must be dated and renewed after consequential change.</li></ul></dd>
+        <dt>Assets and boundaries</dt><dd><span class="tag">ASSET-02</span><span class="tag">ASSET-03</span><span class="tag">ASSET-04</span><span class="tag">ASSET-05</span><span class="tag">ASSET-06</span><span class="tag">TB-03</span><span class="tag">TB-04</span><span class="tag">TB-05</span><span class="tag">TB-06</span></dd>
+        <dt>Sources</dt><dd><span class="tag">SRC-REQUIREMENTS</span><span class="tag">SRC-MODEL-CONTRACT</span><span class="tag">SRC-USAGE-POLICY</span><span class="tag">SRC-TEST-SECURITY</span><span class="tag">SRC-TEST-CAPACITY</span></dd>
+      </dl></div>
+    </details>
+  </article></div></section>
+  <section aria-labelledby="gates-heading"><div class="panel boundary"><p class="eyebrow">Open means open</p><h2 id="gates-heading">Pre-publication gate block</h2><p>Source tests do not become deployed proof by volume. The interactive wrapper must not be represented as release-cleared until each gate has exact-revision evidence or a recorded owner disposition.</p></div><div class="record-grid"><article class="panel gate-open-before-publication"><p class="identifier">GATE-01 · Open Before Publication</p><h3>Exact release artifact</h3><p>Build, lint, type-check, full tests, documentation drift, static route, and generated-worker inspections pass from the exact release tree.</p><p><strong>Evidence needed:</strong> Dated command transcript and artifact digests.</p></article><article class="panel gate-open-before-publication"><p class="identifier">GATE-02 · Open Before Publication</p><h3>Production origin and secret boundary</h3><p>hah.dev, verify.hah.dev, Worker routes, CSP, bindings, and distinct encrypted secrets match the documented protocol.</p><p><strong>Evidence needed:</strong> Deployed configuration inspection without secret disclosure.</p></article><article class="panel gate-open-before-publication"><p class="identifier">GATE-03 · Open Before Publication</p><h3>Edge and provider capacity controls</h3><p>The required path-scoped edge rule is active and provider-side CPU, storage, request, row, alarm, latency, and distributed-traffic measurements support the budget.</p><p><strong>Evidence needed:</strong> Provider configuration record and bounded load evidence.</p></article><article class="panel gate-open-before-publication"><p class="identifier">GATE-04 · Open Before Publication</p><h3>Supply-chain provenance and model-use approval</h3><p>Pinned model, tokenizer, runtime, and WASM bytes are verified; the standalone WASM license and provenance boundary is resolved or explicitly accepted; and the Llama 3.2 license and acceptable-use disposition for arbitrary public prose is recorded.</p><p><strong>Evidence needed:</strong> Hashes, source or archive record, licenses, acceptable-use review, and owner decisions.</p></article><article class="panel gate-open-before-publication"><p class="identifier">GATE-05 · Open Before Publication</p><h3>Manual interaction and accessibility</h3><p>Keyboard, screen reader, touch, 400 percent zoom, reduced motion, forced colors, print, cancellation, blur, and a second browser engine complete the critical paths.</p><p><strong>Evidence needed:</strong> Dated manual matrix with failures and dispositions.</p></article><article class="panel gate-open-before-publication"><p class="identifier">GATE-06 · Open Before Publication</p><h3>Production privacy trace</h3><p>Network traces show no source, clarification, candidate, verifier finding, or output in lease, attestation, model-asset, error, or telemetry traffic.</p><p><strong>Evidence needed:</strong> Sanitized trace inventory from both origins and supported browsers.</p></article></div></section>
+  <section class="panel" aria-labelledby="residual-heading"><h2 id="residual-heading">Honest residual boundary</h2><ul><li>Text to Lattice is a bounded demonstrator, not the full Lattice profile and not a universal conformance oracle.</li><li>Source tests and deterministic manifests prove repository behavior and bytes; they do not prove deployed configuration or external service behavior.</li><li>Local inference still downloads executable third-party artifacts and reveals ordinary transport metadata to their hosts.</li><li>No browser page can guarantee prevention of screenshots, extensions, developer tools, accessibility extraction, cameras, or operating-system capture.</li><li>The public endpoint can bound exact downstream work but cannot guarantee a global free-tier Worker-invocation ceiling against distributed hostile traffic.</li><li>Accessibility, comprehension, semantic fidelity across uncontrolled prose, and operational reliability require continuing empirical evidence.</li></ul></section>
+  <section class="panel"><h2>Sources and exports</h2><p><a class="button-link" href="TEXT-TO-LATTICE-SECURITY-MODEL.md" download>Download complete Markdown</a> <a class="button-link" href="documentation-atlas.json" download>Download authoritative JSON</a> <a class="button-link" href="artifact-manifest.json">Inspect integrity manifest</a></p></section>
+  <section class="panel" aria-labelledby="sources-heading"><h2 id="sources-heading">Source register</h2><ul class="source-list"><li><strong>SRC-REQUIREMENTS — Text to Lattice public requirements:</strong> <code>docs/lattice-resume-demo-requirements.md</code></li><li><strong>SRC-DEMO — Bounded pipeline coordinator:</strong> <code>app/resume/latticeDemo.js</code></li><li><strong>SRC-INPUT — Input and clarification policy:</strong> <code>app/resume/lattice/inputPolicy.js</code></li><li><strong>SRC-SEGMENTS — Lossless segmentation:</strong> <code>app/resume/lattice/segments.js</code></li><li><strong>SRC-PROTECTED — Protected-span handling:</strong> <code>app/resume/lattice/protectedSpans.js</code></li><li><strong>SRC-PROMPTS — Closed prompts and schemas:</strong> <code>app/resume/lattice/promptContract.js</code></li><li><strong>SRC-VALIDATORS — Deterministic semantic validators:</strong> <code>app/resume/lattice/validators.js</code></li><li><strong>SRC-LOCAL-MODEL — Local model adapter:</strong> <code>app/resume/lattice/localModel.js</code></li><li><strong>SRC-MODEL-CONTRACT — Pinned model contract:</strong> <code>app/resume/lattice/modelContract.js</code></li><li><strong>SRC-MODEL-WORKER — Isolated model worker:</strong> <code>app/resume/lattice/latticeWebllm.worker.ts</code></li><li><strong>SRC-ASSET-POLICY — Model-asset request policy:</strong> <code>app/resume/lattice/assetRequestPolicy.js</code></li><li><strong>SRC-ATTESTATION — Cross-origin attestation protocol:</strong> <code>app/resume/lattice/attestation.js</code></li><li><strong>SRC-USAGE-LEASE — Browser lease client:</strong> <code>app/resume/lattice/usageLease.js</code></li><li><strong>SRC-USAGE-POLICY — Published usage and capacity policy:</strong> <code>app/resume/lattice/usagePolicy.js</code></li><li><strong>SRC-OUTPUT — Output protection controls:</strong> <code>app/resume/lattice/outputProtection.js</code></li><li><strong>SRC-LEASE-WORKER — Lease Worker request coordinator:</strong> <code>workers/text-to-lattice-lease/worker.js</code></li><li><strong>SRC-USAGE-STORAGE — Global usage authority:</strong> <code>workers/text-to-lattice-lease/usageStorage.js</code></li><li><strong>SRC-FRAME — Dedicated verification bridge:</strong> <code>workers/text-to-lattice-attestation-frame/public/turnstile/bridge.js</code></li><li><strong>SRC-TEST-ENGINE — Engine executable contracts:</strong> <code>tests/lattice-demo.test.mjs</code></li><li><strong>SRC-TEST-SECURITY — Security executable contracts:</strong> <code>tests/lattice-security.test.mjs</code></li><li><strong>SRC-TEST-ISOLATE — Isolate hardening executable contracts:</strong> <code>tests/lattice-isolate-hardening.test.mjs</code></li><li><strong>SRC-TEST-CAPACITY — Protocol capacity executable contracts:</strong> <code>tests/lattice-protocol-capacity.test.mjs</code></li><li><strong>SRC-TEST-A11Y — Modal accessibility source contracts:</strong> <code>tests/lattice-modal-accessibility.test.mjs</code></li><li><strong>SRC-PROJECTS — Portfolio project and ecosystem register:</strong> <code>app/resume/projects.js</code></li><li><strong>SRC-LAT-README — Lattice README at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/README.md">Reviewed source</a></li><li><strong>SRC-LAT-ARCH — Lattice architecture at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/architecture.md">Reviewed source</a></li><li><strong>SRC-LAT-REQ — Lattice requirements at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/requirements.md">Reviewed source</a></li><li><strong>SRC-LAT-SEMANTIC — Lattice semantic core at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/semantic.ts">Reviewed source</a></li><li><strong>SRC-LAT-CONTEXT — Lattice context core at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/context.ts">Reviewed source</a></li><li><strong>SRC-LAT-PROFILE — Lattice profile compiler at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/profile.ts">Reviewed source</a></li><li><strong>SRC-LAT-ENGINE — Lattice engine at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/engine.ts">Reviewed source</a></li><li><strong>SRC-LAT-ADVERSARIAL — Lattice adversarial executable contracts at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/test/adversarial.test.mjs">Reviewed source</a></li><li><strong>SRC-NNG-SKILL — NN/g skill mapping:</strong> <a href="https://www.nngroup.com/articles/skill-mapping/">Reviewed source</a></li><li><strong>SRC-NNG-BLUEPRINT — NN/g service blueprint definition:</strong> <a href="https://www.nngroup.com/articles/service-blueprints-definition/">Reviewed source</a></li><li><strong>SRC-LATTICE-UPSTREAM — Lattice upstream repository:</strong> <a href="https://github.com/howardhayden/lattice">Reviewed source</a></li></ul></section><section class="panel" aria-labelledby="terms-heading"><h2 id="terms-heading">Terms and provenance</h2><p>Authored documentation follows the hah.dev portfolio-content terms. The generator and executable documentation shell retain the applicable source-component terms. The separately licensed Relational Systems Register profile is not reproduced.</p></section></main>
+<footer class="site-footer"><p>One authoritative register · deterministic Markdown and HTML · authored documentation follows hah.dev portfolio-content terms · executable shell retains source-component terms · the separately licensed RSR profile is not reproduced</p></footer>
+<script>
+(function () {
+  document.documentElement.classList.add("js");
+  var root = document.querySelector("[data-interactive-register]");
+  if (!root) return;
+  var records = Array.from(root.querySelectorAll("[data-record]"));
+  var search = root.querySelector("[data-doc-search]");
+  var filters = Array.from(root.querySelectorAll("[data-filter-key]"));
+  var status = root.querySelector("[data-doc-status]");
+  var normalize = function (value) {
+    return String(value || "").normalize("NFKC").toLocaleLowerCase("und");
+  };
+  var apply = function () {
+    var query = normalize(search && search.value).trim();
+    var count = 0;
+    records.forEach(function (record) {
+      var matchesSearch = !query || normalize(record.textContent).indexOf(query) !== -1;
+      var matchesFilters = filters.every(function (filter) {
+        var selected = filter.value;
+        if (!selected) return true;
+        var values = String(record.dataset[filter.dataset.filterKey] || "").split(" ");
+        return values.indexOf(selected) !== -1;
+      });
+      record.hidden = !(matchesSearch && matchesFilters);
+      if (!record.hidden) count += 1;
+    });
+    if (status) status.textContent = count + " of " + records.length + " records visible.";
+  };
+  if (search) search.addEventListener("input", apply);
+  filters.forEach(function (filter) { filter.addEventListener("change", apply); });
+  var reset = root.querySelector("[data-reset]");
+  if (reset) reset.addEventListener("click", function () {
+    if (search) search.value = "";
+    filters.forEach(function (filter) { filter.value = ""; });
+    apply();
+    if (search) search.focus();
+  });
+  var setExpanded = function (expanded) {
+    records.forEach(function (record) {
+      if (record.hidden) return;
+      record.querySelectorAll("details").forEach(function (detail) { detail.open = expanded; });
+    });
+  };
+  var expand = root.querySelector("[data-expand]");
+  var collapse = root.querySelector("[data-collapse]");
+  if (expand) expand.addEventListener("click", function () { setExpanded(true); });
+  if (collapse) collapse.addEventListener("click", function () { setExpanded(false); });
+  var download = root.querySelector("[data-download-visible]");
+  if (download) download.addEventListener("click", function () {
+    var lines = ["# " + root.dataset.exportTitle + " — visible view", "", "> Non-authoritative filtered projection. The complete Markdown and JSON register govern.", ""];
+    records.forEach(function (record) {
+      if (record.hidden) return;
+      var title = record.querySelector("[data-record-title]");
+      var body = record.querySelector("[data-record-body]");
+      lines.push("## " + (title ? title.textContent.trim() : "Record"), "");
+      if (body) lines.push(body.textContent.replace(/\s+/g, " ").trim(), "");
+    });
+    var objectUrl = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" }));
+    var link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = root.dataset.exportFilename;
+    link.hidden = true;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 0);
+    if (status) status.textContent = "Downloaded " + lines.length + " lines from the visible, non-authoritative view.";
+  });
+  apply();
+}());
+</script>
+</body>
+</html>

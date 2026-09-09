@@ -1,6 +1,6 @@
 {
   "format": "howardhayden-license-map-v2",
-  "audited": "2026-08-24",
+  "audited": "2026-09-08",
   "project": "hah.dev portfolio",
   "source_available_not_open_source": true,
   "default_license": "PolyForm-Noncommercial-1.0.0",
@@ -14,8 +14,47 @@
   "rules": [
     {
       "paths": [
+        "app/resume/ResumeProjects.tsx",
+        "app/resume/latticeDemo.js",
+        "app/resume/lattice/**"
+      ],
+      "license": "PolyForm-Noncommercial-1.0.0",
+      "scope": "Text to Lattice executable implementation; this explicit software rule precedes the broader resume-content rule"
+    },
+    {
+      "paths": [
+        "scripts/docs/**"
+      ],
+      "license": "PolyForm-Noncommercial-1.0.0",
+      "scope": "deterministic Lattice documentation generator and validation implementation"
+    },
+    {
+      "paths": [
+        "docs/text-to-lattice/**"
+      ],
+      "license": "LicenseRef-Hayden-Portfolio-Content",
+      "scope": "authoritative Lattice and Text to Lattice documentation register and owner-authored generated Markdown"
+    },
+    {
+      "paths": [
+        "public/documentation/text-to-lattice/*.md",
+        "public/documentation/text-to-lattice/documentation-atlas.json"
+      ],
+      "license": "LicenseRef-Hayden-Portfolio-Content",
+      "scope": "public copies of owner-authored Lattice documentation and its machine-readable register"
+    },
+    {
+      "paths": [
+        "public/documentation/text-to-lattice/**"
+      ],
+      "license": "SOURCE-COMPONENT-TERMS",
+      "scope": "generated documentation editions; embedded authored content and generator components retain their source terms"
+    },
+    {
+      "paths": [
         "README.md",
         "app/data.ts",
+        "app/content/**",
         "app/resume/**",
         "app/components/AsciiArt.tsx",
         "app/components/asciiCharacter.js",

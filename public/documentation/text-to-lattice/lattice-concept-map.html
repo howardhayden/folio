@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="A typed map of the upstream Lattice engine: who supplies authority, how meaning becomes a bounded output plan, how candidates clear protected gates, and where hosts and ecosystem applications remain responsible.">
+<meta name="theme-color" content="#ffffff">
+<meta name="generator" content="scripts/docs/build-text-to-lattice-documentation.mjs">
+<link rel="canonical" href="https://hah.dev/documentation/text-to-lattice/lattice-concept-map.html">
+<link rel="alternate" type="text/markdown" href="https://hah.dev/documentation/text-to-lattice/LATTICE-CONCEPT-MAP.md">
+<title>Lattice concept and ecosystem map · Lattice documentation</title>
+<style>
+:root {
+  color-scheme: light;
+  --ink: #20231f;
+  --muted: #5f655f;
+  --paper: #ffffff;
+  --field: #f7faf5;
+  --green: #0b4705;
+  --green-soft: #e8f1e5;
+  --red: #950f22;
+  --red-soft: #f8e9ec;
+  --line: #cfd6cd;
+  --focus: #077995;
+  font-family: "Jost", "Avenir Next", Avenir, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); color: var(--ink); scroll-behavior: smooth; }
+body { margin: 0; min-width: 280px; background: linear-gradient(180deg, var(--field), var(--paper) 22rem); line-height: 1.62; }
+a { color: var(--green); text-underline-offset: .18em; }
+a:hover { color: var(--red); text-decoration-thickness: .14em; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.skip-link { position: absolute; z-index: 20; left: 1rem; top: -6rem; padding: .75rem 1rem; background: var(--ink); color: white; border-radius: .25rem; }
+.skip-link:focus { top: 1rem; }
+.site-header { padding: clamp(2.4rem, 7vw, 5.6rem) max(1rem, calc((100vw - 76rem) / 2)); border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .92); }
+.eyebrow, .identifier { color: var(--red); font: 700 .76rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .11em; text-transform: uppercase; }
+h1, h2, h3 { line-height: 1.16; text-wrap: balance; }
+h1 { max-width: 20ch; margin: 0; color: var(--green); font-size: clamp(2.25rem, 6vw, 5.4rem); font-weight: 500; letter-spacing: -.04em; }
+h2 { color: var(--green); font-size: clamp(1.5rem, 3vw, 2.15rem); }
+h3 { color: var(--ink); }
+.lede { max-width: 75ch; margin: 1.25rem 0 0; color: var(--muted); font-size: clamp(1rem, 2vw, 1.22rem); }
+.doc-nav, .link-row, .button-row { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: 1.4rem; }
+.doc-nav a, .button-link, .link-row a { display: inline-flex; align-items: center; min-height: 44px; padding: .55rem .85rem; border: 1px solid var(--line); border-radius: 999px; background: white; text-decoration: none; }
+.doc-nav a[aria-current="page"] { border-color: var(--red); color: var(--red); }
+main { width: min(76rem, calc(100% - 2rem)); margin: 0 auto; padding: 2.2rem 0 5rem; }
+.panel { margin: 0 0 1.35rem; padding: clamp(1rem, 3vw, 1.65rem); border: 1px solid var(--line); border-radius: .2rem; background: rgba(255, 255, 255, .96); }
+.panel > :first-child { margin-top: 0; }
+.boundary { border-left: .25rem solid var(--red); }
+.method-note { border-left: .25rem solid var(--green); background: var(--green-soft); }
+.method-note strong { color: var(--green); }
+.toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .8rem; align-items: end; margin: 1rem 0; padding: 1rem; border: 1px solid var(--line); background: var(--field); }
+.toolbar label { display: block; color: var(--green); font-weight: 650; }
+.toolbar input, .toolbar select, .toolbar button { min-height: 44px; width: 100%; margin-top: .3rem; border: 1px solid var(--line); border-radius: .2rem; background: white; color: var(--ink); font: inherit; }
+.toolbar input, .toolbar select { padding: .55rem .65rem; }
+.toolbar button { padding: .55rem .75rem; cursor: pointer; }
+.toolbar button:hover { border-color: var(--red); color: var(--red); }
+.status-line { min-height: 1.55em; margin: .5rem 0; color: var(--green); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.record-grid, .index-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)); gap: 1rem; }
+.record, .index-card { min-width: 0; border: 1px solid var(--line); border-top: .2rem solid var(--green); background: white; }
+.record[hidden] { display: none !important; }
+.record details { height: 100%; }
+.record summary { min-height: 44px; padding: 1rem; cursor: pointer; }
+.record summary::marker { color: var(--red); }
+.record-title { display: inline; font-weight: 700; }
+.record-body { padding: 0 1rem 1rem; border-top: 1px solid var(--line); }
+.record-body dl { margin: .75rem 0 0; }
+.record-body dt { margin-top: .65rem; color: var(--green); font-weight: 700; }
+.record-body dd { margin: .1rem 0 0; }
+.tag { display: inline-block; margin: .15rem .2rem .15rem 0; padding: .12rem .45rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: 650 .73rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.table-wrap, .radar-wrap { max-width: 100%; overflow: auto; border: 1px solid var(--line); background: white; overscroll-behavior: contain; }
+table { width: 100%; min-width: 48rem; border-collapse: collapse; }
+caption { padding: .9rem; color: var(--red); font-weight: 700; text-align: left; }
+th, td { padding: .72rem; border-top: 1px solid var(--line); vertical-align: top; text-align: left; }
+thead th { background: var(--green-soft); color: var(--green); }
+tbody th { color: var(--red); }
+.relation-table { min-width: 60rem; }
+.blueprint-table { min-width: 94rem; }
+.source-list { padding-left: 1.25rem; }
+.source-list code { overflow-wrap: anywhere; }
+.index-card { padding: 1rem; border-top-color: var(--red); }
+.index-card h2 { margin: .25rem 0 .6rem; font-size: 1.45rem; }
+.radar-wrap svg { display: block; width: min(100%, 46rem); min-width: 40rem; height: auto; margin: auto; }
+.radar-ring, .radar-axis { fill: none; stroke: var(--line); stroke-width: 1; }
+.radar-shape { fill: rgba(11, 71, 5, .14); stroke: var(--green); stroke-width: 3; }
+.radar-point { fill: var(--red); stroke: white; stroke-width: 2; }
+.radar-label { fill: var(--ink); font: 700 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.score { color: var(--red); font-weight: 750; }
+.overview-wrap { max-width: 100%; overflow: auto; border: 1px solid var(--line); background: var(--field); }
+.overview-wrap svg { display: block; width: min(100%, 52rem); min-width: 38rem; height: auto; margin: auto; }
+.overview-line { fill: none; stroke: var(--green); stroke-width: 2; marker-end: url(#overview-arrow); }
+.overview-branch { stroke: var(--red); stroke-dasharray: 6 5; }
+.overview-node { fill: white; stroke: var(--green); stroke-width: 2; rx: 4; }
+.overview-node-branch { stroke: var(--red); }
+.overview-title { fill: var(--green); font: 700 16px "Jost", "Avenir Next", sans-serif; }
+.overview-caption { fill: var(--ink); font: 12px "Jost", "Avenir Next", sans-serif; }
+.boundary-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: .7rem; padding: 0; list-style: none; }
+.boundary-list li { padding: 1rem; border: 1px solid var(--line); border-left: .25rem solid var(--red); background: var(--field); }
+.classification-high { border-top-color: var(--red); }
+.classification-moderate { border-top-color: #9a6500; }
+.gate-open-before-publication { border-left: .25rem solid var(--red); }
+.gate-satisfied-in-source { border-left: .25rem solid var(--green); }
+.no-script { color: var(--muted); }
+.js .no-script { display: none; }
+.site-footer { padding: 1.5rem max(1rem, calc((100vw - 76rem) / 2)); border-top: 1px solid var(--line); color: var(--muted); }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+@media (max-width: 42rem) { main { width: min(100% - 1rem, 76rem); } .toolbar { grid-template-columns: 1fr; } .panel { padding: 1rem; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
+@media (forced-colors: active) { * { box-shadow: none !important; } .panel, .record, .index-card, .toolbar, .table-wrap, .radar-wrap, .overview-wrap, .boundary-list li { border-color: CanvasText; } .radar-ring, .radar-axis, .radar-shape, .overview-line, .overview-node { stroke: CanvasText; } .radar-shape, .overview-node { fill: Canvas; } .radar-point { fill: CanvasText; stroke: Canvas; } .overview-title, .overview-caption { fill: CanvasText; } }
+@media print { html, body, .site-header, .panel, .record, .index-card { background: white; color: #111; } .doc-nav, .toolbar, .skip-link, .button-row, .no-script { display: none !important; } main { width: 100%; } .record-grid, .index-grid { display: block; } .record, .index-card { break-inside: avoid; margin-bottom: .8rem; } details, details:not([open]) > :not(summary) { display: block !important; } .table-wrap, .radar-wrap, .overview-wrap { overflow: visible; } table { min-width: 0; font-size: 8pt; } a { color: #111; } }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to documentation</a>
+<header class="site-header">
+  <p class="eyebrow">Lattice technical record · revision 2026-09-08</p>
+  <h1>Lattice concept and ecosystem map</h1>
+  <p class="lede">A typed map of the upstream Lattice engine: who supplies authority, how meaning becomes a bounded output plan, how candidates clear protected gates, and where hosts and ecosystem applications remain responsible.</p>
+  <nav class="doc-nav" aria-label="Lattice documentation navigation"><a href="index.html">Documentation</a><a href="lattice-concept-map.html" aria-current="page">Concept map</a><a href="lattice-skill-map.html">System skill map</a><a href="text-to-lattice-service-blueprint.html">Service blueprint</a><a href="text-to-lattice-security-model.html">Security model</a></nav>
+</header>
+<main id="main"><section class="panel boundary" aria-labelledby="authority-heading">
+  <p class="eyebrow">Claim boundary</p>
+  <h2 id="authority-heading">Authority stays typed</h2>
+  <p>This register describes the Lattice method at an architectural level and the bounded Text to Lattice implementation evidenced in this repository. It does not redistribute the exclusive register profile, certify universal conformance, or convert source tests into deployed proof.</p>
+  <p>Stable identifiers persist. A claim changes here with cited evidence; a rendered filter, expansion, or downloaded view never changes authoritative state.</p>
+  <p>Markdown and HTML are deterministic projections of this register. Filtered browser exports are nonauthoritative reading views.</p>
+</section>
+  <section class="panel method-note"><p class="eyebrow">Relation before recital</p><h2>Meaning enters before style</h2><p>A typed map of the upstream Lattice engine: who supplies authority, how meaning becomes a bounded output plan, how candidates clear protected gates, and where hosts and ecosystem applications remain responsible.</p><p><strong>Wrapper distinction:</strong> Text to Lattice infers a bounded contract from prose. It does not inherit the upstream engine's guarantee that a domain-authoritative caller supplied typed meaning.</p></section>
+  <section class="panel" aria-labelledby="overview-heading"><h2 id="overview-heading">Derivation and ecosystem reading path</h2><p>This supplementary overview follows one primary route. The complete relation table below remains the edge authority.</p><div class="overview-wrap" tabindex="0" aria-label="Scrollable supplementary Lattice reading path"><svg viewBox="0 0 820 760" role="img" aria-labelledby="overview-title overview-desc"><title id="overview-title">Lattice derivation and host reading path</title><desc id="overview-desc">Caller and domain authority supplies a meaning contract. Explicit context creates an output plan. Candidates clear hard gates and profile evaluation before lexicographic selection. Output and receipt return to the host for human and assistive-technology review. Four ecosystem applications branch from the host. This is a reading path; the relation table is complete.</desc><defs><marker id="overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path></marker></defs>
+    <path class="overview-line" d="M 300 92 L 300 126"></path><path class="overview-line" d="M 300 198 L 300 232"></path><path class="overview-line" d="M 300 304 L 300 338"></path><path class="overview-line" d="M 300 410 L 300 444"></path><path class="overview-line" d="M 300 516 L 300 550"></path><path class="overview-line" d="M 300 622 L 300 656"></path><path class="overview-line overview-branch" d="M 480 586 C 570 586 570 680 610 680"></path>
+    <g><rect class="overview-node" x="120" y="20" width="360" height="72"></rect><text class="overview-title" x="300" y="48" text-anchor="middle">Caller and domain authority</text><text class="overview-caption" x="300" y="70" text-anchor="middle">Truth, terminology, context, candidate provenance</text></g>
+    <g><rect class="overview-node" x="120" y="126" width="360" height="72"></rect><text class="overview-title" x="300" y="154" text-anchor="middle">Meaning contract</text><text class="overview-caption" x="300" y="176" text-anchor="middle">Typed atoms · relations · protected fields</text></g>
+    <g><rect class="overview-node" x="120" y="232" width="360" height="72"></rect><text class="overview-title" x="300" y="260" text-anchor="middle">Context and output plan</text><text class="overview-caption" x="300" y="282" text-anchor="middle">Layer × representation under protected priority</text></g>
+    <g><rect class="overview-node" x="120" y="338" width="360" height="72"></rect><text class="overview-title" x="300" y="366" text-anchor="middle">Candidate or literal baseline</text><text class="overview-caption" x="300" y="388" text-anchor="middle">Both enter the same hard-gate path</text></g>
+    <g><rect class="overview-node" x="120" y="444" width="360" height="72"></rect><text class="overview-title" x="300" y="472" text-anchor="middle">Hard gates → profile → selection</text><text class="overview-caption" x="300" y="494" text-anchor="middle">Failure cannot be averaged away by style</text></g>
+    <g><rect class="overview-node" x="120" y="550" width="360" height="72"></rect><text class="overview-title" x="300" y="578" text-anchor="middle">Output and derivation receipt</text><text class="overview-caption" x="300" y="600" text-anchor="middle">Bounded conformance · self-consistent evidence</text></g>
+    <g><rect class="overview-node" x="120" y="656" width="360" height="72"></rect><text class="overview-title" x="300" y="684" text-anchor="middle">Host and human review</text><text class="overview-caption" x="300" y="706" text-anchor="middle">Presentation · privacy · truth · accessibility</text></g>
+    <g><rect class="overview-node overview-node-branch" x="610" y="630" width="190" height="100"></rect><text class="overview-title" x="705" y="656" text-anchor="middle">Ecosystem branch</text><text class="overview-caption" x="705" y="678" text-anchor="middle">Text to Lattice</text><text class="overview-caption" x="705" y="696" text-anchor="middle">FOG OF SEA · CHORUS</text><text class="overview-caption" x="705" y="714" text-anchor="middle">Evenward</text></g>
+  </svg></div></section>
+  <section class="panel" data-interactive-register data-export-title="Lattice concept and ecosystem map" data-export-filename="lattice-concept-map-visible.md" aria-labelledby="explore-heading">
+  <h2 id="explore-heading">Explore this register</h2>
+  <p class="no-script">The complete register follows. Search, filters, expansion controls, and local Markdown export require JavaScript; no content does.</p>
+  <div class="toolbar">
+    <label>Search concepts, authority, relations, or evidence<input type="search" data-doc-search autocomplete="off"></label>
+    <label>Concept group
+    <select data-filter-key="group">
+      <option value="">All groups</option>
+      <option value="authority">Authority</option><option value="semantics">Semantic contract</option><option value="planning">Context and plan</option><option value="realization">Realization</option><option value="evaluation">Evaluation</option><option value="evidence">Output and evidence</option><option value="host">Host boundary</option><option value="ecosystem">Ecosystem</option>
+    </select>
+  </label><label>Reading perspective
+    <select data-filter-key="perspective">
+      <option value="">All perspectives</option>
+      <option value="engine">Engine derivation</option><option value="assurance">Gates and evidence</option><option value="host">Host boundary</option><option value="ecosystem">Ecosystem applications</option>
+    </select>
+  </label>
+    <label>View controls<span class="sr-only"> for visible records</span><button type="button" data-reset>Reset filters</button></label>
+    <label>Disclosure controls<button type="button" data-expand>Expand visible</button></label>
+    <label>Disclosure controls<button type="button" data-collapse>Collapse visible</button></label>
+    <label>Local export<button type="button" data-download-visible>Download visible Markdown</button></label>
+  </div>
+  <p class="status-line" data-doc-status role="status" aria-live="polite" aria-label="Visible concept count"></p><div><section aria-labelledby="group-authority"><h2 id="group-authority">Authority</h2><p>The caller and domain sources that establish meaning before expression.</p><div class="record-grid"><article class="record" data-record data-group="authority" data-perspective="engine assurance host ecosystem">
+        <details id="lat-n-000">
+          <summary><span class="identifier">LAT-N-000</span><br><span class="record-title" data-record-title>Lattice engine</span> · Meaning contract ≠ register ≠ realization ≠ presentation</summary>
+          <div class="record-body" data-record-body><p>A local-first deterministic TypeScript engine that realizes and validates context-sensitive plain text from typed meaning, explicit context, declarative profiles, and traceable candidates.</p><dl><dt>Authority</dt><dd>Reviewed upstream architecture at d6cc85b</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span><span class="tag">host</span><span class="tag">ecosystem</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-README</span><span class="tag">SRC-LAT-ARCH</span><span class="tag">SRC-LAT-ENGINE</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-025</code> · LAT-N-022 → applies Lattice to naval learning → LAT-N-000</li><li><code>LAT-E-026</code> · LAT-N-023 → applies Lattice to social systems → LAT-N-000</li><li><code>LAT-E-027</code> · LAT-N-024 → selectively applies Lattice to care → LAT-N-000</li><li><code>LAT-E-028</code> · LAT-N-000 → accepts and validates typed meaning contracts → LAT-N-002</li><li><code>LAT-E-029</code> · LAT-N-021 → demonstrates Lattice principles without embedding the engine → LAT-N-000</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="authority" data-perspective="engine host assurance">
+        <details id="lat-n-001">
+          <summary><span class="identifier">LAT-N-001</span><br><span class="record-title" data-record-title>Caller and domain authority</span> · Truth enters before expression</summary>
+          <div class="record-body" data-record-body><p>The caller supplies structured claims, terminology, context, candidate provenance, and domain attestations. Lattice does not infer source truth, authority, or missing high-priority context.</p><dl><dt>Authority</dt><dd>Meaning and host trust boundary</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">host</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-README</span><span class="tag">SRC-LAT-ARCH</span><span class="tag">SRC-LAT-REQ</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-001</code> · LAT-N-001 → supplies typed semantic authority → LAT-N-002</li><li><code>LAT-E-004</code> · LAT-N-001 → supplies explicit domain and audience context → LAT-N-005</li><li><code>LAT-E-024</code> · LAT-N-021 → cannot inherit caller-supplied authority by inference → LAT-N-001</li></ul></dd></dl></div>
+        </details>
+      </article></div></section><section aria-labelledby="group-semantics"><h2 id="group-semantics">Semantic contract</h2><p>Typed atoms and relations that make preservation testable.</p><div class="record-grid"><article class="record" data-record data-group="semantics" data-perspective="engine assurance">
+        <details id="lat-n-002">
+          <summary><span class="identifier">LAT-N-002</span><br><span class="record-title" data-record-title>Meaning contract</span> · Semantic authority in typed form</summary>
+          <div class="record-body" data-record-body><p>A bounded contract gives each semantic obligation a stable identity, frame, criticality, delivery policy, protected fields, permitted evidence, and prohibited dependencies.</p><dl><dt>Authority</dt><dd>Validated contract model</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-ARCH</span><span class="tag">SRC-LAT-SEMANTIC</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-001</code> · LAT-N-001 → supplies typed semantic authority → LAT-N-002</li><li><code>LAT-E-002</code> · LAT-N-002 → defines independently addressable meaning → LAT-N-003</li><li><code>LAT-E-010</code> · LAT-N-002 → sets required atom coverage → LAT-N-010</li><li><code>LAT-E-012</code> · LAT-N-002 → derives controlled literal baseline → LAT-N-012</li><li><code>LAT-E-028</code> · LAT-N-000 → accepts and validates typed meaning contracts → LAT-N-002</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="semantics" data-perspective="engine assurance">
+        <details id="lat-n-003">
+          <summary><span class="identifier">LAT-N-003</span><br><span class="record-title" data-record-title>Semantic atoms</span> · Independently addressable obligations</summary>
+          <div class="record-body" data-record-body><p>Actions, states, timings, conditions, consequences, prohibitions, uncertainties, recovery steps, and relations carry structured subjects, predicates, objects, polarity, modality, value, unit, and condition references.</p><dl><dt>Authority</dt><dd>Semantic core</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-SEMANTIC</span><span class="tag">SRC-LAT-REQ</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-002</code> · LAT-N-002 → defines independently addressable meaning → LAT-N-003</li><li><code>LAT-E-003</code> · LAT-N-003 → participates in typed dependencies → LAT-N-004</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="semantics" data-perspective="engine assurance">
+        <details id="lat-n-004">
+          <summary><span class="identifier">LAT-N-004</span><br><span class="record-title" data-record-title>Typed relations</span> · Before · after · requires · causes · contradicts</summary>
+          <div class="record-body" data-record-body><p>Relations connect existing atoms and make protected order, dependency, causality, and contradiction explicit; unresolved references, invalid self-links, and incoherent cycles fail closed.</p><dl><dt>Authority</dt><dd>Semantic core</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-SEMANTIC</span><span class="tag">SRC-LAT-ADVERSARIAL</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-003</code> · LAT-N-003 → participates in typed dependencies → LAT-N-004</li></ul></dd></dl></div>
+        </details>
+      </article></div></section><section aria-labelledby="group-planning"><h2 id="group-planning">Context and plan</h2><p>Explicit context, content layers, representations, priorities, and requested outputs.</p><div class="record-grid"><article class="record" data-record data-group="planning" data-perspective="engine host">
+        <details id="lat-n-005">
+          <summary><span class="identifier">LAT-N-005</span><br><span class="record-title" data-record-title>Register context</span> · Explicit, never ambient</summary>
+          <div class="record-body" data-record-body><p>Domain, surface, mode, stakes, safety class, locale, audience, focalizer, channel capabilities, and execution limits arrive as validated input rather than time, locale, identity, network, or prior-run inference.</p><dl><dt>Authority</dt><dd>Context core</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">host</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-CONTEXT</span><span class="tag">SRC-LAT-ARCH</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-004</code> · LAT-N-001 → supplies explicit domain and audience context → LAT-N-005</li><li><code>LAT-E-005</code> · LAT-N-005 → conditions layer obligations → LAT-N-006</li><li><code>LAT-E-006</code> · LAT-N-005 → declares available meaning channels → LAT-N-007</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="planning" data-perspective="engine host ecosystem">
+        <details id="lat-n-006">
+          <summary><span class="identifier">LAT-N-006</span><br><span class="record-title" data-record-title>Content layer</span> · Operative · experiential · interpretive</summary>
+          <div class="record-body" data-record-body><p>A requested layer determines which atoms must be explicit or may be inferable, while experiential and interpretive emphasis cannot contradict or conceal operative meaning.</p><dl><dt>Authority</dt><dd>Layer contract</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">host</span><span class="tag">ecosystem</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-README</span><span class="tag">SRC-LAT-CONTEXT</span><span class="tag">SRC-LAT-REQ</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-005</code> · LAT-N-005 → conditions layer obligations → LAT-N-006</li><li><code>LAT-E-008</code> · LAT-N-006 → requests content treatment → LAT-N-010</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="planning" data-perspective="engine assurance host">
+        <details id="lat-n-007">
+          <summary><span class="identifier">LAT-N-007</span><br><span class="record-title" data-record-title>Representation</span> · Standard · accessibility-equivalent</summary>
+          <div class="record-body" data-record-body><p>Accessibility is another realization of the same relevant atoms, not a fourth narrative layer. Essential meaning cannot depend on unavailable imagery, color, sound, spatial inference, timing perception, or implication.</p><dl><dt>Authority</dt><dd>Representation and parity contract</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span><span class="tag">host</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-README</span><span class="tag">SRC-LAT-CONTEXT</span><span class="tag">SRC-LAT-ARCH</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-006</code> · LAT-N-005 → declares available meaning channels → LAT-N-007</li><li><code>LAT-E-009</code> · LAT-N-007 → requests equivalent representation → LAT-N-010</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="planning" data-perspective="engine assurance">
+        <details id="lat-n-008">
+          <summary><span class="identifier">LAT-N-008</span><br><span class="record-title" data-record-title>Protected priority</span> · Safety before ornament</summary>
+          <div class="record-body" data-record-body><p>Safety, semantic fidelity, accessibility equivalence, required operative clarity, and authoritative domain correctness are hard gates that profile style and ranking cannot outweigh.</p><dl><dt>Authority</dt><dd>Engine-owned policy</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-README</span><span class="tag">SRC-LAT-REQ</span><span class="tag">SRC-LAT-ENGINE</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-007</code> · LAT-N-008 → reserves priorities profiles cannot redefine → LAT-N-009</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="planning" data-perspective="engine assurance host">
+        <details id="lat-n-009">
+          <summary><span class="identifier">LAT-N-009</span><br><span class="record-title" data-record-title>Profile and RSR boundary</span> · Declarative policy · protected license</summary>
+          <div class="record-body" data-record-body><p>Profiles declare bounded predicates, validators, dependencies, conflicts, and lower-priority policy without executable transforms. The bundled Relational Systems Register remains separately licensed and is not reproduced here.</p><dl><dt>Authority</dt><dd>Profile compiler and license boundary</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span><span class="tag">host</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-PROFILE</span><span class="tag">SRC-LAT-README</span><span class="tag">SRC-LAT-REQ</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-007</code> · LAT-N-008 → reserves priorities profiles cannot redefine → LAT-N-009</li><li><code>LAT-E-015</code> · LAT-N-009 → resolves and evaluates profile policy → LAT-N-014</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="planning" data-perspective="engine host">
+        <details id="lat-n-010">
+          <summary><span class="identifier">LAT-N-010</span><br><span class="record-title" data-record-title>Output plan</span> · Requested layer × representation</summary>
+          <div class="record-body" data-record-body><p>Normalized outputs are unique, ordered layer-and-representation pairs; accessibility equivalents pull in their standard pair, and safety-critical contexts require both operative representations.</p><dl><dt>Authority</dt><dd>Context normalization</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">host</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-CONTEXT</span><span class="tag">SRC-LAT-ENGINE</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-008</code> · LAT-N-006 → requests content treatment → LAT-N-010</li><li><code>LAT-E-009</code> · LAT-N-007 → requests equivalent representation → LAT-N-010</li><li><code>LAT-E-010</code> · LAT-N-002 → sets required atom coverage → LAT-N-010</li></ul></dd></dl></div>
+        </details>
+      </article></div></section><section aria-labelledby="group-realization"><h2 id="group-realization">Realization</h2><p>Mapped proposals and the controlled literal baseline.</p><div class="record-grid"><article class="record" data-record data-group="realization" data-perspective="engine assurance host">
+        <details id="lat-n-011">
+          <summary><span class="identifier">LAT-N-011</span><br><span class="record-title" data-record-title>Mapped candidate</span> · Untrusted proposal with atom evidence</summary>
+          <div class="record-body" data-record-body><p>A host may propose bounded plain text, atom identifiers, and validation metadata. Candidate order and source do not authorize selection; unknown mappings and invented claims remain rejectable.</p><dl><dt>Authority</dt><dd>Candidate boundary</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span><span class="tag">host</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-ARCH</span><span class="tag">SRC-LAT-ENGINE</span><span class="tag">SRC-LAT-ADVERSARIAL</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-011</code> · LAT-N-019 → proposes mapped candidate text → LAT-N-011</li><li><code>LAT-E-013</code> · LAT-N-011 → must clear engine-owned hard gates → LAT-N-013</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="realization" data-perspective="engine assurance">
+        <details id="lat-n-012">
+          <summary><span class="identifier">LAT-N-012</span><br><span class="record-title" data-record-title>Literal baseline</span> · Controlled fallback, labeled literal</summary>
+          <div class="record-body" data-record-body><p>When no mapped candidate targets an output, the engine constructs a deterministic realization from controlled literal forms or structured frames and never labels it full conformance.</p><dl><dt>Authority</dt><dd>Current realization boundary</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-README</span><span class="tag">SRC-LAT-SEMANTIC</span><span class="tag">SRC-LAT-ADVERSARIAL</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-012</code> · LAT-N-002 → derives controlled literal baseline → LAT-N-012</li><li><code>LAT-E-014</code> · LAT-N-012 → must clear the same protected path → LAT-N-013</li></ul></dd></dl></div>
+        </details>
+      </article></div></section><section aria-labelledby="group-evaluation"><h2 id="group-evaluation">Evaluation</h2><p>Engine gates, profile decisions, and deterministic selection.</p><div class="record-grid"><article class="record" data-record data-group="evaluation" data-perspective="engine assurance">
+        <details id="lat-n-013">
+          <summary><span class="identifier">LAT-N-013</span><br><span class="record-title" data-record-title>Hard gates</span> · Failure cannot be averaged away</summary>
+          <div class="record-body" data-record-body><p>Engine-owned checks reject uncovered atoms, protected drift, changed polarity or modality, quantity or unit change, unsafe dependencies, layer contradiction, accessibility gaps, and other registered structural failures.</p><dl><dt>Authority</dt><dd>Validator and engine contract</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-ENGINE</span><span class="tag">SRC-LAT-REQ</span><span class="tag">SRC-LAT-ADVERSARIAL</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-013</code> · LAT-N-011 → must clear engine-owned hard gates → LAT-N-013</li><li><code>LAT-E-014</code> · LAT-N-012 → must clear the same protected path → LAT-N-013</li><li><code>LAT-E-016</code> · LAT-N-013 → excludes inadmissible candidates → LAT-N-015</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="evaluation" data-perspective="engine assurance">
+        <details id="lat-n-014">
+          <summary><span class="identifier">LAT-N-014</span><br><span class="record-title" data-record-title>Profile evaluation</span> · Applicability ≠ result</summary>
+          <div class="record-body" data-record-body><p>Each rule records applied, suppressed, or inapplicable separately from pass, warn, fail, unknown, or not-applicable, so nonexecution cannot masquerade as satisfaction.</p><dl><dt>Authority</dt><dd>Profile resolution</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-PROFILE</span><span class="tag">SRC-LAT-ENGINE</span><span class="tag">SRC-LAT-REQ</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-015</code> · LAT-N-009 → resolves and evaluates profile policy → LAT-N-014</li><li><code>LAT-E-017</code> · LAT-N-014 → supplies lower-priority findings → LAT-N-015</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="evaluation" data-perspective="engine assurance">
+        <details id="lat-n-015">
+          <summary><span class="identifier">LAT-N-015</span><br><span class="record-title" data-record-title>Lexicographic selection</span> · Priority tuple, then stable digest</summary>
+          <div class="record-body" data-record-body><p>Admissible candidates are ranked lexicographically by protected priority, conformance, registered findings, and stable tie-break evidence; a stylistic gain cannot compensate for a hard failure.</p><dl><dt>Authority</dt><dd>Deterministic engine selection</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-ENGINE</span><span class="tag">SRC-LAT-ARCH</span><span class="tag">SRC-LAT-ADVERSARIAL</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-016</code> · LAT-N-013 → excludes inadmissible candidates → LAT-N-015</li><li><code>LAT-E-017</code> · LAT-N-014 → supplies lower-priority findings → LAT-N-015</li><li><code>LAT-E-018</code> · LAT-N-015 → selects one bounded output → LAT-N-016</li></ul></dd></dl></div>
+        </details>
+      </article></div></section><section aria-labelledby="group-evidence"><h2 id="group-evidence">Output and evidence</h2><p>Plain-text results, receipts, and structural verification.</p><div class="record-grid"><article class="record" data-record data-group="evidence" data-perspective="engine host ecosystem">
+        <details id="lat-n-016">
+          <summary><span class="identifier">LAT-N-016</span><br><span class="record-title" data-record-title>Layered plain-text output</span> · Selected realization with bounded conformance</summary>
+          <div class="record-body" data-record-body><p>Each output exposes its layer, representation, text, atom mapping, candidate source, conformance, coverage, findings, and rule decisions; the host still owns presentation.</p><dl><dt>Authority</dt><dd>Public result structure</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">host</span><span class="tag">ecosystem</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-ENGINE</span><span class="tag">SRC-LAT-ARCH</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-018</code> · LAT-N-015 → selects one bounded output → LAT-N-016</li><li><code>LAT-E-019</code> · LAT-N-016 → is bound into derivation evidence → LAT-N-017</li><li><code>LAT-E-021</code> · LAT-N-016 → returns plain text and evidence to host → LAT-N-019</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="evidence" data-perspective="engine assurance host">
+        <details id="lat-n-017">
+          <summary><span class="identifier">LAT-N-017</span><br><span class="record-title" data-record-title>Derivation receipt</span> · Reproducibility, not authenticity</summary>
+          <div class="record-body" data-record-body><p>A canonical receipt binds input, engine and profile versions, outputs, candidates, decisions, assurance scope, and derivation digest without claiming that facts or history are authentic.</p><dl><dt>Authority</dt><dd>Evidence contract</dd><dt>Perspectives</dt><dd><span class="tag">engine</span><span class="tag">assurance</span><span class="tag">host</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-ENGINE</span><span class="tag">SRC-LAT-README</span><span class="tag">SRC-LAT-ARCH</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-019</code> · LAT-N-016 → is bound into derivation evidence → LAT-N-017</li><li><code>LAT-E-020</code> · LAT-N-017 → permits structural consistency checking → LAT-N-018</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="evidence" data-perspective="assurance host">
+        <details id="lat-n-018">
+          <summary><span class="identifier">LAT-N-018</span><br><span class="record-title" data-record-title>Structural verification</span> · Self-consistent, unauthenticated</summary>
+          <div class="record-body" data-record-body><p>Receipt and result verification reject unsupported schemas, broken references, altered aggregates, and digest tampering while reporting that integrity is self-consistent and not externally authenticated.</p><dl><dt>Authority</dt><dd>Receipt verifier</dd><dt>Perspectives</dt><dd><span class="tag">assurance</span><span class="tag">host</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-ENGINE</span><span class="tag">SRC-LAT-ADVERSARIAL</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-020</code> · LAT-N-017 → permits structural consistency checking → LAT-N-018</li></ul></dd></dl></div>
+        </details>
+      </article></div></section><section aria-labelledby="group-host"><h2 id="group-host">Host boundary</h2><p>Presentation, source quality, privacy, and human review that stay outside the engine.</p><div class="record-grid"><article class="record" data-record data-group="host" data-perspective="host ecosystem assurance">
+        <details id="lat-n-019">
+          <summary><span class="identifier">LAT-N-019</span><br><span class="record-title" data-record-title>Host application</span> · Candidate, UI, privacy, and persistence owner</summary>
+          <div class="record-body" data-record-body><p>The host owns domain-source quality, mapped candidate production, sanitization, rendering, storage consent, privacy, interface accessibility, and any claims beyond the engine&#39;s declared trust scope.</p><dl><dt>Authority</dt><dd>Host responsibility boundary</dd><dt>Perspectives</dt><dd><span class="tag">host</span><span class="tag">ecosystem</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-ARCH</span><span class="tag">SRC-LAT-README</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-011</code> · LAT-N-019 → proposes mapped candidate text → LAT-N-011</li><li><code>LAT-E-021</code> · LAT-N-016 → returns plain text and evidence to host → LAT-N-019</li><li><code>LAT-E-022</code> · LAT-N-019 → routes unprovable qualities to review → LAT-N-020</li><li><code>LAT-E-023</code> · LAT-N-021 → acts as a probabilistic host wrapper → LAT-N-019</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="host" data-perspective="host assurance">
+        <details id="lat-n-020">
+          <summary><span class="identifier">LAT-N-020</span><br><span class="record-title" data-record-title>Human and assistive-technology review</span> · Empirical judgment remains necessary</summary>
+          <div class="record-body" data-record-body><p>Disabled users, assistive technologies, domain reviewers, and editors test accessibility, comprehension, truth, moral adequacy, and literary quality that deterministic structure cannot prove.</p><dl><dt>Authority</dt><dd>Known limitation and review boundary</dd><dt>Perspectives</dt><dd><span class="tag">host</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-LAT-README</span><span class="tag">SRC-LAT-ARCH</span><span class="tag">SRC-LAT-REQ</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-022</code> · LAT-N-019 → routes unprovable qualities to review → LAT-N-020</li></ul></dd></dl></div>
+        </details>
+      </article></div></section><section aria-labelledby="group-ecosystem"><h2 id="group-ecosystem">Ecosystem</h2><p>Products that apply or interpret Lattice under their own contracts.</p><div class="record-grid"><article class="record" data-record data-group="ecosystem" data-perspective="ecosystem host assurance">
+        <details id="lat-n-021">
+          <summary><span class="identifier">LAT-N-021</span><br><span class="record-title" data-record-title>Text to Lattice</span> · Probabilistic wrapper, distinct authority model</summary>
+          <div class="record-body" data-record-body><p>The hah.dev demonstrator infers a bounded contract from prose with local models and independent checks. It does not inherit the upstream engine&#39;s typed caller-authority guarantee and must state its weaker semantic boundary separately.</p><dl><dt>Authority</dt><dd>Wrapper claim boundary</dd><dt>Perspectives</dt><dd><span class="tag">ecosystem</span><span class="tag">host</span><span class="tag">assurance</span></dd><dt>Sources</dt><dd><span class="tag">SRC-REQUIREMENTS</span><span class="tag">SRC-DEMO</span><span class="tag">SRC-PROJECTS</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-023</code> · LAT-N-021 → acts as a probabilistic host wrapper → LAT-N-019</li><li><code>LAT-E-024</code> · LAT-N-021 → cannot inherit caller-supplied authority by inference → LAT-N-001</li><li><code>LAT-E-029</code> · LAT-N-021 → demonstrates Lattice principles without embedding the engine → LAT-N-000</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="ecosystem" data-perspective="ecosystem">
+        <details id="lat-n-022">
+          <summary><span class="identifier">LAT-N-022</span><br><span class="record-title" data-record-title>FOG OF SEA</span> · Naval learning and operational uncertainty</summary>
+          <div class="record-body" data-record-body><p>A host context that applies Lattice to naval learning, operational uncertainty, and accessible tactical interaction under its own domain and evidence responsibilities.</p><dl><dt>Authority</dt><dd>Portfolio ecosystem register</dd><dt>Perspectives</dt><dd><span class="tag">ecosystem</span></dd><dt>Sources</dt><dd><span class="tag">SRC-PROJECTS</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-025</code> · LAT-N-022 → applies Lattice to naval learning → LAT-N-000</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="ecosystem" data-perspective="ecosystem">
+        <details id="lat-n-023">
+          <summary><span class="identifier">LAT-N-023</span><br><span class="record-title" data-record-title>CHORUS</span> · Social and epistemic systems</summary>
+          <div class="record-body" data-record-body><p>A host context that applies Lattice to social and epistemic systems while retaining its own simulation, claim, accessibility, and evidence boundaries.</p><dl><dt>Authority</dt><dd>Portfolio ecosystem register</dd><dt>Perspectives</dt><dd><span class="tag">ecosystem</span></dd><dt>Sources</dt><dd><span class="tag">SRC-PROJECTS</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-026</code> · LAT-N-023 → applies Lattice to social systems → LAT-N-000</li></ul></dd></dl></div>
+        </details>
+      </article><article class="record" data-record data-group="ecosystem" data-perspective="ecosystem">
+        <details id="lat-n-024">
+          <summary><span class="identifier">LAT-N-024</span><br><span class="record-title" data-record-title>Evenward</span> · Selected embodied guidance and care</summary>
+          <div class="record-body" data-record-body><p>A host context that selectively applies Lattice to embodied guidance and care while remaining responsible for safety, privacy, presentation, and human validation.</p><dl><dt>Authority</dt><dd>Portfolio ecosystem register</dd><dt>Perspectives</dt><dd><span class="tag">ecosystem</span></dd><dt>Sources</dt><dd><span class="tag">SRC-PROJECTS</span></dd><dt>Typed relations</dt><dd><ul><li><code>LAT-E-027</code> · LAT-N-024 → selectively applies Lattice to care → LAT-N-000</li></ul></dd></dl></div>
+        </details>
+      </article></div></section></div></section>
+  <section class="panel" aria-labelledby="relations-heading"><h2 id="relations-heading">Complete relation register</h2><p>Filtering never changes this canonical relation table.</p><div class="table-wrap" tabindex="0" aria-label="Scrollable complete Lattice relation table"><table class="relation-table"><caption>All typed concept relations</caption><thead><tr><th scope="col">ID</th><th scope="col">Source</th><th scope="col">Relation</th><th scope="col">Target</th><th scope="col">Kind</th></tr></thead><tbody><tr><th scope="row">LAT-E-001</th><td>Caller and domain authority <code>LAT-N-001</code></td><td>supplies typed semantic authority</td><td>Meaning contract <code>LAT-N-002</code></td><td>supplies</td></tr><tr><th scope="row">LAT-E-002</th><td>Meaning contract <code>LAT-N-002</code></td><td>defines independently addressable meaning</td><td>Semantic atoms <code>LAT-N-003</code></td><td>defines</td></tr><tr><th scope="row">LAT-E-003</th><td>Semantic atoms <code>LAT-N-003</code></td><td>participates in typed dependencies</td><td>Typed relations <code>LAT-N-004</code></td><td>relates</td></tr><tr><th scope="row">LAT-E-004</th><td>Caller and domain authority <code>LAT-N-001</code></td><td>supplies explicit domain and audience context</td><td>Register context <code>LAT-N-005</code></td><td>supplies</td></tr><tr><th scope="row">LAT-E-005</th><td>Register context <code>LAT-N-005</code></td><td>conditions layer obligations</td><td>Content layer <code>LAT-N-006</code></td><td>constrains</td></tr><tr><th scope="row">LAT-E-006</th><td>Register context <code>LAT-N-005</code></td><td>declares available meaning channels</td><td>Representation <code>LAT-N-007</code></td><td>constrains</td></tr><tr><th scope="row">LAT-E-007</th><td>Protected priority <code>LAT-N-008</code></td><td>reserves priorities profiles cannot redefine</td><td>Profile and RSR boundary <code>LAT-N-009</code></td><td>constrains</td></tr><tr><th scope="row">LAT-E-008</th><td>Content layer <code>LAT-N-006</code></td><td>requests content treatment</td><td>Output plan <code>LAT-N-010</code></td><td>requests</td></tr><tr><th scope="row">LAT-E-009</th><td>Representation <code>LAT-N-007</code></td><td>requests equivalent representation</td><td>Output plan <code>LAT-N-010</code></td><td>requests</td></tr><tr><th scope="row">LAT-E-010</th><td>Meaning contract <code>LAT-N-002</code></td><td>sets required atom coverage</td><td>Output plan <code>LAT-N-010</code></td><td>constrains</td></tr><tr><th scope="row">LAT-E-011</th><td>Host application <code>LAT-N-019</code></td><td>proposes mapped candidate text</td><td>Mapped candidate <code>LAT-N-011</code></td><td>proposes</td></tr><tr><th scope="row">LAT-E-012</th><td>Meaning contract <code>LAT-N-002</code></td><td>derives controlled literal baseline</td><td>Literal baseline <code>LAT-N-012</code></td><td>derives</td></tr><tr><th scope="row">LAT-E-013</th><td>Mapped candidate <code>LAT-N-011</code></td><td>must clear engine-owned hard gates</td><td>Hard gates <code>LAT-N-013</code></td><td>validates</td></tr><tr><th scope="row">LAT-E-014</th><td>Literal baseline <code>LAT-N-012</code></td><td>must clear the same protected path</td><td>Hard gates <code>LAT-N-013</code></td><td>validates</td></tr><tr><th scope="row">LAT-E-015</th><td>Profile and RSR boundary <code>LAT-N-009</code></td><td>resolves and evaluates profile policy</td><td>Profile evaluation <code>LAT-N-014</code></td><td>evaluates</td></tr><tr><th scope="row">LAT-E-016</th><td>Hard gates <code>LAT-N-013</code></td><td>excludes inadmissible candidates</td><td>Lexicographic selection <code>LAT-N-015</code></td><td>constrains</td></tr><tr><th scope="row">LAT-E-017</th><td>Profile evaluation <code>LAT-N-014</code></td><td>supplies lower-priority findings</td><td>Lexicographic selection <code>LAT-N-015</code></td><td>ranks</td></tr><tr><th scope="row">LAT-E-018</th><td>Lexicographic selection <code>LAT-N-015</code></td><td>selects one bounded output</td><td>Layered plain-text output <code>LAT-N-016</code></td><td>derives</td></tr><tr><th scope="row">LAT-E-019</th><td>Layered plain-text output <code>LAT-N-016</code></td><td>is bound into derivation evidence</td><td>Derivation receipt <code>LAT-N-017</code></td><td>records</td></tr><tr><th scope="row">LAT-E-020</th><td>Derivation receipt <code>LAT-N-017</code></td><td>permits structural consistency checking</td><td>Structural verification <code>LAT-N-018</code></td><td>verifies</td></tr><tr><th scope="row">LAT-E-021</th><td>Layered plain-text output <code>LAT-N-016</code></td><td>returns plain text and evidence to host</td><td>Host application <code>LAT-N-019</code></td><td>integrates</td></tr><tr><th scope="row">LAT-E-022</th><td>Host application <code>LAT-N-019</code></td><td>routes unprovable qualities to review</td><td>Human and assistive-technology review <code>LAT-N-020</code></td><td>integrates</td></tr><tr><th scope="row">LAT-E-023</th><td>Text to Lattice <code>LAT-N-021</code></td><td>acts as a probabilistic host wrapper</td><td>Host application <code>LAT-N-019</code></td><td>integrates</td></tr><tr><th scope="row">LAT-E-024</th><td>Text to Lattice <code>LAT-N-021</code></td><td>cannot inherit caller-supplied authority by inference</td><td>Caller and domain authority <code>LAT-N-001</code></td><td>constrains</td></tr><tr><th scope="row">LAT-E-025</th><td>FOG OF SEA <code>LAT-N-022</code></td><td>applies Lattice to naval learning</td><td>Lattice engine <code>LAT-N-000</code></td><td>applies</td></tr><tr><th scope="row">LAT-E-026</th><td>CHORUS <code>LAT-N-023</code></td><td>applies Lattice to social systems</td><td>Lattice engine <code>LAT-N-000</code></td><td>applies</td></tr><tr><th scope="row">LAT-E-027</th><td>Evenward <code>LAT-N-024</code></td><td>selectively applies Lattice to care</td><td>Lattice engine <code>LAT-N-000</code></td><td>applies</td></tr><tr><th scope="row">LAT-E-028</th><td>Lattice engine <code>LAT-N-000</code></td><td>accepts and validates typed meaning contracts</td><td>Meaning contract <code>LAT-N-002</code></td><td>validates</td></tr><tr><th scope="row">LAT-E-029</th><td>Text to Lattice <code>LAT-N-021</code></td><td>demonstrates Lattice principles without embedding the engine</td><td>Lattice engine <code>LAT-N-000</code></td><td>applies</td></tr></tbody></table></div></section>
+  <section class="panel"><h2>Sources and exports</h2><p><a class="button-link" href="LATTICE-CONCEPT-MAP.md" download>Download complete Markdown</a> <a class="button-link" href="documentation-atlas.json" download>Download authoritative JSON</a> <a class="button-link" href="artifact-manifest.json">Inspect integrity manifest</a></p></section>
+  <section class="panel" aria-labelledby="sources-heading"><h2 id="sources-heading">Source register</h2><ul class="source-list"><li><strong>SRC-REQUIREMENTS — Text to Lattice public requirements:</strong> <code>docs/lattice-resume-demo-requirements.md</code></li><li><strong>SRC-DEMO — Bounded pipeline coordinator:</strong> <code>app/resume/latticeDemo.js</code></li><li><strong>SRC-INPUT — Input and clarification policy:</strong> <code>app/resume/lattice/inputPolicy.js</code></li><li><strong>SRC-SEGMENTS — Lossless segmentation:</strong> <code>app/resume/lattice/segments.js</code></li><li><strong>SRC-PROTECTED — Protected-span handling:</strong> <code>app/resume/lattice/protectedSpans.js</code></li><li><strong>SRC-PROMPTS — Closed prompts and schemas:</strong> <code>app/resume/lattice/promptContract.js</code></li><li><strong>SRC-VALIDATORS — Deterministic semantic validators:</strong> <code>app/resume/lattice/validators.js</code></li><li><strong>SRC-LOCAL-MODEL — Local model adapter:</strong> <code>app/resume/lattice/localModel.js</code></li><li><strong>SRC-MODEL-CONTRACT — Pinned model contract:</strong> <code>app/resume/lattice/modelContract.js</code></li><li><strong>SRC-MODEL-WORKER — Isolated model worker:</strong> <code>app/resume/lattice/latticeWebllm.worker.ts</code></li><li><strong>SRC-ASSET-POLICY — Model-asset request policy:</strong> <code>app/resume/lattice/assetRequestPolicy.js</code></li><li><strong>SRC-ATTESTATION — Cross-origin attestation protocol:</strong> <code>app/resume/lattice/attestation.js</code></li><li><strong>SRC-USAGE-LEASE — Browser lease client:</strong> <code>app/resume/lattice/usageLease.js</code></li><li><strong>SRC-USAGE-POLICY — Published usage and capacity policy:</strong> <code>app/resume/lattice/usagePolicy.js</code></li><li><strong>SRC-OUTPUT — Output protection controls:</strong> <code>app/resume/lattice/outputProtection.js</code></li><li><strong>SRC-LEASE-WORKER — Lease Worker request coordinator:</strong> <code>workers/text-to-lattice-lease/worker.js</code></li><li><strong>SRC-USAGE-STORAGE — Global usage authority:</strong> <code>workers/text-to-lattice-lease/usageStorage.js</code></li><li><strong>SRC-FRAME — Dedicated verification bridge:</strong> <code>workers/text-to-lattice-attestation-frame/public/turnstile/bridge.js</code></li><li><strong>SRC-TEST-ENGINE — Engine executable contracts:</strong> <code>tests/lattice-demo.test.mjs</code></li><li><strong>SRC-TEST-SECURITY — Security executable contracts:</strong> <code>tests/lattice-security.test.mjs</code></li><li><strong>SRC-TEST-ISOLATE — Isolate hardening executable contracts:</strong> <code>tests/lattice-isolate-hardening.test.mjs</code></li><li><strong>SRC-TEST-CAPACITY — Protocol capacity executable contracts:</strong> <code>tests/lattice-protocol-capacity.test.mjs</code></li><li><strong>SRC-TEST-A11Y — Modal accessibility source contracts:</strong> <code>tests/lattice-modal-accessibility.test.mjs</code></li><li><strong>SRC-PROJECTS — Portfolio project and ecosystem register:</strong> <code>app/resume/projects.js</code></li><li><strong>SRC-LAT-README — Lattice README at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/README.md">Reviewed source</a></li><li><strong>SRC-LAT-ARCH — Lattice architecture at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/architecture.md">Reviewed source</a></li><li><strong>SRC-LAT-REQ — Lattice requirements at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/requirements.md">Reviewed source</a></li><li><strong>SRC-LAT-SEMANTIC — Lattice semantic core at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/semantic.ts">Reviewed source</a></li><li><strong>SRC-LAT-CONTEXT — Lattice context core at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/context.ts">Reviewed source</a></li><li><strong>SRC-LAT-PROFILE — Lattice profile compiler at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/profile.ts">Reviewed source</a></li><li><strong>SRC-LAT-ENGINE — Lattice engine at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/engine.ts">Reviewed source</a></li><li><strong>SRC-LAT-ADVERSARIAL — Lattice adversarial executable contracts at the reviewed revision:</strong> <a href="https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/test/adversarial.test.mjs">Reviewed source</a></li><li><strong>SRC-NNG-SKILL — NN/g skill mapping:</strong> <a href="https://www.nngroup.com/articles/skill-mapping/">Reviewed source</a></li><li><strong>SRC-NNG-BLUEPRINT — NN/g service blueprint definition:</strong> <a href="https://www.nngroup.com/articles/service-blueprints-definition/">Reviewed source</a></li><li><strong>SRC-LATTICE-UPSTREAM — Lattice upstream repository:</strong> <a href="https://github.com/howardhayden/lattice">Reviewed source</a></li></ul></section><section class="panel" aria-labelledby="terms-heading"><h2 id="terms-heading">Terms and provenance</h2><p>Authored documentation follows the hah.dev portfolio-content terms. The generator and executable documentation shell retain the applicable source-component terms. The separately licensed Relational Systems Register profile is not reproduced.</p></section></main>
+<footer class="site-footer"><p>One authoritative register · deterministic Markdown and HTML · authored documentation follows hah.dev portfolio-content terms · executable shell retains source-component terms · the separately licensed RSR profile is not reproduced</p></footer>
+<script>
+(function () {
+  document.documentElement.classList.add("js");
+  var root = document.querySelector("[data-interactive-register]");
+  if (!root) return;
+  var records = Array.from(root.querySelectorAll("[data-record]"));
+  var search = root.querySelector("[data-doc-search]");
+  var filters = Array.from(root.querySelectorAll("[data-filter-key]"));
+  var status = root.querySelector("[data-doc-status]");
+  var normalize = function (value) {
+    return String(value || "").normalize("NFKC").toLocaleLowerCase("und");
+  };
+  var apply = function () {
+    var query = normalize(search && search.value).trim();
+    var count = 0;
+    records.forEach(function (record) {
+      var matchesSearch = !query || normalize(record.textContent).indexOf(query) !== -1;
+      var matchesFilters = filters.every(function (filter) {
+        var selected = filter.value;
+        if (!selected) return true;
+        var values = String(record.dataset[filter.dataset.filterKey] || "").split(" ");
+        return values.indexOf(selected) !== -1;
+      });
+      record.hidden = !(matchesSearch && matchesFilters);
+      if (!record.hidden) count += 1;
+    });
+    if (status) status.textContent = count + " of " + records.length + " records visible.";
+  };
+  if (search) search.addEventListener("input", apply);
+  filters.forEach(function (filter) { filter.addEventListener("change", apply); });
+  var reset = root.querySelector("[data-reset]");
+  if (reset) reset.addEventListener("click", function () {
+    if (search) search.value = "";
+    filters.forEach(function (filter) { filter.value = ""; });
+    apply();
+    if (search) search.focus();
+  });
+  var setExpanded = function (expanded) {
+    records.forEach(function (record) {
+      if (record.hidden) return;
+      record.querySelectorAll("details").forEach(function (detail) { detail.open = expanded; });
+    });
+  };
+  var expand = root.querySelector("[data-expand]");
+  var collapse = root.querySelector("[data-collapse]");
+  if (expand) expand.addEventListener("click", function () { setExpanded(true); });
+  if (collapse) collapse.addEventListener("click", function () { setExpanded(false); });
+  var download = root.querySelector("[data-download-visible]");
+  if (download) download.addEventListener("click", function () {
+    var lines = ["# " + root.dataset.exportTitle + " — visible view", "", "> Non-authoritative filtered projection. The complete Markdown and JSON register govern.", ""];
+    records.forEach(function (record) {
+      if (record.hidden) return;
+      var title = record.querySelector("[data-record-title]");
+      var body = record.querySelector("[data-record-body]");
+      lines.push("## " + (title ? title.textContent.trim() : "Record"), "");
+      if (body) lines.push(body.textContent.replace(/\s+/g, " ").trim(), "");
+    });
+    var objectUrl = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" }));
+    var link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = root.dataset.exportFilename;
+    link.hidden = true;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 0);
+    if (status) status.textContent = "Downloaded " + lines.length + " lines from the visible, non-authoritative view.";
+  });
+  apply();
+}());
+</script>
+</body>
+</html>

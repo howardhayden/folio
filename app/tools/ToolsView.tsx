@@ -1,5 +1,6 @@
 import { LegacyIcon, type LegacyIconName } from "../components/LegacyIcon";
 import { tools } from "../data";
+import { toolsSocial } from "../content/siteContent.js";
 
 export default function ToolsView() {
   const iconByTool: Record<string, LegacyIconName> = {
@@ -23,7 +24,8 @@ export default function ToolsView() {
                 <div className="row justify-content-center">
                   <a href={tool.url} title={tool.name} className="tool-icon signal-fuzz" aria-label={`Visit ${tool.name}`}><LegacyIcon name={iconByTool[tool.name]} /></a>
                 </div>
-                <h5 className="card-title tools-card-title row justify-content-center">{tool.name}</h5>
+                <h3 className="card-title tools-card-title row justify-content-center">{tool.name}</h3>
+                <p className="text-center"><small>{tool.category}</small></p>
                 <p className="card-text">{tool.summary}</p>
                 <ul>{tool.traits.map((trait) => <li key={trait}>{trait}</li>)}</ul>
               </div>
@@ -35,8 +37,9 @@ export default function ToolsView() {
         <h2 className="lead text-center" id="social-title">Social</h2>
         <div className="row justify-content-center">
           <div className="col-auto">
-            <a href="https://www.linkedin.com/in/howardhayden/" title="LinkedIn Profile" className="social-link social-icon signal-fuzz"><LegacyIcon name="linkedin" /></a>
-            <a href="https://duolingo.com/profile/hahdev" title="Duolingo Profile" className="social-link social-icon signal-fuzz"><LegacyIcon name="feather" /></a>
+            {toolsSocial.map((profile) => (
+              <a href={profile.url} title={profile.title} aria-label={profile.name} className="social-link social-icon signal-fuzz" key={profile.name}><LegacyIcon name={profile.icon as LegacyIconName} /></a>
+            ))}
           </div>
         </div>
       </section>

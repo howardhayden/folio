@@ -9,7 +9,7 @@ export const portfolioViewMetadata: Record<PortfolioView, { title: string; descr
   },
   resume: {
     title: "Resume | hah.dev.",
-    description: "Hayden Howard’s experience, education, and interdisciplinary skill stacks.",
+    description: "Hayden Howard’s experience, education, projects, and interdisciplinary skill stacks.",
   },
   tools: {
     title: "Tools | hah.dev.",

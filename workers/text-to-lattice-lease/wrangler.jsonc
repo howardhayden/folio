@@ -1,0 +1,89 @@
+{
+  "name": "hahdev-text-to-lattice-lease",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-08",
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+  "routes": [
+    {
+      "pattern": "hah.dev/api/text-to-lattice/lease",
+      "zone_name": "hah.dev"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LATTICE_USAGE_GATE",
+        "class_name": "LatticeUsageGate"
+      }
+    ]
+  },
+  "ratelimits": [
+    {
+      "name": "LATTICE_INGRESS_SHAPER",
+      "namespace_id": "857320",
+      "simple": {
+        "limit": 40,
+        "period": 60
+      }
+    },
+    {
+      "name": "LATTICE_PATH_SHAPER",
+      "namespace_id": "857319",
+      "simple": {
+        "limit": 40,
+        "period": 60
+      }
+    },
+    {
+      "name": "LATTICE_ACQUIRE_SHAPER",
+      "namespace_id": "857314",
+      "simple": {
+        "limit": 24,
+        "period": 60
+      }
+    },
+    {
+      "name": "LATTICE_RELEASE_SHAPER",
+      "namespace_id": "857315",
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    },
+    {
+      "name": "LATTICE_RENEWAL_SHAPER",
+      "namespace_id": "857316",
+      "simple": {
+        "limit": 12,
+        "period": 60
+      }
+    },
+    {
+      "name": "LATTICE_RELEASE_LEASE_SHAPER",
+      "namespace_id": "857317",
+      "simple": {
+        "limit": 4,
+        "period": 60
+      }
+    },
+    {
+      "name": "LATTICE_RENEWAL_LEASE_SHAPER",
+      "namespace_id": "857318",
+      "simple": {
+        "limit": 4,
+        "period": 60
+      }
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["LatticeUsageGate"]
+    }
+  ],
+  "observability": {
+    "enabled": false
+  }
+}

@@ -667,7 +667,7 @@ test("renders the ASCII character accessibly before client hydration", async () 
   assert.match(html, /<pre[^>]*style="[^"]*line-height:1\.05/);
 });
 
-test("renders every primary state from the one index-owned shell", async () => {
+test("renders legacy stateful views and stable canonical route documents", async () => {
   const states = [
     ["/", "home", "Yes, my initials spell"],
     ["/?view=resume", "resume", "Resume"],
@@ -684,13 +684,15 @@ test("renders every primary state from the one index-owned shell", async () => {
     assert.match(html, new RegExp(`<main[^>]*data-page-view="${view}"`), `${pathname} view identity`);
   }
 
-  for (const pathname of ["/resume", "/tools", "/shelf"]) {
-    const { response } = await render(pathname);
-    assert.equal(response.status, 404, `${pathname} is no longer a separate route document`);
+  for (const [pathname, view] of [["/resume/", "resume"], ["/tools/", "tools"], ["/shelf/", "shelf"]]) {
+    const { response, html } = await render(pathname);
+    assert.equal(response.status, 200, `${pathname} is a stable canonical document`);
+    assert.match(html, new RegExp(`<main[^>]*data-page-view="${view}"`), `${pathname} has a semantic main landmark`);
+    assert.match(html, new RegExp(`<link rel="canonical" href="https://hah\\.dev${pathname}"`), `${pathname} declares itself canonical`);
   }
 });
 
-test("centers one shared state map without restoring the superseded redesign", async () => {
+test("keeps progressive state navigation backed by crawlable canonical links", async () => {
   const states = [
     ["/", "Home"],
     ["/?view=resume", "Resume"],
@@ -698,16 +700,16 @@ test("centers one shared state map without restoring the superseded redesign", a
     ["/?view=shelf", "Shelf"],
   ];
   const expectedLinks = [
-    ["/#home", "Home"],
-    ["/#resume", "Resume"],
-    ["/#tools", "Tools"],
-    ["/#shelf", "Shelf"],
+    ["/", "Home"],
+    ["/resume/", "Resume"],
+    ["/tools/", "Tools"],
+    ["/shelf/", "Shelf"],
   ];
 
   for (const [pathname, currentLabel] of states) {
     const { html } = await render(pathname);
     assert.match(html, /class="navbar navbar-expand navbar-light bg-light site-header"/);
-    assert.match(html, /<a class="navbar-brand" href="\/#home">HAH<\/a>/);
+    assert.match(html, /<a class="navbar-brand" href="\/">HAH<\/a>/);
     assert.equal((html.match(/aria-current="page"/g) ?? []).length, 1, `${pathname} has one current view`);
     assert.match(
       html,
@@ -715,7 +717,7 @@ test("centers one shared state map without restoring the superseded redesign", a
       `${pathname} identifies ${currentLabel}`,
     );
     const renderedLinks = [...html.matchAll(
-      /<a class="nav-link" href="(\/#(?:home|resume|tools|shelf))"(?: aria-current="page")?><span class="signal-fuzz signal-fuzz--nav">(Home|Resume|Tools|Shelf)<\/span>/g,
+      /<a class="nav-link" href="(\/|\/(?:resume|tools|shelf)\/)"(?: aria-current="page")?><span class="signal-fuzz signal-fuzz--nav">(Home|Resume|Tools|Shelf)<\/span>/g,
     )].map((match) => [match[1], match[2]]);
     assert.deepEqual(renderedLinks, expectedLinks, `${pathname} retains the four state links in order`);
     assert.equal(
@@ -731,7 +733,7 @@ test("centers one shared state map without restoring the superseded redesign", a
   }
 
   const { html: resume } = await render("/?view=resume");
-  assert.doesNotMatch(resume, /Hayden Howard’s experience, education, projects/);
+  assert.match(resume, /Hayden Howard’s experience, education, projects/);
   assert.match(resume, /<h1[^>]*>Resume<\/h1>/);
 
   const shellSource = await readFile(new URL("../app/components/PortfolioShell.tsx", import.meta.url), "utf8");
@@ -739,29 +741,45 @@ test("centers one shared state map without restoring the superseded redesign", a
   assert.match(shellSource, /useState<PortfolioView>\(initialView\)/);
   assert.match(shellSource, /window\.addEventListener\("hashchange", synchronizeView\)/);
   assert.match(shellSource, /window\.addEventListener\("popstate", synchronizeView\)/);
+  assert.match(shellSource, /const navigateToView = useCallback\(\(route: SiteRouteKey, event: ReactMouseEvent<HTMLAnchorElement>\) => \{/);
+  assert.match(
+    shellSource,
+    /event\.defaultPrevented[\s\S]*?event\.button !== 0[\s\S]*?event\.altKey[\s\S]*?event\.ctrlKey[\s\S]*?event\.metaKey[\s\S]*?event\.shiftKey[\s\S]*?\) return;[\s\S]*?event\.preventDefault\(\)/,
+    "only an unmodified primary activation is upgraded into an in-page state change",
+  );
+  assert.match(shellSource, /window\.history\.pushState\(null, "", nextLocation\)/);
+  assert.match(shellSource, /const nextLocation = `\/#\$\{route\}`/);
+  assert.match(shellSource, /setActiveView\(route\)/);
+  assert.match(shellSource, /<ShelfExplorer papers=\{papers\} onNavigate=\{navigateToView\} \/>/);
+  assert.match(shellSource, /<SiteHeader current=\{activeView\} onNavigate=\{navigateToView\} \/>/);
   assert.match(shellSource, /activeView === "resume" \? <ResumeView \/>/);
   assert.match(shellSource, /activeView === "tools" \? <ToolsView \/>/);
   assert.match(shellSource, /activeView === "home" \? <HomeView \/>/);
-  assert.doesNotMatch(chromeSource, /next\/link|href: "\/(?:resume|tools|shelf)"/);
+  assert.doesNotMatch(chromeSource, /next\/link/);
+  assert.match(chromeSource, /<a className="navbar-brand" href="\/"/);
+  assert.match(chromeSource, /<a[\s\S]*?className="nav-link"[\s\S]*?href=\{route\.href\}/);
+  assert.match(chromeSource, /href: "\/(?:resume|tools|shelf)\/"/);
+  assert.match(
+    chromeSource,
+    /href=\{route\.href\}[\s\S]*?onClick=\{onNavigate \? \(event\) => onNavigate\(route\.key, event\) : undefined\}/,
+    "canonical hrefs remain the no-JavaScript and modified-click destination while JavaScript may enhance ordinary activation",
+  );
 });
 
-test("keeps every page's information intact while its view sprouts from the index", async () => {
-  const approvedMainCopy = {
-    "/": [1771, "379a2291b5b9c898b16542d53e3647f60a6b25425b745fa76f28e487327a0a70"],
-    "/?view=resume": [6009, "8b1e6f060bd5b8eb87d6398b0f8a7338905affc018ec34311ec9c2c86d881656"],
-    "/?view=tools": [822, "f95964d9567ab733bbb9e14be3d80b68033f3b49c6100c2e807a885f598e02bc"],
-    "/?view=shelf": [6785, "c1b29d690c2d6cf7eb3f62015f23e2fe8a998ddcc641e9b1fd16f7e1b205a973"],
-  };
-
-  for (const [pathname, [approvedLength, approvedHash]] of Object.entries(approvedMainCopy)) {
-    const { html } = await render(pathname);
-    const semanticText = semanticMainText(html);
-    assert.equal(semanticText.length, approvedLength, `${pathname} visible copy length`);
-    assert.equal(
-      createHash("sha256").update(semanticText).digest("hex"),
-      approvedHash,
-      `${pathname} visible copy`,
-    );
+test("keeps legacy state content in parity with each canonical document", async () => {
+  for (const [statePath, canonicalPath] of [
+    ["/?view=resume", "/resume/"],
+    ["/?view=tools", "/tools/"],
+    ["/?view=shelf", "/shelf/"],
+  ]) {
+    const [{ html: stateHtml }, { html: canonicalHtml }] = await Promise.all([
+      render(statePath),
+      render(canonicalPath),
+    ]);
+    const stateText = semanticMainText(stateHtml);
+    const canonicalText = semanticMainText(canonicalHtml);
+    assert.ok(stateText.length > 100, `${statePath} has substantive source HTML`);
+    assert.equal(canonicalText, stateText, `${canonicalPath} preserves the stateful view's authored main content`);
   }
 
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -826,30 +844,232 @@ test("keeps every page's information intact while its view sprouts from the inde
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.page-view \{[\s\S]*?animation: none/);
 });
 
-test("places progressively disclosed skill bullets between projects and experience", async () => {
+test("renders the exact nine-card Skill Stacks hierarchy with native Read More fallbacks", async () => {
   const { html } = await render("/?view=resume");
+  const documentMarkup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, "");
   const projectsIndex = html.indexOf('id="projects-title"');
   const skillStacksIndex = html.indexOf('id="skill-stacks-title"');
   const timelineIndex = html.indexOf(">Timeline</h2>");
+  const expectedStacks = [
+    {
+      id: "systems-architecture",
+      title: "Systems Architecture",
+      items: [
+        "Local-First Architecture",
+        "API Integration and Boundary Design",
+        "State Modeling",
+        "Deterministic Simulation",
+        "Multi-Agent Systems",
+        "Requirements Engineering and Traceability",
+      ],
+      sections: [],
+    },
+    {
+      id: "interaction-and-service-design",
+      title: "Interaction and Service Design",
+      items: [
+        "Information Architecture",
+        "Interaction Design",
+        "Accessibility Engineering",
+        "Service and Ecosystem Mapping",
+      ],
+      sections: [],
+    },
+    {
+      id: "security-and-verification",
+      title: "Security and Verification",
+      items: [
+        "Threat Modeling",
+        "Input and Import Validation",
+        "Adversarial Testing",
+        "Regression Testing",
+        "Failure-Mode and Recovery Testing",
+        "Software Bill of Materials (SBOM)",
+      ],
+      sections: [{ label: "Tools", items: ["Playwright", "CodeQL"] }],
+    },
+    {
+      id: "data-architecture-and-interoperability",
+      title: "Data Architecture and Interoperability",
+      items: [
+        "Schema Design and Validation",
+        "Entity-Relationship Modeling",
+        "Metadata Crosswalks and Interoperability",
+        "Data Governance",
+      ],
+      sections: [{
+        label: "Technologies",
+        items: ["SQL", "SQLite", "MySQL", "Neo4j", "MongoDB", "ArangoDB", "IndexedDB", "R"],
+      }],
+    },
+    {
+      id: "technical-documentation-and-modeling",
+      title: "Technical Documentation and Modeling",
+      items: [
+        "Architecture and Design Documentation",
+        "Technical Guides and User Manuals",
+        "Unified Modeling Language (UML)",
+        "Network Diagrams",
+        "Data-Flow Diagrams",
+        "Interactive and Exportable Documentation",
+      ],
+      sections: [],
+    },
+    {
+      id: "business-analysis-and-operational-planning",
+      title: "Business Analysis and Operational Planning",
+      items: [
+        "Business Process Modeling (BPMN) and Flowcharts",
+        "Project Scheduling (Gantt Charts)",
+        "Contract Analysis",
+        "Proposal Development",
+        "Risk Assessment",
+        "Incident Response and Continuity Planning",
+        "Release and Change Management",
+      ],
+      sections: [],
+    },
+    {
+      id: "software-development",
+      title: "Software Development",
+      items: [],
+      sections: [
+        {
+          label: "Languages",
+          items: ["TypeScript", "JavaScript", "Python", "C#", "C++", "Java", "Bash", "GLSL"],
+        },
+        { label: "Design Practices", items: ["Object-Oriented Design", "SOLID Principles"] },
+      ],
+    },
+    {
+      id: "frameworks-platforms-and-delivery",
+      title: "Frameworks, Platforms & Delivery",
+      items: [],
+      sections: [
+        {
+          label: "Application frameworks and runtimes",
+          items: [".NET", "React", "Next.js", "Node.js", "Three.js", "Bootstrap"],
+        },
+        {
+          label: "Build and delivery",
+          items: [
+            "Vite",
+            "Git",
+            "npm",
+            "GitHub Actions",
+            "Continuous Integration & Deployment (CI/CD)",
+            "Cloudflare Workers",
+            "Wrangler",
+          ],
+        },
+      ],
+    },
+    {
+      id: "fabrication-and-electronics",
+      title: "Fabrication & Electronics",
+      items: [],
+      sections: [
+        {
+          label: "Fabrication",
+          items: [
+            "Laser Cutting",
+            "Machined Drilling",
+            "Multi-Needle Embroidery",
+            "3D Printing",
+            "Sublimation Printing",
+          ],
+        },
+        { label: "Electronics", items: ["Soldering with 63Sn–37Pb Alloy"] },
+        {
+          label: "Electrostatic discharge controls",
+          items: ["Grounding", "Continuous Monitoring", "Wrist Straps", "ESD Smocks"],
+        },
+      ],
+    },
+  ];
+  const htmlText = (value) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  const regexEscape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   assert.ok(projectsIndex >= 0, "Projects heading renders");
   assert.ok(skillStacksIndex > projectsIndex, "Skill Stacks follows Projects");
   assert.ok(timelineIndex > skillStacksIndex, "experience follows Skill Stacks");
-  assert.equal((html.match(/class="skill-stack-disclosure"/g) ?? []).length, 7);
-  assert.equal((html.match(/<summary aria-label="[^"]+ skills">Skills<\/summary>/g) ?? []).length, 7);
-  assert.equal(
-    (html.match(/<details class="skill-stack-disclosure"><summary[^>]*>Skills<\/summary><ul>/g) ?? []).length,
-    7,
-    "only each card's bullet list is progressively disclosed",
-  );
-  assert.match(html, />Continuous Integration and Deployment \(CI\/CD\)<\/li>/);
-  assert.match(html, />Three\.js<\/li>/);
-  assert.match(html, />IndexedDB<\/li>/);
-  assert.match(html, />Threat Modeling<\/li>/);
+  assert.equal((documentMarkup.match(/data-skill-stack-id="[^"]+"/gu) ?? []).length, expectedStacks.length);
+  assert.equal((documentMarkup.match(/<details class="skill-stack-disclosure">/gu) ?? []).length, expectedStacks.length);
+  assert.equal((documentMarkup.match(/<span>Read More<\/span>/gu) ?? []).length, expectedStacks.length);
+  assert.equal((documentMarkup.match(/class="skill-stack-group"/gu) ?? []).length, 9);
+  assert.doesNotMatch(documentMarkup, /data-skill-stack-reading|data-skill-stack-open|<details[^>]*\sopen(?:=|\s|>)/u);
 
-  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  let previousCardIndex = -1;
+  let expectedItemCount = 0;
+  for (const stack of expectedStacks) {
+    const cardStart = documentMarkup.indexOf(`data-skill-stack-id="${stack.id}"`);
+    const cardEnd = documentMarkup.indexOf("</article>", cardStart);
+    assert.ok(cardStart > previousCardIndex, `${stack.title} preserves the requested row-major document order`);
+    assert.ok(cardEnd > cardStart, `${stack.title} has one complete semantic article`);
+    previousCardIndex = cardStart;
+    const card = documentMarkup.slice(cardStart, cardEnd);
+    const encodedTitle = htmlText(stack.title);
+    assert.match(card, new RegExp(`<h3[^>]*id="skill-stack-title-${stack.id}"[^>]*>${regexEscape(encodedTitle)}</h3>`));
+    assert.match(card, new RegExp(`<summary aria-controls="skill-stack-content-${stack.id}"><span>Read More</span><span class="skill-stack-summary-context"> about (?:<!-- -->)?${regexEscape(encodedTitle)}</span></summary>`));
+    assert.match(card, new RegExp(`<div class="skill-stack-details" id="skill-stack-content-${stack.id}">`));
+
+    let previousContentIndex = -1;
+    const orderedContent = [
+      ...stack.items.map((item) => ({ kind: "item", value: item })),
+      ...stack.sections.flatMap((section) => [
+        { kind: "heading", value: section.label },
+        ...section.items.map((item) => ({ kind: "item", value: item })),
+      ]),
+    ];
+    for (const content of orderedContent) {
+      const encoded = htmlText(content.value);
+      const marker = content.kind === "heading" ? `>${encoded}</h4>` : `>${encoded}</li>`;
+      const contentIndex = card.indexOf(marker);
+      assert.ok(contentIndex > previousContentIndex, `${stack.title} preserves ${content.value} in its authored group and order`);
+      previousContentIndex = contentIndex;
+      if (content.kind === "item") expectedItemCount += 1;
+    }
+    assert.equal(
+      (card.match(/<li>[^<]+<\/li>/gu) ?? []).length,
+      stack.items.length + stack.sections.reduce((count, section) => count + section.items.length, 0),
+      `${stack.title} contains no omitted or unassigned skills`,
+    );
+  }
+  assert.equal((documentMarkup.match(/<li>[^<]+<\/li>/gu) ?? []).length >= expectedItemCount, true);
+
+  const [css, source] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/resume/SkillStacks.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(source, /^"use client";/u);
+  assert.match(source, /<details[\s\S]*?className="skill-stack-disclosure"[\s\S]*?onToggle=\{\(event\) => updateOpenStack\(stack\.id, event\.currentTarget\.open\)\}/u);
+  assert.match(source, /mainRef\.current\?\.setAttribute\("data-skill-stack-reading", "true"\)/u);
+  assert.match(source, /mainRef\.current\?\.removeAttribute\("data-skill-stack-reading"\)/u);
+  assert.match(source, /document\.addEventListener\("pointerdown", handlePointerDown\)/u);
+  assert.match(source, /document\.addEventListener\("focusin", handleFocusIn\)/u);
+  assert.match(source, /event\.key !== "Escape"/u);
+  assert.match(source, /summary\.focus\(\{ preventScroll: true \}\)/u);
+  assert.match(source, /document\.removeEventListener\("pointerdown", handlePointerDown\)/u);
+  assert.match(source, /document\.removeEventListener\("focusin", handleFocusIn\)/u);
+  assert.match(source, /document\.removeEventListener\("keydown", handleKeyDown\)/u);
+  assert.doesNotMatch(source, /aria-modal|role="dialog"|\binert\b/u);
+
   assert.match(css, /\.skill-stack-disclosure > summary \{[\s\S]*?cursor: pointer/);
-  assert.match(css, /@media print \{[\s\S]*?\.skill-stack-disclosure:not\(\[open\]\) > ul \{[\s\S]*?display: block !important/);
+  assert.match(css, /\.skill-stack-disclosure > summary:focus-visible \{[\s\S]*?outline: 2px solid currentColor/);
+  assert.match(css, /\.skill-stack-grid \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: 1fr/);
+  assert.match(css, /@media \(min-width: 768px\) \{[\s\S]*?\.skill-stack-grid \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /@media \(min-width: 1200px\) \{[\s\S]*?\.skill-stack-grid \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(
+    css,
+    /\.page-view--resume\[data-skill-stack-reading="true"\][\s\S]*?\.skill-stack-card:not\(\[data-skill-stack-open="true"\]\):not\(:focus-within\) \{[\s\S]*?filter: blur\(5px\)/,
+  );
+  assert.match(css, /\.page-view--resume\[data-skill-stack-reading="true"\] \.skill-stack-card:focus-within \{[\s\S]*?filter: none/);
+  assert.match(css, /@media print \{[\s\S]*?\.skill-stack-disclosure:not\(\[open\]\) > \.skill-stack-details \{[\s\S]*?display: block !important/);
+  assert.match(css, /@media print \{[\s\S]*?data-skill-stack-reading="true"[\s\S]*?filter: none !important/);
+  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?data-skill-stack-reading="true"[\s\S]*?filter: none !important/);
+  assert.match(css, /@media \(prefers-reduced-transparency: reduce\) \{[\s\S]*?data-skill-stack-reading="true"[\s\S]*?filter: none/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.skill-stack-card \{[\s\S]*?transition: none/);
+  assert.doesNotMatch(css, /:has\([^)]*skill-stack[^)]*open/iu, "no-JavaScript disclosure use does not trigger the JavaScript focus blur");
 });
 
 test("applies equal subtle film grain and weave inside red, green, blue, gray, and cat glyphs and vectors", async () => {
@@ -863,21 +1083,34 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
   assert.match(home, /<span class="signal-fuzz signal-fuzz--pulse">Q &amp; A<\/span>/);
   assert.match(home, /<pre[^>]*class="signal-fuzz signal-fuzz--ascii"/);
   assert.match(resume, /class="text-red text-center signal-fuzz"/);
-  assert.match(resume, /class="signal-fuzz" href="https:\/\/chorus\.observer\/">CHORUS<\/a>/);
+  assert.match(resume, /href="\/projects\/chorus\/">CHORUS<\/a>/);
   assert.match(tools, /class="tool-icon signal-fuzz"/);
-  const homeDocument = home.split('<script id="_R_">')[0];
-  const resumeDocument = resume.split('<script id="_R_">')[0];
+  // vinext may serialize additional copies of the rendered tree into RSC
+  // transport scripts. Inspect document markup, not inert script payloads.
+  const documentMarkup = (html) => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, "");
+  const homeDocument = documentMarkup(home);
+  const resumeDocument = documentMarkup(resume);
   assert.equal((homeDocument.match(/signal-fuzz signal-fuzz--nav/g) ?? []).length, 4);
   assert.equal((resumeDocument.match(/signal-fuzz signal-fuzz--nav/g) ?? []).length, 4);
+  assert.equal(
+    (resumeDocument.match(/class="row justify-content-center stack-icon signal-fuzz"/gu) ?? []).length,
+    9,
+    "every Skill Stack icon receives the shared film effect",
+  );
+  assert.equal(
+    (resumeDocument.match(/class="tool-icon signal-fuzz"/gu) ?? []).length,
+    6,
+    "every primary Project icon receives the shared film effect",
+  );
 
   const resumeExperience = await readFile(new URL("../app/resume/ResumeExperience.tsx", import.meta.url), "utf8");
   for (const circle of ["circle-1", "circle-2", "circle-3"]) {
     assert.match(resumeExperience, new RegExp(`className="${circle}"`));
   }
   assert.match(resumeExperience, /timeline-icon signal-fuzz/);
-  assert.match(resumeExperience, /label text-blue signal-fuzz/);
-  assert.match(resumeExperience, /label text-red signal-fuzz/);
-  assert.match(resumeExperience, /label text-secondary signal-fuzz/);
+  assert.match(resume, /label text-blue signal-fuzz/);
+  assert.match(resume, /label text-red signal-fuzz/);
+  assert.match(resume, /label text-secondary signal-fuzz/);
   assert.match(resumeExperience, /className="circular-chart signal-fuzz"/);
   assert.doesNotMatch(resumeExperience, /circular-chart-film-host|ChorusFilm/);
 
@@ -967,6 +1200,11 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
   assert.match(css, /@media \(forced-colors: active\)[\s\S]*?background-image: none !important/);
   assert.match(css, /@media \(forced-colors: active\)[\s\S]*?background-color: transparent !important/);
   assert.match(css, /@media \(forced-colors: active\)[\s\S]*?filter: none !important/);
+  assert.match(
+    css,
+    /\.page-view--resume \.stack-icon,\s*\.page-view--resume \.tool-icon \{\s*color: #0b4705;/u,
+    "Resume icons use the Tools green",
+  );
 });
 
 test("renders current projects and consistent project documentation icons", async () => {
@@ -975,7 +1213,7 @@ test("renders current projects and consistent project documentation icons", asyn
   assert.match(html, /class="bi bi-pen-fill"/);
   assert.match(
     html,
-    /aria-haspopup="dialog"[^>]*aria-controls="lattice-demo-dialog"[^>]*>Lattice<\/button>/,
+    /href="\/projects\/lattice\/text-to-lattice\/"[^>]*aria-haspopup="dialog"[^>]*aria-controls="lattice-demo-dialog"[^>]*>Lattice<\/a>/,
   );
   assert.match(
     html,
@@ -990,13 +1228,51 @@ test("renders current projects and consistent project documentation icons", asyn
     html,
     /href="https:\/\/github\.com\/howardhayden\/lattice"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="Documentation for Lattice, opens in a new tab"/,
   );
-  assert.match(html, /href="https:\/\/chorus\.observer\/">CHORUS<\/a>/);
+  for (const [label, filename] of [
+    ["Concept Map", "lattice-concept-map.html"],
+    ["Skill Map", "lattice-skill-map.html"],
+    ["Service Blueprint", "text-to-lattice-service-blueprint.html"],
+    ["Security Model", "text-to-lattice-security-model.html"],
+  ]) {
+    const url = `https://hah.dev/documentation/text-to-lattice/${filename}`;
+    const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const link = html.match(new RegExp(
+      `<a(?=[^>]*href="${escapedUrl}")(?=[^>]*aria-label="${label} for Lattice")[^>]*>[\\s\\S]*?</a>`,
+    ))?.[0];
+    assert.ok(link, `${label} is a directly labeled Lattice resource`);
+    assert.equal(
+      (link.match(/class="bi bi-backpack4"/gu) ?? []).length,
+      1,
+      `${label} carries exactly one Documentation icon`,
+    );
+    assert.match(link, new RegExp(`<span>${label}</span>`));
+  }
+  assert.match(html, /href="\/projects\/chorus\/"[^>]*>CHORUS<\/a>/);
   assert.match(
     html,
     /Social simulation of influence, uncertainty, and collective belief\./,
   );
   assert.match(html, /href="https:\/\/chorus\.observer\/notebooks\/"/);
-  assert.match(html, /href="https:\/\/inkeep\.ing\/">IN KEEPING<\/a>/);
+  assert.match(
+    html,
+    /href="https:\/\/chorus\.observer\/documentation\/chorus-concept-map\.html"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="Concept Map for CHORUS, opens in a new tab"/,
+  );
+  assert.match(
+    html,
+    /href="https:\/\/chorus\.observer\/documentation\/chorus-csd-matrix\.html"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="CSD Matrix for CHORUS, opens in a new tab"/,
+  );
+  assert.match(html, /href="\/projects\/in-keeping\/"[^>]*>IN KEEPING<\/a>/);
+  const projectGrid = html.slice(
+    html.indexOf('class="folio-card-grid"'),
+    html.indexOf('class="project-record-link"'),
+  );
+  const latticeAt = projectGrid.indexOf(">Lattice</a>");
+  const inKeepingAt = projectGrid.indexOf(">IN KEEPING</a>");
+  const fogAt = projectGrid.indexOf(">FOG OF SEA</a>");
+  assert.ok(
+    latticeAt >= 0 && inKeepingAt > latticeAt && fogAt > inKeepingAt,
+    "IN KEEPING is the second project in left-to-right document order",
+  );
   assert.equal((html.match(/class="bi bi-bricks"/g) ?? []).length, 1);
   assert.match(
     html,
@@ -1010,19 +1286,53 @@ test("renders current projects and consistent project documentation icons", asyn
     html,
     /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="Public notice for IN KEEPING, opens in a new tab"/,
   );
-  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 5);
+  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 11);
 });
 
-test("implements the bounded and accessible Text-to-Lattice dialog contract", async () => {
-  const source = await readFile(
-    new URL("../app/resume/ResumeProjects.tsx", import.meta.url),
-    "utf8",
-  );
+test("keeps Lattice documentation direct in canonical no-JavaScript project surfaces", async () => {
+  const [resume, project, contract] = await Promise.all([
+    render("/resume/"),
+    render("/projects/lattice/"),
+    render("/projects/lattice/text-to-lattice/"),
+  ]);
+  const filenames = [
+    "lattice-concept-map.html",
+    "lattice-skill-map.html",
+    "text-to-lattice-service-blueprint.html",
+    "text-to-lattice-security-model.html",
+  ];
+
+  for (const { html } of [resume, project, contract]) {
+    for (const filename of filenames) {
+      assert.match(html, new RegExp(`href="https:\\/\\/hah\\.dev\\/documentation\\/text-to-lattice\\/${filename}"`));
+    }
+  }
+});
+
+test("implements the bounded and accessible Text to Lattice dialog contract", async () => {
+  const { html } = await render("/?view=resume");
+  const [source, shelfSource, css] = await Promise.all([
+    readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/shelf/ShelfExplorer.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
 
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
   assert.match(source, /aria-labelledby="lattice-demo-title"/);
-  assert.match(source, /aria-describedby="lattice-demo-description"/);
+  assert.match(source, /aria-describedby="lattice-demo-description lattice-local-privacy lattice-usage-policy"/);
+  assert.equal((source.match(/spellCheck=\{false\}/gu) ?? []).length, 2);
+  assert.equal((source.match(/autoCorrect="off"/gu) ?? []).length, 2);
+  assert.equal((source.match(/autoCapitalize="off"/gu) ?? []).length, 2);
+  assert.equal((source.match(/autoComplete="off"/gu) ?? []).length, 2);
+  const renderedInput = html.match(/<textarea[^>]*id="lattice-demo-input"[^>]*>/u)?.[0] ?? "";
+  assert.match(renderedInput, /spellcheck="false"/iu);
+  assert.match(renderedInput, /autocorrect="off"/iu);
+  assert.match(renderedInput, /autocapitalize="off"/iu);
+  assert.match(renderedInput, /autocomplete="off"/iu);
+  assert.doesNotMatch(renderedInput, /\bmaxlength=/iu);
+  assert.doesNotMatch(renderedInput, /\bname=/iu);
+  assert.doesNotMatch(source, /\bmaxLength=/u);
   assert.match(source, /aria-live="polite"/);
   assert.ok(
     source.indexOf('className="lattice-output-register"')
@@ -1030,20 +1340,102 @@ test("implements the bounded and accessible Text-to-Lattice dialog contract", as
     "the live status must exist before a result is mounted",
   );
   assert.match(source, /event\.key === "Escape"/);
-  assert.match(source, /Text-to-Lattice<\/h3>/);
+  assert.match(source, /Text to Lattice<\/h3>/);
   assert.match(source, /Source text/);
-  assert.match(source, /Text-to-Lattice result/);
-  assert.match(source, /Narrative candidate/);
-  assert.match(source, /Review notes:/);
-  assert.match(source, /countLatticeWords\(value\) > LATTICE_WORD_LIMIT/);
-  assert.match(source, /\{wordCount\} \/ \{LATTICE_WORD_LIMIT\} words/);
-  assert.match(source, />\s*Convert\s*<\/button>/);
-  assert.match(source, /latticeResult\.findings\.map/);
+  assert.match(source, /<h4 id="lattice-output-title">Result<\/h4>/u);
+  assert.doesNotMatch(source, /Text-to-Lattice/u);
+  assert.match(source, /className="modal resume-modal lattice-modal"[\s\S]*?onClick=\{\(event\) => \{[\s\S]*?event\.target === event\.currentTarget[\s\S]*?closeLattice\(\)/u);
+  assert.doesNotMatch(source, /onPointerDown=\{closeLattice\}/u);
+  assert.match(source, /trigger\?\.isConnected[\s\S]*?trigger\.focus/u);
+  assert.doesNotMatch(source, /lattice-modal-close/u);
+  assert.doesNotMatch(source, />\s*Close\s*<\/button>/u);
+  assert.match(shelfSource, /className="form-control shelf-search-entry px-0 px-sm-2"/u);
+  assert.match(source, /className="form-control shelf-search-entry lattice-input"/u);
+  const searchEntryRule = css.match(/\.form-control\.shelf-search-entry \{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  assert.match(searchEntryRule, /background-color: white/u);
+  assert.match(searchEntryRule, /border: none/u);
+  assert.match(searchEntryRule, /border-radius: \.25rem/u);
+  assert.match(searchEntryRule, /box-shadow: none/u);
+  assert.match(css, /\.form-control\.shelf-search-entry:focus \{[\s\S]*?box-shadow: 0 0 5px lightgray;[\s\S]*?outline: none;/u);
+  const latticeInputRule = css.match(/\.form-control\.lattice-input \{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  assert.match(latticeInputRule, /min-height: 13rem/u);
+  assert.match(latticeInputRule, /border: 0/u);
+  assert.match(latticeInputRule, /box-shadow: none/u);
+  const latticeFocusRule = css.match(/\.form-control\.shelf-search-entry\.lattice-input:focus,[\s\S]*?\.form-control\.shelf-search-entry\.lattice-input:focus-visible \{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  assert.match(latticeFocusRule, /border: 0/u);
+  assert.match(latticeFocusRule, /box-shadow: none/u);
+  assert.match(latticeFocusRule, /outline: none/u);
+  assert.match(css, /\.lattice-input-label:has\(\+ \.lattice-input:focus-visible\)[\s\S]*?text-decoration: underline/u);
+  assert.match(
+    source,
+    /if \(value\.length > LATTICE_INPUT_SAFETY_LIMIT\) \{[\s\S]*?setLatticeInputInvalid\(true\);[\s\S]*?return;[\s\S]*?\}\s*setLatticeInput\(value\);/u,
+    "a 12,001-code-unit source is rejected before controlled state can accept a shortened value",
+  );
+  assert.match(
+    source,
+    /const updateLatticeClarificationInput = \(questionId: string, value: string\) => \{[\s\S]*?if \(value\.length > LATTICE_CLARIFICATION_SAFETY_LIMIT\) \{[\s\S]*?setClarificationErrors[\s\S]*?return;[\s\S]*?\}\s*setClarificationAnswers/u,
+    "a 1,001-code-unit clarification is rejected before answer state is updated",
+  );
+  assert.match(
+    source,
+    /onChange=\{\(event\) => updateLatticeClarificationInput\(question\.id, event\.currentTarget\.value\)\}/u,
+  );
+  assert.match(source, /const nextCount = countLatticeWords\(value\)/);
+  assert.match(source, /validateLatticeInput\(value\)/);
+  assert.match(source, /preflightLatticeInput\(latticeInput\)[\s\S]*?acquireLatticeLease/u);
+  assert.match(source, /\{wordCount\} of \{LATTICE_WORD_LIMIT\} words/);
+  assert.match(source, /"Download and convert" : "Convert"/);
+  assert.match(source, /className="lattice-progress"/);
+  assert.match(source, /cancelLattice/);
+  assert.match(source, /className="lattice-output-text"[\s\S]*?data-nosnippet=""[\s\S]*?draggable=\{false\}/u);
+  assert.match(source, /latticeVisibleFindings\(latticeResult\)\.map/);
+  assert.match(source, /function latticeFindingMessage/);
+  assert.doesNotMatch(source, /\{finding\.message\}/u);
   assert.match(source, /setLatticeInputInvalid\(false\)/);
   assert.match(source, /aria-invalid=\{latticeInputInvalid \? "true" : undefined\}/);
   assert.doesNotMatch(source, /lattice-modal-kicker/);
   assert.doesNotMatch(source, /Lattice-iciz(?:e|ed|ing)/);
-  assert.doesNotMatch(source, /setTimeout\s*\(/);
+  assert.match(source, /latticeLeaseExpiryTimerRef\.current = setTimeout\(\(\) => \{/);
+  assert.match(source, /latticeLeaseHeartbeatTimerRef\.current = setInterval\(\s*renewCurrentLease,/u);
+  assert.match(source, /error\.retryAfterSeconds \* 1_000/u);
+  assert.match(source, /latticeRetryEta\(latticeRetryAt, latticeRetryClock, undefined, latticeRetryMode\)/u);
+  assert.match(source, /latticeRetryPending/u);
+  assert.match(source, /onCopy=\{blockLatticeOutputTransfer\}/u);
+  assert.match(source, /onCut=\{blockLatticeOutputTransfer\}/u);
+  assert.match(source, /onDragStart=\{blockLatticeOutputTransfer\}/u);
+  assert.match(source, /onContextMenu=\{blockLatticeOutputTransfer\}/u);
+  assert.match(source, /isLatticeClarificationTarget\(event\.target\)/u);
+  assert.match(source, /event\.preventDefault\(\)/u);
+  assert.match(css, /\.form-control\.lattice-clarification-input \{[^}]*-webkit-user-select: text;[^}]*user-select: text;/u);
+  assert.doesNotMatch(css, /\.lattice-clarifications \{[^}]*user-select: text;/u);
+  assert.doesNotMatch(
+    source,
+    /reappropriat|retyp|dedicat|manual(?:ly)? transcrib|circumvent.{0,30}(?:copy|output)|copying is disabled/iu,
+  );
+  assert.doesNotMatch(
+    source,
+    /Eight Text to Lattice|shared Text to Lattice demonstration capacity|receiving requests too quickly/iu,
+  );
+  assert.match(css, /\.lattice-output \{[^}]*-webkit-user-select: none;/u);
+  assert.match(css, /\.lattice-output \{[^}]*\n\s*user-select: none;/u);
+  assert.match(css, /\.lattice-output \{[^}]*-webkit-touch-callout: none;/u);
+  assert.match(css, /\.lattice-output-veil \{[\s\S]*?pointer-events: none/u);
+  assert.match(css, /@media print \{[\s\S]*?\.lattice-output \{[\s\S]*?display: none !important/u);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.lattice-output-veil \{[\s\S]*?animation: none/u);
+  assert.match(source, /window\.addEventListener\("blur", shield\)/u);
+  assert.match(source, /document\.addEventListener\("visibilitychange", handleVisibility\)/u);
+
+  const dialogAt = html.indexOf('id="lattice-demo-dialog"');
+  const formAt = html.indexOf("<form", dialogAt);
+  const preFormText = html.slice(dialogAt, formAt)
+    .replace(/<[^>]+>/gu, " ")
+    .replace(/&[a-zA-Z#0-9]+;/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+  assert.ok(preFormText.split(/\s+/u).length <= 60, preFormText);
+  assert.doesNotMatch(preFormText, /\b(?:HMAC|HttpOnly|same-origin|lease|rolling|WebGPU|Qwen|Llama|WebLLM|Cloudflare|model family)\b/iu);
+  assert.match(html.slice(dialogAt, formAt), /href="\/projects\/lattice\/text-to-lattice\/#text-to-lattice-privacy"/u);
+  assert.doesNotMatch(source, /setTimeout\s*\(\s*\(\) =>\s*setLatticeResult/);
   assert.doesNotMatch(source, /aria-atomic/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
@@ -1114,20 +1506,21 @@ test("filters and visibly rearranges Shelf in one deterministic input revision",
   );
 });
 
-test("produces a complete static Pages artifact", async () => {
-  const routes = ["index.html", "404.html"];
+test("produces the canonical static Pages documents", async () => {
+  const routes = [
+    "index.html",
+    "404.html",
+    "resume/index.html",
+    "tools/index.html",
+    "shelf/index.html",
+    "projects/index.html",
+    "projects/lattice/index.html",
+    "projects/lattice/text-to-lattice/index.html",
+  ];
 
   for (const route of routes) {
     const html = await readFile(new URL(`../site/${route}`, import.meta.url), "utf8");
     assert.match(html, /<!DOCTYPE html>/i, route);
-  }
-
-  for (const supersededRoute of ["resume/index.html", "tools/index.html", "shelf/index.html"]) {
-    await assert.rejects(
-      readFile(new URL(`../site/${supersededRoute}`, import.meta.url), "utf8"),
-      { code: "ENOENT" },
-      `${supersededRoute} is not emitted as a separate document`,
-    );
   }
 
   const cname = await readFile(new URL("../site/CNAME", import.meta.url), "utf8");

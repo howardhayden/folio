@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import ResumeView from "../resume/ResumeView";
 import ShelfExplorer from "../shelf/ShelfExplorer";
 import ToolsView from "../tools/ToolsView";
 import { papers } from "../data";
 import HomeView from "./HomeView";
-import { SiteHeader } from "./SiteChrome";
+import { SiteHeader, type SiteRouteKey } from "./SiteChrome";
 import {
   normalizePortfolioView,
   portfolioViewFromHash,
@@ -25,6 +25,23 @@ function viewFromLocation(fallback: PortfolioView): PortfolioView {
 export default function PortfolioShell({ initialView = "home" }: { initialView?: PortfolioView }) {
   const [activeView, setActiveView] = useState<PortfolioView>(initialView);
   const hasMountedRef = useRef(false);
+
+  const navigateToView = useCallback((route: SiteRouteKey, event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.defaultPrevented
+      || event.button !== 0
+      || event.altKey
+      || event.ctrlKey
+      || event.metaKey
+      || event.shiftKey
+    ) return;
+
+    event.preventDefault();
+    const nextLocation = `/#${route}`;
+    const currentLocation = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (currentLocation !== nextLocation) window.history.pushState(null, "", nextLocation);
+    setActiveView(route);
+  }, []);
 
   useEffect(() => {
     const synchronizeView = () => setActiveView(viewFromLocation(initialView));
@@ -60,10 +77,10 @@ export default function PortfolioShell({ initialView = "home" }: { initialView?:
   return (
     <div className="portfolio-shell" data-portfolio-shell="true" data-active-view={activeView}>
       {activeView === "shelf" ? (
-        <ShelfExplorer papers={papers} />
+        <ShelfExplorer papers={papers} onNavigate={navigateToView} />
       ) : (
         <>
-          <SiteHeader current={activeView} />
+          <SiteHeader current={activeView} onNavigate={navigateToView} />
           {activeView === "resume" ? <ResumeView /> : null}
           {activeView === "tools" ? <ToolsView /> : null}
           {activeView === "home" ? <HomeView /> : null}

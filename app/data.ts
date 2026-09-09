@@ -7,127 +7,190 @@ export type Paper = {
   collections: string[];
 };
 
-export const skillStacks = [
+export type SkillStackSection = {
+  label: string;
+  items: string[];
+};
+
+export type SkillStack = {
+  id: string;
+  title: string;
+  items: string[];
+  sections: SkillStackSection[];
+};
+
+export const skillStacks: SkillStack[] = [
   {
-    title: "Documentation, Systems and Software",
-    description: "",
+    id: "systems-architecture",
+    title: "Systems Architecture",
     items: [
-      "Network Diagram",
-      "Unified Modeling Language",
-      "Entity-Relationship Diagram",
-      "Data Flow Diagram",
-      "Flowchart",
-      "Mockup",
-      "Wireframe",
-      "User Manual",
-      "Technical Documentation",
-      "Software Architecture",
       "Local-First Architecture",
-      "Progressive Disclosure",
+      "API Integration and Boundary Design",
+      "State Modeling",
+      "Deterministic Simulation",
+      "Multi-Agent Systems",
+      "Requirements Engineering and Traceability",
+    ],
+    sections: [],
+  },
+  {
+    id: "interaction-and-service-design",
+    title: "Interaction and Service Design",
+    items: [
+      "Information Architecture",
+      "Interaction Design",
       "Accessibility Engineering",
+      "Service and Ecosystem Mapping",
+    ],
+    sections: [],
+  },
+  {
+    id: "security-and-verification",
+    title: "Security and Verification",
+    items: [
       "Threat Modeling",
-      "Requirements Traceability",
+      "Input and Import Validation",
+      "Adversarial Testing",
+      "Regression Testing",
+      "Failure-Mode and Recovery Testing",
       "Software Bill of Materials (SBOM)",
-      "Deterministic Simulation and Multi-Agent Systems",
+    ],
+    sections: [
+      {
+        label: "Tools",
+        items: ["Playwright", "CodeQL"],
+      },
     ],
   },
   {
-    title: "Programming",
-    description: "Systems and Software Languages.\nEmphasis on SOLID principles.",
+    id: "data-architecture-and-interoperability",
+    title: "Data Architecture and Interoperability",
     items: [
-      "C++",
-      "C#",
-      "Java",
-      "Python",
-      "TypeScript",
-      "JavaScript",
-      "HTML",
-      "CSS",
-      "Bash",
-      "GLSL",
-    ],
-  },
-  {
-    title: "Frameworks, Runtimes, and Tooling",
-    description: "",
-    items: [
-      ".NET",
-      "React",
-      "Next.js",
-      "Node.js",
-      "Vite",
-      "Bootstrap",
-      "Git",
-      "npm",
-      "Three.js",
-      "Playwright",
-      "Cloudflare Workers",
-      "Wrangler",
-      "GitHub Actions",
-      "Continuous Integration and Deployment (CI/CD)",
-      "CodeQL",
-    ],
-  },
-  {
-    title: "Data",
-    description: "Databases, Database Scripting, Mining, and Analysis Languages.",
-    items: [
-      "Neo4j",
-      "MongoDB",
-      "ArangoDB",
-      "SQLite",
-      "MySQL",
-      "SQL",
-      "R",
-      "IndexedDB",
       "Schema Design and Validation",
+      "Entity-Relationship Modeling",
       "Metadata Crosswalks and Interoperability",
+      "Data Governance",
+    ],
+    sections: [
+      {
+        label: "Technologies",
+        items: ["SQL", "SQLite", "MySQL", "Neo4j", "MongoDB", "ArangoDB", "IndexedDB", "R"],
+      },
     ],
   },
   {
-    title: "Fabrication and Production",
-    description: "",
+    id: "technical-documentation-and-modeling",
+    title: "Technical Documentation and Modeling",
     items: [
-      "Laser Cutting",
-      "Machined Drilling",
-      "Multi-Needle Embroidery",
-      "3D Printing",
-      "Sublimation Printing",
-      "Soldering with 63Sn-37Pb Alloy",
+      "Architecture and Design Documentation",
+      "Technical Guides and User Manuals",
+      "Unified Modeling Language (UML)",
+      "Network Diagrams",
+      "Data-Flow Diagrams",
+      "Interactive and Exportable Documentation",
     ],
+    sections: [],
   },
   {
-    title: "Communications, Business",
-    description: "",
+    id: "business-analysis-and-operational-planning",
+    title: "Business Analysis and Operational Planning",
     items: [
-      "Business Process Model and Notation",
-      "Gantt Chart",
+      "Business Process Modeling (BPMN) and Flowcharts",
+      "Project Scheduling (Gantt Charts)",
       "Contract Analysis",
-      "Proposal",
+      "Proposal Development",
       "Risk Assessment",
       "Incident Response and Continuity Planning",
       "Release and Change Management",
-      "Data Governance",
+    ],
+    sections: [],
+  },
+  {
+    id: "software-development",
+    title: "Software Development",
+    items: [],
+    sections: [
+      {
+        label: "Languages",
+        items: ["TypeScript", "JavaScript", "Python", "C#", "C++", "Java", "Bash", "GLSL"],
+      },
+      {
+        label: "Design Practices",
+        items: ["Object-Oriented Design", "SOLID Principles"],
+      },
     ],
   },
   {
-    title: "Electrostatic Discharge",
-    description: "",
-    items: ["Smock", "Wrist Strap", "Continuous Monitor", "Grounding"],
+    id: "frameworks-platforms-and-delivery",
+    title: "Frameworks, Platforms & Delivery",
+    items: [],
+    sections: [
+      {
+        label: "Application frameworks and runtimes",
+        items: [".NET", "React", "Next.js", "Node.js", "Three.js", "Bootstrap"],
+      },
+      {
+        label: "Build and delivery",
+        items: [
+          "Vite",
+          "Git",
+          "npm",
+          "GitHub Actions",
+          "Continuous Integration & Deployment (CI/CD)",
+          "Cloudflare Workers",
+          "Wrangler",
+        ],
+      },
+    ],
+  },
+  {
+    id: "fabrication-and-electronics",
+    title: "Fabrication & Electronics",
+    items: [],
+    sections: [
+      {
+        label: "Fabrication",
+        items: [
+          "Laser Cutting",
+          "Machined Drilling",
+          "Multi-Needle Embroidery",
+          "3D Printing",
+          "Sublimation Printing",
+        ],
+      },
+      {
+        label: "Electronics",
+        items: ["Soldering with 63Sn–37Pb Alloy"],
+      },
+      {
+        label: "Electrostatic discharge controls",
+        items: ["Grounding", "Continuous Monitoring", "Wrist Straps", "ESD Smocks"],
+      },
+    ],
   },
 ];
 
 export const timeline = [
   {
+    id: "madison-correctional-facility-corrections-officer",
     role: "Corrections Officer",
+    engagementKind: "employment",
     organization: "Madison Correctional Facility",
     period: "August 2026 — present",
+    start: "2026-08",
+    end: null,
+    ongoing: true,
     details: [],
   },
   {
+    id: "kings-college-london-grand-strategy",
     role: "Continuing Education",
+    engagementKind: "education",
     organization: "King’s College London",
     period: "June 2026 — August 2026",
+    start: "2026-06",
+    end: "2026-08",
+    ongoing: false,
     details: [
       "Professional Certificate in Grand Strategy:",
       "Strategic Communications",
@@ -137,9 +200,14 @@ export const timeline = [
     ],
   },
   {
+    id: "united-states-navy-officer-candidate",
     role: "Officer Candidate",
+    engagementKind: "training",
     organization: "United States Navy",
     period: "December 2025 — June 2026",
+    start: "2025-12",
+    end: "2026-06",
+    ongoing: false,
     details: [
       "Pressurized Operations and Collaboration",
       "Operational, Informational Constraints / #FogOfWar",
@@ -149,21 +217,36 @@ export const timeline = [
     featured: true,
   },
   {
+    id: "madison-consolidated-schools-substitute-teacher",
     role: "Substitute Teacher",
+    engagementKind: "employment",
     organization: "Madison Consolidated Schools",
     period: "August 2025 — November 2025",
+    start: "2025-08",
+    end: "2025-11",
+    ongoing: false,
     details: ["Instruction", "In-School Suspension Coordinator"],
   },
   {
+    id: "american-public-university-system-student",
     role: "Student",
+    engagementKind: "education",
     organization: "American Public University System",
     period: "July 2025 — August 2025",
+    start: "2025-07",
+    end: "2025-08",
+    ongoing: false,
     details: ["Readings in Military Philosophy"],
   },
   {
+    id: "uw-madison-ischool-continuing-education",
     role: "Continuing Education",
+    engagementKind: "education",
     organization: "iSchool, University of Wisconsin-Madison",
     period: "June 2024 — present",
+    start: "2024-06",
+    end: null,
+    ongoing: true,
     details: [
       "Basics of Archives",
       "Introduction to Digitization Projects",
@@ -172,9 +255,14 @@ export const timeline = [
     ],
   },
   {
+    id: "germantown-public-library-intern",
     role: "Library Assistant Intern",
+    engagementKind: "internship",
     organization: "Germantown Public Library",
     period: "March 2024 — September 2024",
+    start: "2024-03",
+    end: "2024-09",
+    ongoing: false,
     details: [
       "Process and Data Architecture",
       "Technical Documentation",
@@ -183,15 +271,25 @@ export const timeline = [
     ],
   },
   {
+    id: "dayton-area-school-consortium-substitute-teacher",
     role: "Substitute Teacher",
+    engagementKind: "employment",
     organization: "Dayton Area School Consortium",
     period: "November 2023 — March 2025",
+    start: "2023-11",
+    end: "2025-03",
+    ongoing: false,
     details: ["Instruction", "Exam Proctoring"],
   },
   {
+    id: "university-of-tartu-student-researcher",
     role: "Student Researcher, Student",
+    engagementKind: "education",
     organization: "University of Tartu",
     period: "July 2022 — February 2025",
+    start: "2022-07",
+    end: "2025-02",
+    ongoing: false,
     details: [
       "Building Digital Governments",
       "Diffusion and Impact of Internet Voting",
@@ -199,9 +297,14 @@ export const timeline = [
     ],
   },
   {
+    id: "ohiolink-luminary",
     role: "OhioLINK Luminary",
+    engagementKind: "program",
     organization: "OhioLINK",
     period: "August 2021 — May 2023",
+    start: "2021-08",
+    end: "2023-05",
+    ongoing: false,
     details: [
       "Web development and digital-accessibility remediation",
       "Productivity and contract analysis",
@@ -211,15 +314,25 @@ export const timeline = [
     featured: true,
   },
   {
+    id: "miami-university-undergraduate-teaching-assistant",
     role: "Undergraduate Teaching Assistant",
+    engagementKind: "employment",
     organization: "Miami University College of Engineering and Computing",
     period: "May 2022 — May 2023",
+    start: "2022-05",
+    end: "2023-05",
+    ongoing: false,
     details: ["Training and assessment", "Coordination and mediation", "Collection development"],
   },
   {
+    id: "kettering-health-network-volunteer",
     role: "Volunteer",
+    engagementKind: "volunteer",
     organization: "Kettering Health Network",
     period: "March 2019 — August 2019",
+    start: "2019-03",
+    end: "2019-08",
+    ongoing: false,
     details: [],
   },
 ];
