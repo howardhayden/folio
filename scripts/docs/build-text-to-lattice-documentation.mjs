@@ -31,10 +31,16 @@ const releaseEvidenceFilenames = Object.freeze([
 const checkOnly = process.argv.slice(2).includes("--check");
 const releaseGateStatuses = new Set([
   "satisfied-in-source",
+  "satisfied-in-production",
   "release-workflow-enforced",
   "accepted-residual-risk",
   "post-deployment-verification",
   "open-release-blocker",
+]);
+const productionSatisfiedGateIds = new Set(["GATE-02"]);
+const rollbackRequiredStatuses = new Set([
+  "satisfied-in-production",
+  "post-deployment-verification",
 ]);
 const releaseGateProjectionFields = Object.freeze([
   "id",
@@ -244,6 +250,12 @@ function validateAtlas(data) {
     if (!releaseGateStatuses.has(gate.status)) {
       fail(`release gate ${gate.id} has an unsupported status.`);
     }
+    if (gate.status === "satisfied-in-production" && !productionSatisfiedGateIds.has(gate.id)) {
+      fail(`release gate ${gate.id} cannot use satisfied-in-production status.`);
+    }
+    if (gate.id === "GATE-02" && !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
+      fail("release gate GATE-02 must remain an open release blocker until it is satisfied in production.");
+    }
     if (!marginalValues.has(gate.marginalValue)) {
       fail(`release gate ${gate.id} has unknown marginal value.`);
     }
@@ -256,10 +268,10 @@ function validateAtlas(data) {
     requireArray(gate.safeguards, `release gate ${gate.id} safeguards`).forEach((item, index) => {
       requireString(item, `release gate ${gate.id} safeguards[${index}]`);
     });
-    if (gate.status === "post-deployment-verification") {
+    if (rollbackRequiredStatuses.has(gate.status)) {
       requireString(gate.rollbackCondition, `release gate ${gate.id} rollbackCondition`);
     } else if (gate.rollbackCondition !== null) {
-      fail(`release gate ${gate.id} rollbackCondition must be null outside post-deployment verification.`);
+      fail(`release gate ${gate.id} rollbackCondition must be null outside rollback-bearing statuses.`);
     }
     if (gate.status === "accepted-residual-risk") {
       requireString(gate.acceptanceBasis, `release gate ${gate.id} acceptanceBasis`);
@@ -474,6 +486,7 @@ tbody th { color: var(--red); }
 .gate-post-deployment-verification { border-left: .25rem solid var(--amber); }
 .gate-accepted-residual-risk { border-left: .25rem solid var(--blue); }
 .gate-release-workflow-enforced,
+.gate-satisfied-in-production,
 .gate-satisfied-in-source { border-left: .25rem solid var(--green); }
 .no-script { color: var(--muted); }
 .js .no-script { display: none; }
@@ -1128,7 +1141,7 @@ function securityMarkdown(data) {
   lines.push(
     "## Release qualification gates",
     "",
-    "Only `open-release-blocker` prevents activation. Every other status must preserve its evidence boundary, safeguards, follow-up, and—when verification can exist only after deployment—an explicit rollback condition.",
+    "Only `open-release-blocker` prevents activation. `satisfied-in-source` records repository evidence; `satisfied-in-production` records observed live evidence for the permitted production gate. Every other status preserves its distinct evidence boundary, safeguards, and follow-up, while production satisfaction and post-deployment verification require an explicit rollback condition.",
     "",
     "| ID | Gate | Status | Marginal value | Requirement | Current evidence | Evidence needed |",
     "| --- | --- | --- | --- | --- | --- | --- |",
@@ -1200,7 +1213,7 @@ function securityHtml(data) {
   <section class="panel" aria-labelledby="assets-heading"><h2 id="assets-heading">Protected assets</h2><div class="table-wrap" tabindex="0" aria-label="Scrollable protected asset table"><table><caption>Security and trust objectives</caption><thead><tr><th scope="col">ID</th><th scope="col">Asset</th><th scope="col">Objective</th></tr></thead><tbody>${assets}</tbody></table></div></section>
   <section class="panel" aria-labelledby="boundaries-heading"><h2 id="boundaries-heading">Trust boundaries</h2><ul class="boundary-list">${boundaries}</ul></section>
   ${toolbar}<div class="record-grid">${cards}</div></section>
-  <section aria-labelledby="gates-heading"><div class="panel boundary"><p class="eyebrow">Evidence stays typed</p><h2 id="gates-heading">Release qualification gates</h2><p>Only an open release blocker prevents activation. Source-satisfied, workflow-enforced, accepted-residual, and post-deployment statuses keep distinct evidence and lifecycle duties; none converts missing runtime evidence into a completed claim.</p></div><div class="record-grid">${gateCards}</div></section>
+  <section aria-labelledby="gates-heading"><div class="panel boundary"><p class="eyebrow">Evidence stays typed</p><h2 id="gates-heading">Release qualification gates</h2><p>Only an open release blocker prevents activation. Source-satisfied, production-satisfied, workflow-enforced, accepted-residual, and post-deployment statuses keep distinct evidence and lifecycle duties; production satisfaction records observed live evidence only for its permitted gate, and none converts missing runtime evidence into a completed claim.</p></div><div class="record-grid">${gateCards}</div></section>
   <section class="panel" aria-labelledby="residual-heading"><h2 id="residual-heading">Honest residual boundary</h2>${htmlList(security.honestResidualBoundary)}</section>
   <section class="panel"><h2>Sources and exports</h2><p><a class="button-link" href="TEXT-TO-LATTICE-SECURITY-MODEL.md" download>Download complete Markdown</a> <a class="button-link" href="documentation-atlas.json" download>Download authoritative JSON</a> <a class="button-link" href="artifact-manifest.json">Inspect integrity manifest</a></p></section>
   ${htmlSources(data)}${htmlTerms()}`;

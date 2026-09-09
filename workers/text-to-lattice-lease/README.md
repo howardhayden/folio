@@ -260,12 +260,13 @@ Before enabling the static client:
 1. Verify that `hah.dev` is an active Cloudflare zone and its DNS record is proxied.
 2. Configure and verify the exact path-scoped edge rate-limit/WAF rule described above.
 3. Create a dedicated Turnstile widget restricted to exactly `verify.hah.dev`.
-   Keep the public site key in a Worker binding so it need not be committed;
-   keep the validation key secret. The client and verifier require the
-   `text_to_lattice` action.
-4. Generate three independent values of at least 32 random bytes for the
-   cookie, lease, and Turnstile validation domains. Obtain the widget's public
-   site key separately. Store all four bindings as
+   Obtain both the public site key and secret validation key from Cloudflare;
+   do not generate either value. Keep the site key in a Worker binding so it
+   need not be committed, and keep the validation key secret. The client and
+   verifier require the `text_to_lattice` action.
+4. Generate two independent values of at least 32 random bytes for the cookie
+   and lease signing domains. Store those values and both Cloudflare-supplied
+   Turnstile keys as the four
    **Cloudflare encrypted Worker secrets**; do not reuse a secret between domains, put a production
    value in Wrangler `vars`, or commit it in `.env` or `.dev.vars`:
 
@@ -296,10 +297,22 @@ Before enabling the static client:
 
 6. Deploy the static-only project in
    `workers/text-to-lattice-attestation-frame/` at `verify.hah.dev`. At the
-   `hah.dev` response-header/CDN layer, allow `https://verify.hah.dev` in the
-   main page's `frame-src`; do not allow Cloudflare's challenge origin in the
-   main page's `script-src`, and disable `document-domain` through
-   `Permissions-Policy`. Confirm the frame's checked-in CSP and
+   `hah.dev` response-header/CDN layer, apply the following policies to both
+   the root document (which serves `/#Resume`; fragments never reach the
+   server) and `/resume/`:
+
+   ```text
+   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; frame-src https://verify.hah.dev; connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co https://raw.githubusercontent.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'
+   Permissions-Policy: document-domain=()
+   ```
+
+   These are exact release dependencies: the model and tokenizer requests may
+   redirect from `huggingface.co` to an `hf.co` CDN, the pinned WebAssembly
+   comes from `raw.githubusercontent.com`, and the existing Jost stylesheet and
+   font come from Google's named font origins. Do not add Cloudflare's challenge
+   origin to the main page's `script-src`, add `script-src-elem`, or replace a
+   named source with a general HTTPS or wildcard source. Confirm both main
+   routes with the live service verifier, then confirm the frame's checked-in CSP and
    `frame-ancestors https://hah.dev` header on the deployed response. No account
    identifier, deploy credential, site key, or secret is committed by the
    static project.

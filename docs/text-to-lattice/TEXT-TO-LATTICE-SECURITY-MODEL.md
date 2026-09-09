@@ -368,7 +368,7 @@ An unusual finding remains eligible. Novelty alone neither promotes nor dismisse
 
 ## Release qualification gates
 
-Only `open-release-blocker` prevents activation. Every other status must preserve its evidence boundary, safeguards, follow-up, and—when verification can exist only after deployment—an explicit rollback condition.
+Only `open-release-blocker` prevents activation. `satisfied-in-source` records repository evidence; `satisfied-in-production` records observed live evidence for the permitted production gate. Every other status preserves its distinct evidence boundary, safeguards, and follow-up, while production satisfaction and post-deployment verification require an explicit rollback condition.
 
 | ID | Gate | Status | Marginal value | Requirement | Current evidence | Evidence needed |
 | --- | --- | --- | --- | --- | --- | --- |

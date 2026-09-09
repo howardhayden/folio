@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstat, readdir, readFile, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   LLAMA_3_2_TERMS_PROVENANCE,
@@ -38,10 +38,19 @@ const expectedGateIds = Object.freeze([
 ]);
 const gateStatuses = new Set([
   "satisfied-in-source",
+  "satisfied-in-production",
   "release-workflow-enforced",
   "accepted-residual-risk",
   "post-deployment-verification",
   "open-release-blocker",
+]);
+const artifactQualificationStatuses = new Set(
+  [...gateStatuses].filter((status) => status !== "satisfied-in-production"),
+);
+const productionSatisfiedGateIds = new Set(["GATE-02"]);
+const rollbackRequiredStatuses = new Set([
+  "satisfied-in-production",
+  "post-deployment-verification",
 ]);
 const marginalValues = new Set(["high", "moderate", "low", "negative"]);
 const marginalDecisionValues = new Set([...marginalValues, "moderate-to-high"]);
@@ -63,42 +72,24 @@ const gateProjectionFields = Object.freeze([
 const qualifiedSourceSetAlgorithm = "sha256-path-and-bytes-v1";
 const qualifiedSourceFiles = Object.freeze([
   ".github/workflows/pages.yml",
-  "app/content/projectDocuments.js",
-  "app/content/textToLatticeContent.js",
-  "app/globals.css",
-  "app/projects/lattice/text-to-lattice/page.tsx",
-  "app/resume/ResumeProjects.tsx",
-  "app/resume/ResumeProjectsHeld.tsx",
-  "app/resume/ResumeView.tsx",
-  "app/resume/SkillStacks.tsx",
-  "app/resume/latticeDemo.js",
-  "app/resume/projects.js",
-  "app/semantic/portfolio.js",
-  "app/semantic/routes.js",
-  "app/third-party-notices/page.tsx",
+  "CNAME",
+  "eslint.config.mjs",
   "next.config.ts",
   "package-lock.json",
   "package.json",
-  "scripts/build-pages.mjs",
-  "scripts/clean-build-output.mjs",
-  "scripts/docs/build-text-to-lattice-documentation.mjs",
-  "scripts/fetch-lattice-tokenizers.mjs",
-  "scripts/fetch-lattice-wasm.mjs",
-  "scripts/read-text-to-lattice-release-state.mjs",
-  "scripts/verify-current-main-sha.mjs",
-  "scripts/verify-text-to-lattice-release.mjs",
-  "scripts/verify-text-to-lattice-secret-bindings.mjs",
-  "scripts/verify-text-to-lattice-services.mjs",
+  "postcss.config.mjs",
   "tsconfig.json",
   "vite.config.ts",
   "workers/package-lock.json",
   "workers/package.json",
 ]);
 const qualifiedSourceTrees = Object.freeze([
-  "app/resume/lattice",
+  "app",
+  "scripts",
   "workers/text-to-lattice-attestation-frame",
   "workers/text-to-lattice-lease",
 ]);
+const qualifiedToolResidueDirectories = new Set([".wrangler"]);
 const sha256Pattern = /^[a-f0-9]{64}$/u;
 const gitRevisionPattern = /^[a-f0-9]{40}$/u;
 const dateRevisionPattern = /^\d{4}-\d{2}-\d{2}$/u;
@@ -185,12 +176,13 @@ function pathWithinRoot(path, label) {
   return { absolute, relative: rel.split("\\").join("/") };
 }
 
-async function qualifiedFilesBelow(directory, directoryLabel) {
+export async function qualifiedFilesBelow(directory, directoryLabel) {
   const entries = await readdir(directory, { withFileTypes: true });
   const nested = [];
   for (const entry of entries) {
     const path = join(directory, entry.name);
     if (entry.isSymbolicLink()) fail(`qualified source tree ${directoryLabel} contains a symbolic link.`);
+    if (entry.isDirectory() && qualifiedToolResidueDirectories.has(entry.name)) continue;
     if (entry.isDirectory()) nested.push(...await qualifiedFilesBelow(path, directoryLabel));
     else if (entry.isFile()) nested.push(path);
     else fail(`qualified source tree ${directoryLabel} contains an unsupported filesystem entry.`);
@@ -308,7 +300,7 @@ async function verifyLlamaUseEvaluation(register) {
     || record.expectedAllowCount !== allowCount
     || record.expectedDenyCount !== denyCount
     || record.fixtureStatus !== "defined-and-machine-checked"
-    || !gateStatuses.has(record.exactModelExecutionStatus)) {
+    || !artifactQualificationStatuses.has(record.exactModelExecutionStatus)) {
     fail("Llama-use evaluation evidence drifted from the release register.");
   }
   if (record.exactModelExecutionPerformed !== false) {
@@ -434,8 +426,9 @@ function verifyArtifactSet(register) {
     || artifacts.wasm.abiInspection.allocEmbeddingTensorBytes.generator !== 5242880
     || artifacts.wasm.abiInspection.allocEmbeddingTensorBytes.verifier !== 6291456
     || artifacts.wasm.abiInspection.customSections.length !== 0) fail("WASM ABI inspection record is incomplete or drifted.");
-  if (!gateStatuses.has(artifacts.wasm.reproducibility.status)) fail("WASM reproducibility has an unsupported qualification status.");
-  if (!gateStatuses.has(artifacts.models.verifier.artifactProvenanceStatus)) fail("Llama MLC artifact provenance has an unsupported qualification status.");
+  if (!artifactQualificationStatuses.has(artifacts.wasm.reproducibility.status)) fail("WASM reproducibility has an unsupported qualification status.");
+  if (!artifactQualificationStatuses.has(artifacts.models.verifier.artifactProvenanceStatus)) fail("Llama MLC artifact provenance has an unsupported qualification status.");
+  if (!artifactQualificationStatuses.has(artifacts.llamaBehaviorEvaluation.exactModelExecutionStatus)) fail("Llama exact-model execution has an unsupported qualification status.");
   if (artifacts.wasm.reproducibility.established !== false) fail("WASM reproducibility must remain explicitly unestablished.");
   if (artifacts.models.verifier.artifactProvenanceEstablished !== false) fail("Llama MLC-artifact provenance must remain explicitly unestablished.");
   if (artifacts.models.verifier.artifactProvenanceStatus !== register.gates.find(({ id }) => id === "GATE-04B")?.status
@@ -481,14 +474,20 @@ async function verifySourceBoundary(register) {
   exactIds(register.gates, expectedGateIds, "release gates");
   for (const gate of register.gates) {
     if (!gateStatuses.has(gate.status)) fail(`${gate.id} has an unsupported status.`);
+    if (gate.status === "satisfied-in-production" && !productionSatisfiedGateIds.has(gate.id)) {
+      fail(`${gate.id} cannot use satisfied-in-production status.`);
+    }
+    if (gate.id === "GATE-02" && !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
+      fail("GATE-02 must remain an open release blocker until it is satisfied in production.");
+    }
     if (!marginalValues.has(gate.marginalValue)) fail(`${gate.id} has an unsupported marginal-value classification.`);
     for (const field of ["label", "requirement", "currentEvidence", "evidenceNeeded", "rationale", "followUp"]) {
       requireString(gate[field], `${gate.id} ${field}`);
     }
     requireStringArray(gate.evidence, `${gate.id} evidence`);
     requireStringArray(gate.safeguards, `${gate.id} safeguards`);
-    if (gate.status === "post-deployment-verification") requireString(gate.rollbackCondition, `${gate.id} rollbackCondition`);
-    else if (gate.rollbackCondition !== null) fail(`${gate.id} rollbackCondition must be null outside post-deployment verification.`);
+    if (rollbackRequiredStatuses.has(gate.status)) requireString(gate.rollbackCondition, `${gate.id} rollbackCondition`);
+    else if (gate.rollbackCondition !== null) fail(`${gate.id} rollbackCondition must be null outside rollback-bearing statuses.`);
     if (gate.status === "accepted-residual-risk") requireString(gate.acceptanceBasis, `${gate.id} acceptanceBasis`);
     else if (gate.acceptanceBasis !== null) fail(`${gate.id} acceptanceBasis must be null outside accepted residual risk.`);
   }
@@ -1051,21 +1050,26 @@ async function verifyBuiltBoundary(register, site) {
   await verifyExportedReleaseEvidence(site, files);
 }
 
-const args = process.argv.slice(2);
-const requested = new Set(args.filter((value) => !value.startsWith("--register=") && !value.startsWith("--site-root=")));
-const registerArguments = args.filter((value) => value.startsWith("--register="));
-const siteRootArguments = args.filter((value) => value.startsWith("--site-root="));
-if ([...requested].some((value) => !["--source", "--site"].includes(value)) || registerArguments.length > 1 || siteRootArguments.length > 1) {
-  fail("supported options are --source, --site, one --register=<path> test fixture, and one --site-root=<path> fixture.");
+const isCommand = process.argv[1]
+  && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+
+if (isCommand) {
+  const args = process.argv.slice(2);
+  const requested = new Set(args.filter((value) => !value.startsWith("--register=") && !value.startsWith("--site-root=")));
+  const registerArguments = args.filter((value) => value.startsWith("--register="));
+  const siteRootArguments = args.filter((value) => value.startsWith("--site-root="));
+  if ([...requested].some((value) => !["--source", "--site"].includes(value)) || registerArguments.length > 1 || siteRootArguments.length > 1) {
+    fail("supported options are --source, --site, one --register=<path> test fixture, and one --site-root=<path> fixture.");
+  }
+  if (siteRootArguments.length && !requested.has("--site")) fail("--site-root requires --site.");
+  if (siteRootArguments[0] === "--site-root=") fail("--site-root requires a nonempty path.");
+  const selectedRegisterPath = registerArguments.length
+    ? resolve(root, registerArguments[0].slice("--register=".length))
+    : registerPath;
+  const selectedSiteRoot = siteRootArguments.length
+    ? resolve(root, siteRootArguments[0].slice("--site-root=".length))
+    : join(root, "site");
+  const { register } = await verifySourceBoundary(await readJson(selectedRegisterPath, "release register"));
+  if (requested.has("--site")) await verifyBuiltBoundary(register, selectedSiteRoot);
+  process.stdout.write(`Text to Lattice release boundary verified (${register.publicClient.status}${requested.has("--site") ? ", source and site" : ", source"}).\n`);
 }
-if (siteRootArguments.length && !requested.has("--site")) fail("--site-root requires --site.");
-if (siteRootArguments[0] === "--site-root=") fail("--site-root requires a nonempty path.");
-const selectedRegisterPath = registerArguments.length
-  ? resolve(root, registerArguments[0].slice("--register=".length))
-  : registerPath;
-const selectedSiteRoot = siteRootArguments.length
-  ? resolve(root, siteRootArguments[0].slice("--site-root=".length))
-  : join(root, "site");
-const { register } = await verifySourceBoundary(await readJson(selectedRegisterPath, "release register"));
-if (requested.has("--site")) await verifyBuiltBoundary(register, selectedSiteRoot);
-process.stdout.write(`Text to Lattice release boundary verified (${register.publicClient.status}${requested.has("--site") ? ", source and site" : ", source"}).\n`);

@@ -9,6 +9,30 @@ import { verifyTextToLatticeServices } from "../scripts/verify-text-to-lattice-s
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workflowPath = resolve(root, ".github/workflows/pages.yml");
+const mainConnectSources = [
+  "'self'",
+  "https://huggingface.co",
+  "https://*.huggingface.co",
+  "https://*.hf.co",
+  "https://raw.githubusercontent.com",
+];
+const mainResourceDirectives = [
+  ["connect-src", mainConnectSources],
+  ["style-src", ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"]],
+  ["font-src", ["'self'", "https://fonts.gstatic.com"]],
+  ["img-src", ["'self'", "data:"]],
+  ["worker-src", ["'self'"]],
+  ["object-src", ["'none'"]],
+  ["base-uri", ["'self'"]],
+  ["form-action", ["'self'"]],
+];
+const mainPolicy = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  "frame-src https://verify.hah.dev",
+  ...mainResourceDirectives.map(([name, values]) => `${name} ${values.join(" ")}`),
+].join("; ");
+const mainPageUrls = new Set(["https://hah.dev/", "https://hah.dev/resume/"]);
 
 const frameHeaders = {
   "Cache-Control": "no-store, max-age=0",
@@ -52,7 +76,8 @@ function jsonResponse(status, value, headers = {}) {
 }
 
 function fixtureFetch({
-  mainPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; frame-src 'self' https://verify.hah.dev",
+  mainPolicy: responseMainPolicy = mainPolicy,
+  mutateMainHeaders = (headers) => headers,
   mutateFrameHeaders = (headers) => headers,
   mutateFrameSource = (source) => source,
   observeRequest = () => {},
@@ -71,13 +96,13 @@ function fixtureFetch({
         },
       });
     }
-    if (url === "https://hah.dev/resume/") {
+    if (mainPageUrls.has(url)) {
       return new Response("resume", {
         status: 200,
-        headers: {
-          "Content-Security-Policy": mainPolicy,
+        headers: mutateMainHeaders({
+          "Content-Security-Policy": responseMainPolicy,
           "Permissions-Policy": "camera=(), document-domain=()",
-        },
+        }, url),
       });
     }
     if (url !== "https://hah.dev/api/text-to-lattice/lease") {
@@ -229,9 +254,11 @@ test("encrypted binding inspection accepts only the four separated runtime value
 
 test("live qualification accepts the exact public route, cookie, and header contracts", async () => {
   let invalidAttestationRequest = null;
+  const requestedMainPages = new Set();
   await verifyTextToLatticeServices({
     fetchImpl: fixtureFetch({
       observeRequest(url, init) {
+        if (mainPageUrls.has(url)) requestedMainPages.add(url);
         const headers = new Headers(init.headers);
         if (headers.has("X-Lattice-Attestation")) {
           invalidAttestationRequest = { url, init, headers };
@@ -249,6 +276,7 @@ test("live qualification accepts the exact public route, cookie, and header cont
     invalidAttestationRequest?.headers.get("X-Lattice-Attestation") ?? "",
     /^qualification-intentionally-invalid$/u,
   );
+  assert.deepEqual(requestedMainPages, mainPageUrls);
 });
 
 test("live qualification rejects a route that does not reach attestation rejection", async () => {
@@ -302,10 +330,10 @@ test("each verification-frame asset receives its own propagation window", async 
 
 test("main-page qualification rejects script policies that escape the isolated frame", async (context) => {
   const policies = [
-    ["challenge origin", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com; frame-src 'self' https://verify.hah.dev"],
-    ["HTTPS scheme", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https:; frame-src 'self' https://verify.hah.dev"],
-    ["wildcard", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' *; frame-src 'self' https://verify.hah.dev"],
-    ["script-src-elem override", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; script-src-elem https://challenges.cloudflare.com; frame-src 'self' https://verify.hah.dev"],
+    ["challenge origin", mainPolicy.replace("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'", "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com")],
+    ["HTTPS scheme", mainPolicy.replace("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'", "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https:")],
+    ["wildcard", mainPolicy.replace("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'", "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' *")],
+    ["script-src-elem override", `${mainPolicy}; script-src-elem https://challenges.cloudflare.com`],
     ["default-src fallback", "default-src https:; frame-src 'self' https://verify.hah.dev"],
   ];
   for (const [label, mainPolicy] of policies) {
@@ -315,6 +343,95 @@ test("main-page qualification rejects script policies that escape the isolated f
         retryDelay: async () => {},
       }));
     });
+  }
+});
+
+test("main-page qualification requires exact default, frame, and style override boundaries", async (context) => {
+  const policies = [
+    ["missing default-src", mainPolicy.replace("default-src 'self'; ", "")],
+    ["expanded default-src", mainPolicy.replace("default-src 'self'", "default-src 'self' https:")],
+    ["missing frame-src", mainPolicy.replace("frame-src https://verify.hah.dev; ", "")],
+    ["expanded frame-src", mainPolicy.replace("frame-src https://verify.hah.dev", "frame-src https://verify.hah.dev https:")],
+    ["style-src-elem override", `${mainPolicy}; style-src-elem https:`],
+    ["style-src-attr override", `${mainPolicy}; style-src-attr 'none'`],
+  ];
+  for (const [label, policy] of policies) {
+    await context.test(label, async () => {
+      await assert.rejects(
+        verifyTextToLatticeServices({
+          fetchImpl: fixtureFetch({ mainPolicy: policy }),
+          retryDelay: async () => {},
+        }),
+      );
+    });
+  }
+});
+
+test("main-page qualification requires every explicit ordinary-use resource directive and token", async (context) => {
+  for (const [directive, requiredSources] of mainResourceDirectives) {
+    await context.test(`${directive} directive`, async () => {
+      const incompletePolicy = mainPolicy
+        .split("; ")
+        .filter((entry) => !entry.startsWith(`${directive} `))
+        .join("; ");
+      await assert.rejects(
+        verifyTextToLatticeServices({
+          fetchImpl: fixtureFetch({ mainPolicy: incompletePolicy }),
+          retryDelay: async () => {},
+        }),
+        new RegExp(`does not match the release ${directive} directive`, "u"),
+      );
+    });
+    for (const requiredSource of requiredSources) {
+      await context.test(`${directive} ${requiredSource}`, async () => {
+        const completeDirective = `${directive} ${requiredSources.join(" ")}`;
+        const incompleteDirective = `${directive} ${requiredSources.filter((source) => source !== requiredSource).join(" ")}`.trim();
+        await assert.rejects(
+          verifyTextToLatticeServices({
+            fetchImpl: fixtureFetch({
+              mainPolicy: mainPolicy.replace(completeDirective, incompleteDirective),
+            }),
+            retryDelay: async () => {},
+          }),
+          new RegExp(`does not match the release ${directive} directive`, "u"),
+        );
+      });
+    }
+  }
+});
+
+test("both public résumé routes fail closed on missing or malformed response policies", async (context) => {
+  const cases = [
+    ["missing CSP", (headers) => {
+      const copy = { ...headers };
+      delete copy["Content-Security-Policy"];
+      return copy;
+    }],
+    ["malformed CSP", (headers) => ({ ...headers, "Content-Security-Policy": "default-src 'self'" })],
+    ["missing Permissions-Policy", (headers) => {
+      const copy = { ...headers };
+      delete copy["Permissions-Policy"];
+      return copy;
+    }],
+    ["malformed Permissions-Policy", (headers) => ({ ...headers, "Permissions-Policy": "camera=()" })],
+    ["duplicate Permissions-Policy directive", (headers) => ({
+      ...headers,
+      "Permissions-Policy": "camera=(), document-domain=(), document-domain=(self)",
+    })],
+  ];
+  for (const url of mainPageUrls) {
+    for (const [label, mutation] of cases) {
+      await context.test(`${url} ${label}`, async () => {
+        await assert.rejects(verifyTextToLatticeServices({
+          fetchImpl: fixtureFetch({
+            mutateMainHeaders(headers, requestUrl) {
+              return requestUrl === url ? mutation(headers) : headers;
+            },
+          }),
+          retryDelay: async () => {},
+        }));
+      });
+    }
   }
 });
 

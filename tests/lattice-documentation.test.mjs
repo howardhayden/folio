@@ -19,6 +19,11 @@ const [atlas, manifest] = await Promise.all([
   readText(publicRoot, "artifact-manifest.json").then(JSON.parse),
 ]);
 
+test("the documentation generator reserves production satisfaction for the live service gate", async () => {
+  const builder = await readText(rootUrl, "scripts/docs/build-text-to-lattice-documentation.mjs");
+  assert.match(builder, /gate\.id === "GATE-02"[\s\S]{0,160}open-release-blocker[\s\S]{0,160}satisfied-in-production/u);
+});
+
 test("Lattice documentation has one registered authority and byte-identical Markdown exports", async () => {
   assert.equal(atlas.format, "TEXT_TO_LATTICE_DOCUMENTATION_ATLAS");
   assert.equal(manifest.format, "TEXT_TO_LATTICE_DOCUMENTATION_ARTIFACT_MANIFEST");
@@ -115,6 +120,7 @@ test("interactive editions remain complete, local, accessible, and executable-fr
     assert.match(html, /prefers-reduced-motion/u);
     assert.match(html, /forced-colors/u);
     assert.match(html, /@media print/u);
+    assert.match(html, /\.gate-satisfied-in-production/u);
     assert.doesNotMatch(html, /<script\b[^>]*\bsrc=/iu);
     assert.doesNotMatch(html, /<link\b[^>]*rel="stylesheet"/iu);
     assert.doesNotMatch(html, /<(?:img|iframe|audio|video|source)\b[^>]*\bsrc="https?:/iu);

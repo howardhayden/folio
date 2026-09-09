@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import { projectBySlug } from "../app/resume/projects.js";
+import { qualifiedFilesBelow } from "../scripts/verify-text-to-lattice-release.mjs";
 
 const execute = promisify(execFile);
 const root = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
@@ -36,6 +37,24 @@ async function appendToHtml(path, markup) {
   await writeFile(path, source.replace("</body>", `${markup}</body>`));
 }
 
+test("qualified source trees ignore only Wrangler's reserved local residue", async () => {
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "lattice-qualified-tree-test-"));
+  try {
+    await mkdir(join(temporaryDirectory, ".wrangler", "tmp"), { recursive: true });
+    await writeFile(join(temporaryDirectory, ".wrangler", "tmp", "bundle.js"), "generated");
+    await writeFile(join(temporaryDirectory, "worker.js"), "tracked source");
+    await writeFile(join(temporaryDirectory, "meaningful-untracked.js"), "meaningful drift");
+
+    const qualified = (await qualifiedFilesBelow(temporaryDirectory, "test fixture"))
+      .map((path) => relative(temporaryDirectory, path).split("\\").join("/"))
+      .sort();
+
+    assert.deepEqual(qualified, ["meaningful-untracked.js", "worker.js"]);
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
 test("the release register holds only the consequential live-service blocker", async () => {
   const [registerSource, atlasSource, evaluationSource, view, held, projectsSource, packageSource, workflow, validatorSource, wasmFetcher] = await Promise.all([
     readFile(registerPath, "utf8"),
@@ -58,9 +77,21 @@ test("the release register holds only the consequential live-service blocker", a
   assert.equal(register.overallStatus, "held");
   assert.equal(register.publicClient.status, "held");
   assert.equal(register.publicClient.publicationMode, "documentation-only");
+  assert.deepEqual(register.statusVocabulary, [
+    "satisfied-in-source",
+    "satisfied-in-production",
+    "release-workflow-enforced",
+    "accepted-residual-risk",
+    "post-deployment-verification",
+    "open-release-blocker",
+  ]);
   assert.equal(register.ownerDisposition.status, "release-directed");
   assert.equal(register.ownerDisposition.qualifiedSourceSetSha256, register.authority.qualifiedSourceSet.sha256);
   assert.match(register.authority.qualifiedSourceSet.sha256, /^[a-f0-9]{64}$/u);
+  assert.ok(register.authority.qualifiedSourceSet.trees.includes("app"), "the qualified source set binds every same-origin application source");
+  assert.ok(register.authority.qualifiedSourceSet.trees.includes("scripts"), "the qualified source set binds every build and release script");
+  assert.ok(register.authority.qualifiedSourceSet.files.includes("CNAME"), "the qualified source set binds the production hostname");
+  assert.ok(register.authority.qualifiedSourceSet.files.includes("postcss.config.mjs"), "the qualified source set binds CSS compilation");
   assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
   assert.deepEqual(register.gates.map(({ id, status, marginalValue }) => [id, status, marginalValue]), [
     ["GATE-01", "release-workflow-enforced", "high"],
@@ -75,7 +106,7 @@ test("the release register holds only the consequential live-service blocker", a
   const gateProjectionFields = ["id", "label", "status", "marginalValue", "requirement", "currentEvidence", "evidenceNeeded", "rationale", "evidence", "safeguards", "followUp", "rollbackCondition", "acceptanceBasis"];
   assert.deepEqual(atlas.securityModel.prePublicationGates, register.gates.map((gate) => Object.fromEntries(gateProjectionFields.map((field) => [field, gate[field]]))));
   assert.ok(register.gates.every(({ rationale, evidence, safeguards, followUp }) => rationale && evidence.length && safeguards.length && followUp));
-  assert.ok(register.gates.filter(({ status }) => status === "post-deployment-verification").every(({ rollbackCondition }) => rollbackCondition));
+  assert.ok(register.gates.filter(({ status }) => ["satisfied-in-production", "post-deployment-verification"].includes(status)).every(({ rollbackCondition }) => rollbackCondition));
   assert.ok(register.gates.filter(({ status }) => status === "accepted-residual-risk").every(({ acceptanceBasis }) => acceptanceBasis));
   assert.equal(evaluation.cases.length, 10);
   assert.equal(evaluation.cases.filter(({ expectedSafety }) => expectedSafety).length, 5);
@@ -152,7 +183,12 @@ test("qualification statuses retain their evidence, safeguard, acceptance, rollb
   const baseline = JSON.parse(await readFile(registerPath, "utf8"));
   const mutations = [
     [(record) => { record.authority.qualifiedSourceSet.sha256 = "0".repeat(64); }, /qualified source-set digest does not match/u],
+    [(record) => { record.statusVocabulary = record.statusVocabulary.filter((status) => status !== "satisfied-in-production"); }, /statusVocabulary does not match/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").evidence = []; }, /GATE-02 evidence must be a nonempty array/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-02").status = "satisfied-in-production"; }, /GATE-02 rollbackCondition must be a nonempty string/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-02").status = "satisfied-in-source"; }, /GATE-02 must remain an open release blocker until it is satisfied in production/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-04A").status = "satisfied-in-production"; }, /GATE-04A cannot use satisfied-in-production status/u],
+    [(record) => { record.artifactSet.llamaBehaviorEvaluation.exactModelExecutionStatus = "satisfied-in-production"; }, /Llama exact-model execution has an unsupported qualification status/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-04A").acceptanceBasis = null; }, /GATE-04A acceptanceBasis must be a nonempty string/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-06").rollbackCondition = null; }, /GATE-06 rollbackCondition must be a nonempty string/u],
     [(record) => { record.marginalValueDecisions[0].classification = "novelty-only"; }, /marginal-value decision 0 has an unsupported classification/u],

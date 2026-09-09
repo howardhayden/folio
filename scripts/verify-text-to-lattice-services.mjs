@@ -7,6 +7,33 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const mainOrigin = "https://hah.dev";
 const frameOrigin = "https://verify.hah.dev";
 const leaseUrl = `${mainOrigin}/api/text-to-lattice/lease`;
+const mainPages = Object.freeze([
+  Object.freeze({ label: "hah.dev root résumé", url: `${mainOrigin}/` }),
+  Object.freeze({ label: "hah.dev résumé", url: `${mainOrigin}/resume/` }),
+]);
+const requiredMainResourceDirectives = Object.freeze([
+  Object.freeze(["connect-src", Object.freeze([
+    "'self'",
+    "https://huggingface.co",
+    "https://*.huggingface.co",
+    "https://*.hf.co",
+    "https://raw.githubusercontent.com",
+  ])]),
+  Object.freeze(["style-src", Object.freeze([
+    "'self'",
+    "'unsafe-inline'",
+    "https://fonts.googleapis.com",
+  ])]),
+  Object.freeze(["font-src", Object.freeze([
+    "'self'",
+    "https://fonts.gstatic.com",
+  ])]),
+  Object.freeze(["img-src", Object.freeze(["'self'", "data:"])]),
+  Object.freeze(["worker-src", Object.freeze(["'self'"])]),
+  Object.freeze(["object-src", Object.freeze(["'none'"])]),
+  Object.freeze(["base-uri", Object.freeze(["'self'"])]),
+  Object.freeze(["form-action", Object.freeze(["'self'"])]),
+]);
 const transientDeploymentStatuses = new Set([404, 500, 502, 503, 522, 523, 524, 525, 526, 530]);
 const frameFiles = [
   {
@@ -58,13 +85,6 @@ function directiveMap(policy) {
   return directives;
 }
 
-function requireDirective(policy, name, requiredValues, label) {
-  const values = directiveMap(policy).get(name);
-  if (!values || requiredValues.some((value) => !values.includes(value))) {
-    fail(`${label} has an incomplete ${name} directive.`);
-  }
-}
-
 function requireExactDirective(policy, name, expectedValues, label) {
   const values = directiveMap(policy).get(name);
   const actual = values ? [...values].sort() : [];
@@ -90,12 +110,20 @@ function verifyNoStore(response, label) {
   requireToken(value, "max-age=0", "Cache-Control", label);
 }
 
+function requireDisabledPermission(value, feature, label) {
+  const assignments = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => /^([a-z0-9-]+)\s*=/iu.exec(entry)?.[1].toLowerCase() === feature.toLowerCase());
+  if (assignments.length !== 1 || !new RegExp(`^${feature}\\s*=\\s*\\(\\)$`, "iu").test(assignments[0])) {
+    fail(`${label} does not disable ${feature} exactly once.`);
+  }
+}
+
 function verifyDisabledPermissions(response, features, label) {
   const value = header(response, "permissions-policy", label);
   for (const feature of features) {
-    if (!new RegExp(`(?:^|,)\\s*${feature}\\s*=\\s*\\(\\)\\s*(?:,|$)`, "iu").test(value)) {
-      fail(`${label} does not disable ${feature}.`);
-    }
+    requireDisabledPermission(value, feature, label);
   }
 }
 
@@ -270,13 +298,13 @@ async function verifyFrame(fetchImpl, retryDelay) {
   console.log("Verification frame bytes and isolation headers match the release.");
 }
 
-async function verifyMainPageHeaders(fetchImpl) {
-  const label = "hah.dev résumé";
-  const response = await request(fetchImpl, `${mainOrigin}/resume/`, {}, label);
+async function verifyMainPageResponse(fetchImpl, { label, url }) {
+  const response = await request(fetchImpl, url, {}, label);
   requireStatus(response, 200, label);
   const policy = header(response, "content-security-policy", label);
   const directives = directiveMap(policy);
-  requireDirective(policy, "frame-src", [frameOrigin], label);
+  requireExactDirective(policy, "default-src", ["'self'"], label);
+  requireExactDirective(policy, "frame-src", [frameOrigin], label);
   requireExactDirective(policy, "script-src", [
     "'self'",
     "'unsafe-inline'",
@@ -285,15 +313,21 @@ async function verifyMainPageHeaders(fetchImpl) {
   if (directives.has("script-src-elem")) {
     fail(`${label} must not override the exact script-src boundary with script-src-elem.`);
   }
-  const connectSources = directives.get("connect-src") ?? directives.get("default-src") ?? [];
-  if (!connectSources.includes("'self'")) {
-    fail(`${label} does not permit its same-origin lease request.`);
+  if (directives.has("style-src-elem") || directives.has("style-src-attr")) {
+    fail(`${label} must not override the exact style-src boundary.`);
   }
-  if (!/document-domain\s*=\s*\(\)/iu.test(header(response, "permissions-policy", label))) {
-    fail(`${label} does not disable document-domain.`);
+  for (const [name, values] of requiredMainResourceDirectives) {
+    requireExactDirective(policy, name, values, label);
   }
+  requireDisabledPermission(header(response, "permissions-policy", label), "document-domain", label);
   await response.arrayBuffer();
-  console.log("hah.dev permits the dedicated verification frame without loading Turnstile on the main page.");
+}
+
+async function verifyMainPageHeaders(fetchImpl) {
+  for (const page of mainPages) {
+    await verifyMainPageResponse(fetchImpl, page);
+  }
+  console.log("Both hah.dev résumé routes permit the dedicated verification frame and exact local runtime dependencies without loading Turnstile on the main page.");
 }
 
 async function verifyLease(fetchImpl) {
