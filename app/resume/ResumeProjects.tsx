@@ -23,6 +23,9 @@ import {
 } from "./lattice/localModel.js";
 import { LATTICE_USAGE_POLICY } from "./lattice/usagePolicy.js";
 import {
+  LLAMA_3_2_TERMS_PROVENANCE,
+} from "./lattice/modelContract.js";
+import {
   LatticeLeaseError,
   acquireLatticeLease,
   releaseLatticeLease,
@@ -44,6 +47,8 @@ type ProjectIconName =
   | "backpack4"
   | "pen-fill"
   | "archive";
+
+const LATTICE_USE_CONFIRMATION_ERROR = "Confirm this source's authority and allowed-use boundary before converting.";
 
 function AirplaneEnginesIcon() {
   return (
@@ -343,6 +348,7 @@ function latticeVisibleFindings(result: LatticeResult): string[] {
 export default function ResumeProjects() {
   const [latticeOpen, setLatticeOpen] = useState(false);
   const [latticeInput, setLatticeInput] = useState("");
+  const [latticeUseConfirmed, setLatticeUseConfirmed] = useState(false);
   const [latticeError, setLatticeError] = useState("");
   const [latticeQuotaError, setLatticeQuotaError] = useState("");
   const [latticeInputInvalid, setLatticeInputInvalid] = useState(false);
@@ -381,7 +387,7 @@ export default function ResumeProjects() {
   const overLimit = wordCount > LATTICE_WORD_LIMIT;
   const progressText = latticeProgressText(latticeProgress);
   const latticeRetryPending = isLatticeRetryPending(latticeRetryAt, latticeRetryClock);
-  const primaryUnavailable = busy || latticePhase === "checking" || latticeSupported === false || latticeInputInvalid || wordCount === 0 || overLimit || latticeRetryPending;
+  const primaryUnavailable = busy || latticePhase === "checking" || latticeSupported === false || latticeInputInvalid || wordCount === 0 || overLimit || latticeRetryPending || !latticeUseConfirmed;
   const readyLabel = latticeModelCached === false ? "Download and convert" : "Convert";
   const primaryLabel = latticePhase === "error" && latticeSupported !== false ? "Try again" : readyLabel;
 
@@ -600,6 +606,7 @@ export default function ResumeProjects() {
     cancelLattice();
     setLatticeOpen(false);
     setLatticeInput("");
+    setLatticeUseConfirmed(false);
     setLatticeResult(null);
     setClarificationAnswers({});
     setClarificationErrors({});
@@ -830,11 +837,13 @@ export default function ResumeProjects() {
     latticeTriggerRef.current = trigger;
     setLatticeError("");
     setLatticeInputInvalid(false);
+    setLatticeUseConfirmed(false);
     setLatticeOpen(true);
     void checkEnvironment();
   };
 
   const updateLatticeInput = (value: string) => {
+    setLatticeUseConfirmed(false);
     const endedActiveLease = latticeLeaseRef.current !== null;
     releaseCurrentLatticeLease();
     if (endedActiveLease) {
@@ -888,6 +897,11 @@ export default function ResumeProjects() {
 
   const executeLattice = async (answers: Array<Record<string, string>> = clarificationHistory) => {
     if (latticeAbortRef.current) return;
+    if (!latticeUseConfirmed) {
+      setLatticeError(LATTICE_USE_CONFIRMATION_ERROR);
+      setLatticeInputInvalid(false);
+      return;
+    }
     const jobId = latticeJobRef.current + 1;
     latticeJobRef.current = jobId;
     const controller = new AbortController();
@@ -1022,6 +1036,18 @@ export default function ResumeProjects() {
   const runLattice = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void executeLattice(clarificationHistory);
+  };
+
+  const startLatticeOver = () => {
+    updateLatticeInput("");
+    setLatticeUseConfirmed(false);
+    setLatticeQuotaError("");
+    setLatticeRetryAt(null);
+    setLatticeRetryClock(0);
+    setLatticeRetryMode("manual");
+    setLatticeRetryAnnouncement("");
+    setLatticePhase(latticeSupported === false ? "error" : "ready");
+    window.requestAnimationFrame(() => latticeInputRef.current?.focus({ preventScroll: true }));
   };
 
   const continueLattice = () => {
@@ -1235,7 +1261,7 @@ export default function ResumeProjects() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="lattice-demo-title"
-          aria-describedby="lattice-demo-description lattice-local-privacy lattice-usage-policy"
+          aria-describedby="lattice-demo-description lattice-local-privacy lattice-model-disclosure lattice-usage-policy"
           aria-keyshortcuts="Escape"
           tabIndex={-1}
         >
@@ -1245,7 +1271,10 @@ export default function ResumeProjects() {
             Enter up to {LATTICE_WORD_LIMIT} words. Meaning remains binding; register may change.
           </p>
           <p id="lattice-local-privacy" className="lattice-local-note">
-            Your text stays in this tab. Avoid sensitive text. <a href="/projects/lattice/text-to-lattice/#text-to-lattice-privacy">Privacy details</a>.
+            Your text stays in this tab. Use only text you are authorized to process, and avoid sensitive text. <a href="/projects/lattice/text-to-lattice/#text-to-lattice-privacy">Privacy details</a>.
+          </p>
+          <p id="lattice-model-disclosure" className="lattice-local-note">
+            Model-assisted result: Qwen drafts locally and Llama 3.2 checks locally. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_2_TERMS_PROVENANCE.licenseUrl}>Built with Llama</a>.
           </p>
           <p className="lattice-usage-note" id="lattice-usage-policy">
             Demonstration only. Up to {LATTICE_USAGE_POLICY.visitor.limit} conversions per browser in any 24 hours.
@@ -1280,6 +1309,28 @@ export default function ResumeProjects() {
             <div className="lattice-input-meta">
               <small id="lattice-word-count" className={overLimit ? "text-red" : undefined}>{wordCount} of {LATTICE_WORD_LIMIT} words</small>
             </div>
+            {latticeSupported !== false && latticeModelCached === false ? (
+              <p className="lattice-output-note">First use downloads about 4.10 GB of public model assets and can use up to about 3.5 GB of working memory.</p>
+            ) : null}
+            <label className="lattice-local-note" htmlFor="lattice-use-confirmation">
+              <input
+                id="lattice-use-confirmation"
+                type="checkbox"
+                checked={latticeUseConfirmed}
+                required
+                disabled={busy || latticeSupported === false || wordCount === 0 || overLimit || latticeInputInvalid}
+                aria-describedby="lattice-use-confirmation-detail"
+                onChange={(event) => {
+                  const confirmed = event.currentTarget.checked;
+                  setLatticeUseConfirmed(confirmed);
+                  if (confirmed && latticeError === LATTICE_USE_CONFIRMATION_ERROR) setLatticeError("");
+                }}
+              />{" "}
+              I confirm that this source is in one of the supported languages, I am authorized to process it, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.2 Acceptable Use Policy.
+            </label>
+            <small id="lattice-use-confirmation-detail" className="lattice-output-note">
+              Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_2_TERMS_PROVENANCE.acceptableUseUrl}>Llama 3.2 Acceptable Use Policy</a>.
+            </small>
             {latticeStorageWarning ? <p className="lattice-output-note">{latticeStorageWarning}</p> : null}
             {latticeError && latticeSupported !== false ? (
               <p className="lattice-input-error" id="lattice-input-error" role="alert">
@@ -1309,6 +1360,11 @@ export default function ResumeProjects() {
               <button className="lattice-run-button" type="submit" disabled={primaryUnavailable}>
                 {latticePhase === "checking" ? "Checking availability…" : primaryLabel}
               </button>
+              {latticeResult ? (
+                <button className="lattice-cancel-button" type="button" onClick={startLatticeOver} disabled={busy}>
+                  Start over
+                </button>
+              ) : null}
               {busy ? (
                 <button ref={latticeCancelButtonRef} className="lattice-cancel-button" type="button" onClick={cancelLattice} disabled={latticePhase === "canceling"}>
                   {latticePhase === "canceling" ? "Canceling…" : "Cancel"}

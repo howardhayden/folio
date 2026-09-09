@@ -1,6 +1,6 @@
 {
   "format": "howardhayden-license-map-v2",
-  "audited": "2026-09-08",
+  "audited": "2026-09-09",
   "project": "hah.dev portfolio",
   "source_available_not_open_source": true,
   "default_license": "PolyForm-Noncommercial-1.0.0",
@@ -15,6 +15,7 @@
     {
       "paths": [
         "app/resume/ResumeProjects.tsx",
+        "app/resume/ResumeProjectsHeld.tsx",
         "app/resume/latticeDemo.js",
         "app/resume/lattice/**"
       ],
@@ -38,10 +39,13 @@
     {
       "paths": [
         "public/documentation/text-to-lattice/*.md",
-        "public/documentation/text-to-lattice/documentation-atlas.json"
+        "public/documentation/text-to-lattice/documentation-atlas.json",
+        "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
+        "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
+        "public/documentation/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json"
       ],
       "license": "LicenseRef-Hayden-Portfolio-Content",
-      "scope": "public copies of owner-authored Lattice documentation and its machine-readable register"
+      "scope": "public copies of owner-authored Lattice documentation, release evidence, and machine-readable registers"
     },
     {
       "paths": [

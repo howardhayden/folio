@@ -1,10 +1,7 @@
-import { sharedRequirements } from "../content/siteContent.js";
 import { documentsForProject } from "../content/projectDocuments.js";
 
-export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v1";
-export const PROJECT_CONTENT_UPDATED = "2026-09-08";
-
-export const sharedAssuranceStandards = Object.freeze(sharedRequirements.map(({ id }) => id));
+export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v2";
+export const PROJECT_CONTENT_UPDATED = "2026-09-09";
 
 export const LATTICE_DOCUMENTATION_RESOURCES = Object.freeze(
   documentsForProject("lattice").map((document) => Object.freeze({
@@ -21,6 +18,13 @@ export const LATTICE_DOCUMENTATION_RESOURCES = Object.freeze(
     opensInNewTab: false,
   })),
 );
+
+export const LATTICE_RELEASE_QUALIFICATION_RESOURCE = Object.freeze({
+  label: "Release Qualification",
+  url: "https://hah.dev/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
+  icon: "backpack4",
+  opensInNewTab: false,
+});
 
 export const projects = Object.freeze([
   Object.freeze({
@@ -49,6 +53,7 @@ export const projects = Object.freeze([
     limitations: Object.freeze([
       "The hah.dev Text to Lattice demonstrator is browser-local, requires WebGPU, and accepts at most 700 words.",
       "A review-required draft is not certified as semantically equivalent.",
+      "The completed interactive client remains held outside the public bundle until its exact release gates carry production evidence.",
     ]),
     emphasis: Object.freeze(["linguistic register", "semantic fidelity", "relational systems"]),
     relationships: Object.freeze([
@@ -59,10 +64,12 @@ export const projects = Object.freeze([
     resources: Object.freeze([
       Object.freeze({ label: "Documentation", url: "https://github.com/howardhayden/lattice", icon: "backpack4", opensInNewTab: true }),
       ...LATTICE_DOCUMENTATION_RESOURCES,
+      LATTICE_RELEASE_QUALIFICATION_RESOURCE,
     ]),
     publication: Object.freeze({ label: "September 2026", value: "2026-09", precision: "month" }),
     status: "public",
-    interaction: "lattice-demo",
+    interaction: null,
+    interactiveRelease: "held",
     readmeAfterFirstParagraph: true,
   }),
   Object.freeze({

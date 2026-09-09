@@ -5,8 +5,9 @@ import {
   resumeEducationOverview, sharedRequirements, shelfNotice,
   SITE_CONTENT_TERMS_URL, SITE_CONTENT_UPDATED, SITE_CONTENT_VERSION,
   SITE_ORIGIN, SITE_REPOSITORY, SITE_SOURCE_LICENSE_URL,
-  textToLatticeContract, toolsSocial,
+  toolsSocial,
 } from "../content/siteContent.js";
+import { textToLatticeContract } from "../content/textToLatticeContent.js";
 import {
   PROJECT_DOCUMENTS_UPDATED, PROJECT_DOCUMENTS_VERSION, projectDocuments,
 } from "../content/projectDocuments.js";
@@ -29,6 +30,11 @@ const toolsListId = `${absoluteUrl("/tools/")}#items`;
 const shelfListId = `${absoluteUrl("/shelf/")}#items`;
 const thirdPartyDocumentsId = `${absoluteUrl("/third-party-notices/")}#documents`;
 const applicationId = `${absoluteUrl(textToLatticeContract.canonicalPath)}#application`;
+const applicationReleaseStatus = projectBySlug("lattice")?.interactiveRelease ?? "not-applicable";
+const applicationPublicationMode = applicationReleaseStatus === "enabled" ? "interactive-client" : "documentation-only";
+const applicationDescription = applicationReleaseStatus === "held"
+  ? `${textToLatticeContract.purpose} The public interactive client is held; this page publishes documentation only.`
+  : textToLatticeContract.purpose;
 const provenance = (sourcePaths, version = SITE_CONTENT_VERSION, lastUpdated = SITE_CONTENT_UPDATED) => ({
   repository: SITE_REPOSITORY,
   sourcePaths: [...sourcePaths],
@@ -82,6 +88,8 @@ export const namespaceTerms = Object.freeze([
   ["documentation", "documentation", "A labeled documentation record.", "Property"],
   ["publicationPrecision", "publication precision", "The stated precision of a publication display value.", "Property"],
   ["statusAsOf", "status as of", "The date on which a public project status was current.", "Property"],
+  ["interactiveRelease", "interactive release", "The release status of a project’s or tool’s public interactive client: held, enabled, or not applicable.", "Property"],
+  ["publicationMode", "publication mode", "The public scope currently published for an interactive tool, such as documentation-only.", "Property"],
   ["provenance", "provenance", "The repository, source paths, version, and update date behind a public record.", "Property"],
   ["projectLicenseDocumented", "project license documented", "Whether the external project record documents a project license.", "Property"],
   ["inputContract", "input contract", "The public input boundary of a tool.", "Property"],
@@ -127,6 +135,7 @@ function projectRecord(project) {
     limitations: documentedList(project.limitations),
     status: { value: project.status, asOf: PROJECT_CONTENT_UPDATED },
     publication: { ...project.publication },
+    interactiveRelease: project.interactiveRelease ?? "not-applicable",
     canonicalUrl: absoluteUrl(project.canonicalPath),
     externalUrl: project.url,
     documentation: (project.resources ?? []).map(documentationRecord),
@@ -145,7 +154,7 @@ function projectRecord(project) {
 }
 
 export const projectsManifest = {
-  schema: absoluteUrl("/schemas/projects-v1.schema.json"),
+  schema: absoluteUrl("/schemas/projects-v2.schema.json"),
   version: PROJECT_CONTENT_VERSION,
   asOf: PROJECT_CONTENT_UPDATED,
   canonicalUrl: absoluteUrl("/projects/"),
@@ -185,10 +194,15 @@ export const resumeManifest = {
     canonicalUrl: absoluteUrl(detail.canonicalPath),
   })),
   skillStacks: skillStacks.map(skillStackRecord),
-  projects: projectsManifest.projects.map(({ id, name, canonicalUrl, thesis, summary, status, publication, documentation }) => ({
-    id, name, canonicalUrl, thesis, summary: [...summary], status: { ...status }, publication: { ...publication },
-    documentation: documentation.map((item) => ({ ...item })),
-  })),
+  projects: projects.map((project) => {
+    const { id, name, canonicalUrl, thesis, summary, status, publication, interactiveRelease, documentation, limitations } = projectRecord(project);
+    return {
+      id, name, canonicalUrl, thesis, summary: [...summary], status: { ...status }, publication: { ...publication },
+      interactiveRelease,
+      documentation: documentation.map((item) => ({ ...item })),
+      limitations: { documented: limitations.documented, items: [...limitations.items] },
+    };
+  }),
   provenance: provenance(["app/data.ts", "app/resume/resumeDetails.js", "app/resume/projects.js", "app/content/siteContent.js"]),
 };
 
@@ -254,6 +268,7 @@ function projectJsonLdNode(project) {
     ...(documentation.length ? { hasPart: documentation.map(({ htmlUrl }) => ({ "@id": htmlUrl })) } : {}),
     "hah:publicationPrecision": record.publication.precision,
     "hah:statusAsOf": record.status.asOf,
+    "hah:interactiveRelease": record.interactiveRelease,
     "hah:provenance": record.provenance,
     "hah:projectLicenseDocumented": record.license.documented,
     "hah:inheritedRequirement": record.inheritedRequirements.map((id) => ({ "@id": id })),
@@ -372,7 +387,7 @@ export const knowledgeGraph = {
     pageNode("/ns/", "hah.dev semantic vocabulary", "Definitions for the hah.dev JSON-LD extension terms.", "CollectionPage", namespaceSetId),
     pageNode("/third-party-notices/", "Third-party notices", "Source, model, runtime, attribution, and license records for hah.dev and Text to Lattice.", "WebPage", thirdPartyDocumentsId),
     ...projects.map((project) => pageNode(project.canonicalPath, project.name, project.thesis, "WebPage", projectGraphId(project))),
-    pageNode(textToLatticeContract.canonicalPath, textToLatticeContract.name, textToLatticeContract.purpose, "WebPage", applicationId),
+    pageNode(textToLatticeContract.canonicalPath, textToLatticeContract.name, applicationDescription, "WebPage", applicationId),
     ...resumeDetailList.map((detail) => pageNode(detail.canonicalPath, detail.title, `${detail.title}${detail.subtitle ? `, ${detail.subtitle}` : ""}: ${detail.period}.`, "WebPage", `${absoluteUrl(detail.canonicalPath)}#record`)),
     { "@id": requirementSetId, "@type": "DefinedTermSet", name: "hah.dev project requirements and practice standards", url: absoluteUrl("/requirements/") },
     ...requirementNodes,
@@ -393,10 +408,14 @@ export const knowledgeGraph = {
     { "@id": projectsListId, "@type": "ItemList", name: "Projects", itemListElement: projects.map((project, index) => ({ "@type": "ListItem", position: index + 1, item: { "@id": projectGraphId(project) } })) },
     {
       "@id": applicationId, "@type": "SoftwareApplication", name: textToLatticeContract.name,
-      description: textToLatticeContract.purpose, url: absoluteUrl(textToLatticeContract.canonicalPath),
+      description: applicationDescription,
+      url: absoluteUrl(textToLatticeContract.canonicalPath),
       applicationCategory: "Portfolio demonstration", operatingSystem: "Secure browser with WebGPU",
+      creativeWorkStatus: applicationReleaseStatus,
       isPartOf: { "@id": projectGraphId(projectBySlug("lattice")) },
       mainEntityOfPage: { "@id": `${absoluteUrl(textToLatticeContract.canonicalPath)}#page` },
+      "hah:interactiveRelease": applicationReleaseStatus,
+      "hah:publicationMode": applicationPublicationMode,
       "hah:inputContract": textToLatticeContract.input, "hah:outputContract": textToLatticeContract.output,
       "hah:constraint": [...textToLatticeContract.constraints],
       "hah:usagePolicy": textToLatticeContract.usagePolicy,
@@ -475,6 +494,10 @@ export function jsonLdForPage(pathname, project = null) {
 }
 
 const heading = (text) => text.replace(/[\r\n]+/gu, " ").trim();
+const machineValueLabel = (value) => {
+  const words = heading(value).replaceAll("-", " ");
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+};
 const bullets = (items, empty = "Not documented.") => items.length ? items.map((item) => `- ${item}`).join("\n") : `- ${empty}`;
 const documentationMarkdownLine = (document) => document.markdownUrl
   ? `${document.label}: HTML ${document.url}; Markdown ${document.markdownUrl}`
@@ -498,7 +521,7 @@ export function renderResumeMarkdown() {
     return `## ${heading(stack.title)}\n\n${sections}`;
   }).join("\n\n");
   const activities = resumeManifest.educationOverview.activities.map(({ label, start }) => `- ${label} — ${start}`).join("\n");
-  const projectCards = resumeManifest.projects.map((project) => `## ${heading(project.name)}\n\nCanonical URL: ${project.canonicalUrl}\n\n${project.summary.join("\n\n")}\n\n### Documentation\n\n${bullets(project.documentation.map(documentationMarkdownLine))}`).join("\n\n");
+  const projectCards = resumeManifest.projects.map((project) => `## ${heading(project.name)}\n\nCanonical URL: ${project.canonicalUrl}${project.interactiveRelease === "not-applicable" ? "" : `\n\nInteractive client: ${heading(project.interactiveRelease)}`}\n\n${project.summary.join("\n\n")}\n\n### Documentation\n\n${bullets(project.documentation.map(documentationMarkdownLine))}\n\n### Limitations\n\n${bullets(project.limitations.items)}`).join("\n\n");
   return `# Resume\n\nCanonical URL: ${resumeManifest.canonicalUrl}\n\n## University\n\nGraduated ${resumeManifest.educationOverview.graduated}\n\n${activities}\n\n# Experience and education\n\n${experience}\n\n# Expanded résumé details\n\n${details}\n\n# Projects\n\n${projectCards}\n\n# Skill stacks\n\n${skills}\n`;
 }
 
@@ -599,8 +622,16 @@ function securityAndPrivacyMarkdown() {
 export function renderProjectMarkdown(slug) {
   const project = projectsManifest.projects.find((item) => item.slug === slug);
   if (!project) return null;
-  const tool = slug === "lattice" ? `\n\n## ${textToLatticeContract.name}\n\nCanonical URL: ${absoluteUrl(textToLatticeContract.canonicalPath)}\n\n${textToLatticeContract.purpose}\n\n### Input\n\n${textToLatticeContract.input}\n\n### Output\n\n${textToLatticeContract.output}\n\n### Process\n\n${bullets(textToLatticeContract.process)}\n\n### Constraints\n\n${bullets(textToLatticeContract.constraints)}\n\n${securityAndPrivacyMarkdown()}\n\n${usagePolicyMarkdown()}\n\n${implementationMarkdown()}` : "";
-  return `# ${heading(project.name)}\n\nCanonical URL: ${project.canonicalUrl}\n\nExternal URL: ${project.externalUrl}\n\nStatus: ${project.status.value} as of ${project.status.asOf}\n\nPublication: ${project.publication.label} (${project.publication.precision})\n\n${project.summary.join("\n\n")}\n\n## Emphasis\n\n${bullets(project.emphasis)}\n\n## Capabilities\n\n${bullets(project.capabilities.items)}\n\n## Technologies\n\n${bullets(project.technologies.items)}\n\n## Evidence\n\n${bullets(project.evidence.map(({ url }) => url))}\n\n## Documentation\n\n${bullets(project.documentation.map(documentationMarkdownLine))}\n\n## Limitations\n\n${bullets(project.limitations.items)}\n\n## Relationships\n\n${bullets(project.relationships.map(relationshipLabel))}\n\n## Inherited requirements\n\n${bullets(sharedRequirements.map(({ label, id }) => `${label}: ${absoluteUrl(`/requirements/#${id}`)}`))}\n\n## Provenance\n\n- Repository: ${project.provenance.repository}\n- Sources: ${project.provenance.sourcePaths.join(", ")}\n- Version: ${project.provenance.version}\n- Last updated: ${project.provenance.lastUpdated}\n- External project license: not documented in this portfolio record.\n- This portfolio record’s authored content: ${SITE_CONTENT_TERMS_URL}.${tool}\n`;
+  const releaseStatus = project.interactiveRelease === "not-applicable"
+    ? ""
+    : `\n\nInteractive client release: ${machineValueLabel(project.interactiveRelease)}`;
+  const applicationAvailability = applicationReleaseStatus === "held"
+    ? "The completed interactive client is not included in the public bundle while release gates remain open. This section documents the client contract; it does not make the conversion client available."
+    : applicationReleaseStatus === "enabled"
+      ? "The public interactive client is included in the public bundle."
+      : "No public interactive client is represented as available.";
+  const tool = slug === "lattice" ? `\n\n## ${textToLatticeContract.name}\n\nCanonical URL: ${absoluteUrl(textToLatticeContract.canonicalPath)}\n\nPublic client status: ${machineValueLabel(applicationReleaseStatus)}\n\nPublication mode: ${machineValueLabel(applicationPublicationMode)}. ${applicationAvailability}\n\n${textToLatticeContract.purpose}\n\n### Input\n\n${textToLatticeContract.input}\n\n### Output\n\n${textToLatticeContract.output}\n\n### Process\n\n${bullets(textToLatticeContract.process)}\n\n### Constraints\n\n${bullets(textToLatticeContract.constraints)}\n\n${securityAndPrivacyMarkdown()}\n\n${usagePolicyMarkdown()}\n\n${implementationMarkdown()}` : "";
+  return `# ${heading(project.name)}\n\nCanonical URL: ${project.canonicalUrl}\n\nExternal URL: ${project.externalUrl}\n\nStatus: ${project.status.value} as of ${project.status.asOf}\n\nPublication: ${project.publication.label} (${project.publication.precision})${releaseStatus}\n\n${project.summary.join("\n\n")}\n\n## Emphasis\n\n${bullets(project.emphasis)}\n\n## Capabilities\n\n${bullets(project.capabilities.items)}\n\n## Technologies\n\n${bullets(project.technologies.items)}\n\n## Evidence\n\n${bullets(project.evidence.map(({ url }) => url))}\n\n## Documentation\n\n${bullets(project.documentation.map(documentationMarkdownLine))}\n\n## Limitations\n\n${bullets(project.limitations.items)}\n\n## Relationships\n\n${bullets(project.relationships.map(relationshipLabel))}\n\n## Inherited requirements\n\n${bullets(sharedRequirements.map(({ label, id }) => `${label}: ${absoluteUrl(`/requirements/#${id}`)}`))}\n\n## Provenance\n\n- Repository: ${project.provenance.repository}\n- Sources: ${project.provenance.sourcePaths.join(", ")}\n- Version: ${project.provenance.version}\n- Last updated: ${project.provenance.lastUpdated}\n- External project license: not documented in this portfolio record.\n- This portfolio record’s authored content: ${SITE_CONTENT_TERMS_URL}.${tool}\n`;
 }
 
 export function renderProjectsMarkdown() {
@@ -625,7 +656,17 @@ export function renderLlmsTxt() {
       `- [${document.title} — Markdown](${document.markdownUrl})`,
     ])
     .join("\n");
-  return `# hah.dev\n\n> ${person.headline}\n\nAuthoritative public portfolio map. Interactive Text to Lattice source and results are transient and never included in these files.\n\n## Primary pages\n\n- [About](${SITE_ORIGIN}/)\n- [Resume](${absoluteUrl("/resume/")})\n- [Projects](${absoluteUrl("/projects/")})\n- [Requirements](${absoluteUrl("/requirements/")})\n- [Semantic vocabulary](${absoluteUrl("/ns/")})\n- [Third-party notices](${absoluteUrl("/third-party-notices/")})\n- [Tools](${absoluteUrl("/tools/")})\n- [Shelf](${absoluteUrl("/shelf/")})\n\n## Lattice documentation\n\n${documentation}\n\n## Structured records\n\n- [Project manifest](${absoluteUrl("/projects.json")})\n- [Resume manifest](${absoluteUrl("/resume.json")})\n- [Tools manifest](${absoluteUrl("/tools.json")})\n- [Shelf manifest](${absoluteUrl("/shelf.json")})\n- [Knowledge graph](${absoluteUrl("/knowledge-graph.jsonld")})\n- [Project schema](${absoluteUrl("/schemas/projects-v1.schema.json")})\n\n## Canonical text\n\n- [About Markdown](${absoluteUrl("/content/about.md")})\n- [Resume Markdown](${absoluteUrl("/content/resume.md")})\n- [Projects Markdown](${absoluteUrl("/content/projects.md")})\n- [Tools Markdown](${absoluteUrl("/content/tools.md")})\n- [Shelf Markdown](${absoluteUrl("/content/shelf.md")})\n- [Complete authoritative text](${absoluteUrl("/llms-full.txt")})\n\n## Provenance and terms\n\n- [Portfolio repository](${SITE_REPOSITORY})\n- Site content version: ${SITE_CONTENT_VERSION}\n- Last updated: ${SITE_CONTENT_UPDATED}\n- [Source-code license](${SITE_SOURCE_LICENSE_URL})\n- [Authored portfolio-content terms](${SITE_CONTENT_TERMS_URL})\n- [Third-party notices and supplied license texts](${absoluteUrl("/third-party-notices/")})\n`;
+  const releaseEvidence = [
+    ["Text to Lattice release qualification", "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"],
+    ["Text to Lattice machine release register", "TEXT-TO-LATTICE-RELEASE-REGISTER.json"],
+    ["Llama-use evaluation cases", "LLAMA-USE-EVALUATION-CASES.json"],
+  ].map(([label, filename]) => `- [${label}](${absoluteUrl(`/documentation/text-to-lattice/${filename}`)})`).join("\n");
+  const releaseBoundary = applicationReleaseStatus === "held"
+    ? "The Text to Lattice interactive client is held."
+    : applicationReleaseStatus === "enabled"
+      ? "The Text to Lattice interactive client is enabled."
+      : "No Text to Lattice interactive client is represented as available.";
+  return `# hah.dev\n\n> ${person.headline}\n\nAuthoritative public portfolio map. ${releaseBoundary} Source and results remain transient and are never included in these files.\n\n## Primary pages\n\n- [About](${SITE_ORIGIN}/)\n- [Resume](${absoluteUrl("/resume/")})\n- [Projects](${absoluteUrl("/projects/")})\n- [Requirements](${absoluteUrl("/requirements/")})\n- [Semantic vocabulary](${absoluteUrl("/ns/")})\n- [Third-party notices](${absoluteUrl("/third-party-notices/")})\n- [Tools](${absoluteUrl("/tools/")})\n- [Shelf](${absoluteUrl("/shelf/")})\n\n## Lattice documentation\n\n${documentation}\n\n### Text to Lattice release evidence\n\n${releaseEvidence}\n\n## Structured records\n\n- [Project manifest](${absoluteUrl("/projects.json")})\n- [Resume manifest](${absoluteUrl("/resume.json")})\n- [Tools manifest](${absoluteUrl("/tools.json")})\n- [Shelf manifest](${absoluteUrl("/shelf.json")})\n- [Knowledge graph](${absoluteUrl("/knowledge-graph.jsonld")})\n- [Project schema, current v2](${absoluteUrl("/schemas/projects-v2.schema.json")})\n- [Project schema, archived v1](${absoluteUrl("/schemas/projects-v1.schema.json")})\n\n## Canonical text\n\n- [About Markdown](${absoluteUrl("/content/about.md")})\n- [Resume Markdown](${absoluteUrl("/content/resume.md")})\n- [Projects Markdown](${absoluteUrl("/content/projects.md")})\n- [Tools Markdown](${absoluteUrl("/content/tools.md")})\n- [Shelf Markdown](${absoluteUrl("/content/shelf.md")})\n- [Complete authoritative text](${absoluteUrl("/llms-full.txt")})\n\n## Provenance and terms\n\n- [Portfolio repository](${SITE_REPOSITORY})\n- Site content version: ${SITE_CONTENT_VERSION}\n- Last updated: ${SITE_CONTENT_UPDATED}\n- [Source-code license](${SITE_SOURCE_LICENSE_URL})\n- [Authored portfolio-content terms](${SITE_CONTENT_TERMS_URL})\n- [Third-party notices and supplied license texts](${absoluteUrl("/third-party-notices/")})\n`;
 }
 
 export function renderLlmsFull() {
@@ -650,6 +691,7 @@ export function renderRobots() {
 const projectKinds = [...new Set(projects.map(({ type }) => type))];
 const projectStatuses = [...new Set(projects.map(({ status }) => status))];
 const publicationPrecisions = [...new Set(projects.map(({ publication }) => publication.precision))];
+const interactiveReleaseStatuses = ["held", "enabled", "not-applicable"];
 const relationshipPredicates = [...new Set(projects.flatMap(({ relationships }) => relationships.map(({ relation }) => relation)))];
 const relationshipTargets = [
   ...projects.map(projectGraphId),
@@ -659,13 +701,13 @@ const relationshipTargets = [
 
 export const projectsSchema = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": absoluteUrl("/schemas/projects-v1.schema.json"),
+  "$id": absoluteUrl("/schemas/projects-v2.schema.json"),
   title: "hah.dev project manifest",
   type: "object",
   additionalProperties: false,
   required: ["schema", "version", "asOf", "canonicalUrl", "sharedRequirements", "practiceStandards", "projects"],
   properties: {
-    schema: { const: absoluteUrl("/schemas/projects-v1.schema.json") },
+    schema: { const: absoluteUrl("/schemas/projects-v2.schema.json") },
     version: { "$ref": "#/$defs/nonEmptyString" },
     asOf: { type: "string", format: "date" },
     canonicalUrl: { const: absoluteUrl("/projects/") },
@@ -745,7 +787,7 @@ export const projectsSchema = {
     },
     project: {
       type: "object", additionalProperties: false,
-      required: ["id", "slug", "name", "kind", "thesis", "summary", "emphasis", "purpose", "problem", "users", "invariants", "capabilities", "technologies", "evidence", "limitations", "status", "publication", "canonicalUrl", "externalUrl", "documentation", "relationships", "inheritedRequirements", "provenance", "license"],
+      required: ["id", "slug", "name", "kind", "thesis", "summary", "emphasis", "purpose", "problem", "users", "invariants", "capabilities", "technologies", "evidence", "limitations", "status", "publication", "interactiveRelease", "canonicalUrl", "externalUrl", "documentation", "relationships", "inheritedRequirements", "provenance", "license"],
       properties: {
         id: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }, slug: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
         name: { "$ref": "#/$defs/nonEmptyString" }, kind: { type: "string", enum: projectKinds }, thesis: { "$ref": "#/$defs/nonEmptyString" },
@@ -753,6 +795,7 @@ export const projectsSchema = {
         purpose: { "$ref": "#/$defs/stringList" }, problem: { "$ref": "#/$defs/stringList" }, users: { "$ref": "#/$defs/stringList" }, invariants: { "$ref": "#/$defs/stringList" },
         capabilities: { "$ref": "#/$defs/stringList" }, technologies: { "$ref": "#/$defs/stringList" }, evidence: { type: "array", minItems: 1, items: { "$ref": "#/$defs/evidence" } },
         limitations: { "$ref": "#/$defs/stringList" }, status: { "$ref": "#/$defs/status" }, publication: { "$ref": "#/$defs/publication" },
+        interactiveRelease: { type: "string", enum: interactiveReleaseStatuses },
         canonicalUrl: { type: "string", pattern: "^https://hah\\.dev/projects/[a-z0-9-]+/$" }, externalUrl: { "$ref": "#/$defs/uri" },
         documentation: { type: "array", items: { "$ref": "#/$defs/documentation" } }, relationships: { type: "array", items: { "$ref": "#/$defs/relationship" } },
         inheritedRequirements: { type: "array", minItems: 1, uniqueItems: true, items: { type: "string", enum: sharedRequirements.map(({ id }) => requirementGraphId(id)) } },
@@ -761,3 +804,12 @@ export const projectsSchema = {
     },
   },
 };
+
+export const projectsSchemaV1 = (() => {
+  const schema = structuredClone(projectsSchema);
+  schema.$id = absoluteUrl("/schemas/projects-v1.schema.json");
+  schema.properties.schema.const = schema.$id;
+  schema.$defs.project.required = schema.$defs.project.required.filter((name) => name !== "interactiveRelease");
+  delete schema.$defs.project.properties.interactiveRelease;
+  return schema;
+})();

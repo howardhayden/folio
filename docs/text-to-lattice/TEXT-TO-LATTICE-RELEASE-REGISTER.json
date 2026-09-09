@@ -1,0 +1,295 @@
+{
+  "format": "TEXT_TO_LATTICE_RELEASE_REGISTER",
+  "schemaVersion": 1,
+  "revision": "2026-09-09",
+  "implementationRevision": "233bdbc8dbafd401a94babe14a64c198be110830",
+  "qualificationScope": "The named commit is the completed implementation baseline. This register and its fail-closed source controls are the subsequent held-release candidate; GATE-01 remains open until that exact candidate is committed, built, tested, and digested.",
+  "overallStatus": "held",
+  "statusVocabulary": [
+    "satisfied-in-source",
+    "open-before-publication"
+  ],
+  "authority": {
+    "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
+    "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
+    "qualificationDossierSha256": "29561b9379d02c8ac0594a6dfaa254fb3bbc0caa99e82b2476d277c285e0c872",
+    "decisionRule": "Publication is eligible only when every gate is satisfied-in-source, the exact release artifact has passed its required deployed and manual evidence, and ownerDisposition.status is approved for that exact revision and artifact set.",
+    "marginalValueRule": "Classify a finding by consequence multiplied by plausibility multiplied by lifecycle value. Novelty or rarity alone neither opens nor closes a release gate.",
+    "claimBoundary": "This register records engineering evidence and release disposition. It is not legal advice, an upstream warranty, independent certification, or proof about artifacts other than the exact revisions and digests named here."
+  },
+  "publicClient": {
+    "status": "held",
+    "publicationMode": "documentation-only",
+    "reason": "The public interactive boundary lacks exact deployed-service and behavioral evidence, manual accessibility evidence, a production privacy trace, Llama MLC-artifact provenance, and a reproducible licensed WASM build record.",
+    "heldBoundary": {
+      "allow": [
+        "canonical Text to Lattice project page",
+        "Lattice and wrapper documentation",
+        "source code and test evidence"
+      ],
+      "deny": [
+        "public conversion dialog",
+        "public model preparation or inference",
+        "public lease or attestation request",
+        "runtime download of the pinned model, tokenizer, or WASM assets"
+      ]
+    }
+  },
+  "ownerDisposition": {
+    "status": "pending",
+    "owner": "site owner",
+    "revision": null,
+    "decidedAt": null,
+    "record": null,
+    "note": "No owner approval is inferred from source completion, terms review, automated tests, or this qualification."
+  },
+  "artifactSet": {
+    "runtime": {
+      "name": "WebLLM",
+      "version": "0.2.82",
+      "url": "https://github.com/mlc-ai/web-llm"
+    },
+    "tokenizerRuntime": {
+      "name": "Web Tokenizers",
+      "version": "0.1.6",
+      "url": "https://github.com/mlc-ai/tokenizers-cpp"
+    },
+    "structuredOutputRuntime": {
+      "name": "MLC Web XGrammar",
+      "version": "0.1.27",
+      "url": "https://github.com/mlc-ai/xgrammar"
+    },
+    "models": {
+      "generator": {
+        "id": "Qwen3-4B-q4f16_1-MLC",
+        "revision": "a5c9fab855e3ccbdfed2e7e69683d75f30332161",
+        "artifactUrl": "https://huggingface.co/mlc-ai/Qwen3-4B-q4f16_1-MLC/tree/a5c9fab855e3ccbdfed2e7e69683d75f30332161",
+        "baseModelUrl": "https://huggingface.co/Qwen/Qwen3-4B"
+      },
+      "verifier": {
+        "id": "Llama-3.2-3B-Instruct-q4f16_1-MLC",
+        "revision": "1e80abf71e3d17cd564e2d2b63caa15cb226018e",
+        "artifactUrl": "https://huggingface.co/mlc-ai/Llama-3.2-3B-Instruct-q4f16_1-MLC/tree/1e80abf71e3d17cd564e2d2b63caa15cb226018e",
+        "baseModelUrl": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct",
+        "artifactProvenanceStatus": "open-before-publication"
+      }
+    },
+    "tokenizers": {
+      "generator": {
+        "path": "tokenizer.json",
+        "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+      },
+      "verifier": {
+        "path": "tokenizer.json",
+        "sha256": "79e3e522635f3171300913bb421464a87de6222182a0570b9b2ccba2a964b2b4"
+      }
+    },
+    "wasm": {
+      "repository": "https://github.com/mlc-ai/binary-mlc-llm-libs",
+      "repositoryRevision": "025bcaf3780fa8254f5e5efd3bfea0a5397248f4",
+      "directory": "web-llm-models/v0_2_80",
+      "files": {
+        "generator": {
+          "name": "Qwen3-4B-q4f16_1-ctx4k_cs1k-webgpu.wasm",
+          "bytes": 6070240,
+          "sha256": "5ddf44e49b03e53e24fd29a45591850924346140452f60c29280190388571340",
+          "sri": "sha256-Xd9E5JsD5T4k/SmkVZGFCSQ0YUBFL2DCkoAZA4hXE0A=",
+          "gitBlob": "449f3615aa712b22e548f5ad91bb9fbee0c12259"
+        },
+        "verifier": {
+          "name": "Llama-3.2-3B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
+          "bytes": 6131270,
+          "sha256": "34de0d60ab598c6a85ae882b48474f250193076f902057a21070bb2daae96d5b",
+          "sri": "sha256-NN4NYKtZjGqFrogrSEdPJQGTB2+QIFeiEHC7LarpbVs=",
+          "gitBlob": "beda4ea1d45dc6c5294972b3ea3edfd317462142"
+        }
+      },
+      "lineage": {
+        "initialArtifactCommit": "40ef9663ecf3474f2b03b4edcead0d362a283e41",
+        "finalArtifactCommit": "a973639103dd389292a0315274495cb1bc406c7c",
+        "introducingMergeCommit": "6ed5b97c37f4cdc49d1a8044a339db5588176d7e",
+        "pullRequest": "https://github.com/mlc-ai/binary-mlc-llm-libs/pull/158",
+        "recordedTvmSourceRevision": "c8515e1ddfaf4d1afff916c484e68e1513631dd6",
+        "earlyTimePlausibleTvmPrHeadRevision": "372c92844ce708cb1c9e1d13a2102823a4e50498",
+        "tvmRevisionQualification": "The initial PR artifact commit predates the recorded TVM revision, but the final artifact commit rewrote both current blobs after that TVM revision and the pinned repository retains those blobs unchanged. The earlier time-plausible PR head differs from the recorded TVM revision only outside the inspected Web/runtime/model-library path. This makes the final chronology and relevant source content plausible; it is not proof of the exact checkout or a build attestation.",
+        "mlcLlmSourceRevision": "4084e7fe7532fb932810d8b707f2d760eefd0dea",
+        "historicalBuildScript": "https://github.com/mlc-ai/binary-mlc-llm-libs/blob/6ed5b97c37f4cdc49d1a8044a339db5588176d7e/web-llm-models/v0_2_80/compile_wasm.py",
+        "pinnedRevisionContainsBuildScript": false,
+        "historicalQwenPresetResolvableAtRecordedMlcRevision": false,
+        "tokenizersCppRevision": "55d53aa38dc8df7d9c8bd9ed50907e82ae83ce66",
+        "tokenizersCppHasCargoLock": false,
+        "status": "partial-source-lineage-recorded"
+      },
+      "abiInspection": {
+        "matchingShape": true,
+        "importCountPerFile": 13,
+        "exportCountPerFile": 93,
+        "embeddedConfiguration": [
+          "expected qwen3 or llama family metadata",
+          "q4f16_1 quantization",
+          "4096-token context",
+          "1024-token prefill chunk",
+          "128 sequence batch"
+        ],
+        "allocEmbeddingTensorBytes": {
+          "generator": 5242880,
+          "verifier": 6291456
+        },
+        "customSections": [],
+        "limitation": "Matching ABI shape and embedded configuration support compatibility review; they do not prove authorship, source equivalence, compiler identity, or license custody."
+      },
+      "reproducibility": {
+        "status": "open-before-publication",
+        "missing": [
+          "complete pinned build environment and compiler identity",
+          "complete dependency and submodule inventory proven to be linked",
+          "a working pinned Qwen configuration in place of the nonexistent qwen3_4b preset used by the historical helper",
+          "locked and offline-reproducible Python and Cargo dependency graphs",
+          "exact commands, configuration, flags, and inputs for both files",
+          "independent source rebuild matching the published bytes",
+          "artifact-level license and notice disposition"
+        ]
+      }
+    },
+    "llamaTerms": {
+      "version": "Llama 3.2",
+      "license": {
+        "path": "LICENSES/Llama-3.2-Community-License.txt",
+        "sha256": "8cc15535a8a34b41888f644b339a1a9eb428af793a4f5e24df58a3e5b1487d74",
+        "canonicalUrl": "https://developer.meta.com/ai/llama3_2/license/"
+      },
+      "acceptableUsePolicy": {
+        "path": "LICENSES/Llama-3.2-Acceptable-Use-Policy.md",
+        "sha256": "40e2777d7faa6beaf98400654170f414d8ab29b921b5163ad4ea0a1d39894201",
+        "canonicalUrl": "https://developer.meta.com/ai/llama3_2/use-policy/"
+      },
+      "officialSourceCommit": "8d29d93fa5700a60532e0061a02ffa89d0acd3fc",
+      "termsMatchStatus": "byte-identical-to-reviewed-official-files",
+      "reviewedAt": "2026-09-09"
+    },
+    "llamaBehaviorEvaluation": {
+      "path": "docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json",
+      "sha256": "259ba4cc17d28e16bf9470621f95af017e26988e22602c452246f055e0b8d3b4",
+      "caseCount": 10,
+      "expectedAllowCount": 5,
+      "expectedDenyCount": 5,
+      "fixtureStatus": "defined-and-machine-checked",
+      "exactModelExecutionStatus": "open-before-publication",
+      "claimBoundary": "A balanced non-operational fixture defines expected dispositions; it does not establish how the exact Llama artifact behaves until the cases are run and reviewed."
+    }
+  },
+  "gates": [
+    {
+      "id": "GATE-01",
+      "label": "Exact release artifact",
+      "status": "open-before-publication",
+      "marginalValue": "high",
+      "requirement": "Build, lint, type-check, full tests, documentation drift checks, held-boundary checks, static-route checks, generated-artifact inspection, and current-main freshness checks at build, upload, and deployment pass from the exact release tree; pre-hold deployable workflow runs are invalidated or independently blocked.",
+      "currentEvidence": "The implementation baseline is identified and the candidate workflow checks current main at three publication boundaries. GitHub Actions run 33575222169 is a successful pre-hold main run still within its rerun window; its retained historical workflow can rebuild and deploy the interactive client because repository changes cannot retroactively harden it.",
+      "evidenceNeeded": "Dated command transcript, exact source revision, artifact digests, a machine-checked held or eligible decision, and an owner-side record that every pre-hold Pages run is deleted, expired beyond rerun, or rejected by a deployment protection that validates the current main SHA."
+    },
+    {
+      "id": "GATE-02",
+      "label": "Production origin and secret boundary",
+      "status": "open-before-publication",
+      "marginalValue": "high",
+      "requirement": "hah.dev, verify.hah.dev, lease Worker routes, CSP, bindings, and independent encrypted secrets match the documented protocol.",
+      "currentEvidence": "Source contracts exist; the Pages workflow does not deploy the required Worker or verification frame, the public lease route does not evidence the required service, and the verification host was unavailable during review.",
+      "evidenceNeeded": "Deployed configuration, header, route, origin, binding, and secret-name inspection without secret disclosure."
+    },
+    {
+      "id": "GATE-03",
+      "label": "Edge and provider capacity controls",
+      "status": "open-before-publication",
+      "marginalValue": "high",
+      "requirement": "The path-scoped edge rule is active and provider-side CPU, storage, request, row, alarm, latency, and distributed-traffic evidence supports the published budget.",
+      "currentEvidence": "Deterministic source and test contracts do not establish provider configuration or production capacity.",
+      "evidenceNeeded": "Provider configuration record and bounded production-representative load evidence."
+    },
+    {
+      "id": "GATE-04A",
+      "label": "Llama behavior and public-use controls",
+      "status": "open-before-publication",
+      "marginalValue": "high",
+      "requirement": "The public flow discloses model assistance and known limitations, obtains a source-specific lawful-and-authorized-use confirmation, defines prohibited-use safety by purpose and consequence, withholds any safety-failing candidate, and tests realistic harmful and legitimate-context cases.",
+      "currentEvidence": "The checked-in Llama terms and attribution are current. The held source now includes point-of-use disclosure, a resettable source-specific confirmation, purpose-and-consequence safety language, and candidate suppression with a safety-failure regression. A balanced ten-case non-operational evaluation fixture fixes harmful and legitimate-context expectations, but it has not been executed against and manually reviewed for the exact verifier artifact. Trade-compliance disposition, point-of-use comprehension evidence, and owner acceptance also remain open.",
+      "evidenceNeeded": "Run the checked-in cases against the exact prompt, tokenizer, runtime, and model revisions; record outcomes and false-positive/false-negative dispositions; complete manual disclosure comprehension and trade-compliance review; obtain owner approval for the exact public behavior."
+    },
+    {
+      "id": "GATE-04B",
+      "label": "Llama MLC-artifact provenance",
+      "status": "open-before-publication",
+      "marginalValue": "high",
+      "requirement": "The exact MLC-converted Llama artifact has a recorded source, conversion, license, integrity, and notice chain rather than relying only on the base-model terms and repository revision.",
+      "currentEvidence": "The verifier repository and revision are pinned and the controlling base-model terms are present; the MLC artifact repository does not provide a complete conversion and artifact-license record.",
+      "evidenceNeeded": "Publisher provenance or an independently documented conversion from the licensed base model with exact inputs, toolchain, outputs, digests, and notices."
+    },
+    {
+      "id": "GATE-04C",
+      "label": "WASM provenance and license boundary",
+      "status": "open-before-publication",
+      "marginalValue": "high",
+      "requirement": "The exact Qwen and Llama WebGPU WASM libraries have a reproducible source-build record and an artifact-level license and notice disposition.",
+      "currentEvidence": "Exact bytes, digests, git blobs, repository revision, initial and final artifact commits, introducing pull request, and recorded TVM and MLC-LLM source revisions are recorded. The final artifact rewrite postdates the recorded TVM revision and its configuration metadata is consistent with the recorded MLC source, which supports plausibility but not provenance. The binary repository has no root license at the reviewed revision; the historical helper is workstation-specific, calls a Qwen preset absent from the recorded MLC revision, leaves Python and Cargo inputs unlocked, and has no matching independent rebuild.",
+      "evidenceNeeded": "Upstream artifact license confirmation and a complete attestation, or a controlled replacement build with an immutable builder, pinned sources and model configs, locked offline dependencies, exact commands, two clean matching builds, link-derived notices and SBOM, signed provenance, compatibility evidence, owned immutable hosting, integrity enforcement, and owner disposition."
+    },
+    {
+      "id": "GATE-05",
+      "label": "Manual interaction and accessibility",
+      "status": "open-before-publication",
+      "marginalValue": "high",
+      "requirement": "Keyboard, screen reader, touch, 400 percent zoom, reduced motion, forced colors, print, cancellation, blur, and a second browser engine complete the critical paths.",
+      "currentEvidence": "Automated source contracts exist; representative manual and assistive-technology evidence has not been recorded for the exact release artifact.",
+      "evidenceNeeded": "Dated manual matrix with environment, results, failures, and dispositions."
+    },
+    {
+      "id": "GATE-06",
+      "label": "Production privacy trace",
+      "status": "open-before-publication",
+      "marginalValue": "high",
+      "requirement": "Network traces show no source, clarification, candidate, verifier finding, or output in lease, attestation, model-asset, error, or telemetry traffic.",
+      "currentEvidence": "Local data-flow and request policies are implemented and tested; they do not prove the final deployed origins, service configuration, browser behavior, or third-party request surface.",
+      "evidenceNeeded": "Sanitized production traces from both origins and supported browser engines for the exact release."
+    }
+  ],
+  "marginalValueDecisions": [
+    {
+      "finding": "Leading-zero Retry-After inflation",
+      "classification": "moderate-to-high",
+      "disposition": "fixed-and-retained",
+      "rationale": "A standards-valid ordinary response could inflate denial time; canonicalization is bounded and reusable."
+    },
+    {
+      "finding": "Pre-1900 HTTP-date rejection",
+      "classification": "low",
+      "disposition": "completed-behavior-retained",
+      "rationale": "The provider is not expected to emit such a date and the consequence is bounded, but completed work is not rolled back."
+    },
+    {
+      "finding": "Keyword-only prohibited-topic blocking",
+      "classification": "negative",
+      "disposition": "do-not-implement",
+      "rationale": "It would block legitimate quotation, journalism, criticism, fiction, prevention, and defensive analysis while remaining easy to evade. Purpose-and-consequence evaluation has greater fidelity and lower lifecycle burden."
+    },
+    {
+      "finding": "Deterministic language detection as the sole Llama-language gate",
+      "classification": "negative",
+      "disposition": "do-not-implement",
+      "rationale": "Short, mixed, named-entity-heavy, and transliterated text makes bespoke detection unreliable; a point-of-use supported-language confirmation is bounded and auditable."
+    },
+    {
+      "finding": "Machine-enforced held publication boundary",
+      "classification": "high",
+      "disposition": "fix-now",
+      "rationale": "Every main-branch publication otherwise risks activating dependencies whose production, acceptable-use, privacy, accessibility, or provenance evidence remains open."
+    }
+  ],
+  "reviewTriggers": [
+    "any model, tokenizer, runtime, or WASM revision change",
+    "any Llama license or acceptable-use-policy change",
+    "any prompt, safety schema, candidate-release, or public disclosure change",
+    "any lease, attestation, origin, provider, storage, or telemetry change",
+    "any accessibility-critical interaction change",
+    "any source revision or artifact digest proposed for publication"
+  ]
+}

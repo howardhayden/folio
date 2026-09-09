@@ -1,6 +1,6 @@
 import { SiteHeader } from "../../../components/SiteChrome";
-import { textToLatticeContract } from "../../../content/siteContent.js";
-import { LATTICE_DOCUMENTATION_RESOURCES } from "../../../resume/projects.js";
+import { textToLatticeContract } from "../../../content/textToLatticeContent.js";
+import { LATTICE_DOCUMENTATION_RESOURCES, projectBySlug } from "../../../resume/projects.js";
 import { JsonLd } from "../../../semantic/JsonLd";
 import { semanticMetadata } from "../../../semantic/metadata";
 import { jsonLdForPage } from "../../../semantic/portfolio.js";
@@ -14,6 +14,11 @@ export const metadata = semanticMetadata(
 export default function TextToLatticePage() {
   const security = textToLatticeContract.securityAndPrivacy;
   const policy = textToLatticeContract.usagePolicy;
+  const latticeProject = projectBySlug("lattice");
+  const interactiveRelease = latticeProject && "interactiveRelease" in latticeProject
+    ? latticeProject.interactiveRelease
+    : "not-applicable";
+  const releaseHeld = interactiveRelease === "held";
 
   return (
     <>
@@ -23,6 +28,22 @@ export default function TextToLatticePage() {
         <article data-tool-id={textToLatticeContract.id}>
           <h1>{textToLatticeContract.name}</h1>
           <p className="lead">{textToLatticeContract.purpose}</p>
+
+          <section className="lattice-release-hold" aria-labelledby="text-to-lattice-release-status">
+            <h2 id="text-to-lattice-release-status">Release status: {interactiveRelease}</h2>
+            {releaseHeld ? (
+              <>
+                <p>The completed interactive client is not in the public application bundle. Its behavioral, artifact-provenance, production-boundary, accessibility, and privacy evidence must agree before the converter can open.</p>
+                <p>This hold preserves the implementation without representing source controls as deployed proof.</p>
+              </>
+            ) : (
+              <p>The interactive client’s availability follows the machine-checked release record for this build.</p>
+            )}
+            <ul>
+              <li><a href="/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md">Read the release qualification</a></li>
+              <li><a href="/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json">Inspect the machine-readable release register</a></li>
+            </ul>
+          </section>
 
           <h2>Documentation maps</h2>
           <p>Read the method and the demonstrator at their own boundaries.</p>
@@ -109,11 +130,15 @@ export default function TextToLatticePage() {
 
           <section aria-labelledby="text-to-lattice-availability" data-tool-availability="progressive-enhancement">
             <h2 id="text-to-lattice-availability">Availability and fallback</h2>
-            <p>The interactive converter is an optional enhancement launched from the Lattice project card on the résumé. This canonical page remains the readable tool contract when conversion is unavailable.</p>
+            <p>{releaseHeld
+              ? "The interactive converter is a completed, optional enhancement presently held outside the public bundle."
+              : "The interactive converter is an optional progressive enhancement."} The Lattice project card leads here as an ordinary link, and this canonical page remains the readable tool contract.</p>
             <ul>
-              <li>Without JavaScript, the project title remains an ordinary link to this contract; no text-entry interface is offered.</li>
-              <li>Without secure-context WebGPU support, the dialog identifies the missing capability, disables conversion, and keeps this contract available.</li>
-              <li>Without access to uncached pinned model assets, conversion stops without presenting the source as transformed text. The source remains editable in the current tab.</li>
+              <li>{releaseHeld
+                ? "Without JavaScript—and with JavaScript while this release is held—the public project title remains an ordinary link to this contract; no text-entry interface is published."
+                : "Without JavaScript, the public project title remains an ordinary link to this contract; no text-entry interface is rendered."}</li>
+              <li>{releaseHeld ? "When a later release is enabled, absence" : "Absence"} of secure-context WebGPU support makes the dialog identify the missing capability and disable conversion.</li>
+              <li>{releaseHeld ? "When enabled, absence" : "Absence"} of uncached pinned model assets stops conversion without presenting the source as transformed text.</li>
             </ul>
             <p>The portfolio’s public HTML, <a href="/projects.json">project manifest</a>, <a href="/knowledge-graph.jsonld">knowledge graph</a>, and <a href="/content/projects/lattice.md">canonical project Markdown</a> do not depend on the local inference engine.</p>
             <noscript><p className="lattice-noscript-note">JavaScript is disabled. The complete public contract remains on this page.</p></noscript>
@@ -125,9 +150,9 @@ export default function TextToLatticePage() {
             <div className="paper-meta-item"><dt>Verifier</dt><dd><a href={textToLatticeContract.implementation.verifier.revisionUrl}>{textToLatticeContract.implementation.verifier.name}</a>, revision {textToLatticeContract.implementation.verifier.revision}; deterministic decoding with fixed seed {textToLatticeContract.implementation.verifier.inference.seed}</dd></div>
             <div className="paper-meta-item"><dt>Runtime</dt><dd><a href={textToLatticeContract.implementation.runtime.documentationUrl}>{textToLatticeContract.implementation.runtime.name} {textToLatticeContract.implementation.runtime.version}</a> (<a href={textToLatticeContract.implementation.runtime.repository}>source</a>); {textToLatticeContract.implementation.runtime.tokenizerName} {textToLatticeContract.implementation.runtime.tokenizerVersion}; <a href={textToLatticeContract.implementation.runtime.structuredOutputPackageUrl}>{textToLatticeContract.implementation.runtime.structuredOutputName} {textToLatticeContract.implementation.runtime.structuredOutputVersion}</a> for constrained JSON; <a href={textToLatticeContract.implementation.runtime.wasmRepository}>model-library WASM revision {textToLatticeContract.implementation.runtime.wasmRevision}</a>. {textToLatticeContract.implementation.runtime.wasmLicenseStatus}</dd></div>
           </dl>
-          <p>Built with Llama. Llama 3.2 is licensed under the <a href={textToLatticeContract.implementation.verifier.licenseUrl}>Llama 3.2 Community License</a> and <a href={textToLatticeContract.implementation.verifier.acceptableUseUrl}>Acceptable Use Policy</a>, Copyright © Meta Platforms, Inc. All Rights Reserved.</p>
+          <p>Model-assisted result design: Qwen drafts locally and Llama 3.2 checks locally. Local checks can miss altered, omitted, biased, or unsafe meaning; every result requires review before reliance. Built with Llama. Llama 3.2 is licensed under the <a href={textToLatticeContract.implementation.verifier.licenseUrl}>Llama 3.2 Community License</a> and <a href={textToLatticeContract.implementation.verifier.acceptableUseUrl}>Acceptable Use Policy</a>, Copyright © Meta Platforms, Inc. All Rights Reserved.</p>
           <p><a href="/third-party-notices/">Third-party notices and local license copies</a>.</p>
-          <p><a href="/resume/#projects-title">Open the interactive tool from the Lattice project card</a>.</p>
+          <p><a href="/resume/#projects-title">Return to the Lattice project card</a>.</p>
           <p><a href="/projects/lattice/">Read the canonical Lattice project record</a>.</p>
         </article>
       </main>

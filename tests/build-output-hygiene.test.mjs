@@ -37,10 +37,16 @@ test("the HTML-only Pages artifact uses native anchors for application navigatio
   }
 
   const chrome = await readFile(new URL("../app/components/SiteChrome.tsx", import.meta.url), "utf8");
-  const lattice = await readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8");
+  const [resumeView, heldProjects] = await Promise.all([
+    readFile(new URL("../app/resume/ResumeView.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/resume/ResumeProjectsHeld.tsx", import.meta.url), "utf8"),
+  ]);
   assert.match(chrome, /<a className="navbar-brand" href="\/"/u);
   assert.match(chrome, /<a[\s\S]*?className="nav-link"[\s\S]*?href=\{route\.href\}/u);
-  assert.match(lattice, /<a[\s\S]*?href="\/projects\/lattice\/text-to-lattice\/"[\s\S]*?aria-haspopup="dialog"/u);
+  assert.match(resumeView, /from "\.\/ResumeProjectsHeld"/u);
+  assert.match(heldProjects, /project\.id === "lattice"[\s\S]*?"\/projects\/lattice\/text-to-lattice\/"/u);
+  assert.match(heldProjects, /<a className="signal-fuzz" href=\{projectHref\}>/u);
+  assert.doesNotMatch(heldProjects, /aria-haspopup=|role="dialog"/u);
 });
 
 test("Pages CI verifies pinned tokenizer fixtures before capacity tests", async () => {
@@ -52,7 +58,8 @@ test("Pages CI verifies pinned tokenizer fixtures before capacity tests", async 
   const fetchStep = workflow.indexOf("node scripts/fetch-lattice-tokenizers.mjs");
   const testStep = workflow.indexOf("npm test");
   assert.ok(fetchStep >= 0 && testStep > fetchStep);
-  assert.match(fetcher, /new URL\("tokenizer\.json", LATTICE_MODEL_ROLES\[role\]\.model\)/u);
+  assert.match(fetcher, /new URL\(LATTICE_TOKENIZER_FILENAME, LATTICE_MODEL_ROLES\[role\]\.model\)/u);
+  assert.match(contract, /LATTICE_TOKENIZER_FILENAME = "tokenizer\.json"/u);
   assert.match(fetcher, /createHash\("sha256"\)[\s\S]*?LATTICE_TOKENIZER_SHA256\[role\]/u);
   assert.match(contract, /LATTICE_TOKENIZER_SHA256/u);
 });

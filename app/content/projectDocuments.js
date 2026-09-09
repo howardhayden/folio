@@ -1,5 +1,5 @@
 export const PROJECT_DOCUMENTS_VERSION = "hah-portfolio-project-documents.v1";
-export const PROJECT_DOCUMENTS_UPDATED = "2026-09-08";
+export const PROJECT_DOCUMENTS_UPDATED = "2026-09-09";
 
 const documentationRoot = "https://hah.dev/documentation/text-to-lattice/";
 

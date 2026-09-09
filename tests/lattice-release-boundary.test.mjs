@@ -1,0 +1,286 @@
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { cp, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import test from "node:test";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
+
+import { projectBySlug } from "../app/resume/projects.js";
+
+const execute = promisify(execFile);
+const root = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
+const validator = join(root, "scripts/verify-text-to-lattice-release.mjs");
+const registerPath = join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json");
+const expectedGateIds = ["GATE-01", "GATE-02", "GATE-03", "GATE-04A", "GATE-04B", "GATE-04C", "GATE-05", "GATE-06"];
+
+async function withCopiedSiteFixture(mutate, expectedFailure) {
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "lattice-held-site-test-"));
+  const fixtureSite = join(temporaryDirectory, "site");
+  try {
+    await cp(join(root, "site"), fixtureSite, { recursive: true });
+    await mutate(fixtureSite);
+    await assert.rejects(
+      execute(process.execPath, [validator, "--source", "--site", `--site-root=${fixtureSite}`], { cwd: root }),
+      (error) => expectedFailure.test(`${error.stderr ?? ""}${error.message ?? ""}`),
+    );
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+}
+
+async function appendToHtml(path, markup) {
+  const source = await readFile(path, "utf8");
+  assert.match(source, /<\/body>/u);
+  await writeFile(path, source.replace("</body>", `${markup}</body>`));
+}
+
+test("the release register holds the public client at eight distinct evidence gates", async () => {
+  const [registerSource, atlasSource, evaluationSource, view, held, projectsSource, packageSource, workflow, validatorSource, wasmFetcher] = await Promise.all([
+    readFile(registerPath, "utf8"),
+    readFile(join(root, "docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json"), "utf8"),
+    readFile(join(root, "docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json"), "utf8"),
+    readFile(join(root, "app/resume/ResumeView.tsx"), "utf8"),
+    readFile(join(root, "app/resume/ResumeProjectsHeld.tsx"), "utf8"),
+    readFile(join(root, "app/resume/projects.js"), "utf8"),
+    readFile(join(root, "package.json"), "utf8"),
+    readFile(join(root, ".github/workflows/pages.yml"), "utf8"),
+    readFile(validator, "utf8"),
+    readFile(join(root, "scripts/fetch-lattice-wasm.mjs"), "utf8"),
+  ]);
+  const register = JSON.parse(registerSource);
+  const atlas = JSON.parse(atlasSource);
+  const evaluation = JSON.parse(evaluationSource);
+  const packageJson = JSON.parse(packageSource);
+  const lattice = projectBySlug("lattice");
+
+  assert.equal(register.overallStatus, "held");
+  assert.equal(register.publicClient.status, "held");
+  assert.equal(register.publicClient.publicationMode, "documentation-only");
+  assert.equal(register.ownerDisposition.status, "pending");
+  assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
+  assert.ok(register.gates.every(({ status }) => status === "open-before-publication"));
+  assert.deepEqual(atlas.securityModel.prePublicationGates, register.gates.map(({ id, label, status, marginalValue, requirement, currentEvidence, evidenceNeeded }) => ({
+    id, label, status, marginalValue, requirement, currentEvidence, evidenceNeeded,
+  })));
+  assert.equal(evaluation.cases.length, 10);
+  assert.equal(evaluation.cases.filter(({ expectedSafety }) => expectedSafety).length, 5);
+  assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionStatus, "open-before-publication");
+  assert.equal(lattice.interactiveRelease, "held");
+  assert.equal(lattice.interaction, null);
+  assert.match(view, /from "\.\/ResumeProjectsHeld"/u);
+  assert.doesNotMatch(view, /from "\.\/ResumeProjects"/u);
+  assert.doesNotMatch(held, /<form\b|<textarea\b|role="dialog"|aria-haspopup=/iu);
+  assert.doesNotMatch(held, /from\s+["'].+\/(?:lattice|latticeDemo)/u);
+  assert.doesNotMatch(projectsSource, /from\s+["'][^"']*(?:siteContent|\/lattice(?:\/|["']))/u);
+  assert.match(packageJson.scripts.build, /release:lattice:verify/u);
+  assert.match(packageJson.scripts.build, /typecheck/u);
+  assert.equal(packageJson.scripts.typecheck, "tsc --noEmit");
+  assert.match(packageJson.scripts["build:pages"], /release:lattice:verify:site/u);
+  assert.match(packageJson.scripts["release:lattice:verify:wasm"], /fetch-lattice-wasm/u);
+  assert.match(wasmFetcher, /bytes\.byteLength !== record\.bytes/u);
+  assert.match(wasmFetcher, /digest !== record\.sha256/u);
+  assert.match(wasmFetcher, /createHash\("sha1"\)[\s\S]*?blob \$\{bytes\.byteLength\}\\0/u);
+  assert.match(wasmFetcher, /gitBlob !== record\.gitBlob/u);
+  assert.match(wasmFetcher, /does not establish source reproducibility or artifact licensing/u);
+  assert.match(workflow, /Fetch and verify held Text to Lattice WASM identities[\s\S]*?release:lattice:verify:wasm/u);
+  assert.match(workflow, /Verify held Text to Lattice release boundary[\s\S]*?release:lattice:verify:site/u);
+  assert.match(workflow, /actions\/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5\.0\.0[\s\S]*?include-hidden-files: true/u);
+  assert.ok((workflow.match(/if: github\.ref == 'refs\/heads\/main'/gu) ?? []).length >= 2);
+  assert.match(workflow, /npm run typecheck[\s\S]*?npm test/u);
+  assert.match(validatorSource, /register and activation edits alone cannot publish inference/u);
+  assert.match(validatorSource, /artifacts\.models\[role\]\.artifactUrl !== LATTICE_MODEL_ROLES\[role\]\.revisionUrl/u);
+  assert.match(validatorSource, /artifacts\.models\[role\]\.baseModelUrl !== LATTICE_MODEL_ROLES\[role\]\.baseModelRepository/u);
+  assert.match(validatorSource, /artifacts\.wasm\.repository !== LATTICE_WASM_REPOSITORY/u);
+  assert.match(validatorSource, /artifacts\.wasm\.directory !== LATTICE_WASM_BUILD_LINEAGE\.releaseDirectory/u);
+  assert.match(validatorSource, /heldRuntimeAssetPatterns/u);
+  for (const runtimeAssetName of [".wasm", "safetensors", "tokenizer(?:_config)?", "tokenizer\\.model", "mlc-chat-config", "ndarray-cache"]) {
+    assert.ok(validatorSource.includes(runtimeAssetName), `held validator must reject ${runtimeAssetName} assets`);
+  }
+  assert.match(validatorSource, /heldExecutableExtensions = new Set\(\["\.js", "\.mjs", "\.cjs", "\.map"\]\)/u);
+  assert.match(validatorSource, /scanHtmlStartTags/u);
+  assert.match(validatorSource, /heldArtifactDigests\.has\(digest\(bytes\)\)/u);
+  assert.match(validatorSource, /--site-root requires --site/u);
+  await execute(process.execPath, [validator, "--source"], { cwd: root });
+});
+
+test("the validator rejects a nominally enabled client while any gate is open", async () => {
+  const register = JSON.parse(await readFile(registerPath, "utf8"));
+  register.overallStatus = "eligible";
+  register.publicClient.status = "enabled";
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "lattice-release-test-"));
+  const fixture = join(temporaryDirectory, "register.json");
+  await writeFile(fixture, `${JSON.stringify(register, null, 2)}\n`);
+  try {
+    await assert.rejects(
+      execute(process.execPath, [validator, "--source", `--register=${fixture}`], { cwd: root }),
+      (error) => /enabled public client cannot carry an open gate/u.test(`${error.stderr ?? ""}${error.message ?? ""}`),
+    );
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("the release register cannot redirect or relabel pinned runtime artifacts", async () => {
+  const baseline = JSON.parse(await readFile(registerPath, "utf8"));
+  const mutations = [
+    [(record) => { record.artifactSet.models.generator.artifactUrl = "https://example.invalid/model"; }, /generator model artifact URL drifted/u],
+    [(record) => { record.artifactSet.models.verifier.baseModelUrl = "https://example.invalid/base"; }, /verifier base-model URL drifted/u],
+    [(record) => { record.artifactSet.wasm.repository = "https://example.invalid/wasm"; }, /WASM repository URL drifted/u],
+    [(record) => { record.artifactSet.wasm.directory = "other-release"; }, /WASM release directory drifted/u],
+    [(record) => { record.artifactSet.runtime.name = "Other runtime"; }, /WebLLM name drifted/u],
+    [(record) => { record.artifactSet.runtime.url = "https://example.invalid/runtime"; }, /WebLLM repository URL drifted/u],
+    [(record) => { record.artifactSet.tokenizerRuntime.name = "Other tokenizer"; }, /tokenizer runtime name drifted/u],
+    [(record) => { record.artifactSet.tokenizerRuntime.url = "https://example.invalid/tokenizer"; }, /tokenizer runtime repository URL drifted/u],
+    [(record) => { record.artifactSet.structuredOutputRuntime.name = "Other grammar runtime"; }, /structured-output runtime name drifted/u],
+    [(record) => { record.artifactSet.structuredOutputRuntime.url = "https://example.invalid/grammar"; }, /structured-output runtime repository URL drifted/u],
+    [(record) => { record.artifactSet.tokenizers.generator.path = "other-tokenizer.json"; }, /generator tokenizer path drifted/u],
+  ];
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "lattice-artifact-register-test-"));
+  const fixture = join(temporaryDirectory, "register.json");
+  try {
+    for (const [mutate, expectedFailure] of mutations) {
+      const record = structuredClone(baseline);
+      mutate(record);
+      await writeFile(fixture, `${JSON.stringify(record, null, 2)}\n`);
+      await assert.rejects(
+        execute(process.execPath, [validator, "--source", `--register=${fixture}`], { cwd: root }),
+        (error) => expectedFailure.test(`${error.stderr ?? ""}${error.message ?? ""}`),
+      );
+    }
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("the held Pages artifact contains evidence but no Text to Lattice execution surface", async () => {
+  const [resume, project, qualification, exportedRegister, exportedEvaluation, sourceRegister, sourceEvaluation] = await Promise.all([
+    readFile(join(root, "site/resume/index.html"), "utf8"),
+    readFile(join(root, "site/projects/lattice/text-to-lattice/index.html"), "utf8"),
+    readFile(join(root, "site/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"), "utf8"),
+    readFile(join(root, "site/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json"), "utf8"),
+    readFile(join(root, "site/documentation/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json"), "utf8"),
+    readFile(registerPath, "utf8"),
+    readFile(join(root, "docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json"), "utf8"),
+  ]);
+
+  assert.match(resume, /href="\/projects\/lattice\/text-to-lattice\/"[^>]*>Lattice<\/a>/u);
+  assert.doesNotMatch(resume, /lattice-demo-dialog|lattice-demo-input|aria-haspopup="dialog"/u);
+  assert.match(project, /Release status:\s*(?:<!-- -->)?held/u);
+  assert.match(project, /TEXT-TO-LATTICE-RELEASE-QUALIFICATION\.md/u);
+  assert.match(qualification, /consequence × plausibility × lifecycle value/u);
+  assert.equal(JSON.parse(exportedRegister).overallStatus, "held");
+  assert.equal(exportedRegister, sourceRegister);
+  assert.equal(exportedEvaluation, sourceEvaluation);
+  await execute(process.execPath, [validator, "--source", "--site"], { cwd: root });
+});
+
+test("the held-site validator rejects executable bypasses outside the résumé", async () => {
+  const route = (site) => join(site, "projects/medium/index.html");
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<script type="text/&#106;avascript">fetch("/api/text-to-lattice/lease")</script>'),
+    /held inline executable script in projects\/medium\/index\.html contains \/api\/text-to-lattice\/lease/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<script data-type="application/ld+json">fetch("/api/text-to-lattice/lease")</script>'),
+    /held inline executable script in projects\/medium\/index\.html contains \/api\/text-to-lattice\/lease/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<script data-src="/runtime-entry">fetch("/api/text-to-lattice/lease")</script>'),
+    /held inline executable script in projects\/medium\/index\.html contains \/api\/text-to-lattice\/lease/u,
+  );
+
+  await withCopiedSiteFixture(async (site) => {
+    await writeFile(join(site, "runtime-entry"), 'fetch("https://verify.hah.dev")');
+    await appendToHtml(route(site), '<script src="/runtime-entry"></script>');
+  }, /held referenced script asset runtime-entry contains https:\/\/verify\.hah\.dev/u);
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<div id="lattice-demo-dialog"></div>'),
+    /held HTML route projects\/medium\/index\.html contains a Lattice interactive marker/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<script src="https://attacker.example/inference.js"></script>'),
+    /references a cross-origin executable script/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<script/src="https://attacker.example/inference.js"></script>'),
+    /references a cross-origin executable script/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<script data-description=">" src="https://attacker.example/inference.js"></script>'),
+    /references a cross-origin executable script/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<iframe src="HTTPS://VERIFY.HAH.DEV/challenge"></iframe>'),
+    /exposes the verification or lease boundary through iframe src/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<iframe srcdoc="&lt;script&gt;fetch(\'/api/text-to-lattice/lease\')&lt;/script&gt;"></iframe>'),
+    /contains an executable iframe srcdoc/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<form action="&#47;api&#47;text-to-lattice&#47;lease"></form>'),
+    /exposes the verification or lease boundary through form action/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<button onclick="fetch(\'/api/text-\' + \'to-lattice/lease\')">Run</button>'),
+    /contains an inline event handler/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<svg/onload="fetch(\'/api/text-to-lattice/lease\')"></svg>'),
+    /contains an inline event handler/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<button data-description=">" onclick="fetch(\'/api/text-to-lattice/lease\')">Run</button>'),
+    /contains an inline event handler/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<base/href="https://attacker.example/"><script src="/_next/static/chunks/index-CtFJ3rYh.js"></script>'),
+    /contains a base element/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<a/href="java&#x09script:fetch(\'/api/text-to-lattice/lease\')">Run</a>'),
+    /contains a javascript: URL/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => writeFile(join(site, "runtime.data"), Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00])),
+    /contains WebAssembly bytes regardless of filename: runtime\.data/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => symlink(join(site, "_next"), join(site, "linked-assets"), "dir"),
+    /held site contains a symbolic link/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<link rel="preload" as="fetch" href="https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Qwen3-4B-q4f16_1-ctx4k_cs1k-webgpu.wasm">'),
+    /held network-active link href in projects\/medium\/index\.html contains raw\.githubusercontent\.com\/mlc-ai\/binary-mlc-llm-libs/u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<style>.preview { background: url("https://huggingface.co/mlc-ai/Llama-3.2-3B-Instruct-q4f16_1-MLC/resolve/model.safetensors"); }</style>'),
+    /held inline style block in projects\/medium\/index\.html contains huggingface\.co\/mlc-ai\/Llama-3\.2-3B-Instruct-q4f16_1-MLC\/resolve\//u,
+  );
+
+  await withCopiedSiteFixture(
+    (site) => appendToHtml(route(site), '<script type="application/json">{"endpoint":"/api/text-to-lattice/lease"}</script>'),
+    /held inline JSON data in projects\/medium\/index\.html contains \/api\/text-to-lattice\/lease/u,
+  );
+});

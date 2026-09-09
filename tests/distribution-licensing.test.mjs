@@ -79,19 +79,73 @@ test("Text to Lattice implementation stays under the declared software license",
   assert.equal(latticeRule.license, "PolyForm-Noncommercial-1.0.0");
   assert.ok(latticeRule.paths.includes("app/resume/latticeDemo.js"));
   assert.ok(latticeRule.paths.includes("app/resume/ResumeProjects.tsx"));
+  assert.ok(latticeRule.paths.includes("app/resume/ResumeProjectsHeld.tsx"));
+});
+
+test("Llama terms, required attribution, and held-artifact provenance are regression-bound", async () => {
+  const { createHash } = await import("node:crypto");
+  const [notice, notices, license, acceptableUse, registerSource] = await Promise.all([
+    readText("NOTICE"),
+    readText("THIRD_PARTY_NOTICES.md"),
+    readFile(sourceUrl("LICENSES/Llama-3.2-Community-License.txt")),
+    readFile(sourceUrl("LICENSES/Llama-3.2-Acceptable-Use-Policy.md")),
+    readText("docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json"),
+  ]);
+  const register = JSON.parse(registerSource);
+  const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+  assert.equal(sha256(license), register.artifactSet.llamaTerms.license.sha256);
+  assert.equal(sha256(acceptableUse), register.artifactSet.llamaTerms.acceptableUsePolicy.sha256);
+  assert.match(notice, /Built with Llama\./u);
+  assert.match(notice, /Llama 3\.2 is licensed under the Llama 3\.2 Community License, Copyright © Meta Platforms, Inc\. All Rights Reserved\./u);
+  assert.match(notices, /developer\.meta\.com\/ai\/llama3_2\/license\//u);
+  assert.match(notices, /developer\.meta\.com\/ai\/llama3_2\/use-policy\//u);
+  assert.match(notices, new RegExp(register.artifactSet.wasm.files.generator.sha256, "u"));
+  assert.match(notices, new RegExp(register.artifactSet.wasm.files.verifier.sha256, "u"));
+  assert.equal(register.artifactSet.wasm.reproducibility.status, "open-before-publication");
+  assert.equal(register.artifactSet.models.verifier.artifactProvenanceStatus, "open-before-publication");
 });
 
 test("Lattice documentation source, generator, and exported editions retain distinct terms", async () => {
   const licenseMap = JSON.parse(await readText("LICENSE-MAP.json"));
   const ruleFor = (path) => licenseMap.rules.find(({ paths }) => paths.includes(path));
+  const publicReleaseEvidence = [
+    "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
+    "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
+    "public/documentation/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json",
+  ];
 
   assert.equal(ruleFor("scripts/docs/**")?.license, "PolyForm-Noncommercial-1.0.0");
   assert.equal(ruleFor("docs/text-to-lattice/**")?.license, "LicenseRef-Hayden-Portfolio-Content");
   assert.equal(ruleFor("public/documentation/text-to-lattice/*.md")?.license, "LicenseRef-Hayden-Portfolio-Content");
+  for (const path of publicReleaseEvidence) {
+    assert.equal(ruleFor(path)?.license, "LicenseRef-Hayden-Portfolio-Content", `${path} has explicit authored-content terms`);
+  }
   assert.equal(ruleFor("public/documentation/text-to-lattice/**")?.license, "SOURCE-COMPONENT-TERMS");
   assert.ok(
     licenseMap.rules.indexOf(ruleFor("public/documentation/text-to-lattice/*.md"))
       < licenseMap.rules.indexOf(ruleFor("public/documentation/text-to-lattice/**")),
     "authored public Markdown precedes the mixed generated-artifact rule",
   );
+});
+
+test("third-party notice release-evidence links resolve from the deployed site root", async () => {
+  const [notices, noticePage] = await Promise.all([
+    readText("THIRD_PARTY_NOTICES.md"),
+    readText("app/third-party-notices/page.tsx"),
+  ]);
+  const expectedLinks = [
+    ["release qualification", "/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"],
+    ["machine-readable release register", "/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json"],
+  ];
+  const copiedPaths = new Set(staticSourceCopies.map(({ pathname }) => pathname));
+
+  for (const [label, pathname] of expectedLinks) {
+    assert.ok(notices.includes(`[${label}](${pathname})`), `${label} uses its deployed root-relative path`);
+    assert.ok(copiedPaths.has(pathname), `${label} is copied to the linked deployed path`);
+  }
+  assert.doesNotMatch(notices, /\]\(docs\/text-to-lattice\/TEXT-TO-LATTICE-RELEASE-/u);
+  assert.match(noticePage, /"interactiveRelease" in latticeProject/u);
+  assert.match(noticePage, /completed client is held outside the public bundle/u);
+  assert.doesNotMatch(noticePage, /The browser downloads[^.]+when the tool is used/u);
 });

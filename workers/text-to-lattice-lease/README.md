@@ -317,15 +317,19 @@ Before enabling the static client:
    rate-limit bindings whose namespace identifiers are unused by every other
    Worker in the account, four secret binding names, and provider-side
    cold/warm request/CPU/storage/alarm measurements from the deployed revision.
-9. Record release approval for the public verifier's use on arbitrary
-   user-supplied prose under the Llama 3.2 Community License and Acceptable Use
-   Policy. Also record either upstream license confirmation for the exact
-   `binary-mlc-llm-libs` revision or the source revisions, license inventory,
-   and reproducible build evidence for a replacement WASM. The Apache-2.0
-   licenses on the WebLLM and MLC LLM source repositories do not, by
-   themselves, establish the provenance of an otherwise unlicensed binary
-   repository.
-10. Only then publish the static client that requires the lease.
+9. Record release approval for the exact public verifier behavior under the
+   Llama 3.2 Community License and Acceptable Use Policy. Keep that behavioral
+   decision separate from the MLC-converted Llama artifact's source, integrity,
+   license, and notice chain. For the exact `binary-mlc-llm-libs` files, record
+   either equivalent upstream artifact attestation or a controlled replacement
+   build with pinned source, submodules, compiler, environment, commands,
+   flags, complete license inventory, output digests, and compatibility
+   evidence. Apache-2.0 source licenses and PR-level source lineage do not, by
+   themselves, establish a reproducible licensed binary artifact.
+10. Update `TEXT-TO-LATTICE-RELEASE-REGISTER.json` only from the exact evidence.
+    Run the source and built-site release validators, record the site owner's
+    exact-revision disposition, and verify that every gate is satisfied. Only
+    then publish the static client that requires the lease.
 
 The three secret runtime values belong only in Cloudflare and should not be
 duplicated into GitHub. The current GitHub Pages workflow uses GitHub’s

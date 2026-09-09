@@ -2737,6 +2737,28 @@ test("typed lower-priority verifier issues expose only a semantically safe revie
 });
 
 test("semantic, unsupported, and contradictory verifier issues never expose a draft", async (context) => {
+  await context.test("purpose-and-consequence safety failure", async () => {
+    const adapter = scriptedAdapter({
+      verify(request) {
+        return rawVerification(request, {
+          gates: { safety: false },
+          passage: { safety: false },
+          issues: [{
+            id: "prohibited_outcome",
+            check: "safety",
+            passageId: request.batch.passages[0].id,
+            atomIds: [],
+            message: "operationally harmful transformation",
+          }],
+        });
+      },
+    });
+    const result = await runTextToLattice(opaqueWords(8), { adapter });
+    assert.equal(result.status, "unable-to-attempt");
+    assert.equal(result.text, null);
+    assertCandidateWithheld(result);
+  });
+
   await context.test("semantic issue", async () => {
     const adapter = scriptedAdapter({
       verify(request) {

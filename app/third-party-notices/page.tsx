@@ -1,5 +1,6 @@
 import { SiteHeader } from "../components/SiteChrome";
-import { textToLatticeContract } from "../content/siteContent.js";
+import { textToLatticeContract } from "../content/textToLatticeContent.js";
+import { projectBySlug } from "../resume/projects.js";
 import { JsonLd } from "../semantic/JsonLd";
 import { semanticMetadata } from "../semantic/metadata";
 import { jsonLdForPage } from "../semantic/portfolio.js";
@@ -45,6 +46,10 @@ const licenseDocuments = [
 
 export default function ThirdPartyNoticesPage() {
   const { generator, verifier, runtime } = textToLatticeContract.implementation;
+  const latticeProject = projectBySlug("lattice");
+  const interactiveRelease = latticeProject && "interactiveRelease" in latticeProject
+    ? latticeProject.interactiveRelease
+    : "not-applicable";
   return (
     <>
       <JsonLd value={jsonLdForPage("/third-party-notices/")} />
@@ -60,7 +65,9 @@ export default function ThirdPartyNoticesPage() {
             <div className="paper-meta-item"><dt>Verifier</dt><dd><a href={verifier.repository}>{verifier.name}</a>, revision {verifier.revision}; deterministic decoding with fixed seed {verifier.inference.seed}</dd></div>
             <div className="paper-meta-item"><dt>Runtime</dt><dd><a href={runtime.packageUrl}>{runtime.name} {runtime.version}</a>; {runtime.tokenizerName} {runtime.tokenizerVersion}; <a href={runtime.wasmRepository}>WASM revision {runtime.wasmRevision}</a>. {runtime.wasmLicenseStatus}</dd></div>
           </dl>
-          <p>The browser downloads the pinned model and WebAssembly assets from their public upstream hosts when the tool is used. The models and runtime are third-party materials, not works authored by Hayden Howard.</p>
+          <p>{interactiveRelease === "held"
+            ? "The completed client is held outside the public bundle while its release gates remain open. If a later qualified release is enabled, the browser is designed to download pinned model and WebAssembly assets from their public upstream hosts."
+            : "When the interactive client is enabled, the browser downloads pinned model and WebAssembly assets from their public upstream hosts."} The models and runtime are third-party materials, not works authored by Hayden Howard.</p>
           <p>Built with Llama. Llama 3.2 is licensed under the <a href={verifier.licenseUrl}>Llama 3.2 Community License</a> and <a href={verifier.acceptableUseUrl}>Acceptable Use Policy</a>, Copyright © Meta Platforms, Inc. All Rights Reserved.</p>
 
           <h2>Notices and index</h2>

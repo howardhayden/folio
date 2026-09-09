@@ -1213,8 +1213,9 @@ test("renders current projects and consistent project documentation icons", asyn
   assert.match(html, /class="bi bi-pen-fill"/);
   assert.match(
     html,
-    /href="\/projects\/lattice\/text-to-lattice\/"[^>]*aria-haspopup="dialog"[^>]*aria-controls="lattice-demo-dialog"[^>]*>Lattice<\/a>/,
+    /href="\/projects\/lattice\/text-to-lattice\/"[^>]*>Lattice<\/a>/,
   );
+  assert.doesNotMatch(html, /aria-controls="lattice-demo-dialog"|aria-haspopup="dialog"/u);
   assert.match(
     html,
     /Lattice turns linguistic register into an explicit, testable system\./,
@@ -1233,6 +1234,7 @@ test("renders current projects and consistent project documentation icons", asyn
     ["Skill Map", "lattice-skill-map.html"],
     ["Service Blueprint", "text-to-lattice-service-blueprint.html"],
     ["Security Model", "text-to-lattice-security-model.html"],
+    ["Release Qualification", "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"],
   ]) {
     const url = `https://hah.dev/documentation/text-to-lattice/${filename}`;
     const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1261,6 +1263,16 @@ test("renders current projects and consistent project documentation icons", asyn
     html,
     /href="https:\/\/chorus\.observer\/documentation\/chorus-csd-matrix\.html"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="CSD Matrix for CHORUS, opens in a new tab"/,
   );
+  for (const [label, filename] of [
+    ["Concept Map", "chorus-concept-map.html"],
+    ["CSD Matrix", "chorus-csd-matrix.html"],
+  ]) {
+    const link = html.match(new RegExp(
+      `<a(?=[^>]*href="https:\\/\\/chorus\\.observer\\/documentation\\/${filename}")(?=[^>]*aria-label="${label} for CHORUS, opens in a new tab")[^>]*>[\\s\\S]*?</a>`,
+    ))?.[0];
+    assert.ok(link, `${label} is a directly labeled CHORUS resource`);
+    assert.equal((link.match(/class="bi bi-backpack4"/gu) ?? []).length, 1, `${label} carries the Documentation icon`);
+  }
   assert.match(html, /href="\/projects\/in-keeping\/"[^>]*>IN KEEPING<\/a>/);
   const projectGrid = html.slice(
     html.indexOf('class="folio-card-grid"'),
@@ -1286,7 +1298,7 @@ test("renders current projects and consistent project documentation icons", asyn
     html,
     /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="Public notice for IN KEEPING, opens in a new tab"/,
   );
-  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 11);
+  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 12);
 });
 
 test("keeps Lattice documentation direct in canonical no-JavaScript project surfaces", async () => {
@@ -1309,8 +1321,7 @@ test("keeps Lattice documentation direct in canonical no-JavaScript project surf
   }
 });
 
-test("implements the bounded and accessible Text to Lattice dialog contract", async () => {
-  const { html } = await render("/?view=resume");
+test("retains the bounded and accessible dormant Text to Lattice dialog contract", async () => {
   const [source, shelfSource, css] = await Promise.all([
     readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/shelf/ShelfExplorer.tsx", import.meta.url), "utf8"),
@@ -1320,18 +1331,18 @@ test("implements the bounded and accessible Text to Lattice dialog contract", as
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
   assert.match(source, /aria-labelledby="lattice-demo-title"/);
-  assert.match(source, /aria-describedby="lattice-demo-description lattice-local-privacy lattice-usage-policy"/);
+  assert.match(source, /aria-describedby="lattice-demo-description lattice-local-privacy lattice-model-disclosure lattice-usage-policy"/);
   assert.equal((source.match(/spellCheck=\{false\}/gu) ?? []).length, 2);
   assert.equal((source.match(/autoCorrect="off"/gu) ?? []).length, 2);
   assert.equal((source.match(/autoCapitalize="off"/gu) ?? []).length, 2);
   assert.equal((source.match(/autoComplete="off"/gu) ?? []).length, 2);
-  const renderedInput = html.match(/<textarea[^>]*id="lattice-demo-input"[^>]*>/u)?.[0] ?? "";
-  assert.match(renderedInput, /spellcheck="false"/iu);
-  assert.match(renderedInput, /autocorrect="off"/iu);
-  assert.match(renderedInput, /autocapitalize="off"/iu);
-  assert.match(renderedInput, /autocomplete="off"/iu);
-  assert.doesNotMatch(renderedInput, /\bmaxlength=/iu);
-  assert.doesNotMatch(renderedInput, /\bname=/iu);
+  const sourceInput = source.match(/<textarea[\s\S]*?\/>/u)?.[0] ?? "";
+  assert.match(sourceInput, /spellCheck=\{false\}/u);
+  assert.match(sourceInput, /autoCorrect="off"/u);
+  assert.match(sourceInput, /autoCapitalize="off"/u);
+  assert.match(sourceInput, /autoComplete="off"/u);
+  assert.doesNotMatch(sourceInput, /\bmaxLength=/u);
+  assert.doesNotMatch(sourceInput, /\bname=/u);
   assert.doesNotMatch(source, /\bmaxLength=/u);
   assert.match(source, /aria-live="polite"/);
   assert.ok(
@@ -1425,16 +1436,11 @@ test("implements the bounded and accessible Text to Lattice dialog contract", as
   assert.match(source, /window\.addEventListener\("blur", shield\)/u);
   assert.match(source, /document\.addEventListener\("visibilitychange", handleVisibility\)/u);
 
-  const dialogAt = html.indexOf('id="lattice-demo-dialog"');
-  const formAt = html.indexOf("<form", dialogAt);
-  const preFormText = html.slice(dialogAt, formAt)
-    .replace(/<[^>]+>/gu, " ")
-    .replace(/&[a-zA-Z#0-9]+;/gu, " ")
-    .replace(/\s+/gu, " ")
-    .trim();
-  assert.ok(preFormText.split(/\s+/u).length <= 60, preFormText);
-  assert.doesNotMatch(preFormText, /\b(?:HMAC|HttpOnly|same-origin|lease|rolling|WebGPU|Qwen|Llama|WebLLM|Cloudflare|model family)\b/iu);
-  assert.match(html.slice(dialogAt, formAt), /href="\/projects\/lattice\/text-to-lattice\/#text-to-lattice-privacy"/u);
+  const dialogAt = source.indexOf('id="lattice-demo-dialog"');
+  const formAt = source.indexOf("<form", dialogAt);
+  const preFormSource = source.slice(dialogAt, formAt);
+  assert.match(preFormSource, /href="\/projects\/lattice\/text-to-lattice\/#text-to-lattice-privacy"/u);
+  assert.doesNotMatch(preFormSource, /\b(?:HMAC|HttpOnly|same-origin|lease|rolling|Cloudflare)\b/iu);
   assert.doesNotMatch(source, /setTimeout\s*\(\s*\(\) =>\s*setLatticeResult/);
   assert.doesNotMatch(source, /aria-atomic/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);

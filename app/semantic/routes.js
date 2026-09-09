@@ -26,6 +26,7 @@ export const semanticArtifactRoutes = Object.freeze([
   artifactRecord("/shelf.json", "shelf.json", "application/json", "application/json"),
   artifactRecord("/knowledge-graph.jsonld", "knowledge-graph.jsonld", "application/ld+json", "application/ld+json"),
   artifactRecord("/schemas/projects-v1.schema.json", "schemas/projects-v1.schema.json", "application/schema+json", "application/schema+json"),
+  artifactRecord("/schemas/projects-v2.schema.json", "schemas/projects-v2.schema.json", "application/schema+json", "application/schema+json"),
   artifactRecord("/content/about.md", "content/about.md", "text/markdown", "text/markdown"),
   artifactRecord("/content/resume.md", "content/resume.md", "text/markdown", "text/markdown"),
   artifactRecord("/content/projects.md", "content/projects.md", "text/markdown", "text/markdown"),
@@ -39,6 +40,24 @@ export const semanticArtifactRoutes = Object.freeze([
 ]);
 
 export const staticSourceCopies = Object.freeze([
+  sourceCopyRecord(
+    "/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
+    "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
+    "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
+    "text/markdown",
+  ),
+  sourceCopyRecord(
+    "/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
+    "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
+    "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
+    "application/json",
+  ),
+  sourceCopyRecord(
+    "/documentation/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json",
+    "docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json",
+    "documentation/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json",
+    "application/json",
+  ),
   sourceCopyRecord("/NOTICE", "NOTICE", "NOTICE", "text/plain"),
   sourceCopyRecord("/THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md", "text/markdown"),
   sourceCopyRecord("/THIRD_PARTY_LICENSES.txt", "THIRD_PARTY_LICENSES.txt", "THIRD_PARTY_LICENSES.txt", "text/plain"),

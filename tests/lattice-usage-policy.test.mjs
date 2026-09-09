@@ -1888,6 +1888,7 @@ test("the production route layers independent local shapers before the exact glo
     visitorCookieSource,
     gitignore,
     workerReadme,
+    releaseRegisterSource,
   ] = await Promise.all([
     readFile(new URL("../workers/text-to-lattice-lease/wrangler.jsonc", import.meta.url), "utf8"),
     readFile(new URL("../workers/text-to-lattice-lease/worker.js", import.meta.url), "utf8"),
@@ -1895,6 +1896,7 @@ test("the production route layers independent local shapers before the exact glo
     readFile(new URL("../workers/text-to-lattice-lease/visitorCookie.js", import.meta.url), "utf8"),
     readFile(new URL("../.gitignore", import.meta.url), "utf8"),
     readFile(new URL("../workers/text-to-lattice-lease/README.md", import.meta.url), "utf8"),
+    readFile(new URL("../docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json", import.meta.url), "utf8"),
   ]);
   const config = JSON.parse(configText);
   assert.deepEqual(config.routes, [{
@@ -1963,13 +1965,29 @@ test("the production route layers independent local shapers before the exact glo
   assert.match(workerReadme, /Cloudflare encrypted Worker secrets/u);
   assert.match(workerReadme, /protected GitHub environment secret/u);
   const complianceApprovalAt = workerReadme.indexOf("Record release approval");
-  const publishAt = workerReadme.indexOf("Only then publish the static client");
+  const modelArtifactAt = workerReadme.indexOf("MLC-converted Llama artifact", complianceApprovalAt);
+  const wasmProvenanceAt = workerReadme.indexOf("binary-mlc-llm-libs", modelArtifactAt);
+  const machineRegisterAt = workerReadme.indexOf("TEXT-TO-LATTICE-RELEASE-REGISTER.json", wasmProvenanceAt);
+  const publishMatch = /Only\s+then publish the static client/gu.exec(workerReadme.slice(machineRegisterAt));
+  const publishAt = publishMatch ? machineRegisterAt + publishMatch.index : -1;
   assert.ok(
-    complianceApprovalAt >= 0 && publishAt > complianceApprovalAt,
-    "Llama-use and WASM-provenance approval gate static client publication",
+    complianceApprovalAt >= 0
+      && modelArtifactAt > complianceApprovalAt
+      && wasmProvenanceAt > modelArtifactAt
+      && machineRegisterAt > wasmProvenanceAt
+      && publishAt > machineRegisterAt,
+    "separate Llama-use, Llama-artifact, and WASM-provenance evidence gates precede static client publication",
   );
   assert.match(workerReadme.slice(complianceApprovalAt, publishAt), /Llama 3\.2 Community License/u);
   assert.match(workerReadme.slice(complianceApprovalAt, publishAt), /binary-mlc-llm-libs/u);
+  const releaseRegister = JSON.parse(releaseRegisterSource);
+  for (const id of ["GATE-04A", "GATE-04B", "GATE-04C"]) {
+    const gate = releaseRegister.gates.find((entry) => entry.id === id);
+    assert.deepEqual({ status: gate?.status, marginalValue: gate?.marginalValue }, {
+      status: "open-before-publication",
+      marginalValue: "high",
+    });
+  }
 
   const publicHandlerAt = workerSource.indexOf("async function publicHandler");
   const ingressAt = workerSource.indexOf("await shapeLatticeIngressRequest(env)", publicHandlerAt);

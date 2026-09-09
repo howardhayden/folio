@@ -25,6 +25,7 @@ test("Lattice documentation has one registered authority and byte-identical Mark
   assert.equal(atlas.revision, manifest.revision);
   assert.equal(atlas.artifacts.length, 4);
   assert.equal(manifest.artifactPairs.length, 4);
+  assert.equal(manifest.releaseEvidence.length, 3);
   assert.ok(
     atlas.conceptMap.edges.some(({ source, target }) => source === "LAT-N-000" && target === "LAT-N-002"),
     "the Lattice engine is connected to its typed-contract pipeline",
@@ -58,6 +59,15 @@ test("Lattice documentation has one registered authority and byte-identical Mark
     ]);
     assert.deepEqual(published, source, `${pair.artifactId} public Markdown matches its source edition`);
     assert.equal(digest(source), pair.sha256, `${pair.artifactId} matches the artifact manifest`);
+  }
+
+  for (const evidence of manifest.releaseEvidence) {
+    const [source, published] = await Promise.all([
+      readBytes(sourceRoot, evidence.filename),
+      readBytes(publicRoot, evidence.filename),
+    ]);
+    assert.deepEqual(published, source, `${evidence.filename} public evidence matches its canonical source`);
+    assert.equal(digest(source), evidence.sha256);
   }
 
   const [canonical, publicCanonical, builder] = await Promise.all([
@@ -145,11 +155,16 @@ test("interactive editions remain complete, local, accessible, and executable-fr
     assert.ok(index.includes(`href="${html}"`));
     assert.ok(index.includes(`href="${markdown}"`));
   }
+  for (const filename of [
+    "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
+    "TEXT-TO-LATTICE-RELEASE-REGISTER.json",
+    "LLAMA-USE-EVALUATION-CASES.json",
+  ]) assert.ok(index.includes(`href="${filename}"`));
 });
 
 test("the static site preserves every exported documentation byte", async () => {
   const filenames = (await readdir(publicRoot)).sort();
-  assert.equal(filenames.length, 11);
+  assert.equal(filenames.length, 14);
   for (const filename of filenames) {
     const [published, staged] = await Promise.all([
       readBytes(publicRoot, filename),

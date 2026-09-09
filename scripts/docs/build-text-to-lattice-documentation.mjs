@@ -16,9 +16,18 @@ const canonicalPath = join(
   projectRoot,
   "docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json",
 );
+const releaseRegisterPath = join(
+  projectRoot,
+  "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
+);
 const sourceOutputRoot = join(projectRoot, "docs/text-to-lattice");
 const publicOutputRoot = join(projectRoot, "public/documentation/text-to-lattice");
 const publicBaseUrl = "https://hah.dev/documentation/text-to-lattice/";
+const releaseEvidenceFilenames = Object.freeze([
+  "LLAMA-USE-EVALUATION-CASES.json",
+  "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
+  "TEXT-TO-LATTICE-RELEASE-REGISTER.json",
+]);
 const checkOnly = process.argv.slice(2).includes("--check");
 
 if (process.argv.length > 3 || process.argv.slice(2).some((argument) => argument !== "--check")) {
@@ -189,9 +198,9 @@ function validateAtlas(data) {
   const assetIds = uniqueById(data.securityModel.assets, "security assets");
   const boundaryIds = uniqueById(data.securityModel.trustBoundaries, "trust boundaries");
   const threatIds = uniqueById(data.securityModel.threats, "security threats");
-  const expectedThreatIds = Array.from({ length: 10 }, (_, index) => `SEC-${String(index + 1).padStart(2, "0")}`);
+  const expectedThreatIds = Array.from({ length: 12 }, (_, index) => `SEC-${String(index + 1).padStart(2, "0")}`);
   if (expectedThreatIds.some((id) => !threatIds.has(id)) || threatIds.size !== expectedThreatIds.length) {
-    fail("security model must contain SEC-01 through SEC-10 exactly once.");
+    fail("security model must contain SEC-01 through SEC-12 exactly once.");
   }
   const marginalValues = new Set(["high", "moderate", "low", "negative"]);
   for (const threat of data.securityModel.threats) {
@@ -213,11 +222,25 @@ function validateAtlas(data) {
     if (!new Set(["satisfied-in-source", "open-before-publication"]).has(gate.status)) {
       fail(`pre-publication gate ${gate.id} has an unsupported status.`);
     }
-    for (const field of ["label", "requirement", "evidenceNeeded"]) {
+    if (!marginalValues.has(gate.marginalValue)) {
+      fail(`pre-publication gate ${gate.id} has unknown marginal value.`);
+    }
+    for (const field of ["label", "requirement", "currentEvidence", "evidenceNeeded"]) {
       requireString(gate[field], `pre-publication gate ${gate.id} ${field}`);
     }
   }
   requireArray(data.securityModel.honestResidualBoundary, "honest residual boundary");
+}
+
+function validateReleaseGateProjection(data, releaseRegister) {
+  if (releaseRegister?.format !== "TEXT_TO_LATTICE_RELEASE_REGISTER" || releaseRegister?.schemaVersion !== 1) {
+    fail("release register format is unsupported.");
+  }
+  const fields = ["id", "label", "status", "marginalValue", "requirement", "currentEvidence", "evidenceNeeded"];
+  const projection = releaseRegister.gates?.map((gate) => Object.fromEntries(fields.map((field) => [field, gate[field]])));
+  if (JSON.stringify(data.securityModel.prePublicationGates) !== JSON.stringify(projection)) {
+    fail("pre-publication gates must be the exact ordered projection of the machine release register.");
+  }
 }
 
 async function validateProjectDocumentRegistry(data) {
@@ -1050,9 +1073,9 @@ function securityMarkdown(data) {
     "",
     "Open gates are not converted into confidence by source test volume. The interactive wrapper must not be represented as release-cleared until each gate has exact-revision evidence or a recorded owner disposition.",
     "",
-    "| ID | Gate | Status | Requirement | Evidence needed |",
-    "| --- | --- | --- | --- | --- |",
-    ...security.prePublicationGates.map((gate) => `| ${gate.id} | ${markdownCell(gate.label)} | ${humanLabel(gate.status)} | ${markdownCell(gate.requirement)} | ${markdownCell(gate.evidenceNeeded)} |`),
+    "| ID | Gate | Status | Marginal value | Requirement | Current evidence | Evidence needed |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...security.prePublicationGates.map((gate) => `| ${gate.id} | ${markdownCell(gate.label)} | ${humanLabel(gate.status)} | ${humanLabel(gate.marginalValue)} | ${markdownCell(gate.requirement)} | ${markdownCell(gate.currentEvidence)} | ${markdownCell(gate.evidenceNeeded)} |`),
     "",
     "## Honest residual boundary",
     "",
@@ -1089,7 +1112,7 @@ function securityHtml(data) {
       </dl></div>
     </details>
   </article>`).join("");
-  const gateCards = security.prePublicationGates.map((gate) => `<article class="panel gate-${escapeHtml(gate.status)}"><p class="identifier">${escapeHtml(gate.id)} · ${escapeHtml(humanLabel(gate.status))}</p><h3>${escapeHtml(gate.label)}</h3><p>${escapeHtml(gate.requirement)}</p><p><strong>Evidence needed:</strong> ${escapeHtml(gate.evidenceNeeded)}</p></article>`).join("");
+  const gateCards = security.prePublicationGates.map((gate) => `<article class="panel gate-${escapeHtml(gate.status)}"><p class="identifier">${escapeHtml(gate.id)} · ${escapeHtml(humanLabel(gate.status))} · ${escapeHtml(humanLabel(gate.marginalValue))} marginal value</p><h3>${escapeHtml(gate.label)}</h3><p>${escapeHtml(gate.requirement)}</p><p><strong>Current evidence:</strong> ${escapeHtml(gate.currentEvidence)}</p><p><strong>Evidence needed:</strong> ${escapeHtml(gate.evidenceNeeded)}</p></article>`).join("");
   const toolbar = htmlToolbar({
     searchLabel: "Search threats, controls, gates, or residuals",
     filters: [
@@ -1111,7 +1134,7 @@ function securityHtml(data) {
   ${htmlSources(data)}${htmlTerms()}`;
   return htmlPage(data, {
     title: "Text to Lattice security model",
-    description: "Assets, trust boundaries, ten consequential threats, as-built controls, pre-publication gates, and residuals—classified by marginal value.",
+    description: "Assets, trust boundaries, twelve consequential threats, as-built controls, pre-publication gates, and residuals—classified by marginal value.",
     current: "security",
     content,
   });
@@ -1122,11 +1145,13 @@ function indexHtml(data) {
     ["DOC-CONCEPT", "Trace caller authority through meaning contracts, protected evaluation, evidence, host duties, and four ecosystem applications."],
     ["DOC-SKILL", "Inspect the upstream engine's capability shape on a zero-to-five system-evidence scale adapted from NN/g skill mapping."],
     ["DOC-BLUEPRINT", "Follow the wrapper across eight stages, six service layers, four accountability lines, and eight lifecycle owners."],
-    ["DOC-SECURITY", "Review assets, boundaries, SEC-01 through SEC-10, marginal value, pre-publication gates, and honest residuals."],
+    ["DOC-SECURITY", "Review assets, boundaries, SEC-01 through SEC-12, marginal value, pre-publication gates, and honest residuals."],
   ]);
   const cards = data.artifacts.map((artifact) => `<article class="index-card"><p class="eyebrow">${escapeHtml(artifact.scope)}</p><h2>${escapeHtml(artifact.title)}</h2><p>${escapeHtml(summaries.get(artifact.id))}</p><div class="link-row"><a href="${escapeHtml(artifact.html)}">Open interactive edition</a><a href="${escapeHtml(artifact.markdown)}" download>Download Markdown</a></div></article>`).join("");
+  const releaseEvidence = `<section class="panel"><p class="eyebrow">Release evidence</p><h2>Text to Lattice qualification</h2><p>The interactive client is held. These exact-revision records explain the decision and the evidence still required.</p><ul><li><a href="TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md">Release qualification</a></li><li><a href="TEXT-TO-LATTICE-RELEASE-REGISTER.json">Machine release register</a></li><li><a href="LLAMA-USE-EVALUATION-CASES.json">Llama-use evaluation cases</a></li></ul></section>`;
   const content = `<section class="panel boundary"><p class="eyebrow">Method beside implementation</p><h2>Two authorities, four coordinated views</h2><p>The concept and system skill maps describe the upstream typed Lattice engine. The service blueprint and security model describe the separate Text to Lattice wrapper. The wrapper infers bounded meaning from prose and does not inherit a caller-supplied typed authority guarantee.</p><p>Every document remains complete without JavaScript. Scripting adds read-only search, filters, disclosure controls, and local Markdown export.</p></section>
   <section class="index-grid" aria-label="Available Lattice documentation">${cards}</section>
+  ${releaseEvidence}
   <section class="panel"><h2>Authority and integrity</h2><p><a class="button-link" href="documentation-atlas.json">Machine-readable authoritative register</a> <a class="button-link" href="artifact-manifest.json">SHA-256 artifact manifest</a></p><p>These pages load no remote fonts, icons, scripts, analytics, or media. Reviewed source links leave this documentation only when activated.</p></section>
   ${htmlTerms()}`;
   return htmlPage(data, {
@@ -1227,6 +1252,9 @@ function buildArtifacts(data, canonicalBytes) {
   }
   artifacts.set(join(publicOutputRoot, "index.html"), Buffer.from(index));
   artifacts.set(join(publicOutputRoot, "documentation-atlas.json"), canonicalBytes);
+  for (const filename of releaseEvidenceFilenames) {
+    artifacts.set(join(publicOutputRoot, filename), readFileSync(join(sourceOutputRoot, filename)));
+  }
 
   const listedArtifacts = [...artifacts.entries()].map(([path, bytes]) => ({
     path: relative(projectRoot, path).split(sep).join("/"),
@@ -1265,6 +1293,10 @@ function buildArtifacts(data, canonicalBytes) {
     },
     publicRoot: "/documentation/text-to-lattice/",
     artifactPairs,
+    releaseEvidence: releaseEvidenceFilenames.map((filename) => {
+      const artifact = listedArtifacts.find(({ path }) => path === `public/documentation/text-to-lattice/${filename}`);
+      return { filename, bytes: artifact.bytes, sha256: artifact.sha256 };
+    }),
     artifacts: listedArtifacts,
     note: "The manifest does not hash itself. Source and public Markdown pairs are byte-identical. A manifest proves bytes in this tree, not deployed identity.",
   };
@@ -1297,12 +1329,16 @@ function commitArtifacts(artifacts) {
 }
 
 const canonicalBytes = readFileSync(canonicalPath);
+const releaseRegisterBytes = readFileSync(releaseRegisterPath);
 let atlas;
+let releaseRegister;
 try {
   atlas = JSON.parse(canonicalBytes.toString("utf8"));
+  releaseRegister = JSON.parse(releaseRegisterBytes.toString("utf8"));
 } catch (error) {
-  fail(`canonical register is not valid JSON: ${error.message}`);
+  fail(`canonical documentation or release register is not valid JSON: ${error.message}`);
 }
 validateAtlas(atlas);
+validateReleaseGateProjection(atlas, releaseRegister);
 await validateProjectDocumentRegistry(atlas);
 commitArtifacts(buildArtifacts(atlas, canonicalBytes));

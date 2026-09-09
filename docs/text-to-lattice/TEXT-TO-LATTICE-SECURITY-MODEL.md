@@ -1,6 +1,6 @@
 ---
 title: Text to Lattice security model
-revision: 2026-09-08
+revision: 2026-09-09
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
@@ -70,12 +70,14 @@ An unusual finding remains eligible. Novelty alone neither promotes nor dismisse
 | SEC-02 | Hostile prose acquires authority or execution | High | Complete Unicode and structural preflight precedes lease acquisition and model load. System instructions are separated from escaped JSON user data and constrained by closed schemas. Public findings are host-authored and React renders visitor and model text as text nodes. | Re-run injection, Unicode, recursive noninterference, and generated-document escaping checks on the release artifact. Review any new renderer or model transport for HTML interpretation or dynamic authority. | A local model can still misunderstand inert data; later release gates, not prompt wording alone, contain that risk. |
 | SEC-03 | Semantic drift is released as success | High | Protected spans and semantic sentinels preserve explicit high-consequence content. A distinct verifier, deterministic validators, re-atomization, repair, and whole-document certification gate release. Five outcome states prevent withheld or unresolved work from being relabeled as complete. | Run the full adversarial and semantic regression corpus against exact release revisions. Record manual review across realistic genres without treating those samples as universal proof. | No bounded corpus or model pair proves equivalence for all prose. Review-required is semantically releasable but explicitly not complete bounded clearance. |
 | SEC-04 | Input or inference exhausts browser resources | High | Word, code-unit, grapheme, token, control, passage, batch, executed-group, context, completion, queue, and response ceilings are explicit. Preflight completes before lease or model load, and worker operations have timeouts and cancellation paths. | Measure representative supported devices for memory, storage, cancellation, thermal load, and worst-case completion time. Verify deployed limits match the documented constants after bundling. | WebGPU drivers and browser memory management remain outside application control. A supported capability probe cannot guarantee stable inference on every device. |
-| SEC-05 | Pinned supply-chain artifact is substituted or unusable | High | Models, runtime versions, tokenizer hashes, WASM commit, and exact asset paths are pinned in source. The worker installs its request policy before loading model modules and rejects unexpected transports. The model contract links the Llama 3.2 community license and acceptable-use policy without treating those links as approval. | Resolve or explicitly accept the pinned WASM binary license and provenance boundary before public enablement. Record an owner-approved Llama 3.2 license and acceptable-use disposition for arbitrary public prose. Fetch, hash, archive, and compare release artifacts through the authorized supply-chain process. | The source currently records that standalone license metadata is absent from the pinned binary repository. Source pins do not establish binary reproducibility or resolve the Llama acceptable-use and licensing decision. |
+| SEC-05 | Pinned supply-chain artifact is substituted or lacks usable provenance | High | Models, runtime versions, tokenizer and WASM hashes, WASM repository commit, current binary blobs, upstream PR 158, and the named TVM and MLC-LLM source commits are recorded. The worker installs its request policy before loading model modules and rejects unexpected transports. The public bundle excludes the held model runtime and CI checks that exclusion. | Reproduce the two WASM binaries from pinned source, submodules, compiler, flags, and environment, or obtain equivalent upstream attestation and complete redistribution metadata. Establish the Llama MLC model artifact's conversion lineage, integrity manifest, and redistribution boundary. Fetch, hash, archive, and compare all release artifacts through the authorized supply-chain process. | Upstream PR 158 establishes source-commit lineage for the current WASM files, not byte-reproducible compilation or a standalone binary-repository license grant. A source pin or binary hash alone does not prove source equivalence, compiler behavior, dependency completeness, or redistribution authority. |
 | SEC-06 | Cross-origin attestation is forged, replayed, or confused | High | The parent checks exact origin, exact Window source, protocol version, closed keys, and a fresh 144-bit correlation identifier. The server validates hostname, action, freshness, and single use before grant accounting; every terminal path removes the frame. | Verify production frame headers, origin routing, site key, action, hostname, and replay storage with real provider responses. Exercise keyboard and assistive-technology behavior for interactive challenges. | Provider availability, accessibility, fraud scoring, and privacy practices remain external dependencies. |
 | SEC-07 | Lease or accounting state is abused | High | Distinct HMAC secrets bind visitor cookies and lease credentials; canonical encoding, expiry, method, and actor checks precede state work. One globally named SQLite-backed Durable Object serializes exact admissions, grants, renewals, releases, ownership, and expiry. | Deploy with independent encrypted secrets and exercise concurrent production transitions, alarm recovery, and secret rotation. Confirm idempotent client release behavior against deployed Retry-After variants. | Provider point-in-time recovery may retain pseudonymous state for the published recovery window. Network loss can leave a lease until bounded expiry even when local teardown succeeds. |
 | SEC-08 | Distributed traffic exhausts the free-tier budget | High | Exact global minute and UTC-day admission precedes Siteverify and lifecycle work; visitor, grant, and active-lease caps protect downstream resources. Ingress, method, path, and credential shapers shed local load, while policy states they do not guarantee billed invocation limits. Quota exhaustion fails closed and static semantic pages remain unrestricted. | Install and verify the required path-scoped edge rule before public enablement. Measure Worker, Durable Object, row, alarm, CPU, storage, and cross-location traffic in the provider dashboard; recalculate carryover from observed latency. | The Cloudflare Free plan does not provide an exact in-application bound on all hostile Worker invocations. Distributed adversarial traffic remains outside the published deterministic budget proof. |
 | SEC-09 | Generated output is captured despite interface friction | Moderate | Routine selection, copy, cut, drag, context menu, touch callout, and print paths are disabled for generated output. Visibility, blur, print, and detectable Print Screen events conceal output behind a reduced-motion-compatible veil. Semantic access is preserved and the canonical limitation rejects guarantees of capture prevention or AI unreadability. | Manually exercise keyboard, touch, print, visibility, blur, reduced-motion, forced-colors, and assistive-technology paths. Review copy after each control change so deterrence is never described as prevention. | Browser, extension, operating-system, accessibility, camera, and physical observation remain outside application control. Additional anti-capture complexity can reduce accessibility while failing to remove the residual risk. |
-| SEC-10 | Release or configuration drift invalidates the documented model | High | Requirements use stable identifiers and this documentation is deterministically generated with SHA-256 manifests. Model, protocol, endpoint, and policy constants are centralized and source-tested. | Run build, lint, type, full test, documentation drift, static-artifact inspection, and secret-name checks from the exact release tree. Verify both origins, Worker routes, CSP, bindings, edge rules, provider limits, and public links after deployment. | A repository manifest proves bytes in one tree, not remote deployment identity or provider configuration. Manual and operational evidence must be dated and renewed after consequential change. |
+| SEC-10 | Release or configuration drift invalidates the documented model | High | Requirements use stable identifiers and this documentation is deterministically generated with SHA-256 manifests. Model, protocol, endpoint, and policy constants are centralized and source-tested. The release register is executable policy: a held build excludes the interactive runtime, and an enabled build cannot pass with an open gate. | Run build, lint, type, full test, documentation drift, static route, held-bundle inspection, and secret-name checks from the exact release tree. Verify both origins, Worker routes, CSP, bindings, edge rules, provider limits, and public links after deployment. | A repository manifest proves bytes in one tree, not remote deployment identity or provider configuration. Manual and operational evidence must be dated and renewed after consequential change. |
+| SEC-11 | Model assistance materially furthers a prohibited outcome | High | The dormant interface requires a per-source lawful, authorized, supported-language and AUP confirmation before work can begin. The verifier's safety contract fails closed when a transformation materially furthers a prohibited outcome or necessary authority cannot be established. Candidate text is withheld whenever safety is false; the rule explicitly permits non-furthering quotation, history, criticism, journalism, fiction, prevention, and defensive discussion. A balanced non-operational evaluation set fixes ten harmful and legitimate-context cases for exact-model qualification. | Run the checked-in adversarial boundary cases against the exact verifier revision and record false-positive and false-negative dispositions. Record owner acceptance of the residual client-bypass and trade-compliance boundaries for the exact release. | No local model or checkbox can establish every visitor's actual purpose or authority. A modified client can bypass interface controls and invoke public upstream artifacts independently; the product can control only its official surface. |
+| SEC-12 | Model assistance or known danger is concealed at the decision point | High | The dormant dialog identifies Qwen drafting and Llama checking, states that local checks can miss altered, omitted, biased, or unsafe meaning, and requires review before reliance. Built with Llama appears at the interaction and in the distributed notice and provenance pages. First-use transfer and working-memory costs are stated before activation. | Verify the disclosure remains visible, comprehensible, and associated with the form at 400 percent zoom, forced colors, and supported screen-reader combinations. Confirm every output state retains an honest review boundary. | Disclosure reduces mistaken reliance; it does not make model output reliable or safe. |
 
 ## Detailed treatment records
 
@@ -174,27 +176,27 @@ An unusual finding remains eligible. Novelty alone neither promotes nor dismisse
 </details>
 
 <details id="sec-05">
-<summary><strong>SEC-05</strong> · Pinned supply-chain artifact is substituted or unusable — High marginal value</summary>
+<summary><strong>SEC-05</strong> · Pinned supply-chain artifact is substituted or lacks usable provenance — High marginal value</summary>
 
-- **Vector:** A model shard, tokenizer, WASM binary, runtime package, CDN response, or upstream license changes or is served contrary to the reviewed revision.
-- **Consequence:** Inference semantics, code execution, availability, or redistribution authority can diverge from the reviewed build.
-- **Plausibility:** Revision pinning lowers accidental drift but third-party hosting, binary provenance, and model-use terms remain realistic dependencies.
-- **Lifecycle value:** One manifest and provenance gate scales across upgrades and incident response.
-- **Classification:** Executable third-party artifacts cross a privileged boundary; the WASM provenance gap and the public-prose model-use disposition remain open.
+- **Vector:** A model shard, tokenizer, WASM binary, runtime package, CDN response, or upstream license changes, is substituted, or cannot be related to a licensed source build.
+- **Consequence:** Inference semantics, code execution, availability, incident response, or redistribution authority can diverge from the reviewed build.
+- **Plausibility:** Revision and digest pinning lower accidental drift, but executable third-party binaries and incomplete build custody remain realistic dependencies.
+- **Lifecycle value:** One artifact manifest and reproducible provenance gate scales across upgrades, audits, and incident response.
+- **Classification:** Executable third-party artifacts cross a privileged browser boundary; exact identity is now known, but source equivalence, toolchain custody, and complete license inventory are not.
 - **Assets:** ASSET-05, ASSET-06
 - **Boundaries:** TB-03
 - **As built:**
-  - Models, runtime versions, tokenizer hashes, WASM commit, and exact asset paths are pinned in source.
+  - Models, runtime versions, tokenizer and WASM hashes, WASM repository commit, current binary blobs, upstream PR 158, and the named TVM and MLC-LLM source commits are recorded.
   - The worker installs its request policy before loading model modules and rejects unexpected transports.
-  - The model contract links the Llama 3.2 community license and acceptable-use policy without treating those links as approval.
+  - The public bundle excludes the held model runtime and CI checks that exclusion.
 - **Required before publication:**
-  - Resolve or explicitly accept the pinned WASM binary license and provenance boundary before public enablement.
-  - Record an owner-approved Llama 3.2 license and acceptable-use disposition for arbitrary public prose.
-  - Fetch, hash, archive, and compare release artifacts through the authorized supply-chain process.
+  - Reproduce the two WASM binaries from pinned source, submodules, compiler, flags, and environment, or obtain equivalent upstream attestation and complete redistribution metadata.
+  - Establish the Llama MLC model artifact's conversion lineage, integrity manifest, and redistribution boundary.
+  - Fetch, hash, archive, and compare all release artifacts through the authorized supply-chain process.
 - **Residual boundary:**
-  - The source currently records that standalone license metadata is absent from the pinned binary repository.
-  - Source pins do not establish binary reproducibility or resolve the Llama acceptable-use and licensing decision.
-- **Sources:** SRC-MODEL-CONTRACT, SRC-ASSET-POLICY, SRC-MODEL-WORKER, SRC-TEST-SECURITY
+  - Upstream PR 158 establishes source-commit lineage for the current WASM files, not byte-reproducible compilation or a standalone binary-repository license grant.
+  - A source pin or binary hash alone does not prove source equivalence, compiler behavior, dependency completeness, or redistribution authority.
+- **Sources:** SRC-MODEL-CONTRACT, SRC-ASSET-POLICY, SRC-MODEL-WORKER, SRC-RELEASE-REGISTER, SRC-RELEASE-QUALIFICATION, SRC-WASM-PR, SRC-TEST-SECURITY
 
 </details>
 
@@ -304,13 +306,62 @@ An unusual finding remains eligible. Novelty alone neither promotes nor dismisse
 - **As built:**
   - Requirements use stable identifiers and this documentation is deterministically generated with SHA-256 manifests.
   - Model, protocol, endpoint, and policy constants are centralized and source-tested.
+  - The release register is executable policy: a held build excludes the interactive runtime, and an enabled build cannot pass with an open gate.
 - **Required before publication:**
-  - Run build, lint, type, full test, documentation drift, static-artifact inspection, and secret-name checks from the exact release tree.
+  - Run build, lint, type, full test, documentation drift, static route, held-bundle inspection, and secret-name checks from the exact release tree.
   - Verify both origins, Worker routes, CSP, bindings, edge rules, provider limits, and public links after deployment.
 - **Residual boundary:**
   - A repository manifest proves bytes in one tree, not remote deployment identity or provider configuration.
   - Manual and operational evidence must be dated and renewed after consequential change.
-- **Sources:** SRC-REQUIREMENTS, SRC-MODEL-CONTRACT, SRC-USAGE-POLICY, SRC-TEST-SECURITY, SRC-TEST-CAPACITY
+- **Sources:** SRC-REQUIREMENTS, SRC-MODEL-CONTRACT, SRC-USAGE-POLICY, SRC-RELEASE-REGISTER, SRC-TEST-SECURITY, SRC-TEST-CAPACITY
+
+</details>
+
+<details id="sec-11">
+<summary><strong>SEC-11</strong> · Model assistance materially furthers a prohibited outcome — High marginal value</summary>
+
+- **Vector:** A visitor uses transformation or verification to improve actionable harm, malware, deliberate deception, unauthorized professional practice, sensitive-person inference, or another purpose prohibited by the Llama 3.2 Acceptable Use Policy.
+- **Consequence:** The product can contribute to concrete harm, breach governing use terms, and lose authorization to distribute or use the model.
+- **Plausibility:** Arbitrary public prose makes adversarial and dual-use requests plausible even though inference is local and tool-free.
+- **Lifecycle value:** A purpose-and-consequence rule, separate from topic matching, remains reusable across model and policy revisions.
+- **Classification:** The consequence is material, the input boundary is public, and a bounded host-and-verifier control adds reusable governance without pretending to prevent modified clients.
+- **Assets:** ASSET-02, ASSET-06
+- **Boundaries:** TB-01, TB-02
+- **As built:**
+  - The dormant interface requires a per-source lawful, authorized, supported-language and AUP confirmation before work can begin.
+  - The verifier's safety contract fails closed when a transformation materially furthers a prohibited outcome or necessary authority cannot be established.
+  - Candidate text is withheld whenever safety is false; the rule explicitly permits non-furthering quotation, history, criticism, journalism, fiction, prevention, and defensive discussion.
+  - A balanced non-operational evaluation set fixes ten harmful and legitimate-context cases for exact-model qualification.
+- **Required before publication:**
+  - Run the checked-in adversarial boundary cases against the exact verifier revision and record false-positive and false-negative dispositions.
+  - Record owner acceptance of the residual client-bypass and trade-compliance boundaries for the exact release.
+- **Residual boundary:**
+  - No local model or checkbox can establish every visitor's actual purpose or authority.
+  - A modified client can bypass interface controls and invoke public upstream artifacts independently; the product can control only its official surface.
+- **Sources:** SRC-PROMPTS, SRC-DEMO, SRC-MODEL-CONTRACT, SRC-LLAMA-AUP, SRC-LLAMA-EVAL, SRC-RELEASE-REGISTER, SRC-TEST-ENGINE
+
+</details>
+
+<details id="sec-12">
+<summary><strong>SEC-12</strong> · Model assistance or known danger is concealed at the decision point — High marginal value</summary>
+
+- **Vector:** The interface presents transformed text without identifying model assistance, independent checking, fallibility, or the need for human review.
+- **Consequence:** A visitor can mistake probabilistic output for human-authored or certified text and rely on altered, omitted, biased, or unsafe meaning.
+- **Plausibility:** The former dialog exposed only a generic review warning after one failure state; successful-looking output made overreliance plausible.
+- **Lifecycle value:** One durable disclosure at point of use protects comprehension across outcome states and model upgrades.
+- **Classification:** The failure is easy to understand, consequential in high-stakes prose, and cheap to prevent without expanding the model boundary.
+- **Assets:** ASSET-02, ASSET-06
+- **Boundaries:** TB-01
+- **As built:**
+  - The dormant dialog identifies Qwen drafting and Llama checking, states that local checks can miss altered, omitted, biased, or unsafe meaning, and requires review before reliance.
+  - Built with Llama appears at the interaction and in the distributed notice and provenance pages.
+  - First-use transfer and working-memory costs are stated before activation.
+- **Required before publication:**
+  - Verify the disclosure remains visible, comprehensible, and associated with the form at 400 percent zoom, forced colors, and supported screen-reader combinations.
+  - Confirm every output state retains an honest review boundary.
+- **Residual boundary:**
+  - Disclosure reduces mistaken reliance; it does not make model output reliable or safe.
+- **Sources:** SRC-DEMO, SRC-MODEL-CONTRACT, SRC-LLAMA-LICENSE, SRC-LLAMA-AUP, SRC-TEST-A11Y
 
 </details>
 
@@ -318,14 +369,16 @@ An unusual finding remains eligible. Novelty alone neither promotes nor dismisse
 
 Open gates are not converted into confidence by source test volume. The interactive wrapper must not be represented as release-cleared until each gate has exact-revision evidence or a recorded owner disposition.
 
-| ID | Gate | Status | Requirement | Evidence needed |
-| --- | --- | --- | --- | --- |
-| GATE-01 | Exact release artifact | Open Before Publication | Build, lint, type-check, full tests, documentation drift, static route, and generated-worker inspections pass from the exact release tree. | Dated command transcript and artifact digests. |
-| GATE-02 | Production origin and secret boundary | Open Before Publication | hah.dev, verify.hah.dev, Worker routes, CSP, bindings, and distinct encrypted secrets match the documented protocol. | Deployed configuration inspection without secret disclosure. |
-| GATE-03 | Edge and provider capacity controls | Open Before Publication | The required path-scoped edge rule is active and provider-side CPU, storage, request, row, alarm, latency, and distributed-traffic measurements support the budget. | Provider configuration record and bounded load evidence. |
-| GATE-04 | Supply-chain provenance and model-use approval | Open Before Publication | Pinned model, tokenizer, runtime, and WASM bytes are verified; the standalone WASM license and provenance boundary is resolved or explicitly accepted; and the Llama 3.2 license and acceptable-use disposition for arbitrary public prose is recorded. | Hashes, source or archive record, licenses, acceptable-use review, and owner decisions. |
-| GATE-05 | Manual interaction and accessibility | Open Before Publication | Keyboard, screen reader, touch, 400 percent zoom, reduced motion, forced colors, print, cancellation, blur, and a second browser engine complete the critical paths. | Dated manual matrix with failures and dispositions. |
-| GATE-06 | Production privacy trace | Open Before Publication | Network traces show no source, clarification, candidate, verifier finding, or output in lease, attestation, model-asset, error, or telemetry traffic. | Sanitized trace inventory from both origins and supported browsers. |
+| ID | Gate | Status | Marginal value | Requirement | Current evidence | Evidence needed |
+| --- | --- | --- | --- | --- | --- | --- |
+| GATE-01 | Exact release artifact | Open Before Publication | High | Build, lint, type-check, full tests, documentation drift checks, held-boundary checks, static-route checks, generated-artifact inspection, and current-main freshness checks at build, upload, and deployment pass from the exact release tree; pre-hold deployable workflow runs are invalidated or independently blocked. | The implementation baseline is identified and the candidate workflow checks current main at three publication boundaries. GitHub Actions run 33575222169 is a successful pre-hold main run still within its rerun window; its retained historical workflow can rebuild and deploy the interactive client because repository changes cannot retroactively harden it. | Dated command transcript, exact source revision, artifact digests, a machine-checked held or eligible decision, and an owner-side record that every pre-hold Pages run is deleted, expired beyond rerun, or rejected by a deployment protection that validates the current main SHA. |
+| GATE-02 | Production origin and secret boundary | Open Before Publication | High | hah.dev, verify.hah.dev, lease Worker routes, CSP, bindings, and independent encrypted secrets match the documented protocol. | Source contracts exist; the Pages workflow does not deploy the required Worker or verification frame, the public lease route does not evidence the required service, and the verification host was unavailable during review. | Deployed configuration, header, route, origin, binding, and secret-name inspection without secret disclosure. |
+| GATE-03 | Edge and provider capacity controls | Open Before Publication | High | The path-scoped edge rule is active and provider-side CPU, storage, request, row, alarm, latency, and distributed-traffic evidence supports the published budget. | Deterministic source and test contracts do not establish provider configuration or production capacity. | Provider configuration record and bounded production-representative load evidence. |
+| GATE-04A | Llama behavior and public-use controls | Open Before Publication | High | The public flow discloses model assistance and known limitations, obtains a source-specific lawful-and-authorized-use confirmation, defines prohibited-use safety by purpose and consequence, withholds any safety-failing candidate, and tests realistic harmful and legitimate-context cases. | The checked-in Llama terms and attribution are current. The held source now includes point-of-use disclosure, a resettable source-specific confirmation, purpose-and-consequence safety language, and candidate suppression with a safety-failure regression. A balanced ten-case non-operational evaluation fixture fixes harmful and legitimate-context expectations, but it has not been executed against and manually reviewed for the exact verifier artifact. Trade-compliance disposition, point-of-use comprehension evidence, and owner acceptance also remain open. | Run the checked-in cases against the exact prompt, tokenizer, runtime, and model revisions; record outcomes and false-positive/false-negative dispositions; complete manual disclosure comprehension and trade-compliance review; obtain owner approval for the exact public behavior. |
+| GATE-04B | Llama MLC-artifact provenance | Open Before Publication | High | The exact MLC-converted Llama artifact has a recorded source, conversion, license, integrity, and notice chain rather than relying only on the base-model terms and repository revision. | The verifier repository and revision are pinned and the controlling base-model terms are present; the MLC artifact repository does not provide a complete conversion and artifact-license record. | Publisher provenance or an independently documented conversion from the licensed base model with exact inputs, toolchain, outputs, digests, and notices. |
+| GATE-04C | WASM provenance and license boundary | Open Before Publication | High | The exact Qwen and Llama WebGPU WASM libraries have a reproducible source-build record and an artifact-level license and notice disposition. | Exact bytes, digests, git blobs, repository revision, initial and final artifact commits, introducing pull request, and recorded TVM and MLC-LLM source revisions are recorded. The final artifact rewrite postdates the recorded TVM revision and its configuration metadata is consistent with the recorded MLC source, which supports plausibility but not provenance. The binary repository has no root license at the reviewed revision; the historical helper is workstation-specific, calls a Qwen preset absent from the recorded MLC revision, leaves Python and Cargo inputs unlocked, and has no matching independent rebuild. | Upstream artifact license confirmation and a complete attestation, or a controlled replacement build with an immutable builder, pinned sources and model configs, locked offline dependencies, exact commands, two clean matching builds, link-derived notices and SBOM, signed provenance, compatibility evidence, owned immutable hosting, integrity enforcement, and owner disposition. |
+| GATE-05 | Manual interaction and accessibility | Open Before Publication | High | Keyboard, screen reader, touch, 400 percent zoom, reduced motion, forced colors, print, cancellation, blur, and a second browser engine complete the critical paths. | Automated source contracts exist; representative manual and assistive-technology evidence has not been recorded for the exact release artifact. | Dated manual matrix with environment, results, failures, and dispositions. |
+| GATE-06 | Production privacy trace | Open Before Publication | High | Network traces show no source, clarification, candidate, verifier finding, or output in lease, attestation, model-asset, error, or telemetry traffic. | Local data-flow and request policies are implemented and tested; they do not prove the final deployed origins, service configuration, browser behavior, or third-party request surface. | Sanitized production traces from both origins and supported browser engines for the exact release. |
 
 ## Honest residual boundary
 
@@ -362,6 +415,12 @@ Open gates are not converted into confidence by source test volume. The interact
 - **SRC-TEST-CAPACITY — Protocol capacity executable contracts:** `tests/lattice-protocol-capacity.test.mjs`
 - **SRC-TEST-A11Y — Modal accessibility source contracts:** `tests/lattice-modal-accessibility.test.mjs`
 - **SRC-PROJECTS — Portfolio project and ecosystem register:** `app/resume/projects.js`
+- **SRC-RELEASE-REGISTER — Machine-enforced Text to Lattice release register:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json`
+- **SRC-RELEASE-QUALIFICATION — Text to Lattice release qualification:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
+- **SRC-LLAMA-LICENSE — Canonical Llama 3.2 Community License:** [Reviewed source](https://developer.meta.com/ai/llama3_2/license/)
+- **SRC-LLAMA-AUP — Canonical Llama 3.2 Acceptable Use Policy:** [Reviewed source](https://developer.meta.com/ai/llama3_2/use-policy/)
+- **SRC-LLAMA-EVAL — Non-operational Llama-use evaluation cases:** `docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json`
+- **SRC-WASM-PR — Upstream current-WASM rebuild record:** [Reviewed source](https://github.com/mlc-ai/binary-mlc-llm-libs/pull/158)
 - **SRC-LAT-README — Lattice README at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/README.md)
 - **SRC-LAT-ARCH — Lattice architecture at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/architecture.md)
 - **SRC-LAT-REQ — Lattice requirements at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/requirements.md)

@@ -7,6 +7,31 @@ import { latticeAttestationSize } from "../app/resume/lattice/attestation.js";
 const resumeProjectsSource = await readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8");
 const globalsCss = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 const attestationSource = await readFile(new URL("../app/resume/lattice/attestation.js", import.meta.url), "utf8");
+const promptSource = await readFile(new URL("../app/resume/lattice/promptContract.js", import.meta.url), "utf8");
+const modelContractSource = await readFile(new URL("../app/resume/lattice/modelContract.js", import.meta.url), "utf8");
+
+test("the dormant interaction binds model disclosure and source-specific acceptable use", () => {
+  assert.match(resumeProjectsSource, /Model-assisted result: Qwen drafts locally and Llama 3\.2 checks locally/u);
+  assert.match(resumeProjectsSource, /Review every result before relying on it/u);
+  assert.match(resumeProjectsSource, />Built with Llama<\/a>/u);
+  assert.match(resumeProjectsSource, /id="lattice-use-confirmation"[\s\S]*?type="checkbox"[\s\S]*?required/u);
+  assert.match(resumeProjectsSource, /!latticeUseConfirmed/u);
+  assert.match(resumeProjectsSource, /if \(!latticeUseConfirmed\)[\s\S]*?return;[\s\S]*?acquireLatticeLease/u);
+  assert.match(resumeProjectsSource, /const updateLatticeInput = \(value: string\) => \{\s*setLatticeUseConfirmed\(false\)/u);
+  assert.match(resumeProjectsSource, /First use downloads about 4\.10 GB[\s\S]*?3\.5 GB of working memory/u);
+  assert.match(modelContractSource, /https:\/\/developer\.meta\.com\/ai\/llama3_2\/license\//u);
+  assert.match(modelContractSource, /https:\/\/developer\.meta\.com\/ai\/llama3_2\/use-policy\//u);
+});
+
+test("the verifier safety contract judges purpose and consequence without topic bans", () => {
+  assert.match(promptSource, /Safety is purpose- and consequence-aware/u);
+  assert.match(promptSource, /materially further prohibited conduct/u);
+  assert.match(promptSource, /lack necessary authority, consent, or license/u);
+  for (const context of ["Quotation", "history", "criticism", "journalism", "fiction", "prevention", "defensive discussion"]) {
+    assert.match(promptSource, new RegExp(context, "iu"));
+  }
+  assert.match(promptSource, /never keyword-ban/u);
+});
 
 test("the modal focus trap includes an interactive attestation iframe", () => {
   assert.match(resumeProjectsSource, /"iframe:not\(\[tabindex='-1'\]\)"/u);

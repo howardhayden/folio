@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 
 import {
   LATTICE_MODEL_ROLES,
+  LATTICE_TOKENIZER_FILENAME,
   LATTICE_TOKENIZER_SHA256,
 } from "../app/resume/lattice/modelContract.js";
 
@@ -19,7 +20,7 @@ const fixtures = Object.freeze([
 ]);
 
 async function fetchPinnedTokenizer(role) {
-  const url = new URL("tokenizer.json", LATTICE_MODEL_ROLES[role].model);
+  const url = new URL(LATTICE_TOKENIZER_FILENAME, LATTICE_MODEL_ROLES[role].model);
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
