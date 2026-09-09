@@ -162,6 +162,69 @@ function requireStringArray(value, label) {
   return value;
 }
 
+function gateRequiresRollbackCondition(gate) {
+  return rollbackRequiredStatuses.has(gate.status)
+    || (gate.id === "GATE-06" && gate.status === "open-release-blocker");
+}
+
+export function verifyReleaseStatusState(register) {
+  const hasOpenBlocker = register.gates.some(({ status }) => status === "open-release-blocker");
+  const enabled = register.overallStatus === "qualified"
+    && register.publicClient?.status === "enabled"
+    && register.publicClient?.publicationMode === "interactive-client";
+  const held = register.overallStatus === "held"
+    && register.publicClient?.status === "held"
+    && register.publicClient?.publicationMode === "documentation-only";
+  if ((hasOpenBlocker && !held) || (!hasOpenBlocker && !enabled)) {
+    fail("the public client must be enabled if and only if no open release blocker remains.");
+  }
+  return { hasOpenBlocker, enabled, held };
+}
+
+export function verifyLifecycleGateContract(productionBoundaryGate, productionLifecycleGate) {
+  const gate02PreactivationBoundary = `${productionBoundaryGate.requirement} ${productionBoundaryGate.evidenceNeeded} ${productionBoundaryGate.followUp}`;
+  if (!/noninteractive/iu.test(gate02PreactivationBoundary)
+    || !/invalid-(?:token|attestation)/iu.test(gate02PreactivationBoundary)
+    || !/intentionally invalid-attestation/iu.test(productionBoundaryGate.evidenceNeeded)
+    || !/A genuine widget token or successful lease grant is not preactivation evidence for this gate\./u.test(productionBoundaryGate.evidenceNeeded)) {
+    fail("GATE-02 must bind live noninteractive and invalid-token probes without requiring a genuine preactivation widget grant.");
+  }
+  const gate02Sentences = gate02PreactivationBoundary.split(/(?<=[.!?])\s+/u);
+  const requiresRealLifecycle = gate02Sentences.some((sentence) => {
+    if (/\b(?:not|cannot|without|rather than)\b/iu.test(sentence)) return false;
+    return /\b(?:complete|finish|record|pass|require|wait through)\b/iu.test(sentence)
+      && /\b(?:real|genuine|successful|production-widget|official-page|canonical-page)\b/iu.test(sentence)
+      && /\b(?:acquisition|grant|renewal|release|lifecycle)\b/iu.test(sentence);
+  });
+  if (requiresRealLifecycle) {
+    fail("GATE-02 cannot require a real canonical-page lifecycle while the public client is held.");
+  }
+
+  const lifecycleStatuses = new Set(["post-deployment-verification", "open-release-blocker"]);
+  const privacyClasses = ["source", "clarification", "candidate", "verifier finding", "output"];
+  if (!lifecycleStatuses.has(productionLifecycleGate.status)
+    || productionLifecycleGate.label !== "Production lifecycle and privacy trace"
+    || !/activated canonical page/iu.test(productionLifecycleGate.requirement)
+    || !/200, 200, and 204/iu.test(productionLifecycleGate.requirement)
+    || !/five-minute server (?:renewal )?minimum/iu.test(`${productionLifecycleGate.requirement} ${productionLifecycleGate.evidenceNeeded}`)
+    || !/first activation session/iu.test(`${productionLifecycleGate.evidenceNeeded} ${productionLifecycleGate.followUp}`)
+    || !/supported browser engines/iu.test(productionLifecycleGate.evidenceNeeded)
+    || privacyClasses.some((contentClass) => !productionLifecycleGate.requirement.includes(contentClass)
+      || !productionLifecycleGate.rollbackCondition.includes(contentClass))
+    || !/Do not create a public or operator bypass harness/iu.test(productionLifecycleGate.evidenceNeeded)
+    || !/held documentation-only artifact/iu.test(productionLifecycleGate.rollbackCondition)
+    || !/GATE-06 to open-release-blocker/iu.test(productionLifecycleGate.rollbackCondition)
+    || !/acquisition fails/iu.test(productionLifecycleGate.rollbackCondition)
+    || !/renewal .* fails/iu.test(productionLifecycleGate.rollbackCondition)
+    || !/release fails/iu.test(productionLifecycleGate.rollbackCondition)
+    || !/content-bearing request/iu.test(productionLifecycleGate.rollbackCondition)) {
+    fail("GATE-06 must retain the canonical-page lifecycle and privacy trace as immediate post-deployment verification or a machine-representable open blocker, with held rollback and no bypass harness.");
+  }
+  if (productionLifecycleGate.status === "open-release-blocker") {
+    requireString(productionLifecycleGate.rollbackCondition, "GATE-06 rollbackCondition");
+  }
+}
+
 function exactIds(records, expected, label) {
   if (!Array.isArray(records)) fail(`${label} must be an array.`);
   const ids = records.map((record) => record?.id);
@@ -493,11 +556,15 @@ async function verifySourceBoundary(register) {
     }
     requireStringArray(gate.evidence, `${gate.id} evidence`);
     requireStringArray(gate.safeguards, `${gate.id} safeguards`);
-    if (rollbackRequiredStatuses.has(gate.status)) requireString(gate.rollbackCondition, `${gate.id} rollbackCondition`);
+    if (gateRequiresRollbackCondition(gate)) requireString(gate.rollbackCondition, `${gate.id} rollbackCondition`);
     else if (gate.rollbackCondition !== null) fail(`${gate.id} rollbackCondition must be null outside rollback-bearing statuses.`);
     if (gate.status === "accepted-residual-risk") requireString(gate.acceptanceBasis, `${gate.id} acceptanceBasis`);
     else if (gate.acceptanceBasis !== null) fail(`${gate.id} acceptanceBasis must be null outside accepted residual risk.`);
   }
+
+  const productionBoundaryGate = register.gates.find(({ id }) => id === "GATE-02");
+  const productionLifecycleGate = register.gates.find(({ id }) => id === "GATE-06");
+  verifyLifecycleGateContract(productionBoundaryGate, productionLifecycleGate);
 
   if (!Array.isArray(register.marginalValueDecisions) || register.marginalValueDecisions.length === 0) {
     fail("marginal-value decisions must be a nonempty array.");
@@ -543,11 +610,7 @@ async function verifySourceBoundary(register) {
   const lattice = projectBySlug("lattice");
   if (!lattice) fail("Lattice project record is absent.");
 
-  const hasOpenBlocker = register.gates.some(({ status }) => status === "open-release-blocker");
-  const enabled = register.overallStatus === "qualified" && register.publicClient?.status === "enabled";
-  if (enabled === hasOpenBlocker) {
-    fail("the public client must be enabled if and only if no open release blocker remains.");
-  }
+  const { enabled } = verifyReleaseStatusState(register);
   if (enabled) {
     if (register.publicClient.publicationMode !== "interactive-client") fail("enabled publication must declare interactive-client mode.");
     if (register.publicClient.heldBoundary != null) fail("enabled publication must remove its held-only allow and deny boundary.");

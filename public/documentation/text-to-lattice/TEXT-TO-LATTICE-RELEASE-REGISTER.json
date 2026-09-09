@@ -16,7 +16,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "b3d3fb072fa048ace2e8e4d86f6418c87594675568af4c1933a1830710016821",
+    "qualificationDossierSha256": "47af66ea4f2c88ec41bce2eccce3feea9e77af15f3faa015a9aa9bf232c7baf7",
     "qualifiedSourceSet": {
       "algorithm": "sha256-path-and-bytes-v1",
       "files": [
@@ -45,7 +45,7 @@
         "workers/text-to-lattice-attestation-frame",
         "workers/text-to-lattice-lease"
       ],
-      "sha256": "7c4d91f649eb6ce1ff40b989903f416e94e481fa2291b8f531d9701f26ed297e",
+      "sha256": "7b8d1e4b9939cccb2b36ed2847daa23907b42dd283d5e7096d7c167881a54920",
       "claim": "This digest binds the named source paths only, including the complete test tree, license-routing map, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. Current-main workflow checks separately bind the deployed commit."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -73,7 +73,7 @@
   "ownerDisposition": {
     "status": "release-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "7c4d91f649eb6ce1ff40b989903f416e94e481fa2291b8f531d9701f26ed297e",
+    "qualifiedSourceSetSha256": "7b8d1e4b9939cccb2b36ed2847daa23907b42dd283d5e7096d7c167881a54920",
     "decidedOn": "2026-09-09",
     "record": "The active owner direction is to qualify and include the newest Text to Lattice once the consequential release boundary is satisfied.",
     "note": "Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence. No live-service, browser, model-execution, or production-trace result is inferred from the direction."
@@ -248,9 +248,9 @@
       "label": "Production origin and secret boundary",
       "status": "open-release-blocker",
       "marginalValue": "high",
-      "requirement": "hah.dev, verify.hah.dev, lease Worker routes, CSP, bindings, and independent encrypted secrets match the documented protocol.",
+      "requirement": "The deployed hah.dev and verify.hah.dev origins, lease Worker route, response policies, bindings, and independent encrypted secrets match the documented protocol, and every live noninteractive or intentionally invalid-token probe fails closed.",
       "currentEvidence": "During the 2026-09-09 review, the live lease path returned HTTP 404, verify.hah.dev did not resolve, and the reviewed hah.dev response did not carry Content-Security-Policy or Permissions-Policy. Source contracts and deployment automation cannot substitute for those absent public boundaries.",
-      "evidenceNeeded": "Deploy the lease service and verification frame, configure independent encrypted secrets and exact routes, add the required response policies, then inspect the live headers, origins, routes, bindings, and secret names without disclosing secret values.",
+      "evidenceNeeded": "Deploy the lease service and verification frame, configure independent encrypted secrets and exact routes, add the required response policies, inspect live headers, origins, routes, bindings, and secret names without disclosing values, then pass the checked-in method, cross-origin, cookie, missing-attestation, and intentionally invalid-attestation probes. A genuine widget token or successful lease grant is not preactivation evidence for this gate.",
       "rationale": "The ordinary public flow cannot work as designed and would cross an unverified origin and secret boundary. Both plausibility and consequence are high.",
       "evidence": [
         "2026-09-09 live lease request returned HTTP 404",
@@ -260,9 +260,10 @@
       "safeguards": [
         "the held source imports no interactive project surface",
         "the held artifact validator rejects lease, verification, model, and runtime execution surfaces",
-        "documentation and the canonical project page remain available without inference"
+        "documentation and the canonical project page remain available without inference",
+        "the live service verifier exercises public fail-closed behavior without a valid Turnstile token or lease credential"
       ],
-      "followUp": "Provision the exact two-origin service boundary, run the live configuration inspection, and change this status only from recorded evidence.",
+      "followUp": "Provision the exact two-origin service boundary, run the live configuration inspection and noninteractive or invalid-token probes, and change this status only from recorded evidence. Keep the real canonical-page lifecycle in GATE-06 rather than creating a bypass harness for the held client.",
       "rollbackCondition": null,
       "acceptanceBasis": null
     },
@@ -389,26 +390,30 @@
     },
     {
       "id": "GATE-06",
-      "label": "Production privacy trace",
+      "label": "Production lifecycle and privacy trace",
       "status": "post-deployment-verification",
       "marginalValue": "high",
-      "requirement": "Network traces show no source, clarification, candidate, verifier finding, or output in lease, attestation, model-asset, error, or telemetry traffic.",
-      "currentEvidence": "Local data-flow and request policies are implemented and tested; they do not prove the final deployed origins, service configuration, browser behavior, or third-party request surface.",
-      "evidenceNeeded": "Capture and review sanitized production traces from both origins and supported browser engines immediately after activation and after any network-boundary change.",
-      "rationale": "Source-text disclosure would be a high-consequence privacy failure. A truthful production trace can exist only after deployment, so immediate verification with a hard disable condition has greater semantic and lifecycle value than fabricated predeployment proof.",
+      "requirement": "The activated canonical page completes one real production-widget acquisition, renewal no sooner than the five-minute server minimum, and release with the documented 200, 200, and 204 statuses; its sanitized network trace shows no source, clarification, candidate, verifier finding, or output in lease, attestation, model-asset, error, or telemetry traffic.",
+      "currentEvidence": "Local lifecycle, data-flow, and request policies are implemented and tested, and GATE-02 binds live fail-closed probes that need no genuine challenge token. Those controls do not prove the real Turnstile key pair, activated canonical-page lifecycle, final browser behavior, or third-party request surface.",
+      "evidenceNeeded": "In the first activation session, use only the canonical public page in the supported browser engines to finish the production Turnstile challenge, record a 200 acquisition, wait through at least the five-minute server renewal minimum, record a 200 renewal and 204 release, and review a sanitized trace from both origins. Do not create a public or operator bypass harness to manufacture this evidence while the client is held.",
+      "rationale": "A broken real-key-pair lifecycle would make the newly activated interaction unusable or strand capacity, and source-text disclosure would be a high-consequence privacy failure. The held artifact intentionally exposes no client, so genuine official-page evidence can exist only after activation. Immediate verification with rapid held rollback has greater reliability, privacy, and lifecycle value than adding a bespoke preactivation harness and its new attack surface.",
       "evidence": [
+        "acquisition, delayed-renewal, release, and teardown source contracts",
         "bodyless lease request contract",
         "closed attestation message schema",
         "browser-local model execution and output protection tests",
         "source-level prohibition on content telemetry"
       ],
       "safeguards": [
+        "GATE-02 must establish the deployed origins, secrets, response policies, routes, and live fail-closed probe behavior before activation",
+        "the lifecycle evidence must originate from the canonical public client and does not authorize a bypass harness",
+        "a failed lifecycle or privacy trace can set GATE-06 itself to open-release-blocker so the machine release rule restores the held publication",
         "source, clarification, candidate, verifier finding, and output remain browser-local",
         "lease traffic carries no request body",
         "attestation messages expose only closed status and correlation fields"
       ],
-      "followUp": "Capture the trace in the first deployment verification window and repeat it after any origin, provider, telemetry, runtime, or request-contract change.",
-      "rollbackCondition": "Disable the public client immediately if any trace contains source text, clarification text, candidate text, verifier findings, output text, or an undocumented content-bearing request.",
+      "followUp": "Complete and review the lifecycle and privacy trace in the first activation session, before declaring the release operationally complete, and repeat it after any widget, key, hostname, action, lease protocol, origin, provider, telemetry, runtime, or request-contract change.",
+      "rollbackCondition": "Set GATE-06 to open-release-blocker and return the overall release and public client immediately to the held documentation-only artifact if real acquisition fails, renewal after the five-minute minimum fails, release fails, or any trace contains source text, clarification text, candidate text, verifier findings, output text, or an undocumented content-bearing request.",
       "acceptanceBasis": null
     }
   ],
@@ -450,10 +455,10 @@
       "rationale": "Exact artifact identity, integrity, lineage, ABI, and configuration are already bound. Reconstructing missing workstation state adds bespoke build and maintenance burden without a commensurate plausible failure reduction; upstream clarification or a maintainable controlled replacement remains useful."
     },
     {
-      "finding": "Immediate post-deployment privacy trace",
+      "finding": "Immediate post-deployment official-page lifecycle and privacy trace",
       "classification": "high",
       "disposition": "verify-and-disable-on-failure",
-      "rationale": "Sensitive prose leaving the browser would have a meaningful consequence, while the evidence can only be observed honestly after deployment."
+      "rationale": "A failed real-key-pair lifecycle or sensitive prose leaving the browser would have meaningful consequences, while the held artifact exposes no canonical client from which that evidence could be observed honestly. Immediate official-page verification and held rollback remove more risk over the lifecycle than a bespoke preactivation harness would."
     },
     {
       "finding": "Held résumé title and Text to Lattice icon link drift",

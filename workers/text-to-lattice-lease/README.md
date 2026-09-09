@@ -318,28 +318,25 @@ Before enabling the static client:
    `frame-ancestors https://hah.dev` header on the deployed response. No account
    identifier, deploy credential, site key, or secret is committed by the
    static project.
-7. Before the first activation, complete one real official-page lifecycle with
-   the production widget: finish its human challenge, receive a `200` acquisition,
-   wait through the five-minute server renewal minimum, receive a `200` renewal,
-   and receive a `204` release. Retain only a sanitized trace containing the
-   deployed revision, timestamps, methods, statuses, and documented header names;
-   never retain the Turnstile token, lease bearer, cookie value, source, candidate,
-   or result. Repeat this trace after widget, secret, hostname, action, lease
-   protocol, Durable Object binding, or route changes. Also smoke-test bodyless
-   same-origin acquisition and authenticated bodyless renewal and release;
-   tampered, expired, and random bearer rejection before shaping;
-   missing, replayed, expired, wrong-host, and wrong-action Turnstile rejection;
-   exact-origin/source/schema frame-message rejection and keyboard access;
-   request-body/query and forged-origin rejection; exact 40-request rolling and
-   3,000-request UTC-day admission; 8-attempt and rolling grant limits; one-active-lease-per-browser and
-   eight-lease concurrency; renewal minimum and absolute lifetime; every `429`
-   response's `Retry-After` header, including proxy and HTTP-date forms; and
-   configuration rejection when the public site-key binding equals any private
-   secret.
+7. Run the checked-in live service verifier before activation. Its production
+   probes intentionally require no genuine Turnstile token and no successful
+   lease grant: exact frame bytes and isolation headers; all four main-document
+   response-policy aliases; the lease method and `Allow` boundary; forged-origin
+   rejection without a cookie; first-party cookie creation and site-key delivery;
+   the returning-browser missing-attestation response; and intentionally invalid
+   attestation rejection without cookie refresh. Treat any unexpected success,
+   status, header, cookie, or public result as a failed GATE-02 boundary. Keep
+   request-body and query rejection, random or tampered bearer rejection before
+   shaping, exact-origin/source/schema frame-message rejection, configuration
+   rejection when the public site-key binding equals any private secret, exact
+   admission limits, lease timing, and bounded `Retry-After` forms covered by the
+   checked-in source tests. These fail-closed probes establish the deployed
+   boundary without pretending to establish a real widget-to-lease lifecycle.
 8. Verify the enabled edge rule, exact Worker route and fail mode, seven distinct
    rate-limit bindings whose namespace identifiers are unused by every other
-   Worker in the account, four secret binding names, and provider-side
-   cold/warm request/CPU/storage/alarm measurements from the deployed revision.
+   Worker in the account, and all four secret binding names. Configuration and
+   live fail-closed behavior belong to GATE-02; provider measurements belong to
+   the immediate post-deployment GATE-03 work below.
 9. Preserve the exact verifier-use, converted-model, and WASM evidence and
    residual-risk dispositions in `TEXT-TO-LATTICE-RELEASE-REGISTER.json`.
    Re-open a gate when observed behavior, artifact identity, terms, runtime
@@ -351,6 +348,36 @@ Before enabling the static client:
     no gate is `open-release-blocker`; accepted residual risk and bounded
     post-deployment verification remain explicit and carry their recorded
     follow-up or immediate-disable condition.
+
+### Immediate post-deployment verification
+
+GATE-06 begins only after the canonical public client is activated. In the first
+activation session, before declaring the release operationally complete, use that
+official page in the supported browser engines to finish the production Turnstile
+challenge, receive a `200` acquisition, wait through at least the five-minute
+server renewal minimum, receive a `200` renewal, and receive a `204` release.
+Retain only a sanitized trace with the deployed revision, timestamps, methods,
+statuses, and documented header names; never retain the Turnstile token, lease
+bearer, cookie value, source, clarification, candidate, verifier finding, or
+result. Review the same trace to confirm that no prose entered lease, attestation,
+model-asset, error, or telemetry traffic.
+
+Do not add a public route, operator-only page, test-key mode, or other bypass
+harness merely to produce this evidence while the held artifact exposes no client.
+If acquisition fails, renewal after the server minimum fails, release fails, or
+the trace contains any content-bearing request, set GATE-06 to
+`open-release-blocker`, immediately return the overall release and public client
+to the held documentation-only artifact, and investigate from the retained
+sanitized evidence. This transition keeps rollback machine-enforceable even after
+GATE-02 is satisfied. Repeat the official-page lifecycle and privacy trace after
+widget, key, hostname, action, lease protocol, Durable Object binding, route,
+origin, provider, telemetry, runtime, or request-contract changes.
+
+For GATE-03, record provider-side cold and warm request, CPU, storage, and alarm
+measurements from the deployed revision, including representative cross-location
+traffic. Return the client to held if observed capacity behavior exceeds the
+published safeguards; these measurements do not belong to the preactivation
+GATE-02 configuration proof.
 
 The three private runtime values belong only in Cloudflare and must not be
 duplicated into GitHub. The public Turnstile site key is also kept as a

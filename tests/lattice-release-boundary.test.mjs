@@ -8,7 +8,11 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import { projectBySlug } from "../app/resume/projects.js";
-import { qualifiedFilesBelow } from "../scripts/verify-text-to-lattice-release.mjs";
+import {
+  qualifiedFilesBelow,
+  verifyLifecycleGateContract,
+  verifyReleaseStatusState,
+} from "../scripts/verify-text-to-lattice-release.mjs";
 
 const execute = promisify(execFile);
 const root = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
@@ -56,7 +60,7 @@ test("qualified source trees ignore only Wrangler's reserved local residue", asy
 });
 
 test("the release register holds only the consequential live-service blocker", async () => {
-  const [registerSource, atlasSource, evaluationSource, view, held, projectsSource, packageSource, workflow, validatorSource, wasmFetcher] = await Promise.all([
+  const [registerSource, atlasSource, evaluationSource, view, held, projectsSource, packageSource, workflow, validatorSource, documentationBuilder, operatorReadme, wasmFetcher] = await Promise.all([
     readFile(registerPath, "utf8"),
     readFile(join(root, "docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json"), "utf8"),
     readFile(join(root, "docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json"), "utf8"),
@@ -66,6 +70,8 @@ test("the release register holds only the consequential live-service blocker", a
     readFile(join(root, "package.json"), "utf8"),
     readFile(join(root, ".github/workflows/pages.yml"), "utf8"),
     readFile(validator, "utf8"),
+    readFile(join(root, "scripts/docs/build-text-to-lattice-documentation.mjs"), "utf8"),
+    readFile(join(root, "workers/text-to-lattice-lease/README.md"), "utf8"),
     readFile(join(root, "scripts/fetch-lattice-wasm.mjs"), "utf8"),
   ]);
   const register = JSON.parse(registerSource);
@@ -130,6 +136,33 @@ test("the release register holds only the consequential live-service blocker", a
   assert.ok(register.gates.every(({ rationale, evidence, safeguards, followUp }) => rationale && evidence.length && safeguards.length && followUp));
   assert.ok(register.gates.filter(({ status }) => ["satisfied-in-production", "post-deployment-verification"].includes(status)).every(({ rollbackCondition }) => rollbackCondition));
   assert.ok(register.gates.filter(({ status }) => status === "accepted-residual-risk").every(({ acceptanceBasis }) => acceptanceBasis));
+  const gate02 = register.gates.find(({ id }) => id === "GATE-02");
+  const gate06 = register.gates.find(({ id }) => id === "GATE-06");
+  assert.match(`${gate02.requirement} ${gate02.evidenceNeeded}`, /noninteractive/iu);
+  assert.match(`${gate02.requirement} ${gate02.evidenceNeeded}`, /invalid-(?:token|attestation)/iu);
+  assert.match(gate02.evidenceNeeded, /intentionally invalid-attestation/iu);
+  assert.match(gate02.evidenceNeeded, /not preactivation evidence/iu);
+  assert.doesNotMatch(`${gate02.requirement} ${gate02.evidenceNeeded} ${gate02.followUp}`, /complete one real official-page lifecycle|wait through (?:at least )?the five-minute server renewal minimum/iu);
+  assert.equal(gate06.label, "Production lifecycle and privacy trace");
+  assert.equal(gate06.status, "post-deployment-verification");
+  assert.match(gate06.requirement, /activated canonical page.*200, 200, and 204/iu);
+  assert.match(gate06.evidenceNeeded, /first activation session/iu);
+  assert.match(gate06.evidenceNeeded, /supported browser engines/iu);
+  assert.match(gate06.evidenceNeeded, /five-minute server renewal minimum/iu);
+  assert.match(gate06.evidenceNeeded, /Do not create a public or operator bypass harness/iu);
+  assert.match(gate06.rollbackCondition, /held documentation-only artifact/iu);
+  assert.match(gate06.rollbackCondition, /GATE-06 to open-release-blocker/iu);
+  for (const contentClass of ["source", "clarification", "candidate", "verifier finding", "output"]) {
+    assert.match(gate06.requirement, new RegExp(contentClass, "iu"));
+    assert.match(gate06.rollbackCondition, new RegExp(contentClass, "iu"));
+  }
+  for (const failure of [/acquisition fails/iu, /renewal .* fails/iu, /release fails/iu]) {
+    assert.match(gate06.rollbackCondition, failure);
+  }
+  assert.match(validatorSource, /GATE-02 cannot require a real canonical-page lifecycle while the public client is held/u);
+  assert.match(documentationBuilder, /GATE-06 must retain the canonical-page lifecycle and privacy trace as immediate post-deployment verification or a machine-representable open blocker/u);
+  assert.match(operatorReadme, /GATE-06 begins only after the canonical public client is activated/u);
+  assert.match(operatorReadme, /Do not add a public route, operator-only page, test-key mode, or other bypass/u);
   assert.equal(evaluation.cases.length, 10);
   assert.equal(evaluation.cases.filter(({ expectedSafety }) => expectedSafety).length, 5);
   assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionStatus, "accepted-residual-risk");
@@ -183,6 +216,22 @@ test("the release register holds only the consequential live-service blocker", a
   await execute(process.execPath, [validator, "--source"], { cwd: root });
 });
 
+test("a failed GATE-06 can become the machine-enforced blocker after GATE-02 closes", async () => {
+  const register = JSON.parse(await readFile(registerPath, "utf8"));
+  const gate02 = register.gates.find(({ id }) => id === "GATE-02");
+  const gate06 = register.gates.find(({ id }) => id === "GATE-06");
+  gate02.status = "satisfied-in-production";
+  gate02.rollbackCondition = "Reopen GATE-02 and return to held publication if the deployed boundary drifts.";
+  gate06.status = "open-release-blocker";
+
+  assert.doesNotThrow(() => verifyLifecycleGateContract(gate02, gate06));
+  assert.deepEqual(verifyReleaseStatusState(register), {
+    hasOpenBlocker: true,
+    enabled: false,
+    held: true,
+  });
+});
+
 test("the validator rejects a nominally enabled client while any gate is open", async () => {
   const register = JSON.parse(await readFile(registerPath, "utf8"));
   register.overallStatus = "qualified";
@@ -212,10 +261,27 @@ test("qualification statuses retain their evidence, safeguard, acceptance, rollb
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").evidence = []; }, /GATE-02 evidence must be a nonempty array/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").status = "satisfied-in-production"; }, /GATE-02 rollbackCondition must be a nonempty string/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").status = "satisfied-in-source"; }, /GATE-02 must remain an open release blocker until it is satisfied in production/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-02").evidenceNeeded = "Complete one real official-page lifecycle and wait through the five-minute server renewal minimum."; }, /GATE-02 must bind live noninteractive and invalid-token probes/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-02").followUp += " Complete a real official-page lifecycle before activation."; }, /GATE-02 cannot require a real canonical-page lifecycle while the public client is held/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-04A").status = "satisfied-in-production"; }, /GATE-04A cannot use satisfied-in-production status/u],
     [(record) => { record.artifactSet.llamaBehaviorEvaluation.exactModelExecutionStatus = "satisfied-in-production"; }, /Llama exact-model execution has an unsupported qualification status/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-04A").acceptanceBasis = null; }, /GATE-04A acceptanceBasis must be a nonempty string/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-06").rollbackCondition = null; }, /GATE-06 rollbackCondition must be a nonempty string/u],
+    [(record) => {
+      const gate = record.gates.find(({ id }) => id === "GATE-06");
+      gate.status = "satisfied-in-source";
+      gate.rollbackCondition = null;
+    }, /GATE-06 must retain the canonical-page lifecycle and privacy trace/u],
+    [(record) => {
+      const gate = record.gates.find(({ id }) => id === "GATE-06");
+      gate.evidenceNeeded = gate.evidenceNeeded.replace("first activation session", "later session").replace("supported browser engine", "browser");
+      gate.followUp = gate.followUp.replace("first activation session", "later session");
+    }, /GATE-06 must retain the canonical-page lifecycle and privacy trace/u],
+    [(record) => {
+      const gate = record.gates.find(({ id }) => id === "GATE-06");
+      gate.requirement = gate.requirement.replace("clarification, ", "");
+    }, /GATE-06 must retain the canonical-page lifecycle and privacy trace/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-06").evidenceNeeded = "Create an operator bypass harness before activation."; }, /GATE-06 must retain the canonical-page lifecycle and privacy trace/u],
     [(record) => { record.marginalValueDecisions[0].classification = "novelty-only"; }, /marginal-value decision 0 has an unsupported classification/u],
     [(record) => { record.marginalValueDecisions[1].rationale = ""; }, /marginal-value decision 1 rationale must be a nonempty string/u],
   ];
@@ -289,6 +355,9 @@ test("the held Pages artifact contains evidence but no Text to Lattice execution
   assert.match(project, /Release status:\s*(?:<!-- -->)?held/u);
   assert.match(project, /TEXT-TO-LATTICE-RELEASE-QUALIFICATION\.md/u);
   assert.match(qualification, /consequence × plausibility × lifecycle value/u);
+  assert.match(qualification, /GATE-02 can and must establish the deployed frame.*live noninteractive or intentionally invalid-token result before activation/u);
+  assert.match(qualification, /GATE-06 therefore requires the real acquisition.*rapid return to the held artifact on failure/u);
+  assert.match(qualification, /A separate public or operator bypass harness.*outside the authorized boundary/u);
   assert.equal(JSON.parse(exportedRegister).overallStatus, "held");
   assert.equal(exportedRegister, sourceRegister);
   assert.equal(exportedEvaluation, sourceEvaluation);

@@ -7,7 +7,7 @@
 **Qualification date:** 2026-09-09
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
-**Qualified source-set SHA-256:** `7c4d91f649eb6ce1ff40b989903f416e94e481fa2291b8f531d9701f26ed297e`
+**Qualified source-set SHA-256:** `7b8d1e4b9939cccb2b36ed2847daa23907b42dd283d5e7096d7c167881a54920`
 **Artifact-set projection SHA-256:** `5613bf89d45e9b61213b6cc4c2bd6d4a72d2e4e4d3bcda34d0fcf97a587eaf1f`
 
 This is an engineering release decision, not legal advice, an upstream warranty, or independent certification. It applies only to the exact revisions and digests named below. A source test proves a source contract; it does not prove a production origin, provider setting, assistive-technology path, network trace, third-party license grant, or reproducible binary.
@@ -19,12 +19,14 @@ Exactly one release blocker remains: the deployed origin and secret boundary doe
 The other gaps are real, but they do not all have the same release consequence:
 
 - Exact release identity is **release-workflow-enforced**. The qualified source set binds the activation, runtime, validator, complete test tree, license-routing map, shipped legal notices, and workflow sources without hashing this register or generated evidence. Current-main checks separately bind the deployed commit. This records a mandatory lifecycle control; it does not claim that a future workflow run has already happened.
-- Capacity and the production privacy trace are **post-deployment verification**. Those facts cannot exist honestly before the service exists. Each has bounded safeguards, a concrete follow-up, and a condition that disables the client on consequential failure.
+- Capacity and the production official-page lifecycle and privacy trace are **post-deployment verification**. Those facts cannot exist honestly before the service and its canonical client exist together. Each has bounded safeguards, a concrete follow-up, and a condition that returns the client to the held documentation-only artifact on consequential failure.
 - Exact-model Llama fixture execution, the incomplete converted-model custody narrative, the absent historical WASM rebuild, and the eventual complete assistive-technology matrix are **accepted residual risks**. Their evidence gaps stay explicit. A verifier false negative is not bounded merely because explicit denials are withheld, and artifact hashes do not establish license or notice custody. Source confirmation, tool-free local operation, human review, exact technical identity, accessibility contracts, and requalification triggers bound the official product surface without pretending the missing evidence exists.
 
 This is not a relaxation into “edge cases do not matter.” It is a classification by consequence × plausibility × lifecycle value. A rare finding can still block release when its realistic consequence is high. Conversely, byte-for-byte reconstruction of an undocumented workstation WASM build has negative marginal value for this product boundary after exact artifact identity, lineage, ABI, configuration, release-time digest checks, and runtime integrity checks are bound. The exact two WASM and two tokenizer requests enforce their recorded SRI values; protected Cache API hits are SHA-256 checked and mismatches are evicted before use, while allowed model shards remain bounded to immutable model-revision URLs. Upstream clarification or a maintainable controlled replacement remains useful; bespoke historical reconstruction is not a condition of publication.
 
 Holding the client does not roll back the completed implementation. It keeps the interaction out of the public bundle while the canonical project page, mapped documentation, source, and evidence remain available. The machine rule is direct: the public client is enabled if and only if no gate is `open-release-blocker`.
+
+That hold creates an important evidence-order boundary. GATE-02 can and must establish the deployed frame, lease route, bindings, separated secret names, exact response policies, and every checked-in live noninteractive or intentionally invalid-token result before activation. It cannot honestly require a successful production-widget grant through the canonical client, because the held artifact deliberately contains no such client. GATE-06 therefore requires the real acquisition, renewal after at least the five-minute server minimum, release, and sanitized privacy trace in the first activation session and across supported browser engines, with rapid return to the held artifact on failure. The machine rollback sets GATE-06 itself to `open-release-blocker`, which restores the held publication even after GATE-02 has been satisfied. A separate public or operator bypass harness would add a new attack and maintenance surface merely to evade that sequencing constraint, so it is expressly outside the authorized boundary.
 
 ## Owner direction and evidence boundary
 
@@ -127,13 +129,13 @@ The replacement acceptance criterion would be reproducible project-controlled ou
 | Gate | Status | Marginal value | Release consequence |
 | --- | --- | --- | --- |
 | GATE-01 · Exact release artifact | Release workflow enforced | High | A stale or substituted artifact could escape the reviewed boundary; the workflow fails closed and binds current main. |
-| GATE-02 · Production origin and secret boundary | Open release blocker | High | The live interaction cannot work as designed and lacks its required origin and response-policy boundary. |
+| GATE-02 · Production origin and secret boundary | Open release blocker | High | The live interaction cannot work as designed and lacks its required origin and response-policy boundary; deployed configuration and all live noninteractive or intentionally invalid-token probes must pass before activation. |
 | GATE-03 · Edge and provider capacity controls | Post deployment verification | Moderate | Source controls bound failure; live provider behavior must be measured and disables the client if it exceeds the published bounds. |
 | GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate | Source disclosure, confirmation, semantic safety, candidate withholding, and balanced fixtures are present; exact-model execution is not claimed. |
 | GATE-04B · Llama MLC-artifact provenance | Accepted residual risk | Moderate | Immutable identity and controlling terms are bound; the publisher conversion and artifact-notice narrative remains incomplete. |
 | GATE-04C · WASM provenance and license boundary | Accepted residual risk | Moderate | Exact identity, lineage, ABI, and configuration are bound; reproducibility and artifact-level notice custody remain unestablished. |
 | GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate | Automated and browser checks cover critical paths; the eventual deployed assistive-technology matrix remains follow-up evidence. |
-| GATE-06 · Production privacy trace | Post deployment verification | High | Source controls keep prose local; the first deployed trace must confirm that fact and any content-bearing request disables the client. |
+| GATE-06 · Production lifecycle and privacy trace | Post deployment verification | High | The first activated canonical-page session must complete production-widget acquisition, delayed renewal, release, and the privacy trace; any failed lifecycle step or content-bearing request returns the client immediately to held documentation-only publication. |
 
 Owner direction is recorded for the qualified source set, but it does not override an open release blocker or count as missing runtime evidence. The status remains **held solely because GATE-02 is open**.
 
@@ -153,7 +155,7 @@ The Pages workflow resolves GitHub's live `refs/heads/main` and requires its exa
 | Machine-enforced release-state publication | High | Fix now | It converts a prose warning into a reusable lifecycle control for every future revision and keeps GATE-02 fail-closed. |
 | Full historical WASM byte-for-byte rebuild | Negative | Do not require for this boundary | Bespoke reconstruction of unavailable workstation state adds greater maintenance burden than plausible risk reduction after exact identity and compatibility controls. |
 | Maintainable controlled WASM replacement | Moderate | Revisit when bounded | A project-controlled replacement can improve custody and notices if it is supportable without recreating undocumented history. |
-| Immediate post-deployment privacy trace | High | Verify; disable on failure | Sensitive prose leaving the browser would be consequential, while the evidence can exist only after deployment. |
+| Immediate post-deployment official-page lifecycle and privacy trace | High | Verify; return to held on failure | A failed real-key-pair lifecycle or sensitive prose leaving the browser would be consequential. The held artifact exposes no canonical client, and a bypass harness would cost more over the lifecycle than immediate official-page verification and rapid rollback. |
 | Held résumé title and Text to Lattice icon link drift | Moderate | Fixed; regression tested | A stale built-boundary assertion could reject the corrected canonical-title and SVG-only tool-link contract; the plausible mismatch was cheap to repair without weakening the hold. |
 | Shared verification-frame propagation deadline | Moderate | Fixed; regression tested | A slowly settling first asset could leave later healthy frame assets only a token verification window; separate bounded windows remove a recoverable deployment false negative. |
 | Simultaneous programmatic résumé-modal body-class race | Low | Document; defer | Normal interface paths cannot open two résumé modals at once; reference-counting the class would add coordination complexity for a nonconsequential programmatic-only state. |
