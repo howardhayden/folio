@@ -13,8 +13,12 @@ test("Text to Lattice exposes a no-JavaScript and unavailable-runtime fallback",
     readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(resumeHtml, /Text to Lattice is held at the public boundary/u);
-  assert.match(resumeHtml, /href="\/projects\/lattice\/text-to-lattice\/"[^>]*>Lattice<\/a>/u);
+  assert.match(resumeHtml, /Text to Lattice is held because its sole open release blocker/u);
+  assert.match(resumeHtml, /href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/u);
+  assert.match(
+    resumeHtml,
+    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
+  );
   assert.doesNotMatch(resumeHtml, /lattice-demo-dialog|lattice-demo-input/u);
   assert.match(interfaceSource, /latticeSupported === false \? \([\s\S]*?aria-label="Availability"/u);
   assert.match(interfaceSource, /disabled=\{busy \|\| latticeSupported === false\}/u);

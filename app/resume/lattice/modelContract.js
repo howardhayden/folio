@@ -33,6 +33,11 @@ export const LATTICE_WASM_SHA256 = Object.freeze({
   verifier: "34de0d60ab598c6a85ae882b48474f250193076f902057a21070bb2daae96d5b",
 });
 
+export const LATTICE_WASM_SRI = Object.freeze({
+  generator: "sha256-Xd9E5JsD5T4k/SmkVZGFCSQ0YUBFL2DCkoAZA4hXE0A=",
+  verifier: "sha256-NN4NYKtZjGqFrogrSEdPJQGTB2+QIFeiEHC7LarpbVs=",
+});
+
 export const LATTICE_WASM_BUILD_LINEAGE = Object.freeze({
   binaryRepositoryRevision: LATTICE_WASM_REVISION,
   releaseDirectory: "web-llm-models/v0_2_80",
@@ -66,6 +71,11 @@ export const LLAMA_3_2_TERMS_PROVENANCE = Object.freeze({
 export const LATTICE_TOKENIZER_SHA256 = Object.freeze({
   generator: "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
   verifier: "79e3e522635f3171300913bb421464a87de6222182a0570b9b2ccba2a964b2b4",
+});
+
+export const LATTICE_TOKENIZER_SRI = Object.freeze({
+  generator: "sha256-rrEzB6cazY/oGGHZStVKtonfdzMYgJ7tPL55S0SS2uQ=",
+  verifier: "sha256-eePlImNfMXEwCRO7QhRkqH3mIiGCoFcLmyzLoqlksrQ=",
 });
 
 const LATTICE_GENERATOR_INFERENCE_STAGES = Object.freeze({
@@ -129,5 +139,5 @@ export const LOCAL_LATTICE_MODEL = Object.freeze({
   wasmRepository: LATTICE_WASM_REPOSITORY,
   wasmSha256: LATTICE_WASM_SHA256,
   wasmBuildLineage: LATTICE_WASM_BUILD_LINEAGE,
-  wasmLicenseStatus: "Exact artifact hashes and PR 158/TVM/MLC source lineage are recorded; reproducible-build evidence and complete artifact-level license/NOTICE coverage remain open, so public execution is held.",
+  wasmLicenseStatus: "Exact artifact hashes and PR 158/TVM/MLC source lineage are recorded; reproducible-build evidence and complete artifact-level license/NOTICE coverage remain explicitly unestablished and are tracked as accepted residual risk rather than the active release blocker.",
 });

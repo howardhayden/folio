@@ -20,6 +20,8 @@
   --green-soft: #e8f1e5;
   --red: #950f22;
   --red-soft: #f8e9ec;
+  --amber: #7a4f00;
+  --blue: #075b78;
   --line: #cfd6cd;
   --focus: #077995;
   font-family: "Jost", "Avenir Next", Avenir, "Segoe UI", sans-serif;
@@ -100,7 +102,10 @@ tbody th { color: var(--red); }
 .boundary-list li { padding: 1rem; border: 1px solid var(--line); border-left: .25rem solid var(--red); background: var(--field); }
 .classification-high { border-top-color: var(--red); }
 .classification-moderate { border-top-color: #9a6500; }
-.gate-open-before-publication { border-left: .25rem solid var(--red); }
+.gate-open-release-blocker { border-left: .25rem solid var(--red); }
+.gate-post-deployment-verification { border-left: .25rem solid var(--amber); }
+.gate-accepted-residual-risk { border-left: .25rem solid var(--blue); }
+.gate-release-workflow-enforced,
 .gate-satisfied-in-source { border-left: .25rem solid var(--green); }
 .no-script { color: var(--muted); }
 .js .no-script { display: none; }

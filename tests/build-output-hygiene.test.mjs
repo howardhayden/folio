@@ -44,8 +44,11 @@ test("the HTML-only Pages artifact uses native anchors for application navigatio
   assert.match(chrome, /<a className="navbar-brand" href="\/"/u);
   assert.match(chrome, /<a[\s\S]*?className="nav-link"[\s\S]*?href=\{route\.href\}/u);
   assert.match(resumeView, /from "\.\/ResumeProjectsHeld"/u);
-  assert.match(heldProjects, /project\.id === "lattice"[\s\S]*?"\/projects\/lattice\/text-to-lattice\/"/u);
-  assert.match(heldProjects, /<a className="signal-fuzz" href=\{projectHref\}>/u);
+  assert.match(
+    heldProjects,
+    /project\.id === "lattice"[\s\S]*?className="tool-icon project-modal-trigger signal-fuzz"[\s\S]*?href="\/projects\/lattice\/text-to-lattice\/"[\s\S]*?aria-label="Read Text to Lattice release status"/u,
+  );
+  assert.match(heldProjects, /<a className="signal-fuzz" href=\{project\.canonicalPath\}>/u);
   assert.doesNotMatch(heldProjects, /aria-haspopup=|role="dialog"/u);
 });
 

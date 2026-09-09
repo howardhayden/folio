@@ -1,4 +1,8 @@
-import { hardenedLatticeAssetRequest, isAllowedLatticeAssetUrl } from "./assetRequestPolicy.js";
+import {
+  hardenedLatticeCacheMatch,
+  hardenedLatticeAssetRequest,
+  isAllowedLatticeAssetUrl,
+} from "./assetRequestPolicy.js";
 import { LATTICE_MODEL_ROLES, LOCAL_LATTICE_MODEL } from "./modelContract.js";
 import {
   ANALYSIS_SCHEMA,
@@ -33,6 +37,12 @@ globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
 }) as typeof fetch;
 
 if (typeof Cache !== "undefined") {
+  const nativeCacheMatch = Cache.prototype.match;
+  const nativeCacheDelete = Cache.prototype.delete;
+  Cache.prototype.match = function match(input: RequestInfo | URL, options?: CacheQueryOptions) {
+    return hardenedLatticeCacheMatch(this, nativeCacheMatch, nativeCacheDelete, input, options);
+  };
+
   const nativeCacheAdd = Cache.prototype.add;
   Cache.prototype.add = function add(input: RequestInfo | URL) {
     return nativeCacheAdd.call(this, hardenedLatticeAssetRequest(input));
@@ -60,7 +70,7 @@ for (const constructorName of ["XMLHttpRequest", "WebSocket", "EventSource", "We
   });
 }
 
-// These modules evaluate only after the worker's network boundary is installed.
+// These modules evaluate only after the worker's network and cache boundaries are installed.
 const guardedWebLlmModule = import("@mlc-ai/web-llm");
 const guardedTokenizerModule = import("@mlc-ai/web-tokenizers");
 

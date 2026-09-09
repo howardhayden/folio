@@ -96,15 +96,15 @@ test("quota ETA rounds upward at second, minute, and hour boundaries", () => {
   assert.match(latticeRetryEta(now + 3_660_001, now, "en-US"), /Try again in 1 hour 2 minutes\b/u);
 });
 
-test("the canonical Lattice link only intercepts unmodified primary activations", async () => {
+test("the Lattice project SVG alone intercepts unmodified primary activations", async () => {
   const source = await readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8");
-  const linkStart = source.indexOf('href="/projects/lattice/text-to-lattice/"');
-  const linkEnd = source.indexOf("</a>", linkStart);
-  assert.ok(linkStart >= 0 && linkEnd > linkStart, "the canonical Lattice link is present");
+  const handlerStart = source.indexOf("const launchLattice = useCallback");
+  const handlerEnd = source.indexOf("}, [openLattice]);", handlerStart);
+  assert.ok(handlerStart >= 0 && handlerEnd > handlerStart, "the shared Lattice launch handler is present");
 
-  const link = source.slice(linkStart, linkEnd);
-  const preventAt = link.indexOf("event.preventDefault()");
-  const openAt = link.indexOf("openLattice(event.currentTarget)");
+  const handler = source.slice(handlerStart, handlerEnd);
+  const preventAt = handler.indexOf("event.preventDefault()");
+  const openAt = handler.indexOf("openLattice(event.currentTarget)");
 
   for (const guard of [
     "event.defaultPrevented",
@@ -114,17 +114,28 @@ test("the canonical Lattice link only intercepts unmodified primary activations"
     "event.shiftKey",
     "event.altKey",
   ]) {
-    const guardAt = link.indexOf(guard);
+    const guardAt = handler.indexOf(guard);
     assert.ok(guardAt >= 0 && guardAt < preventAt, `${guard} is checked before interception`);
   }
   assert.ok(
     preventAt >= 0 && openAt > preventAt,
     "the modal opens only after native navigation is intentionally intercepted",
   );
+  assert.equal(
+    (source.match(/onClick=\{launchLattice\}/gu) ?? []).length,
+    1,
+    "only the project SVG link launches the modal",
+  );
+  assert.match(source, /className="tool-icon project-modal-trigger signal-fuzz"[\s\S]*?<ProjectIcon/u);
+  assert.match(source, /<a className="signal-fuzz" href=\{project\.canonicalPath\}>\{project\.name\}<\/a>/u);
+  assert.doesNotMatch(source, /project-title-button|lattice-project-launch/u);
 });
 
 test("resume detail links preserve native modified and nonprimary navigation", async () => {
-  const source = await readFile(new URL("../app/resume/ResumeExperience.tsx", import.meta.url), "utf8");
+  const [source, css] = await Promise.all([
+    readFile(new URL("../app/resume/ResumeExperience.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
   const helperStart = source.indexOf("function shouldInterceptResumeModalLink");
   const helperEnd = source.indexOf("\n}\n", helperStart);
   assert.ok(helperStart >= 0 && helperEnd > helperStart, "the shared link guard is present");
@@ -146,6 +157,13 @@ test("resume detail links preserve native modified and nonprimary navigation", a
     2,
     "timeline and progress detail links both use the native-navigation guard",
   );
+  assert.match(source, /<article className=\{className\}[\s\S]*?<TimelineEntry[\s\S]*?detailLink=\{detailLink\}/u);
+  assert.match(source, /className="timeline-icon-trigger signal-fuzz"[\s\S]*?aria-haspopup="dialog"/u);
+  assert.doesNotMatch(source, /<a className=\{`\$\{className\} timeline-button`\}/u);
+  assert.match(css, /\.progress-bar-fill \{[\s\S]*?text-align: right;/u);
+  assert.match(css, /\.progress-value \{[\s\S]*?text-align: right;/u);
+  assert.match(css, /\.progress-label \{[\s\S]*?text-align: right;/u);
+  assert.match(css, /\.project-modal-trigger,\s*\.timeline-icon-trigger \{[\s\S]*?min-height: 24px;[\s\S]*?min-width: 24px;/u);
 });
 
 test("semantic card headings retain an h5-scale presentation", async () => {

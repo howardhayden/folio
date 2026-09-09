@@ -10,7 +10,20 @@ The frame receives only a public Turnstile site key, widget size, and single-use
 2. Store `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` as encrypted bindings for the lease Worker. The site key is public by design but is not committed here; the secret key must never enter this static project or the browser bundle.
 3. Bind the static-assets project to the `verify.hah.dev` custom domain and deploy from this directory. The checked-in Wrangler configuration contains no account identifier or credential.
 4. At the `hah.dev` response-header/CDN layer, add `https://verify.hah.dev` to `frame-src` and disable `document-domain` through `Permissions-Policy`. Do not add `https://challenges.cloudflare.com` to the main page's `script-src`; only this isolated frame needs Cloudflare's runtime and challenge origins.
-5. Confirm that the deployed `_headers` policy is present on `/turnstile/` responses, then test an interactive challenge with keyboard navigation and a screen reader.
+5. Confirm that the deployed `_headers` policy is present on `/turnstile/`
+   responses, then test a real interactive challenge from the official parent
+   with keyboard navigation and a screen reader. Before first activation, carry
+   its token through the complete acquisition, delayed successful renewal, and
+   release trace required by the lease Worker runbook; a frame-only success does
+   not establish that the site key and validation secret belong to one working
+   widget.
+
+The public parent and frame share a versioned message schema but deploy
+separately. A breaking bridge change must continue accepting the currently
+published parent protocol until that client is retired, or use a new versioned
+frame path. Record the current frame and lease deployment identifiers and tested
+rollback order before changing this contract; if a later step fails, restore a
+frame compatible with the public parent rather than leaving a partial rollout.
 
 The main site is statically exported to GitHub Pages, so its CSP cannot be represented reliably in `next.config.ts`; the main-site `frame-src` allowance is a hosting prerequisite. The frame itself uses Cloudflare Workers Static Assets and invokes no Worker script. Cloudflare documents static asset requests as free and unlimited, so the frame adds no calls to the lease Worker's daily request or Durable Object budget. If routing is later changed to execute Worker code for each frame GET, those GETs must be included in the free-tier budget before deployment.
 

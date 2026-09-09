@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type SyntheticEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent as ReactMouseEvent,
+  type SyntheticEvent,
+} from "react";
 import {
   LATTICE_CLARIFICATION_SAFETY_LIMIT,
   LATTICE_CLARIFICATION_WORD_LIMIT,
@@ -369,6 +377,7 @@ export default function ResumeProjects() {
   const latticeInputRef = useRef<HTMLTextAreaElement>(null);
   const latticeOutputRef = useRef<HTMLElement>(null);
   const latticeTriggerRef = useRef<HTMLAnchorElement | null>(null);
+  const latticeDirectLaunchRef = useRef<HTMLAnchorElement | null>(null);
   const latticeAttestationRef = useRef<HTMLDivElement>(null);
   const latticeCancelButtonRef = useRef<HTMLButtonElement>(null);
   const latticeCloseRef = useRef<() => void>(() => {});
@@ -576,6 +585,7 @@ export default function ResumeProjects() {
       latticeDialogRef.current = null;
       latticeOutputRef.current = null;
       latticeTriggerRef.current = null;
+      latticeDirectLaunchRef.current = null;
     };
   }, [releaseCurrentLatticeLease]);
 
@@ -833,14 +843,41 @@ export default function ResumeProjects() {
     };
   }, [latticeOpen]);
 
-  const openLattice = (trigger: HTMLAnchorElement) => {
+  const openLattice = useCallback((trigger: HTMLAnchorElement) => {
     latticeTriggerRef.current = trigger;
     setLatticeError("");
     setLatticeInputInvalid(false);
     setLatticeUseConfirmed(false);
     setLatticeOpen(true);
     void checkEnvironment();
-  };
+  }, [checkEnvironment]);
+
+  const launchLattice = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.defaultPrevented
+      || event.button !== 0
+      || event.metaKey
+      || event.ctrlKey
+      || event.shiftKey
+      || event.altKey
+    ) return;
+    event.preventDefault();
+    openLattice(event.currentTarget);
+  }, [openLattice]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("tool") !== "text-to-lattice") return;
+    const trigger = latticeDirectLaunchRef.current;
+    if (!trigger) return;
+    url.searchParams.delete("tool");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+    openLattice(trigger);
+  }, [openLattice]);
 
   const updateLatticeInput = (value: string) => {
     setLatticeUseConfirmed(false);
@@ -1130,43 +1167,32 @@ export default function ResumeProjects() {
                 aria-labelledby={headingId}
               >
                 <div className="card-body">
-                  <div
-                    className="row justify-content-center"
-                    aria-hidden="true"
-                  >
-                    <span className="tool-icon signal-fuzz">
-                      <ProjectIcon icon={project.icon as ProjectIconName} />
-                    </span>
+                  <div className="row justify-content-center">
+                    {"interaction" in project && project.interaction === "lattice-demo" ? (
+                      <a
+                        ref={latticeDirectLaunchRef}
+                        className="tool-icon project-modal-trigger signal-fuzz"
+                        data-lattice-launch="text-to-lattice"
+                        href="/projects/lattice/text-to-lattice/"
+                        aria-label="Use Text to Lattice"
+                        aria-haspopup="dialog"
+                        aria-controls="lattice-demo-dialog"
+                        onClick={launchLattice}
+                      >
+                        <ProjectIcon icon={project.icon as ProjectIconName} />
+                      </a>
+                    ) : (
+                      <span className="tool-icon signal-fuzz" aria-hidden="true">
+                        <ProjectIcon icon={project.icon as ProjectIconName} />
+                      </span>
+                    )}
                   </div>
 
                   <h3
                     className="card-title tools-card-title row justify-content-center"
                     id={headingId}
                   >
-                    {"interaction" in project && project.interaction === "lattice-demo" ? (
-                      <a
-                        href="/projects/lattice/text-to-lattice/"
-                        className="project-title-button signal-fuzz"
-                        aria-haspopup="dialog"
-                        aria-controls="lattice-demo-dialog"
-                        onClick={(event) => {
-                          if (
-                            event.defaultPrevented
-                            || event.button !== 0
-                            || event.metaKey
-                            || event.ctrlKey
-                            || event.shiftKey
-                            || event.altKey
-                          ) return;
-                          event.preventDefault();
-                          openLattice(event.currentTarget);
-                        }}
-                      >
-                        {project.name}
-                      </a>
-                    ) : (
-                      <a className="signal-fuzz" href={project.canonicalPath}>{project.name}</a>
-                    )}
+                    <a className="signal-fuzz" href={project.canonicalPath}>{project.name}</a>
                   </h3>
 
                   {"readmeAfterFirstParagraph" in project && project.readmeAfterFirstParagraph ? (
@@ -1213,8 +1239,8 @@ export default function ResumeProjects() {
                                 rel={opensInNewTab ? "noopener noreferrer" : undefined}
                                 aria-label={
                                   opensInNewTab
-                                    ? `${resource.label} for ${project.name}, opens in a new tab`
-                                    : `${resource.label} for ${project.name}`
+                                    ? `${resource.label}, opens in a new tab`
+                                    : resource.label
                                 }
                               >
                                 <span aria-hidden="true">
@@ -1247,7 +1273,7 @@ export default function ResumeProjects() {
       </section>
 
       <div
-        className="modal resume-modal lattice-modal"
+        className="modal resume-modal"
         role="presentation"
         onClick={(event) => {
           if (event.target === event.currentTarget) closeLattice();
@@ -1256,7 +1282,7 @@ export default function ResumeProjects() {
       >
         <div
           ref={latticeDialogRef}
-          className="modal-content lattice-modal-content"
+          className="modal-content"
           id="lattice-demo-dialog"
           role="dialog"
           aria-modal="true"

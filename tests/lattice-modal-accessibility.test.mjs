@@ -9,8 +9,23 @@ const globalsCss = await readFile(new URL("../app/globals.css", import.meta.url)
 const attestationSource = await readFile(new URL("../app/resume/lattice/attestation.js", import.meta.url), "utf8");
 const promptSource = await readFile(new URL("../app/resume/lattice/promptContract.js", import.meta.url), "utf8");
 const modelContractSource = await readFile(new URL("../app/resume/lattice/modelContract.js", import.meta.url), "utf8");
+const canonicalPageSource = await readFile(new URL("../app/projects/lattice/text-to-lattice/page.tsx", import.meta.url), "utf8");
 
-test("the dormant interaction binds model disclosure and source-specific acceptable use", () => {
+test("the interactive release uses only the established project SVG as its card launcher", () => {
+  assert.match(resumeProjectsSource, /data-lattice-launch="text-to-lattice"/u);
+  assert.match(
+    resumeProjectsSource,
+    /className="tool-icon project-modal-trigger signal-fuzz"[\s\S]*?data-lattice-launch="text-to-lattice"[\s\S]*?aria-label="Use Text to Lattice"[\s\S]*?aria-haspopup="dialog"[\s\S]*?aria-controls="lattice-demo-dialog"[\s\S]*?onClick=\{launchLattice\}[\s\S]*?<ProjectIcon/u,
+  );
+  assert.equal((resumeProjectsSource.match(/onClick=\{launchLattice\}/gu) ?? []).length, 1);
+  assert.match(resumeProjectsSource, /<h3[\s\S]*?<a className="signal-fuzz" href=\{project\.canonicalPath\}>\{project\.name\}<\/a>[\s\S]*?<\/h3>/u);
+  assert.match(resumeProjectsSource, /url\.searchParams\.get\("tool"\) !== "text-to-lattice"/u);
+  assert.match(resumeProjectsSource, /window\.history\.replaceState[\s\S]*?openLattice\(trigger\)/u);
+  assert.match(canonicalPageSource, /href="\/resume\/\?tool=text-to-lattice#project-lattice"[^>]*>Use Text to Lattice<\/a>/u);
+  assert.match(canonicalPageSource, /releaseHeld \? \([\s\S]*?Use Text to Lattice/u);
+});
+
+test("the interaction binds model disclosure and source-specific acceptable use", () => {
   assert.match(resumeProjectsSource, /Model-assisted result: Qwen drafts locally and Llama 3\.2 checks locally/u);
   assert.match(resumeProjectsSource, /Review every result before relying on it/u);
   assert.match(resumeProjectsSource, />Built with Llama<\/a>/u);

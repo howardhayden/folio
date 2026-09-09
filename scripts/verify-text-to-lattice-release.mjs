@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +11,7 @@ import {
   LATTICE_TOKENIZER_FILENAME,
   LATTICE_TOKENIZER_RUNTIME,
   LATTICE_TOKENIZER_SHA256,
+  LATTICE_TOKENIZER_SRI,
   LATTICE_WASM_BUILD_LINEAGE,
   LATTICE_WASM_REPOSITORY,
   LATTICE_WASM_REVISION,
@@ -35,8 +36,69 @@ const expectedGateIds = Object.freeze([
   "GATE-05",
   "GATE-06",
 ]);
-const gateStatuses = new Set(["satisfied-in-source", "open-before-publication"]);
+const gateStatuses = new Set([
+  "satisfied-in-source",
+  "release-workflow-enforced",
+  "accepted-residual-risk",
+  "post-deployment-verification",
+  "open-release-blocker",
+]);
 const marginalValues = new Set(["high", "moderate", "low", "negative"]);
+const marginalDecisionValues = new Set([...marginalValues, "moderate-to-high"]);
+const gateProjectionFields = Object.freeze([
+  "id",
+  "label",
+  "status",
+  "marginalValue",
+  "requirement",
+  "currentEvidence",
+  "evidenceNeeded",
+  "rationale",
+  "evidence",
+  "safeguards",
+  "followUp",
+  "rollbackCondition",
+  "acceptanceBasis",
+]);
+const qualifiedSourceSetAlgorithm = "sha256-path-and-bytes-v1";
+const qualifiedSourceFiles = Object.freeze([
+  ".github/workflows/pages.yml",
+  "app/content/projectDocuments.js",
+  "app/content/textToLatticeContent.js",
+  "app/globals.css",
+  "app/projects/lattice/text-to-lattice/page.tsx",
+  "app/resume/ResumeProjects.tsx",
+  "app/resume/ResumeProjectsHeld.tsx",
+  "app/resume/ResumeView.tsx",
+  "app/resume/SkillStacks.tsx",
+  "app/resume/latticeDemo.js",
+  "app/resume/projects.js",
+  "app/semantic/portfolio.js",
+  "app/semantic/routes.js",
+  "app/third-party-notices/page.tsx",
+  "next.config.ts",
+  "package-lock.json",
+  "package.json",
+  "scripts/build-pages.mjs",
+  "scripts/clean-build-output.mjs",
+  "scripts/docs/build-text-to-lattice-documentation.mjs",
+  "scripts/fetch-lattice-tokenizers.mjs",
+  "scripts/fetch-lattice-wasm.mjs",
+  "scripts/read-text-to-lattice-release-state.mjs",
+  "scripts/verify-current-main-sha.mjs",
+  "scripts/verify-text-to-lattice-release.mjs",
+  "scripts/verify-text-to-lattice-secret-bindings.mjs",
+  "scripts/verify-text-to-lattice-services.mjs",
+  "tsconfig.json",
+  "vite.config.ts",
+  "workers/package-lock.json",
+  "workers/package.json",
+]);
+const qualifiedSourceTrees = Object.freeze([
+  "app/resume/lattice",
+  "workers/text-to-lattice-attestation-frame",
+  "workers/text-to-lattice-lease",
+]);
 const sha256Pattern = /^[a-f0-9]{64}$/u;
 const gitRevisionPattern = /^[a-f0-9]{40}$/u;
 const dateRevisionPattern = /^\d{4}-\d{2}-\d{2}$/u;
@@ -72,6 +134,7 @@ const heldForbiddenExecutableStrings = Object.freeze([
   "lattice-demo-dialog",
   "lattice-demo-input",
 ]);
+const staleEnabledPublicationPattern = /release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)|sole open (?:release )?blocker|held solely because|hold the interactive client/iu;
 const serializedVinextRscScript = /^\s*\(\(self\[Symbol\.for\("vinext\.navigationRuntime"\)\]\?\?=\{bootstrap:\{routeManifest:null\},functions:\{\}\}\)\.bootstrap\.rsc\?\?=\{rsc:\[\]\}\)\.rsc\.push\(("(?:\\[\s\S]|[^"\\])*")\)\s*;?\s*$/u;
 const expectedLlamaUseCases = new Map([
   ["AUP-DENY-01", ["operational-harm", false]],
@@ -95,6 +158,12 @@ function requireString(value, label) {
   return value;
 }
 
+function requireStringArray(value, label) {
+  if (!Array.isArray(value) || value.length === 0) fail(`${label} must be a nonempty array.`);
+  value.forEach((item, index) => requireString(item, `${label}[${index}]`));
+  return value;
+}
+
 function exactIds(records, expected, label) {
   if (!Array.isArray(records)) fail(`${label} must be an array.`);
   const ids = records.map((record) => record?.id);
@@ -105,6 +174,80 @@ function exactIds(records, expected, label) {
 
 function digest(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+function pathWithinRoot(path, label) {
+  const absolute = resolve(root, path);
+  const rel = relative(root, absolute);
+  if (!path || rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
+    fail(`${label} escapes the repository root: ${path}.`);
+  }
+  return { absolute, relative: rel.split("\\").join("/") };
+}
+
+async function qualifiedFilesBelow(directory, directoryLabel) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = [];
+  for (const entry of entries) {
+    const path = join(directory, entry.name);
+    if (entry.isSymbolicLink()) fail(`qualified source tree ${directoryLabel} contains a symbolic link.`);
+    if (entry.isDirectory()) nested.push(...await qualifiedFilesBelow(path, directoryLabel));
+    else if (entry.isFile()) nested.push(path);
+    else fail(`qualified source tree ${directoryLabel} contains an unsupported filesystem entry.`);
+  }
+  return nested;
+}
+
+async function verifyQualifiedSourceSet(register) {
+  const sourceSet = register.authority?.qualifiedSourceSet;
+  if (sourceSet?.algorithm !== qualifiedSourceSetAlgorithm) fail("qualified source set uses an unsupported digest algorithm.");
+  if (!sha256Pattern.test(sourceSet.sha256 ?? "")) fail("qualified source set must carry a lowercase SHA-256 digest.");
+  for (const field of ["files", "trees"]) {
+    if (!Array.isArray(sourceSet[field]) || sourceSet[field].length === 0
+      || sourceSet[field].some((value) => typeof value !== "string" || value.trim() === "")
+      || new Set(sourceSet[field]).size !== sourceSet[field].length
+      || [...sourceSet[field]].sort().some((value, index) => value !== sourceSet[field][index])) {
+      fail(`qualified source set ${field} must be a nonempty, sorted, duplicate-free path list.`);
+    }
+  }
+  if (JSON.stringify(sourceSet.files) !== JSON.stringify(qualifiedSourceFiles)
+    || JSON.stringify(sourceSet.trees) !== JSON.stringify(qualifiedSourceTrees)) {
+    fail("qualified source set must contain the exact reviewed activation, runtime, validator, and workflow path inventory.");
+  }
+  const prohibited = /^(?:docs\/text-to-lattice\/(?:LATTICE-DOCUMENTATION-ATLAS\.json|TEXT-TO-LATTICE-RELEASE-(?:REGISTER\.json|QUALIFICATION\.md))|public\/|site\/)/u;
+  if ([...sourceSet.files, ...sourceSet.trees].some((path) => prohibited.test(path))) {
+    fail("qualified source set must exclude its register, dossier, atlas, and generated outputs.");
+  }
+
+  const expanded = [];
+  for (const path of sourceSet.files) {
+    const resolved = pathWithinRoot(path, "qualified source file");
+    const metadata = await lstat(resolved.absolute);
+    if (metadata.isSymbolicLink() || !metadata.isFile()) fail(`qualified source file is not a regular file: ${path}.`);
+    expanded.push(resolved);
+  }
+  for (const path of sourceSet.trees) {
+    const resolved = pathWithinRoot(path, "qualified source tree");
+    const metadata = await lstat(resolved.absolute);
+    if (metadata.isSymbolicLink() || !metadata.isDirectory()) fail(`qualified source tree is not a directory: ${path}.`);
+    for (const absolute of await qualifiedFilesBelow(resolved.absolute, path)) {
+      expanded.push({ absolute, relative: relative(root, absolute).split("\\").join("/") });
+    }
+  }
+  expanded.sort((left, right) => Buffer.compare(Buffer.from(left.relative), Buffer.from(right.relative)));
+  if (new Set(expanded.map(({ relative: path }) => path)).size !== expanded.length) {
+    fail("qualified source set files and trees overlap.");
+  }
+  const hash = createHash("sha256").update("TEXT_TO_LATTICE_QUALIFIED_SOURCE_SET_V1\0");
+  for (const entry of expanded) {
+    const bytes = await readFile(entry.absolute);
+    hash.update(`${Buffer.byteLength(entry.relative)}\0${entry.relative}\0${bytes.length}\0`);
+    hash.update(bytes);
+    hash.update("\0");
+  }
+  const observed = hash.digest("hex");
+  if (observed !== sourceSet.sha256) fail("qualified source-set digest does not match the named activation, runtime, validator, and workflow sources.");
+  return observed;
 }
 
 function canonicalJson(value) {
@@ -165,8 +308,11 @@ async function verifyLlamaUseEvaluation(register) {
     || record.expectedAllowCount !== allowCount
     || record.expectedDenyCount !== denyCount
     || record.fixtureStatus !== "defined-and-machine-checked"
-    || record.exactModelExecutionStatus !== "open-before-publication") {
+    || !gateStatuses.has(record.exactModelExecutionStatus)) {
     fail("Llama-use evaluation evidence drifted from the release register.");
+  }
+  if (record.exactModelExecutionPerformed !== false) {
+    fail("Llama-use evaluation must not claim exact-model execution without recorded runtime evidence.");
   }
   const bytes = await readFile(llamaEvaluationPath);
   if (!sha256Pattern.test(record.sha256) || digest(bytes) !== record.sha256) {
@@ -192,6 +338,7 @@ async function verifyQualificationDossier(register) {
       artifacts.models[role].artifactUrl,
       artifacts.tokenizers[role].path,
       artifacts.tokenizers[role].sha256,
+      artifacts.tokenizers[role].sri,
       artifacts.wasm.files[role].name,
       artifacts.wasm.files[role].bytes.toLocaleString("en-US"),
       artifacts.wasm.files[role].sha256,
@@ -212,14 +359,17 @@ async function verifyQualificationDossier(register) {
   ];
   const gateRows = register.gates.map((gate) => `| ${gate.id} · ${gate.label} | ${machineValueLabel(gate.status)} | ${machineValueLabel(gate.marginalValue)} |`);
   for (const required of [
-    register.implementationRevision,
+    register.implementationBaselineRevision,
     artifactSetDigest,
+    register.authority.qualifiedSourceSet.sha256,
     `**Qualification date:** ${register.revision}`,
     ...artifactClaims,
     ...(register.overallStatus === "held" && register.publicClient?.status === "held"
       ? ["**Decision:** hold the interactive client; publish the method, implementation record, and documentation only."]
       : []),
-    ...(register.ownerDisposition?.status === "pending" ? ["No owner approval is recorded."] : []),
+    ...(register.ownerDisposition?.status === "release-directed"
+      ? ["Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence."]
+      : []),
     ...gateRows,
     "consequence × plausibility × lifecycle value",
     ...expectedGateIds,
@@ -247,6 +397,10 @@ function verifyArtifactSet(register) {
     if (artifacts.models[role].baseModelUrl !== LATTICE_MODEL_ROLES[role].baseModelRepository) fail(`${role} base-model URL drifted from the release register.`);
     if (artifacts.tokenizers[role].path !== LATTICE_TOKENIZER_FILENAME) fail(`${role} tokenizer path drifted from the release register.`);
     if (artifacts.tokenizers[role].sha256 !== LATTICE_TOKENIZER_SHA256[role]) fail(`${role} tokenizer digest drifted from the release register.`);
+    if (artifacts.tokenizers[role].sri !== LATTICE_TOKENIZER_SRI[role]
+      || artifacts.tokenizers[role].sri !== `sha256-${Buffer.from(artifacts.tokenizers[role].sha256, "hex").toString("base64")}`) {
+      fail(`${role} tokenizer SRI drifted from the model contract.`);
+    }
     const wasm = artifacts.wasm.files[role];
     if (!Number.isSafeInteger(wasm.bytes) || wasm.bytes <= 0) fail(`${role} WASM byte count is invalid.`);
     if (!sha256Pattern.test(wasm.sha256)) fail(`${role} WASM digest is invalid.`);
@@ -280,8 +434,15 @@ function verifyArtifactSet(register) {
     || artifacts.wasm.abiInspection.allocEmbeddingTensorBytes.generator !== 5242880
     || artifacts.wasm.abiInspection.allocEmbeddingTensorBytes.verifier !== 6291456
     || artifacts.wasm.abiInspection.customSections.length !== 0) fail("WASM ABI inspection record is incomplete or drifted.");
-  if (artifacts.wasm.reproducibility.status !== "open-before-publication") fail("WASM reproducibility may close only with a separately reviewed register revision.");
-  if (artifacts.models.verifier.artifactProvenanceStatus !== "open-before-publication") fail("Llama MLC artifact provenance is not presently closed.");
+  if (!gateStatuses.has(artifacts.wasm.reproducibility.status)) fail("WASM reproducibility has an unsupported qualification status.");
+  if (!gateStatuses.has(artifacts.models.verifier.artifactProvenanceStatus)) fail("Llama MLC artifact provenance has an unsupported qualification status.");
+  if (artifacts.wasm.reproducibility.established !== false) fail("WASM reproducibility must remain explicitly unestablished.");
+  if (artifacts.models.verifier.artifactProvenanceEstablished !== false) fail("Llama MLC-artifact provenance must remain explicitly unestablished.");
+  if (artifacts.models.verifier.artifactProvenanceStatus !== register.gates.find(({ id }) => id === "GATE-04B")?.status
+    || artifacts.wasm.reproducibility.status !== register.gates.find(({ id }) => id === "GATE-04C")?.status
+    || artifacts.llamaBehaviorEvaluation.exactModelExecutionStatus !== register.gates.find(({ id }) => id === "GATE-04A")?.status) {
+    fail("artifact qualification substatuses must match GATE-04A, GATE-04B, and GATE-04C.");
+  }
   if (artifacts.llamaTerms.officialSourceCommit !== LLAMA_3_2_TERMS_PROVENANCE.upstreamCommit
     || artifacts.llamaTerms.license.sha256 !== LLAMA_3_2_TERMS_PROVENANCE.sha256.license
     || artifacts.llamaTerms.acceptableUsePolicy.sha256 !== LLAMA_3_2_TERMS_PROVENANCE.sha256.acceptableUsePolicy
@@ -301,18 +462,49 @@ async function verifySourceBoundary(register) {
   }
   if (register.authority?.canonicalSource !== canonicalRegisterSource) fail("release-register canonical source declaration drifted.");
   if (register.authority?.qualificationDossier !== canonicalQualificationSource) fail("release qualification dossier declaration drifted.");
-  if (!gitRevisionPattern.test(register.implementationRevision)) fail("implementationRevision must identify the reviewed baseline commit.");
+  if (!gitRevisionPattern.test(register.implementationBaselineRevision)) fail("implementationBaselineRevision must identify the reviewed baseline commit.");
   if (!Array.isArray(register.statusVocabulary) || register.statusVocabulary.length !== gateStatuses.size
     || [...gateStatuses].some((status) => !register.statusVocabulary.includes(status))) {
     fail("statusVocabulary does not match the enforced gate vocabulary.");
   }
   requireString(register.authority?.decisionRule, "release decision rule");
   requireString(register.authority?.marginalValueRule, "marginal-value rule");
+  const qualifiedSourceSetDigest = await verifyQualifiedSourceSet(register);
+  if (register.ownerDisposition?.status !== "release-directed") fail("owner disposition must record the current release direction.");
+  requireString(register.ownerDisposition.owner, "owner disposition owner");
+  requireString(register.ownerDisposition.record, "owner disposition record");
+  requireString(register.ownerDisposition.note, "owner disposition note");
+  if (!dateRevisionPattern.test(register.ownerDisposition.decidedOn ?? "")) fail("owner disposition decidedOn must be a YYYY-MM-DD date.");
+  if (register.ownerDisposition.qualifiedSourceSetSha256 !== qualifiedSourceSetDigest) {
+    fail("owner direction must bind the qualified source-set digest.");
+  }
   exactIds(register.gates, expectedGateIds, "release gates");
   for (const gate of register.gates) {
     if (!gateStatuses.has(gate.status)) fail(`${gate.id} has an unsupported status.`);
     if (!marginalValues.has(gate.marginalValue)) fail(`${gate.id} has an unsupported marginal-value classification.`);
-    for (const field of ["label", "requirement", "currentEvidence", "evidenceNeeded"]) requireString(gate[field], `${gate.id} ${field}`);
+    for (const field of ["label", "requirement", "currentEvidence", "evidenceNeeded", "rationale", "followUp"]) {
+      requireString(gate[field], `${gate.id} ${field}`);
+    }
+    requireStringArray(gate.evidence, `${gate.id} evidence`);
+    requireStringArray(gate.safeguards, `${gate.id} safeguards`);
+    if (gate.status === "post-deployment-verification") requireString(gate.rollbackCondition, `${gate.id} rollbackCondition`);
+    else if (gate.rollbackCondition !== null) fail(`${gate.id} rollbackCondition must be null outside post-deployment verification.`);
+    if (gate.status === "accepted-residual-risk") requireString(gate.acceptanceBasis, `${gate.id} acceptanceBasis`);
+    else if (gate.acceptanceBasis !== null) fail(`${gate.id} acceptanceBasis must be null outside accepted residual risk.`);
+  }
+
+  if (!Array.isArray(register.marginalValueDecisions) || register.marginalValueDecisions.length === 0) {
+    fail("marginal-value decisions must be a nonempty array.");
+  }
+  const findingNames = register.marginalValueDecisions.map(({ finding }) => finding);
+  if (new Set(findingNames).size !== findingNames.length) fail("marginal-value decisions must name each finding once.");
+  for (const [index, decision] of register.marginalValueDecisions.entries()) {
+    for (const field of ["finding", "disposition", "rationale"]) {
+      requireString(decision[field], `marginal-value decision ${index} ${field}`);
+    }
+    if (!marginalDecisionValues.has(decision.classification)) {
+      fail(`marginal-value decision ${index} has an unsupported classification.`);
+    }
   }
 
   const atlas = await readJson(atlasPath, "documentation atlas");
@@ -320,8 +512,10 @@ async function verifySourceBoundary(register) {
   exactIds(atlas.securityModel?.prePublicationGates, expectedGateIds, "documentation-atlas gates");
   for (const gate of register.gates) {
     const atlasGate = atlas.securityModel.prePublicationGates.find(({ id }) => id === gate.id);
-    for (const field of ["label", "status", "marginalValue", "requirement", "currentEvidence", "evidenceNeeded"]) {
-      if (atlasGate[field] !== gate[field]) fail(`${gate.id} ${field} diverges between release register and documentation atlas.`);
+    for (const field of gateProjectionFields) {
+      if (JSON.stringify(atlasGate[field]) !== JSON.stringify(gate[field])) {
+        fail(`${gate.id} ${field} diverges between release register and documentation atlas.`);
+      }
     }
   }
 
@@ -330,35 +524,62 @@ async function verifySourceBoundary(register) {
   await verifyLlamaUseEvaluation(register);
   await verifyQualificationDossier(register);
 
-  const [viewSource, heldSource, projectsSource, routesSource] = await Promise.all([
+  const [viewSource, heldSource, interactiveSource, projectsSource, routesSource, projectPageSource, noticesSource, portfolioSource] = await Promise.all([
     readFile(join(root, "app/resume/ResumeView.tsx"), "utf8"),
     readFile(join(root, "app/resume/ResumeProjectsHeld.tsx"), "utf8"),
+    readFile(join(root, "app/resume/ResumeProjects.tsx"), "utf8"),
     readFile(join(root, "app/resume/projects.js"), "utf8"),
     readFile(join(root, "app/semantic/routes.js"), "utf8"),
+    readFile(join(root, "app/projects/lattice/text-to-lattice/page.tsx"), "utf8"),
+    readFile(join(root, "app/third-party-notices/page.tsx"), "utf8"),
+    readFile(join(root, "app/semantic/portfolio.js"), "utf8"),
   ]);
   const lattice = projectBySlug("lattice");
   if (!lattice) fail("Lattice project record is absent.");
 
-  const hasOpenGate = register.gates.some(({ status }) => status !== "satisfied-in-source");
-  const enabled = register.overallStatus === "eligible" && register.publicClient?.status === "enabled";
+  const hasOpenBlocker = register.gates.some(({ status }) => status === "open-release-blocker");
+  const enabled = register.overallStatus === "qualified" && register.publicClient?.status === "enabled";
+  if (enabled === hasOpenBlocker) {
+    fail("the public client must be enabled if and only if no open release blocker remains.");
+  }
   if (enabled) {
-    if (hasOpenGate) fail("an enabled public client cannot carry an open gate.");
-    if (register.ownerDisposition?.status !== "approved") fail("an enabled public client requires exact-revision owner approval.");
-    if (!gitRevisionPattern.test(register.ownerDisposition.revision ?? "")) fail("enabled owner approval requires an exact revision.");
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u.test(register.ownerDisposition.decidedAt ?? "")) fail("enabled owner approval requires an ISO UTC decision time.");
-    requireString(register.ownerDisposition.record, "enabled owner approval record");
-    for (const gate of register.gates) {
-      if (!Array.isArray(gate.evidence) || gate.evidence.length === 0) fail(`${gate.id} requires evidence before enablement.`);
-      requireString(gate.satisfiedAt, `${gate.id} satisfiedAt`);
+    if (register.publicClient.publicationMode !== "interactive-client") fail("enabled publication must declare interactive-client mode.");
+    if (register.publicClient.heldBoundary != null) fail("enabled publication must remove its held-only allow and deny boundary.");
+    for (const [label, source] of [
+      ["canonical project page", projectPageSource],
+      ["held résumé projection", heldSource],
+      ["project registry", projectsSource],
+      ["third-party notices", noticesSource],
+      ["semantic portfolio", portfolioSource],
+      ["documentation atlas", JSON.stringify(atlas)],
+    ]) {
+      if (/release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)/iu.test(source)) {
+        fail(`enabled publication contains stale held-gate copy in ${label}.`);
+      }
     }
     if (!viewSource.includes('from "./ResumeProjects"') || viewSource.includes('from "./ResumeProjectsHeld"')) fail("eligible mode must deliberately import the interactive project surface.");
     if (lattice.interactiveRelease !== "enabled") fail("eligible mode requires the Lattice project record to say enabled.");
     if (lattice.interaction !== "lattice-demo") fail("eligible mode requires the explicit Lattice interaction activation marker.");
-    fail("public-client enablement requires a separately reviewed validator revision; register and activation edits alone cannot publish inference.");
+    for (const pattern of [
+      /className="tool-icon project-modal-trigger signal-fuzz"/u,
+      /data-lattice-launch="text-to-lattice"/u,
+      /aria-label="Use Text to Lattice"/u,
+      /href="\/projects\/lattice\/text-to-lattice\/"/u,
+      /aria-haspopup="dialog"/u,
+      /id="lattice-demo-dialog"/u,
+      /id="lattice-demo-input"/u,
+      /id="lattice-use-confirmation"/u,
+    ]) {
+      if (!pattern.test(interactiveSource)) fail(`enabled project surface omits its required interaction contract: ${pattern}.`);
+    }
+    if ((interactiveSource.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length !== 1) {
+      fail("enabled project surface must expose exactly one Text to Lattice modal launcher.");
+    }
   } else {
     if (register.overallStatus !== "held" || register.publicClient?.status !== "held") fail("any noneligible state must be held consistently.");
     if (register.publicClient.publicationMode !== "documentation-only") fail("held publication must be documentation-only.");
-    if (register.ownerDisposition?.status === "approved") fail("held publication cannot carry an active owner approval.");
+    requireStringArray(register.publicClient.heldBoundary?.allow, "held publication allow boundary");
+    requireStringArray(register.publicClient.heldBoundary?.deny, "held publication deny boundary");
     if (!viewSource.includes('from "./ResumeProjectsHeld"') || viewSource.includes('from "./ResumeProjects"')) fail("held mode must import only the held project surface.");
     if (lattice.interactiveRelease !== "held") fail("held mode requires the Lattice project record to say held.");
     if (lattice.interaction !== null) fail("held mode must remove the public interaction activation marker.");
@@ -374,7 +595,13 @@ async function verifySourceBoundary(register) {
   for (const filename of ["LLAMA-USE-EVALUATION-CASES.json", "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md", "TEXT-TO-LATTICE-RELEASE-REGISTER.json"]) {
     if (!routesSource.includes(filename)) fail(`${filename} is not exported with the static documentation.`);
   }
-  for (const label of ["Concept Map", "Skill Map", "Service Blueprint", "Security Model", "Release Qualification"]) {
+  for (const label of [
+    "Lattice Concept and Ecosystem Map",
+    "Lattice System Skill Map",
+    "Text to Lattice Service Blueprint",
+    "Text to Lattice Security Model",
+    "Text to Lattice Release Qualification",
+  ]) {
     if (!lattice.resources.some((resource) => resource.label === label && resource.icon === "backpack4")) fail(`Lattice resource ${label} is missing its documentation icon.`);
   }
 
@@ -385,7 +612,7 @@ async function filesBelow(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   return (await Promise.all(entries.map(async (entry) => {
     const path = join(directory, entry.name);
-    if (entry.isSymbolicLink()) fail(`held site contains a symbolic link: ${relative(root, path).split("\\").join("/")}.`);
+    if (entry.isSymbolicLink()) fail(`release site contains a symbolic link: ${relative(root, path).split("\\").join("/")}.`);
     return entry.isDirectory() ? filesBelow(path) : [path];
   }))).flat();
 }
@@ -715,13 +942,14 @@ async function verifyHtmlRoute(site, htmlPath, inspectedScripts) {
   }
 }
 
-async function verifyBuiltBoundary(register, site) {
-  if (!(await stat(site)).isDirectory()) fail("--site requires a built site directory.");
-  const files = await filesBelow(site);
-  if (register.publicClient.status !== "held") fail("site verification supports only the deliberately held public client until a separately reviewed validator revision.");
-
+async function verifyHeldBuiltBoundary(site, files) {
   const resume = await readFile(join(site, "resume/index.html"), "utf8");
-  if (!/href="\/projects\/lattice\/text-to-lattice\/"[^>]*>Lattice<\/a>/u.test(resume)) fail("held résumé lacks the native Text to Lattice contract link.");
+  if (!/href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/u.test(resume)) {
+    fail("held résumé lacks the canonical Lattice title link.");
+  }
+  if (!/<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>\s*<svg\b[\s\S]*?<\/svg>\s*<\/a>/u.test(resume)) {
+    fail("held résumé lacks the SVG-only Text to Lattice contract link.");
+  }
 
   const inspectedScripts = new Set();
   for (const path of files.filter((candidate) => extname(candidate).toLowerCase() === ".html")) {
@@ -750,15 +978,77 @@ async function verifyBuiltBoundary(register, site) {
     verifyExecutableSource(bytes.toString("utf8"), `held executable asset ${rel}`);
   }
 
+}
+
+async function verifyEnabledBuiltBoundary(site, files) {
+  const [resume, project] = await Promise.all([
+    readFile(join(site, "resume/index.html"), "utf8"),
+    readFile(join(site, "projects/lattice/text-to-lattice/index.html"), "utf8"),
+  ]);
+  for (const pattern of [
+    /class="tool-icon project-modal-trigger signal-fuzz"/u,
+    /data-lattice-launch="text-to-lattice"/u,
+    /aria-label="Use Text to Lattice"/u,
+    /href="\/projects\/lattice\/text-to-lattice\/"/u,
+    /aria-haspopup="dialog"/u,
+    /id="lattice-demo-dialog"/u,
+    /id="lattice-demo-input"/u,
+    /id="lattice-use-confirmation"/u,
+  ]) {
+    if (!pattern.test(resume)) fail(`enabled résumé artifact omits its required interaction contract: ${pattern}.`);
+  }
+  if ((resume.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length !== 1) {
+    fail("enabled résumé artifact must expose exactly one Text to Lattice modal launcher.");
+  }
+  if (!/href="\/resume\/\?tool=text-to-lattice#project-lattice"[^>]*>Use Text to Lattice<\/a>/u.test(project)) {
+    fail("enabled canonical project page lacks its direct Text to Lattice launch path.");
+  }
+
+  const renderedEvidence = await Promise.all(files
+    .filter((path) => [".html", ".json", ".jsonld", ".md", ".txt"].includes(extname(path).toLowerCase()))
+    .map(async (path) => [relative(site, path).split("\\").join("/"), await readFile(path, "utf8")]));
+  const staleEvidence = renderedEvidence.find(([, source]) => staleEnabledPublicationPattern.test(source));
+  if (staleEvidence) {
+    fail(`enabled release artifact contains stale held-gate copy in ${staleEvidence[0]}.`);
+  }
+
+  const executable = (await Promise.all(files
+    .filter((path) => heldExecutableExtensions.has(extname(path).toLowerCase()))
+    .map((path) => readFile(path, "utf8"))))
+    .join("\n");
+  for (const required of [
+    "/api/text-to-lattice/lease",
+    "https://verify.hah.dev",
+    LATTICE_MODEL_ROLES.generator.id,
+    LATTICE_MODEL_ROLES.verifier.id,
+    LATTICE_MODEL_ROLES.generator.model,
+    LATTICE_MODEL_ROLES.verifier.model,
+    LATTICE_MODEL_ROLES.generator.modelLib,
+    LATTICE_MODEL_ROLES.verifier.modelLib,
+  ]) {
+    if (!executable.includes(required)) fail(`enabled release artifact omits the pinned runtime binding ${required}.`);
+  }
+}
+
+async function verifyExportedReleaseEvidence(site, files) {
   for (const filename of ["LLAMA-USE-EVALUATION-CASES.json", "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md", "TEXT-TO-LATTICE-RELEASE-REGISTER.json"]) {
     const exportedPath = files.find((path) => relative(site, path).split("\\").join("/") === `documentation/text-to-lattice/${filename}`);
     if (!exportedPath) {
-      fail(`held site omits exported release evidence ${filename}.`);
+      fail(`release site omits exported release evidence ${filename}.`);
     }
     const sourcePath = join(root, "docs/text-to-lattice", filename);
     const [sourceBytes, exportedBytes] = await Promise.all([readFile(sourcePath), readFile(exportedPath)]);
-    if (!sourceBytes.equals(exportedBytes)) fail(`held site release evidence ${filename} is not byte-identical to its canonical source.`);
+    if (!sourceBytes.equals(exportedBytes)) fail(`release-site evidence ${filename} is not byte-identical to its canonical source.`);
   }
+}
+
+async function verifyBuiltBoundary(register, site) {
+  if (!(await stat(site)).isDirectory()) fail("--site requires a built site directory.");
+  const files = await filesBelow(site);
+  if (register.publicClient.status === "held") await verifyHeldBuiltBoundary(site, files);
+  else if (register.publicClient.status === "enabled") await verifyEnabledBuiltBoundary(site, files);
+  else fail("site verification requires a held or enabled public-client status.");
+  await verifyExportedReleaseEvidence(site, files);
 }
 
 const args = process.argv.slice(2);

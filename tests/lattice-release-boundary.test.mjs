@@ -36,7 +36,7 @@ async function appendToHtml(path, markup) {
   await writeFile(path, source.replace("</body>", `${markup}</body>`));
 }
 
-test("the release register holds the public client at eight distinct evidence gates", async () => {
+test("the release register holds only the consequential live-service blocker", async () => {
   const [registerSource, atlasSource, evaluationSource, view, held, projectsSource, packageSource, workflow, validatorSource, wasmFetcher] = await Promise.all([
     readFile(registerPath, "utf8"),
     readFile(join(root, "docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json"), "utf8"),
@@ -58,15 +58,31 @@ test("the release register holds the public client at eight distinct evidence ga
   assert.equal(register.overallStatus, "held");
   assert.equal(register.publicClient.status, "held");
   assert.equal(register.publicClient.publicationMode, "documentation-only");
-  assert.equal(register.ownerDisposition.status, "pending");
+  assert.equal(register.ownerDisposition.status, "release-directed");
+  assert.equal(register.ownerDisposition.qualifiedSourceSetSha256, register.authority.qualifiedSourceSet.sha256);
+  assert.match(register.authority.qualifiedSourceSet.sha256, /^[a-f0-9]{64}$/u);
   assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
-  assert.ok(register.gates.every(({ status }) => status === "open-before-publication"));
-  assert.deepEqual(atlas.securityModel.prePublicationGates, register.gates.map(({ id, label, status, marginalValue, requirement, currentEvidence, evidenceNeeded }) => ({
-    id, label, status, marginalValue, requirement, currentEvidence, evidenceNeeded,
-  })));
+  assert.deepEqual(register.gates.map(({ id, status, marginalValue }) => [id, status, marginalValue]), [
+    ["GATE-01", "release-workflow-enforced", "high"],
+    ["GATE-02", "open-release-blocker", "high"],
+    ["GATE-03", "post-deployment-verification", "moderate"],
+    ["GATE-04A", "accepted-residual-risk", "moderate"],
+    ["GATE-04B", "accepted-residual-risk", "moderate"],
+    ["GATE-04C", "accepted-residual-risk", "moderate"],
+    ["GATE-05", "accepted-residual-risk", "moderate"],
+    ["GATE-06", "post-deployment-verification", "high"],
+  ]);
+  const gateProjectionFields = ["id", "label", "status", "marginalValue", "requirement", "currentEvidence", "evidenceNeeded", "rationale", "evidence", "safeguards", "followUp", "rollbackCondition", "acceptanceBasis"];
+  assert.deepEqual(atlas.securityModel.prePublicationGates, register.gates.map((gate) => Object.fromEntries(gateProjectionFields.map((field) => [field, gate[field]]))));
+  assert.ok(register.gates.every(({ rationale, evidence, safeguards, followUp }) => rationale && evidence.length && safeguards.length && followUp));
+  assert.ok(register.gates.filter(({ status }) => status === "post-deployment-verification").every(({ rollbackCondition }) => rollbackCondition));
+  assert.ok(register.gates.filter(({ status }) => status === "accepted-residual-risk").every(({ acceptanceBasis }) => acceptanceBasis));
   assert.equal(evaluation.cases.length, 10);
   assert.equal(evaluation.cases.filter(({ expectedSafety }) => expectedSafety).length, 5);
-  assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionStatus, "open-before-publication");
+  assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionStatus, "accepted-residual-risk");
+  assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionPerformed, false);
+  assert.equal(register.artifactSet.models.verifier.artifactProvenanceEstablished, false);
+  assert.equal(register.artifactSet.wasm.reproducibility.established, false);
   assert.equal(lattice.interactiveRelease, "held");
   assert.equal(lattice.interaction, null);
   assert.match(view, /from "\.\/ResumeProjectsHeld"/u);
@@ -84,12 +100,21 @@ test("the release register holds the public client at eight distinct evidence ga
   assert.match(wasmFetcher, /createHash\("sha1"\)[\s\S]*?blob \$\{bytes\.byteLength\}\\0/u);
   assert.match(wasmFetcher, /gitBlob !== record\.gitBlob/u);
   assert.match(wasmFetcher, /does not establish source reproducibility or artifact licensing/u);
-  assert.match(workflow, /Fetch and verify held Text to Lattice WASM identities[\s\S]*?release:lattice:verify:wasm/u);
-  assert.match(workflow, /Verify held Text to Lattice release boundary[\s\S]*?release:lattice:verify:site/u);
+  assert.match(workflow, /Fetch and verify pinned Text to Lattice WASM identities[\s\S]*?release:lattice:verify:wasm/u);
+  assert.match(workflow, /Verify Text to Lattice release boundary[\s\S]*?release:lattice:verify:site/u);
   assert.match(workflow, /actions\/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5\.0\.0[\s\S]*?include-hidden-files: true/u);
   assert.ok((workflow.match(/if: github\.ref == 'refs\/heads\/main'/gu) ?? []).length >= 2);
   assert.match(workflow, /npm run typecheck[\s\S]*?npm test/u);
-  assert.match(validatorSource, /register and activation edits alone cannot publish inference/u);
+  assert.doesNotMatch(validatorSource, /register and activation edits alone cannot publish inference/u);
+  assert.match(validatorSource, /public client must be enabled if and only if no open release blocker remains/u);
+  assert.match(validatorSource, /qualified source set must contain the exact reviewed activation, runtime, validator, and workflow path inventory/u);
+  assert.match(validatorSource, /enabled publication must declare interactive-client mode/u);
+  assert.match(validatorSource, /verifyEnabledBuiltBoundary/u);
+  assert.match(validatorSource, /enabled project surface must expose exactly one Text to Lattice modal launcher/u);
+  assert.match(validatorSource, /enabled résumé artifact must expose exactly one Text to Lattice modal launcher/u);
+  assert.match(validatorSource, /staleEnabledPublicationPattern/u);
+  assert.match(validatorSource, /sole open \(\?:release \)\?blocker/u);
+  assert.match(validatorSource, /enabled release artifact contains stale held-gate copy/u);
   assert.match(validatorSource, /artifacts\.models\[role\]\.artifactUrl !== LATTICE_MODEL_ROLES\[role\]\.revisionUrl/u);
   assert.match(validatorSource, /artifacts\.models\[role\]\.baseModelUrl !== LATTICE_MODEL_ROLES\[role\]\.baseModelRepository/u);
   assert.match(validatorSource, /artifacts\.wasm\.repository !== LATTICE_WASM_REPOSITORY/u);
@@ -107,16 +132,44 @@ test("the release register holds the public client at eight distinct evidence ga
 
 test("the validator rejects a nominally enabled client while any gate is open", async () => {
   const register = JSON.parse(await readFile(registerPath, "utf8"));
-  register.overallStatus = "eligible";
+  register.overallStatus = "qualified";
   register.publicClient.status = "enabled";
+  register.publicClient.publicationMode = "interactive-client";
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "lattice-release-test-"));
   const fixture = join(temporaryDirectory, "register.json");
   await writeFile(fixture, `${JSON.stringify(register, null, 2)}\n`);
   try {
     await assert.rejects(
       execute(process.execPath, [validator, "--source", `--register=${fixture}`], { cwd: root }),
-      (error) => /enabled public client cannot carry an open gate/u.test(`${error.stderr ?? ""}${error.message ?? ""}`),
+      (error) => /public client must be enabled if and only if no open release blocker remains/u.test(`${error.stderr ?? ""}${error.message ?? ""}`),
     );
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("qualification statuses retain their evidence, safeguard, acceptance, rollback, and source bindings", async () => {
+  const baseline = JSON.parse(await readFile(registerPath, "utf8"));
+  const mutations = [
+    [(record) => { record.authority.qualifiedSourceSet.sha256 = "0".repeat(64); }, /qualified source-set digest does not match/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-02").evidence = []; }, /GATE-02 evidence must be a nonempty array/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-04A").acceptanceBasis = null; }, /GATE-04A acceptanceBasis must be a nonempty string/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-06").rollbackCondition = null; }, /GATE-06 rollbackCondition must be a nonempty string/u],
+    [(record) => { record.marginalValueDecisions[0].classification = "novelty-only"; }, /marginal-value decision 0 has an unsupported classification/u],
+    [(record) => { record.marginalValueDecisions[1].rationale = ""; }, /marginal-value decision 1 rationale must be a nonempty string/u],
+  ];
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "lattice-qualification-schema-test-"));
+  const fixture = join(temporaryDirectory, "register.json");
+  try {
+    for (const [mutate, expectedFailure] of mutations) {
+      const record = structuredClone(baseline);
+      mutate(record);
+      await writeFile(fixture, `${JSON.stringify(record, null, 2)}\n`);
+      await assert.rejects(
+        execute(process.execPath, [validator, "--source", `--register=${fixture}`], { cwd: root }),
+        (error) => expectedFailure.test(`${error.stderr ?? ""}${error.message ?? ""}`),
+      );
+    }
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
@@ -136,6 +189,7 @@ test("the release register cannot redirect or relabel pinned runtime artifacts",
     [(record) => { record.artifactSet.structuredOutputRuntime.name = "Other grammar runtime"; }, /structured-output runtime name drifted/u],
     [(record) => { record.artifactSet.structuredOutputRuntime.url = "https://example.invalid/grammar"; }, /structured-output runtime repository URL drifted/u],
     [(record) => { record.artifactSet.tokenizers.generator.path = "other-tokenizer.json"; }, /generator tokenizer path drifted/u],
+    [(record) => { record.artifactSet.tokenizers.verifier.sri = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; }, /verifier tokenizer SRI drifted/u],
   ];
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "lattice-artifact-register-test-"));
   const fixture = join(temporaryDirectory, "register.json");
@@ -165,8 +219,12 @@ test("the held Pages artifact contains evidence but no Text to Lattice execution
     readFile(join(root, "docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json"), "utf8"),
   ]);
 
-  assert.match(resume, /href="\/projects\/lattice\/text-to-lattice\/"[^>]*>Lattice<\/a>/u);
-  assert.doesNotMatch(resume, /lattice-demo-dialog|lattice-demo-input|aria-haspopup="dialog"/u);
+  assert.match(resume, /href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/u);
+  assert.match(
+    resume,
+    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>\s*<svg\b[\s\S]*?<\/svg>\s*<\/a>/u,
+  );
+  assert.doesNotMatch(resume, /lattice-demo-dialog|lattice-demo-input|data-lattice-launch="text-to-lattice"/u);
   assert.match(project, /Release status:\s*(?:<!-- -->)?held/u);
   assert.match(project, /TEXT-TO-LATTICE-RELEASE-QUALIFICATION\.md/u);
   assert.match(qualification, /consequence × plausibility × lifecycle value/u);
@@ -266,7 +324,7 @@ test("the held-site validator rejects executable bypasses outside the résumé",
 
   await withCopiedSiteFixture(
     (site) => symlink(join(site, "_next"), join(site, "linked-assets"), "dir"),
-    /held site contains a symbolic link/u,
+    /release site contains a symbolic link/u,
   );
 
   await withCopiedSiteFixture(

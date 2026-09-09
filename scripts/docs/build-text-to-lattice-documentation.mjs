@@ -29,6 +29,28 @@ const releaseEvidenceFilenames = Object.freeze([
   "TEXT-TO-LATTICE-RELEASE-REGISTER.json",
 ]);
 const checkOnly = process.argv.slice(2).includes("--check");
+const releaseGateStatuses = new Set([
+  "satisfied-in-source",
+  "release-workflow-enforced",
+  "accepted-residual-risk",
+  "post-deployment-verification",
+  "open-release-blocker",
+]);
+const releaseGateProjectionFields = Object.freeze([
+  "id",
+  "label",
+  "status",
+  "marginalValue",
+  "requirement",
+  "currentEvidence",
+  "evidenceNeeded",
+  "rationale",
+  "evidence",
+  "safeguards",
+  "followUp",
+  "rollbackCondition",
+  "acceptanceBasis",
+]);
 
 if (process.argv.length > 3 || process.argv.slice(2).some((argument) => argument !== "--check")) {
   throw new Error("Usage: node scripts/docs/build-text-to-lattice-documentation.mjs [--check]");
@@ -217,16 +239,32 @@ function validateAtlas(data) {
       });
     }
   }
-  uniqueById(data.securityModel.prePublicationGates, "pre-publication gates");
+  uniqueById(data.securityModel.prePublicationGates, "release qualification gates");
   for (const gate of data.securityModel.prePublicationGates) {
-    if (!new Set(["satisfied-in-source", "open-before-publication"]).has(gate.status)) {
-      fail(`pre-publication gate ${gate.id} has an unsupported status.`);
+    if (!releaseGateStatuses.has(gate.status)) {
+      fail(`release gate ${gate.id} has an unsupported status.`);
     }
     if (!marginalValues.has(gate.marginalValue)) {
-      fail(`pre-publication gate ${gate.id} has unknown marginal value.`);
+      fail(`release gate ${gate.id} has unknown marginal value.`);
     }
-    for (const field of ["label", "requirement", "currentEvidence", "evidenceNeeded"]) {
-      requireString(gate[field], `pre-publication gate ${gate.id} ${field}`);
+    for (const field of ["label", "requirement", "currentEvidence", "evidenceNeeded", "rationale", "followUp"]) {
+      requireString(gate[field], `release gate ${gate.id} ${field}`);
+    }
+    requireArray(gate.evidence, `release gate ${gate.id} evidence`).forEach((item, index) => {
+      requireString(item, `release gate ${gate.id} evidence[${index}]`);
+    });
+    requireArray(gate.safeguards, `release gate ${gate.id} safeguards`).forEach((item, index) => {
+      requireString(item, `release gate ${gate.id} safeguards[${index}]`);
+    });
+    if (gate.status === "post-deployment-verification") {
+      requireString(gate.rollbackCondition, `release gate ${gate.id} rollbackCondition`);
+    } else if (gate.rollbackCondition !== null) {
+      fail(`release gate ${gate.id} rollbackCondition must be null outside post-deployment verification.`);
+    }
+    if (gate.status === "accepted-residual-risk") {
+      requireString(gate.acceptanceBasis, `release gate ${gate.id} acceptanceBasis`);
+    } else if (gate.acceptanceBasis !== null) {
+      fail(`release gate ${gate.id} acceptanceBasis must be null outside accepted residual risk.`);
     }
   }
   requireArray(data.securityModel.honestResidualBoundary, "honest residual boundary");
@@ -236,10 +274,24 @@ function validateReleaseGateProjection(data, releaseRegister) {
   if (releaseRegister?.format !== "TEXT_TO_LATTICE_RELEASE_REGISTER" || releaseRegister?.schemaVersion !== 1) {
     fail("release register format is unsupported.");
   }
-  const fields = ["id", "label", "status", "marginalValue", "requirement", "currentEvidence", "evidenceNeeded"];
-  const projection = releaseRegister.gates?.map((gate) => Object.fromEntries(fields.map((field) => [field, gate[field]])));
+  const projection = releaseRegister.gates?.map((gate) => Object.fromEntries(releaseGateProjectionFields.map((field) => [field, gate[field]])));
   if (JSON.stringify(data.securityModel.prePublicationGates) !== JSON.stringify(projection)) {
-    fail("pre-publication gates must be the exact ordered projection of the machine release register.");
+    fail("release qualification gates must be the exact ordered projection of the machine release register.");
+  }
+  if (!Array.isArray(releaseRegister.statusVocabulary)
+    || releaseRegister.statusVocabulary.length !== releaseGateStatuses.size
+    || [...releaseGateStatuses].some((status) => !releaseRegister.statusVocabulary.includes(status))) {
+    fail("release register statusVocabulary does not match the documentation gate vocabulary.");
+  }
+  const hasOpenBlocker = releaseRegister.gates.some(({ status }) => status === "open-release-blocker");
+  const enabled = releaseRegister.overallStatus === "qualified"
+    && releaseRegister.publicClient?.status === "enabled"
+    && releaseRegister.publicClient?.publicationMode === "interactive-client";
+  const held = releaseRegister.overallStatus === "held"
+    && releaseRegister.publicClient?.status === "held"
+    && releaseRegister.publicClient?.publicationMode === "documentation-only";
+  if ((hasOpenBlocker && !held) || (!hasOpenBlocker && !enabled)) {
+    fail("release register must be held exactly while an open release blocker remains.");
   }
 }
 
@@ -336,6 +388,8 @@ const commonCss = `
   --green-soft: #e8f1e5;
   --red: #950f22;
   --red-soft: #f8e9ec;
+  --amber: #7a4f00;
+  --blue: #075b78;
   --line: #cfd6cd;
   --focus: #077995;
   font-family: "Jost", "Avenir Next", Avenir, "Segoe UI", sans-serif;
@@ -416,7 +470,10 @@ tbody th { color: var(--red); }
 .boundary-list li { padding: 1rem; border: 1px solid var(--line); border-left: .25rem solid var(--red); background: var(--field); }
 .classification-high { border-top-color: var(--red); }
 .classification-moderate { border-top-color: #9a6500; }
-.gate-open-before-publication { border-left: .25rem solid var(--red); }
+.gate-open-release-blocker { border-left: .25rem solid var(--red); }
+.gate-post-deployment-verification { border-left: .25rem solid var(--amber); }
+.gate-accepted-residual-risk { border-left: .25rem solid var(--blue); }
+.gate-release-workflow-enforced,
 .gate-satisfied-in-source { border-left: .25rem solid var(--green); }
 .no-script { color: var(--muted); }
 .js .no-script { display: none; }
@@ -1069,14 +1126,29 @@ function securityMarkdown(data) {
     );
   }
   lines.push(
-    "## Pre-publication gate block",
+    "## Release qualification gates",
     "",
-    "Open gates are not converted into confidence by source test volume. The interactive wrapper must not be represented as release-cleared until each gate has exact-revision evidence or a recorded owner disposition.",
+    "Only `open-release-blocker` prevents activation. Every other status must preserve its evidence boundary, safeguards, follow-up, and—when verification can exist only after deployment—an explicit rollback condition.",
     "",
     "| ID | Gate | Status | Marginal value | Requirement | Current evidence | Evidence needed |",
     "| --- | --- | --- | --- | --- | --- | --- |",
     ...security.prePublicationGates.map((gate) => `| ${gate.id} | ${markdownCell(gate.label)} | ${humanLabel(gate.status)} | ${humanLabel(gate.marginalValue)} | ${markdownCell(gate.requirement)} | ${markdownCell(gate.currentEvidence)} | ${markdownCell(gate.evidenceNeeded)} |`),
     "",
+  );
+  for (const gate of security.prePublicationGates) {
+    lines.push(
+      `### ${gate.id} · ${gate.label}`,
+      "",
+      `- **Rationale:** ${gate.rationale}`,
+      `- **Evidence:** ${gate.evidence.join("; ")}`,
+      `- **Safeguards:** ${gate.safeguards.join("; ")}`,
+      `- **Follow-up:** ${gate.followUp}`,
+      ...(gate.acceptanceBasis ? [`- **Acceptance basis:** ${gate.acceptanceBasis}`] : []),
+      ...(gate.rollbackCondition ? [`- **Rollback condition:** ${gate.rollbackCondition}`] : []),
+      "",
+    );
+  }
+  lines.push(
     "## Honest residual boundary",
     "",
     ...security.honestResidualBoundary.map((item) => `- ${item}`),
@@ -1112,7 +1184,7 @@ function securityHtml(data) {
       </dl></div>
     </details>
   </article>`).join("");
-  const gateCards = security.prePublicationGates.map((gate) => `<article class="panel gate-${escapeHtml(gate.status)}"><p class="identifier">${escapeHtml(gate.id)} · ${escapeHtml(humanLabel(gate.status))} · ${escapeHtml(humanLabel(gate.marginalValue))} marginal value</p><h3>${escapeHtml(gate.label)}</h3><p>${escapeHtml(gate.requirement)}</p><p><strong>Current evidence:</strong> ${escapeHtml(gate.currentEvidence)}</p><p><strong>Evidence needed:</strong> ${escapeHtml(gate.evidenceNeeded)}</p></article>`).join("");
+  const gateCards = security.prePublicationGates.map((gate) => `<article class="panel gate-${escapeHtml(gate.status)}"><p class="identifier">${escapeHtml(gate.id)} · ${escapeHtml(humanLabel(gate.status))} · ${escapeHtml(humanLabel(gate.marginalValue))} marginal value</p><h3>${escapeHtml(gate.label)}</h3><p>${escapeHtml(gate.requirement)}</p><p><strong>Rationale:</strong> ${escapeHtml(gate.rationale)}</p><p><strong>Current evidence:</strong> ${escapeHtml(gate.currentEvidence)}</p><p><strong>Evidence needed:</strong> ${escapeHtml(gate.evidenceNeeded)}</p><p><strong>Evidence record:</strong></p>${htmlList(gate.evidence)}<p><strong>Safeguards:</strong></p>${htmlList(gate.safeguards)}<p><strong>Follow-up:</strong> ${escapeHtml(gate.followUp)}</p>${gate.acceptanceBasis ? `<p><strong>Acceptance basis:</strong> ${escapeHtml(gate.acceptanceBasis)}</p>` : ""}${gate.rollbackCondition ? `<p><strong>Rollback condition:</strong> ${escapeHtml(gate.rollbackCondition)}</p>` : ""}</article>`).join("");
   const toolbar = htmlToolbar({
     searchLabel: "Search threats, controls, gates, or residuals",
     filters: [
@@ -1128,27 +1200,30 @@ function securityHtml(data) {
   <section class="panel" aria-labelledby="assets-heading"><h2 id="assets-heading">Protected assets</h2><div class="table-wrap" tabindex="0" aria-label="Scrollable protected asset table"><table><caption>Security and trust objectives</caption><thead><tr><th scope="col">ID</th><th scope="col">Asset</th><th scope="col">Objective</th></tr></thead><tbody>${assets}</tbody></table></div></section>
   <section class="panel" aria-labelledby="boundaries-heading"><h2 id="boundaries-heading">Trust boundaries</h2><ul class="boundary-list">${boundaries}</ul></section>
   ${toolbar}<div class="record-grid">${cards}</div></section>
-  <section aria-labelledby="gates-heading"><div class="panel boundary"><p class="eyebrow">Open means open</p><h2 id="gates-heading">Pre-publication gate block</h2><p>Source tests do not become deployed proof by volume. The interactive wrapper must not be represented as release-cleared until each gate has exact-revision evidence or a recorded owner disposition.</p></div><div class="record-grid">${gateCards}</div></section>
+  <section aria-labelledby="gates-heading"><div class="panel boundary"><p class="eyebrow">Evidence stays typed</p><h2 id="gates-heading">Release qualification gates</h2><p>Only an open release blocker prevents activation. Source-satisfied, workflow-enforced, accepted-residual, and post-deployment statuses keep distinct evidence and lifecycle duties; none converts missing runtime evidence into a completed claim.</p></div><div class="record-grid">${gateCards}</div></section>
   <section class="panel" aria-labelledby="residual-heading"><h2 id="residual-heading">Honest residual boundary</h2>${htmlList(security.honestResidualBoundary)}</section>
   <section class="panel"><h2>Sources and exports</h2><p><a class="button-link" href="TEXT-TO-LATTICE-SECURITY-MODEL.md" download>Download complete Markdown</a> <a class="button-link" href="documentation-atlas.json" download>Download authoritative JSON</a> <a class="button-link" href="artifact-manifest.json">Inspect integrity manifest</a></p></section>
   ${htmlSources(data)}${htmlTerms()}`;
   return htmlPage(data, {
     title: "Text to Lattice security model",
-    description: "Assets, trust boundaries, twelve consequential threats, as-built controls, pre-publication gates, and residuals—classified by marginal value.",
+    description: "Assets, trust boundaries, twelve consequential threats, as-built controls, release qualification gates, and residuals—classified by marginal value.",
     current: "security",
     content,
   });
 }
 
-function indexHtml(data) {
+function indexHtml(data, releaseRegister) {
   const summaries = new Map([
     ["DOC-CONCEPT", "Trace caller authority through meaning contracts, protected evaluation, evidence, host duties, and four ecosystem applications."],
     ["DOC-SKILL", "Inspect the upstream engine's capability shape on a zero-to-five system-evidence scale adapted from NN/g skill mapping."],
     ["DOC-BLUEPRINT", "Follow the wrapper across eight stages, six service layers, four accountability lines, and eight lifecycle owners."],
-    ["DOC-SECURITY", "Review assets, boundaries, SEC-01 through SEC-12, marginal value, pre-publication gates, and honest residuals."],
+    ["DOC-SECURITY", "Review assets, boundaries, SEC-01 through SEC-12, marginal value, release qualification gates, and honest residuals."],
   ]);
   const cards = data.artifacts.map((artifact) => `<article class="index-card"><p class="eyebrow">${escapeHtml(artifact.scope)}</p><h2>${escapeHtml(artifact.title)}</h2><p>${escapeHtml(summaries.get(artifact.id))}</p><div class="link-row"><a href="${escapeHtml(artifact.html)}">Open interactive edition</a><a href="${escapeHtml(artifact.markdown)}" download>Download Markdown</a></div></article>`).join("");
-  const releaseEvidence = `<section class="panel"><p class="eyebrow">Release evidence</p><h2>Text to Lattice qualification</h2><p>The interactive client is held. These exact-revision records explain the decision and the evidence still required.</p><ul><li><a href="TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md">Release qualification</a></li><li><a href="TEXT-TO-LATTICE-RELEASE-REGISTER.json">Machine release register</a></li><li><a href="LLAMA-USE-EVALUATION-CASES.json">Llama-use evaluation cases</a></li></ul></section>`;
+  const releaseSummary = releaseRegister.publicClient?.status === "held"
+    ? "The interactive client is held because an open release blocker remains. The records distinguish that blocker from accepted residuals and evidence that can exist only after deployment."
+    : "The interactive client is qualified. The records preserve accepted residuals, workflow controls, post-deployment checks, and rollback conditions without overstating runtime evidence.";
+  const releaseEvidence = `<section class="panel"><p class="eyebrow">Release evidence</p><h2>Text to Lattice qualification</h2><p>${escapeHtml(releaseSummary)}</p><ul><li><a href="TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md">Release qualification</a></li><li><a href="TEXT-TO-LATTICE-RELEASE-REGISTER.json">Machine release register</a></li><li><a href="LLAMA-USE-EVALUATION-CASES.json">Llama-use evaluation cases</a></li></ul></section>`;
   const content = `<section class="panel boundary"><p class="eyebrow">Method beside implementation</p><h2>Two authorities, four coordinated views</h2><p>The concept and system skill maps describe the upstream typed Lattice engine. The service blueprint and security model describe the separate Text to Lattice wrapper. The wrapper infers bounded meaning from prose and does not inherit a caller-supplied typed authority guarantee.</p><p>Every document remains complete without JavaScript. Scripting adds read-only search, filters, disclosure controls, and local Markdown export.</p></section>
   <section class="index-grid" aria-label="Available Lattice documentation">${cards}</section>
   ${releaseEvidence}
@@ -1218,7 +1293,7 @@ function validateGeneratedHtml(filename, html, {
   }
 }
 
-function buildArtifacts(data, canonicalBytes) {
+function buildArtifacts(data, canonicalBytes, releaseRegister) {
   const conceptMd = conceptMarkdown(data);
   const skillMd = skillMarkdown(data);
   const blueprintMd = blueprintMarkdown(data);
@@ -1243,7 +1318,7 @@ function buildArtifacts(data, canonicalBytes) {
     artifacts.set(join(publicOutputRoot, descriptor.html), Buffer.from(document.html));
   }
 
-  const index = indexHtml(data);
+  const index = indexHtml(data, releaseRegister);
   validateGeneratedHtml("index.html", index, { interactive: false });
   for (const descriptor of data.artifacts) {
     if (!index.includes(`href="${descriptor.html}"`) || !index.includes(`href="${descriptor.markdown}"`)) {
@@ -1341,4 +1416,4 @@ try {
 validateAtlas(atlas);
 validateReleaseGateProjection(atlas, releaseRegister);
 await validateProjectDocumentRegistry(atlas);
-commitArtifacts(buildArtifacts(atlas, canonicalBytes));
+commitArtifacts(buildArtifacts(atlas, canonicalBytes, releaseRegister));

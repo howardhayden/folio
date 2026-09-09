@@ -1963,29 +1963,16 @@ test("the production route layers independent local shapers before the exact glo
   assert.match(workerReadme, /secret put LEASE_CREDENTIAL_SECRET/u);
   assert.match(workerReadme, /secret put TURNSTILE_SECRET_KEY/u);
   assert.match(workerReadme, /Cloudflare encrypted Worker secrets/u);
-  assert.match(workerReadme, /protected GitHub environment secret/u);
-  const complianceApprovalAt = workerReadme.indexOf("Record release approval");
-  const modelArtifactAt = workerReadme.indexOf("MLC-converted Llama artifact", complianceApprovalAt);
-  const wasmProvenanceAt = workerReadme.indexOf("binary-mlc-llm-libs", modelArtifactAt);
-  const machineRegisterAt = workerReadme.indexOf("TEXT-TO-LATTICE-RELEASE-REGISTER.json", wasmProvenanceAt);
-  const publishMatch = /Only\s+then publish the static client/gu.exec(workerReadme.slice(machineRegisterAt));
-  const publishAt = publishMatch ? machineRegisterAt + publishMatch.index : -1;
-  assert.ok(
-    complianceApprovalAt >= 0
-      && modelArtifactAt > complianceApprovalAt
-      && wasmProvenanceAt > modelArtifactAt
-      && machineRegisterAt > wasmProvenanceAt
-      && publishAt > machineRegisterAt,
-    "separate Llama-use, Llama-artifact, and WASM-provenance evidence gates precede static client publication",
-  );
-  assert.match(workerReadme.slice(complianceApprovalAt, publishAt), /Llama 3\.2 Community License/u);
-  assert.match(workerReadme.slice(complianceApprovalAt, publishAt), /binary-mlc-llm-libs/u);
+  assert.match(workerReadme, /protected\s+`text-to-lattice-production` GitHub environment[\s\S]*?environment secret/u);
+  assert.match(workerReadme, /Preserve the exact verifier-use, converted-model, and WASM evidence and\s+residual-risk dispositions/u);
+  assert.match(workerReadme, /only when\s+no gate is `open-release-blocker`/u);
+  assert.match(workerReadme, /accepted residual risk and bounded\s+post-deployment verification remain explicit/u);
   const releaseRegister = JSON.parse(releaseRegisterSource);
   for (const id of ["GATE-04A", "GATE-04B", "GATE-04C"]) {
     const gate = releaseRegister.gates.find((entry) => entry.id === id);
     assert.deepEqual({ status: gate?.status, marginalValue: gate?.marginalValue }, {
-      status: "open-before-publication",
-      marginalValue: "high",
+      status: "accepted-residual-risk",
+      marginalValue: "moderate",
     });
   }
 

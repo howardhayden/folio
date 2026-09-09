@@ -3,13 +3,20 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  hardenedLatticeCacheMatch,
   hardenedLatticeAssetRequest,
   isAllowedLatticeAssetUrl,
+  latticeAssetIntegrity,
+  validateLatticeAssetIntegrity,
 } from "../app/resume/lattice/assetRequestPolicy.js";
 import {
   LATTICE_MODEL_ROLES,
+  LATTICE_TOKENIZER_SHA256,
+  LATTICE_TOKENIZER_SRI,
   LATTICE_WASM_BASE,
   LATTICE_WASM_REVISION,
+  LATTICE_WASM_SHA256,
+  LATTICE_WASM_SRI,
 } from "../app/resume/lattice/modelContract.js";
 import {
   LATTICE_COMPLETION_CALL_LIMIT,
@@ -82,6 +89,159 @@ test("model asset requests are fixed, credential-free, bodyless, and no-referrer
   assert.ok(LATTICE_WASM_BASE.includes(`/${LATTICE_WASM_REVISION}/`));
 });
 
+test("pinned executable and tokenizer requests enforce their exact SHA-256 integrity", () => {
+  for (const [role, model] of Object.entries(LATTICE_MODEL_ROLES)) {
+    const tokenizerUrl = new URL("tokenizer.json", model.model);
+    for (const [url, sha256, sri] of [
+      [model.modelLib, LATTICE_WASM_SHA256[role], LATTICE_WASM_SRI[role]],
+      [tokenizerUrl, LATTICE_TOKENIZER_SHA256[role], LATTICE_TOKENIZER_SRI[role]],
+    ]) {
+      assert.equal(sri, `sha256-${Buffer.from(sha256, "hex").toString("base64")}`);
+      assert.equal(latticeAssetIntegrity(url), sri);
+      assert.equal(latticeAssetIntegrity(new Request(url)), sri);
+      assert.equal(hardenedLatticeAssetRequest(url).integrity, sri);
+      assert.equal(hardenedLatticeAssetRequest(new Request(url)).integrity, sri);
+      assert.equal(hardenedLatticeAssetRequest(url, { integrity: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" }).integrity, sri);
+      assert.equal(hardenedLatticeAssetRequest(new Request(url, { integrity: "sha384-forged" })).integrity, sri);
+    }
+  }
+
+  const shardUrl = new URL("params_shard_0.bin", LATTICE_MODEL_ROLES.generator.model);
+  const configUrl = new URL("mlc-chat-config.json", LATTICE_MODEL_ROLES.verifier.model);
+  assert.equal(latticeAssetIntegrity(shardUrl), null);
+  assert.equal(latticeAssetIntegrity(configUrl), null);
+  assert.equal(hardenedLatticeAssetRequest(shardUrl).integrity, "");
+  assert.equal(hardenedLatticeAssetRequest(new Request(configUrl, { integrity: "sha384-existing" })).integrity, "sha384-existing");
+
+  for (const unknownUrl of [
+    "https://example.invalid/unknown.wasm",
+    new URL("tokenizer_config.json", LATTICE_MODEL_ROLES.generator.model),
+    `${LATTICE_MODEL_ROLES.verifier.model}tokenizer.json?revision=forged`,
+  ]) {
+    assert.equal(latticeAssetIntegrity(unknownUrl), null);
+    assert.throws(() => hardenedLatticeAssetRequest(unknownUrl), /blocked an unexpected model-asset request/u);
+  }
+});
+
+test("protected-asset integrity records fail closed instead of silently downgrading", () => {
+  assert.equal(
+    validateLatticeAssetIntegrity(LATTICE_WASM_SHA256.generator, LATTICE_WASM_SRI.generator),
+    LATTICE_WASM_SRI.generator,
+  );
+  for (const [sha256, integrity] of [
+    [undefined, LATTICE_WASM_SRI.generator],
+    [LATTICE_WASM_SHA256.generator, undefined],
+    [LATTICE_WASM_SHA256.generator, "sha384-forged"],
+    [LATTICE_WASM_SHA256.generator, "sha256-not-base64"],
+    [LATTICE_WASM_SHA256.generator, LATTICE_WASM_SRI.verifier],
+  ]) {
+    assert.throws(
+      () => validateLatticeAssetIntegrity(sha256, integrity),
+      /invalid protected-asset integrity record/u,
+    );
+  }
+});
+
+test("protected cache hits are hashed, removed on mismatch, and treated as misses", async () => {
+  for (const model of Object.values(LATTICE_MODEL_ROLES)) {
+    for (const url of [model.modelLib, new URL("tokenizer.json", model.model)]) {
+      const events = [];
+      const poisonedResponse = new Response("pre-integrity poisoned cache entry");
+      const cache = {};
+      const nativeMatch = async function match(request, options) {
+        events.push({ operation: "match", options, request });
+        return poisonedResponse;
+      };
+      const nativeDelete = async function remove(request, options) {
+        events.push({ operation: "delete", options, request });
+        return true;
+      };
+
+      const result = await hardenedLatticeCacheMatch(
+        cache,
+        nativeMatch,
+        nativeDelete,
+        new Request(url, { integrity: "sha384-forged" }),
+        { ignoreSearch: false },
+      );
+      events.push({ operation: "create-engine" });
+
+      assert.equal(result, undefined);
+      assert.deepEqual(events.map(({ operation }) => operation), ["match", "delete", "create-engine"]);
+      assert.equal(events[0].request.integrity, latticeAssetIntegrity(url));
+      assert.equal(events[1].request.integrity, latticeAssetIntegrity(url));
+      assert.deepEqual(events[1].options, { ignoreVary: true });
+    }
+  }
+});
+
+test("an exact protected cache hit is preserved without a redownload", async (context) => {
+  let bytes;
+  try {
+    bytes = await readFile(process.env.LATTICE_QWEN_TOKENIZER_JSON ?? "/tmp/qwen3-lattice-tokenizer.json");
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+    context.skip("fetch the pinned Qwen tokenizer fixture to exercise a valid protected cache hit");
+    return;
+  }
+
+  const tokenizerUrl = new URL("tokenizer.json", LATTICE_MODEL_ROLES.generator.model);
+  const cachedResponse = new Response(bytes);
+  let deleteCalled = false;
+  const result = await hardenedLatticeCacheMatch(
+    {},
+    async function match(request) {
+      assert.equal(request.integrity, LATTICE_TOKENIZER_SRI.generator);
+      return cachedResponse;
+    },
+    async function remove() {
+      deleteCalled = true;
+      return true;
+    },
+    tokenizerUrl,
+  );
+  assert.equal(result, cachedResponse);
+  assert.equal(deleteCalled, false);
+});
+
+test("allowed unprotected cache hits pass through without hashing or deletion", async () => {
+  const shardUrl = new URL("params_shard_0.bin", LATTICE_MODEL_ROLES.generator.model);
+  const cachedResponse = { marker: "unchanged allowed shard" };
+  const matchedRequests = [];
+  const result = await hardenedLatticeCacheMatch(
+    {},
+    async function match(request) {
+      matchedRequests.push(request);
+      return cachedResponse;
+    },
+    async function remove() {
+      assert.fail("an allowed unprotected cache hit must not be removed");
+    },
+    new Request(shardUrl, { integrity: "sha384-existing" }),
+  );
+  assert.equal(result, cachedResponse);
+  assert.equal(matchedRequests[0].integrity, "sha384-existing");
+});
+
+test("cache matching blocks requests outside the worker asset boundary", async () => {
+  let nativeMatchCalled = false;
+  const nativeMatch = async () => {
+    nativeMatchCalled = true;
+    return new Response("must not be visible");
+  };
+  const nativeDelete = async () => assert.fail("blocked cache requests must not delete entries");
+  for (const request of [
+    "https://example.invalid/unknown.wasm",
+    new Request(LATTICE_MODEL_ROLES.generator.modelLib, { method: "POST", body: "x" }),
+  ]) {
+    await assert.rejects(
+      hardenedLatticeCacheMatch({}, nativeMatch, nativeDelete, request),
+      /blocked an unexpected model-asset request/u,
+    );
+  }
+  assert.equal(nativeMatchCalled, false);
+});
+
 test("the inference worker rejects unexpected external fetch destinations", async () => {
   const source = await readFile(new URL("../app/resume/lattice/latticeWebllm.worker.ts", import.meta.url), "utf8");
   const localModelSource = await readFile(new URL("../app/resume/lattice/localModel.js", import.meta.url), "utf8");
@@ -89,12 +249,18 @@ test("the inference worker rejects unexpected external fetch destinations", asyn
   assert.match(source, /hardenedLatticeAssetRequest\(request\)/u);
   assert.doesNotMatch(source, /url\.origin === self\.location\.origin/u);
   assert.match(source, /blocked an unexpected worker request/u);
+  assert.match(source, /Cache\.prototype\.match/u);
   assert.match(source, /Cache\.prototype\.addAll/u);
+  assert.match(source, /hardenedLatticeCacheMatch\(this, nativeCacheMatch, nativeCacheDelete, input, options\)/u);
   assert.match(source, /guardedWebLlmModule = import\("@mlc-ai\/web-llm"\)/u);
   assert.match(source, /guardedTokenizerModule = import\("@mlc-ai\/web-tokenizers"\)/u);
   assert.ok(
     source.indexOf("globalThis.fetch =") < source.indexOf('import("@mlc-ai/web-llm")'),
     "the network boundary is installed before WebLLM evaluates",
+  );
+  assert.ok(
+    source.indexOf("Cache.prototype.match =") < source.indexOf('import("@mlc-ai/web-llm")'),
+    "the cache-read boundary is installed before WebLLM evaluates",
   );
   assert.ok(
     source.indexOf("Object.defineProperty(globalThis, constructorName") < source.indexOf('import("@mlc-ai/web-tokenizers")'),

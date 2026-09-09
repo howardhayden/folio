@@ -286,9 +286,9 @@ Before enabling the static client:
 
 5. Confirm all four encrypted bindings are present with `wrangler secret list`;
    that command reports names, never secret values. Deploy the Worker and its
-   SQLite migration only from an approved revision. Verify
-   that the route fails closed and does not pass API failures through to the
-   GitHub Pages origin:
+   SQLite migration only from an approved revision. The protected Pages
+   workflow performs this deployment with the locked `workers/package-lock.json`
+   toolchain; this direct command is retained for bounded operator recovery:
 
    ```sh
    npx wrangler@4.129.1 deploy --config workers/text-to-lattice-lease/wrangler.jsonc
@@ -303,8 +303,16 @@ Before enabling the static client:
    `frame-ancestors https://hah.dev` header on the deployed response. No account
    identifier, deploy credential, site key, or secret is committed by the
    static project.
-7. Smoke-test bodyless same-origin acquisition and authenticated bodyless renewal
-   and release; tampered, expired, and random bearer rejection before shaping;
+7. Before the first activation, complete one real official-page lifecycle with
+   the production widget: finish its human challenge, receive a `200` acquisition,
+   wait through the five-minute server renewal minimum, receive a `200` renewal,
+   and receive a `204` release. Retain only a sanitized trace containing the
+   deployed revision, timestamps, methods, statuses, and documented header names;
+   never retain the Turnstile token, lease bearer, cookie value, source, candidate,
+   or result. Repeat this trace after widget, secret, hostname, action, lease
+   protocol, Durable Object binding, or route changes. Also smoke-test bodyless
+   same-origin acquisition and authenticated bodyless renewal and release;
+   tampered, expired, and random bearer rejection before shaping;
    missing, replayed, expired, wrong-host, and wrong-action Turnstile rejection;
    exact-origin/source/schema frame-message rejection and keyboard access;
    request-body/query and forged-origin rejection; exact 40-request rolling and
@@ -317,27 +325,49 @@ Before enabling the static client:
    rate-limit bindings whose namespace identifiers are unused by every other
    Worker in the account, four secret binding names, and provider-side
    cold/warm request/CPU/storage/alarm measurements from the deployed revision.
-9. Record release approval for the exact public verifier behavior under the
-   Llama 3.2 Community License and Acceptable Use Policy. Keep that behavioral
-   decision separate from the MLC-converted Llama artifact's source, integrity,
-   license, and notice chain. For the exact `binary-mlc-llm-libs` files, record
-   either equivalent upstream artifact attestation or a controlled replacement
-   build with pinned source, submodules, compiler, environment, commands,
-   flags, complete license inventory, output digests, and compatibility
-   evidence. Apache-2.0 source licenses and PR-level source lineage do not, by
-   themselves, establish a reproducible licensed binary artifact.
-10. Update `TEXT-TO-LATTICE-RELEASE-REGISTER.json` only from the exact evidence.
-    Run the source and built-site release validators, record the site owner's
-    exact-revision disposition, and verify that every gate is satisfied. Only
-    then publish the static client that requires the lease.
+9. Preserve the exact verifier-use, converted-model, and WASM evidence and
+   residual-risk dispositions in `TEXT-TO-LATTICE-RELEASE-REGISTER.json`.
+   Re-open a gate when observed behavior, artifact identity, terms, runtime
+   compatibility, or the documented safeguards drift. Do not describe base-model
+   terms or PR-level source lineage as a reproducible licensed binary artifact.
+10. Update `TEXT-TO-LATTICE-RELEASE-REGISTER.json` only from exact evidence.
+    Run the source and built-site release validators and retain the site owner's
+    qualified-source-set direction. The public client may be enabled only when
+    no gate is `open-release-blocker`; accepted residual risk and bounded
+    post-deployment verification remain explicit and carry their recorded
+    follow-up or immediate-disable condition.
 
-The three secret runtime values belong only in Cloudflare and should not be
-duplicated into GitHub. The current GitHub Pages workflow uses GitHub’s
-ephemeral permissions and needs no stored deployment credential. If Worker
-deployment is automated later, keep a least-privilege `CLOUDFLARE_API_TOKEN`
-in a protected GitHub environment secret; `CLOUDFLARE_ACCOUNT_ID` is an
-identifier rather than secret material and can be an environment variable.
-Never embed either value in a workflow or repository file.
+The three private runtime values belong only in Cloudflare and must not be
+duplicated into GitHub. The public Turnstile site key is also kept as a
+Cloudflare Worker binding so the checked-in frame stays configuration-free.
+The Pages workflow deploys both services through the protected
+`text-to-lattice-production` GitHub environment. Store only the least-privilege
+deploy credential as the environment secret
+`CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN`; store `CLOUDFLARE_ACCOUNT_ID`, an
+identifier rather than secret material, as an environment variable. Never
+embed either value in the workflow or repository.
+
+While the client is held, ordinary pushes skip the protected service job and
+continue to publish the documentation-only site. An approved manual dispatch
+with `deploy_text_to_lattice_services` can bootstrap and qualify the services;
+the first pass may create a fail-closed Worker and then stop at the exact
+secret-name inventory until the four Cloudflare bindings are installed. Once
+the register enables the client, the Pages deployment cannot proceed unless
+the service deployment and live boundary probes succeed in the same workflow
+run.
+
+The frame and lease routes are shared, unversioned dependencies of the currently
+published Pages client, and their deployments are not atomic with the Pages
+deployment. A protocol-breaking service or bridge change must therefore remain
+backward-compatible with the public client throughout the deployment window, or
+introduce a versioned frame path and lease route and switch the client only after
+the new version passes its live probes. Before such a change, record recoverable
+provider deployment identifiers and a tested rollback order for both services.
+If a later deployment or qualification step fails after either shared service
+changed, restore the compatible service versions before leaving the incident;
+do not leave the old public client pointed at a partially advanced protocol.
+The initial held bootstrap has no interactive public client and does not waive
+this requirement for later releases.
 
 The GitHub Pages workflow installs the locked dependency graph without lifecycle
 scripts and uses no long-lived deploy credential. Local static preview does not

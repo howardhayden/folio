@@ -136,7 +136,7 @@ test("the deployment guard bounds an unresponsive ref request", async () => {
   );
 });
 
-test("Pages checks current main before building, uploading, and immediately before deploying", async () => {
+test("Pages checks current main around build, service deployment, and page deployment boundaries", async () => {
   const [workflow, qualification] = await Promise.all([
     readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8"),
     readFile(new URL("../docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md", import.meta.url), "utf8"),
@@ -148,14 +148,28 @@ test("Pages checks current main before building, uploading, and immediately befo
   const install = workflow.indexOf("npm ci --ignore-scripts");
   const siteVerification = workflow.indexOf("npm run release:lattice:verify:site");
   const configurePages = workflow.indexOf("actions/configure-pages@");
+  const serviceDeployGuard = workflow.indexOf("Require current main before service deployment");
+  const installWorkers = workflow.indexOf("npm ci --ignore-scripts --prefix workers");
+  const liveServiceVerification = workflow.indexOf("run: node scripts/verify-text-to-lattice-services.mjs\n");
+  const postServiceGuard = workflow.indexOf("Require current main after service verification");
   const deploy = workflow.indexOf("name: Deploy", workflow.indexOf("deploy:"));
 
   assert.ok(firstGuard >= 0 && firstGuard < install, "the build guard must run before dependency installation and build work");
   assert.ok(uploadGuard > siteVerification && uploadGuard < configurePages, "the artifact guard must run after site verification and before upload");
+  assert.ok(serviceDeployGuard > configurePages && serviceDeployGuard < installWorkers, "the service guard must run before Worker deployment tooling is installed");
+  assert.ok(postServiceGuard > liveServiceVerification && postServiceGuard < deploy, "the post-service guard must run after live verification and before page deployment");
   assert.ok(deployGuard > uploadGuard && deployGuard < deploy, "the deployment guard must be the final verification before deploy-pages");
+  for (const name of [
+    "Require current main before build",
+    "Require current main before artifact upload",
+    "Require current main before service deployment",
+    "Require current main after service verification",
+    "Require current main before deployment",
+  ]) assert.match(workflow, new RegExp(`${name}[\\s\\S]*?run: node scripts\\/verify-current-main-sha\\.mjs`, "u"));
   assert.match(workflow, /Require current main before deployment[\s\S]*?run: node scripts\/verify-current-main-sha\.mjs\n\s+- name: Deploy/u);
-  assert.equal(workflow.match(/node scripts\/verify-current-main-sha\.mjs/gu)?.length, 3);
-  assert.equal(workflow.match(/GITHUB_TOKEN: \$\{\{ github\.token \}\}/gu)?.length, 3);
-  assert.match(qualification, /Historical workflow runs retain their original commit and workflow definition/u);
-  assert.match(qualification, /cancel or delete retained pre-guard runs and invalidate their artifacts/u);
+  assert.equal(workflow.match(/node scripts\/verify-current-main-sha\.mjs/gu)?.length, 5);
+  assert.equal(workflow.match(/GITHUB_TOKEN: \$\{\{ github\.token \}\}/gu)?.length, 5);
+  assert.match(qualification, /requires its exact commit to equal `GITHUB_SHA` at its publication boundaries/u);
+  assert.match(qualification, /a stale workflow commit fail closed/u);
+  assert.match(qualification, /A successful future run and deployed commit remain workflow evidence; this source record does not predeclare them/u);
 });

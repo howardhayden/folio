@@ -7,27 +7,28 @@
 **Qualification date:** 2026-09-09
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
-**Artifact-set projection SHA-256:** `eac29ee0b3d059ac5a4bee794cbc0c6157034d5d79e17a51744b943d55c06d23`
+**Qualified source-set SHA-256:** `77a2a4bba558c7fb920052b14486e1ab81d0f5fcde2706a56bac5cef100c08c1`
+**Artifact-set projection SHA-256:** `5613bf89d45e9b61213b6cc4c2bd6d4a72d2e4e4d3bcda34d0fcf97a587eaf1f`
 
 This is an engineering release decision, not legal advice, an upstream warranty, or independent certification. It applies only to the exact revisions and digests named below. A source test proves a source contract; it does not prove a production origin, provider setting, assistive-technology path, network trace, third-party license grant, or reproducible binary.
 
-## Why the hold is correct
+## Why the client remains held
 
-Text to Lattice can put arbitrary visitor prose through a Llama verifier and two precompiled WebAssembly model libraries. Those are consequential boundaries, not merely unusual edge cases.
+Exactly one release blocker remains: the deployed origin and secret boundary does not yet exist in the form the interaction requires. During the 2026-09-09 review, the live lease route returned HTTP 404, `verify.hah.dev` did not resolve, and the reviewed `hah.dev` response carried neither Content-Security-Policy nor Permissions-Policy. An interaction activated in that state would predictably fail and would not have the documented two-origin browser boundary. This is high marginal value: the failure is ordinary, plausible, consequential, and cheap to recognize.
 
-- A generic `safety` Boolean cannot, by itself, establish that the service evaluates the requested use by purpose, authority, and likely consequence under the [Llama 3.2 Acceptable Use Policy](https://developer.meta.com/ai/llama3_2/use-policy/). Without point-of-use disclosure and a source-specific use confirmation, the visitor also lacks a clear account of model assistance, limitations, and their own authority.
-- A digest proves which WASM bytes will run. The upstream lineage identifies where those bytes entered the binary repository and which source revisions the pull request names. Neither fact proves how the files were built, what exact compiler and linked inputs produced them, whether a rebuild matches them, or which artifact-level notices apply.
-- The public interaction additionally depends on a lease Worker and `verify.hah.dev` surface that the Pages workflow does not deploy. During qualification, the public lease path did not expose the required service and the verification host was unavailable. Source completeness therefore cannot be promoted into a deployed claim.
+The other gaps are real, but they do not all have the same release consequence:
 
-The consequence is unauthorized or harmful model use, misleading presentation, execution of insufficiently attributable binary code, privacy leakage, an inaccessible failure path, or an interaction that simply cannot work. The pathways are plausible in an ordinary public deployment, and the controls are reusable across every later model or provider revision. These are high-marginal-value release gates.
+- Exact release identity is **release-workflow-enforced**. The qualified source set binds the activation, runtime, validator, and workflow sources without hashing this register or generated evidence. Current-main checks separately bind the deployed commit. This records a mandatory lifecycle control; it does not claim that a future workflow run has already happened.
+- Capacity and the production privacy trace are **post-deployment verification**. Those facts cannot exist honestly before the service exists. Each has bounded safeguards, a concrete follow-up, and a condition that disables the client on consequential failure.
+- Exact-model Llama fixture execution, the incomplete converted-model custody narrative, the absent historical WASM rebuild, and the eventual complete assistive-technology matrix are **accepted residual risks**. Their evidence gaps stay explicit. A verifier false negative is not bounded merely because explicit denials are withheld, and artifact hashes do not establish license or notice custody. Source confirmation, tool-free local operation, human review, exact technical identity, accessibility contracts, and requalification triggers bound the official product surface without pretending the missing evidence exists.
 
-Holding publication does not roll back the completed implementation. It keeps that implementation reviewable while the public surface offers native links to the canonical project page and mapped documentation. Eligibility returns only when every machine gate is satisfied and the site owner records approval for the exact source and artifact set.
+This is not a relaxation into “edge cases do not matter.” It is a classification by consequence × plausibility × lifecycle value. A rare finding can still block release when its realistic consequence is high. Conversely, byte-for-byte reconstruction of an undocumented workstation WASM build has negative marginal value for this product boundary after exact artifact identity, lineage, ABI, configuration, release-time digest checks, and runtime integrity checks are bound. The exact two WASM and two tokenizer requests enforce their recorded SRI values; protected Cache API hits are SHA-256 checked and mismatches are evicted before use, while allowed model shards remain bounded to immutable model-revision URLs. Upstream clarification or a maintainable controlled replacement remains useful; bespoke historical reconstruction is not a condition of publication.
 
-### Deployment-history boundary
+Holding the client does not roll back the completed implementation. It keeps the interaction out of the public bundle while the canonical project page, mapped documentation, source, and evidence remain available. The machine rule is direct: the public client is enabled if and only if no gate is `open-release-blocker`.
 
-The candidate Pages workflow now verifies that its `GITHUB_SHA` is still the current `main` revision before building, before artifact upload, and immediately before deployment. It also pins the Pages artifact action to its signed v5.0.0 commit, whose nested upload action is SHA-pinned, and explicitly retains `.nojekyll` in the uploaded artifact.
+## Owner direction and evidence boundary
 
-That source change cannot alter a historical workflow retained by GitHub Actions. Successful [run 33575222169](https://github.com/howardhayden/folio/actions/runs/33575222169) used pre-hold `main` revision `7522ab1057c80747dc4e710210922b31ad60c094`, remains within GitHub’s rerun window at qualification time, and can rebuild the earlier interactive site under its original workflow. The existing `github-pages` environment restricts deployments to `main`, but a historical rerun retains that ref. GATE-01 therefore also requires an owner-side record that pre-hold Pages runs are deleted, have expired beyond rerun, or are rejected by a current-SHA deployment protection. No destructive run-history operation is inferred from this source review.
+Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence. The direction is bound to the qualified source-set digest, not to the older implementation baseline alone. It does not manufacture a successful lease response, DNS record, response header, provider capacity result, exact-model execution, assistive-technology session, artifact license, reproducible build, or network trace.
 
 ## Evidence register
 
@@ -37,8 +38,8 @@ That source change cannot alter a historical workflow retained by GitHub Actions
 | Browser runtime set | [WebLLM](https://github.com/mlc-ai/web-llm) 0.2.82; [Web Tokenizers](https://github.com/mlc-ai/tokenizers-cpp) 0.1.6; [MLC Web XGrammar](https://github.com/mlc-ai/xgrammar) 0.1.27 | Named runtime identities and source repositories | Final browser behavior or binary provenance |
 | Qwen MLC model | [`a5c9fab855e3ccbdfed2e7e69683d75f30332161`](https://huggingface.co/mlc-ai/Qwen3-4B-q4f16_1-MLC/tree/a5c9fab855e3ccbdfed2e7e69683d75f30332161) | Immutable artifact-repository revision | Independent conversion provenance |
 | Llama MLC model | [`1e80abf71e3d17cd564e2d2b63caa15cb226018e`](https://huggingface.co/mlc-ai/Llama-3.2-3B-Instruct-q4f16_1-MLC/tree/1e80abf71e3d17cd564e2d2b63caa15cb226018e) | Immutable artifact-repository revision | Complete MLC conversion and artifact-license chain |
-| Qwen tokenizer | `tokenizer.json`; SHA-256 `aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4` | Expected tokenizer bytes | Model behavior or source authorship |
-| Llama tokenizer | `tokenizer.json`; SHA-256 `79e3e522635f3171300913bb421464a87de6222182a0570b9b2ccba2a964b2b4` | Expected tokenizer bytes | Model behavior or source authorship |
+| Qwen tokenizer | `tokenizer.json`; SHA-256 `aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4`; SRI `sha256-rrEzB6cazY/oGGHZStVKtonfdzMYgJ7tPL55S0SS2uQ=` | Expected tokenizer bytes and runtime integrity identity | Model behavior or source authorship |
+| Llama tokenizer | `tokenizer.json`; SHA-256 `79e3e522635f3171300913bb421464a87de6222182a0570b9b2ccba2a964b2b4`; SRI `sha256-eePlImNfMXEwCRO7QhRkqH3mIiGCoFcLmyzLoqlksrQ=` | Expected tokenizer bytes and runtime integrity identity | Model behavior or source authorship |
 | WASM repository | [`025bcaf3780fa8254f5e5efd3bfea0a5397248f4`](https://github.com/mlc-ai/binary-mlc-llm-libs/tree/025bcaf3780fa8254f5e5efd3bfea0a5397248f4/web-llm-models/v0_2_80) | Immutable binary tree | License grant or reproducible build |
 | Qwen WASM | `Qwen3-4B-q4f16_1-ctx4k_cs1k-webgpu.wasm`; 6,070,240 bytes; SHA-256 `5ddf44e49b03e53e24fd29a45591850924346140452f60c29280190388571340`; SRI `sha256-Xd9E5JsD5T4k/SmkVZGFCSQ0YUBFL2DCkoAZA4hXE0A=`; git blob `449f3615aa712b22e548f5ad91bb9fbee0c12259` | Exact library identity | Source equivalence |
 | Llama WASM | `Llama-3.2-3B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm`; 6,131,270 bytes; SHA-256 `34de0d60ab598c6a85ae882b48474f250193076f902057a21070bb2daae96d5b`; SRI `sha256-NN4NYKtZjGqFrogrSEdPJQGTB2+QIFeiEHC7LarpbVs=`; git blob `beda4ea1d45dc6c5294972b3ea3edfd317462142` | Exact library identity | Source equivalence |
@@ -50,7 +51,7 @@ That source change cannot alter a historical workflow retained by GitHub Actions
 | Llama AUP | SHA-256 `40e2777d7faa6beaf98400654170f414d8ab29b921b5163ad4ea0a1d39894201` | Checked-in policy matches the reviewed official file | Enforcement by the product |
 | Llama-use evaluation fixture | [`LLAMA-USE-EVALUATION-CASES.json`](LLAMA-USE-EVALUATION-CASES.json); SHA-256 `259ba4cc17d28e16bf9470621f95af017e26988e22602c452246f055e0b8d3b4`; five expected denials and five expected allowances | Stable non-operational cases and expected purpose-and-consequence dispositions | Actual behavior of the exact verifier artifact |
 
-The reviewed Llama files are byte-identical to the official Llama 3.2 files introduced in Meta's [`8d29d93fa5700a60532e0061a02ffa89d0acd3fc`](https://github.com/meta-llama/llama-models/commit/8d29d93fa5700a60532e0061a02ffa89d0acd3fc) commit and exposed through Meta's current [license](https://developer.meta.com/ai/llama3_2/license/) and [acceptable-use](https://developer.meta.com/ai/llama3_2/use-policy/) pages. The repository already carries the required Llama notice and “Built with Llama” attribution. Nothing located in those terms requires case-by-case advance permission for an ordinary deployment below the license's stated scale threshold; the pending owner disposition is this project's release control, not a claim that Meta operates an approval queue.
+The reviewed Llama files are byte-identical to the official Llama 3.2 files introduced in Meta's [`8d29d93fa5700a60532e0061a02ffa89d0acd3fc`](https://github.com/meta-llama/llama-models/commit/8d29d93fa5700a60532e0061a02ffa89d0acd3fc) commit and exposed through Meta's current [license](https://developer.meta.com/ai/llama3_2/license/) and [acceptable-use](https://developer.meta.com/ai/llama3_2/use-policy/) pages. The repository already carries the required Llama notice and “Built with Llama” attribution. Nothing located in those terms requires case-by-case advance permission for an ordinary deployment below the license's stated scale threshold; the recorded owner direction is this project's release control, not a claim that Meta operates an approval queue.
 
 ## Llama-use qualification
 
@@ -61,18 +62,18 @@ The reviewed Llama files are byte-identical to the official Llama 3.2 files intr
 - The required Llama attribution is present.
 - A verifier `safety: false` disposition suppresses candidate release.
 
-### What must exist before the interaction is public
+### Controls and residual evidence
 
 1. **Model-assistance disclosure.** At the point of use, state that Qwen drafts locally and Llama 3.2 checks locally; both can miss altered, omitted, biased, or unsafe meaning; every result requires human review; and the service is built with Llama.
 2. **Source-specific confirmation.** Reset the confirmation whenever source text changes. The visitor confirms that the use is lawful, authorized, within the supported language boundary, and does not materially further conduct prohibited by the Llama AUP.
 3. **Purpose-and-consequence safety.** The prompt contract fails closed when the requested transformation or candidate materially furthers a prohibited outcome or when necessary authority cannot be established. It may handle quotation, history, criticism, journalism, fiction, prevention, or defensive analysis when the transformation does not further the prohibited outcome.
 4. **No topic blacklist.** Do not substitute keyword matching for purpose, authority, and consequence. It predictably rejects legitimate contexts, misses paraphrases, and creates a brittle policy fork.
-5. **Executable evidence.** Run the checked-in [`LLAMA-USE-EVALUATION-CASES.json`](LLAMA-USE-EVALUATION-CASES.json) fixture against the exact release revisions. It balances realistic operational harm, malware improvement, deliberate deception, unauthorized professional practice, and sensitive-person inference against journalism, history and criticism, fiction, prevention and defense, and rights analysis. Preserve the existing invariant that no safety-failing candidate reaches the visitor, and record every false-positive and false-negative disposition.
-6. **Artifact provenance.** Resolve the Llama MLC conversion chain separately from behavior. Base-model terms and a Hugging Face commit pin do not alone establish the provenance of every converted artifact.
+5. **Executable evidence.** The checked-in [`LLAMA-USE-EVALUATION-CASES.json`](LLAMA-USE-EVALUATION-CASES.json) fixture balances realistic operational harm, malware improvement, deliberate deception, unauthorized professional practice, and sensitive-person inference against journalism, history and criticism, fiction, prevention and defense, and rights analysis. It has not been executed and manually reviewed against the exact verifier artifact in this environment. That unperformed run is recorded, not implied.
+6. **Artifact provenance.** The Llama MLC conversion chain remains separate from behavior. Base-model terms and a Hugging Face commit pin do not establish every conversion input or artifact-level notice.
 
-The held source now implements items 1–4, defines the ten-case non-operational fixture for item 5, and carries a direct safety-withholding regression. GATE-04A remains open because the fixture has not been exercised and manually reviewed against the exact verifier artifact, and because point-of-use comprehension evidence, trade-compliance disposition, and exact-revision owner acceptance have not been recorded. Item 6 is GATE-04B and remains independently open.
+The source implements items 1–4, defines the ten-case non-operational fixture, and carries a direct safety-withholding regression. GATE-04A accepts the unexecuted exact-model fixture as a moderate residual while stating that verifier false negatives remain unobserved and explicit-denial withholding depends on the model's classification. The bounded official surface is local and tool-free, requires source-specific confirmation, withholds errors and explicit denials, and requires human review. GATE-04B separately accepts the incomplete publisher conversion and artifact-notice narrative while binding the exact repository revision, tokenizer digest, runtime contract, controlling base-model terms, and attribution. Hashes do not cure the authorization gap. Either gate reopens on consequential observed behavior, artifact drift, or terms drift.
 
-This is not a demand for theoretical certainty. It is a bounded control set for a public arbitrary-prose service whose verifier is both a release gate and a licensed model.
+This is a bounded risk disposition, not a claim that the exact model was tested here or that the converted artifact has a complete custody chain.
 
 ## WASM provenance qualification
 
@@ -97,18 +98,18 @@ The TVM qualification is narrower than a simple commit citation, but the final c
 
 Both files expose the same 13-import/93-export ABI shape and embed the expected model-family, `q4f16_1`, 4,096-token context, 1,024-token prefill-chunk, and 128-sequence batch metadata. They contain no custom producer, version, source-map, license, or notice section. These observations support compatibility and triage; they do not establish authorship, reproducibility, or license custody.
 
-Two satisfactory closure paths remain:
+Two useful lifecycle-improvement paths remain:
 
 - obtain an upstream artifact-level license and build record that binds the exact files to complete inputs, toolchain, commands, flags, notices, and digests; or
 - produce controlled replacements from licensed pinned sources, record the complete dependency and compiler environment, publish notices, and verify the resulting bytes and behavior. A source-built replacement need not match the upstream binary, but its own provenance, integrity, compatibility, and tests must be complete.
 
-Switching models does not close this problem by itself. It creates a new model, conversion, runtime, behavior, license, and regression qualification while leaving the general WASM provenance boundary intact.
+Switching models does not erase the boundary by itself. It creates a new model, conversion, runtime, behavior, license, and regression qualification while leaving the general WASM provenance question intact.
 
-### Controlled replacement closure
+### Controlled replacement option
 
 A controlled replacement is feasible without trying to recreate an undocumented workstation byte for byte. The build should compile the two pinned `mlc-chat-config.json` inputs directly, because the historical Qwen preset is absent. It must point MLC-LLM explicitly at external TVM `c8515e1…`; MLC-LLM's own TVM submodule is a different revision. The reviewed config digests are `9726ac7dbcd90475f8045604be0862ef1b4837e432c5004da20b8a6e348330da` for Qwen and `10b2318d871320ca66c86b7a44cb444cea7677e078a1b147d4e0646958a87dbe` for Llama.
 
-Closure requires one bounded, reviewable evidence package:
+If a controlled replacement is pursued, its acceptance should use one bounded, reviewable evidence package:
 
 1. An immutable Linux builder image with compiler identities, exact source/submodule/input manifests, and both builder and distributed-code SBOMs.
 2. Hash-locked Python inputs and vendored Cargo crates; the build must succeed with locked, offline dependency resolution.
@@ -119,28 +120,26 @@ Closure requires one bounded, reviewable evidence package:
 7. WebLLM 0.2.82 first-load, cached-load, structured-output, tamper-failure, and production-network tests against both pinned model repositories.
 8. Human review and an exact-revision owner disposition. Llama behavior and model-artifact authorization remain separate gates.
 
-The replacement acceptance criterion is reproducible project-controlled output with a complete custody record and compatible behavior—not equality with undocumented upstream bytes. Reverse-engineering every theoretical component of the stripped binaries would add cost without reliable closure and is therefore low or negative marginal value.
+The replacement acceptance criterion would be reproducible project-controlled output with a complete custody record and compatible behavior—not equality with undocumented upstream bytes. Reverse-engineering every theoretical component of the stripped binaries would add cost without reliable closure and is negative marginal value for the current product boundary. GATE-04C therefore records an accepted moderate residual with two distinct parts: exact identity, available lineage, ABI, embedded configuration, immutable runtime URLs, release-time byte verification, protected-request SRI, and protected-cache digest verification reduce technical substitution and incompatibility risk; reproducibility and artifact-level authorization and notice custody remain explicitly unestablished and are not reduced by those hashes. The accepted boundary is a browser-local demonstrator retrieving the exact publisher-hosted libraries, not redistribution of those libraries from hah.dev.
 
 ## Gate disposition
 
 | Gate | Status | Marginal value | Release consequence |
 | --- | --- | --- | --- |
-| GATE-01 · Exact release artifact | Open before publication | High | A later source or build could escape the reviewed boundary. |
-| GATE-02 · Production origin and secret boundary | Open before publication | High | The public interaction can fail or cross an unverified origin/security boundary. |
-| GATE-03 · Edge and provider capacity controls | Open before publication | High | Public load can bypass the promised admission and lifecycle limits. |
-| GATE-04A · Llama behavior and public-use controls | Open before publication | High | The service can assist a prohibited outcome or misstate model-assisted work. |
-| GATE-04B · Llama MLC-artifact provenance | Open before publication | High | The converted verifier artifact lacks a complete source and license chain. |
-| GATE-04C · WASM provenance and license boundary | Open before publication | High | Exact opaque executable bytes lack a reproducible licensed build record. |
-| GATE-05 · Manual interaction and accessibility | Open before publication | High | Automated contracts can miss a blocked keyboard, AT, zoom, touch, or browser path. |
-| GATE-06 · Production privacy trace | Open before publication | High | Source or result text could escape through deployed behavior absent from source tests. |
+| GATE-01 · Exact release artifact | Release workflow enforced | High | A stale or substituted artifact could escape the reviewed boundary; the workflow fails closed and binds current main. |
+| GATE-02 · Production origin and secret boundary | Open release blocker | High | The live interaction cannot work as designed and lacks its required origin and response-policy boundary. |
+| GATE-03 · Edge and provider capacity controls | Post deployment verification | Moderate | Source controls bound failure; live provider behavior must be measured and disables the client if it exceeds the published bounds. |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate | Source disclosure, confirmation, semantic safety, candidate withholding, and balanced fixtures are present; exact-model execution is not claimed. |
+| GATE-04B · Llama MLC-artifact provenance | Accepted residual risk | Moderate | Immutable identity and controlling terms are bound; the publisher conversion and artifact-notice narrative remains incomplete. |
+| GATE-04C · WASM provenance and license boundary | Accepted residual risk | Moderate | Exact identity, lineage, ABI, and configuration are bound; reproducibility and artifact-level notice custody remain unestablished. |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate | Automated and browser checks cover critical paths; the eventual deployed assistive-technology matrix remains follow-up evidence. |
+| GATE-06 · Production privacy trace | Post deployment verification | High | Source controls keep prose local; the first deployed trace must confirm that fact and any content-bearing request disables the client. |
 
-No owner approval is recorded. The status therefore remains **held** even if source remediation later satisfies one or more rows.
+Owner direction is recorded for the qualified source set, but it does not override an open release blocker or count as missing runtime evidence. The status remains **held solely because GATE-02 is open**.
 
 ## Deployment freshness and retained runs
 
-The Pages workflow resolves GitHub's live `refs/heads/main` and requires its exact commit to equal `GITHUB_SHA` before build work, again after site verification and before artifact upload, and immediately before deployment. Missing credentials, an unexpected ref, an unreadable or malformed API response, and a stale workflow commit all fail closed. The repeated check and the workflow's cancel-in-progress concurrency policy narrow the interval in which a superseded build could reach Pages; they do not turn a remote ref read and deployment into one atomic operation.
-
-Historical workflow runs retain their original commit and workflow definition. This repository change therefore cannot retrofit a freshness guard into a run created before the guard existed. Before relying on the held boundary, the site owner must cancel or delete retained pre-guard runs and invalidate their artifacts, or impose an equivalent `github-pages` environment control that rejects stale revisions. That owner-side action is required operational follow-through, not evidence this source tree can claim as completed.
+The Pages workflow resolves GitHub's live `refs/heads/main` and requires its exact commit to equal `GITHUB_SHA` at its publication boundaries. Missing credentials, an unexpected ref, an unreadable or malformed API response, and a stale workflow commit fail closed. Immutable action pins, machine release-state checks, service and secret-name checks, and the qualified source-set digest make the control reusable across later releases. A successful future run and deployed commit remain workflow evidence; this source record does not predeclare them.
 
 ## Marginal-value decisions
 
@@ -151,11 +150,16 @@ Historical workflow runs retain their original commit and workflow definition. T
 | Keyword-only prohibited-topic blocking | Negative | Do not implement | Bespoke complexity creates false positives and trivial evasions while reducing semantic fidelity. |
 | Deterministic language detection as sole language gate | Negative | Do not implement | Short and mixed text makes a bespoke detector unreliable; a resettable confirmation is clearer and bounded. |
 | Point-of-use disclosure and source-specific confirmation | High | Fix now | Ordinary visitors otherwise cannot understand model participation, limitations, or the authority boundary. |
-| Machine-enforced held publication | High | Fix now | It converts a prose warning into a reusable lifecycle control for every future revision. |
-| Full WASM build record or controlled replacement | High | Required before enablement | Executable supply-chain integrity and license disposition have plausible security and maintenance consequences. |
+| Machine-enforced release-state publication | High | Fix now | It converts a prose warning into a reusable lifecycle control for every future revision and keeps GATE-02 fail-closed. |
+| Full historical WASM byte-for-byte rebuild | Negative | Do not require for this boundary | Bespoke reconstruction of unavailable workstation state adds greater maintenance burden than plausible risk reduction after exact identity and compatibility controls. |
+| Maintainable controlled WASM replacement | Moderate | Revisit when bounded | A project-controlled replacement can improve custody and notices if it is supportable without recreating undocumented history. |
+| Immediate post-deployment privacy trace | High | Verify; disable on failure | Sensitive prose leaving the browser would be consequential, while the evidence can exist only after deployment. |
+| Held résumé title and Text to Lattice icon link drift | Moderate | Fixed; regression tested | A stale built-boundary assertion could reject the corrected canonical-title and SVG-only tool-link contract; the plausible mismatch was cheap to repair without weakening the hold. |
+| Shared verification-frame propagation deadline | Moderate | Fixed; regression tested | A slowly settling first asset could leave later healthy frame assets only a token verification window; separate bounded windows remove a recoverable deployment false negative. |
+| Simultaneous programmatic résumé-modal body-class race | Low | Document; defer | Normal interface paths cannot open two résumé modals at once; reference-counting the class would add coordination complexity for a nonconsequential programmatic-only state. |
 
 The rule is not “ignore edge cases.” It is: repair when consequence × plausibility × lifecycle value justifies the change. Novel findings remain eligible; nonconsequential novelty does not acquire release priority merely by being difficult.
 
 ## Requalification boundary
 
-Re-run this decision after any model, tokenizer, runtime, WASM, Llama-terms, prompt, safety schema, candidate-release, origin, provider, lease, storage, telemetry, accessibility-critical, source-revision, or artifact-digest change. Record the site owner's decision only after the evidence names the exact candidate revision and artifacts. Until then, documentation is publishable; inference is not.
+Re-run this decision after any model, tokenizer, runtime, WASM, Llama-terms, prompt, safety schema, candidate-release, origin, provider, lease, storage, telemetry, accessibility-critical, qualified-source, or artifact-digest change. The current owner direction binds the named qualified source set. Documentation is publishable now; inference remains held until GATE-02 has recorded live evidence and no open release blocker remains.

@@ -1,0 +1,12 @@
+{
+  "name": "hahdev-edge-deployment",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.129.1"
+  }
+}

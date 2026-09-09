@@ -4,17 +4,38 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy_text_to_lattice_services:
+        description: Deploy and smoke-test held services for qualification
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
+  publication-boundary:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      public_client_status: ${{ steps.release-state.outputs.public_client_status }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - id: release-state
+        name: Read Text to Lattice publication boundary
+        run: node scripts/read-text-to-lattice-release-state.mjs
+
   build:
     if: github.ref == 'refs/heads/main'
+    needs: publication-boundary
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -36,10 +57,10 @@ jobs:
       - run: npm run typecheck
       - name: Fetch and verify pinned tokenizer fixtures
         run: node scripts/fetch-lattice-tokenizers.mjs
-      - name: Fetch and verify held Text to Lattice WASM identities
+      - name: Fetch and verify pinned Text to Lattice WASM identities
         run: npm run release:lattice:verify:wasm
       - run: npm test
-      - name: Verify held Text to Lattice release boundary
+      - name: Verify Text to Lattice release boundary
         run: npm run release:lattice:verify:site
       - name: Require current main before artifact upload
         env:
@@ -51,13 +72,104 @@ jobs:
           path: site
           include-hidden-files: true
 
+  deploy_text_to_lattice_services:
+    name: Deploy Text to Lattice services
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (
+        needs.publication-boundary.outputs.public_client_status == 'enabled' ||
+        (github.event_name == 'workflow_dispatch' && inputs.deploy_text_to_lattice_services == true)
+      )
+    environment:
+      name: text-to-lattice-production
+    runs-on: ubuntu-latest
+    concurrency:
+      group: text-to-lattice-services
+      cancel-in-progress: false
+    needs: [publication-boundary, build]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: workers/package-lock.json
+      - name: Require current main before service deployment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Install pinned Worker deployment tooling
+        run: npm ci --ignore-scripts --prefix workers
+      - name: Require protected Cloudflare deployment configuration
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          node -e 'for (const name of ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"])
+          if (!process.env[name]) throw new Error(`${name} is not configured in the protected environment.`)'
+      - name: Deploy isolated verification frame
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler deploy
+          --config workers/text-to-lattice-attestation-frame/wrangler.jsonc
+      - name: Verify deployed frame bytes and isolation headers
+        run: node scripts/verify-text-to-lattice-services.mjs --frame-only
+      - name: Deploy lease Worker
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler deploy
+          --config workers/text-to-lattice-lease/wrangler.jsonc
+      - name: Verify encrypted Worker binding names
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler secret list --format json
+          --config workers/text-to-lattice-lease/wrangler.jsonc
+          > "$RUNNER_TEMP/text-to-lattice-secret-bindings.json"
+      - name: Check encrypted Worker binding inventory
+        run: >-
+          node scripts/verify-text-to-lattice-secret-bindings.mjs
+          "$RUNNER_TEMP/text-to-lattice-secret-bindings.json"
+      - name: Verify live Text to Lattice boundaries
+        run: node scripts/verify-text-to-lattice-services.mjs
+      - name: Require current main after service verification
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      needs.publication-boundary.result == 'success' &&
+      needs.build.result == 'success' &&
+      (
+        (
+          needs.publication-boundary.outputs.public_client_status == 'held' &&
+          contains(fromJSON('["skipped", "success"]'), needs.deploy_text_to_lattice_services.result)
+        ) ||
+        (
+          needs.publication-boundary.outputs.public_client_status == 'enabled' &&
+          needs.deploy_text_to_lattice_services.result == 'success'
+        )
+      )
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    needs: [publication-boundary, build, deploy_text_to_lattice_services]
     permissions:
       contents: read
       pages: write

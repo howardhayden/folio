@@ -1042,33 +1042,45 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
     readFile(new URL("../app/resume/SkillStacks.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(source, /^"use client";/u);
-  assert.match(source, /<details[\s\S]*?className="skill-stack-disclosure"[\s\S]*?onToggle=\{\(event\) => updateOpenStack\(stack\.id, event\.currentTarget\.open\)\}/u);
-  assert.match(source, /mainRef\.current\?\.setAttribute\("data-skill-stack-reading", "true"\)/u);
-  assert.match(source, /mainRef\.current\?\.removeAttribute\("data-skill-stack-reading"\)/u);
-  assert.match(source, /document\.addEventListener\("pointerdown", handlePointerDown\)/u);
+  assert.match(source, /<details className="skill-stack-disclosure">[\s\S]*?<summary[\s\S]*?onClick=\{\(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?openSkillStack\(stack\.id, event\.currentTarget\)/u);
+  assert.match(source, /event\.currentTarget\.parentElement\?\.removeAttribute\("open"\)/u);
+  assert.match(source, /className="modal resume-modal skill-stack-modal"[\s\S]*?role="presentation"[\s\S]*?hidden=\{!selectedStack\}/u);
+  assert.match(source, /role="dialog"[\s\S]*?aria-modal="true"[\s\S]*?aria-labelledby=\{`skill-stack-modal-title-/u);
+  assert.match(source, /if \(event\.target === event\.currentTarget\) closeSkillStack\(\)/u);
+  assert.match(source, /document\.body\.classList\.add\("resume-modal-open"\)/u);
+  assert.match(source, /document\.body\.classList\.remove\("resume-modal-open"\)/u);
+  assert.match(source, /document\.body\.classList\.add\("skill-stack-modal-open"\)/u);
+  assert.match(source, /document\.body\.classList\.remove\("skill-stack-modal-open"\)/u);
+  assert.match(source, /event\.key === "Escape"[\s\S]*?closeSkillStack\(\)/u);
+  assert.match(source, /event\.key !== "Tab"[\s\S]*?const first = elements\[0\];[\s\S]*?const last = elements\[elements\.length - 1\]/u);
+  assert.match(source, /const handleFocusIn[\s\S]*?!dialog\.contains\(event\.target as Node\)[\s\S]*?\.focus\(\{ preventScroll: true \}\)/u);
   assert.match(source, /document\.addEventListener\("focusin", handleFocusIn\)/u);
-  assert.match(source, /event\.key !== "Escape"/u);
-  assert.match(source, /summary\.focus\(\{ preventScroll: true \}\)/u);
-  assert.match(source, /document\.removeEventListener\("pointerdown", handlePointerDown\)/u);
+  assert.match(source, /returnFocus\?\.isConnected[\s\S]*?returnFocus\.focus\(\{ preventScroll: true \}\)/u);
+  assert.doesNotMatch(source, /skill-stack-modal-close/u);
+  assert.match(source, /sectionRef\.current\?\.querySelectorAll<HTMLDetailsElement>[\s\S]*?\.skill-stack-disclosure\[open\][\s\S]*?removeAttribute\("open"\)/u);
   assert.match(source, /document\.removeEventListener\("focusin", handleFocusIn\)/u);
   assert.match(source, /document\.removeEventListener\("keydown", handleKeyDown\)/u);
-  assert.doesNotMatch(source, /aria-modal|role="dialog"|\binert\b/u);
 
   assert.match(css, /\.skill-stack-disclosure > summary \{[\s\S]*?cursor: pointer/);
   assert.match(css, /\.skill-stack-disclosure > summary:focus-visible \{[\s\S]*?outline: 2px solid currentColor/);
+  assert.match(css, /\.skill-stack-grid \.card \{[\s\S]*?border: none/);
+  assert.match(css, /\.skill-stack-card \{[\s\S]*?background: transparent;[\s\S]*?border: 0/);
+  assert.match(css, /\.skill-stack-grid \.card:hover \{[\s\S]*?transform: scale\(1\.1\)/);
   assert.match(css, /\.skill-stack-grid \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: 1fr/);
   assert.match(css, /@media \(min-width: 768px\) \{[\s\S]*?\.skill-stack-grid \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /@media \(min-width: 1200px\) \{[\s\S]*?\.skill-stack-grid \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(
-    css,
-    /\.page-view--resume\[data-skill-stack-reading="true"\][\s\S]*?\.skill-stack-card:not\(\[data-skill-stack-open="true"\]\):not\(:focus-within\) \{[\s\S]*?filter: blur\(5px\)/,
-  );
-  assert.match(css, /\.page-view--resume\[data-skill-stack-reading="true"\] \.skill-stack-card:focus-within \{[\s\S]*?filter: none/);
+  assert.match(css, /\.resume-modal-open main > \.container \{ filter: blur\(5px\); \}/);
+  assert.match(css, /\.skill-stack-modal-open \{ overflow: hidden !important; \}/);
+  assert.match(css, /\.modal \{[\s\S]*?background: transparent/);
+  assert.match(css, /\.modal-content \{[\s\S]*?background-color: #FFFFFF;[\s\S]*?padding: 20px;[\s\S]*?max-width: 400px;[\s\S]*?border: none/);
+  assert.match(css, /\.skill-stack-modal-content \.skill-stack-details \{[\s\S]*?border-top: 0;[\s\S]*?padding-top: 0;[\s\S]*?text-align: left/);
+  assert.match(css, /@media screen and \(max-width: 600px\) \{[\s\S]*?\.modal-content \{[\s\S]*?width: 90%;[\s\S]*?max-width: none;[\s\S]*?padding: 10px/);
   assert.match(css, /@media print \{[\s\S]*?\.skill-stack-disclosure:not\(\[open\]\) > \.skill-stack-details \{[\s\S]*?display: block !important/);
-  assert.match(css, /@media print \{[\s\S]*?data-skill-stack-reading="true"[\s\S]*?filter: none !important/);
-  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?data-skill-stack-reading="true"[\s\S]*?filter: none !important/);
-  assert.match(css, /@media \(prefers-reduced-transparency: reduce\) \{[\s\S]*?data-skill-stack-reading="true"[\s\S]*?filter: none/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.skill-stack-card \{[\s\S]*?transition: none/);
+  assert.match(css, /@media print \{[\s\S]*?\.skill-stack-modal \{[\s\S]*?display: none !important/);
+  assert.match(css, /@media print \{[\s\S]*?\.resume-modal-open main > \.container \{[\s\S]*?filter: none !important/);
+  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.lattice-cancel-button \{[\s\S]*?border: 1px solid ButtonText !important[\s\S]*?\.resume-modal-open main > \.container \{[\s\S]*?filter: none !important/);
+  assert.match(css, /@media \(prefers-reduced-transparency: reduce\) \{[\s\S]*?\.resume-modal-open main > \.container \{[\s\S]*?filter: none !important/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.skill-stack-card \{[\s\S]*?transition: none[\s\S]*?\.skill-stack-grid \.card:hover \{[\s\S]*?transform: none/);
   assert.doesNotMatch(css, /:has\([^)]*skill-stack[^)]*open/iu, "no-JavaScript disclosure use does not trigger the JavaScript focus blur");
 });
 
@@ -1098,7 +1110,7 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
     "every Skill Stack icon receives the shared film effect",
   );
   assert.equal(
-    (resumeDocument.match(/class="tool-icon signal-fuzz"/gu) ?? []).length,
+    (resumeDocument.match(/class="tool-icon(?: project-modal-trigger)? signal-fuzz"/gu) ?? []).length,
     6,
     "every primary Project icon receives the shared film effect",
   );
@@ -1213,9 +1225,13 @@ test("renders current projects and consistent project documentation icons", asyn
   assert.match(html, /class="bi bi-pen-fill"/);
   assert.match(
     html,
-    /href="\/projects\/lattice\/text-to-lattice\/"[^>]*>Lattice<\/a>/,
+    /href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/,
   );
-  assert.doesNotMatch(html, /aria-controls="lattice-demo-dialog"|aria-haspopup="dialog"/u);
+  assert.match(
+    html,
+    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/,
+  );
+  assert.doesNotMatch(html, /lattice-demo-dialog|lattice-demo-input|data-lattice-launch="text-to-lattice"/u);
   assert.match(
     html,
     /Lattice turns linguistic register into an explicit, testable system\./,
@@ -1227,19 +1243,19 @@ test("renders current projects and consistent project documentation icons", asyn
   );
   assert.match(
     html,
-    /href="https:\/\/github\.com\/howardhayden\/lattice"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="Documentation for Lattice, opens in a new tab"/,
+    /href="https:\/\/github\.com\/howardhayden\/lattice"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="Lattice Source Repository, opens in a new tab"/,
   );
   for (const [label, filename] of [
-    ["Concept Map", "lattice-concept-map.html"],
-    ["Skill Map", "lattice-skill-map.html"],
-    ["Service Blueprint", "text-to-lattice-service-blueprint.html"],
-    ["Security Model", "text-to-lattice-security-model.html"],
-    ["Release Qualification", "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"],
+    ["Lattice Concept and Ecosystem Map", "lattice-concept-map.html"],
+    ["Lattice System Skill Map", "lattice-skill-map.html"],
+    ["Text to Lattice Service Blueprint", "text-to-lattice-service-blueprint.html"],
+    ["Text to Lattice Security Model", "text-to-lattice-security-model.html"],
+    ["Text to Lattice Release Qualification", "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"],
   ]) {
     const url = `https://hah.dev/documentation/text-to-lattice/${filename}`;
     const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const link = html.match(new RegExp(
-      `<a(?=[^>]*href="${escapedUrl}")(?=[^>]*aria-label="${label} for Lattice")[^>]*>[\\s\\S]*?</a>`,
+      `<a(?=[^>]*href="${escapedUrl}")(?=[^>]*aria-label="${label}")[^>]*>[\\s\\S]*?</a>`,
     ))?.[0];
     assert.ok(link, `${label} is a directly labeled Lattice resource`);
     assert.equal(
@@ -1254,25 +1270,29 @@ test("renders current projects and consistent project documentation icons", asyn
     html,
     /Social simulation of influence, uncertainty, and collective belief\./,
   );
-  assert.match(html, /href="https:\/\/chorus\.observer\/notebooks\/"/);
   assert.match(
     html,
-    /href="https:\/\/chorus\.observer\/documentation\/chorus-concept-map\.html"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="Concept Map for CHORUS, opens in a new tab"/,
+    /href="https:\/\/chorus\.observer\/notebooks\/"[^>]*aria-label="CHORUS Notebooks, opens in a new tab"[^>]*>[\s\S]*?<span>CHORUS Notebooks<\/span>/,
   );
   assert.match(
     html,
-    /href="https:\/\/chorus\.observer\/documentation\/chorus-csd-matrix\.html"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="CSD Matrix for CHORUS, opens in a new tab"/,
+    /href="https:\/\/chorus\.observer\/documentation\/chorus-concept-map\.html"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="CHORUS Concept Map, opens in a new tab"/,
+  );
+  assert.match(
+    html,
+    /href="https:\/\/chorus\.observer\/documentation\/chorus-csd-matrix\.html"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="CHORUS CSD Matrix, opens in a new tab"/,
   );
   for (const [label, filename] of [
-    ["Concept Map", "chorus-concept-map.html"],
-    ["CSD Matrix", "chorus-csd-matrix.html"],
+    ["CHORUS Concept Map", "chorus-concept-map.html"],
+    ["CHORUS CSD Matrix", "chorus-csd-matrix.html"],
   ]) {
     const link = html.match(new RegExp(
-      `<a(?=[^>]*href="https:\\/\\/chorus\\.observer\\/documentation\\/${filename}")(?=[^>]*aria-label="${label} for CHORUS, opens in a new tab")[^>]*>[\\s\\S]*?</a>`,
+      `<a(?=[^>]*href="https:\\/\\/chorus\\.observer\\/documentation\\/${filename}")(?=[^>]*aria-label="${label}, opens in a new tab")[^>]*>[\\s\\S]*?</a>`,
     ))?.[0];
     assert.ok(link, `${label} is a directly labeled CHORUS resource`);
     assert.equal((link.match(/class="bi bi-backpack4"/gu) ?? []).length, 1, `${label} carries the Documentation icon`);
   }
+  assert.doesNotMatch(html, /<span>Documentation<\/span>/u);
   assert.match(html, /href="\/projects\/in-keeping\/"[^>]*>IN KEEPING<\/a>/);
   const projectGrid = html.slice(
     html.indexOf('class="folio-card-grid"'),
@@ -1292,11 +1312,11 @@ test("renders current projects and consistent project documentation icons", asyn
   );
   assert.match(
     html,
-    /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="Technical report for IN KEEPING, opens in a new tab"/,
+    /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="IN KEEPING Technical Report, opens in a new tab"/,
   );
   assert.match(
     html,
-    /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="Public notice for IN KEEPING, opens in a new tab"/,
+    /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="IN KEEPING Public Notice, opens in a new tab"/,
   );
   assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 12);
 });
@@ -1307,16 +1327,17 @@ test("keeps Lattice documentation direct in canonical no-JavaScript project surf
     render("/projects/lattice/"),
     render("/projects/lattice/text-to-lattice/"),
   ]);
-  const filenames = [
-    "lattice-concept-map.html",
-    "lattice-skill-map.html",
-    "text-to-lattice-service-blueprint.html",
-    "text-to-lattice-security-model.html",
+  const documents = [
+    ["Lattice Concept and Ecosystem Map", "lattice-concept-map.html"],
+    ["Lattice System Skill Map", "lattice-skill-map.html"],
+    ["Text to Lattice Service Blueprint", "text-to-lattice-service-blueprint.html"],
+    ["Text to Lattice Security Model", "text-to-lattice-security-model.html"],
   ];
 
   for (const { html } of [resume, project, contract]) {
-    for (const filename of filenames) {
+    for (const [label, filename] of documents) {
       assert.match(html, new RegExp(`href="https:\\/\\/hah\\.dev\\/documentation\\/text-to-lattice\\/${filename}"`));
+      assert.ok(html.includes(label), `${label} is named on the no-JavaScript project surface`);
     }
   }
 });
@@ -1355,7 +1376,9 @@ test("retains the bounded and accessible dormant Text to Lattice dialog contract
   assert.match(source, /Source text/);
   assert.match(source, /<h4 id="lattice-output-title">Result<\/h4>/u);
   assert.doesNotMatch(source, /Text-to-Lattice/u);
-  assert.match(source, /className="modal resume-modal lattice-modal"[\s\S]*?onClick=\{\(event\) => \{[\s\S]*?event\.target === event\.currentTarget[\s\S]*?closeLattice\(\)/u);
+  assert.match(source, /className="modal resume-modal"[\s\S]*?onClick=\{\(event\) => \{[\s\S]*?event\.target === event\.currentTarget[\s\S]*?closeLattice\(\)/u);
+  assert.doesNotMatch(source, /className="modal-content lattice-modal-content"|className="modal resume-modal lattice-modal"/u);
+  assert.doesNotMatch(css, /\.lattice-modal\s*\{|\.lattice-modal-content\s*\{/u);
   assert.doesNotMatch(source, /onPointerDown=\{closeLattice\}/u);
   assert.match(source, /trigger\?\.isConnected[\s\S]*?trigger\.focus/u);
   assert.doesNotMatch(source, /lattice-modal-close/u);

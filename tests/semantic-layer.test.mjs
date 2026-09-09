@@ -32,6 +32,7 @@ import {
   projectsSchema,
   projectsSchemaV1,
   renderProjectMarkdown,
+  renderResumeMarkdown,
   resumeManifest,
   shelfManifest,
   toolsManifest,
@@ -355,8 +356,12 @@ test("project and résumé records remain present while the Lattice interaction 
       assert.ok(text.includes(line), `${detail.id} modal content is server-rendered`);
     }
   }
-  assert.match(html, /Text to Lattice is held at the public boundary/u);
-  assert.match(html, /href="\/projects\/lattice\/text-to-lattice\/"[^>]*>Lattice<\/a>/u);
+  assert.match(html, /Text to Lattice is held because its sole open release blocker/u);
+  assert.match(html, /href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/u);
+  assert.match(
+    html,
+    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
+  );
   assert.doesNotMatch(html, /class="modal resume-modal lattice-modal"|id="lattice-demo-dialog"|id="lattice-demo-input"/u);
 });
 
@@ -659,6 +664,7 @@ test("the not-found document contains only exclusionary crawler directives", asy
 
 test("project and Text to Lattice implementation provenance stays source-aligned", async () => {
   const graphById = new Map(knowledgeGraph["@graph"].map((node) => [node["@id"], node]));
+  const resumeMarkdown = renderResumeMarkdown();
   assert.equal(projectsManifest.version, PROJECT_CONTENT_VERSION);
   assert.equal(projectsManifest.asOf, PROJECT_CONTENT_UPDATED);
   const expectedLeadingProjectIds = ["lattice", "in-keeping", "fog-of-sea"];
@@ -678,6 +684,23 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   for (const source of projects) {
     const record = projectsManifest.projects.find(({ id }) => id === source.id);
     assert.ok(record, `${source.id} has a manifest record`);
+    for (const resource of source.resources ?? []) {
+      assert.notEqual(
+        resource.label.trim().toLowerCase(),
+        "documentation",
+        `${source.id} does not expose a vague Documentation link`,
+      );
+      assert.ok(
+        resource.label.toLowerCase().includes(source.name.toLowerCase()),
+        `${source.id} resource label names its project or wrapper scope: ${resource.label}`,
+      );
+      assert.ok(
+        resumeMarkdown.includes(resource.markdownUrl
+          ? `${resource.label}: HTML ${resource.url}; Markdown ${resource.markdownUrl}`
+          : `${resource.label}: ${resource.url}`),
+        `${source.id} AI-readable resource preserves the visible information scent`,
+      );
+    }
     assert.deepEqual(
       {
         slug: record.slug,
@@ -925,7 +948,7 @@ test("robots, sitemap, and llms discovery cover canonical public records", async
   ]);
   for (const { markdownUrl } of projectDocuments) assert.equal(sitemapUrls.includes(markdownUrl), false);
 
-  assert.match(resumeMarkdown, /## Lattice[\s\S]*?Interactive client: Held[\s\S]*?### Limitations[\s\S]*?completed interactive client remains held/iu);
+  assert.match(resumeMarkdown, /## Lattice[\s\S]*?Interactive client: held[\s\S]*?### Limitations[\s\S]*?machine release register keeps the interactive client outside the public bundle[\s\S]*?sole open blocker/iu);
   assert.equal(JSON.parse(resumeJson).projects.find(({ id }) => id === "lattice")?.interactiveRelease, "held");
   assert.match(llms, /The Text to Lattice interactive client is held/u);
   assert.match(portfolioSource, /const releaseBoundary = applicationReleaseStatus === "held"/u);

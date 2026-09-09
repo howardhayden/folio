@@ -1,6 +1,6 @@
 import { documentsForProject } from "../content/projectDocuments.js";
 
-export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v2";
+export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v3";
 export const PROJECT_CONTENT_UPDATED = "2026-09-09";
 
 export const LATTICE_DOCUMENTATION_RESOURCES = Object.freeze(
@@ -20,7 +20,7 @@ export const LATTICE_DOCUMENTATION_RESOURCES = Object.freeze(
 );
 
 export const LATTICE_RELEASE_QUALIFICATION_RESOURCE = Object.freeze({
-  label: "Release Qualification",
+  label: "Text to Lattice Release Qualification",
   url: "https://hah.dev/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
   icon: "backpack4",
   opensInNewTab: false,
@@ -53,7 +53,7 @@ export const projects = Object.freeze([
     limitations: Object.freeze([
       "The hah.dev Text to Lattice demonstrator is browser-local, requires WebGPU, and accepts at most 700 words.",
       "A review-required draft is not certified as semantically equivalent.",
-      "The completed interactive client remains held outside the public bundle until its exact release gates carry production evidence.",
+      "The machine release register keeps the interactive client outside the public bundle while its sole open blocker—the live lease, verification-origin, and response-policy boundary—remains unestablished.",
     ]),
     emphasis: Object.freeze(["linguistic register", "semantic fidelity", "relational systems"]),
     relationships: Object.freeze([
@@ -62,7 +62,7 @@ export const projects = Object.freeze([
       Object.freeze({ relation: "governs-linguistic-register-for", target: "evenward", scope: "selected embodied guidance and care" }),
     ]),
     resources: Object.freeze([
-      Object.freeze({ label: "Documentation", url: "https://github.com/howardhayden/lattice", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "Lattice Source Repository", url: "https://github.com/howardhayden/lattice", icon: "backpack4", opensInNewTab: true }),
       ...LATTICE_DOCUMENTATION_RESOURCES,
       LATTICE_RELEASE_QUALIFICATION_RESOURCE,
     ]),
@@ -93,8 +93,8 @@ export const projects = Object.freeze([
       Object.freeze({ relation: "operationalizes", target: "provenance-continuity", scope: "custody, fixity, recovery, and handoff" }),
     ]),
     resources: Object.freeze([
-      Object.freeze({ label: "Technical report", url: "https://inkeep.ing/?view=reports", icon: "backpack4", opensInNewTab: true }),
-      Object.freeze({ label: "Public notice", url: "https://inkeep.ing/?view=reports", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "IN KEEPING Technical Report", url: "https://inkeep.ing/?view=reports", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "IN KEEPING Public Notice", url: "https://inkeep.ing/?view=reports", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "August 2026", value: "2026-08", precision: "month" }),
     status: "public",
@@ -119,7 +119,7 @@ export const projects = Object.freeze([
     emphasis: Object.freeze(["operational uncertainty", "naval learning"]),
     relationships: Object.freeze([Object.freeze({ relation: "applies-lattice-to", target: "lattice", scope: "naval learning and operational uncertainty" })]),
     resources: Object.freeze([
-      Object.freeze({ label: "Systems Atlas", url: "https://nbviewer.org/github/howardhayden/fogofsea/blob/main/docs/Systems-Atlas.ipynb", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "FOG OF SEA Systems Atlas", url: "https://nbviewer.org/github/howardhayden/fogofsea/blob/main/docs/Systems-Atlas.ipynb", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "August 2026", value: "2026-08", precision: "month" }),
     status: "public",
@@ -144,9 +144,9 @@ export const projects = Object.freeze([
     emphasis: Object.freeze(["social systems", "epistemic systems", "collective belief"]),
     relationships: Object.freeze([Object.freeze({ relation: "applies-lattice-to", target: "lattice", scope: "social and epistemic systems" })]),
     resources: Object.freeze([
-      Object.freeze({ label: "Documentation", url: "https://chorus.observer/notebooks/", icon: "backpack4", opensInNewTab: true }),
-      Object.freeze({ label: "Concept Map", url: "https://chorus.observer/documentation/chorus-concept-map.html", icon: "backpack4", opensInNewTab: true }),
-      Object.freeze({ label: "CSD Matrix", url: "https://chorus.observer/documentation/chorus-csd-matrix.html", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "CHORUS Notebooks", url: "https://chorus.observer/notebooks/", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "CHORUS Concept Map", url: "https://chorus.observer/documentation/chorus-concept-map.html", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "CHORUS CSD Matrix", url: "https://chorus.observer/documentation/chorus-csd-matrix.html", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "August 2026", value: "2026-08", precision: "month" }),
     status: "public",

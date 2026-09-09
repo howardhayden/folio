@@ -118,17 +118,20 @@ export default function ResumeExperience() {
           <div className="timeline">
             {mainTimeline.map((entry, index) => {
               const className = `timeline-entry ${index % 2 ? "left" : "right"}`;
-              return entry.role === "Officer Candidate" ? (
-                <a className={`${className} timeline-button`} data-record-id={entry.id} id={entry.id} href={resumeDetails.officer.canonicalPath} onClick={(event) => {
-                  if (!shouldInterceptResumeModalLink(event)) return;
-                  event.preventDefault();
-                  openModal("officer", event.currentTarget);
-                }} key={`${entry.period}-${entry.organization}`}>
-                  <TimelineEntry entry={entry} icon={timelineIcons[entry.organization]} index={index} />
-                </a>
-              ) : (
+              const detailLink = entry.role === "Officer Candidate" ? {
+                href: resumeDetails.officer.canonicalPath,
+                label: "Open Officer Candidate details",
+                onActivate: (trigger: HTMLAnchorElement) => openModal("officer", trigger),
+              } : undefined;
+
+              return (
                 <article className={className} data-record-id={entry.id} id={entry.id} key={`${entry.period}-${entry.organization}`}>
-                  <TimelineEntry entry={entry} icon={timelineIcons[entry.organization]} index={index} />
+                  <TimelineEntry
+                    entry={entry}
+                    icon={timelineIcons[entry.organization]}
+                    index={index}
+                    detailLink={detailLink}
+                  />
                 </article>
               );
             })}
@@ -163,7 +166,7 @@ export default function ResumeExperience() {
 
       {(Object.entries(resumeDetails) as [ModalKey, (typeof resumeDetails)[ModalKey]][]).map(([id, content]) => (
         <div className="modal resume-modal" role="presentation" onPointerDown={closeModal} hidden={selected !== id} key={id}>
-          <div ref={selected === id ? dialogRef : undefined} className="modal-content" role="dialog" aria-modal="true" aria-labelledby={`resume-modal-title-${id}`} aria-keyshortcuts="Escape" tabIndex={-1} onPointerDown={(event) => event.stopPropagation()}>
+          <div ref={selected === id ? dialogRef : undefined} className="modal-content" id={`resume-modal-${id}`} role="dialog" aria-modal="true" aria-labelledby={`resume-modal-title-${id}`} aria-keyshortcuts="Escape" tabIndex={-1} onPointerDown={(event) => event.stopPropagation()}>
             <h3 id={`resume-modal-title-${id}`}>{content.title}</h3>
             {content.subtitle && <p className="lead text-center">{content.subtitle}</p>}
             <p className="small text-center">{content.period}</p>
@@ -190,13 +193,49 @@ function UndergraduateDetails() {
   );
 }
 
-function TimelineEntry({ entry, icon, index }: { entry: (typeof timeline)[number]; icon: LegacyIconName; index: number }) {
+function TimelineEntry({
+  entry,
+  icon,
+  index,
+  detailLink,
+}: {
+  entry: (typeof timeline)[number];
+  icon: LegacyIconName;
+  index: number;
+  detailLink?: {
+    href: string;
+    label: string;
+    onActivate: (trigger: HTMLAnchorElement) => void;
+  };
+}) {
+  const timelineIcon = (
+    <LegacyIcon
+      name={icon}
+      className={`${index % 2 ? "rotate-right" : "rotate-left"} timeline-icon${detailLink ? "" : " signal-fuzz"}`}
+    />
+  );
+
   return (
     <>
       <h3>{entry.role}</h3>
       <p>{entry.period}<br />{entry.organization}</p>
       {entry.details.length > 0 && <p><small>{entry.details.map((detail) => <span key={detail}>{detail}<br /></span>)}</small></p>}
-      <LegacyIcon name={icon} className={`${index % 2 ? "rotate-right" : "rotate-left"} timeline-icon signal-fuzz`} />
+      {detailLink ? (
+        <a
+          className="timeline-icon-trigger signal-fuzz"
+          aria-controls="resume-modal-officer"
+          aria-haspopup="dialog"
+          aria-label={detailLink.label}
+          href={detailLink.href}
+          onClick={(event) => {
+            if (!shouldInterceptResumeModalLink(event)) return;
+            event.preventDefault();
+            detailLink.onActivate(event.currentTarget);
+          }}
+        >
+          {timelineIcon}
+        </a>
+      ) : timelineIcon}
     </>
   );
 }
@@ -217,9 +256,9 @@ function Progress({ label, start, width, gradient = false, href, onClick }: { la
               event.preventDefault();
               onClick(event.currentTarget);
             }}
-          ><span className="progress-value" aria-hidden="true">&nbsp;{start}</span></a>
+          ><span className="progress-value" aria-hidden="true">{start}</span></a>
         ) : (
-          <div className={className} style={{ width, cursor: "auto" }}><span className="progress-value">&nbsp;{start}</span></div>
+          <div className={className} style={{ width, cursor: "auto" }}><span className="progress-value">{start}</span></div>
         )}
       </div>
       <div className="progress-label">{label}</div>

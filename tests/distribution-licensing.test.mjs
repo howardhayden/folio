@@ -102,8 +102,10 @@ test("Llama terms, required attribution, and held-artifact provenance are regres
   assert.match(notices, /developer\.meta\.com\/ai\/llama3_2\/use-policy\//u);
   assert.match(notices, new RegExp(register.artifactSet.wasm.files.generator.sha256, "u"));
   assert.match(notices, new RegExp(register.artifactSet.wasm.files.verifier.sha256, "u"));
-  assert.equal(register.artifactSet.wasm.reproducibility.status, "open-before-publication");
-  assert.equal(register.artifactSet.models.verifier.artifactProvenanceStatus, "open-before-publication");
+  assert.equal(register.artifactSet.wasm.reproducibility.status, "accepted-residual-risk");
+  assert.equal(register.artifactSet.wasm.reproducibility.established, false);
+  assert.equal(register.artifactSet.models.verifier.artifactProvenanceStatus, "accepted-residual-risk");
+  assert.equal(register.artifactSet.models.verifier.artifactProvenanceEstablished, false);
 });
 
 test("Lattice documentation source, generator, and exported editions retain distinct terms", async () => {

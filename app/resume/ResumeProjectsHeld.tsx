@@ -74,26 +74,33 @@ export default function ResumeProjectsHeld() {
       <div className="folio-card-grid">
         {projects.map((project) => {
           const headingId = projectHeadingId(project.name);
-          const projectHref = project.id === "lattice"
-            ? "/projects/lattice/text-to-lattice/"
-            : project.canonicalPath;
           const firstParagraph = project.summary[0];
           const remainingParagraphs = project.summary.slice(1);
 
           return (
             <article className="card" key={project.id} aria-labelledby={headingId}>
               <div className="card-body">
-                <div className="row justify-content-center" aria-hidden="true">
-                  <span className="tool-icon signal-fuzz">
-                    <ProjectIcon icon={project.icon as ProjectIconName} />
-                  </span>
+                <div className="row justify-content-center">
+                  {project.id === "lattice" ? (
+                    <a
+                      className="tool-icon project-modal-trigger signal-fuzz"
+                      href="/projects/lattice/text-to-lattice/"
+                      aria-label="Read Text to Lattice release status"
+                    >
+                      <ProjectIcon icon={project.icon as ProjectIconName} />
+                    </a>
+                  ) : (
+                    <span className="tool-icon signal-fuzz" aria-hidden="true">
+                      <ProjectIcon icon={project.icon as ProjectIconName} />
+                    </span>
+                  )}
                 </div>
 
                 <h3
                   className="card-title tools-card-title row justify-content-center"
                   id={headingId}
                 >
-                  <a className="signal-fuzz" href={projectHref}>
+                  <a className="signal-fuzz" href={project.canonicalPath}>
                     {project.name}
                   </a>
                 </h3>
@@ -120,9 +127,11 @@ export default function ResumeProjectsHeld() {
 
                 {project.id === "lattice" ? (
                   <p className="card-text lattice-noscript-note">
-                    Text to Lattice is held at the public boundary while its model-use controls
-                    and compiled WebAssembly provenance are qualified. Lattice itself and every
-                    mapped document remain available.
+                    Text to Lattice is held because its sole open release blocker—the live lease,
+                    verification-origin, and response-policy boundary—is not yet established.
+                    Accepted model, WebAssembly, and accessibility residuals remain documented,
+                    alongside bounded post-deployment capacity and privacy follow-ups; Lattice
+                    itself and every mapped document remain available.
                   </p>
                 ) : null}
 
@@ -144,8 +153,8 @@ export default function ResumeProjectsHeld() {
                               rel={opensInNewTab ? "noopener noreferrer" : undefined}
                               aria-label={
                                 opensInNewTab
-                                  ? `${resource.label} for ${project.name}, opens in a new tab`
-                                  : `${resource.label} for ${project.name}`
+                                  ? `${resource.label}, opens in a new tab`
+                                  : resource.label
                               }
                             >
                               <span aria-hidden="true">

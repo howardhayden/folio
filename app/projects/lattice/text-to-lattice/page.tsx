@@ -33,11 +33,14 @@ export default function TextToLatticePage() {
             <h2 id="text-to-lattice-release-status">Release status: {interactiveRelease}</h2>
             {releaseHeld ? (
               <>
-                <p>The completed interactive client is not in the public application bundle. Its behavioral, artifact-provenance, production-boundary, accessibility, and privacy evidence must agree before the converter can open.</p>
+                <p>The completed interactive client is not in the public application bundle because GATE-02 is the sole open release blocker: the live lease service, verification origin, and response-policy boundary are not yet established. Model-behavior, provenance, accessibility, capacity, and privacy gaps remain visible as accepted residuals or bounded post-deployment verification; they are not represented as completed evidence.</p>
                 <p>This hold preserves the implementation without representing source controls as deployed proof.</p>
               </>
             ) : (
-              <p>The interactive client’s availability follows the machine-checked release record for this build.</p>
+              <>
+                <p>The interactive client’s availability follows the machine-checked release record for this build.</p>
+                <p><a href="/resume/?tool=text-to-lattice#project-lattice">Use Text to Lattice</a></p>
+              </>
             )}
             <ul>
               <li><a href="/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md">Read the release qualification</a></li>
@@ -131,12 +134,12 @@ export default function TextToLatticePage() {
           <section aria-labelledby="text-to-lattice-availability" data-tool-availability="progressive-enhancement">
             <h2 id="text-to-lattice-availability">Availability and fallback</h2>
             <p>{releaseHeld
-              ? "The interactive converter is a completed, optional enhancement presently held outside the public bundle."
-              : "The interactive converter is an optional progressive enhancement."} The Lattice project card leads here as an ordinary link, and this canonical page remains the readable tool contract.</p>
+              ? "The interactive converter is a completed, optional enhancement presently held outside the public bundle by the open production-origin and secret-boundary gate."
+              : "The interactive converter is an optional progressive enhancement."} The Lattice project title remains a native link to the canonical Lattice project record. Its icon leads to this contract while the client is held or JavaScript is unavailable; in an enabled JavaScript release, that icon alone opens the converter.</p>
             <ul>
               <li>{releaseHeld
-                ? "Without JavaScript—and with JavaScript while this release is held—the public project title remains an ordinary link to this contract; no text-entry interface is published."
-                : "Without JavaScript, the public project title remains an ordinary link to this contract; no text-entry interface is rendered."}</li>
+                ? "Without JavaScript—and with JavaScript while this release is held—the project title remains an ordinary link to Lattice and its icon links to this contract; no text-entry interface is published."
+                : "Without JavaScript, the project title remains an ordinary link to Lattice and its icon links to this contract; no text-entry interface is rendered."}</li>
               <li>{releaseHeld ? "When a later release is enabled, absence" : "Absence"} of secure-context WebGPU support makes the dialog identify the missing capability and disable conversion.</li>
               <li>{releaseHeld ? "When enabled, absence" : "Absence"} of uncached pinned model assets stops conversion without presenting the source as transformed text.</li>
             </ul>

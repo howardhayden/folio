@@ -1,4 +1,4 @@
-export const PROJECT_DOCUMENTS_VERSION = "hah-portfolio-project-documents.v1";
+export const PROJECT_DOCUMENTS_VERSION = "hah-portfolio-project-documents.v2";
 export const PROJECT_DOCUMENTS_UPDATED = "2026-09-09";
 
 const documentationRoot = "https://hah.dev/documentation/text-to-lattice/";
@@ -9,7 +9,7 @@ export const projectDocuments = Object.freeze([
     artifactId: "DOC-CONCEPT",
     projectId: "lattice",
     scope: "method-and-ecosystem",
-    label: "Concept Map",
+    label: "Lattice Concept and Ecosystem Map",
     title: "Lattice concept and ecosystem map",
     htmlUrl: `${documentationRoot}lattice-concept-map.html`,
     markdownUrl: `${documentationRoot}LATTICE-CONCEPT-MAP.md`,
@@ -21,7 +21,7 @@ export const projectDocuments = Object.freeze([
     artifactId: "DOC-SKILL",
     projectId: "lattice",
     scope: "method",
-    label: "Skill Map",
+    label: "Lattice System Skill Map",
     title: "Lattice system skill map",
     htmlUrl: `${documentationRoot}lattice-skill-map.html`,
     markdownUrl: `${documentationRoot}LATTICE-SKILL-MAP.md`,
@@ -33,7 +33,7 @@ export const projectDocuments = Object.freeze([
     artifactId: "DOC-BLUEPRINT",
     projectId: "lattice",
     scope: "wrapper",
-    label: "Service Blueprint",
+    label: "Text to Lattice Service Blueprint",
     title: "Text to Lattice service blueprint",
     htmlUrl: `${documentationRoot}text-to-lattice-service-blueprint.html`,
     markdownUrl: `${documentationRoot}TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md`,
@@ -45,7 +45,7 @@ export const projectDocuments = Object.freeze([
     artifactId: "DOC-SECURITY",
     projectId: "lattice",
     scope: "wrapper",
-    label: "Security Model",
+    label: "Text to Lattice Security Model",
     title: "Text to Lattice security model",
     htmlUrl: `${documentationRoot}text-to-lattice-security-model.html`,
     markdownUrl: `${documentationRoot}TEXT-TO-LATTICE-SECURITY-MODEL.md`,
