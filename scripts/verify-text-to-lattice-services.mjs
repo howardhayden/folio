@@ -231,16 +231,22 @@ function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }
 
-async function request(fetchImpl, url, init, label) {
+async function request(fetchImpl, url, init, label, {
+  attempts = 4,
+  timeoutMilliseconds = 7_000,
+} = {}) {
   const deadline = Date.now() + 45_000;
   let lastStatus = null;
-  for (let attempt = 1; attempt <= 4; attempt += 1) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     let response = null;
     try {
       response = await fetchImpl(url, {
         ...init,
         redirect: "error",
-        signal: AbortSignal.timeout(Math.min(7_000, Math.max(1, deadline - Date.now()))),
+        signal: AbortSignal.timeout(Math.min(
+          timeoutMilliseconds,
+          Math.max(1, deadline - Date.now()),
+        )),
       });
     } catch {
       // A just-bound custom domain can fail DNS or TLS while it propagates.
@@ -248,7 +254,7 @@ async function request(fetchImpl, url, init, label) {
     if (response && !transientDeploymentStatuses.has(response.status)) return response;
     lastStatus = response?.status ?? null;
     if (response?.body) await response.body.cancel().catch(() => {});
-    if (attempt === 4 || Date.now() >= deadline) break;
+    if (attempt === attempts || Date.now() >= deadline) break;
     await delay(Math.min(attempt * 1_500, Math.max(0, deadline - Date.now())));
   }
   const status = lastStatus === null ? "a network error" : `HTTP ${lastStatus}`;
@@ -454,7 +460,12 @@ async function verifyLease(fetchImpl) {
       Cookie: cookiePair,
       "X-Lattice-Attestation": CLOUDFLARE_DEMONSTRATION_TOKEN,
     },
-  }, "lease demonstration-profile acquisition probe");
+  }, "lease demonstration-profile acquisition probe", {
+    // Siteverify has its own bounded 8-second deadline. Give the Worker time
+    // to return that decision, but do not replay this non-idempotent grant.
+    attempts: 1,
+    timeoutMilliseconds: 20_000,
+  });
   requireStatus(
     demonstrationAcquisitionResponse,
     200,

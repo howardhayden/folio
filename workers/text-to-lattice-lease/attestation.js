@@ -77,7 +77,10 @@ export async function verifyLatticeAttestation(token, {
   if (!isLatticeAttestationToken(token) || typeof secret !== "string" || secret.length < 32) return false;
   const demonstrationProfile = secret === CLOUDFLARE_DEMONSTRATION_SECRET_KEY;
   if (demonstrationProfile && token !== CLOUDFLARE_DEMONSTRATION_TOKEN) return false;
-  const form = new FormData();
+  // Siteverify formally accepts URL-encoded requests. Prefer that exact,
+  // deterministic wire format over a runtime-generated multipart boundary for
+  // this Worker-to-Cloudflare subrequest.
+  const form = new URLSearchParams();
   form.set("secret", secret);
   form.set("response", token);
   form.set("idempotency_key", crypto.randomUUID());
@@ -88,9 +91,9 @@ export async function verifyLatticeAttestation(token, {
     response = await fetchImpl(SITEVERIFY_URL, {
       method: "POST",
       body: form,
-      credentials: "omit",
-      redirect: "error",
-      referrerPolicy: "no-referrer",
+      // The pinned Workerd runtime rejects redirect: "error". Manual preserves
+      // the fail-closed no-redirect boundary because a 3xx is not `ok`.
+      redirect: "manual",
       signal: AbortSignal.timeout(8_000),
     });
   } catch {

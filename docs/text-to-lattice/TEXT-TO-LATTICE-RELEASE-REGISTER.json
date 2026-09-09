@@ -16,7 +16,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "a47a8a90336bf73bb8e52f2dc8d955b0fb319c310121948a1004cf0110ccefab",
+    "qualificationDossierSha256": "8d8799494aa96bd24be470b0c53d1439a889bbf448bdea2d233001cc3feefdcd",
     "qualifiedSourceSet": {
       "algorithm": "sha256-path-and-bytes-v1",
       "files": [
@@ -46,7 +46,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "c80c2aaa72d7e4a946180d933a37074b49ddfb27ded6bc2d5ac383225f7525a7",
+      "sha256": "201c7b3f2039126f5087fceeb3aca176a6e689fb8272f71dd62988ec73dee587",
       "claim": "This digest binds the named source paths only, including the complete test tree, license-routing map, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. Current-main workflow checks separately bind the deployed commit."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -74,7 +74,7 @@
   "ownerDisposition": {
     "status": "release-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "c80c2aaa72d7e4a946180d933a37074b49ddfb27ded6bc2d5ac383225f7525a7",
+    "qualifiedSourceSetSha256": "201c7b3f2039126f5087fceeb3aca176a6e689fb8272f71dd62988ec73dee587",
     "decidedOn": "2026-09-09",
     "record": "The active owner direction is to qualify and include the newest Text to Lattice once the consequential release boundary is satisfied.",
     "note": "Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence. No live-service, browser, model-execution, or production-trace result is inferred from the direction."

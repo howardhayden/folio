@@ -349,8 +349,10 @@ test("Turnstile attestation validates success, hostname, action, age, and header
   const now = Date.UTC(2026, 8, 8, 12, 0, 0);
   const secret = "turnstile-test-secret-material-2222222222";
   let submitted;
+  let submittedOptions;
   const validFetch = async (_url, options) => {
     submitted = options.body;
+    submittedOptions = options;
     return new Response(JSON.stringify({
       success: true,
       hostname: LATTICE_ATTESTATION_HOSTNAME,
@@ -364,6 +366,9 @@ test("Turnstile attestation validates success, hostname, action, age, and header
     now,
     fetchImpl: validFetch,
   }), true);
+  assert.equal(submitted instanceof URLSearchParams, true);
+  assert.equal(submittedOptions.redirect, "manual");
+  assert.equal(submittedOptions.signal instanceof AbortSignal, true);
   assert.equal(submitted.get("response"), "0.valid_test-token");
   assert.equal(submitted.get("secret"), secret);
   assert.equal(submitted.get("remoteip"), "192.0.2.1");
@@ -471,6 +476,33 @@ test("the official testing profile admits only the exact dummy token without cla
     workerRequiresAction: true,
     workerBoundsChallengeAge: true,
   });
+});
+
+test("Turnstile redirects are manual, rejected, and canceled", async () => {
+  const now = Date.UTC(2026, 8, 8, 12, 0, 0);
+  const secret = "turnstile-test-secret-material-2222222222";
+  let redirectBodyCanceled = false;
+  const redirectBody = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array([123]));
+    },
+    cancel() {
+      redirectBodyCanceled = true;
+    },
+  });
+
+  assert.equal(await verifyLatticeAttestation("0.valid-token", {
+    secret,
+    now,
+    fetchImpl: async (_url, options) => {
+      assert.equal(options.redirect, "manual");
+      return new Response(redirectBody, {
+        status: 302,
+        headers: { Location: "https://qualification.invalid/redirected" },
+      });
+    },
+  }), false);
+  assert.equal(redirectBodyCanceled, true);
 });
 
 test("Turnstile Siteverify bodies are canceled at declared and streamed byte ceilings", async () => {

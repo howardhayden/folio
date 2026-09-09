@@ -666,6 +666,29 @@ test("live qualification attempts cleanup when an acquired lease has malformed h
   assert.equal(releaseAttempted, true);
 });
 
+test("live qualification never replays an ambiguous demonstration acquisition", async () => {
+  const fetchFixture = fixtureFetch();
+  let acquisitionAttempts = 0;
+  await assert.rejects(
+    verifyTextToLatticeServices({
+      async fetchImpl(input, init = {}) {
+        const headers = new Headers(init.headers);
+        if (headers.get("X-Lattice-Attestation") === CLOUDFLARE_DEMONSTRATION_TOKEN) {
+          acquisitionAttempts += 1;
+          return jsonResponse(503, {
+            allowed: false,
+            code: "usage-gate-unavailable",
+          }, leaseHeaders);
+        }
+        return fetchFixture(input, init);
+      },
+      retryDelay: async () => {},
+    }),
+    /demonstration-profile acquisition probe did not settle/u,
+  );
+  assert.equal(acquisitionAttempts, 1);
+});
+
 test("live qualification rejects a route that does not reach attestation rejection", async () => {
   const fetchImpl = fixtureFetch();
   await assert.rejects(
