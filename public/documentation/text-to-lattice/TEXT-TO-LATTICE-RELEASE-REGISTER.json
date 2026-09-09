@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "revision": "2026-09-09",
   "implementationBaselineRevision": "233bdbc8dbafd401a94babe14a64c198be110830",
-  "qualificationScope": "The named commit is the completed implementation baseline. The qualified source set binds the current activation, runtime, validator, and release-workflow sources without claiming that unobserved deployed behavior has occurred.",
+  "qualificationScope": "The named commit is the completed implementation baseline. The qualified source set binds the current activation, runtime, validator, test, license-routing, shipped legal-notice, and release-workflow sources without claiming that unobserved deployed behavior has occurred.",
   "overallStatus": "held",
   "statusVocabulary": [
     "satisfied-in-source",
@@ -16,13 +16,18 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "30ddc1b1947a8451e2efe06fc9c46ddeae073bf646da5847eec250148f3ec05f",
+    "qualificationDossierSha256": "b3d3fb072fa048ace2e8e4d86f6418c87594675568af4c1933a1830710016821",
     "qualifiedSourceSet": {
       "algorithm": "sha256-path-and-bytes-v1",
       "files": [
         ".github/workflows/pages.yml",
         "CNAME",
+        "LICENSE-MAP.json",
+        "NOTICE",
+        "THIRD_PARTY_LICENSES.txt",
+        "THIRD_PARTY_NOTICES.md",
         "eslint.config.mjs",
+        "next-env.d.ts",
         "next.config.ts",
         "package-lock.json",
         "package.json",
@@ -33,13 +38,15 @@
         "workers/package.json"
       ],
       "trees": [
+        "LICENSES",
         "app",
         "scripts",
+        "tests",
         "workers/text-to-lattice-attestation-frame",
         "workers/text-to-lattice-lease"
       ],
-      "sha256": "84817014668e8e5f7f06793f341da181c254b48a34b7e9f9b2bcce8c04e16968",
-      "claim": "This digest binds the named source paths only. It excludes this register, the qualification dossier, the atlas, tests, and generated output so the qualification record is not self-referential. Current-main workflow checks separately bind the deployed commit."
+      "sha256": "7c4d91f649eb6ce1ff40b989903f416e94e481fa2291b8f531d9701f26ed297e",
+      "claim": "This digest binds the named source paths only, including the complete test tree, license-routing map, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. Current-main workflow checks separately bind the deployed commit."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
     "marginalValueRule": "Classify a finding by consequence multiplied by plausibility multiplied by lifecycle value. Novelty or rarity alone neither opens nor closes a release gate.",
@@ -66,7 +73,7 @@
   "ownerDisposition": {
     "status": "release-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "84817014668e8e5f7f06793f341da181c254b48a34b7e9f9b2bcce8c04e16968",
+    "qualifiedSourceSetSha256": "7c4d91f649eb6ce1ff40b989903f416e94e481fa2291b8f531d9701f26ed297e",
     "decidedOn": "2026-09-09",
     "record": "The active owner direction is to qualify and include the newest Text to Lattice once the consequential release boundary is satisfied.",
     "note": "Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence. No live-service, browser, model-execution, or production-trace result is inferred from the direction."
@@ -218,7 +225,7 @@
       "status": "release-workflow-enforced",
       "marginalValue": "high",
       "requirement": "Every publication candidate runs build, lint, type-check, full tests, documentation drift checks, release-boundary checks, static-route checks, generated-artifact inspection, and current-main freshness checks from the exact release tree.",
-      "currentEvidence": "The Pages workflow fail-closes around its current-main identity checks, runs the release validator before upload, and uses pinned actions. The qualified source-set digest binds the activation, runtime, validator, and workflow sources without hashing this register.",
+      "currentEvidence": "The Pages workflow fail-closes around its current-main identity checks, runs the release validator before upload, and uses pinned actions. The qualified source-set digest binds the activation, runtime, validator, complete test tree, license-routing map, shipped legal notices, and workflow sources without hashing this register.",
       "evidenceNeeded": "The workflow run and deployment record for each release remain operational evidence; the source status means the control is mandatory, not that a future run has already occurred.",
       "rationale": "A stale or substituted artifact can bypass every reviewed control. Enforcing one reusable release workflow has high consequence reduction and lifecycle value.",
       "evidence": [

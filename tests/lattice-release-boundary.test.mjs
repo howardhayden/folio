@@ -88,10 +88,32 @@ test("the release register holds only the consequential live-service blocker", a
   assert.equal(register.ownerDisposition.status, "release-directed");
   assert.equal(register.ownerDisposition.qualifiedSourceSetSha256, register.authority.qualifiedSourceSet.sha256);
   assert.match(register.authority.qualifiedSourceSet.sha256, /^[a-f0-9]{64}$/u);
-  assert.ok(register.authority.qualifiedSourceSet.trees.includes("app"), "the qualified source set binds every same-origin application source");
-  assert.ok(register.authority.qualifiedSourceSet.trees.includes("scripts"), "the qualified source set binds every build and release script");
-  assert.ok(register.authority.qualifiedSourceSet.files.includes("CNAME"), "the qualified source set binds the production hostname");
-  assert.ok(register.authority.qualifiedSourceSet.files.includes("postcss.config.mjs"), "the qualified source set binds CSS compilation");
+  assert.deepEqual(register.authority.qualifiedSourceSet.files, [
+    ".github/workflows/pages.yml",
+    "CNAME",
+    "LICENSE-MAP.json",
+    "NOTICE",
+    "THIRD_PARTY_LICENSES.txt",
+    "THIRD_PARTY_NOTICES.md",
+    "eslint.config.mjs",
+    "next-env.d.ts",
+    "next.config.ts",
+    "package-lock.json",
+    "package.json",
+    "postcss.config.mjs",
+    "tsconfig.json",
+    "vite.config.ts",
+    "workers/package-lock.json",
+    "workers/package.json",
+  ], "the qualified source set binds the exact reviewed file inventory");
+  assert.deepEqual(register.authority.qualifiedSourceSet.trees, [
+    "LICENSES",
+    "app",
+    "scripts",
+    "tests",
+    "workers/text-to-lattice-attestation-frame",
+    "workers/text-to-lattice-lease",
+  ], "the qualified source set binds the exact reviewed tree inventory");
   assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
   assert.deepEqual(register.gates.map(({ id, status, marginalValue }) => [id, status, marginalValue]), [
     ["GATE-01", "release-workflow-enforced", "high"],
@@ -138,7 +160,7 @@ test("the release register holds only the consequential live-service blocker", a
   assert.match(workflow, /npm run typecheck[\s\S]*?npm test/u);
   assert.doesNotMatch(validatorSource, /register and activation edits alone cannot publish inference/u);
   assert.match(validatorSource, /public client must be enabled if and only if no open release blocker remains/u);
-  assert.match(validatorSource, /qualified source set must contain the exact reviewed activation, runtime, validator, and workflow path inventory/u);
+  assert.match(validatorSource, /qualified source set must contain the exact reviewed activation, runtime, validator, test, license-routing, legal-notice, and workflow path inventory/u);
   assert.match(validatorSource, /enabled publication must declare interactive-client mode/u);
   assert.match(validatorSource, /verifyEnabledBuiltBoundary/u);
   assert.match(validatorSource, /enabled project surface must expose exactly one Text to Lattice modal launcher/u);
@@ -183,6 +205,9 @@ test("qualification statuses retain their evidence, safeguard, acceptance, rollb
   const baseline = JSON.parse(await readFile(registerPath, "utf8"));
   const mutations = [
     [(record) => { record.authority.qualifiedSourceSet.sha256 = "0".repeat(64); }, /qualified source-set digest does not match/u],
+    [(record) => { record.authority.qualifiedSourceSet.files = record.authority.qualifiedSourceSet.files.filter((path) => path !== "LICENSE-MAP.json"); }, /exact reviewed activation, runtime, validator, test, license-routing, legal-notice, and workflow path inventory/u],
+    [(record) => { record.authority.qualifiedSourceSet.files = record.authority.qualifiedSourceSet.files.filter((path) => path !== "NOTICE"); }, /exact reviewed activation, runtime, validator, test, license-routing, legal-notice, and workflow path inventory/u],
+    [(record) => { record.authority.qualifiedSourceSet.trees = record.authority.qualifiedSourceSet.trees.filter((path) => path !== "tests"); }, /exact reviewed activation, runtime, validator, test, license-routing, legal-notice, and workflow path inventory/u],
     [(record) => { record.statusVocabulary = record.statusVocabulary.filter((status) => status !== "satisfied-in-production"); }, /statusVocabulary does not match/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").evidence = []; }, /GATE-02 evidence must be a nonempty array/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").status = "satisfied-in-production"; }, /GATE-02 rollbackCondition must be a nonempty string/u],

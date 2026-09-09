@@ -73,7 +73,12 @@ const qualifiedSourceSetAlgorithm = "sha256-path-and-bytes-v1";
 const qualifiedSourceFiles = Object.freeze([
   ".github/workflows/pages.yml",
   "CNAME",
+  "LICENSE-MAP.json",
+  "NOTICE",
+  "THIRD_PARTY_LICENSES.txt",
+  "THIRD_PARTY_NOTICES.md",
   "eslint.config.mjs",
+  "next-env.d.ts",
   "next.config.ts",
   "package-lock.json",
   "package.json",
@@ -84,8 +89,10 @@ const qualifiedSourceFiles = Object.freeze([
   "workers/package.json",
 ]);
 const qualifiedSourceTrees = Object.freeze([
+  "LICENSES",
   "app",
   "scripts",
+  "tests",
   "workers/text-to-lattice-attestation-frame",
   "workers/text-to-lattice-lease",
 ]);
@@ -204,7 +211,7 @@ async function verifyQualifiedSourceSet(register) {
   }
   if (JSON.stringify(sourceSet.files) !== JSON.stringify(qualifiedSourceFiles)
     || JSON.stringify(sourceSet.trees) !== JSON.stringify(qualifiedSourceTrees)) {
-    fail("qualified source set must contain the exact reviewed activation, runtime, validator, and workflow path inventory.");
+    fail("qualified source set must contain the exact reviewed activation, runtime, validator, test, license-routing, legal-notice, and workflow path inventory.");
   }
   const prohibited = /^(?:docs\/text-to-lattice\/(?:LATTICE-DOCUMENTATION-ATLAS\.json|TEXT-TO-LATTICE-RELEASE-(?:REGISTER\.json|QUALIFICATION\.md))|public\/|site\/)/u;
   if ([...sourceSet.files, ...sourceSet.trees].some((path) => prohibited.test(path))) {
@@ -238,7 +245,7 @@ async function verifyQualifiedSourceSet(register) {
     hash.update("\0");
   }
   const observed = hash.digest("hex");
-  if (observed !== sourceSet.sha256) fail("qualified source-set digest does not match the named activation, runtime, validator, and workflow sources.");
+  if (observed !== sourceSet.sha256) fail("qualified source-set digest does not match the named activation, runtime, validator, test, license-routing, legal-notice, and workflow sources.");
   return observed;
 }
 

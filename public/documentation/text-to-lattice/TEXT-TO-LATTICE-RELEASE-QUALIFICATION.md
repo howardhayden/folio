@@ -7,7 +7,7 @@
 **Qualification date:** 2026-09-09
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
-**Qualified source-set SHA-256:** `84817014668e8e5f7f06793f341da181c254b48a34b7e9f9b2bcce8c04e16968`
+**Qualified source-set SHA-256:** `7c4d91f649eb6ce1ff40b989903f416e94e481fa2291b8f531d9701f26ed297e`
 **Artifact-set projection SHA-256:** `5613bf89d45e9b61213b6cc4c2bd6d4a72d2e4e4d3bcda34d0fcf97a587eaf1f`
 
 This is an engineering release decision, not legal advice, an upstream warranty, or independent certification. It applies only to the exact revisions and digests named below. A source test proves a source contract; it does not prove a production origin, provider setting, assistive-technology path, network trace, third-party license grant, or reproducible binary.
@@ -18,7 +18,7 @@ Exactly one release blocker remains: the deployed origin and secret boundary doe
 
 The other gaps are real, but they do not all have the same release consequence:
 
-- Exact release identity is **release-workflow-enforced**. The qualified source set binds the activation, runtime, validator, and workflow sources without hashing this register or generated evidence. Current-main checks separately bind the deployed commit. This records a mandatory lifecycle control; it does not claim that a future workflow run has already happened.
+- Exact release identity is **release-workflow-enforced**. The qualified source set binds the activation, runtime, validator, complete test tree, license-routing map, shipped legal notices, and workflow sources without hashing this register or generated evidence. Current-main checks separately bind the deployed commit. This records a mandatory lifecycle control; it does not claim that a future workflow run has already happened.
 - Capacity and the production privacy trace are **post-deployment verification**. Those facts cannot exist honestly before the service exists. Each has bounded safeguards, a concrete follow-up, and a condition that disables the client on consequential failure.
 - Exact-model Llama fixture execution, the incomplete converted-model custody narrative, the absent historical WASM rebuild, and the eventual complete assistive-technology matrix are **accepted residual risks**. Their evidence gaps stay explicit. A verifier false negative is not bounded merely because explicit denials are withheld, and artifact hashes do not establish license or notice custody. Source confirmation, tool-free local operation, human review, exact technical identity, accessibility contracts, and requalification triggers bound the official product surface without pretending the missing evidence exists.
 
