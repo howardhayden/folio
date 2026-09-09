@@ -243,7 +243,7 @@ function TimelineEntry({
 function Progress({ label, start, width, gradient = false, href, onClick }: { label: string; start: string; width: string; gradient?: boolean; href?: string; onClick?: (trigger: HTMLAnchorElement) => void }) {
   const className = `progress-bar-fill ml-auto ${gradient ? "background-gradient-green-blue" : ""}`;
   return (
-    <div className="progress-container">
+    <div className="progress-container university-progress-entry">
       <div className="progress-bar-wrapper rounded-0">
         {onClick && href ? (
           <a

@@ -1,6 +1,6 @@
 import { documentsForProject } from "../content/projectDocuments.js";
 
-export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v5";
+export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v6";
 export const PROJECT_CONTENT_UPDATED = "2026-09-09";
 
 export const LATTICE_DOCUMENTATION_RESOURCES = Object.freeze(
@@ -199,7 +199,7 @@ export const projects = Object.freeze([
     emphasis: Object.freeze(["infrastructure", "work under pressure"]),
     relationships: Object.freeze([]),
     resources: Object.freeze([
-      Object.freeze({ label: "Howard Hayden’s Medium Essays", url: "https://medium.com/@howardhayden", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "Howie’s Medium Articles", url: "https://medium.com/@howardhayden", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "June 2026–present", value: "2026-06", precision: "open-range" }),
     status: "ongoing",

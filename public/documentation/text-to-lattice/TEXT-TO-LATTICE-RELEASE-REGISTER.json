@@ -16,7 +16,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "90d66cf4df7ed920033a7604f6f33991c621bc20d69d65481e935b4e6864fec4",
+    "qualificationDossierSha256": "518fbaed8d0fa8b81273b9008b8650dd3ece2e84d0359f80c8a9a0db86a7e2f5",
     "qualifiedSourceSet": {
       "algorithm": "sha256-path-and-bytes-v1",
       "files": [
@@ -46,7 +46,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "a4d3ac832142bf8a820d7cd9616b8cfe5627aff759e52511adfc8197b708e8e3",
+      "sha256": "d6a81bb01c35233890baa202dbf6cd00459805395bb4f2f4aeacf3ac21452f77",
       "claim": "This digest binds the named source paths only, including the complete test tree, license-routing map, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. Current-main workflow checks separately bind the deployed commit."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -61,7 +61,7 @@
   "ownerDisposition": {
     "status": "release-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "a4d3ac832142bf8a820d7cd9616b8cfe5627aff759e52511adfc8197b708e8e3",
+    "qualifiedSourceSetSha256": "d6a81bb01c35233890baa202dbf6cd00459805395bb4f2f4aeacf3ac21452f77",
     "decidedOn": "2026-09-09",
     "record": "The owner-directed activation condition was met when the exact production service workflow satisfied GATE-02; the newest qualified Text to Lattice is approved for interactive publication as a bounded demonstrable release.",
     "note": "Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence. GATE-02 closure rests on the separately recorded production workflow evidence, while canonical-browser lifecycle, privacy-trace, exact-model-execution, and provenance limits remain typed without overclaim."

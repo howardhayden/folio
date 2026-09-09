@@ -43,15 +43,23 @@ export default function ShelfExplorer({ papers, onNavigate }: { papers: Paper[];
   const filtersRef = useRef(filters);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
+    const randomize = () => {
       setFiltered((current) => arrangeShelfPapers(
         papers,
         filtersRef.current,
         randomShelfSeed(),
         current.map((paper) => paper.title),
       ));
-    });
-    return () => window.cancelAnimationFrame(frame);
+    };
+    const timer = window.setTimeout(randomize, 0);
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) randomize();
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pageshow", handlePageShow);
+    };
   }, [papers]);
 
   useEffect(() => {

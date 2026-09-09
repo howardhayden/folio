@@ -436,26 +436,57 @@ svg.signal-fuzz,
   text-align: right;
 }
 
+.university-progress-entry .progress-bar-fill {
+  isolation: isolate;
+  position: relative;
+  text-align: left;
+}
+
+.university-progress-entry .progress-value {
+  padding-left: .25rem;
+  padding-right: 0;
+  position: relative;
+  text-align: left;
+  z-index: 1;
+}
+
+.university-progress-entry .progress-label {
+  text-align: right;
+}
+
 .progress-bar-fill.button-reset {
   cursor: pointer;
-  transition: background-color 0.25s ease-in-out, color 0.25s ease-in-out;
+  transition: color .42s cubic-bezier(.22, 1, .36, 1);
+}
+
+.university-progress-entry .progress-bar-fill.button-reset::after {
+  background: whitesmoke;
+  content: "";
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity .42s cubic-bezier(.22, 1, .36, 1);
+  z-index: 0;
 }
 
 .progress-bar-fill.button-reset:focus-visible {
-  background-color: whitesmoke !important;
-  background-image: none;
   color: black;
-  filter: none;
   outline: 2px solid currentColor;
   outline-offset: 3px;
 }
 
+.university-progress-entry .progress-bar-fill.button-reset:focus-visible::after {
+  opacity: 1;
+}
+
 @media (hover: hover) {
   .progress-bar-fill.button-reset:hover {
-    background-color: whitesmoke !important;
-    background-image: none;
     color: black;
-    filter: none;
+  }
+
+  .university-progress-entry .progress-bar-fill.button-reset:hover::after {
+    opacity: 1;
   }
 }
 
@@ -477,6 +508,7 @@ svg.signal-fuzz,
   opacity: 0.12;
   pointer-events: none;
   position: absolute;
+  transition: opacity .42s cubic-bezier(.22, 1, .36, 1);
 }
 
 .background-gradient-green-blue.button-reset:focus-visible::before {
@@ -1393,8 +1425,10 @@ a:hover {
     transition: none;
   }
 
+  .university-progress-entry .progress-bar-fill.button-reset::after,
   .background-gradient-green-blue::before {
     animation: none;
+    transition: none;
   }
 
   .lattice-output-veil {

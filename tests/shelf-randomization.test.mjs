@@ -38,13 +38,21 @@ test("Shelf retains a bounded random fallback and never mutates canonical record
   assert.deepEqual(fixture.map(({ title }) => title), sourceOrder);
 });
 
-test("Shelf defers randomization until after hydration and reseeds every search edit", async () => {
+test("Shelf randomizes after hydration, on BFCache restore, and on every search edit", async () => {
   const source = await readFile(new URL("../app/shelf/ShelfExplorer.tsx", import.meta.url), "utf8");
+  const loadEffect = source.match(/useEffect\(\(\) => \{[\s\S]*?\n  \}, \[papers\]\);/u)?.[0] ?? "";
 
   assert.match(source, /const \[filtered, setFiltered\] = useState\(papers\);/u,
     "the server and first client render share the canonical order");
-  assert.match(source, /useEffect\(\(\) => \{[\s\S]*?requestAnimationFrame\(\(\) => \{[\s\S]*?randomShelfSeed\(\)/u,
-    "load-in randomization begins only after hydration commits");
+  assert.match(loadEffect, /randomShelfSeed\(\)/u,
+    "the load-in arrangement draws a fresh seed");
+  assert.match(loadEffect, /setTimeout\(randomize, 0\)/u,
+    "load-in randomization begins in a post-hydration task without relying on an animation frame");
+  assert.match(loadEffect, /addEventListener\("pageshow", handlePageShow\)/u);
+  assert.match(loadEffect, /if \(event\.persisted\) randomize\(\);/u,
+    "restoring the Shelf from BFCache produces a fresh order");
+  assert.doesNotMatch(loadEffect, /requestAnimationFrame/u,
+    "background-tab animation throttling cannot suppress the initial arrangement");
 
   const changeFilter = source.match(/const changeFilter =[\s\S]*?\n  \};/u)?.[0] ?? "";
   assert.match(changeFilter, /randomShelfSeed\(\)/u,
