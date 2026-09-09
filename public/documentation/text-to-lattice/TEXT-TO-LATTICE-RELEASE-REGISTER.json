@@ -16,7 +16,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "174f2fe8bedea950be8abe952797f539aec0fe39c02017f8ea183cd070ece2ad",
+    "qualificationDossierSha256": "30ddc1b1947a8451e2efe06fc9c46ddeae073bf646da5847eec250148f3ec05f",
     "qualifiedSourceSet": {
       "algorithm": "sha256-path-and-bytes-v1",
       "files": [
@@ -38,7 +38,7 @@
         "workers/text-to-lattice-attestation-frame",
         "workers/text-to-lattice-lease"
       ],
-      "sha256": "6f37822a82ca8ee533734031d63333c572287d7d7b1ae5a283b7b1b6a8285dab",
+      "sha256": "84817014668e8e5f7f06793f341da181c254b48a34b7e9f9b2bcce8c04e16968",
       "claim": "This digest binds the named source paths only. It excludes this register, the qualification dossier, the atlas, tests, and generated output so the qualification record is not self-referential. Current-main workflow checks separately bind the deployed commit."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -66,7 +66,7 @@
   "ownerDisposition": {
     "status": "release-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "6f37822a82ca8ee533734031d63333c572287d7d7b1ae5a283b7b1b6a8285dab",
+    "qualifiedSourceSetSha256": "84817014668e8e5f7f06793f341da181c254b48a34b7e9f9b2bcce8c04e16968",
     "decidedOn": "2026-09-09",
     "record": "The active owner direction is to qualify and include the newest Text to Lattice once the consequential release boundary is satisfied.",
     "note": "Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence. No live-service, browser, model-execution, or production-trace result is inferred from the direction."

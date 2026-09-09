@@ -32,7 +32,12 @@ const mainPolicy = [
   "frame-src https://verify.hah.dev",
   ...mainResourceDirectives.map(([name, values]) => `${name} ${values.join(" ")}`),
 ].join("; ");
-const mainPageUrls = new Set(["https://hah.dev/", "https://hah.dev/resume/"]);
+const mainPageUrls = new Set([
+  "https://hah.dev/",
+  "https://hah.dev/index.html",
+  "https://hah.dev/resume/",
+  "https://hah.dev/resume/index.html",
+]);
 
 const frameHeaders = {
   "Cache-Control": "no-store, max-age=0",

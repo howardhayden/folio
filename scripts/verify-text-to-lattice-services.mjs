@@ -9,7 +9,9 @@ const frameOrigin = "https://verify.hah.dev";
 const leaseUrl = `${mainOrigin}/api/text-to-lattice/lease`;
 const mainPages = Object.freeze([
   Object.freeze({ label: "hah.dev root résumé", url: `${mainOrigin}/` }),
+  Object.freeze({ label: "hah.dev root index alias", url: `${mainOrigin}/index.html` }),
   Object.freeze({ label: "hah.dev résumé", url: `${mainOrigin}/resume/` }),
+  Object.freeze({ label: "hah.dev résumé index alias", url: `${mainOrigin}/resume/index.html` }),
 ]);
 const requiredMainResourceDirectives = Object.freeze([
   Object.freeze(["connect-src", Object.freeze([
@@ -327,7 +329,7 @@ async function verifyMainPageHeaders(fetchImpl) {
   for (const page of mainPages) {
     await verifyMainPageResponse(fetchImpl, page);
   }
-  console.log("Both hah.dev résumé routes permit the dedicated verification frame and exact local runtime dependencies without loading Turnstile on the main page.");
+  console.log("All hah.dev résumé document aliases permit the dedicated verification frame and exact local runtime dependencies without loading Turnstile on the main page.");
 }
 
 async function verifyLease(fetchImpl) {

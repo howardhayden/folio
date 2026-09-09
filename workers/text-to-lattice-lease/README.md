@@ -297,9 +297,11 @@ Before enabling the static client:
 
 6. Deploy the static-only project in
    `workers/text-to-lattice-attestation-frame/` at `verify.hah.dev`. At the
-   `hah.dev` response-header/CDN layer, apply the following policies to both
-   the root document (which serves `/#Resume`; fragments never reach the
-   server) and `/resume/`:
+   `hah.dev` response-header/CDN layer, apply the following policies to all four
+   public aliases for the résumé documents: `/`, `/index.html`, `/resume/`, and
+   `/resume/index.html`. The root document serves `/#Resume`; fragments never
+   reach the server, while GitHub Pages serves both explicit `index.html`
+   aliases without redirecting them:
 
    ```text
    Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; frame-src https://verify.hah.dev; connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co https://raw.githubusercontent.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'
@@ -311,8 +313,8 @@ Before enabling the static client:
    comes from `raw.githubusercontent.com`, and the existing Jost stylesheet and
    font come from Google's named font origins. Do not add Cloudflare's challenge
    origin to the main page's `script-src`, add `script-src-elem`, or replace a
-   named source with a general HTTPS or wildcard source. Confirm both main
-   routes with the live service verifier, then confirm the frame's checked-in CSP and
+   named source with a general HTTPS or wildcard source. Confirm all four main
+   document aliases with the live service verifier, then confirm the frame's checked-in CSP and
    `frame-ancestors https://hah.dev` header on the deployed response. No account
    identifier, deploy credential, site key, or secret is committed by the
    static project.
