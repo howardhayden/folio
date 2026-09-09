@@ -379,7 +379,7 @@ async function publicHandler(request, env) {
   if (!new Set(["POST", "PATCH", "DELETE"]).has(request.method)) {
     return emptyResponse(405, { Allow: "POST, PATCH, DELETE" });
   }
-  if (rejectUnsafeRequest(request, PUBLIC_ORIGIN)) {
+  if (await rejectUnsafeRequest(request, PUBLIC_ORIGIN)) {
     return jsonResponse(403, {
       allowed: false,
       code: "same-origin-empty-request-required",

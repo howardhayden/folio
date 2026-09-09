@@ -3,7 +3,30 @@ import {
   LATTICE_ATTESTATION_HEADER,
 } from "./attestation.js";
 
-export function rejectUnsafeRequest(request, publicOrigin) {
+async function hasRequestBody(request) {
+  if (request.body === null) return false;
+  try {
+    const reader = request.body.getReader();
+    try {
+      // Cloudflare can expose a bodyless POST as an already-closed stream.
+      // Stop at the first real byte; zero-length chunks carry no payload, so
+      // an empty provider-created stream is accepted only once it closes.
+      while (true) {
+        const next = await reader.read();
+        if (next.done) return false;
+        if ((next.value?.byteLength ?? 0) > 0) return true;
+      }
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+  } catch {
+    // Unknown or unreadable stream shapes fail closed.
+    return true;
+  }
+}
+
+export async function rejectUnsafeRequest(request, publicOrigin) {
   if (request.headers.get("Origin") !== publicOrigin) return "origin";
   const fetchSite = request.headers.get("Sec-Fetch-Site");
   if (fetchSite && fetchSite !== "same-origin") return "fetch-site";
@@ -22,14 +45,11 @@ export function rejectUnsafeRequest(request, publicOrigin) {
     return "attestation";
   }
 
-  // A declared zero length is not evidence that a supplied stream is empty.
-  // Official calls omit `body` entirely, so reject every non-null stream
-  // without consuming user-controlled bytes.
+  // Framing claims alone are not evidence that a supplied stream is empty.
+  // Check the stream as well, without buffering user-controlled bytes.
   if (request.headers.has("Transfer-Encoding")) return "body";
   const contentLength = request.headers.get("Content-Length");
   const normalizedContentLength = contentLength?.trim() ?? null;
-  if (request.body !== null) return "body";
-  return normalizedContentLength === null || normalizedContentLength === "0"
-    ? null
-    : "body";
+  if (normalizedContentLength !== null && normalizedContentLength !== "0") return "body";
+  return await hasRequestBody(request) ? "body" : null;
 }

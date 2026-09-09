@@ -560,6 +560,9 @@ test("live qualification accepts the exact public route, cookie, and header cont
   assert.equal(invalidAttestationRequest?.init.method, "POST");
   assert.equal(invalidAttestationRequest?.init.body, undefined);
   assert.equal(invalidAttestationRequest?.headers.get("Origin"), "https://hah.dev");
+  assert.equal(invalidAttestationRequest?.headers.get("Sec-Fetch-Site"), "same-origin");
+  assert.equal(invalidAttestationRequest?.headers.get("Sec-Fetch-Mode"), "cors");
+  assert.equal(invalidAttestationRequest?.headers.get("Sec-Fetch-Dest"), "empty");
   assert.match(invalidAttestationRequest?.headers.get("Cookie") ?? "", /^__Secure-hah-lattice-visitor=/u);
   assert.match(
     invalidAttestationRequest?.headers.get("X-Lattice-Attestation") ?? "",
@@ -568,6 +571,9 @@ test("live qualification accepts the exact public route, cookie, and header cont
   assert.equal(demonstrationAcquisitionRequest?.url, "https://hah.dev/api/text-to-lattice/lease");
   assert.equal(demonstrationAcquisitionRequest?.init.method, "POST");
   assert.equal(demonstrationAcquisitionRequest?.init.body, undefined);
+  assert.equal(demonstrationAcquisitionRequest?.headers.get("Sec-Fetch-Site"), "same-origin");
+  assert.equal(demonstrationAcquisitionRequest?.headers.get("Sec-Fetch-Mode"), "cors");
+  assert.equal(demonstrationAcquisitionRequest?.headers.get("Sec-Fetch-Dest"), "empty");
   assert.equal(
     demonstrationAcquisitionRequest?.headers.get("X-Lattice-Attestation"),
     CLOUDFLARE_DEMONSTRATION_TOKEN,
@@ -575,6 +581,9 @@ test("live qualification accepts the exact public route, cookie, and header cont
   assert.equal(demonstrationReleaseRequest?.url, "https://hah.dev/api/text-to-lattice/lease");
   assert.equal(demonstrationReleaseRequest?.init.method, "DELETE");
   assert.equal(demonstrationReleaseRequest?.init.body, undefined);
+  assert.equal(demonstrationReleaseRequest?.headers.get("Sec-Fetch-Site"), "same-origin");
+  assert.equal(demonstrationReleaseRequest?.headers.get("Sec-Fetch-Mode"), "cors");
+  assert.equal(demonstrationReleaseRequest?.headers.get("Sec-Fetch-Dest"), "empty");
   assert.equal(
     demonstrationReleaseRequest?.headers.get("Authorization"),
     `Bearer ${fixtureLeaseToken}`,

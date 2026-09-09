@@ -12,6 +12,12 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const mainOrigin = "https://hah.dev";
 const frameOrigin = "https://verify.hah.dev";
 const leaseUrl = `${mainOrigin}/api/text-to-lattice/lease`;
+const sameOriginLeaseHeaders = Object.freeze({
+  Origin: mainOrigin,
+  "Sec-Fetch-Site": "same-origin",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Dest": "empty",
+});
 const mainPages = Object.freeze([
   Object.freeze({ label: "hah.dev root résumé", url: `${mainOrigin}/` }),
   Object.freeze({ label: "hah.dev root index alias", url: `${mainOrigin}/index.html` }),
@@ -352,7 +358,12 @@ async function verifyLease(fetchImpl) {
 
   const crossOriginResponse = await request(fetchImpl, leaseUrl, {
     method: "POST",
-    headers: { Origin: "https://qualification.invalid" },
+    headers: {
+      Origin: "https://qualification.invalid",
+      "Sec-Fetch-Site": "cross-site",
+      "Sec-Fetch-Mode": "cors",
+      "Sec-Fetch-Dest": "empty",
+    },
   }, "lease cross-origin probe");
   requireStatus(crossOriginResponse, 403, "lease cross-origin probe");
   verifyLeaseHeaders(crossOriginResponse, "lease cross-origin probe");
@@ -369,7 +380,7 @@ async function verifyLease(fetchImpl) {
 
   const firstPartyResponse = await request(fetchImpl, leaseUrl, {
     method: "POST",
-    headers: { Origin: mainOrigin },
+    headers: sameOriginLeaseHeaders,
   }, "lease first-party challenge probe");
   requireStatus(firstPartyResponse, 428, "lease first-party challenge probe");
   verifyLeaseHeaders(firstPartyResponse, "lease first-party challenge probe");
@@ -397,8 +408,8 @@ async function verifyLease(fetchImpl) {
   const returningResponse = await request(fetchImpl, leaseUrl, {
     method: "POST",
     headers: {
+      ...sameOriginLeaseHeaders,
       Cookie: cookiePair,
-      Origin: mainOrigin,
     },
   }, "lease returning-browser challenge probe");
   requireStatus(returningResponse, 428, "lease returning-browser challenge probe");
@@ -415,8 +426,8 @@ async function verifyLease(fetchImpl) {
   const invalidAttestationResponse = await request(fetchImpl, leaseUrl, {
     method: "POST",
     headers: {
+      ...sameOriginLeaseHeaders,
       Cookie: cookiePair,
-      Origin: mainOrigin,
       "X-Lattice-Attestation": "qualification-intentionally-invalid",
     },
   }, "lease invalid-attestation probe");
@@ -439,8 +450,8 @@ async function verifyLease(fetchImpl) {
   const demonstrationAcquisitionResponse = await request(fetchImpl, leaseUrl, {
     method: "POST",
     headers: {
+      ...sameOriginLeaseHeaders,
       Cookie: cookiePair,
-      Origin: mainOrigin,
       "X-Lattice-Attestation": CLOUDFLARE_DEMONSTRATION_TOKEN,
     },
   }, "lease demonstration-profile acquisition probe");
@@ -482,9 +493,9 @@ async function verifyLease(fetchImpl) {
       const demonstrationReleaseResponse = await request(fetchImpl, leaseUrl, {
         method: "DELETE",
         headers: {
+          ...sameOriginLeaseHeaders,
           Authorization: `Bearer ${demonstrationLeaseToken}`,
           Cookie: cookiePair,
-          Origin: mainOrigin,
         },
       }, "lease demonstration-profile release probe");
       requireStatus(demonstrationReleaseResponse, 204, "lease demonstration-profile release probe");

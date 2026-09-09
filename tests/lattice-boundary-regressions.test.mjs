@@ -50,7 +50,7 @@ test("each Hugging Face role stays on its independently approved immutable revis
   );
 });
 
-test("the bodyless lease boundary accepts exact safe request-header limits", () => {
+test("the bodyless lease boundary accepts exact safe request-header limits", async () => {
   const headers = new Headers({
     Origin: "https://hah.dev",
     "Content-Length": "0",
@@ -66,9 +66,9 @@ test("the bodyless lease boundary accepts exact safe request-header limits", () 
     body: null,
   };
 
-  assert.equal(rejectUnsafeRequest(request, "https://hah.dev"), null);
+  assert.equal(await rejectUnsafeRequest(request, "https://hah.dev"), null);
   headers.set("Cookie", "x".repeat(4_097));
-  assert.equal(rejectUnsafeRequest(request, "https://hah.dev"), "cookie");
+  assert.equal(await rejectUnsafeRequest(request, "https://hah.dev"), "cookie");
 });
 
 test("the lease response parser accepts valid JSON at exactly its byte ceiling", async () => {

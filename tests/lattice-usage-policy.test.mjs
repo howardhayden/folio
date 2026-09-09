@@ -516,9 +516,9 @@ test("Turnstile Siteverify bodies are canceled at declared and streamed byte cei
   assert.equal(streamedCanceled, true);
 });
 
-test("only bodyless requests pass, regardless of claimed zero-length framing", () => {
+test("only empty requests pass, including provider-created closed streams", async () => {
   const url = "https://hah.dev/api/text-to-lattice/lease";
-  const emptyStreamRequest = new Request(url, {
+  const implicitlyTypedEmptyRequest = new Request(url, {
     method: "POST",
     headers: {
       Origin: "https://hah.dev",
@@ -527,8 +527,54 @@ test("only bodyless requests pass, regardless of claimed zero-length framing", (
     body: "",
     duplex: "half",
   });
-  assert.equal(emptyStreamRequest.body === null, false);
-  assert.equal(rejectUnsafeRequest(emptyStreamRequest, "https://hah.dev"), "body");
+  assert.equal(implicitlyTypedEmptyRequest.body === null, false);
+  assert.equal(
+    await rejectUnsafeRequest(implicitlyTypedEmptyRequest, "https://hah.dev"),
+    "body",
+    "an automatically added Content-Type still violates the bodyless protocol",
+  );
+
+  const providerEmptyStreamRequest = new Request(url, {
+    method: "POST",
+    headers: { Origin: "https://hah.dev" },
+    body: new Uint8Array(),
+    duplex: "half",
+  });
+  assert.equal(providerEmptyStreamRequest.body === null, false);
+  assert.equal(await rejectUnsafeRequest(providerEmptyStreamRequest, "https://hah.dev"), null);
+
+  const zeroChunkThenCloseRequest = new Request(url, {
+    method: "POST",
+    headers: { Origin: "https://hah.dev" },
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array());
+        controller.close();
+      },
+    }),
+    duplex: "half",
+  });
+  assert.equal(await rejectUnsafeRequest(zeroChunkThenCloseRequest, "https://hah.dev"), null);
+
+  const providerPayloadStreamRequest = new Request(url, {
+    method: "POST",
+    headers: { Origin: "https://hah.dev" },
+    body: new Uint8Array([1]),
+    duplex: "half",
+  });
+  assert.equal(await rejectUnsafeRequest(providerPayloadStreamRequest, "https://hah.dev"), "body");
+
+  const erroredStreamRequest = new Request(url, {
+    method: "POST",
+    headers: { Origin: "https://hah.dev" },
+    body: new ReadableStream({
+      start(controller) {
+        controller.error(new Error("injected stream failure"));
+      },
+    }),
+    duplex: "half",
+  });
+  assert.equal(await rejectUnsafeRequest(erroredStreamRequest, "https://hah.dev"), "body");
 
   const request = ({
     body = null,
@@ -560,31 +606,31 @@ test("only bodyless requests pass, regardless of claimed zero-length framing", (
     if (attestation !== undefined) headers.set("X-Lattice-Attestation", attestation);
     return { url: requestUrl, headers, body, method };
   };
-  assert.equal(rejectUnsafeRequest(request(), "https://hah.dev"), null);
-  assert.equal(rejectUnsafeRequest(request({ contentLength: "0" }), "https://hah.dev"), null);
-  assert.equal(rejectUnsafeRequest(request({ body: {}, contentLength: "0" }), "https://hah.dev"), "body");
-  assert.equal(rejectUnsafeRequest(request({ body: {} }), "https://hah.dev"), "body");
-  assert.equal(rejectUnsafeRequest(request({ body: {}, contentLength: "1" }), "https://hah.dev"), "body");
-  assert.equal(rejectUnsafeRequest(request({ body: {}, contentLength: "00" }), "https://hah.dev"), "body");
+  assert.equal(await rejectUnsafeRequest(request(), "https://hah.dev"), null);
+  assert.equal(await rejectUnsafeRequest(request({ contentLength: "0" }), "https://hah.dev"), null);
+  assert.equal(await rejectUnsafeRequest(request({ body: {}, contentLength: "0" }), "https://hah.dev"), "body");
+  assert.equal(await rejectUnsafeRequest(request({ body: {} }), "https://hah.dev"), "body");
+  assert.equal(await rejectUnsafeRequest(request({ body: {}, contentLength: "1" }), "https://hah.dev"), "body");
+  assert.equal(await rejectUnsafeRequest(request({ body: {}, contentLength: "00" }), "https://hah.dev"), "body");
   assert.equal(
-    rejectUnsafeRequest(request({ body: {}, contentLength: "0", transferEncoding: "chunked" }), "https://hah.dev"),
+    await rejectUnsafeRequest(request({ body: {}, contentLength: "0", transferEncoding: "chunked" }), "https://hah.dev"),
     "body",
   );
-  assert.equal(rejectUnsafeRequest(request({ origin: null }), "https://hah.dev"), "origin");
-  assert.equal(rejectUnsafeRequest(request({ origin: "https://example.invalid" }), "https://hah.dev"), "origin");
-  assert.equal(rejectUnsafeRequest(request({ fetchSite: "cross-site" }), "https://hah.dev"), "fetch-site");
-  assert.equal(rejectUnsafeRequest(request({ fetchSite: "same-site" }), "https://hah.dev"), "fetch-site");
-  assert.equal(rejectUnsafeRequest(request({ fetchMode: "navigate" }), "https://hah.dev"), "fetch-mode");
-  assert.equal(rejectUnsafeRequest(request({ fetchDestination: "document" }), "https://hah.dev"), "fetch-destination");
-  assert.equal(rejectUnsafeRequest(request({ requestUrl: `${url}?source=never` }), "https://hah.dev"), "query");
-  assert.equal(rejectUnsafeRequest(request({ cookie: "x".repeat(4_097) }), "https://hah.dev"), "cookie");
-  assert.equal(rejectUnsafeRequest(request({ contentType: "text/plain" }), "https://hah.dev"), "body");
-  assert.equal(rejectUnsafeRequest(request({ contentEncoding: "gzip" }), "https://hah.dev"), "body");
-  assert.equal(rejectUnsafeRequest(request({ authorization: "Bearer x" }), "https://hah.dev"), "authorization");
-  assert.equal(rejectUnsafeRequest(request({ attestation: "0.valid_test-token" }), "https://hah.dev"), null);
-  assert.equal(rejectUnsafeRequest(request({ attestation: "source text" }), "https://hah.dev"), "attestation");
-  assert.equal(rejectUnsafeRequest(request({ method: "PATCH", authorization: "Bearer x" }), "https://hah.dev"), null);
-  assert.equal(rejectUnsafeRequest(request({ method: "PATCH", authorization: "Bearer x", attestation: "0.valid_test-token" }), "https://hah.dev"), "attestation");
+  assert.equal(await rejectUnsafeRequest(request({ origin: null }), "https://hah.dev"), "origin");
+  assert.equal(await rejectUnsafeRequest(request({ origin: "https://example.invalid" }), "https://hah.dev"), "origin");
+  assert.equal(await rejectUnsafeRequest(request({ fetchSite: "cross-site" }), "https://hah.dev"), "fetch-site");
+  assert.equal(await rejectUnsafeRequest(request({ fetchSite: "same-site" }), "https://hah.dev"), "fetch-site");
+  assert.equal(await rejectUnsafeRequest(request({ fetchMode: "navigate" }), "https://hah.dev"), "fetch-mode");
+  assert.equal(await rejectUnsafeRequest(request({ fetchDestination: "document" }), "https://hah.dev"), "fetch-destination");
+  assert.equal(await rejectUnsafeRequest(request({ requestUrl: `${url}?source=never` }), "https://hah.dev"), "query");
+  assert.equal(await rejectUnsafeRequest(request({ cookie: "x".repeat(4_097) }), "https://hah.dev"), "cookie");
+  assert.equal(await rejectUnsafeRequest(request({ contentType: "text/plain" }), "https://hah.dev"), "body");
+  assert.equal(await rejectUnsafeRequest(request({ contentEncoding: "gzip" }), "https://hah.dev"), "body");
+  assert.equal(await rejectUnsafeRequest(request({ authorization: "Bearer x" }), "https://hah.dev"), "authorization");
+  assert.equal(await rejectUnsafeRequest(request({ attestation: "0.valid_test-token" }), "https://hah.dev"), null);
+  assert.equal(await rejectUnsafeRequest(request({ attestation: "source text" }), "https://hah.dev"), "attestation");
+  assert.equal(await rejectUnsafeRequest(request({ method: "PATCH", authorization: "Bearer x" }), "https://hah.dev"), null);
+  assert.equal(await rejectUnsafeRequest(request({ method: "PATCH", authorization: "Bearer x", attestation: "0.valid_test-token" }), "https://hah.dev"), "attestation");
 });
 
 test("an acquisition and its alarm roll back together when setAlarm fails", async () => {

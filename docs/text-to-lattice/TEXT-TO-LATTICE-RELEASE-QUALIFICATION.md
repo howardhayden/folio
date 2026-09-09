@@ -7,7 +7,7 @@
 **Qualification date:** 2026-09-09
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
-**Qualified source-set SHA-256:** `b45b0a5b4d3a5717cb8b43914ab42f3dbf192513c9c09b7d765bf79949b75952`
+**Qualified source-set SHA-256:** `c80c2aaa72d7e4a946180d933a37074b49ddfb27ded6bc2d5ac383225f7525a7`
 **Artifact-set projection SHA-256:** `5613bf89d45e9b61213b6cc4c2bd6d4a72d2e4e4d3bcda34d0fcf97a587eaf1f`
 
 This is an engineering release decision, not legal advice, an upstream warranty, or independent certification. It applies only to the exact revisions and digests named below. A source test proves a source contract; it does not prove a production origin, provider setting, assistive-technology path, network trace, third-party license grant, or reproducible binary.
