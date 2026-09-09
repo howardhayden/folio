@@ -43,6 +43,11 @@ import {
   verifyLatticeAttestation,
 } from "../workers/text-to-lattice-lease/attestation.js";
 import {
+  CLOUDFLARE_DEMONSTRATION_SECRET_KEY,
+  CLOUDFLARE_DEMONSTRATION_SITE_KEY,
+  CLOUDFLARE_DEMONSTRATION_TOKEN,
+} from "../workers/text-to-lattice-lease/demonstrationProfile.js";
+import {
   isLatticeAttestationToken as isBrowserAttestationToken,
 } from "../app/resume/lattice/attestation.js";
 import {
@@ -256,9 +261,22 @@ test("production signing domains require distinct secret bindings", () => {
     { ...configured, TURNSTILE_SITE_KEY: visitorCookieSecret },
     { ...configured, TURNSTILE_SITE_KEY: leaseCredentialSecret },
     { ...configured, TURNSTILE_SITE_KEY: turnstileSecretKey },
+    { ...configured, TURNSTILE_SECRET_KEY: CLOUDFLARE_DEMONSTRATION_SECRET_KEY },
+    { ...configured, TURNSTILE_SITE_KEY: CLOUDFLARE_DEMONSTRATION_SITE_KEY },
   ]) {
     assert.throws(() => requiredSigningSecrets(env), /Independent Worker secrets and attestation configuration are not configured/u);
   }
+
+  assert.deepEqual(requiredSigningSecrets({
+    ...configured,
+    TURNSTILE_SECRET_KEY: CLOUDFLARE_DEMONSTRATION_SECRET_KEY,
+    TURNSTILE_SITE_KEY: CLOUDFLARE_DEMONSTRATION_SITE_KEY,
+  }), {
+    visitorCookieSecret,
+    leaseCredentialSecret,
+    turnstileSecretKey: CLOUDFLARE_DEMONSTRATION_SECRET_KEY,
+    turnstileSiteKey: CLOUDFLARE_DEMONSTRATION_SITE_KEY,
+  });
 });
 
 test("out-of-order visitor refreshes retain one stable pseudonym", async () => {
@@ -384,6 +402,75 @@ test("Turnstile attestation validates success, hostname, action, age, and header
     fetchImpl: validFetch,
   }), true);
   assert.equal(submitted.get("response"), providerTokenWithPunctuation);
+});
+
+test("the official testing profile admits only the exact dummy token without claiming identity assurance", async () => {
+  const now = Date.UTC(2026, 8, 9, 12, 0, 0);
+  const result = {
+    success: true,
+    hostname: "localhost",
+    action: "test",
+    challenge_ts: new Date(now - 1_000).toISOString(),
+  };
+  let verificationCalls = 0;
+  const fetchImpl = async () => {
+    verificationCalls += 1;
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  for (let replay = 0; replay < 2; replay += 1) {
+    assert.equal(await verifyLatticeAttestation(CLOUDFLARE_DEMONSTRATION_TOKEN, {
+      secret: CLOUDFLARE_DEMONSTRATION_SECRET_KEY,
+      now,
+      fetchImpl,
+    }), true);
+  }
+  assert.equal(verificationCalls, 2, "the declared demo profile remains replayable by design");
+  assert.equal(await verifyLatticeAttestation("qualification-intentionally-invalid", {
+    secret: CLOUDFLARE_DEMONSTRATION_SECRET_KEY,
+    now,
+    fetchImpl: async () => { throw new Error("a non-dummy token must be rejected before Siteverify"); },
+  }), false);
+  assert.equal(await verifyLatticeAttestation(CLOUDFLARE_DEMONSTRATION_TOKEN, {
+    secret: "turnstile-production-secret-material-000000",
+    now,
+    fetchImpl,
+  }), false);
+  assert.equal(await verifyLatticeAttestation(CLOUDFLARE_DEMONSTRATION_TOKEN, {
+    secret: CLOUDFLARE_DEMONSTRATION_SECRET_KEY,
+    now,
+    fetchImpl: async () => new Response(JSON.stringify({
+      ...result,
+      challenge_ts: new Date(now - 301_000).toISOString(),
+    }), { status: 200, headers: { "Content-Type": "application/json" } }),
+  }), false);
+
+  const profile = PUBLISHED_LATTICE_USAGE_POLICY.enforcement.humanAttestation;
+  assert.equal(profile.activeProfile, "Cloudflare official testing profile");
+  assert.equal(profile.demonstrationProfile.exactAcceptedToken, CLOUDFLARE_DEMONSTRATION_TOKEN);
+  assert.equal(profile.demonstrationProfile.workerRequiresExactAcceptedToken, true);
+  assert.equal(profile.demonstrationProfile.workerRequiresProviderSuccess, true);
+  for (const assurance of [
+    "humanOrBotAssurance",
+    "hostnameAssurance",
+    "actionAssurance",
+    "freshnessAssurance",
+    "singleUseAssurance",
+  ]) assert.equal(profile.demonstrationProfile[assurance], false, assurance);
+  assert.match(profile.demonstrationProfile.limitation, /public dummy credential and token are reusable[\s\S]*does not make the token fresh or single-use[\s\S]*must not be represented as anti-bot evidence/iu);
+  assert.deepEqual(profile.realProfile, {
+    status: "supported when a hostname-restricted real widget pair is configured; not claimed by the active demonstrable release",
+    action: LATTICE_ATTESTATION_ACTION,
+    hostname: LATTICE_ATTESTATION_HOSTNAME,
+    validitySeconds: 300,
+    providerEnforcesSingleUse: true,
+    workerRequiresProviderSuccess: true,
+    workerRequiresHostname: true,
+    workerRequiresAction: true,
+    workerBoundsChallengeAge: true,
+  });
 });
 
 test("Turnstile Siteverify bodies are canceled at declared and streamed byte ceilings", async () => {
@@ -1804,9 +1891,10 @@ test("the published usage contract matches every enforced quota", () => {
     limit: 48,
     windowSeconds: 10,
     mitigationSeconds: 10,
-    requiredBeforeDeployment: true,
+    requiredBeforeDeployment: false,
+    releaseBoundary: "recommended operational hardening; deferred from the bounded demonstrable release under GATE-03",
     availabilityUrl: "https://developers.cloudflare.com/waf/rate-limiting-rules/#availability",
-    role: "best-effort flood protection; not exact global accounting",
+    role: "best-effort single-IP flood protection; not an anti-bot control, slot-starvation control, or exact global accounting authority",
   });
 });
 
@@ -1962,7 +2050,9 @@ test("the production route layers independent local shapers before the exact glo
   assert.match(workerReadme, /secret put VISITOR_COOKIE_SECRET/u);
   assert.match(workerReadme, /secret put LEASE_CREDENTIAL_SECRET/u);
   assert.match(workerReadme, /secret put TURNSTILE_SECRET_KEY/u);
-  assert.match(workerReadme, /Cloudflare encrypted Worker secrets/u);
+  assert.match(workerReadme, /Cloudflare encrypted Worker\s+bindings/u);
+  assert.match(workerReadme, /official testing profile[\s\S]*?exact reusable dummy[\s\S]*?no such assurance/iu);
+  assert.doesNotMatch(workerReadme, /Every acquisition also requires a fresh Cloudflare Turnstile attestation/u);
   assert.match(workerReadme, /protected\s+`text-to-lattice-production` GitHub environment[\s\S]*?environment secret/u);
   assert.match(workerReadme, /Preserve the exact verifier-use, converted-model, and WASM evidence and\s+residual-risk dispositions/u);
   assert.match(workerReadme, /only when\s+no gate is `open-release-blocker`/u);

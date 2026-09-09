@@ -36,7 +36,7 @@ export function isLatticeAttestationToken(value) {
 
 export function createLatticeAttestationRequestId(cryptoImpl = globalThis.crypto) {
   if (typeof cryptoImpl?.getRandomValues !== "function") {
-    throw new Error("Verification is unavailable right now.");
+    throw new Error("The acquisition check is unavailable right now.");
   }
   const bytes = cryptoImpl.getRandomValues(new Uint8Array(18));
   let binary = "";
@@ -86,7 +86,7 @@ export function obtainLatticeAttestation(siteKey, container, signal) {
   if (!TURNSTILE_SITE_KEY_PATTERN.test(siteKey ?? "")
     || typeof HTMLElement === "undefined"
     || !(container instanceof HTMLElement)) {
-    return Promise.reject(new Error("Verification is unavailable right now."));
+    return Promise.reject(new Error("The acquisition check is unavailable right now."));
   }
   if (signal?.aborted) {
     return Promise.reject(new DOMException("The local conversion was canceled.", "AbortError"));
@@ -102,8 +102,8 @@ export function obtainLatticeAttestation(siteKey, container, signal) {
   const frame = document.createElement("iframe");
   frame.className = "lattice-attestation-frame";
   frame.src = LATTICE_ATTESTATION_FRAME_URL;
-  frame.title = "Human verification for Text to Lattice";
-  frame.setAttribute("aria-label", "Human verification for Text to Lattice");
+  frame.title = "Text to Lattice acquisition check";
+  frame.setAttribute("aria-label", "Text to Lattice acquisition check");
   frame.setAttribute(
     "sandbox",
     "allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts",
@@ -131,7 +131,7 @@ export function obtainLatticeAttestation(siteKey, container, signal) {
       cleanup();
       operation(value);
     };
-    const failed = () => finish(reject, new Error("Verification did not finish. Please try again."));
+    const failed = () => finish(reject, new Error("The acquisition check did not finish. Please try again."));
     const aborted = () => finish(
       reject,
       new DOMException("The local conversion was canceled.", "AbortError"),

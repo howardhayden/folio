@@ -78,6 +78,10 @@ jobs:
       github.ref == 'refs/heads/main' &&
       (
         needs.publication-boundary.outputs.public_client_status == 'enabled' ||
+        (
+          github.event_name == 'push' &&
+          contains(github.event.head_commit.message, '[deploy-text-to-lattice-services]')
+        ) ||
         (github.event_name == 'workflow_dispatch' && inputs.deploy_text_to_lattice_services == true)
       )
     environment:
@@ -111,6 +115,13 @@ jobs:
         run: >-
           node -e 'for (const name of ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"])
           if (!process.env[name]) throw new Error(`${name} is not configured in the protected environment.`)'
+      - name: Deploy résumé response policy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler deploy
+          --config workers/text-to-lattice-response-policy/wrangler.jsonc
       - name: Deploy isolated verification frame
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -127,6 +138,24 @@ jobs:
         run: >-
           ./workers/node_modules/.bin/wrangler deploy
           --config workers/text-to-lattice-lease/wrangler.jsonc
+      - name: Inspect existing encrypted Worker binding names
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler secret list --format json
+          --config workers/text-to-lattice-lease/wrangler.jsonc
+          > "$RUNNER_TEMP/text-to-lattice-secret-bindings-before-bootstrap.json"
+      - name: Preserve complete bindings or bootstrap the bounded demonstration profile
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          node scripts/bootstrap-text-to-lattice-secrets.mjs
+          --require-official-test-profile
+          --inventory "$RUNNER_TEMP/text-to-lattice-secret-bindings-before-bootstrap.json"
+          --wrangler ./workers/node_modules/.bin/wrangler
+          --config workers/text-to-lattice-lease/wrangler.jsonc
       - name: Verify encrypted Worker binding names
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -139,6 +168,10 @@ jobs:
         run: >-
           node scripts/verify-text-to-lattice-secret-bindings.mjs
           "$RUNNER_TEMP/text-to-lattice-secret-bindings.json"
+      - name: Verify exact Worker route inventory
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: node scripts/verify-text-to-lattice-route-inventory.mjs
       - name: Verify live Text to Lattice boundaries
         run: node scripts/verify-text-to-lattice-services.mjs
       - name: Require current main after service verification

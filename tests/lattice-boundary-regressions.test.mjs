@@ -163,6 +163,16 @@ test("resume detail links preserve native modified and nonprimary navigation", a
   assert.match(css, /\.progress-bar-fill \{[\s\S]*?text-align: right;/u);
   assert.match(css, /\.progress-value \{[\s\S]*?text-align: right;/u);
   assert.match(css, /\.progress-label \{[\s\S]*?text-align: right;/u);
+  assert.match(source, /<a[\s\S]*?className=\{`\$\{className\} button-reset`\}[\s\S]*?onClick=/u);
+  assert.match(source, /<div className=\{className\} style=\{\{ width, cursor: "auto" \}\}>/u);
+  assert.doesNotMatch(css, /\.progress-bar-fill:hover\s*\{/u, "static University bars have no hover affordance");
+  assert.match(css, /\.progress-bar-fill\.button-reset:focus-visible \{[\s\S]*?outline: 2px solid currentColor;/u);
+  assert.match(css, /@media \(hover: hover\) \{[\s\S]*?\.progress-bar-fill\.button-reset:hover \{[\s\S]*?background-color: whitesmoke !important;/u);
+  assert.match(css, /\.background-gradient-green-blue::before \{[\s\S]*?background-image: var\(--signal-grain-1\);[\s\S]*?opacity: 0\.12;[\s\S]*?pointer-events: none;/u);
+  assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?signal-film-grain-frame \.48s steps\(1, end\) infinite,[\s\S]*?signal-film-weave 7\.6s/u);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.progress-bar-fill\.button-reset \{[\s\S]*?transition: none;[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none;/u);
+  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.background-gradient-green-blue \{[\s\S]*?background: CanvasText !important;[\s\S]*?color: Canvas !important;[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none !important;[\s\S]*?background-image: none !important;[\s\S]*?\.progress-bar-fill\.button-reset:focus-visible \{[\s\S]*?outline-color: Highlight !important;/u);
+  assert.match(css, /@media print \{[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none !important;[\s\S]*?background-image: none !important;/u);
   assert.match(css, /\.project-modal-trigger,\s*\.timeline-icon-trigger \{[\s\S]*?min-height: 24px;[\s\S]*?min-width: 24px;/u);
 });
 

@@ -665,6 +665,7 @@ test("the not-found document contains only exclusionary crawler directives", asy
 test("project and Text to Lattice implementation provenance stays source-aligned", async () => {
   const graphById = new Map(knowledgeGraph["@graph"].map((node) => [node["@id"], node]));
   const resumeMarkdown = renderResumeMarkdown();
+  assert.equal(PROJECT_CONTENT_VERSION, "hah-portfolio-projects.v4");
   assert.equal(projectsManifest.version, PROJECT_CONTENT_VERSION);
   assert.equal(projectsManifest.asOf, PROJECT_CONTENT_UPDATED);
   const expectedLeadingProjectIds = ["lattice", "in-keeping", "fog-of-sea"];
@@ -684,6 +685,11 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   for (const source of projects) {
     const record = projectsManifest.projects.find(({ id }) => id === source.id);
     assert.ok(record, `${source.id} has a manifest record`);
+    assert.equal(source.summary.length, 2, `${source.id} has one hook and one disclosed paragraph`);
+    assert.equal(source.thesis, source.summary[0], `${source.id} exposes its hook as the semantic thesis`);
+    assert.equal(source.readmeAfterFirstParagraph, true, `${source.id} records the progressive-disclosure boundary`);
+    assert.ok(source.summary.every((paragraph) => paragraph.trim().length > 0), `${source.id} does not ship empty project copy`);
+    assert.notEqual(source.summary[0], source.summary[1], `${source.id} paragraph adds substance beyond its hook`);
     for (const resource of source.resources ?? []) {
       assert.notEqual(
         resource.label.trim().toLowerCase(),

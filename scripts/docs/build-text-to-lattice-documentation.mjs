@@ -86,8 +86,10 @@ function validateLifecycleGateContract(productionBoundaryGate, productionLifecyc
   if (!/noninteractive/iu.test(gate02PreactivationBoundary)
     || !/invalid-(?:token|attestation)/iu.test(gate02PreactivationBoundary)
     || !/intentionally invalid-attestation/iu.test(productionBoundaryGate.evidenceNeeded)
-    || !/A genuine widget token or successful lease grant is not preactivation evidence for this gate\./u.test(productionBoundaryGate.evidenceNeeded)) {
-    fail("release gate GATE-02 must bind live noninteractive and invalid-token probes without requiring a genuine preactivation widget grant.");
+    || !/exact official demonstration-site-key, and exact official dummy-token acquisition-and-release probes/iu.test(productionBoundaryGate.evidenceNeeded)
+    || !/direct dummy-token lifecycle establishes only the deployed Siteverify, lease, and release path/iu.test(productionBoundaryGate.evidenceNeeded)
+    || !/not evidence that the frame or widget participated or that canonical-browser GATE-06 passed/iu.test(productionBoundaryGate.evidenceNeeded)) {
+    fail("release gate GATE-02 must bind live noninteractive, invalid-token, and direct official dummy-token probes without treating their server result as frame, widget, or canonical-browser evidence.");
   }
   const gate02Sentences = gate02PreactivationBoundary.split(/(?<=[.!?])\s+/u);
   const requiresRealLifecycle = gate02Sentences.some((sentence) => {
@@ -99,26 +101,40 @@ function validateLifecycleGateContract(productionBoundaryGate, productionLifecyc
   if (requiresRealLifecycle) {
     fail("release gate GATE-02 cannot require a real canonical-page lifecycle while the public client is held.");
   }
+  for (const exactRoute of ["hah.dev/", "hah.dev/index.html", "hah.dev/resume/", "hah.dev/resume/index.html"]) {
+    if (!gate02PreactivationBoundary.includes(exactRoute)) {
+      fail(`release gate GATE-02 must bind the exact response-policy route ${exactRoute}.`);
+    }
+  }
+  if (!/unrelated portfolio (?:paths|traffic).*bypass/iu.test(`${productionBoundaryGate.safeguards.join(" ")} ${productionBoundaryGate.followUp}`)) {
+    fail("release gate GATE-02 must keep unrelated portfolio traffic outside the Text to Lattice response-policy Worker.");
+  }
 
   const lifecycleStatuses = new Set(["post-deployment-verification", "open-release-blocker"]);
   const privacyClasses = ["source", "clarification", "candidate", "verifier finding", "output"];
   if (!lifecycleStatuses.has(productionLifecycleGate.status)
     || productionLifecycleGate.label !== "Production lifecycle and privacy trace"
     || !/activated canonical page/iu.test(productionLifecycleGate.requirement)
-    || !/200, 200, and 204/iu.test(productionLifecycleGate.requirement)
-    || !/five-minute server (?:renewal )?minimum/iu.test(`${productionLifecycleGate.requirement} ${productionLifecycleGate.evidenceNeeded}`)
+    || !/200 acquisition/iu.test(productionLifecycleGate.requirement)
+    || !/204 release/iu.test(productionLifecycleGate.requirement)
+    || !/declared deployed credential profile/iu.test(productionLifecycleGate.requirement)
+    || !/Testing-profile success establishes demonstrator integration, not production anti-bot assurance/iu.test(productionLifecycleGate.requirement)
     || !/first activation session/iu.test(`${productionLifecycleGate.evidenceNeeded} ${productionLifecycleGate.followUp}`)
     || !/supported browser engines/iu.test(productionLifecycleGate.evidenceNeeded)
+    || !/both origins/iu.test(productionLifecycleGate.evidenceNeeded)
+    || /wait .*five-minute|record a 200 renewal/iu.test(`${productionLifecycleGate.requirement} ${productionLifecycleGate.evidenceNeeded} ${productionLifecycleGate.followUp}`)
+    || !/naturally reaches the renewal interval/iu.test(`${productionLifecycleGate.evidenceNeeded} ${productionLifecycleGate.followUp}`)
+    || !/do not deliberately wait/iu.test(productionLifecycleGate.evidenceNeeded)
     || privacyClasses.some((contentClass) => !productionLifecycleGate.requirement.includes(contentClass)
       || !productionLifecycleGate.rollbackCondition.includes(contentClass))
     || !/Do not create a public or operator bypass harness/iu.test(productionLifecycleGate.evidenceNeeded)
     || !/held documentation-only artifact/iu.test(productionLifecycleGate.rollbackCondition)
     || !/GATE-06 to open-release-blocker/iu.test(productionLifecycleGate.rollbackCondition)
     || !/acquisition fails/iu.test(productionLifecycleGate.rollbackCondition)
-    || !/renewal .* fails/iu.test(productionLifecycleGate.rollbackCondition)
+    || !/observed real renewal attempt fails/iu.test(productionLifecycleGate.rollbackCondition)
     || !/release fails/iu.test(productionLifecycleGate.rollbackCondition)
     || !/content-bearing request/iu.test(productionLifecycleGate.rollbackCondition)) {
-    fail("release gate GATE-06 must retain the canonical-page lifecycle and privacy trace as immediate post-deployment verification or a machine-representable open blocker, with held rollback and no bypass harness.");
+    fail("release gate GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification or a machine-representable open blocker, defer a deliberately timed renewal trace, and preserve held rollback without a bypass harness.");
   }
   if (productionLifecycleGate.status === "open-release-blocker") {
     requireString(productionLifecycleGate.rollbackCondition, "release gate GATE-06 rollbackCondition");
@@ -346,6 +362,36 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || releaseRegister.statusVocabulary.length !== releaseGateStatuses.size
     || [...releaseGateStatuses].some((status) => !releaseRegister.statusVocabulary.includes(status))) {
     fail("release register statusVocabulary does not match the documentation gate vocabulary.");
+  }
+  const timedRenewalDecision = releaseRegister.marginalValueDecisions?.find(({ finding }) => finding === "Deliberately timed real-browser renewal trace");
+  if (timedRenewalDecision?.classification !== "moderate"
+    || timedRenewalDecision?.disposition !== "observe-naturally-and-defer-as-release-gate"
+    || !/source and adversarial tests/iu.test(timedRenewalDecision.rationale)
+    || !/bodyless PATCH/iu.test(timedRenewalDecision.rationale)
+    || !/bounded lease expiry/iu.test(timedRenewalDecision.rationale)
+    || !/eventual cleanup/iu.test(timedRenewalDecision.rationale)
+    || !/roll back on an observed defect/iu.test(timedRenewalDecision.rationale)
+    || !/must not hold operational completion/iu.test(timedRenewalDecision.rationale)) {
+    fail("the deliberately timed real-browser renewal trace must remain a moderate, naturally observed follow-up rather than a release gate, with bounded controls and rollback on an observed defect.");
+  }
+  const broadResponsePolicyDecision = releaseRegister.marginalValueDecisions?.find(({ finding }) => finding === "Portfolio-wide response-policy Worker route");
+  if (broadResponsePolicyDecision?.classification !== "negative"
+    || broadResponsePolicyDecision?.disposition !== "do-not-implement"
+    || !/unrelated portfolio (?:pages|traffic)/iu.test(broadResponsePolicyDecision.rationale)
+    || !/(?:allowance|quota)/iu.test(broadResponsePolicyDecision.rationale)
+    || !/(?:failure blast radius|failure surface)/iu.test(broadResponsePolicyDecision.rationale)
+    || !/four exact document routes/iu.test(broadResponsePolicyDecision.rationale)) {
+    fail("a portfolio-wide response-policy Worker route must remain a negative-marginal-value non-solution; four exact document routes preserve the required boundary without the broader allowance and failure surface.");
+  }
+  const publicTokenStarvationDecision = releaseRegister.marginalValueDecisions?.find(({ finding }) => finding === "Public testing-token slot starvation and the 48-per-10-second edge rule");
+  if (publicTokenStarvationDecision?.classification !== "moderate"
+    || publicTokenStarvationDecision?.disposition !== "accepted-residual-with-operational-hardening"
+    || !/16-request acquisition sequence/iu.test(publicTokenStarvationDecision.rationale)
+    || !/all eight slots/iu.test(publicTokenStarvationDecision.rationale)
+    || !/48-per-10-second per-IP rule does not prevent/iu.test(publicTokenStarvationDecision.rationale)
+    || !/limit consequence to demonstrator availability/iu.test(publicTokenStarvationDecision.rationale)
+    || !/observed abuse triggers requalification/iu.test(publicTokenStarvationDecision.rationale)) {
+    fail("public testing-token slot starvation must remain a moderate accepted availability residual; the 48-per-10-second edge rule is operational hardening, not a release prerequisite or prevention claim.");
   }
   const hasOpenBlocker = releaseRegister.gates.some(({ status }) => status === "open-release-blocker");
   const enabled = releaseRegister.overallStatus === "qualified"
@@ -1194,7 +1240,7 @@ function securityMarkdown(data) {
     "## Release qualification gates",
     "",
     "Only `open-release-blocker` prevents activation. `satisfied-in-source` records repository evidence; `satisfied-in-production` records observed live evidence for the permitted production gate. Every other status preserves its distinct evidence boundary, safeguards, and follow-up, while production satisfaction and post-deployment verification require an explicit rollback condition.",
-    "The held artifact has no canonical interactive client. Real production-widget acquisition, delayed renewal, release, and privacy evidence therefore begins from the activated official page under GATE-06; it does not authorize a separate public or operator bypass harness. A failed lifecycle or privacy trace sets GATE-06 to open-release-blocker, making return to the held publication machine-enforceable after GATE-02 closes.",
+    "The held artifact has no canonical interactive client. End-to-end acquisition, release, and two-origin privacy evidence through the declared deployed credential profile therefore begins from the activated official page under GATE-06; it does not authorize a separate public or operator bypass harness. Under Cloudflare’s official testing profile, that evidence establishes demonstrator integration and privacy behavior, not human verification or production anti-bot assurance. A failed mandatory step, an observed real renewal defect, or a privacy-trace failure sets GATE-06 to open-release-blocker, making return to the held publication machine-enforceable after GATE-02 closes. Renewal remains follow-up evidence when an ordinary session naturally reaches its interval, not a deliberately timed condition of operational completion.",
     "",
     "| ID | Gate | Status | Marginal value | Requirement | Current evidence | Evidence needed |",
     "| --- | --- | --- | --- | --- | --- | --- |",
@@ -1266,7 +1312,7 @@ function securityHtml(data) {
   <section class="panel" aria-labelledby="assets-heading"><h2 id="assets-heading">Protected assets</h2><div class="table-wrap" tabindex="0" aria-label="Scrollable protected asset table"><table><caption>Security and trust objectives</caption><thead><tr><th scope="col">ID</th><th scope="col">Asset</th><th scope="col">Objective</th></tr></thead><tbody>${assets}</tbody></table></div></section>
   <section class="panel" aria-labelledby="boundaries-heading"><h2 id="boundaries-heading">Trust boundaries</h2><ul class="boundary-list">${boundaries}</ul></section>
   ${toolbar}<div class="record-grid">${cards}</div></section>
-  <section aria-labelledby="gates-heading"><div class="panel boundary"><p class="eyebrow">Evidence stays typed</p><h2 id="gates-heading">Release qualification gates</h2><p>Only an open release blocker prevents activation. Source-satisfied, production-satisfied, workflow-enforced, accepted-residual, and post-deployment statuses keep distinct evidence and lifecycle duties; production satisfaction records observed live evidence only for its permitted gate, and none converts missing runtime evidence into a completed claim.</p><p>The held artifact has no canonical interactive client. Real production-widget acquisition, delayed renewal, release, and privacy evidence therefore begins from the activated official page under GATE-06; it does not authorize a separate public or operator bypass harness. A failed lifecycle or privacy trace sets GATE-06 to open-release-blocker, making return to the held publication machine-enforceable after GATE-02 closes.</p></div><div class="record-grid">${gateCards}</div></section>
+  <section aria-labelledby="gates-heading"><div class="panel boundary"><p class="eyebrow">Evidence stays typed</p><h2 id="gates-heading">Release qualification gates</h2><p>Only an open release blocker prevents activation. Source-satisfied, production-satisfied, workflow-enforced, accepted-residual, and post-deployment statuses keep distinct evidence and lifecycle duties; production satisfaction records observed live evidence only for its permitted gate, and none converts missing runtime evidence into a completed claim.</p><p>The held artifact has no canonical interactive client. End-to-end acquisition, release, and two-origin privacy evidence through the declared deployed credential profile therefore begins from the activated official page under GATE-06; it does not authorize a separate public or operator bypass harness. Under Cloudflare’s official testing profile, that evidence establishes demonstrator integration and privacy behavior, not human verification or production anti-bot assurance. A failed mandatory step, an observed real renewal defect, or a privacy-trace failure sets GATE-06 to open-release-blocker, making return to the held publication machine-enforceable after GATE-02 closes. Renewal remains follow-up evidence when an ordinary session naturally reaches its interval, not a deliberately timed condition of operational completion.</p></div><div class="record-grid">${gateCards}</div></section>
   <section class="panel" aria-labelledby="residual-heading"><h2 id="residual-heading">Honest residual boundary</h2>${htmlList(security.honestResidualBoundary)}</section>
   <section class="panel"><h2>Sources and exports</h2><p><a class="button-link" href="TEXT-TO-LATTICE-SECURITY-MODEL.md" download>Download complete Markdown</a> <a class="button-link" href="documentation-atlas.json" download>Download authoritative JSON</a> <a class="button-link" href="artifact-manifest.json">Inspect integrity manifest</a></p></section>
   ${htmlSources(data)}${htmlTerms()}`;

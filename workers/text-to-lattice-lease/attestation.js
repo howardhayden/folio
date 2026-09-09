@@ -1,3 +1,8 @@
+import {
+  CLOUDFLARE_DEMONSTRATION_SECRET_KEY,
+  CLOUDFLARE_DEMONSTRATION_TOKEN,
+} from "./demonstrationProfile.js";
+
 export const LATTICE_ATTESTATION_ACTION = "text_to_lattice";
 export const LATTICE_ATTESTATION_HOSTNAME = "verify.hah.dev";
 export const LATTICE_ATTESTATION_HEADER = "X-Lattice-Attestation";
@@ -70,6 +75,8 @@ export async function verifyLatticeAttestation(token, {
   fetchImpl = fetch,
 } = {}) {
   if (!isLatticeAttestationToken(token) || typeof secret !== "string" || secret.length < 32) return false;
+  const demonstrationProfile = secret === CLOUDFLARE_DEMONSTRATION_SECRET_KEY;
+  if (demonstrationProfile && token !== CLOUDFLARE_DEMONSTRATION_TOKEN) return false;
   const form = new FormData();
   form.set("secret", secret);
   form.set("response", token);
@@ -91,9 +98,12 @@ export async function verifyLatticeAttestation(token, {
   }
   const result = await boundedSiteverifyJson(response);
   const challengedAt = Date.parse(result?.challenge_ts ?? "");
+  const identityMatches = demonstrationProfile
+    ? true
+    : result?.hostname === LATTICE_ATTESTATION_HOSTNAME
+      && result?.action === LATTICE_ATTESTATION_ACTION;
   return result?.success === true
-    && result.hostname === LATTICE_ATTESTATION_HOSTNAME
-    && result.action === LATTICE_ATTESTATION_ACTION
+    && identityMatches
     && Number.isFinite(challengedAt)
     && challengedAt <= now + 60_000
     && challengedAt > now - 300_000;

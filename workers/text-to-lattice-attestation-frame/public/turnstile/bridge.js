@@ -85,7 +85,7 @@
   }
 
   function fail() {
-    setStatus("Verification could not finish.");
+    setStatus("The acquisition check could not finish.");
     finish("error");
   }
 
@@ -131,7 +131,7 @@
   async function start(message) {
     activeRequestId = message.requestId;
     requestTimer = window.setTimeout(fail, REQUEST_TIMEOUT_MS);
-    setStatus("Verification is starting.");
+    setStatus("The acquisition check is starting.");
     try {
       const turnstile = await loadTurnstile();
       if (settled) return;
@@ -151,11 +151,11 @@
             fail();
             return;
           }
-          setStatus("Verification is complete.");
+          setStatus("The acquisition check is complete.");
           finish("token", { token });
         },
         "before-interactive-callback"() {
-          setStatus("Complete the security check to continue.");
+          setStatus("Complete the acquisition check to continue.");
           post("interactive");
         },
         "after-interactive-callback"() {

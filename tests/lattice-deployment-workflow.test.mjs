@@ -5,7 +5,23 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { verifyTextToLatticeSecretBindings } from "../scripts/verify-text-to-lattice-secret-bindings.mjs";
+import {
+  TEXT_TO_LATTICE_ROUTE_INVENTORY,
+  verifyTextToLatticeRouteInventory,
+} from "../scripts/verify-text-to-lattice-route-inventory.mjs";
 import { verifyTextToLatticeServices } from "../scripts/verify-text-to-lattice-services.mjs";
+import {
+  installSecretPlan,
+  secretBootstrapPlan,
+} from "../scripts/bootstrap-text-to-lattice-secrets.mjs";
+import {
+  TEXT_TO_LATTICE_DOCUMENT_POLICY,
+  applyTextToLatticeDocumentPolicy,
+} from "../workers/text-to-lattice-response-policy/worker.js";
+import {
+  CLOUDFLARE_DEMONSTRATION_SITE_KEY,
+  CLOUDFLARE_DEMONSTRATION_TOKEN,
+} from "../workers/text-to-lattice-lease/demonstrationProfile.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workflowPath = resolve(root, ".github/workflows/pages.yml");
@@ -57,6 +73,7 @@ const leaseHeaders = {
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
 };
+const fixtureLeaseToken = `l1.${"A".repeat(32)}.1893456000000.${"B".repeat(43)}`;
 
 const frameSources = new Map([
   ["https://verify.hah.dev/turnstile/", {
@@ -131,11 +148,25 @@ function fixtureFetch({
       return jsonResponse(428, {
         allowed: false,
         code: "visitor-cookie-required",
-        attestationSiteKey: "public_test_site_key",
+        attestationSiteKey: CLOUDFLARE_DEMONSTRATION_SITE_KEY,
       }, {
         ...leaseHeaders,
         "Set-Cookie": "__Secure-hah-lattice-visitor=v1.fixture.signature; Max-Age=86400; Path=/api/text-to-lattice; Secure; HttpOnly; SameSite=Strict",
       });
+    }
+    if (
+      init.method === "DELETE"
+      && requestHeaders.get("Authorization") === `Bearer ${fixtureLeaseToken}`
+    ) {
+      return new Response(null, { status: 204, headers: leaseHeaders });
+    }
+    if (requestHeaders.get("X-Lattice-Attestation") === CLOUDFLARE_DEMONSTRATION_TOKEN) {
+      return jsonResponse(200, {
+        allowed: true,
+        leaseToken: fixtureLeaseToken,
+        expiresAt: 1893456000000,
+        maximumExpiresAt: 1893456300000,
+      }, leaseHeaders);
     }
     if (requestHeaders.has("X-Lattice-Attestation")) {
       return jsonResponse(403, {
@@ -146,18 +177,24 @@ function fixtureFetch({
     return jsonResponse(428, {
       allowed: false,
       code: "attestation-required",
-      attestationSiteKey: "public_test_site_key",
+      attestationSiteKey: CLOUDFLARE_DEMONSTRATION_SITE_KEY,
     }, leaseHeaders);
   };
 }
 
-test("the Pages graph deploys infrastructure manually while held and requires it when enabled", async () => {
+test("the Pages graph bootstraps held infrastructure only when requested and requires it when enabled", async () => {
   const workflow = await readFile(workflowPath, "utf8");
   assert.match(workflow, /workflow_dispatch:[\s\S]*?deploy_text_to_lattice_services:[\s\S]*?type: boolean/u);
   assert.match(
     workflow,
-    /needs\.publication-boundary\.outputs\.public_client_status == 'enabled' \|\|[\s\S]*?github\.event_name == 'workflow_dispatch' && inputs\.deploy_text_to_lattice_services == true/u,
+    /needs\.publication-boundary\.outputs\.public_client_status == 'enabled' \|\|[\s\S]*?github\.event_name == 'push' &&[\s\S]*?contains\(github\.event\.head_commit\.message, '\[deploy-text-to-lattice-services\]'\)[\s\S]*?github\.event_name == 'workflow_dispatch' && inputs\.deploy_text_to_lattice_services == true/u,
   );
+  assert.equal(
+    [...workflow.matchAll(/github\.event_name == 'push'/gu)].length,
+    1,
+  );
+  assert.match(workflow, /--require-official-test-profile/u);
+  assert.doesNotMatch(workflow, /--allow-official-test-keys/u);
   assert.match(
     workflow,
     /public_client_status == 'held' &&[\s\S]*?\["skipped", "success"\][\s\S]*?deploy_text_to_lattice_services\.result/u,
@@ -225,18 +262,187 @@ test("the pinned Wrangler secret inventory uses its supported JSON flag", async 
 
 test("the service job deploys and proves the frame before the lease and Pages", async () => {
   const workflow = await readFile(workflowPath, "utf8");
+  const policyDeploy = workflow.indexOf("Deploy résumé response policy");
   const frameDeploy = workflow.indexOf("Deploy isolated verification frame");
   const frameProbe = workflow.indexOf("Verify deployed frame bytes and isolation headers");
   const leaseDeploy = workflow.indexOf("Deploy lease Worker");
+  const bindingBootstrap = workflow.indexOf("Preserve complete bindings or bootstrap the bounded demonstration profile");
   const bindingProbe = workflow.indexOf("Verify encrypted Worker binding names");
+  const routeProbe = workflow.indexOf("Verify exact Worker route inventory");
   const liveProbe = workflow.indexOf("Verify live Text to Lattice boundaries");
   const pagesDeploy = workflow.lastIndexOf("uses: actions/deploy-pages@");
+  assert.ok(policyDeploy > 0);
+  assert.ok(policyDeploy < frameDeploy);
   assert.ok(frameDeploy > 0);
   assert.ok(frameDeploy < frameProbe);
   assert.ok(frameProbe < leaseDeploy);
+  assert.ok(leaseDeploy < bindingBootstrap);
+  assert.ok(bindingBootstrap < bindingProbe);
   assert.ok(leaseDeploy < bindingProbe);
+  assert.ok(bindingProbe < routeProbe);
+  assert.ok(routeProbe < liveProbe);
   assert.ok(bindingProbe < liveProbe);
   assert.ok(liveProbe < pagesDeploy);
+});
+
+test("the exact-route edge policy and in-document fallback avoid a portfolio-wide Worker route", async () => {
+  const original = new Response("resume", {
+    status: 200,
+    headers: { "Content-Type": "text/html; charset=utf-8", "X-Origin": "github-pages" },
+  });
+  const protectedResponse = applyTextToLatticeDocumentPolicy(original, "/resume/");
+  assert.notEqual(protectedResponse, original);
+  assert.equal(protectedResponse.status, 200);
+  assert.equal(protectedResponse.headers.get("X-Origin"), "github-pages");
+  assert.equal(
+    protectedResponse.headers.get("Content-Security-Policy"),
+    TEXT_TO_LATTICE_DOCUMENT_POLICY["Content-Security-Policy"],
+  );
+  assert.equal(protectedResponse.headers.get("Permissions-Policy"), "document-domain=()");
+  assert.equal(await protectedResponse.text(), "resume");
+
+  const asset = new Response("asset", { headers: { "Content-Type": "text/css" } });
+  assert.equal(applyTextToLatticeDocumentPolicy(asset, "/assets/site.css"), asset);
+
+  const [config, workflow, layout] = await Promise.all([
+    readFile(resolve(root, "workers/text-to-lattice-response-policy/wrangler.jsonc"), "utf8"),
+    readFile(workflowPath, "utf8"),
+    readFile(resolve(root, "app/layout.tsx"), "utf8"),
+  ]);
+  const parsed = JSON.parse(config);
+  assert.equal(parsed.workers_dev, false);
+  assert.equal(parsed.preview_urls, false);
+  assert.equal(parsed.send_metrics, false);
+  assert.deepEqual(parsed.routes, [
+    { pattern: "hah.dev/", zone_name: "hah.dev" },
+    { pattern: "hah.dev/index.html", zone_name: "hah.dev" },
+    { pattern: "hah.dev/resume/", zone_name: "hah.dev" },
+    { pattern: "hah.dev/resume/index.html", zone_name: "hah.dev" },
+  ]);
+  assert.ok(parsed.routes.every(({ pattern }) => !pattern.endsWith("*")));
+  assert.match(layout, /project\.id === "lattice" && String\(project\.interactiveRelease\) === "enabled"/u);
+  assert.match(layout, /httpEquiv="Content-Security-Policy"/u);
+  assert.match(layout, /TEXT_TO_LATTICE_DOCUMENT_POLICY\["Content-Security-Policy"\]/u);
+  assert.match(workflow, /wrangler deploy[\s\S]*?workers\/text-to-lattice-response-policy\/wrangler\.jsonc/u);
+});
+
+test("secret bootstrap preserves complete bindings and atomically supplies an absent testing profile", () => {
+  const exact = [
+    { name: "VISITOR_COOKIE_SECRET", type: "secret_text" },
+    { name: "LEASE_CREDENTIAL_SECRET", type: "secret_text" },
+    { name: "TURNSTILE_SECRET_KEY", type: "secret_text" },
+    { name: "TURNSTILE_SITE_KEY", type: "secret_text" },
+  ];
+  assert.deepEqual(
+    secretBootstrapPlan(exact, { requireOfficialTestProfile: false }),
+    [],
+  );
+  assert.throws(
+    () => secretBootstrapPlan([], { requireOfficialTestProfile: false }),
+    /official testing profile was not explicitly required/u,
+  );
+  assert.throws(
+    () => secretBootstrapPlan([{ name: "TURNSTILE_SITE_KEY" }], { requireOfficialTestProfile: false }),
+    /Turnstile bindings are incomplete/u,
+  );
+  assert.throws(
+    () => secretBootstrapPlan([{ name: "UNREVIEWED_SECRET" }], { requireOfficialTestProfile: true }),
+    /Unexpected encrypted binding/u,
+  );
+  for (const malformed of [null, {}, [], { name: "" }]) {
+    assert.throws(
+      () => secretBootstrapPlan([malformed], { requireOfficialTestProfile: true }),
+      /malformed secret-name inventory entry/u,
+    );
+  }
+  assert.throws(
+    () => secretBootstrapPlan([
+      { name: "VISITOR_COOKIE_SECRET" },
+      { name: "VISITOR_COOKIE_SECRET" },
+    ], { requireOfficialTestProfile: true }),
+    /duplicate encrypted binding VISITOR_COOKIE_SECRET/u,
+  );
+
+  const plan = secretBootstrapPlan([], { requireOfficialTestProfile: true });
+  assert.deepEqual(plan.map(({ name }) => name).sort(), exact.map(({ name }) => name).sort());
+  assert.equal(plan.filter(({ source }) => source === "generated-private").length, 2);
+  assert.equal(plan.filter(({ source }) => source === "cloudflare-official-test").length, 2);
+  assert.ok(plan.every(({ value }) => value.length >= 22));
+  assert.equal(new Set(plan.map(({ value }) => value)).size, plan.length);
+
+  const preservedCompletePair = secretBootstrapPlan(exact, {
+    requireOfficialTestProfile: true,
+  });
+  assert.deepEqual(preservedCompletePair, []);
+
+  assert.throws(
+    () => secretBootstrapPlan([
+      { name: "VISITOR_COOKIE_SECRET" },
+      { name: "LEASE_CREDENTIAL_SECRET" },
+      { name: "TURNSTILE_SITE_KEY" },
+    ], { requireOfficialTestProfile: true }),
+    /Turnstile bindings are incomplete/u,
+  );
+});
+
+test("secret bootstrap installs the complete missing set in one Wrangler bulk request", () => {
+  const plan = [
+    { name: "VISITOR_COOKIE_SECRET", source: "generated-private", value: "visitor-value" },
+    { name: "LEASE_CREDENTIAL_SECRET", source: "generated-private", value: "lease-value" },
+    { name: "TURNSTILE_SECRET_KEY", source: "cloudflare-official-test", value: "turnstile-secret" },
+    { name: "TURNSTILE_SITE_KEY", source: "cloudflare-official-test", value: "turnstile-site" },
+  ];
+  const calls = [];
+  installSecretPlan(plan, {
+    wranglerPath: "/pinned/wrangler",
+    configPath: "workers/text-to-lattice-lease/wrangler.jsonc",
+    env: { CLOUDFLARE_ACCOUNT_ID: "account" },
+    spawn: (...argumentsList) => {
+      calls.push(argumentsList);
+      return { status: 0 };
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  const [command, argumentsList, options] = calls[0];
+  assert.equal(command, "/pinned/wrangler");
+  assert.deepEqual(argumentsList, [
+    "secret",
+    "bulk",
+    "--config",
+    "workers/text-to-lattice-lease/wrangler.jsonc",
+  ]);
+  assert.deepEqual(JSON.parse(options.input), Object.fromEntries(
+    plan.map(({ name, value }) => [name, value]),
+  ));
+  assert.deepEqual(options.env, { CLOUDFLARE_ACCOUNT_ID: "account" });
+  assert.deepEqual(options.stdio, ["pipe", "inherit", "inherit"]);
+  assert.doesNotMatch(argumentsList.join(" "), /visitor-value|lease-value|turnstile/u);
+});
+
+test("secret bootstrap refuses an ambiguous bulk plan before invoking Wrangler", () => {
+  let calls = 0;
+  const options = {
+    wranglerPath: "/pinned/wrangler",
+    configPath: "workers/text-to-lattice-lease/wrangler.jsonc",
+    spawn: () => {
+      calls += 1;
+      return { status: 0 };
+    },
+  };
+
+  assert.throws(
+    () => installSecretPlan([
+      { name: "VISITOR_COOKIE_SECRET", value: "first" },
+      { name: "VISITOR_COOKIE_SECRET", value: "second" },
+    ], options),
+    /duplicate binding VISITOR_COOKIE_SECRET/u,
+  );
+  assert.throws(
+    () => installSecretPlan([{ name: "UNREVIEWED_SECRET", value: "value" }], options),
+    /unexpected encrypted binding/u,
+  );
+  assert.equal(calls, 0);
 });
 
 test("encrypted binding inspection accepts only the four separated runtime values", () => {
@@ -257,16 +463,94 @@ test("encrypted binding inspection accepts only the four separated runtime value
   );
 });
 
+test("protected route inspection accepts only each Text to Lattice Worker's exact inventory", async () => {
+  const zoneId = "a".repeat(32);
+  const requested = [];
+  await verifyTextToLatticeRouteInventory({
+    apiToken: "protected-route-read-token",
+    async fetchImpl(url, init) {
+      requested.push({ url, init });
+      if (url.includes("/zones?")) {
+        return jsonResponse(200, { success: true, result: [{ id: zoneId, name: "hah.dev" }] });
+      }
+      const result = Object.entries(TEXT_TO_LATTICE_ROUTE_INVENTORY).flatMap(
+        ([script, patterns]) => patterns.map((pattern) => ({ pattern, script })),
+      );
+      result.push({ pattern: "hah.dev/unrelated-exclusion*" });
+      return jsonResponse(200, {
+        success: true,
+        result,
+      });
+    },
+  });
+  assert.equal(requested.length, 2);
+  assert.match(requested[0].url, /\/zones\?name=hah\.dev&status=active&per_page=50$/u);
+  assert.equal(requested[1].url, `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`);
+  assert.ok(requested.every(({ init }) => init.headers.Authorization === "Bearer protected-route-read-token"));
+  assert.ok(requested.every(({ init }) => init.credentials === "omit" && init.redirect === "error"));
+});
+
+test("protected route inspection rejects a stale portfolio-wide response-policy route", async () => {
+  const zoneId = "b".repeat(32);
+  await assert.rejects(
+    verifyTextToLatticeRouteInventory({
+      apiToken: "protected-route-read-token",
+      async fetchImpl(url) {
+        if (url.includes("/zones?")) {
+          return jsonResponse(200, { success: true, result: [{ id: zoneId, name: "hah.dev" }] });
+        }
+        const result = Object.entries(TEXT_TO_LATTICE_ROUTE_INVENTORY).flatMap(
+          ([script, patterns]) => patterns.map((pattern) => ({ pattern, script })),
+        );
+        result.push({
+          pattern: "hah.dev/*",
+          script: "hahdev-text-to-lattice-response-policy",
+        });
+        return jsonResponse(200, {
+          success: true,
+          result,
+        });
+      },
+    }),
+    /response-policy does not own exactly its declared Cloudflare route inventory/u,
+  );
+});
+
+test("protected route inspection rejects malformed route records", async () => {
+  const zoneId = "c".repeat(32);
+  const exact = Object.entries(TEXT_TO_LATTICE_ROUTE_INVENTORY).flatMap(
+    ([script, patterns]) => patterns.map((pattern) => ({ pattern, script })),
+  );
+  await assert.rejects(verifyTextToLatticeRouteInventory({
+    apiToken: "protected-route-read-token",
+    async fetchImpl(url) {
+      if (url.includes("/zones?")) {
+        return jsonResponse(200, { success: true, result: [{ id: zoneId, name: "hah.dev" }] });
+      }
+      return jsonResponse(200, {
+        success: true,
+        result: [...exact, { pattern: null, script: "unrelated-worker" }],
+      });
+    },
+  }), /malformed entry/u);
+});
+
 test("live qualification accepts the exact public route, cookie, and header contracts", async () => {
   let invalidAttestationRequest = null;
+  let demonstrationAcquisitionRequest = null;
+  let demonstrationReleaseRequest = null;
   const requestedMainPages = new Set();
   await verifyTextToLatticeServices({
     fetchImpl: fixtureFetch({
       observeRequest(url, init) {
         if (mainPageUrls.has(url)) requestedMainPages.add(url);
         const headers = new Headers(init.headers);
-        if (headers.has("X-Lattice-Attestation")) {
+        if (headers.get("X-Lattice-Attestation") === "qualification-intentionally-invalid") {
           invalidAttestationRequest = { url, init, headers };
+        } else if (headers.get("X-Lattice-Attestation") === CLOUDFLARE_DEMONSTRATION_TOKEN) {
+          demonstrationAcquisitionRequest = { url, init, headers };
+        } else if (init.method === "DELETE") {
+          demonstrationReleaseRequest = { url, init, headers };
         }
       },
     }),
@@ -281,7 +565,96 @@ test("live qualification accepts the exact public route, cookie, and header cont
     invalidAttestationRequest?.headers.get("X-Lattice-Attestation") ?? "",
     /^qualification-intentionally-invalid$/u,
   );
+  assert.equal(demonstrationAcquisitionRequest?.url, "https://hah.dev/api/text-to-lattice/lease");
+  assert.equal(demonstrationAcquisitionRequest?.init.method, "POST");
+  assert.equal(demonstrationAcquisitionRequest?.init.body, undefined);
+  assert.equal(
+    demonstrationAcquisitionRequest?.headers.get("X-Lattice-Attestation"),
+    CLOUDFLARE_DEMONSTRATION_TOKEN,
+  );
+  assert.equal(demonstrationReleaseRequest?.url, "https://hah.dev/api/text-to-lattice/lease");
+  assert.equal(demonstrationReleaseRequest?.init.method, "DELETE");
+  assert.equal(demonstrationReleaseRequest?.init.body, undefined);
+  assert.equal(
+    demonstrationReleaseRequest?.headers.get("Authorization"),
+    `Bearer ${fixtureLeaseToken}`,
+  );
   assert.deepEqual(requestedMainPages, mainPageUrls);
+});
+
+test("live qualification rejects a credential profile that advertises another site key", async () => {
+  const fetchImpl = fixtureFetch();
+  await assert.rejects(
+    verifyTextToLatticeServices({
+      async fetchImpl(input, init) {
+        const response = await fetchImpl(input, init);
+        if (`${input}` !== "https://hah.dev/api/text-to-lattice/lease" || response.status !== 428) {
+          return response;
+        }
+        const value = await response.json();
+        return jsonResponse(428, {
+          ...value,
+          attestationSiteKey: "0x4AAAA-production-profile",
+        }, Object.fromEntries(response.headers));
+      },
+      retryDelay: async () => {},
+    }),
+    /does not expose the declared demonstration profile/u,
+  );
+});
+
+test("live qualification attempts cleanup when an acquired lease has malformed lifecycle metadata", async () => {
+  const fetchFixture = fixtureFetch();
+  let releaseAttempted = false;
+  await assert.rejects(
+    verifyTextToLatticeServices({
+      async fetchImpl(input, init = {}) {
+        const headers = new Headers(init.headers);
+        if (init.method === "DELETE") releaseAttempted = true;
+        const response = await fetchFixture(input, init);
+        if (headers.get("X-Lattice-Attestation") !== CLOUDFLARE_DEMONSTRATION_TOKEN) {
+          return response;
+        }
+        return jsonResponse(200, {
+          allowed: true,
+          leaseToken: fixtureLeaseToken,
+          expiresAt: "malformed",
+          maximumExpiresAt: 1893456300000,
+        }, leaseHeaders);
+      },
+      retryDelay: async () => {},
+    }),
+    /invalid lifecycle/u,
+  );
+  assert.equal(releaseAttempted, true);
+});
+
+test("live qualification attempts cleanup when an acquired lease has malformed headers", async () => {
+  const fetchFixture = fixtureFetch();
+  let releaseAttempted = false;
+  await assert.rejects(
+    verifyTextToLatticeServices({
+      async fetchImpl(input, init = {}) {
+        const headers = new Headers(init.headers);
+        if (init.method === "DELETE") releaseAttempted = true;
+        const response = await fetchFixture(input, init);
+        if (headers.get("X-Lattice-Attestation") !== CLOUDFLARE_DEMONSTRATION_TOKEN) {
+          return response;
+        }
+        const malformedHeaders = { ...leaseHeaders };
+        delete malformedHeaders["Content-Security-Policy"];
+        return jsonResponse(200, {
+          allowed: true,
+          leaseToken: fixtureLeaseToken,
+          expiresAt: 1893456000000,
+          maximumExpiresAt: 1893456300000,
+        }, malformedHeaders);
+      },
+      retryDelay: async () => {},
+    }),
+    /omits content-security-policy/u,
+  );
+  assert.equal(releaseAttempted, true);
 });
 
 test("live qualification rejects a route that does not reach attestation rejection", async () => {
@@ -294,7 +667,7 @@ test("live qualification rejects a route that does not reach attestation rejecti
           return jsonResponse(428, {
             allowed: false,
             code: "attestation-required",
-            attestationSiteKey: "public_test_site_key",
+            attestationSiteKey: CLOUDFLARE_DEMONSTRATION_SITE_KEY,
           }, leaseHeaders);
         }
         return fetchImpl(input, init);

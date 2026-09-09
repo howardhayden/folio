@@ -28,6 +28,7 @@ import {
   filterShelfPapers,
   shuffleShelfPapers,
 } from "../app/shelf/shelfLogic.js";
+import { projects } from "../app/resume/projects.js";
 
 const BAT_DIRECTIONS = ["left", "right", "upper-left", "upper-right"];
 const TAIL_POSITIONS = ["left", "left-mid", "center", "right-mid", "right"];
@@ -995,7 +996,10 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
   assert.ok(timelineIndex > skillStacksIndex, "experience follows Skill Stacks");
   assert.equal((documentMarkup.match(/data-skill-stack-id="[^"]+"/gu) ?? []).length, expectedStacks.length);
   assert.equal((documentMarkup.match(/<details class="skill-stack-disclosure">/gu) ?? []).length, expectedStacks.length);
-  assert.equal((documentMarkup.match(/<span>Read More<\/span>/gu) ?? []).length, expectedStacks.length);
+  assert.equal(
+    (documentMarkup.match(/<summary aria-controls="skill-stack-content-[^"]+"><span>Read More<\/span>/gu) ?? []).length,
+    expectedStacks.length,
+  );
   assert.equal((documentMarkup.match(/class="skill-stack-group"/gu) ?? []).length, 9);
   assert.doesNotMatch(documentMarkup, /data-skill-stack-reading|data-skill-stack-open|<details[^>]*\sopen(?:=|\s|>)/u);
 
@@ -1069,7 +1073,7 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
   assert.match(css, /\.skill-stack-grid \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: 1fr/);
   assert.match(css, /@media \(min-width: 768px\) \{[\s\S]*?\.skill-stack-grid \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /@media \(min-width: 1200px\) \{[\s\S]*?\.skill-stack-grid \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(css, /\.resume-modal-open main > \.container \{ filter: blur\(5px\); \}/);
+  assert.match(css, /\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container \{ filter: blur\(5px\); \}/);
   assert.match(css, /\.skill-stack-modal-open \{ overflow: hidden !important; \}/);
   assert.match(css, /\.modal \{[\s\S]*?background: transparent/);
   assert.match(css, /\.modal-content \{[\s\S]*?background-color: #FFFFFF;[\s\S]*?padding: 20px;[\s\S]*?max-width: 400px;[\s\S]*?border: none/);
@@ -1077,9 +1081,9 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
   assert.match(css, /@media screen and \(max-width: 600px\) \{[\s\S]*?\.modal-content \{[\s\S]*?width: 90%;[\s\S]*?max-width: none;[\s\S]*?padding: 10px/);
   assert.match(css, /@media print \{[\s\S]*?\.skill-stack-disclosure:not\(\[open\]\) > \.skill-stack-details \{[\s\S]*?display: block !important/);
   assert.match(css, /@media print \{[\s\S]*?\.skill-stack-modal \{[\s\S]*?display: none !important/);
-  assert.match(css, /@media print \{[\s\S]*?\.resume-modal-open main > \.container \{[\s\S]*?filter: none !important/);
-  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.lattice-cancel-button \{[\s\S]*?border: 1px solid ButtonText !important[\s\S]*?\.resume-modal-open main > \.container \{[\s\S]*?filter: none !important/);
-  assert.match(css, /@media \(prefers-reduced-transparency: reduce\) \{[\s\S]*?\.resume-modal-open main > \.container \{[\s\S]*?filter: none !important/);
+  assert.match(css, /@media print \{[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container \{[\s\S]*?filter: none !important/);
+  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.lattice-cancel-button \{[\s\S]*?border: 1px solid ButtonText !important[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container \{[\s\S]*?filter: none !important/);
+  assert.match(css, /@media \(prefers-reduced-transparency: reduce\) \{[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container \{[\s\S]*?filter: none !important/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.skill-stack-card \{[\s\S]*?transition: none[\s\S]*?\.skill-stack-grid \.card:hover \{[\s\S]*?transform: none/);
   assert.doesNotMatch(css, /:has\([^)]*skill-stack[^)]*open/iu, "no-JavaScript disclosure use does not trigger the JavaScript focus blur");
 });
@@ -1220,7 +1224,7 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
 });
 
 test("renders current projects and consistent project documentation icons", async () => {
-  const { html } = await render("/?view=resume");
+  const { html } = await render("/resume/");
 
   assert.match(html, /class="bi bi-pen-fill"/);
   assert.match(
@@ -1234,12 +1238,15 @@ test("renders current projects and consistent project documentation icons", asyn
   assert.doesNotMatch(html, /lattice-demo-dialog|lattice-demo-input|data-lattice-launch="text-to-lattice"/u);
   assert.match(
     html,
-    /Lattice turns linguistic register into an explicit, testable system\./,
+    /Lattice makes linguistic register explicit, testable, and accountable to meaning\./,
   );
-  assert.match(html, /<summary>Read me<\/summary>/);
   assert.match(
     html,
-    /It separates meaning from expression by decomposing content into semantic atoms that candidate prose must preserve\./,
+    /<summary aria-controls="project-readme-content-lattice"><span>Read More<\/span><span class="skill-stack-summary-context"> about (?:<!-- -->)?Lattice<\/span><\/summary>/,
+  );
+  assert.match(
+    html,
+    /It separates meaning from expression by decomposing content into semantic atoms that candidate prose must preserve, then evaluates outputs/,
   );
   assert.match(
     html,
@@ -1268,7 +1275,7 @@ test("renders current projects and consistent project documentation icons", asyn
   assert.match(html, /href="\/projects\/chorus\/"[^>]*>CHORUS<\/a>/);
   assert.match(
     html,
-    /Social simulation of influence, uncertainty, and collective belief\./,
+    /CHORUS makes collective belief visible as a system of influence, uncertainty, and consequence\./,
   );
   assert.match(
     html,
@@ -1308,7 +1315,7 @@ test("renders current projects and consistent project documentation icons", asyn
   assert.equal((html.match(/class="bi bi-bricks"/g) ?? []).length, 1);
   assert.match(
     html,
-    /Local-first library continuity lab with user-created workspaces, explicit persistence, integrity-linked revisions, structured safeguards, and notebooks\. Models dependencies and access paths; records custody, fixity, rights, metadata, conditions, decisions, and recovery actions; preserves provenance and continuity through disruption and handoff\./,
+    /IN KEEPING keeps a library’s evidence, obligations, and recovery paths legible through change\./,
   );
   assert.match(
     html,
@@ -1318,7 +1325,111 @@ test("renders current projects and consistent project documentation icons", asyn
     html,
     /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="IN KEEPING Public Notice, opens in a new tab"/,
   );
-  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, 12);
+  const expectedProjectResourceCount = projects.reduce(
+    (count, project) => count + project.resources.length,
+    0,
+  );
+  assert.equal(expectedProjectResourceCount, 14, "the current project register exposes fourteen scented resources");
+  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, expectedProjectResourceCount);
+});
+
+test("keeps project hooks, native Read More content, and scented resources in a stable no-JavaScript order", async () => {
+  const [resumeResponse, projectsResponse] = await Promise.all([
+    render("/resume/"),
+    render("/projects/"),
+  ]);
+  const htmlText = (value) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  const regexEscape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  for (const [surface, response, idPrefix] of [
+    ["Resume", resumeResponse, ""],
+    ["Projects", projectsResponse, "record-"],
+  ]) {
+    const documentMarkup = response.html.split('<script id="_R_">')[0];
+    assert.equal(
+      (documentMarkup.match(/<details class="project-readme project-description-disclosure"/gu) ?? []).length,
+      projects.length,
+      `${surface} provides one native project disclosure per card`,
+    );
+    assert.doesNotMatch(
+      documentMarkup,
+      /<details class="project-readme project-description-disclosure"[^>]*\sopen(?:=|\s|>)/u,
+      `${surface} leaves project descriptions collapsed until a no-JavaScript user opens them`,
+    );
+
+    for (const project of projects) {
+      const encodedName = htmlText(project.name);
+      const titleMarker = `href="${project.canonicalPath}">${encodedName}</a>`;
+      const titleAt = documentMarkup.indexOf(titleMarker);
+      const cardStart = documentMarkup.lastIndexOf("<article", titleAt);
+      const cardEnd = documentMarkup.indexOf("</article>", titleAt);
+      assert.ok(titleAt >= 0 && cardStart >= 0 && cardEnd > titleAt, `${surface} renders the ${project.name} card`);
+      const card = documentMarkup.slice(cardStart, cardEnd);
+      const detailsStart = card.indexOf('<details class="project-readme project-description-disclosure"');
+      const detailsEnd = card.indexOf("</details>", detailsStart);
+      const resourcesStart = card.indexOf('<nav class="project-resources"', detailsEnd);
+      const resourcesEnd = card.indexOf("</nav>", resourcesStart);
+      const hook = htmlText(project.summary[0]);
+      const paragraph = htmlText(project.summary[1]);
+      const disclosureId = `${idPrefix}${project.id}`;
+
+      const hookAt = card.indexOf(`>${hook}</p>`);
+      assert.ok(hookAt >= 0 && hookAt < detailsStart, `${project.name} leads with its one-sentence hook`);
+      assert.match(
+        card,
+        new RegExp(`<summary aria-controls="project-readme-content-${regexEscape(disclosureId)}"><span>Read More</span><span class="skill-stack-summary-context"> about (?:<!-- -->)?${regexEscape(encodedName)}</span></summary>`),
+      );
+      assert.ok(detailsEnd > detailsStart, `${project.name} keeps its paragraph in native details`);
+      assert.ok(card.slice(detailsStart, detailsEnd).includes(`>${paragraph}</p>`), `${project.name} reveals its paragraph without JavaScript`);
+      assert.equal(card.split(paragraph).length - 1, 1, `${project.name} authors one inline copy of its paragraph`);
+      assert.ok(resourcesStart > detailsEnd && resourcesEnd > resourcesStart, `${project.name} keeps information-scent links outside Read More`);
+
+      const resources = card.slice(resourcesStart, resourcesEnd);
+      assert.doesNotMatch(resources, /↗|&#x2197;|&#8599;/u, `${project.name} resource labels omit decorative arrows`);
+      let resourceCursor = 0;
+      for (const resource of project.resources) {
+        const href = htmlText(resource.url);
+        const label = htmlText(resource.label);
+        const hrefAt = resources.indexOf(`href="${href}"`, resourceCursor);
+        const linkStart = resources.lastIndexOf("<a", hrefAt);
+        const linkEnd = resources.indexOf("</a>", hrefAt);
+        assert.ok(hrefAt >= 0 && linkStart >= 0 && linkEnd > hrefAt, `${surface} links ${resource.label}`);
+        const link = resources.slice(linkStart, linkEnd);
+        assert.match(link, new RegExp(`<span>${regexEscape(label)}</span>`));
+        assert.equal((link.match(/class="bi bi-backpack4"/gu) ?? []).length, 1, `${resource.label} has one Documentation icon`);
+        resourceCursor = linkEnd + "</a>".length;
+      }
+    }
+  }
+});
+
+test("uses the established Resume alert language for JavaScript project descriptions", async () => {
+  const [source, css] = await Promise.all([
+    readFile(new URL("../app/resume/ProjectDescriptionDisclosure.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(source, /^"use client";/u);
+  assert.match(source, /event\.preventDefault\(\);[\s\S]*?parentElement\?\.removeAttribute\("open"\)[\s\S]*?setOpen\(true\)/u);
+  assert.match(source, /open && typeof document !== "undefined" \? createPortal\(/u);
+  assert.match(source, /className="modal resume-modal skill-stack-modal project-description-modal"[\s\S]*?role="presentation"/u);
+  assert.match(source, /className="modal-content skill-stack-modal-content project-description-modal-content"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/u);
+  assert.match(source, /aria-labelledby=\{modalTitleId\}[\s\S]*?aria-describedby=\{modalContentId\}/u);
+  assert.match(source, /if \(event\.target === event\.currentTarget\) closeDescription\(\)/u);
+  assert.match(source, /event\.key === "Escape"[\s\S]*?closeDescription\(\)/u);
+  assert.match(source, /event\.key !== "Tab"[\s\S]*?const first = elements\[0\];[\s\S]*?const last = elements\[elements\.length - 1\]/u);
+  assert.match(source, /document\.addEventListener\("focusin", handleFocusIn\)/u);
+  assert.match(source, /document\.removeEventListener\("focusin", handleFocusIn\)/u);
+  assert.match(source, /returnFocus\?\.isConnected[\s\S]*?returnFocus\.focus\(\{ preventScroll: true \}\)/u);
+  assert.match(source, /document\.body\.classList\.add\("resume-modal-open"\)/u);
+  assert.match(source, /document\.body\.classList\.remove\("resume-modal-open"\)/u);
+  assert.match(source, /document\.body\.classList\.add\("skill-stack-modal-open"\)/u);
+  assert.match(source, /document\.body\.classList\.remove\("skill-stack-modal-open"\)/u);
+
+  assert.match(css, /\.project-description-modal-content \.project-readme-copy \{[\s\S]*?text-align: left;/u);
+  assert.match(css, /\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container \{ filter: blur\(5px\); \}/u);
+  assert.match(css, /@media print \{[\s\S]*?\.project-readme:not\(\[open\]\) > \.project-readme-copy \{[\s\S]*?display: block !important[\s\S]*?\.project-description-modal \{[\s\S]*?display: none !important/u);
+  assert.doesNotMatch(css, /:has\([^)]*project-(?:readme|description)[^)]*open/iu, "native no-JavaScript disclosure does not blur the page");
 });
 
 test("keeps Lattice documentation direct in canonical no-JavaScript project surfaces", async () => {
@@ -1352,7 +1463,7 @@ test("retains the bounded and accessible dormant Text to Lattice dialog contract
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
   assert.match(source, /aria-labelledby="lattice-demo-title"/);
-  assert.match(source, /aria-describedby="lattice-demo-description lattice-local-privacy lattice-model-disclosure lattice-usage-policy"/);
+  assert.match(source, /aria-describedby="lattice-demo-description lattice-local-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"/);
   assert.equal((source.match(/spellCheck=\{false\}/gu) ?? []).length, 2);
   assert.equal((source.match(/autoCorrect="off"/gu) ?? []).length, 2);
   assert.equal((source.match(/autoCapitalize="off"/gu) ?? []).length, 2);

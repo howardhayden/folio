@@ -1,4 +1,5 @@
 import { projects } from "./projects.js";
+import ProjectDescriptionDisclosure from "./ProjectDescriptionDisclosure";
 
 type ProjectIconName =
   | "airplane-engines"
@@ -74,8 +75,6 @@ export default function ResumeProjectsHeld() {
       <div className="folio-card-grid">
         {projects.map((project) => {
           const headingId = projectHeadingId(project.name);
-          const firstParagraph = project.summary[0];
-          const remainingParagraphs = project.summary.slice(1);
 
           return (
             <article className="card" key={project.id} aria-labelledby={headingId}>
@@ -105,25 +104,12 @@ export default function ResumeProjectsHeld() {
                   </a>
                 </h3>
 
-                {"readmeAfterFirstParagraph" in project && project.readmeAfterFirstParagraph ? (
-                  <>
-                    <p className="card-text">{firstParagraph}</p>
-                    <details className="project-readme">
-                      <summary>Read me</summary>
-                      <div className="project-readme-copy">
-                        {remainingParagraphs.map((paragraph, index) => (
-                          <p className="card-text" key={`${project.id}-summary-${index + 1}`}>
-                            {paragraph}
-                          </p>
-                        ))}
-                      </div>
-                    </details>
-                  </>
-                ) : project.summary.map((paragraph, index) => (
-                  <p className="card-text" key={`${project.id}-summary-${index}`}>
-                    {paragraph}
-                  </p>
-                ))}
+                <ProjectDescriptionDisclosure
+                  hook={project.summary[0]}
+                  paragraph={project.summary[1]}
+                  projectId={project.id}
+                  projectName={project.name}
+                />
 
                 {project.id === "lattice" ? (
                   <p className="card-text lattice-noscript-note">
@@ -161,7 +147,6 @@ export default function ResumeProjectsHeld() {
                                 <ProjectIcon icon={resource.icon as ProjectIconName} />
                               </span>{" "}
                               <span>{resource.label}</span>
-                              {opensInNewTab ? <span aria-hidden="true"> ↗</span> : null}
                             </a>
                           </li>
                         );

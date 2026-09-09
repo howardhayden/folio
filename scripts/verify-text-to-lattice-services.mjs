@@ -3,6 +3,11 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import {
+  CLOUDFLARE_DEMONSTRATION_SITE_KEY,
+  CLOUDFLARE_DEMONSTRATION_TOKEN,
+} from "../workers/text-to-lattice-lease/demonstrationProfile.js";
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const mainOrigin = "https://hah.dev";
 const frameOrigin = "https://verify.hah.dev";
@@ -372,9 +377,9 @@ async function verifyLease(fetchImpl) {
   if (
     firstPartyResult?.allowed !== false
     || firstPartyResult?.code !== "visitor-cookie-required"
-    || !/^[A-Za-z0-9_-]{1,128}$/u.test(firstPartyResult?.attestationSiteKey ?? "")
+    || firstPartyResult?.attestationSiteKey !== CLOUDFLARE_DEMONSTRATION_SITE_KEY
   ) {
-    fail("lease first-party challenge returned the wrong public result.");
+    fail("lease first-party challenge does not expose the declared demonstration profile.");
   }
   const setCookie = header(firstPartyResponse, "set-cookie", "lease first-party challenge probe");
   const cookiePair = setCookie.split(";", 1)[0];
@@ -430,7 +435,71 @@ async function verifyLease(fetchImpl) {
   ) {
     fail("lease invalid-attestation probe returned the wrong fail-closed result.");
   }
-  console.log("Lease routing, exact admission, attestation rejection, configuration, and cookie boundaries are live.");
+
+  const demonstrationAcquisitionResponse = await request(fetchImpl, leaseUrl, {
+    method: "POST",
+    headers: {
+      Cookie: cookiePair,
+      Origin: mainOrigin,
+      "X-Lattice-Attestation": CLOUDFLARE_DEMONSTRATION_TOKEN,
+    },
+  }, "lease demonstration-profile acquisition probe");
+  requireStatus(
+    demonstrationAcquisitionResponse,
+    200,
+    "lease demonstration-profile acquisition probe",
+  );
+  const demonstrationAcquisition = await responseJson(
+    demonstrationAcquisitionResponse,
+    "lease demonstration-profile acquisition probe",
+  );
+  const demonstrationLeaseToken = demonstrationAcquisition?.leaseToken;
+  const validDemonstrationLeaseToken = typeof demonstrationLeaseToken === "string"
+    && /^l1\.[A-Za-z0-9_-]{32}\.[0-9]+\.[A-Za-z0-9_-]{43}$/u.test(demonstrationLeaseToken);
+  const validDemonstrationLifecycle = demonstrationAcquisition?.allowed === true
+    && validDemonstrationLeaseToken
+    && Number.isSafeInteger(demonstrationAcquisition?.expiresAt)
+    && Number.isSafeInteger(demonstrationAcquisition?.maximumExpiresAt)
+    && demonstrationAcquisition.expiresAt > 0
+    && demonstrationAcquisition.maximumExpiresAt >= demonstrationAcquisition.expiresAt;
+
+  let acquisitionFailure = null;
+  try {
+    verifyLeaseHeaders(
+      demonstrationAcquisitionResponse,
+      "lease demonstration-profile acquisition probe",
+    );
+    if (!validDemonstrationLifecycle) {
+      fail("lease demonstration-profile acquisition returned an invalid lifecycle.");
+    }
+  } catch (error) {
+    acquisitionFailure = error;
+  }
+
+  let releaseFailure = null;
+  if (validDemonstrationLeaseToken) {
+    try {
+      const demonstrationReleaseResponse = await request(fetchImpl, leaseUrl, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${demonstrationLeaseToken}`,
+          Cookie: cookiePair,
+          Origin: mainOrigin,
+        },
+      }, "lease demonstration-profile release probe");
+      requireStatus(demonstrationReleaseResponse, 204, "lease demonstration-profile release probe");
+      verifyLeaseHeaders(demonstrationReleaseResponse, "lease demonstration-profile release probe");
+      if ((await demonstrationReleaseResponse.arrayBuffer()).byteLength !== 0) {
+        fail("lease demonstration-profile release returned a response body.");
+      }
+    } catch (error) {
+      releaseFailure = error;
+    }
+  }
+  if (acquisitionFailure) throw acquisitionFailure;
+  if (releaseFailure) throw releaseFailure;
+
+  console.log("Lease routing, declared demonstration-profile acquisition and release, attestation rejection, configuration, and cookie boundaries are live.");
 }
 
 export async function verifyTextToLatticeServices({

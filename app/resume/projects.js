@@ -1,6 +1,6 @@
 import { documentsForProject } from "../content/projectDocuments.js";
 
-export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v3";
+export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v4";
 export const PROJECT_CONTENT_UPDATED = "2026-09-09";
 
 export const LATTICE_DOCUMENTATION_RESOURCES = Object.freeze(
@@ -35,12 +35,10 @@ export const projects = Object.freeze([
     canonicalPath: "/projects/lattice/",
     url: "https://github.com/howardhayden/lattice",
     icon: "pen-fill",
-    thesis: "Lattice turns linguistic register into an explicit, testable system.",
+    thesis: "Lattice makes linguistic register explicit, testable, and accountable to meaning.",
     summary: Object.freeze([
-      "Lattice turns linguistic register into an explicit, testable system.",
-      "It separates meaning from expression by decomposing content into semantic atoms that candidate prose must preserve. Outputs are evaluated in order of safety, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament, preventing style from obscuring instructions, altering causality, or assuming relative education, while welcoming inference.",
-      "Its Relational Systems Register connects embodied experience, relationships, institutions, causality, and ethical stakes through consequential detail, subtext, and systems-conscious realism.",
-      "Lattice demonstrates that expressive language can be distinctive without becoming semantically unaccountable.",
+      "Lattice makes linguistic register explicit, testable, and accountable to meaning.",
+      "It separates meaning from expression by decomposing content into semantic atoms that candidate prose must preserve, then evaluates outputs in order of safety, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament. Its Relational Systems Register connects embodied experience, relationships, institutions, causality, and ethical stakes through consequential detail, subtext, and systems-conscious realism, demonstrating that expressive language can remain distinctive without becoming semantically unaccountable.",
     ]),
     capabilities: Object.freeze([
       "Semantic atomization",
@@ -80,9 +78,10 @@ export const projects = Object.freeze([
     canonicalPath: "/projects/in-keeping/",
     url: "https://inkeep.ing/",
     icon: "bricks",
-    thesis: "Local-first library continuity lab with user-created workspaces, explicit persistence, integrity-linked revisions, structured safeguards, and notebooks.",
+    thesis: "IN KEEPING keeps a library’s evidence, obligations, and recovery paths legible through change.",
     summary: Object.freeze([
-      "Local-first library continuity lab with user-created workspaces, explicit persistence, integrity-linked revisions, structured safeguards, and notebooks. Models dependencies and access paths; records custody, fixity, rights, metadata, conditions, decisions, and recovery actions; preserves provenance and continuity through disruption and handoff.",
+      "IN KEEPING keeps a library’s evidence, obligations, and recovery paths legible through change.",
+      "This local-first continuity lab gives people explicit workspaces, persistence, integrity-linked revisions, structured safeguards, and notebooks. It models dependencies and access paths; records custody, fixity, rights, metadata, conditions, decisions, and recovery actions; and preserves provenance through disruption and handoff.",
     ]),
     capabilities: Object.freeze(["User-created workspaces", "Integrity-linked revisions", "Custody and fixity records", "Continuity and recovery planning"]),
     technologies: Object.freeze([]),
@@ -98,6 +97,7 @@ export const projects = Object.freeze([
     ]),
     publication: Object.freeze({ label: "August 2026", value: "2026-08", precision: "month" }),
     status: "public",
+    readmeAfterFirstParagraph: true,
   }),
   Object.freeze({
     id: "fog-of-sea",
@@ -107,10 +107,10 @@ export const projects = Object.freeze([
     canonicalPath: "/projects/fog-of-sea/",
     url: "https://fogofsea.app/",
     icon: "airplane-engines",
-    thesis: "Naval strategy game with cozy vibes.",
+    thesis: "FOG OF SEA turns naval uncertainty into a quiet, learnable field of consequence.",
     summary: Object.freeze([
-      "Naval strategy game with cozy vibes.",
-      "Single-player naval strategy learning game implementing nested stochastic matrices within deterministic systems, local-first privacy with resilient data handling, and accessibility, through a cozy-sublime, tactical and diegetic interface.",
+      "FOG OF SEA turns naval uncertainty into a quiet, learnable field of consequence.",
+      "This single-player strategy game nests stochastic matrices within deterministic systems so that uncertainty remains observable without becoming arbitrary. Local-first privacy, resilient data handling, and accessibility support a cozy-sublime interface in which tactical information remains diegetic and decisions carry legible consequences.",
     ]),
     capabilities: Object.freeze(["Naval strategy learning", "Deterministic systems", "Local-first data handling", "Accessible tactical interaction"]),
     technologies: Object.freeze([]),
@@ -123,6 +123,7 @@ export const projects = Object.freeze([
     ]),
     publication: Object.freeze({ label: "August 2026", value: "2026-08", precision: "month" }),
     status: "public",
+    readmeAfterFirstParagraph: true,
   }),
   Object.freeze({
     id: "chorus",
@@ -132,10 +133,10 @@ export const projects = Object.freeze([
     canonicalPath: "/projects/chorus/",
     url: "https://chorus.observer/",
     icon: "diagram-3",
-    thesis: "Social simulation of influence, uncertainty, and collective belief.",
+    thesis: "CHORUS makes collective belief visible as a system of influence, uncertainty, and consequence.",
     summary: Object.freeze([
-      "Social simulation of influence, uncertainty, and collective belief.",
-      "Multi-agent social simulation game modeling disinformation propagation, algorithmic amplification, social capital, and cross-scenario effects through interconnected social actors, procedural scenario generation, cross-system state effects, and coherency validation at network scale.",
+      "CHORUS makes collective belief visible as a system of influence, uncertainty, and consequence.",
+      "This multi-agent social simulation models disinformation propagation, algorithmic amplification, social capital, and cross-scenario effects through interconnected actors. Procedural scenarios and network-scale coherence checks keep state changes traceable as one system’s pressures become another system’s conditions.",
     ]),
     capabilities: Object.freeze(["Multi-agent social systems", "Disinformation propagation", "Procedural scenarios", "Cross-system coherence validation"]),
     technologies: Object.freeze([]),
@@ -150,6 +151,7 @@ export const projects = Object.freeze([
     ]),
     publication: Object.freeze({ label: "August 2026", value: "2026-08", precision: "month" }),
     status: "public",
+    readmeAfterFirstParagraph: true,
   }),
   Object.freeze({
     id: "evenward",
@@ -159,17 +161,23 @@ export const projects = Object.freeze([
     canonicalPath: "/projects/evenward/",
     url: "https://evenward.rest/",
     icon: "tree",
-    thesis: "A privacy-conscious, self-regulation studio prototype designed around movement, attention, pattern, knowledge, and play.",
-    summary: Object.freeze(["A privacy-conscious, self-regulation studio prototype designed around movement, attention, pattern, knowledge, and play."]),
+    thesis: "Evenward.rest treats self-regulation as an ecology of movement, attention, knowledge, and play.",
+    summary: Object.freeze([
+      "Evenward.rest treats self-regulation as an ecology of movement, attention, knowledge, and play.",
+      "This privacy-conscious studio prototype brings embodied guidance, pattern practice, and local interaction into one quiet environment. Its parts are designed to reinforce one another, allowing care to emerge through relationships among movement, attention, knowledge, and play rather than through a single prescribed routine.",
+    ]),
     capabilities: Object.freeze(["Movement guidance", "Attention and pattern practice", "Privacy-conscious local interaction"]),
     technologies: Object.freeze([]),
     evidence: Object.freeze(["https://evenward.rest/"]),
     limitations: Object.freeze([]),
     emphasis: Object.freeze(["embodied interaction", "care", "self-regulation"]),
     relationships: Object.freeze([Object.freeze({ relation: "selectively-applies-lattice-to", target: "lattice", scope: "embodied guidance and care" })]),
-    resources: Object.freeze([]),
+    resources: Object.freeze([
+      Object.freeze({ label: "Evenward.rest Studio", url: "https://evenward.rest/", icon: "backpack4", opensInNewTab: true }),
+    ]),
     publication: Object.freeze({ label: "July 2026", value: "2026-07", precision: "month" }),
     status: "public",
+    readmeAfterFirstParagraph: true,
   }),
   Object.freeze({
     id: "medium",
@@ -179,17 +187,23 @@ export const projects = Object.freeze([
     canonicalPath: "/projects/medium/",
     url: "https://medium.com/@howardhayden",
     icon: "archive",
-    thesis: "The quiet infrastructure that shapes how we live, work, and act under and in preparation for pressure.",
-    summary: Object.freeze(["The quiet infrastructure that shapes how we live, work, and act under and in preparation for pressure."]),
+    thesis: "These essays trace the quiet infrastructure that shapes how people act under pressure.",
+    summary: Object.freeze([
+      "These essays trace the quiet infrastructure that shapes how people act under pressure.",
+      "They examine the routines, institutions, tools, and maintenance work that make action possible before a crisis becomes visible. Each essay follows relationships among preparation, constraint, and consequence so that ordinary systems can be understood as conditions of collective life rather than as background.",
+    ]),
     capabilities: Object.freeze([]),
     technologies: Object.freeze([]),
     evidence: Object.freeze(["https://medium.com/@howardhayden"]),
     limitations: Object.freeze([]),
     emphasis: Object.freeze(["infrastructure", "work under pressure"]),
     relationships: Object.freeze([]),
-    resources: Object.freeze([]),
+    resources: Object.freeze([
+      Object.freeze({ label: "Howard Hayden’s Medium Essays", url: "https://medium.com/@howardhayden", icon: "backpack4", opensInNewTab: true }),
+    ]),
     publication: Object.freeze({ label: "June 2026–present", value: "2026-06", precision: "open-range" }),
     status: "ongoing",
+    readmeAfterFirstParagraph: true,
   }),
 ]);
 

@@ -26,16 +26,28 @@ official grants. The exact global limits remain the grant and concurrency
 backstop for the official API when a browser pseudonym changes. Free-plan
 fail-closed exhaustion, not the grant counters, is the monetary boundary.
 
-Every acquisition also requires a fresh Cloudflare Turnstile attestation. A
-bodyless cookie/challenge response is established after request validation,
-configuration checks, and local shaping, but before the singleton is called.
-The Worker validates a returned token server-side after exact minute and daily
-request admission and before grant accounting, and requires the
-`verify.hah.dev` hostname, `text_to_lattice` action, five-minute validity window, and
-single-use result. The token is capped at 2,048 characters and travels only in
-an acquisition header. The official frame bridge places no source or generated
-text in that token. Origin and Fetch Metadata checks remain CSRF controls, not
-authentication substitutes.
+Every acquisition requires a server-validated Turnstile attestation under the
+declared credential profile. A bodyless cookie/challenge response is established
+after request validation, configuration checks, and local shaping, but before the
+singleton is called. The Worker validates the returned token after exact minute
+and daily request admission and before grant accounting. With a production widget
+pair, it requires the `verify.hah.dev` hostname, `text_to_lattice` action,
+five-minute validity window, and single-use result. The bounded demonstration
+profile uses only Cloudflare's exact published testing pair and accepts only its
+exact published dummy token. The official browser flow can obtain it through the
+isolated frame and widget, while a direct server probe can submit the same value
+without either and proves only the Siteverify, lease, and release path. The
+Siteverify response must have a bounded age, but the dummy token is intentionally
+public and reusable. It provides no freshness,
+single-use, hostname, action, human-verification, or anti-bot assurance. Exact
+request admission and every surrounding origin, cookie, signing, lease, and
+privacy control remain active.
+
+The token is capped at 2,048 characters and travels only in an acquisition
+header. The official frame bridge places no source or generated text in that
+token. Origin and Fetch Metadata checks remain CSRF controls, not authentication
+substitutes. The demonstration profile is likewise not an authentication
+substitute and must never be described as production anti-bot protection.
 
 The Turnstile browser runtime is confined to a dedicated cross-origin static
 frame at `https://verify.hah.dev/turnstile/`; it is never loaded into the
@@ -127,10 +139,11 @@ Denied unknown control identifiers and other true no-ops do not rewrite usage
 state or its alarm. If the same request also discovers expired state, that
 pruning is persisted atomically; later repeats are write-free.
 
-A zone-level edge rate-limit/WAF rule is also a deployment prerequisite because
-rejected or malicious traffic still consumes Worker requests. The
-Free-plan-compatible rule is deliberately path-only (the Free rule expression
-does not expose the HTTP method):
+A zone-level edge rate-limit/WAF rule is recommended operational hardening under
+GATE-03 because rejected or malicious traffic still consumes Worker requests. It
+is not a prerequisite for the bounded demonstrable release and is not an
+availability guarantee. The Free-plan-compatible rule is deliberately path-only
+(the Free rule expression does not expose the HTTP method):
 
 - Match Path exactly `/api/text-to-lattice/lease`.
 - Count by IP.
@@ -154,6 +167,16 @@ from multiple Cloudflare locations, and the documented counter-update delay
 mean no application rule can guarantee that a free allocation will never be
 exhausted. On Workers Free, exhaustion fails closed rather than becoming an
 unbounded paid service.
+
+The public testing token leaves a more direct availability residual: one client
+can use the permitted 16-request acquisition sequence to fill all eight slots and
+keep renewing them. The 48-per-10-second rule admits that sequence, so it does not
+make starvation implausible. The eight-slot cap, four-hour lifetime, exact daily
+admission, fail-closed free tier, and browser-local prose limit the blast radius to
+demonstrator availability rather than privacy, state integrity, or paid overage.
+The interface therefore promises no availability assurance. This is moderate
+accepted residual risk; apply the edge rule when feasible, monitor slot occupancy
+and renewal patterns, and requalify on observed abuse.
 
 ## Free-tier budget
 
@@ -234,9 +257,9 @@ IP-local and permissive; counter overshoot, traffic spread across locations or
 addresses, other account workloads, CPU, and real runtime require provider-side
 measurement. A distributed hostile flood can exhaust the shared Free allocation
 despite every application control. Free quota exhaustion remains fail closed.
-Production enablement requires
-cold/warm CPU tests and 24-hour request, alarm, row-read, row-write, and duration
-measurement against the same account that will host the service.
+GATE-03 post-deployment verification requires cold/warm CPU tests and 24-hour
+request, alarm, row-read, row-write, and duration measurement against the same
+account that hosts the service.
 
 The dedicated verification frame is delivered by a static-assets-only project
 with no Worker script. Under Cloudflare's documented
@@ -247,7 +270,7 @@ maxima.
 Changing that route to execute Worker code would invalidate this arithmetic and
 requires a new budget review before deployment.
 
-## Production boundary
+## Deployment profiles and production boundary
 
 hah.dev is currently exported to GitHub Pages, which cannot execute an API.
 Deploy this Worker separately on the exact same-origin lease route declared in
@@ -255,19 +278,40 @@ Deploy this Worker separately on the exact same-origin lease route declared in
 JSON-LD, sitemap, and llms GET paths continue to go directly to the static site
 without invoking the Worker or passing through a usage gate.
 
-Before enabling the static client:
+Two attestation profiles use the same public protocol:
+
+- **Production anti-bot profile.** A dedicated real widget pair is restricted to
+  `verify.hah.dev`; the Worker requires the expected hostname and
+  `text_to_lattice` action returned by Siteverify.
+- **Bounded demonstration profile.** The exact Cloudflare-published testing pair
+  in `demonstrationProfile.js` lets the official browser flow exercise the frame,
+  widget, Siteverify, lease, and release integration deterministically. Direct API
+  success with its public dummy token proves only Siteverify, lease, and release
+  behavior. This profile does not establish frame participation from a server
+  result, establish that a visitor is human, or provide production anti-bot
+  assurance.
+
+Before enabling the current bounded demonstration profile—and before any later
+intentionally requalified production profile:
 
 1. Verify that `hah.dev` is an active Cloudflare zone and its DNS record is proxied.
-2. Configure and verify the exact path-scoped edge rate-limit/WAF rule described above.
-3. Create a dedicated Turnstile widget restricted to exactly `verify.hah.dev`.
-   Obtain both the public site key and secret validation key from Cloudflare;
-   do not generate either value. Keep the site key in a Worker binding so it
-   need not be committed, and keep the validation key secret. The client and
-   verifier require the `text_to_lattice` action.
+2. When feasible, configure and verify the exact path-scoped edge rate-limit/WAF
+   rule described above as moderate GATE-03 operational hardening. Record its
+   absence or presence honestly; it is not a demonstrable-release prerequisite
+   and does not prevent the public token's permitted all-eight-slot sequence.
+3. For the current bounded demonstrable release, use only the exact official
+   Cloudflare testing pair checked into `demonstrationProfile.js`. The live
+   verifier requires its exact site key and dummy-token lifecycle. A future
+   production profile may use a dedicated Turnstile widget restricted to exactly
+   `verify.hah.dev` and the `text_to_lattice` action, but only after an intentional
+   workflow-verifier and register change plus repeated live qualification. Do not
+   mix one testing value with one production value, synthesize a replacement, or
+   describe the testing pair as hostname restriction, authentication, or anti-bot
+   evidence.
 4. Generate two independent values of at least 32 random bytes for the cookie
-   and lease signing domains. Store those values and both Cloudflare-supplied
-   Turnstile keys as the four
-   **Cloudflare encrypted Worker secrets**; do not reuse a secret between domains, put a production
+   and lease signing domains. Store those values and both values from the
+   selected complete Turnstile pair as the four **Cloudflare encrypted Worker
+   bindings**; do not reuse a value between signing domains, put a production
    value in Wrangler `vars`, or commit it in `.env` or `.dev.vars`:
 
    ```sh
@@ -280,10 +324,12 @@ Before enabling the static client:
    `VISITOR_COOKIE_SECRET` signs only the pseudonymous HttpOnly browser cookie.
    `LEASE_CREDENTIAL_SECRET` signs only expiry-bearing lease credentials.
    `TURNSTILE_SECRET_KEY` validates challenges; `TURNSTILE_SITE_KEY` is public
-   by design but is delivered from its binding. The Worker rejects missing,
-   short, invalid, or reused private secrets, and also rejects a public site key
-   equal to any private secret. Configuration failures return its generic
-   fail-closed `503` response.
+   by design but is delivered from its binding. The official testing secret is
+   also public by design even though it occupies the same encrypted binding;
+   only the two generated signing values are private in that profile. The Worker
+   rejects missing, short, invalid, or reused values, invalid site-key syntax,
+   and equality between any signing or attestation bindings.
+   Configuration failures return its generic fail-closed `503` response.
 
 5. Confirm all four encrypted bindings are present with `wrangler secret list`;
    that command reports names, never secret values. Deploy the Worker and its
@@ -295,13 +341,25 @@ Before enabling the static client:
    npx wrangler@4.129.1 deploy --config workers/text-to-lattice-lease/wrangler.jsonc
    ```
 
-6. Deploy the static-only project in
-   `workers/text-to-lattice-attestation-frame/` at `verify.hah.dev`. At the
-   `hah.dev` response-header/CDN layer, apply the following policies to all four
-   public aliases for the résumé documents: `/`, `/index.html`, `/resume/`, and
-   `/resume/index.html`. The root document serves `/#Resume`; fragments never
-   reach the server, while GitHub Pages serves both explicit `index.html`
-   aliases without redirecting them:
+6. Deploy the exact response-policy Worker in
+   `workers/text-to-lattice-response-policy/` on `/`, `/index.html`,
+   `/resume/`, and `/resume/index.html` at `hah.dev`, then deploy the
+   static-only project in `workers/text-to-lattice-attestation-frame/` at
+   `verify.hah.dev`. The response-policy Worker fetches the existing GitHub
+   Pages response and sets the following policies on those four aliases. The
+   stately résumé and Text to Lattice launch links use fragments, which do not
+   change the server route. The document carries the same CSP as a meta fallback
+   for legacy query-state and origin-preview contexts, while the HTTP response
+   uniquely supplies `Permissions-Policy`. Unrelated pages, assets, and arbitrary
+   paths bypass the Worker; the lease route remains independently owned. The
+   policy Worker has no bindings, storage, telemetry, or content inspection, and
+   its observability is disabled.
+
+   The canonical tool launch is `https://hah.dev/resume/#text-to-lattice`.
+   Its fragment does not reach the server and leaves the protected `/resume/`
+   document request unchanged.
+
+   The exact response values are:
 
    ```text
    Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; frame-src https://verify.hah.dev; connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co https://raw.githubusercontent.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'
@@ -313,18 +371,22 @@ Before enabling the static client:
    comes from `raw.githubusercontent.com`, and the existing Jost stylesheet and
    font come from Google's named font origins. Do not add Cloudflare's challenge
    origin to the main page's `script-src`, add `script-src-elem`, or replace a
-   named source with a general HTTPS or wildcard source. Confirm all four main
-   document aliases with the live service verifier, then confirm the frame's checked-in CSP and
-   `frame-ancestors https://hah.dev` header on the deployed response. No account
-   identifier, deploy credential, site key, or secret is committed by the
-   static project.
-7. Run the checked-in live service verifier before activation. Its production
-   probes intentionally require no genuine Turnstile token and no successful
-   lease grant: exact frame bytes and isolation headers; all four main-document
+   named source with a general HTTPS or wildcard source. Confirm that response
+   status, body, origin headers, and non-target paths are preserved; confirm all
+   four main-document aliases with the live service verifier; then confirm the
+   frame's checked-in CSP and `frame-ancestors https://hah.dev` header on the
+   deployed response. No account identifier, deploy credential, production site
+   key, or private secret is committed by either project.
+7. Run the checked-in live service verifier before activation. Its boundary
+   probes require no genuine Turnstile token. They verify exact frame bytes and
+   isolation headers; all four main-document
    response-policy aliases; the lease method and `Allow` boundary; forged-origin
    rejection without a cookie; first-party cookie creation and site-key delivery;
    the returning-browser missing-attestation response; and intentionally invalid
-   attestation rejection without cookie refresh. Treat any unexpected success,
+   attestation rejection without cookie refresh. The exact public dummy-token
+   probe also completes one direct acquisition and release; that proves only the
+   deployed Siteverify, lease, and release path, not frame or widget participation
+   and not the canonical-browser GATE-06 lifecycle. Treat any unexpected success,
    status, header, cookie, or public result as a failed GATE-02 boundary. Keep
    request-body and query rejection, random or tampered bearer rejection before
    shaping, exact-origin/source/schema frame-message rejection, configuration
@@ -332,7 +394,8 @@ Before enabling the static client:
    admission limits, lease timing, and bounded `Retry-After` forms covered by the
    checked-in source tests. These fail-closed probes establish the deployed
    boundary without pretending to establish a real widget-to-lease lifecycle.
-8. Verify the enabled edge rule, exact Worker route and fail mode, seven distinct
+8. Record the presence and observed effect of the recommended edge rule, then
+   verify the exact Worker route and fail mode, seven distinct
    rate-limit bindings whose namespace identifiers are unused by every other
    Worker in the account, and all four secret binding names. Configuration and
    live fail-closed behavior belong to GATE-02; provider measurements belong to
@@ -353,23 +416,41 @@ Before enabling the static client:
 
 GATE-06 begins only after the canonical public client is activated. In the first
 activation session, before declaring the release operationally complete, use that
-official page in the supported browser engines to finish the production Turnstile
-challenge, receive a `200` acquisition, wait through at least the five-minute
-server renewal minimum, receive a `200` renewal, and receive a `204` release.
+official page in the supported browser engines to finish the declared Turnstile
+profile, receive a `200` acquisition, and receive a `204` release.
 Retain only a sanitized trace with the deployed revision, timestamps, methods,
 statuses, and documented header names; never retain the Turnstile token, lease
 bearer, cookie value, source, clarification, candidate, verifier finding, or
 result. Review the same trace to confirm that no prose entered lease, attestation,
 model-asset, error, or telemetry traffic.
 
-Do not add a public route, operator-only page, test-key mode, or other bypass
-harness merely to produce this evidence while the held artifact exposes no client.
-If acquisition fails, renewal after the server minimum fails, release fails, or
+Under the bounded demonstration profile, this proves the canonical browser,
+isolated frame, Cloudflare widget and Siteverify endpoints, lease Worker, release,
+and privacy boundaries work together with the provider's published testing pair.
+It does not prove that Turnstile resisted a bot, that the widget is restricted to
+the production hostname, or that production anti-bot protection exists. Installing
+a real hostname-restricted widget pair is a credential-profile change and must
+repeat the same first-session acquisition, release, privacy, and rollback checks
+before the release is described as anti-bot protected.
+
+If an ordinary session naturally reaches the renewal interval, retain its
+bodyless renewal status as follow-up evidence. Do not deliberately wait five
+minutes to manufacture a `200` renewal or treat that trace as a condition of
+operational completion. This renewal evidence is moderate and deferred, not
+dismissed: source and adversarial tests cover renewal timing, bodyless PATCH
+behavior, fail-closed local termination, bounded lease expiry, and eventual
+cleanup. An observed real renewal failure still requires rollback.
+
+Do not add a public route, operator-only page, unsigned token mode, or test-key
+behavior beyond Cloudflare's exact published pair merely to produce this evidence
+while the held artifact exposes no client.
+If acquisition fails, release fails, any observed real renewal attempt fails, or
 the trace contains any content-bearing request, set GATE-06 to
 `open-release-blocker`, immediately return the overall release and public client
 to the held documentation-only artifact, and investigate from the retained
 sanitized evidence. This transition keeps rollback machine-enforceable even after
-GATE-02 is satisfied. Repeat the official-page lifecycle and privacy trace after
+GATE-02 is satisfied. Repeat the mandatory official-page acquisition, release,
+and privacy trace after
 widget, key, hostname, action, lease protocol, Durable Object binding, route,
 origin, provider, telemetry, runtime, or request-contract changes.
 
@@ -379,33 +460,61 @@ traffic. Return the client to held if observed capacity behavior exceeds the
 published safeguards; these measurements do not belong to the preactivation
 GATE-02 configuration proof.
 
-The three private runtime values belong only in Cloudflare and must not be
-duplicated into GitHub. The public Turnstile site key is also kept as a
-Cloudflare Worker binding so the checked-in frame stays configuration-free.
-The Pages workflow deploys both services through the protected
+The two private signing values—and the production Turnstile validation secret
+when that profile is active—belong only in Cloudflare and must not be duplicated
+into GitHub. The Turnstile site key is kept as a Cloudflare Worker binding so the
+checked-in frame stays configuration-free. The bounded profile's exact official
+testing pair is intentionally public and checked in so the relaxation is
+reviewable; placing it in encrypted bindings preserves one deployment shape but
+does not make those provider-published values secret.
+The Pages workflow deploys all three edge services through the protected
 `text-to-lattice-production` GitHub environment. Store only the least-privilege
 deploy credential as the environment secret
 `CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN`; store `CLOUDFLARE_ACCOUNT_ID`, an
 identifier rather than secret material, as an environment variable. Never
 embed either value in the workflow or repository.
+The token's least-privilege set must include Account → Workers Scripts → Edit,
+Zone → Workers Routes → Edit, and Zone → Zone → Read for the hah.dev account and
+zone. The final permission lets the fail-closed inventory verifier resolve the
+active zone; it does not authorize content or DNS mutation.
 
-While the client is held, ordinary pushes skip the protected service job and
-continue to publish the documentation-only site. An approved manual dispatch
-with `deploy_text_to_lattice_services` can bootstrap and qualify the services;
-the first pass may create a fail-closed Worker and then stop at the exact
-secret-name inventory until the four Cloudflare bindings are installed. Once
-the register enables the client, the Pages deployment cannot proceed unless
-the service deployment and live boundary probes succeed in the same workflow
-run.
+For an enabled release, every push to `main` runs the protected service job after
+the qualified build. While the client is held, the same job runs only when the
+head commit includes `[deploy-text-to-lattice-services]` or an approved manual
+dispatch sets `deploy_text_to_lattice_services`. The job deploys the
+response-policy Worker, deploys and byte-verifies the isolated frame, deploys the
+lease Worker, and then reads only the encrypted binding names. It preserves every
+complete existing required binding set. If either independent signing binding is
+absent, it plans a newly generated 48-byte random value; if both Turnstile
+bindings are absent, the workflow's explicit `--require-official-test-profile`
+option adds the exact provider-published testing pair. Every planned value is
+installed together through one Wrangler `secret bulk` call. One-sided Turnstile
+state, an unexpected binding name, an invalid inventory, an ambiguous bulk plan,
+or any install failure stops the job before it can create a mixed profile or
+overwrite an existing value. The subsequent exact site-key and direct dummy-token
+probes reject a preserved real or otherwise different complete pair for the
+current demonstrable release; changing to that pair requires an intentional
+workflow, register, and live-qualification update.
 
-The frame and lease routes are shared, unversioned dependencies of the currently
-published Pages client, and their deployments are not atomic with the Pages
-deployment. A protocol-breaking service or bridge change must therefore remain
+After bootstrap, the workflow re-reads and verifies exactly four binding names,
+then uses the protected deploy token to require the response-policy and lease
+Workers to own exactly their declared hah.dev route inventories. Missing, extra,
+stale wildcard, or malformed route results fail closed.
+The workflow then runs the live boundary probes and checks current-main freshness again. A
+requested held service job must succeed before that commit's Pages publication;
+an ordinary held documentation push skips service mutation. When the register
+enables the client, the Pages deployment cannot proceed unless the service
+deployment and live boundary probes succeed in the same workflow run.
+
+The response-policy, frame, and lease routes are shared, unversioned dependencies
+of the currently published Pages client, and their deployments are not atomic
+with the Pages deployment. A policy- or protocol-breaking service or bridge
+change must therefore remain
 backward-compatible with the public client throughout the deployment window, or
 introduce a versioned frame path and lease route and switch the client only after
 the new version passes its live probes. Before such a change, record recoverable
-provider deployment identifiers and a tested rollback order for both services.
-If a later deployment or qualification step fails after either shared service
+provider deployment identifiers and a tested rollback order for all three services.
+If a later deployment or qualification step fails after any shared service
 changed, restore the compatible service versions before leaving the incident;
 do not leave the old public client pointed at a partially advanced protocol.
 The initial held bootstrap has no interactive public client and does not waive
@@ -438,7 +547,10 @@ may still process request, security, and recovery metadata under its service ter
 
 On the first bodyless acquisition request, the Worker sets the signed cookie,
 returns the public Turnstile site key with `428`, and the client retries once
-with a fresh attestation header and without adding a body. That cheap challenge
+with the attestation header produced by the declared credential profile and
+without adding a body. Under a production profile that token is fresh and
+single-use; under the official testing profile it is the exact reusable dummy
+token and carries no such assurance. That cheap challenge
 is locally shaped but never calls the singleton; the attested retry crosses the
 exact minute and UTC-day admissions before Siteverify. A browser that
 does not retain the cookie fails closed. Every valid acquisition decision

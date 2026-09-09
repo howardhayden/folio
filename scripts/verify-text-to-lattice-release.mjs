@@ -95,6 +95,7 @@ const qualifiedSourceTrees = Object.freeze([
   "tests",
   "workers/text-to-lattice-attestation-frame",
   "workers/text-to-lattice-lease",
+  "workers/text-to-lattice-response-policy",
 ]);
 const qualifiedToolResidueDirectories = new Set([".wrangler"]);
 const sha256Pattern = /^[a-f0-9]{64}$/u;
@@ -186,8 +187,10 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
   if (!/noninteractive/iu.test(gate02PreactivationBoundary)
     || !/invalid-(?:token|attestation)/iu.test(gate02PreactivationBoundary)
     || !/intentionally invalid-attestation/iu.test(productionBoundaryGate.evidenceNeeded)
-    || !/A genuine widget token or successful lease grant is not preactivation evidence for this gate\./u.test(productionBoundaryGate.evidenceNeeded)) {
-    fail("GATE-02 must bind live noninteractive and invalid-token probes without requiring a genuine preactivation widget grant.");
+    || !/exact official demonstration-site-key, and exact official dummy-token acquisition-and-release probes/iu.test(productionBoundaryGate.evidenceNeeded)
+    || !/direct dummy-token lifecycle establishes only the deployed Siteverify, lease, and release path/iu.test(productionBoundaryGate.evidenceNeeded)
+    || !/not evidence that the frame or widget participated or that canonical-browser GATE-06 passed/iu.test(productionBoundaryGate.evidenceNeeded)) {
+    fail("GATE-02 must bind live noninteractive, invalid-token, and direct official dummy-token probes without treating their server result as frame, widget, or canonical-browser evidence.");
   }
   const gate02Sentences = gate02PreactivationBoundary.split(/(?<=[.!?])\s+/u);
   const requiresRealLifecycle = gate02Sentences.some((sentence) => {
@@ -199,26 +202,59 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
   if (requiresRealLifecycle) {
     fail("GATE-02 cannot require a real canonical-page lifecycle while the public client is held.");
   }
+  for (const exactRoute of ["hah.dev/", "hah.dev/index.html", "hah.dev/resume/", "hah.dev/resume/index.html"]) {
+    if (!gate02PreactivationBoundary.includes(exactRoute)) {
+      fail(`GATE-02 must bind the exact response-policy route ${exactRoute}.`);
+    }
+  }
+  const gate02ProfileContradiction = gate02PreactivationBoundary
+    .split(/(?<=[.!?])\s+/u)
+    .some((sentence) => {
+      if (/\b(?:does not|do not|must not|never|without|rather than|only after)\b/iu.test(sentence)) return false;
+      const testingPairOverclaim = /\b(?:official testing pair|testing-key fallback|demonstration profile)\b[\s\S]{0,160}\b(?:counts? as|provides?|establishes?|proves?|is)\b[\s\S]{0,120}\banti-bot\b/iu.test(sentence);
+      const bespokeAlternative = /\b(?:allow|permit|implement|add|use|accept)\w*\b[\s\S]{0,120}\b(?:bypass|unsigned)\b|\b(?:bypass|unsigned)\b[\s\S]{0,120}\b(?:allow|permit|implement|add|use|accept)\w*\b/iu.test(sentence);
+      return testingPairOverclaim || bespokeAlternative;
+    });
+  if (productionBoundaryGate.label !== "Deployed origin, secret, and demonstration boundary"
+    || !/four exact response-policy routes/iu.test(productionBoundaryGate.requirement)
+    || !/bounded demonstrable release/iu.test(productionBoundaryGate.requirement)
+    || !/Cloudflare's official testing pair/iu.test(`${productionBoundaryGate.requirement} ${productionBoundaryGate.evidenceNeeded}`)
+    || !/does not count as production anti-bot evidence/iu.test(productionBoundaryGate.requirement)
+    || !/preserve a complete existing Turnstile pair without reading or replacing its values, or install Cloudflare's official testing pair/iu.test(productionBoundaryGate.evidenceNeeded)
+    || !/independent generated signing secrets/iu.test(productionBoundaryGate.evidenceNeeded)
+    || !productionBoundaryGate.safeguards.some((safeguard) => /official testing pair.*exact published secret.*never described as anti-bot assurance/iu.test(safeguard))
+    || !productionBoundaryGate.safeguards.some((safeguard) => /unrelated portfolio (?:paths|traffic).*bypass/iu.test(safeguard))
+    || !/Before describing the release as operationally anti-bot protected, intentionally change the declared profile, workflow verifier, and register to a hostname-restricted real widget pair/iu.test(productionBoundaryGate.followUp)
+    || !/do not add a bespoke bypass route or unsigned token mode/iu.test(productionBoundaryGate.followUp)
+    || gate02ProfileContradiction) {
+    fail("GATE-02 must disclose the bounded Cloudflare official-testing profile without claiming anti-bot assurance and must prohibit bespoke bypass or unsigned alternatives.");
+  }
 
   const lifecycleStatuses = new Set(["post-deployment-verification", "open-release-blocker"]);
   const privacyClasses = ["source", "clarification", "candidate", "verifier finding", "output"];
   if (!lifecycleStatuses.has(productionLifecycleGate.status)
     || productionLifecycleGate.label !== "Production lifecycle and privacy trace"
     || !/activated canonical page/iu.test(productionLifecycleGate.requirement)
-    || !/200, 200, and 204/iu.test(productionLifecycleGate.requirement)
-    || !/five-minute server (?:renewal )?minimum/iu.test(`${productionLifecycleGate.requirement} ${productionLifecycleGate.evidenceNeeded}`)
+    || !/200 acquisition/iu.test(productionLifecycleGate.requirement)
+    || !/204 release/iu.test(productionLifecycleGate.requirement)
+    || !/declared deployed credential profile/iu.test(productionLifecycleGate.requirement)
+    || !/Testing-profile success establishes demonstrator integration, not production anti-bot assurance/iu.test(productionLifecycleGate.requirement)
     || !/first activation session/iu.test(`${productionLifecycleGate.evidenceNeeded} ${productionLifecycleGate.followUp}`)
     || !/supported browser engines/iu.test(productionLifecycleGate.evidenceNeeded)
+    || !/both origins/iu.test(productionLifecycleGate.evidenceNeeded)
+    || /wait .*five-minute|record a 200 renewal/iu.test(`${productionLifecycleGate.requirement} ${productionLifecycleGate.evidenceNeeded} ${productionLifecycleGate.followUp}`)
+    || !/naturally reaches the renewal interval/iu.test(`${productionLifecycleGate.evidenceNeeded} ${productionLifecycleGate.followUp}`)
+    || !/do not deliberately wait/iu.test(productionLifecycleGate.evidenceNeeded)
     || privacyClasses.some((contentClass) => !productionLifecycleGate.requirement.includes(contentClass)
       || !productionLifecycleGate.rollbackCondition.includes(contentClass))
     || !/Do not create a public or operator bypass harness/iu.test(productionLifecycleGate.evidenceNeeded)
     || !/held documentation-only artifact/iu.test(productionLifecycleGate.rollbackCondition)
     || !/GATE-06 to open-release-blocker/iu.test(productionLifecycleGate.rollbackCondition)
     || !/acquisition fails/iu.test(productionLifecycleGate.rollbackCondition)
-    || !/renewal .* fails/iu.test(productionLifecycleGate.rollbackCondition)
+    || !/observed real renewal attempt fails/iu.test(productionLifecycleGate.rollbackCondition)
     || !/release fails/iu.test(productionLifecycleGate.rollbackCondition)
     || !/content-bearing request/iu.test(productionLifecycleGate.rollbackCondition)) {
-    fail("GATE-06 must retain the canonical-page lifecycle and privacy trace as immediate post-deployment verification or a machine-representable open blocker, with held rollback and no bypass harness.");
+    fail("GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification or a machine-representable open blocker, defer a deliberately timed renewal trace, and preserve held rollback without a bypass harness.");
   }
   if (productionLifecycleGate.status === "open-release-blocker") {
     requireString(productionLifecycleGate.rollbackCondition, "GATE-06 rollbackCondition");
@@ -274,7 +310,7 @@ async function verifyQualifiedSourceSet(register) {
   }
   if (JSON.stringify(sourceSet.files) !== JSON.stringify(qualifiedSourceFiles)
     || JSON.stringify(sourceSet.trees) !== JSON.stringify(qualifiedSourceTrees)) {
-    fail("qualified source set must contain the exact reviewed activation, runtime, validator, test, license-routing, legal-notice, and workflow path inventory.");
+    fail("qualified source set must contain the exact reviewed activation, runtime, validator, test, license-routing, legal-notice, response-policy, secret-bootstrap, and workflow path inventory.");
   }
   const prohibited = /^(?:docs\/text-to-lattice\/(?:LATTICE-DOCUMENTATION-ATLAS\.json|TEXT-TO-LATTICE-RELEASE-(?:REGISTER\.json|QUALIFICATION\.md))|public\/|site\/)/u;
   if ([...sourceSet.files, ...sourceSet.trees].some((path) => prohibited.test(path))) {
@@ -308,7 +344,7 @@ async function verifyQualifiedSourceSet(register) {
     hash.update("\0");
   }
   const observed = hash.digest("hex");
-  if (observed !== sourceSet.sha256) fail("qualified source-set digest does not match the named activation, runtime, validator, test, license-routing, legal-notice, and workflow sources.");
+  if (observed !== sourceSet.sha256) fail("qualified source-set digest does not match the named activation, runtime, validator, test, license-routing, legal-notice, response-policy, secret-bootstrap, and workflow sources.");
   return observed;
 }
 
@@ -438,6 +474,13 @@ async function verifyQualificationDossier(register) {
   ]) {
     if (!source.includes(required)) fail(`release qualification dossier omits ${required}.`);
   }
+  if (!/Cloudflare(?:'s|\u2019s) official testing pair[\s\S]{0,500}(?:rather than|does not (?:provide|establish)|provides? no)[^.]{0,160}production anti-bot (?:assurance|protection)/iu.test(source)
+    || !/exact published dummy token[\s\S]{0,500}reusable/iu.test(source)
+    || !/Cloudflare official testing credentials for the demonstrable release/iu.test(source)
+    || !/Bespoke attestation bypass route or unsigned token mode/iu.test(source)
+    || !/Portfolio-wide response-policy Worker route/iu.test(source)) {
+    fail("release qualification must disclose the reusable official dummy token and absent production anti-bot assurance, and must record the bespoke attestation and portfolio-wide routing alternatives as rejected.");
+  }
 }
 
 function verifyArtifactSet(register) {
@@ -526,6 +569,11 @@ async function verifySourceBoundary(register) {
   if (register.authority?.canonicalSource !== canonicalRegisterSource) fail("release-register canonical source declaration drifted.");
   if (register.authority?.qualificationDossier !== canonicalQualificationSource) fail("release qualification dossier declaration drifted.");
   if (!gitRevisionPattern.test(register.implementationBaselineRevision)) fail("implementationBaselineRevision must identify the reviewed baseline commit.");
+  if (!/Cloudflare-published testing-key fallback/iu.test(register.qualificationScope)
+    || !/bounded demonstrable release/iu.test(register.qualificationScope)
+    || !/not represented as production anti-bot assurance/iu.test(register.qualificationScope)) {
+    fail("qualificationScope must disclose the bounded official-testing fallback without representing it as production anti-bot assurance.");
+  }
   if (!Array.isArray(register.statusVocabulary) || register.statusVocabulary.length !== gateStatuses.size
     || [...gateStatuses].some((status) => !register.statusVocabulary.includes(status))) {
     fail("statusVocabulary does not match the enforced gate vocabulary.");
@@ -578,6 +626,58 @@ async function verifySourceBoundary(register) {
     if (!marginalDecisionValues.has(decision.classification)) {
       fail(`marginal-value decision ${index} has an unsupported classification.`);
     }
+  }
+  const timedRenewalDecision = register.marginalValueDecisions.find(({ finding }) => finding === "Deliberately timed real-browser renewal trace");
+  if (timedRenewalDecision?.classification !== "moderate"
+    || timedRenewalDecision?.disposition !== "observe-naturally-and-defer-as-release-gate"
+    || !/source and adversarial tests/iu.test(timedRenewalDecision.rationale)
+    || !/bodyless PATCH/iu.test(timedRenewalDecision.rationale)
+    || !/bounded lease expiry/iu.test(timedRenewalDecision.rationale)
+    || !/eventual cleanup/iu.test(timedRenewalDecision.rationale)
+    || !/roll back on an observed defect/iu.test(timedRenewalDecision.rationale)
+    || !/must not hold operational completion/iu.test(timedRenewalDecision.rationale)) {
+    fail("the deliberately timed real-browser renewal trace must remain a moderate, naturally observed follow-up rather than a release gate, with bounded controls and rollback on an observed defect.");
+  }
+  const demonstrationProfileDecision = register.marginalValueDecisions.find(({ finding }) => finding === "Cloudflare official testing credentials for the demonstrable release");
+  if (demonstrationProfileDecision?.classification !== "moderate"
+    || demonstrationProfileDecision?.disposition !== "bounded-demonstration-only"
+    || !/documented testing pair/iu.test(demonstrationProfileDecision.rationale)
+    || !/explicit disclosure/iu.test(demonstrationProfileDecision.rationale)
+    || !/exact-origin and bodyless boundaries/iu.test(demonstrationProfileDecision.rationale)
+    || !/independent signing domains/iu.test(demonstrationProfileDecision.rationale)
+    || !/global daily admission/iu.test(demonstrationProfileDecision.rationale)
+    || !/bounded expiry/iu.test(demonstrationProfileDecision.rationale)
+    || !/must not be represented as production anti-bot assurance/iu.test(demonstrationProfileDecision.rationale)) {
+    fail("the Cloudflare official-testing profile must remain a moderate, explicitly disclosed demonstration-only disposition without an anti-bot assurance claim.");
+  }
+  const bypassDecision = register.marginalValueDecisions.find(({ finding }) => finding === "Bespoke attestation bypass route or unsigned token mode");
+  if (bypassDecision?.classification !== "negative"
+    || bypassDecision?.disposition !== "do-not-implement"
+    || !/undocumented public protocol/iu.test(bypassDecision.rationale)
+    || !/attack surface/iu.test(bypassDecision.rationale)
+    || !/exact published test profile/iu.test(bypassDecision.rationale)
+    || !/existing Siteverify and signed-lease contract/iu.test(bypassDecision.rationale)
+    || !/without proving widget participation/iu.test(bypassDecision.rationale)) {
+    fail("a bespoke attestation bypass route or unsigned token mode must remain a negative-marginal-value, do-not-implement alternative to the provider testing profile.");
+  }
+  const broadResponsePolicyDecision = register.marginalValueDecisions.find(({ finding }) => finding === "Portfolio-wide response-policy Worker route");
+  if (broadResponsePolicyDecision?.classification !== "negative"
+    || broadResponsePolicyDecision?.disposition !== "do-not-implement"
+    || !/unrelated portfolio (?:pages|traffic)/iu.test(broadResponsePolicyDecision.rationale)
+    || !/(?:allowance|quota)/iu.test(broadResponsePolicyDecision.rationale)
+    || !/(?:failure blast radius|failure surface)/iu.test(broadResponsePolicyDecision.rationale)
+    || !/four exact document routes/iu.test(broadResponsePolicyDecision.rationale)) {
+    fail("a portfolio-wide response-policy Worker route must remain a negative-marginal-value non-solution; four exact document routes preserve the required boundary without the broader allowance and failure surface.");
+  }
+  const publicTokenStarvationDecision = register.marginalValueDecisions.find(({ finding }) => finding === "Public testing-token slot starvation and the 48-per-10-second edge rule");
+  if (publicTokenStarvationDecision?.classification !== "moderate"
+    || publicTokenStarvationDecision?.disposition !== "accepted-residual-with-operational-hardening"
+    || !/16-request acquisition sequence/iu.test(publicTokenStarvationDecision.rationale)
+    || !/all eight slots/iu.test(publicTokenStarvationDecision.rationale)
+    || !/48-per-10-second per-IP rule does not prevent/iu.test(publicTokenStarvationDecision.rationale)
+    || !/limit consequence to demonstrator availability/iu.test(publicTokenStarvationDecision.rationale)
+    || !/observed abuse triggers requalification/iu.test(publicTokenStarvationDecision.rationale)) {
+    fail("public testing-token slot starvation must remain a moderate accepted availability residual; the 48-per-10-second edge rule is operational hardening, not a release prerequisite or prevention claim.");
   }
 
   const atlas = await readJson(atlasPath, "documentation atlas");
@@ -1069,7 +1169,7 @@ async function verifyEnabledBuiltBoundary(site, files) {
   if ((resume.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length !== 1) {
     fail("enabled résumé artifact must expose exactly one Text to Lattice modal launcher.");
   }
-  if (!/href="\/resume\/\?tool=text-to-lattice#project-lattice"[^>]*>Use Text to Lattice<\/a>/u.test(project)) {
+  if (!/href="\/resume\/#text-to-lattice"[^>]*>Use Text to Lattice<\/a>/u.test(project)) {
     fail("enabled canonical project page lacks its direct Text to Lattice launch path.");
   }
 

@@ -46,6 +46,7 @@ import {
 import { isLatticeRetryPending, latticeRetryEta } from "./lattice/retryEta.js";
 import { obtainLatticeAttestation } from "./lattice/attestation.js";
 import { projects } from "./projects.js";
+import ProjectDescriptionDisclosure from "./ProjectDescriptionDisclosure";
 
 type ProjectIconName =
   | "airplane-engines"
@@ -867,10 +868,15 @@ export default function ResumeProjects() {
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (url.searchParams.get("tool") !== "text-to-lattice") return;
+    const legacyQueryLaunch = url.searchParams.get("tool") === "text-to-lattice";
+    if (legacyQueryLaunch) {
+      window.location.replace("/resume/#text-to-lattice");
+      return;
+    }
+    if (url.hash !== "#text-to-lattice") return;
     const trigger = latticeDirectLaunchRef.current;
     if (!trigger) return;
-    url.searchParams.delete("tool");
+    url.hash = "#project-lattice";
     window.history.replaceState(
       window.history.state,
       "",
@@ -1157,9 +1163,6 @@ export default function ResumeProjects() {
         <div className="folio-card-grid">
           {projects.map((project) => {
             const headingId = projectHeadingId(project.name);
-            const firstParagraph = project.summary[0];
-            const remainingParagraphs = project.summary.slice(1);
-
             return (
               <article
                 className="card"
@@ -1195,31 +1198,12 @@ export default function ResumeProjects() {
                     <a className="signal-fuzz" href={project.canonicalPath}>{project.name}</a>
                   </h3>
 
-                  {"readmeAfterFirstParagraph" in project && project.readmeAfterFirstParagraph ? (
-                    <>
-                      <p className="card-text">{firstParagraph}</p>
-                      <details className="project-readme">
-                        <summary>Read me</summary>
-                        <div className="project-readme-copy">
-                          {remainingParagraphs.map((paragraph, index) => (
-                            <p
-                              className="card-text"
-                              key={`${project.name}-summary-${index + 1}`}
-                            >
-                              {paragraph}
-                            </p>
-                          ))}
-                        </div>
-                      </details>
-                    </>
-                  ) : project.summary.map((paragraph, index) => (
-                    <p
-                      className="card-text"
-                      key={`${project.name}-summary-${index}`}
-                    >
-                      {paragraph}
-                    </p>
-                  ))}
+                  <ProjectDescriptionDisclosure
+                    hook={project.summary[0]}
+                    paragraph={project.summary[1]}
+                    projectId={project.id}
+                    projectName={project.name}
+                  />
 
                   {project.resources?.length ? (
                     <nav
@@ -1247,7 +1231,6 @@ export default function ResumeProjects() {
                                   <ProjectIcon icon={resource.icon as ProjectIconName} />
                                 </span>{" "}
                                 <span>{resource.label}</span>
-                                {opensInNewTab ? <span aria-hidden="true"> ↗</span> : null}
                               </a>
                             </li>
                           );
@@ -1287,7 +1270,7 @@ export default function ResumeProjects() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="lattice-demo-title"
-          aria-describedby="lattice-demo-description lattice-local-privacy lattice-model-disclosure lattice-usage-policy"
+          aria-describedby="lattice-demo-description lattice-local-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"
           aria-keyshortcuts="Escape"
           tabIndex={-1}
         >
@@ -1301,6 +1284,13 @@ export default function ResumeProjects() {
           </p>
           <p id="lattice-model-disclosure" className="lattice-local-note">
             Model-assisted result: Qwen drafts locally and Llama 3.2 checks locally. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_2_TERMS_PROVENANCE.licenseUrl}>Built with Llama</a>.
+          </p>
+          <p className="lattice-usage-note" id="lattice-demonstration-profile">
+            Demonstrable release: the admission check exercises the capacity path but does not
+            distinguish people from automated clients. Its reusable public pass can occupy all
+            eight slots, so availability is not assured. Requests remain textless and site-bound;
+            short-lived signed grants, capacity limits, expiry, and browser-local processing remain
+            enforced.
           </p>
           <p className="lattice-usage-note" id="lattice-usage-policy">
             Demonstration only. Up to {LATTICE_USAGE_POLICY.visitor.limit} conversions per browser in any 24 hours.

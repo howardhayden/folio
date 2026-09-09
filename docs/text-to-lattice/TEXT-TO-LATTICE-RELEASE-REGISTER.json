@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "revision": "2026-09-09",
   "implementationBaselineRevision": "233bdbc8dbafd401a94babe14a64c198be110830",
-  "qualificationScope": "The named commit is the completed implementation baseline. The qualified source set binds the current activation, runtime, validator, test, license-routing, shipped legal-notice, and release-workflow sources without claiming that unobserved deployed behavior has occurred.",
+  "qualificationScope": "The named commit is the completed implementation baseline. The qualified source set binds the current activation, runtime, validator, test, license-routing, shipped legal-notice, response-policy, secret-bootstrap, and release-workflow sources without claiming that unobserved deployed behavior has occurred. A Cloudflare-published testing-key fallback is authorized only for the explicitly bounded demonstrable release and is not represented as production anti-bot assurance.",
   "overallStatus": "held",
   "statusVocabulary": [
     "satisfied-in-source",
@@ -16,7 +16,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "47af66ea4f2c88ec41bce2eccce3feea9e77af15f3faa015a9aa9bf232c7baf7",
+    "qualificationDossierSha256": "425eab1c7842a52722762ad13b376c92ab243cc48a8687c616d0aaa27ced149c",
     "qualifiedSourceSet": {
       "algorithm": "sha256-path-and-bytes-v1",
       "files": [
@@ -43,9 +43,10 @@
         "scripts",
         "tests",
         "workers/text-to-lattice-attestation-frame",
-        "workers/text-to-lattice-lease"
+        "workers/text-to-lattice-lease",
+        "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "7b8d1e4b9939cccb2b36ed2847daa23907b42dd283d5e7096d7c167881a54920",
+      "sha256": "b45b0a5b4d3a5717cb8b43914ab42f3dbf192513c9c09b7d765bf79949b75952",
       "claim": "This digest binds the named source paths only, including the complete test tree, license-routing map, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. Current-main workflow checks separately bind the deployed commit."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -55,7 +56,7 @@
   "publicClient": {
     "status": "held",
     "publicationMode": "documentation-only",
-    "reason": "GATE-02 is the sole open release blocker: the live lease path returned 404, verify.hah.dev was absent, and the reviewed hah.dev response lacked CSP and Permissions-Policy. The remaining factual gaps are classified as workflow-enforced, accepted residual risk, or bounded post-deployment verification.",
+    "reason": "GATE-02 is the sole open release blocker while the response-policy, verification-frame, and lease services await their first live deployment and fail-closed probes. The remaining factual gaps are classified as workflow-enforced, accepted residual risk, or bounded post-deployment verification.",
     "heldBoundary": {
       "allow": [
         "canonical Text to Lattice project page",
@@ -73,7 +74,7 @@
   "ownerDisposition": {
     "status": "release-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "7b8d1e4b9939cccb2b36ed2847daa23907b42dd283d5e7096d7c167881a54920",
+    "qualifiedSourceSetSha256": "b45b0a5b4d3a5717cb8b43914ab42f3dbf192513c9c09b7d765bf79949b75952",
     "decidedOn": "2026-09-09",
     "record": "The active owner direction is to qualify and include the newest Text to Lattice once the consequential release boundary is satisfied.",
     "note": "Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence. No live-service, browser, model-execution, or production-trace result is inferred from the direction."
@@ -245,25 +246,35 @@
     },
     {
       "id": "GATE-02",
-      "label": "Production origin and secret boundary",
+      "label": "Deployed origin, secret, and demonstration boundary",
       "status": "open-release-blocker",
       "marginalValue": "high",
-      "requirement": "The deployed hah.dev and verify.hah.dev origins, lease Worker route, response policies, bindings, and independent encrypted secrets match the documented protocol, and every live noninteractive or intentionally invalid-token probe fails closed.",
-      "currentEvidence": "During the 2026-09-09 review, the live lease path returned HTTP 404, verify.hah.dev did not resolve, and the reviewed hah.dev response did not carry Content-Security-Policy or Permissions-Policy. Source contracts and deployment automation cannot substitute for those absent public boundaries.",
-      "evidenceNeeded": "Deploy the lease service and verification frame, configure independent encrypted secrets and exact routes, add the required response policies, inspect live headers, origins, routes, bindings, and secret names without disclosing values, then pass the checked-in method, cross-origin, cookie, missing-attestation, and intentionally invalid-attestation probes. A genuine widget token or successful lease grant is not preactivation evidence for this gate.",
-      "rationale": "The ordinary public flow cannot work as designed and would cross an unverified origin and secret boundary. Both plausibility and consequence are high.",
+      "requirement": "The deployed hah.dev and verify.hah.dev origins, the four exact response-policy routes hah.dev/, hah.dev/index.html, hah.dev/resume/, and hah.dev/resume/index.html, the independent lease Worker route, response policies, bindings, and independent encrypted secrets match the documented protocol, and every live noninteractive or intentionally invalid-token probe fails closed. If the bounded demonstrable release uses Cloudflare's official testing pair, that fact remains explicit and does not count as production anti-bot evidence.",
+      "currentEvidence": "During the 2026-09-09 review, the live lease path returned HTTP 404, verify.hah.dev did not resolve, and the reviewed hah.dev response did not carry Content-Security-Policy or Permissions-Policy. The qualified source now supplies a response-policy Worker, authenticated exact-route inventory inspection, an exact secret-name inventory, independent signing-secret bootstrap, and an explicitly classified official testing-key fallback, but source contracts cannot substitute for the pending public deployment evidence.",
+      "evidenceNeeded": "Deploy the response-policy Worker only on hah.dev/, hah.dev/index.html, hah.dev/resume/, and hah.dev/resume/index.html; deploy the verification frame and independent lease service; preserve a complete existing Turnstile pair without reading or replacing its values, or install Cloudflare's official testing pair when both bindings are absent; configure independent generated signing secrets; inspect live headers, origins, exact routes, bindings, and secret names without disclosing values; then pass the checked-in method, cross-origin, cookie, missing-attestation, intentionally invalid-attestation, exact official demonstration-site-key, and exact official dummy-token acquisition-and-release probes. The current demonstrable release qualifies only when the returned site key and direct dummy-token lifecycle match that exact official testing profile. A different complete pair remains preserved but fails this profile's verifier until the workflow, register, and live qualification intentionally change. The direct dummy-token lifecycle establishes only the deployed Siteverify, lease, and release path; it is not evidence that the frame or widget participated or that canonical-browser GATE-06 passed.",
+      "rationale": "The ordinary public flow cannot work without the deployed origin, policy, secret, and lease boundaries. Those controls have high consequence and lifecycle value. A production anti-bot credential remains useful, but its incremental value for a capacity-capped demonstrator is moderate: the official test pair removes bot assurance without weakening same-origin, privacy, signing, lease, or global admission controls. Those controls bound consequence but do not assure availability.",
       "evidence": [
         "2026-09-09 live lease request returned HTTP 404",
         "2026-09-09 DNS review found verify.hah.dev absent",
-        "2026-09-09 hah.dev response review found no Content-Security-Policy or Permissions-Policy"
+        "2026-09-09 hah.dev response review found no Content-Security-Policy or Permissions-Policy",
+        "workers/text-to-lattice-response-policy/worker.js",
+        "scripts/bootstrap-text-to-lattice-secrets.mjs",
+        "scripts/verify-text-to-lattice-route-inventory.mjs",
+        "Cloudflare official Turnstile testing-key documentation"
       ],
       "safeguards": [
         "the held source imports no interactive project surface",
         "the held artifact validator rejects lease, verification, model, and runtime execution surfaces",
         "documentation and the canonical project page remain available without inference",
-        "the live service verifier exercises public fail-closed behavior without a valid Turnstile token or lease credential"
+        "the live service verifier exercises public fail-closed behavior without a valid token or lease credential, then proves the declared server profile with an exact dummy-token acquisition and cleanup",
+        "authenticated zone inventory rejects missing, extra, or stale wildcard routes owned by either hah.dev Text to Lattice Worker",
+        "two generated signing secrets remain independent encrypted bindings and are never printed or committed",
+        "the demonstrable profile retains exact-origin checks, bodyless requests, per-location shaping, global daily admission, concurrent-lease caps, bounded lease lifetime, and fail-closed provider handling",
+        "the official testing pair is accepted only through its exact published secret and is never described as anti-bot assurance",
+        "the canonical launch uses /resume/#text-to-lattice, whose fragment does not alter the protected /resume/ document request",
+        "unrelated portfolio paths and traffic bypass the Text to Lattice response-policy Worker"
       ],
-      "followUp": "Provision the exact two-origin service boundary, run the live configuration inspection and noninteractive or invalid-token probes, and change this status only from recorded evidence. Keep the real canonical-page lifecycle in GATE-06 rather than creating a bypass harness for the held client.",
+      "followUp": "Provision the exact two-origin and response-policy boundary, run the live configuration inspection and noninteractive, invalid-token, exact demonstration-site-key, and direct dummy-token lifecycle probes, and change this status only from recorded evidence. Keep the canonical-browser acquisition and release in GATE-06. Before describing the release as operationally anti-bot protected, intentionally change the declared profile, workflow verifier, and register to a hostname-restricted real widget pair and repeat qualification; do not add a bespoke bypass route or unsigned token mode.",
       "rollbackCondition": null,
       "acceptanceBasis": null
     },
@@ -272,10 +283,10 @@
       "label": "Edge and provider capacity controls",
       "status": "post-deployment-verification",
       "marginalValue": "moderate",
-      "requirement": "The path-scoped edge rule is active and provider-side CPU, storage, request, row, alarm, latency, and distributed-traffic evidence supports the published budget.",
-      "currentEvidence": "Deterministic source contracts bound per-visitor and global admission, lease lifetime, retry behavior, row lifecycle, and fail-closed provider errors. They do not establish live provider capacity before the provider is deployed.",
-      "evidenceNeeded": "After deployment, record the edge configuration and a bounded production-representative exercise of CPU, storage, request, row, alarm, latency, and distributed-traffic behavior.",
-      "rationale": "Capacity failure is plausible but bounded by fail-closed admission and retry controls. Verifying the real provider after deployment has moderate incremental value and avoids inventing predeployment evidence.",
+      "requirement": "Provider-side CPU, storage, request, row, alarm, latency, and distributed-traffic evidence supports the published budget; the status and effect of the recommended path-scoped 48-per-10-second edge rule are recorded without treating it as an availability guarantee.",
+      "currentEvidence": "Deterministic source contracts bound per-visitor and global admission, lease lifetime, retry behavior, row lifecycle, and fail-closed provider errors. Under the public reusable testing token, however, one client can use the permitted 16-request acquisition sequence to fill all eight slots and renew them; the 48-per-10-second per-IP rule does not stop that sequence. The controls bound cost, state, and privacy consequence, not tool availability, and source cannot establish live provider capacity.",
+      "evidenceNeeded": "After deployment, record whether the recommended path-scoped edge rule is feasible and active, measure its actual effect, and perform a bounded production-representative exercise of CPU, storage, request, row, alarm, latency, distributed traffic, and public-token slot pressure. Retain observed abuse as a requalification trigger.",
+      "rationale": "Capacity failure and public-token slot starvation are plausible, but their consequence is bounded to demonstrator availability by fail-closed admission, eight-slot and lifetime caps, browser-local prose, and the absence of a paid overage path. The per-IP edge rule is moderate-value operational hardening, not a release prerequisite or complete answer to a reusable public token. Measuring the real provider and reopening on observed abuse has greater lifecycle value than claiming unavailable bot resistance.",
       "evidence": [
         "workers/text-to-lattice-lease/policy.js",
         "workers/text-to-lattice-lease/usageStorage.js",
@@ -285,10 +296,12 @@
       "safeguards": [
         "global and visitor admission limits fail closed",
         "lease lifetimes and retries are bounded",
-        "provider exceptions do not grant work"
+        "provider exceptions do not grant work",
+        "the demonstrator promises no availability assurance while the public testing profile is active",
+        "the recommended per-IP edge rule is recorded as operational hardening, not as prevention of public-token slot starvation"
       ],
-      "followUp": "Capture provider configuration and bounded load evidence during the first deployed verification window and after material capacity changes.",
-      "rollbackCondition": "Disable the public client if live admission, storage, alarm, or latency behavior exceeds the published bounds or fails open.",
+      "followUp": "Capture provider configuration and bounded load evidence during the first deployed verification window and after material capacity changes. Add the recommended path-scoped edge rule when feasible, monitor all-eight-slot occupancy and renewal patterns, and requalify the credential profile or admission boundary when observed abuse materially impairs use.",
+      "rollbackCondition": "Disable the public client if live admission, storage, alarm, or latency behavior exceeds the published bounds or fails open, or if observed public-token abuse materially prevents demonstrator use beyond the disclosed no-availability-assurance boundary.",
       "acceptanceBasis": null
     },
     {
@@ -393,12 +406,12 @@
       "label": "Production lifecycle and privacy trace",
       "status": "post-deployment-verification",
       "marginalValue": "high",
-      "requirement": "The activated canonical page completes one real production-widget acquisition, renewal no sooner than the five-minute server minimum, and release with the documented 200, 200, and 204 statuses; its sanitized network trace shows no source, clarification, candidate, verifier finding, or output in lease, attestation, model-asset, error, or telemetry traffic.",
-      "currentEvidence": "Local lifecycle, data-flow, and request policies are implemented and tested, and GATE-02 binds live fail-closed probes that need no genuine challenge token. Those controls do not prove the real Turnstile key pair, activated canonical-page lifecycle, final browser behavior, or third-party request surface.",
-      "evidenceNeeded": "In the first activation session, use only the canonical public page in the supported browser engines to finish the production Turnstile challenge, record a 200 acquisition, wait through at least the five-minute server renewal minimum, record a 200 renewal and 204 release, and review a sanitized trace from both origins. Do not create a public or operator bypass harness to manufacture this evidence while the client is held.",
-      "rationale": "A broken real-key-pair lifecycle would make the newly activated interaction unusable or strand capacity, and source-text disclosure would be a high-consequence privacy failure. The held artifact intentionally exposes no client, so genuine official-page evidence can exist only after activation. Immediate verification with rapid held rollback has greater reliability, privacy, and lifecycle value than adding a bespoke preactivation harness and its new attack surface.",
+      "requirement": "The activated canonical page, in its first session, completes one real end-to-end 200 acquisition and 204 release through the declared deployed credential profile; a sanitized trace from both origins shows no source, clarification, candidate, verifier finding, or output in lease, attestation, model-asset, error, or telemetry traffic. Testing-profile success establishes demonstrator integration, not production anti-bot assurance.",
+      "currentEvidence": "Local lifecycle, data-flow, and request policies are implemented and tested, and GATE-02 binds live fail-closed probes plus a direct exact-dummy-token Siteverify, acquisition, and release round trip. Those server probes do not prove frame or widget participation, the activated canonical-page lifecycle, final browser behavior, or third-party request surface under the deployed credential profile. The official testing profile also cannot prove human verification or production anti-bot assurance, which the demonstrable release expressly does not claim.",
+      "evidenceNeeded": "In the first activation session, use only the canonical public page in the supported browser engines to complete the deployed verification flow, record a 200 acquisition and 204 release, and review a sanitized trace from both origins. Record the declared credential profile with the trace and do not treat testing-profile success as anti-bot evidence. If an ordinary session naturally reaches the renewal interval, retain its bodyless renewal status as follow-up evidence, but do not deliberately wait for that interval or treat a 200 renewal as a condition of operational completion. Do not create a public or operator bypass harness to manufacture this evidence while the client is held.",
+      "rationale": "A broken declared-profile acquisition or release would make the newly activated interaction unusable or strand capacity, and source-text disclosure would be a high-consequence privacy failure. The held artifact intentionally exposes no client, so genuine official-page evidence can exist only after activation. Immediate acquisition, release, and two-origin privacy verification with rapid held rollback has greater reliability, privacy, and lifecycle value than adding a bespoke preactivation harness and its new attack surface. A hostname-restricted widget provides additional bot assurance but is not required for an honestly labeled, capacity-capped demonstrable release. A deliberately timed renewal trace has lower incremental value because extensive renewal contracts, bodyless PATCH requests, fail-closed client termination, bounded lease expiry, and eventual cleanup already constrain the plausible failure while an ordinary session can expose it without holding release completion.",
       "evidence": [
-        "acquisition, delayed-renewal, release, and teardown source contracts",
+        "acquisition, renewal, release, and teardown source contracts",
         "bodyless lease request contract",
         "closed attestation message schema",
         "browser-local model execution and output protection tests",
@@ -412,8 +425,8 @@
         "lease traffic carries no request body",
         "attestation messages expose only closed status and correlation fields"
       ],
-      "followUp": "Complete and review the lifecycle and privacy trace in the first activation session, before declaring the release operationally complete, and repeat it after any widget, key, hostname, action, lease protocol, origin, provider, telemetry, runtime, or request-contract change.",
-      "rollbackCondition": "Set GATE-06 to open-release-blocker and return the overall release and public client immediately to the held documentation-only artifact if real acquisition fails, renewal after the five-minute minimum fails, release fails, or any trace contains source text, clarification text, candidate text, verifier findings, output text, or an undocumented content-bearing request.",
+      "followUp": "Complete and review acquisition, release, and the two-origin privacy trace in the first activation session, before declaring the release operationally complete, and repeat them after any widget, key, hostname, action, lease protocol, origin, provider, telemetry, runtime, or request-contract change. Observe a bodyless real renewal when an ordinary session naturally reaches the renewal interval; do not create a special wait or harness solely to manufacture it.",
+      "rollbackCondition": "Set GATE-06 to open-release-blocker and return the overall release and public client immediately to the held documentation-only artifact if acquisition fails, release fails, any observed real renewal attempt fails, or any trace contains source text, clarification text, candidate text, verifier findings, output text, or an undocumented content-bearing request.",
       "acceptanceBasis": null
     }
   ],
@@ -455,10 +468,46 @@
       "rationale": "Exact artifact identity, integrity, lineage, ABI, and configuration are already bound. Reconstructing missing workstation state adds bespoke build and maintenance burden without a commensurate plausible failure reduction; upstream clarification or a maintainable controlled replacement remains useful."
     },
     {
-      "finding": "Immediate post-deployment official-page lifecycle and privacy trace",
+      "finding": "Immediate post-deployment official-page acquisition, release, and privacy trace",
       "classification": "high",
       "disposition": "verify-and-disable-on-failure",
-      "rationale": "A failed real-key-pair lifecycle or sensitive prose leaving the browser would have meaningful consequences, while the held artifact exposes no canonical client from which that evidence could be observed honestly. Immediate official-page verification and held rollback remove more risk over the lifecycle than a bespoke preactivation harness would."
+      "rationale": "Failed declared-profile acquisition or release, or sensitive prose leaving the browser, would have meaningful consequences, while the held artifact exposes no canonical client from which that evidence could be observed honestly. Immediate official-page verification and held rollback remove more risk over the lifecycle than a bespoke preactivation harness would; testing-profile success remains narrower than anti-bot evidence."
+    },
+    {
+      "finding": "Deliberately timed real-browser renewal trace",
+      "classification": "moderate",
+      "disposition": "observe-naturally-and-defer-as-release-gate",
+      "rationale": "A real renewal defect could affect a long session, but source and adversarial tests cover renewal timing, bodyless PATCH behavior, fail-closed local termination, bounded lease expiry, and eventual cleanup. Record renewal when an ordinary session reaches the interval and roll back on an observed defect; deliberately waiting or building a harness adds little incremental assurance and must not hold operational completion."
+    },
+    {
+      "finding": "Response-policy enforcement despite the static GitHub Pages origin",
+      "classification": "high",
+      "disposition": "fixed-in-release-boundary",
+      "rationale": "Missing CSP and Permissions-Policy would expose the main document to a realistic cross-origin and runtime-expansion failure. A small exact-path edge policy is reusable, live-verifiable, and removes that consequential deployment gap without changing the static origin."
+    },
+    {
+      "finding": "Portfolio-wide response-policy Worker route",
+      "classification": "negative",
+      "disposition": "do-not-implement",
+      "rationale": "Attaching hah.dev/* would couple unrelated portfolio pages and traffic to a Text to Lattice-specific Worker, consume its request allowance, and expand the failure blast radius. Four exact document routes plus the in-document CSP fallback protect the authorized launch surfaces with lower lifecycle and reliability cost."
+    },
+    {
+      "finding": "Cloudflare official testing credentials for the demonstrable release",
+      "classification": "moderate",
+      "disposition": "bounded-demonstration-only",
+      "rationale": "A real hostname-restricted widget would reduce automated capacity abuse, but no such pair has been supplied and qualified for this release, while indefinite unavailability would defeat the authorized demonstrator. Cloudflare's documented testing pair can exercise the official browser widget and Siteverify flow, while the direct preactivation probe establishes only Siteverify, lease, and release behavior. Explicit disclosure, exact-origin and bodyless boundaries, independent signing domains, per-location shaping, global daily admission, concurrent-lease caps, and bounded expiry contain financial, privacy, and state consequence but do not assure availability. It must not be represented as production anti-bot assurance."
+    },
+    {
+      "finding": "Bespoke attestation bypass route or unsigned token mode",
+      "classification": "negative",
+      "disposition": "do-not-implement",
+      "rationale": "A new bypass endpoint or unsigned client assertion would add an undocumented public protocol, attack surface, and maintenance path. The provider's exact published test profile is narrower, recognizable, replaceable, and remains inside the existing Siteverify and signed-lease contract, even though its reusable dummy token can be sent without proving widget participation."
+    },
+    {
+      "finding": "Public testing-token slot starvation and the 48-per-10-second edge rule",
+      "classification": "moderate",
+      "disposition": "accepted-residual-with-operational-hardening",
+      "rationale": "One client can use the allowed 16-request acquisition sequence to fill all eight slots and keep renewing them with the reusable public dummy token; the 48-per-10-second per-IP rule does not prevent that plausible sequence. The exact caps, four-hour lifetime, fail-closed free tier, browser-local prose, and no-paid-overage boundary limit consequence to demonstrator availability, which the interface does not assure. The edge rule remains recommended defense in depth under GATE-03, and observed abuse triggers requalification rather than a false pre-release anti-bot claim."
     },
     {
       "finding": "Held résumé title and Text to Lattice icon link drift",
@@ -483,7 +532,7 @@
     "any model, tokenizer, runtime, or WASM revision change",
     "any Llama license or acceptable-use-policy change",
     "any prompt, safety schema, candidate-release, or public disclosure change",
-    "any lease, attestation, origin, provider, storage, or telemetry change",
+    "any lease, attestation, origin, response-policy, provider, testing-key profile, storage, or telemetry change",
     "any accessibility-critical interaction change",
     "any source revision or artifact digest proposed for publication"
   ]

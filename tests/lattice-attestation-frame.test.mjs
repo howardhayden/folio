@@ -308,7 +308,10 @@ test("cancellation removes the isolated frame and all parent listeners", async (
 test("Cloudflare code is confined to the dedicated static origin", () => {
   assert.equal(LATTICE_ATTESTATION_ORIGIN, "https://verify.hah.dev");
   assert.equal(LATTICE_ATTESTATION_HOSTNAME, "verify.hah.dev");
-  assert.equal(LATTICE_USAGE_POLICY.enforcement.humanAttestation.hostname, LATTICE_ATTESTATION_HOSTNAME);
+  assert.equal(
+    LATTICE_USAGE_POLICY.enforcement.humanAttestation.realProfile.hostname,
+    LATTICE_ATTESTATION_HOSTNAME,
+  );
   assert.equal(LATTICE_USAGE_POLICY.enforcement.humanAttestation.frameOrigin, LATTICE_ATTESTATION_ORIGIN);
   assert.doesNotMatch(parentSource, /challenges\.cloudflare\.com|window\.turnstile|createElement\("script"\)/u);
   assert.match(parentSource, /postMessage\([\s\S]*?LATTICE_ATTESTATION_ORIGIN\)/u);
@@ -320,6 +323,10 @@ test("Cloudflare code is confined to the dedicated static origin", () => {
   assert.match(bridgeSource, /event\.origin !== PARENT_ORIGIN[\s\S]*?event\.source !== window\.parent/u);
   assert.match(bridgeSource, /window\.parent\.postMessage\([\s\S]*?, PARENT_ORIGIN\)/u);
   assert.doesNotMatch(frameHtml, /textarea|source text|sample text/iu);
+  assert.match(frameHtml, /<title>Text to Lattice acquisition check<\/title>/u);
+  assert.match(frameHtml, /<main aria-label="Text to Lattice acquisition check">/u);
+  assert.match(frameHtml, /Preparing the acquisition check\./u);
+  assert.doesNotMatch(`${frameHtml}\n${bridgeSource}`, /Human verification|Security verification|security check/iu);
 });
 
 test("the static bridge rejects foreign messages and returns only bounded protocol results", async () => {
@@ -425,8 +432,10 @@ test("the static bridge rejects foreign messages and returns only bounded protoc
   assert.equal(renderOptions.action, "text_to_lattice");
   assert.equal(renderOptions["response-field"], false);
   assert.equal(renderOptions["feedback-enabled"], false);
+  assert.equal(status.textContent, "The acquisition check is starting.");
 
   renderOptions["before-interactive-callback"]();
+  assert.equal(status.textContent, "Complete the acquisition check to continue.");
   assert.deepEqual(plainData(posted.at(-1)), {
     targetOrigin: "https://hah.dev",
     value: {
@@ -437,6 +446,7 @@ test("the static bridge rejects foreign messages and returns only bounded protoc
     },
   });
   renderOptions.callback("0.valid-token");
+  assert.equal(status.textContent, "The acquisition check is complete.");
   assert.deepEqual(plainData(posted.at(-1)), {
     targetOrigin: "https://hah.dev",
     value: {

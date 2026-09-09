@@ -1,0 +1,29 @@
+{
+  "name": "hahdev-text-to-lattice-response-policy",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-09",
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+  "routes": [
+    {
+      "pattern": "hah.dev/",
+      "zone_name": "hah.dev"
+    },
+    {
+      "pattern": "hah.dev/index.html",
+      "zone_name": "hah.dev"
+    },
+    {
+      "pattern": "hah.dev/resume/",
+      "zone_name": "hah.dev"
+    },
+    {
+      "pattern": "hah.dev/resume/index.html",
+      "zone_name": "hah.dev"
+    }
+  ],
+  "observability": {
+    "enabled": false
+  }
+}

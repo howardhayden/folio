@@ -19,9 +19,10 @@ test("the interactive release uses only the established project SVG as its card 
   );
   assert.equal((resumeProjectsSource.match(/onClick=\{launchLattice\}/gu) ?? []).length, 1);
   assert.match(resumeProjectsSource, /<h3[\s\S]*?<a className="signal-fuzz" href=\{project\.canonicalPath\}>\{project\.name\}<\/a>[\s\S]*?<\/h3>/u);
-  assert.match(resumeProjectsSource, /url\.searchParams\.get\("tool"\) !== "text-to-lattice"/u);
+  assert.match(resumeProjectsSource, /url\.hash !== "#text-to-lattice"/u);
+  assert.match(resumeProjectsSource, /window\.location\.replace\("\/resume\/#text-to-lattice"\)/u);
   assert.match(resumeProjectsSource, /window\.history\.replaceState[\s\S]*?openLattice\(trigger\)/u);
-  assert.match(canonicalPageSource, /href="\/resume\/\?tool=text-to-lattice#project-lattice"[^>]*>Use Text to Lattice<\/a>/u);
+  assert.match(canonicalPageSource, /href="\/resume\/#text-to-lattice"[^>]*>Use Text to Lattice<\/a>/u);
   assert.match(canonicalPageSource, /releaseHeld \? \([\s\S]*?Use Text to Lattice/u);
 });
 
@@ -191,8 +192,9 @@ test("Turnstile uses a compact widget below its normal width and remains contain
   assert.equal(latticeAttestationSize({ getBoundingClientRect: () => ({ width: 240 }) }), "compact");
   assert.equal(latticeAttestationSize({ getBoundingClientRect: () => ({ width: 480 }) }), "flexible");
   assert.match(attestationSource, /const size = latticeAttestationSize\(container\)/u);
-  assert.match(attestationSource, /frame\.title = "Human verification for Text to Lattice"/u);
-  assert.match(attestationSource, /frame\.setAttribute\("aria-label", "Human verification for Text to Lattice"\)/u);
+  assert.match(attestationSource, /frame\.title = "Text to Lattice acquisition check"/u);
+  assert.match(attestationSource, /frame\.setAttribute\("aria-label", "Text to Lattice acquisition check"\)/u);
+  assert.doesNotMatch(attestationSource, /Human verification|Security verification/iu);
   assert.match(attestationSource, /frame\.tabIndex = -1/u);
   assert.match(attestationSource, /message\.type === "interactive"[\s\S]*?frame\.tabIndex = 0[\s\S]*?frame\.focus/u);
   assert.match(globalsCss, /\.lattice-attestation \{[\s\S]*?max-width: 100%;[\s\S]*?overflow-x: auto;[\s\S]*?width: 100%;[\s\S]*?\}/u);

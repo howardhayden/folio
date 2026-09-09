@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
+import { TEXT_TO_LATTICE_DOCUMENT_POLICY } from "../workers/text-to-lattice-response-policy/worker.js";
 import { SignalFuzzDefs } from "./components/SignalFuzz";
+import { projects } from "./resume/projects.js";
 import "./globals.css";
+
+const textToLatticeEnabled = projects.some(
+  (project) => project.id === "lattice" && String(project.interactiveRelease) === "enabled",
+);
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://hah.dev"),
@@ -27,6 +33,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {textToLatticeEnabled ? (
+          <meta
+            content={TEXT_TO_LATTICE_DOCUMENT_POLICY["Content-Security-Policy"]}
+            httpEquiv="Content-Security-Policy"
+          />
+        ) : null}
+      </head>
       <body><SignalFuzzDefs />{children}</body>
     </html>
   );

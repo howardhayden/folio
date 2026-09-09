@@ -119,6 +119,7 @@ test("the release register holds only the consequential live-service blocker", a
     "tests",
     "workers/text-to-lattice-attestation-frame",
     "workers/text-to-lattice-lease",
+    "workers/text-to-lattice-response-policy",
   ], "the qualified source set binds the exact reviewed tree inventory");
   assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
   assert.deepEqual(register.gates.map(({ id, status, marginalValue }) => [id, status, marginalValue]), [
@@ -141,14 +142,32 @@ test("the release register holds only the consequential live-service blocker", a
   assert.match(`${gate02.requirement} ${gate02.evidenceNeeded}`, /noninteractive/iu);
   assert.match(`${gate02.requirement} ${gate02.evidenceNeeded}`, /invalid-(?:token|attestation)/iu);
   assert.match(gate02.evidenceNeeded, /intentionally invalid-attestation/iu);
-  assert.match(gate02.evidenceNeeded, /not preactivation evidence/iu);
+  assert.match(gate02.evidenceNeeded, /exact official demonstration-site-key, and exact official dummy-token acquisition-and-release probes/iu);
+  assert.match(gate02.evidenceNeeded, /direct dummy-token lifecycle establishes only the deployed Siteverify, lease, and release path/iu);
+  assert.match(gate02.evidenceNeeded, /not evidence that the frame or widget participated or that canonical-browser GATE-06 passed/iu);
+  assert.equal(gate02.label, "Deployed origin, secret, and demonstration boundary");
+  assert.match(gate02.requirement, /four exact response-policy routes/iu);
+  for (const exactRoute of ["hah.dev/", "hah.dev/index.html", "hah.dev/resume/", "hah.dev/resume/index.html"]) {
+    assert.match(`${gate02.requirement} ${gate02.evidenceNeeded}`, new RegExp(exactRoute.replaceAll("/", "\\/"), "u"));
+  }
+  assert.ok(gate02.safeguards.some((safeguard) => /unrelated portfolio (?:paths|traffic).*bypass/iu.test(safeguard)));
+  assert.match(gate02.requirement, /bounded demonstrable release.*official testing pair.*does not count as production anti-bot evidence/iu);
+  assert.match(gate02.evidenceNeeded, /preserve a complete existing Turnstile pair without reading or replacing its values, or install Cloudflare's official testing pair.*independent generated signing secrets/iu);
+  assert.ok(gate02.safeguards.some((safeguard) => /official testing pair.*exact published secret.*never described as anti-bot assurance/iu.test(safeguard)));
+  assert.match(gate02.followUp, /Before describing the release as operationally anti-bot protected, intentionally change the declared profile, workflow verifier, and register to a hostname-restricted real widget pair/iu);
+  assert.match(gate02.followUp, /do not add a bespoke bypass route or unsigned token mode/iu);
   assert.doesNotMatch(`${gate02.requirement} ${gate02.evidenceNeeded} ${gate02.followUp}`, /complete one real official-page lifecycle|wait through (?:at least )?the five-minute server renewal minimum/iu);
   assert.equal(gate06.label, "Production lifecycle and privacy trace");
   assert.equal(gate06.status, "post-deployment-verification");
-  assert.match(gate06.requirement, /activated canonical page.*200, 200, and 204/iu);
+  assert.match(gate06.requirement, /activated canonical page.*200 acquisition and 204 release/iu);
+  assert.match(gate06.requirement, /declared deployed credential profile/iu);
+  assert.match(gate06.requirement, /Testing-profile success establishes demonstrator integration, not production anti-bot assurance/iu);
   assert.match(gate06.evidenceNeeded, /first activation session/iu);
   assert.match(gate06.evidenceNeeded, /supported browser engines/iu);
-  assert.match(gate06.evidenceNeeded, /five-minute server renewal minimum/iu);
+  assert.match(gate06.evidenceNeeded, /both origins/iu);
+  assert.match(`${gate06.evidenceNeeded} ${gate06.followUp}`, /naturally reaches the renewal interval/iu);
+  assert.match(gate06.evidenceNeeded, /do not deliberately wait/iu);
+  assert.doesNotMatch(`${gate06.requirement} ${gate06.evidenceNeeded} ${gate06.followUp}`, /wait .*five-minute|record a 200 renewal/iu);
   assert.match(gate06.evidenceNeeded, /Do not create a public or operator bypass harness/iu);
   assert.match(gate06.rollbackCondition, /held documentation-only artifact/iu);
   assert.match(gate06.rollbackCondition, /GATE-06 to open-release-blocker/iu);
@@ -156,13 +175,33 @@ test("the release register holds only the consequential live-service blocker", a
     assert.match(gate06.requirement, new RegExp(contentClass, "iu"));
     assert.match(gate06.rollbackCondition, new RegExp(contentClass, "iu"));
   }
-  for (const failure of [/acquisition fails/iu, /renewal .* fails/iu, /release fails/iu]) {
+  for (const failure of [/acquisition fails/iu, /observed real renewal attempt fails/iu, /release fails/iu]) {
     assert.match(gate06.rollbackCondition, failure);
   }
+  const renewalDecision = register.marginalValueDecisions.find(({ finding }) => finding === "Deliberately timed real-browser renewal trace");
+  assert.equal(renewalDecision?.classification, "moderate");
+  assert.equal(renewalDecision?.disposition, "observe-naturally-and-defer-as-release-gate");
+  assert.match(renewalDecision?.rationale ?? "", /source and adversarial tests.*bodyless PATCH.*bounded lease expiry.*eventual cleanup/iu);
+  const demonstrationProfileDecision = register.marginalValueDecisions.find(({ finding }) => finding === "Cloudflare official testing credentials for the demonstrable release");
+  assert.equal(demonstrationProfileDecision?.classification, "moderate");
+  assert.equal(demonstrationProfileDecision?.disposition, "bounded-demonstration-only");
+  assert.match(demonstrationProfileDecision?.rationale ?? "", /documented testing pair.*explicit disclosure.*exact-origin and bodyless boundaries.*independent signing domains.*global daily admission.*bounded expiry.*must not be represented as production anti-bot assurance/iu);
+  const bypassDecision = register.marginalValueDecisions.find(({ finding }) => finding === "Bespoke attestation bypass route or unsigned token mode");
+  assert.equal(bypassDecision?.classification, "negative");
+  assert.equal(bypassDecision?.disposition, "do-not-implement");
+  assert.match(bypassDecision?.rationale ?? "", /undocumented public protocol.*attack surface.*exact published test profile.*existing Siteverify and signed-lease contract.*without proving widget participation/iu);
+  const broadResponsePolicyDecision = register.marginalValueDecisions.find(({ finding }) => finding === "Portfolio-wide response-policy Worker route");
+  assert.equal(broadResponsePolicyDecision?.classification, "negative");
+  assert.equal(broadResponsePolicyDecision?.disposition, "do-not-implement");
+  assert.match(broadResponsePolicyDecision?.rationale ?? "", /unrelated portfolio (?:pages|traffic).*allowance.*failure blast radius.*four exact document routes/iu);
+  const publicTokenStarvationDecision = register.marginalValueDecisions.find(({ finding }) => finding === "Public testing-token slot starvation and the 48-per-10-second edge rule");
+  assert.equal(publicTokenStarvationDecision?.classification, "moderate");
+  assert.equal(publicTokenStarvationDecision?.disposition, "accepted-residual-with-operational-hardening");
+  assert.match(publicTokenStarvationDecision?.rationale ?? "", /16-request acquisition sequence.*all eight slots.*48-per-10-second per-IP rule does not prevent.*limit consequence to demonstrator availability.*observed abuse triggers requalification/iu);
   assert.match(validatorSource, /GATE-02 cannot require a real canonical-page lifecycle while the public client is held/u);
-  assert.match(documentationBuilder, /GATE-06 must retain the canonical-page lifecycle and privacy trace as immediate post-deployment verification or a machine-representable open blocker/u);
+  assert.match(documentationBuilder, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification or a machine-representable open blocker/u);
   assert.match(operatorReadme, /GATE-06 begins only after the canonical public client is activated/u);
-  assert.match(operatorReadme, /Do not add a public route, operator-only page, test-key mode, or other bypass/u);
+  assert.match(operatorReadme, /Do not add a public route, operator-only page, unsigned token mode, or test-key\s+behavior beyond Cloudflare's exact published pair/u);
   assert.equal(evaluation.cases.length, 10);
   assert.equal(evaluation.cases.filter(({ expectedSafety }) => expectedSafety).length, 5);
   assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionStatus, "accepted-residual-risk");
@@ -193,7 +232,7 @@ test("the release register holds only the consequential live-service blocker", a
   assert.match(workflow, /npm run typecheck[\s\S]*?npm test/u);
   assert.doesNotMatch(validatorSource, /register and activation edits alone cannot publish inference/u);
   assert.match(validatorSource, /public client must be enabled if and only if no open release blocker remains/u);
-  assert.match(validatorSource, /qualified source set must contain the exact reviewed activation, runtime, validator, test, license-routing, legal-notice, and workflow path inventory/u);
+  assert.match(validatorSource, /qualified source set must contain the exact reviewed activation, runtime, validator, test, license-routing, legal-notice, response-policy, secret-bootstrap, and workflow path inventory/u);
   assert.match(validatorSource, /enabled publication must declare interactive-client mode/u);
   assert.match(validatorSource, /verifyEnabledBuiltBoundary/u);
   assert.match(validatorSource, /enabled project surface must expose exactly one Text to Lattice modal launcher/u);
@@ -232,6 +271,40 @@ test("a failed GATE-06 can become the machine-enforced blocker after GATE-02 clo
   });
 });
 
+test("the bounded official testing profile cannot become an anti-bot claim or unsigned bypass", async () => {
+  const register = JSON.parse(await readFile(registerPath, "utf8"));
+  const gate02 = register.gates.find(({ id }) => id === "GATE-02");
+  const gate06 = register.gates.find(({ id }) => id === "GATE-06");
+  assert.doesNotThrow(() => verifyLifecycleGateContract(gate02, gate06));
+
+  const antiBotClaim = structuredClone(gate02);
+  antiBotClaim.requirement = antiBotClaim.requirement.replace(
+    "does not count as production anti-bot evidence",
+    "counts as production anti-bot evidence",
+  );
+  assert.throws(
+    () => verifyLifecycleGateContract(antiBotClaim, gate06),
+    /must disclose the bounded Cloudflare official-testing profile/u,
+  );
+
+  const unsignedAlternative = structuredClone(gate02);
+  unsignedAlternative.followUp = unsignedAlternative.followUp.replace(
+    "do not add a bespoke bypass route or unsigned token mode",
+    "an unsigned token mode is permitted",
+  );
+  assert.throws(
+    () => verifyLifecycleGateContract(unsignedAlternative, gate06),
+    /must disclose the bounded Cloudflare official-testing profile/u,
+  );
+
+  const contradictoryClaim = structuredClone(gate02);
+  contradictoryClaim.followUp += " The official testing pair provides production anti-bot assurance, and an unsigned mode is permitted.";
+  assert.throws(
+    () => verifyLifecycleGateContract(contradictoryClaim, gate06),
+    /must disclose the bounded Cloudflare official-testing profile/u,
+  );
+});
+
 test("the validator rejects a nominally enabled client while any gate is open", async () => {
   const register = JSON.parse(await readFile(registerPath, "utf8"));
   register.overallStatus = "qualified";
@@ -254,15 +327,24 @@ test("qualification statuses retain their evidence, safeguard, acceptance, rollb
   const baseline = JSON.parse(await readFile(registerPath, "utf8"));
   const mutations = [
     [(record) => { record.authority.qualifiedSourceSet.sha256 = "0".repeat(64); }, /qualified source-set digest does not match/u],
-    [(record) => { record.authority.qualifiedSourceSet.files = record.authority.qualifiedSourceSet.files.filter((path) => path !== "LICENSE-MAP.json"); }, /exact reviewed activation, runtime, validator, test, license-routing, legal-notice, and workflow path inventory/u],
-    [(record) => { record.authority.qualifiedSourceSet.files = record.authority.qualifiedSourceSet.files.filter((path) => path !== "NOTICE"); }, /exact reviewed activation, runtime, validator, test, license-routing, legal-notice, and workflow path inventory/u],
-    [(record) => { record.authority.qualifiedSourceSet.trees = record.authority.qualifiedSourceSet.trees.filter((path) => path !== "tests"); }, /exact reviewed activation, runtime, validator, test, license-routing, legal-notice, and workflow path inventory/u],
+    [(record) => { record.authority.qualifiedSourceSet.files = record.authority.qualifiedSourceSet.files.filter((path) => path !== "LICENSE-MAP.json"); }, /exact reviewed activation, runtime, validator, test, license-routing, legal-notice, response-policy, secret-bootstrap, and workflow path inventory/u],
+    [(record) => { record.authority.qualifiedSourceSet.files = record.authority.qualifiedSourceSet.files.filter((path) => path !== "NOTICE"); }, /exact reviewed activation, runtime, validator, test, license-routing, legal-notice, response-policy, secret-bootstrap, and workflow path inventory/u],
+    [(record) => { record.authority.qualifiedSourceSet.trees = record.authority.qualifiedSourceSet.trees.filter((path) => path !== "tests"); }, /exact reviewed activation, runtime, validator, test, license-routing, legal-notice, response-policy, secret-bootstrap, and workflow path inventory/u],
+    [(record) => { record.authority.qualifiedSourceSet.trees = record.authority.qualifiedSourceSet.trees.filter((path) => path !== "workers\/text-to-lattice-response-policy"); }, /exact reviewed activation, runtime, validator, test, license-routing, legal-notice, response-policy, secret-bootstrap, and workflow path inventory/u],
     [(record) => { record.statusVocabulary = record.statusVocabulary.filter((status) => status !== "satisfied-in-production"); }, /statusVocabulary does not match/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").evidence = []; }, /GATE-02 evidence must be a nonempty array/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").status = "satisfied-in-production"; }, /GATE-02 rollbackCondition must be a nonempty string/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").status = "satisfied-in-source"; }, /GATE-02 must remain an open release blocker until it is satisfied in production/u],
-    [(record) => { record.gates.find(({ id }) => id === "GATE-02").evidenceNeeded = "Complete one real official-page lifecycle and wait through the five-minute server renewal minimum."; }, /GATE-02 must bind live noninteractive and invalid-token probes/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-02").evidenceNeeded = "Complete one real official-page lifecycle and wait through the five-minute server renewal minimum."; }, /GATE-02 must bind live noninteractive, invalid-token, and direct official dummy-token probes/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").followUp += " Complete a real official-page lifecycle before activation."; }, /GATE-02 cannot require a real canonical-page lifecycle while the public client is held/u],
+    [(record) => {
+      const gate = record.gates.find(({ id }) => id === "GATE-02");
+      gate.requirement = gate.requirement.replace("hah.dev/resume/index.html", "hah.dev/*");
+      gate.evidenceNeeded = gate.evidenceNeeded.replace("hah.dev/resume/index.html", "hah.dev/*");
+    }, /GATE-02 must bind the exact response-policy route hah\.dev\/resume\/index\.html/u],
+    [(record) => { record.qualificationScope = record.qualificationScope.replace("not represented as production anti-bot assurance", "production anti-bot assurance"); }, /qualificationScope must disclose the bounded official-testing fallback/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-02").requirement = record.gates.find(({ id }) => id === "GATE-02").requirement.replace("does not count as production anti-bot evidence", "counts as production anti-bot evidence"); }, /GATE-02 must disclose the bounded Cloudflare official-testing profile/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-02").followUp = record.gates.find(({ id }) => id === "GATE-02").followUp.replace("do not add a bespoke bypass route or unsigned token mode", "an unsigned token mode is permitted"); }, /GATE-02 must disclose the bounded Cloudflare official-testing profile/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-04A").status = "satisfied-in-production"; }, /GATE-04A cannot use satisfied-in-production status/u],
     [(record) => { record.artifactSet.llamaBehaviorEvaluation.exactModelExecutionStatus = "satisfied-in-production"; }, /Llama exact-model execution has an unsupported qualification status/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-04A").acceptanceBasis = null; }, /GATE-04A acceptanceBasis must be a nonempty string/u],
@@ -271,19 +353,29 @@ test("qualification statuses retain their evidence, safeguard, acceptance, rollb
       const gate = record.gates.find(({ id }) => id === "GATE-06");
       gate.status = "satisfied-in-source";
       gate.rollbackCondition = null;
-    }, /GATE-06 must retain the canonical-page lifecycle and privacy trace/u],
+    }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
     [(record) => {
       const gate = record.gates.find(({ id }) => id === "GATE-06");
       gate.evidenceNeeded = gate.evidenceNeeded.replace("first activation session", "later session").replace("supported browser engine", "browser");
       gate.followUp = gate.followUp.replace("first activation session", "later session");
-    }, /GATE-06 must retain the canonical-page lifecycle and privacy trace/u],
+    }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
     [(record) => {
       const gate = record.gates.find(({ id }) => id === "GATE-06");
       gate.requirement = gate.requirement.replace("clarification, ", "");
-    }, /GATE-06 must retain the canonical-page lifecycle and privacy trace/u],
-    [(record) => { record.gates.find(({ id }) => id === "GATE-06").evidenceNeeded = "Create an operator bypass harness before activation."; }, /GATE-06 must retain the canonical-page lifecycle and privacy trace/u],
+    }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
+    [(record) => {
+      const gate = record.gates.find(({ id }) => id === "GATE-06");
+      gate.requirement = gate.requirement.replace("declared deployed credential profile", "production widget");
+    }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-06").evidenceNeeded = "Create an operator bypass harness before activation."; }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-06").followUp += " Wait through the five-minute interval before completion."; }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
     [(record) => { record.marginalValueDecisions[0].classification = "novelty-only"; }, /marginal-value decision 0 has an unsupported classification/u],
     [(record) => { record.marginalValueDecisions[1].rationale = ""; }, /marginal-value decision 1 rationale must be a nonempty string/u],
+    [(record) => { record.marginalValueDecisions.find(({ finding }) => finding === "Deliberately timed real-browser renewal trace").classification = "low"; }, /deliberately timed real-browser renewal trace must remain a moderate/u],
+    [(record) => { record.marginalValueDecisions.find(({ finding }) => finding === "Cloudflare official testing credentials for the demonstrable release").classification = "high"; }, /Cloudflare official-testing profile must remain a moderate/u],
+    [(record) => { record.marginalValueDecisions.find(({ finding }) => finding === "Bespoke attestation bypass route or unsigned token mode").disposition = "implement"; }, /bespoke attestation bypass route or unsigned token mode must remain a negative-marginal-value/u],
+    [(record) => { record.marginalValueDecisions.find(({ finding }) => finding === "Portfolio-wide response-policy Worker route").classification = "moderate"; }, /portfolio-wide response-policy Worker route must remain a negative-marginal-value/u],
+    [(record) => { record.marginalValueDecisions.find(({ finding }) => finding === "Public testing-token slot starvation and the 48-per-10-second edge rule").classification = "low"; }, /public testing-token slot starvation must remain a moderate accepted availability residual/u],
   ];
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "lattice-qualification-schema-test-"));
   const fixture = join(temporaryDirectory, "register.json");
@@ -355,9 +447,16 @@ test("the held Pages artifact contains evidence but no Text to Lattice execution
   assert.match(project, /Release status:\s*(?:<!-- -->)?held/u);
   assert.match(project, /TEXT-TO-LATTICE-RELEASE-QUALIFICATION\.md/u);
   assert.match(qualification, /consequence × plausibility × lifecycle value/u);
-  assert.match(qualification, /GATE-02 can and must establish the deployed frame.*live noninteractive or intentionally invalid-token result before activation/u);
-  assert.match(qualification, /GATE-06 therefore requires the real acquisition.*rapid return to the held artifact on failure/u);
+  assert.match(qualification, /GATE-02 can and must establish the deployed response policy.*frame.*live noninteractive or intentionally invalid-token result.*direct exact-dummy-token.*before activation/u);
+  assert.match(qualification, /GATE-06 therefore requires a real `200` acquisition.*rapid return to the held artifact on failure/u);
+  assert.match(qualification, /deliberately waiting five minutes.*moderate incremental value.*not a condition of operational completion/u);
   assert.match(qualification, /A separate public or operator bypass harness.*outside the authorized boundary/u);
+  assert.match(qualification, /Cloudflare(?:'s|\u2019s) official testing pair[\s\S]{0,500}(?:rather than|does not (?:provide|establish)|provides? no)[^.]{0,160}production anti-bot (?:assurance|protection)/iu);
+  assert.match(qualification, /exact published dummy token[\s\S]{0,500}reusable/iu);
+  assert.match(qualification, /Public testing-token slot starvation and the 48-per-10-second edge rule/iu);
+  assert.match(qualification, /Cloudflare official testing credentials for the demonstrable release/iu);
+  assert.match(qualification, /Bespoke attestation bypass route or unsigned token mode/iu);
+  assert.match(qualification, /Portfolio-wide response-policy Worker route/iu);
   assert.equal(JSON.parse(exportedRegister).overallStatus, "held");
   assert.equal(exportedRegister, sourceRegister);
   assert.equal(exportedEvaluation, sourceEvaluation);
