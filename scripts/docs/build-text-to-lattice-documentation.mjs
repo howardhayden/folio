@@ -37,7 +37,7 @@ const releaseGateStatuses = new Set([
   "post-deployment-verification",
   "open-release-blocker",
 ]);
-const productionSatisfiedGateIds = new Set(["GATE-02"]);
+const productionSatisfiedGateIds = new Set(["GATE-02", "GATE-06"]);
 const rollbackRequiredStatuses = new Set([
   "satisfied-in-production",
   "post-deployment-verification",
@@ -110,7 +110,11 @@ function validateLifecycleGateContract(productionBoundaryGate, productionLifecyc
     fail("release gate GATE-02 must keep unrelated portfolio traffic outside the Text to Lattice response-policy Worker.");
   }
 
-  const lifecycleStatuses = new Set(["post-deployment-verification", "open-release-blocker"]);
+  const lifecycleStatuses = new Set([
+    "satisfied-in-production",
+    "post-deployment-verification",
+    "open-release-blocker",
+  ]);
   const privacyClasses = ["source", "clarification", "candidate", "verifier finding", "output"];
   if (!lifecycleStatuses.has(productionLifecycleGate.status)
     || productionLifecycleGate.label !== "Production lifecycle and privacy trace"
@@ -138,6 +142,85 @@ function validateLifecycleGateContract(productionBoundaryGate, productionLifecyc
   }
   if (productionLifecycleGate.status === "open-release-blocker") {
     requireString(productionLifecycleGate.rollbackCondition, "release gate GATE-06 rollbackCondition");
+  }
+  if (productionLifecycleGate.status === "satisfied-in-production") {
+    const productionEvidence = `${productionLifecycleGate.currentEvidence} ${productionLifecycleGate.evidence.join(" ")}`;
+    const evidenceEntries = productionLifecycleGate.evidence;
+    const utcTimestamps = productionEvidence.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/gu) ?? [];
+    const evidenceDigests = productionEvidence.match(/\b[a-f0-9]{64}\b/gu) ?? [];
+    const safariLifecycle = evidenceEntries.some((entry) => (
+      /Safari Version \d+(?:\.\d+)* \([^)]+\)/u.test(entry)
+      && /WebKit/iu.test(entry)
+      && /\bPOST\b[\s\S]{0,120}\b428\b[\s\S]{0,320}\bPOST\b[\s\S]{0,120}\b200\b[\s\S]{0,320}\bDELETE\b[\s\S]{0,120}\b204\b/iu.test(entry)
+      && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
+      && /\b[a-f0-9]{64}\b/u.test(entry)
+    ));
+    const braveStatusLifecycle = evidenceEntries.some((entry) => (
+      /Brave \d+(?:\.\d+)*/u.test(entry)
+      && /Chromium \d+(?:\.\d+)*/u.test(entry)
+      && /\b(?:lease )?(?:statuses|status sequence)\b[\s\S]{0,160}\b428\b[\s\S]{0,160}\b200\b[\s\S]{0,160}\b204\b/iu.test(entry)
+      && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
+      && /\b[a-f0-9]{64}\b/u.test(entry)
+    ));
+    const payloadPaneOverclaim = /(?:Payload-pane|Payload pane) inspection (?:confirmed|showed|proved)/iu.test(productionEvidence);
+    const bodylessEvidenceBoundary = (
+      /(?:Payload-pane|Payload pane) inspection (?:was not|is not) (?:captured|claimed)/iu.test(productionEvidence)
+        && /bodyless[\s\S]{0,240}(?:source contract|client source|pre-dispatch)/iu.test(productionEvidence)
+        && !payloadPaneOverclaim
+    ) || (
+      /(?:Payload-pane|Payload pane) inspection (?:captured|reviewed|confirmed|showed)[\s\S]{0,160}no request (?:body|data)/iu.test(productionEvidence)
+        && /bodyless/iu.test(productionEvidence)
+    );
+    const edgeTelemetryBoundary = (
+      /static\.cloudflareinsights\.com\/beacon\.min\.js/iu.test(productionEvidence)
+        && /(?:blocked:csp|blocked by (?:the )?Content-Security-Policy)/iu.test(productionEvidence)
+        && /(?:0(?:\.0)?\s*(?:B|bytes|kB)|zero bytes)/iu.test(productionEvidence)
+        && /no (?:observed )?\/cdn-cgi\/rum/iu.test(productionEvidence)
+    ) || (
+      /no (?:edge-injected |observed |injected )?(?:https:\/\/)?static\.cloudflareinsights\.com\/beacon\.min\.js/iu.test(productionEvidence)
+        && /no (?:observed )?\/cdn-cgi\/rum/iu.test(productionEvidence)
+    );
+    const braveZeroMatchAttribution = /owner(?:-attested| (?:reports?|reported))\b[\s\S]{0,320}\bcapture-wide\b[\s\S]{0,240}(?:returned|reported|found) `?0 matches`?[\s\S]{0,200}\bBrave\b/iu.test(productionEvidence);
+    const requiredEvidence = [
+      /https:\/\/hah\.dev\/resume\/#text-to-lattice/u,
+      /https:\/\/github\.com\/howardhayden\/folio\/actions\/runs\/\d+/u,
+      /(?:deployed (?:commit|revision)|commit) [a-f0-9]{40}/iu,
+      /macOS \d+(?:\.\d+)*(?: \([A-Za-z0-9]+\))?/u,
+      /both (?:hah\.dev and verify\.hah\.dev )?origins|hah\.dev[\s\S]{0,160}verify\.hah\.dev/iu,
+      /capture-wide[\s\S]{0,160}(?:returned|reported|found) `?0 matches`?/iu,
+      /source[\s\S]{0,160}clarification[\s\S]{0,160}candidate[\s\S]{0,160}verifier finding[\s\S]{0,160}output/iu,
+      /lease[\s\S]{0,160}attestation[\s\S]{0,160}model-asset[\s\S]{0,160}error[\s\S]{0,160}telemetry/iu,
+      /(?:official Cloudflare testing profile|Cloudflare(?:'s|\u2019s)?(?: exact)? official testing (?:pair|profile)|official demonstration profile)/iu,
+      /(?:(?:does not|did not)[\s\S]{0,220}|\bnot\b[\s\S]{0,100})(?:production )?anti-bot assurance/iu,
+    ];
+    const evidenceSentences = productionEvidence.split(/(?<=[.!?])\s+/u);
+    const antiBotContradiction = evidenceSentences.some((sentence) => (
+      [...sentence.matchAll(/\b(?:testing|demonstration) (?:pair|profile)\b([\s\S]{0,200}?)\b(?:establishes?|proves?|provides?|assures?|claims?)\b([\s\S]{0,120}?)\banti-bot\b/giu)]
+        .some((match) => (
+          !/(?:\b(?:does|did|do|can|could|would|will|is|was|are|were)\s+not|\bcannot|\bnever)\s*$/iu.test(match[1])
+          && !/\b(?:no|not|without|absent)\b/iu.test(match[2])
+        ))
+    ));
+    const analyticsDisabledContradiction = evidenceSentences.some((sentence) => {
+      const match = /\b(?:Cloudflare(?: Web)? Analytics|Cloudflare analytics|RUM)\b[\s\S]{0,60}\b(?:is|was|are|were)\s+disabled\b/iu.exec(sentence);
+      if (!match) return false;
+      const prefix = sentence.slice(0, match.index);
+      return !/(?:\b(?:does|did|do|can|could|would|will|is|was|are|were)\s+not|\bcannot|\bnever)\s+(?:establish(?:es|ed)?|prov(?:e|es|ed)|confirm(?:s|ed)?|show(?:s|ed)?|mean(?:s|t)?|claim(?:s|ed)?|demonstrat(?:e|es|ed)|indicat(?:e|es|ed)|conclud(?:e|es|ed))(?:\s+that)?\s*$/iu.test(prefix);
+    });
+    if (!safariLifecycle
+      || !braveStatusLifecycle
+      || !braveZeroMatchAttribution
+      || !bodylessEvidenceBoundary
+      || !edgeTelemetryBoundary
+      || new Set(utcTimestamps).size < 2
+      || new Set(evidenceDigests).size < 2
+      || requiredEvidence.some((pattern) => !pattern.test(productionEvidence))
+      || antiBotContradiction
+      || analyticsDisabledContradiction
+      || /before declaring the release operationally complete/iu.test(productionLifecycleGate.evidenceNeeded)
+      || !/retain[\s\S]{0,160}(?:completed|reviewed)[\s\S]{0,160}first activation session/iu.test(productionLifecycleGate.evidenceNeeded)) {
+      fail("release gate GATE-06 satisfied production evidence must bind the canonical URL and deployed revision, a timestamped and digested Safari/WebKit method-and-status lifecycle, a timestamped and digested Brave/Chromium ordered 428/200/204 status lifecycle, the two-origin zero-match privacy review, an honestly classified bodyless-request boundary, an absent or CSP-blocked zero-byte Cloudflare beacon without RUM submission, and the official-testing profile's absent production anti-bot assurance.");
+    }
   }
 }
 
@@ -443,6 +526,13 @@ function sha256(value) {
 
 function humanLabel(value) {
   return value.replaceAll("-", " ").replace(/\b\w/gu, (letter) => letter.toUpperCase());
+}
+
+function lifecycleGateNarrative(productionLifecycleGate) {
+  if (productionLifecycleGate.status === "satisfied-in-production") {
+    return "Before activation, the held artifact had no canonical interactive client. GATE-06 now records the completed first-session official-page acquisition, release, and sanitized two-origin privacy evidence in Safari/WebKit and Brave/Chromium under the declared deployed credential profile. The capture-wide source-marker review returned zero matches, while Cloudflare’s edge-injected Web Analytics resource was blocked by the exact CSP with zero bytes transferred and no observed RUM submission; that blocked residual is not a content-bearing request or proof that Cloudflare analytics is disabled. Under Cloudflare’s official testing profile, the evidence establishes demonstrator integration and observed privacy behavior, not human verification or production anti-bot assurance. A failed mandatory step, an observed real renewal defect, or a privacy-trace failure still sets GATE-06 to open-release-blocker and returns the client to held publication. Renewal remains follow-up evidence when an ordinary session naturally reaches its interval, not a deliberately timed condition of operational completion.";
+  }
+  return "Before activation, the held artifact had no canonical interactive client. End-to-end acquisition, release, and two-origin privacy evidence through the declared deployed credential profile must now originate from the enabled official page under GATE-06; it does not authorize a separate public or operator bypass harness. Under Cloudflare’s official testing profile, that evidence establishes demonstrator integration and privacy behavior, not human verification or production anti-bot assurance. A failed mandatory step, an observed real renewal defect, or a privacy-trace failure sets GATE-06 to open-release-blocker, making return to the held publication machine-enforceable after GATE-02 closes. Renewal remains follow-up evidence when an ordinary session naturally reaches its interval, not a deliberately timed condition of operational completion.";
 }
 
 function sourceMapFor(data) {
@@ -1160,6 +1250,7 @@ function blueprintHtml(data) {
 
 function securityMarkdown(data) {
   const security = data.securityModel;
+  const productionLifecycleGate = security.prePublicationGates.find(({ id }) => id === "GATE-06");
   const classes = [
     ["High", "Realistic failure, meaningful consequence, or reusable architectural benefit", "Fix now"],
     ["Moderate", "Lower probability but cheap and bounded to fix or test", "Fix when bounded"],
@@ -1239,8 +1330,8 @@ function securityMarkdown(data) {
   lines.push(
     "## Release qualification gates",
     "",
-    "Only `open-release-blocker` prevents activation. `satisfied-in-source` records repository evidence; `satisfied-in-production` records observed live evidence for the permitted production gate. Every other status preserves its distinct evidence boundary, safeguards, and follow-up, while production satisfaction and post-deployment verification require an explicit rollback condition.",
-    "Before activation, the held artifact had no canonical interactive client. End-to-end acquisition, release, and two-origin privacy evidence through the declared deployed credential profile must now originate from the enabled official page under GATE-06; it does not authorize a separate public or operator bypass harness. Under Cloudflare’s official testing profile, that evidence establishes demonstrator integration and privacy behavior, not human verification or production anti-bot assurance. A failed mandatory step, an observed real renewal defect, or a privacy-trace failure sets GATE-06 to open-release-blocker, making return to the held publication machine-enforceable after GATE-02 closes. Renewal remains follow-up evidence when an ordinary session naturally reaches its interval, not a deliberately timed condition of operational completion.",
+    "Only `open-release-blocker` prevents activation. `satisfied-in-source` records repository evidence; `satisfied-in-production` records observed live evidence for the permitted production gates. Every other status preserves its distinct evidence boundary, safeguards, and follow-up, while production satisfaction and post-deployment verification require an explicit rollback condition.",
+    lifecycleGateNarrative(productionLifecycleGate),
     "",
     "| ID | Gate | Status | Marginal value | Requirement | Current evidence | Evidence needed |",
     "| --- | --- | --- | --- | --- | --- | --- |",
@@ -1277,6 +1368,7 @@ function htmlList(items) {
 
 function securityHtml(data) {
   const security = data.securityModel;
+  const productionLifecycleGate = security.prePublicationGates.find(({ id }) => id === "GATE-06");
   const assets = security.assets.map((asset) => `<tr><th scope="row">${escapeHtml(asset.id)}</th><td>${escapeHtml(asset.label)}</td><td>${escapeHtml(asset.objective)}</td></tr>`).join("");
   const boundaries = security.trustBoundaries.map((boundary) => `<li><p class="identifier">${escapeHtml(boundary.id)}</p><strong>${escapeHtml(boundary.label)}</strong><p>${escapeHtml(boundary.crossing)}</p></li>`).join("");
   const cards = security.threats.map((threat) => `<article class="record classification-${escapeHtml(threat.marginalValue)}" data-record data-marginal="${escapeHtml(threat.marginalValue)}" data-boundary="${escapeHtml(threat.boundaryIds.join(" "))}">
@@ -1312,7 +1404,7 @@ function securityHtml(data) {
   <section class="panel" aria-labelledby="assets-heading"><h2 id="assets-heading">Protected assets</h2><div class="table-wrap" tabindex="0" aria-label="Scrollable protected asset table"><table><caption>Security and trust objectives</caption><thead><tr><th scope="col">ID</th><th scope="col">Asset</th><th scope="col">Objective</th></tr></thead><tbody>${assets}</tbody></table></div></section>
   <section class="panel" aria-labelledby="boundaries-heading"><h2 id="boundaries-heading">Trust boundaries</h2><ul class="boundary-list">${boundaries}</ul></section>
   ${toolbar}<div class="record-grid">${cards}</div></section>
-  <section aria-labelledby="gates-heading"><div class="panel boundary"><p class="eyebrow">Evidence stays typed</p><h2 id="gates-heading">Release qualification gates</h2><p>Only an open release blocker prevents activation. Source-satisfied, production-satisfied, workflow-enforced, accepted-residual, and post-deployment statuses keep distinct evidence and lifecycle duties; production satisfaction records observed live evidence only for its permitted gate, and none converts missing runtime evidence into a completed claim.</p><p>Before activation, the held artifact had no canonical interactive client. End-to-end acquisition, release, and two-origin privacy evidence through the declared deployed credential profile must now originate from the enabled official page under GATE-06; it does not authorize a separate public or operator bypass harness. Under Cloudflare’s official testing profile, that evidence establishes demonstrator integration and privacy behavior, not human verification or production anti-bot assurance. A failed mandatory step, an observed real renewal defect, or a privacy-trace failure sets GATE-06 to open-release-blocker, making return to the held publication machine-enforceable after GATE-02 closes. Renewal remains follow-up evidence when an ordinary session naturally reaches its interval, not a deliberately timed condition of operational completion.</p></div><div class="record-grid">${gateCards}</div></section>
+  <section aria-labelledby="gates-heading"><div class="panel boundary"><p class="eyebrow">Evidence stays typed</p><h2 id="gates-heading">Release qualification gates</h2><p>Only an open release blocker prevents activation. Source-satisfied, production-satisfied, workflow-enforced, accepted-residual, and post-deployment statuses keep distinct evidence and lifecycle duties; production satisfaction records observed live evidence only for its permitted gates, and none converts missing runtime evidence into a completed claim.</p><p>${escapeHtml(lifecycleGateNarrative(productionLifecycleGate))}</p></div><div class="record-grid">${gateCards}</div></section>
   <section class="panel" aria-labelledby="residual-heading"><h2 id="residual-heading">Honest residual boundary</h2>${htmlList(security.honestResidualBoundary)}</section>
   <section class="panel"><h2>Sources and exports</h2><p><a class="button-link" href="TEXT-TO-LATTICE-SECURITY-MODEL.md" download>Download complete Markdown</a> <a class="button-link" href="documentation-atlas.json" download>Download authoritative JSON</a> <a class="button-link" href="artifact-manifest.json">Inspect integrity manifest</a></p></section>
   ${htmlSources(data)}${htmlTerms()}`;
@@ -1332,9 +1424,13 @@ function indexHtml(data, releaseRegister) {
     ["DOC-SECURITY", "Review assets, boundaries, SEC-01 through SEC-12, marginal value, release qualification gates, and honest residuals."],
   ]);
   const cards = data.artifacts.map((artifact) => `<article class="index-card"><p class="eyebrow">${escapeHtml(artifact.scope)}</p><h2>${escapeHtml(artifact.title)}</h2><p>${escapeHtml(summaries.get(artifact.id))}</p><div class="link-row"><a href="${escapeHtml(artifact.html)}">Open interactive edition</a><a href="${escapeHtml(artifact.markdown)}" download>Download Markdown</a></div></article>`).join("");
+  const productionLifecycleSatisfied = releaseRegister.gates
+    .some(({ id, status }) => id === "GATE-06" && status === "satisfied-in-production");
   const releaseSummary = releaseRegister.publicClient?.status === "held"
     ? "The interactive client is held because an open release blocker remains. The records distinguish that blocker from accepted residuals and evidence that can exist only after deployment."
-    : "The interactive client is qualified. The records preserve accepted residuals, workflow controls, post-deployment checks, and rollback conditions without overstating runtime evidence.";
+    : productionLifecycleSatisfied
+      ? "The interactive client is qualified and its canonical browser lifecycle and sanitized two-origin privacy evidence are satisfied in production. The records preserve accepted residuals, workflow controls, follow-up observations, and rollback conditions without claiming production anti-bot assurance."
+      : "The interactive client is qualified. The records preserve accepted residuals, workflow controls, post-deployment checks, and rollback conditions without overstating runtime evidence.";
   const releaseEvidence = `<section class="panel"><p class="eyebrow">Release evidence</p><h2>Text to Lattice qualification</h2><p>${escapeHtml(releaseSummary)}</p><ul><li><a href="TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md">Release qualification</a></li><li><a href="TEXT-TO-LATTICE-RELEASE-REGISTER.json">Machine release register</a></li><li><a href="LLAMA-USE-EVALUATION-CASES.json">Llama-use evaluation cases</a></li></ul></section>`;
   const content = `<section class="panel boundary"><p class="eyebrow">Method beside implementation</p><h2>Two authorities, four coordinated views</h2><p>The concept and system skill maps describe the upstream typed Lattice engine. The service blueprint and security model describe the separate Text to Lattice wrapper. The wrapper infers bounded meaning from prose and does not inherit a caller-supplied typed authority guarantee.</p><p>Every document remains complete without JavaScript. Scripting adds read-only search, filters, disclosure controls, and local Markdown export.</p></section>
   <section class="index-grid" aria-label="Available Lattice documentation">${cards}</section>

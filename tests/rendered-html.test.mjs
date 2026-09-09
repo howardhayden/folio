@@ -1491,8 +1491,17 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.match(source, /<h4 id="lattice-output-title">Result<\/h4>/u);
   assert.doesNotMatch(source, /Text-to-Lattice/u);
   assert.match(source, /className="modal resume-modal"[\s\S]*?onClick=\{\(event\) => \{[\s\S]*?event\.target === event\.currentTarget[\s\S]*?closeLattice\(\)/u);
-  assert.doesNotMatch(source, /className="modal-content lattice-modal-content"|className="modal resume-modal lattice-modal"/u);
-  assert.doesNotMatch(css, /\.lattice-modal\s*\{|\.lattice-modal-content\s*\{/u);
+  assert.match(source, /className="modal-content lattice-modal-content"/u);
+  const genericModalRule = css.match(/^\.modal-content \{([\s\S]*?)^\}/mu)?.[1] ?? "";
+  assert.match(genericModalRule, /margin: auto/u, "the shared modal rule keeps the wider dialog centered");
+  const latticeModalRule = css.match(/\.lattice-modal-content \{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  assert.match(latticeModalRule, /box-sizing: border-box/u);
+  assert.match(latticeModalRule, /max-width: min\(56rem, calc\(100vw - 3rem\)\)/u);
+  assert.match(latticeModalRule, /width: clamp\(28rem, 50vw, 56rem\)/u);
+  assert.match(css, /@media screen and \(max-width: 600px\) \{[\s\S]*?\.lattice-modal-content \{[\s\S]*?max-width: none;[\s\S]*?width: calc\(100% - 2rem\);/u);
+  assert.match(source, /className="lattice-modal-introduction"/u);
+  assert.match(css, /\.lattice-modal-introduction \{[\s\S]*?display: grid;[\s\S]*?gap: 1\.25rem;/u);
+  assert.match(css, /\.lattice-form \{[\s\S]*?margin-top: 2rem;[\s\S]*?text-align: left;/u);
   assert.doesNotMatch(source, /onPointerDown=\{closeLattice\}/u);
   assert.match(source, /trigger\?\.isConnected[\s\S]*?trigger\.focus/u);
   assert.doesNotMatch(source, /lattice-modal-close/u);
@@ -1507,13 +1516,21 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.match(css, /\.form-control\.shelf-search-entry:focus \{[\s\S]*?box-shadow: 0 0 5px lightgray;[\s\S]*?outline: none;/u);
   const latticeInputRule = css.match(/\.form-control\.lattice-input \{([\s\S]*?)\n\}/u)?.[1] ?? "";
   assert.match(latticeInputRule, /min-height: 13rem/u);
-  assert.match(latticeInputRule, /border: 0/u);
-  assert.match(latticeInputRule, /box-shadow: none/u);
-  const latticeFocusRule = css.match(/\.form-control\.shelf-search-entry\.lattice-input:focus,[\s\S]*?\.form-control\.shelf-search-entry\.lattice-input:focus-visible \{([\s\S]*?)\n\}/u)?.[1] ?? "";
-  assert.match(latticeFocusRule, /border: 0/u);
-  assert.match(latticeFocusRule, /box-shadow: none/u);
-  assert.match(latticeFocusRule, /outline: none/u);
+  assert.match(latticeInputRule, /font: inherit/u);
+  assert.match(latticeInputRule, /padding: 1rem 1\.125rem/u);
+  assert.doesNotMatch(latticeInputRule, /(?:background|border|box-shadow):/u);
+  assert.doesNotMatch(css, /\.form-control\.shelf-search-entry\.lattice-input:focus/u);
+  assert.match(css, /\.lattice-source-field \{[\s\S]*?display: grid;[\s\S]*?gap: \.625rem;/u);
+  assert.match(css, /\.lattice-form-note \{[\s\S]*?margin: 1\.25rem 0 0;/u);
   assert.match(css, /\.lattice-input-label:has\(\+ \.lattice-input:focus-visible\)[\s\S]*?text-decoration: underline/u);
+  assert.match(
+    source,
+    /className="lattice-use-confirmation"[\s\S]*?<input[\s\S]*?id="lattice-use-confirmation"[\s\S]*?\/>[\s\S]*?<label className="lattice-use-confirmation-label" htmlFor="lattice-use-confirmation">/u,
+  );
+  const confirmationLabel = source.match(/<label className="lattice-use-confirmation-label"[\s\S]*?<\/label>/u)?.[0] ?? "";
+  assert.doesNotMatch(confirmationLabel, /<input/u);
+  assert.match(css, /\.lattice-use-confirmation \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: 1\.125rem minmax\(0, 1fr\);[\s\S]*?column-gap: \.75rem;[\s\S]*?margin-top: 1\.75rem;[\s\S]*?row-gap: \.75rem;/u);
+  assert.match(css, /\.lattice-use-confirmation-label,[\s\S]*?\.lattice-use-confirmation-detail \{[\s\S]*?grid-column: 2;[\s\S]*?line-height: 1\.55;[\s\S]*?text-align: left;/u);
   assert.match(
     source,
     /if \(value\.length > LATTICE_INPUT_SAFETY_LIMIT\) \{[\s\S]*?setLatticeInputInvalid\(true\);[\s\S]*?return;[\s\S]*?\}\s*setLatticeInput\(value\);/u,
@@ -1567,6 +1584,7 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.match(css, /\.lattice-output \{[^}]*-webkit-user-select: none;/u);
   assert.match(css, /\.lattice-output \{[^}]*\n\s*user-select: none;/u);
   assert.match(css, /\.lattice-output \{[^}]*-webkit-touch-callout: none;/u);
+  assert.match(css, /\.lattice-output \{[^}]*background: whitesmoke;[^}]*border-left: 3px solid #0b4705;[^}]*box-shadow: none;[^}]*text-align: left;/u);
   assert.match(css, /\.lattice-output-veil \{[\s\S]*?pointer-events: none/u);
   assert.match(css, /@media print \{[\s\S]*?\.lattice-output \{[\s\S]*?display: none !important/u);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.lattice-output-veil \{[\s\S]*?animation: none/u);

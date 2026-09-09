@@ -1265,7 +1265,7 @@ export default function ResumeProjects() {
       >
         <div
           ref={latticeDialogRef}
-          className="modal-content"
+          className="modal-content lattice-modal-content"
           id="lattice-demo-dialog"
           role="dialog"
           aria-modal="true"
@@ -1276,59 +1276,63 @@ export default function ResumeProjects() {
         >
           <h3 id="lattice-demo-title">Text to Lattice</h3>
 
-          <p id="lattice-demo-description" className="lattice-modal-description">
-            Enter up to {LATTICE_WORD_LIMIT} words. Meaning remains binding; register may change.
-          </p>
-          <p id="lattice-local-privacy" className="lattice-local-note">
-            Your text stays in this tab. Use only text you are authorized to process, and avoid sensitive text. <a href="/projects/lattice/text-to-lattice/#text-to-lattice-privacy">Privacy details</a>.
-          </p>
-          <p id="lattice-model-disclosure" className="lattice-local-note">
-            Model-assisted result: Qwen drafts locally and Llama 3.2 checks locally. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_2_TERMS_PROVENANCE.licenseUrl}>Built with Llama</a>.
-          </p>
-          <p className="lattice-usage-note" id="lattice-demonstration-profile">
-            Demonstrable release: the admission check exercises the capacity path but does not
-            distinguish people from automated clients. Its reusable public pass can occupy all
-            eight slots, so availability is not assured. Requests remain textless and site-bound;
-            short-lived signed grants, capacity limits, expiry, and browser-local processing remain
-            enforced.
-          </p>
-          <p className="lattice-usage-note" id="lattice-usage-policy">
-            Demonstration only. Up to {LATTICE_USAGE_POLICY.visitor.limit} conversions per browser in any 24 hours.
-          </p>
-          {latticeSupported === false ? (
-            <aside className="lattice-availability" aria-label="Availability">
-              <p>{latticeError || "This device cannot run the tool."} <a href="/projects/lattice/text-to-lattice/#text-to-lattice-availability">View requirements</a>.</p>
-            </aside>
-          ) : null}
+          <div className="lattice-modal-introduction">
+            <p id="lattice-demo-description" className="lattice-modal-description">
+              Enter up to {LATTICE_WORD_LIMIT} words. Meaning remains binding; register may change.
+            </p>
+            <p id="lattice-local-privacy" className="lattice-local-note">
+              Your text stays in this tab. Use only text you are authorized to process, and avoid sensitive text. <a href="/projects/lattice/text-to-lattice/#text-to-lattice-privacy">Privacy details</a>.
+            </p>
+            <p id="lattice-model-disclosure" className="lattice-local-note">
+              Model-assisted result: Qwen drafts locally and Llama 3.2 checks locally. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_2_TERMS_PROVENANCE.licenseUrl}>Built with Llama</a>.
+            </p>
+            <p className="lattice-usage-note" id="lattice-demonstration-profile">
+              Demonstrable release: the admission check exercises the capacity path but does not
+              distinguish people from automated clients. Its reusable public pass can occupy all
+              eight slots, so availability is not assured. Requests remain textless and site-bound;
+              short-lived signed grants, capacity limits, expiry, and browser-local processing remain
+              enforced.
+            </p>
+            <p className="lattice-usage-note" id="lattice-usage-policy">
+              Demonstration only. Up to {LATTICE_USAGE_POLICY.visitor.limit} conversions per browser in any 24 hours.
+            </p>
+            {latticeSupported === false ? (
+              <aside className="lattice-availability" aria-label="Availability">
+                <p>{latticeError || "This device cannot run the tool."} <a href="/projects/lattice/text-to-lattice/#text-to-lattice-availability">View requirements</a>.</p>
+              </aside>
+            ) : null}
+          </div>
 
-          <form onSubmit={runLattice} noValidate>
-            <label className="lattice-input-label" htmlFor="lattice-demo-input">
-              Source text
-            </label>
-            <textarea
-              ref={latticeInputRef}
-              className="form-control shelf-search-entry lattice-input"
-              id="lattice-demo-input"
-              value={latticeInput}
-              rows={9}
-              dir="auto"
-              spellCheck={false}
-              autoCorrect="off"
-              autoCapitalize="off"
-              autoComplete="off"
-              disabled={busy || latticeSupported === false}
-              aria-describedby={`lattice-word-count${latticeInputInvalid && latticeError ? " lattice-input-error" : ""}`}
-              aria-errormessage={latticeInputInvalid ? "lattice-input-error" : undefined}
-              aria-invalid={latticeInputInvalid ? "true" : undefined}
-              onChange={(event) => updateLatticeInput(event.currentTarget.value)}
-            />
-            <div className="lattice-input-meta">
-              <small id="lattice-word-count" className={overLimit ? "text-red" : undefined}>{wordCount} of {LATTICE_WORD_LIMIT} words</small>
+          <form className="lattice-form" onSubmit={runLattice} noValidate>
+            <div className="lattice-source-field">
+              <label className="lattice-input-label" htmlFor="lattice-demo-input">
+                Source text
+              </label>
+              <textarea
+                ref={latticeInputRef}
+                className="form-control shelf-search-entry lattice-input"
+                id="lattice-demo-input"
+                value={latticeInput}
+                rows={9}
+                dir="auto"
+                spellCheck={false}
+                autoCorrect="off"
+                autoCapitalize="off"
+                autoComplete="off"
+                disabled={busy || latticeSupported === false}
+                aria-describedby={`lattice-word-count${latticeInputInvalid && latticeError ? " lattice-input-error" : ""}`}
+                aria-errormessage={latticeInputInvalid ? "lattice-input-error" : undefined}
+                aria-invalid={latticeInputInvalid ? "true" : undefined}
+                onChange={(event) => updateLatticeInput(event.currentTarget.value)}
+              />
+              <div className="lattice-input-meta">
+                <small id="lattice-word-count" className={overLimit ? "text-red" : undefined}>{wordCount} of {LATTICE_WORD_LIMIT} words</small>
+              </div>
             </div>
             {latticeSupported !== false && latticeModelCached === false ? (
-              <p className="lattice-output-note">First use downloads about 4.10 GB of public model assets and can use up to about 3.5 GB of working memory.</p>
+              <p className="lattice-output-note lattice-form-note">First use downloads about 4.10 GB of public model assets and can use up to about 3.5 GB of working memory.</p>
             ) : null}
-            <label className="lattice-local-note" htmlFor="lattice-use-confirmation">
+            <div className="lattice-use-confirmation">
               <input
                 id="lattice-use-confirmation"
                 type="checkbox"
@@ -1341,13 +1345,15 @@ export default function ResumeProjects() {
                   setLatticeUseConfirmed(confirmed);
                   if (confirmed && latticeError === LATTICE_USE_CONFIRMATION_ERROR) setLatticeError("");
                 }}
-              />{" "}
-              I confirm that this source is in one of the supported languages, I am authorized to process it, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.2 Acceptable Use Policy.
-            </label>
-            <small id="lattice-use-confirmation-detail" className="lattice-output-note">
-              Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_2_TERMS_PROVENANCE.acceptableUseUrl}>Llama 3.2 Acceptable Use Policy</a>.
-            </small>
-            {latticeStorageWarning ? <p className="lattice-output-note">{latticeStorageWarning}</p> : null}
+              />
+              <label className="lattice-use-confirmation-label" htmlFor="lattice-use-confirmation">
+                I confirm that this source is in one of the supported languages, I am authorized to process it, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.2 Acceptable Use Policy.
+              </label>
+              <small id="lattice-use-confirmation-detail" className="lattice-use-confirmation-detail">
+                Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_2_TERMS_PROVENANCE.acceptableUseUrl}>Llama 3.2 Acceptable Use Policy</a>.
+              </small>
+            </div>
+            {latticeStorageWarning ? <p className="lattice-output-note lattice-form-note">{latticeStorageWarning}</p> : null}
             {latticeError && latticeSupported !== false ? (
               <p className="lattice-input-error" id="lattice-input-error" role="alert">
                 {latticeError}{!latticeInputInvalid ? <> <a href="/projects/lattice/text-to-lattice/#text-to-lattice-availability">Tool details</a>.</> : null}

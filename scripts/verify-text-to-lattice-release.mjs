@@ -47,7 +47,7 @@ const gateStatuses = new Set([
 const artifactQualificationStatuses = new Set(
   [...gateStatuses].filter((status) => status !== "satisfied-in-production"),
 );
-const productionSatisfiedGateIds = new Set(["GATE-02"]);
+const productionSatisfiedGateIds = new Set(["GATE-02", "GATE-06"]);
 const rollbackRequiredStatuses = new Set([
   "satisfied-in-production",
   "post-deployment-verification",
@@ -251,7 +251,11 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
     }
   }
 
-  const lifecycleStatuses = new Set(["post-deployment-verification", "open-release-blocker"]);
+  const lifecycleStatuses = new Set([
+    "satisfied-in-production",
+    "post-deployment-verification",
+    "open-release-blocker",
+  ]);
   const privacyClasses = ["source", "clarification", "candidate", "verifier finding", "output"];
   if (!lifecycleStatuses.has(productionLifecycleGate.status)
     || productionLifecycleGate.label !== "Production lifecycle and privacy trace"
@@ -279,6 +283,85 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
   }
   if (productionLifecycleGate.status === "open-release-blocker") {
     requireString(productionLifecycleGate.rollbackCondition, "GATE-06 rollbackCondition");
+  }
+  if (productionLifecycleGate.status === "satisfied-in-production") {
+    const productionEvidence = `${productionLifecycleGate.currentEvidence} ${productionLifecycleGate.evidence.join(" ")}`;
+    const evidenceEntries = productionLifecycleGate.evidence;
+    const utcTimestamps = productionEvidence.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/gu) ?? [];
+    const evidenceDigests = productionEvidence.match(/\b[a-f0-9]{64}\b/gu) ?? [];
+    const safariLifecycle = evidenceEntries.some((entry) => (
+      /Safari Version \d+(?:\.\d+)* \([^)]+\)/u.test(entry)
+      && /WebKit/iu.test(entry)
+      && /\bPOST\b[\s\S]{0,120}\b428\b[\s\S]{0,320}\bPOST\b[\s\S]{0,120}\b200\b[\s\S]{0,320}\bDELETE\b[\s\S]{0,120}\b204\b/iu.test(entry)
+      && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
+      && /\b[a-f0-9]{64}\b/u.test(entry)
+    ));
+    const braveStatusLifecycle = evidenceEntries.some((entry) => (
+      /Brave \d+(?:\.\d+)*/u.test(entry)
+      && /Chromium \d+(?:\.\d+)*/u.test(entry)
+      && /\b(?:lease )?(?:statuses|status sequence)\b[\s\S]{0,160}\b428\b[\s\S]{0,160}\b200\b[\s\S]{0,160}\b204\b/iu.test(entry)
+      && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
+      && /\b[a-f0-9]{64}\b/u.test(entry)
+    ));
+    const payloadPaneOverclaim = /(?:Payload-pane|Payload pane) inspection (?:confirmed|showed|proved)/iu.test(productionEvidence);
+    const bodylessEvidenceBoundary = (
+      /(?:Payload-pane|Payload pane) inspection (?:was not|is not) (?:captured|claimed)/iu.test(productionEvidence)
+        && /bodyless[\s\S]{0,240}(?:source contract|client source|pre-dispatch)/iu.test(productionEvidence)
+        && !payloadPaneOverclaim
+    ) || (
+      /(?:Payload-pane|Payload pane) inspection (?:captured|reviewed|confirmed|showed)[\s\S]{0,160}no request (?:body|data)/iu.test(productionEvidence)
+        && /bodyless/iu.test(productionEvidence)
+    );
+    const edgeTelemetryBoundary = (
+      /static\.cloudflareinsights\.com\/beacon\.min\.js/iu.test(productionEvidence)
+        && /(?:blocked:csp|blocked by (?:the )?Content-Security-Policy)/iu.test(productionEvidence)
+        && /(?:0(?:\.0)?\s*(?:B|bytes|kB)|zero bytes)/iu.test(productionEvidence)
+        && /no (?:observed )?\/cdn-cgi\/rum/iu.test(productionEvidence)
+    ) || (
+      /no (?:edge-injected |observed |injected )?(?:https:\/\/)?static\.cloudflareinsights\.com\/beacon\.min\.js/iu.test(productionEvidence)
+        && /no (?:observed )?\/cdn-cgi\/rum/iu.test(productionEvidence)
+    );
+    const braveZeroMatchAttribution = /owner(?:-attested| (?:reports?|reported))\b[\s\S]{0,320}\bcapture-wide\b[\s\S]{0,240}(?:returned|reported|found) `?0 matches`?[\s\S]{0,200}\bBrave\b/iu.test(productionEvidence);
+    const requiredEvidence = [
+      /https:\/\/hah\.dev\/resume\/#text-to-lattice/u,
+      /https:\/\/github\.com\/howardhayden\/folio\/actions\/runs\/\d+/u,
+      /(?:deployed (?:commit|revision)|commit) [a-f0-9]{40}/iu,
+      /macOS \d+(?:\.\d+)*(?: \([A-Za-z0-9]+\))?/u,
+      /both (?:hah\.dev and verify\.hah\.dev )?origins|hah\.dev[\s\S]{0,160}verify\.hah\.dev/iu,
+      /capture-wide[\s\S]{0,160}(?:returned|reported|found) `?0 matches`?/iu,
+      /source[\s\S]{0,160}clarification[\s\S]{0,160}candidate[\s\S]{0,160}verifier finding[\s\S]{0,160}output/iu,
+      /lease[\s\S]{0,160}attestation[\s\S]{0,160}model-asset[\s\S]{0,160}error[\s\S]{0,160}telemetry/iu,
+      /(?:official Cloudflare testing profile|Cloudflare(?:'s|\u2019s)?(?: exact)? official testing (?:pair|profile)|official demonstration profile)/iu,
+      /(?:(?:does not|did not)[\s\S]{0,220}|\bnot\b[\s\S]{0,100})(?:production )?anti-bot assurance/iu,
+    ];
+    const evidenceSentences = productionEvidence.split(/(?<=[.!?])\s+/u);
+    const antiBotContradiction = evidenceSentences.some((sentence) => (
+      [...sentence.matchAll(/\b(?:testing|demonstration) (?:pair|profile)\b([\s\S]{0,200}?)\b(?:establishes?|proves?|provides?|assures?|claims?)\b([\s\S]{0,120}?)\banti-bot\b/giu)]
+        .some((match) => (
+          !/(?:\b(?:does|did|do|can|could|would|will|is|was|are|were)\s+not|\bcannot|\bnever)\s*$/iu.test(match[1])
+          && !/\b(?:no|not|without|absent)\b/iu.test(match[2])
+        ))
+    ));
+    const analyticsDisabledContradiction = evidenceSentences.some((sentence) => {
+      const match = /\b(?:Cloudflare(?: Web)? Analytics|Cloudflare analytics|RUM)\b[\s\S]{0,60}\b(?:is|was|are|were)\s+disabled\b/iu.exec(sentence);
+      if (!match) return false;
+      const prefix = sentence.slice(0, match.index);
+      return !/(?:\b(?:does|did|do|can|could|would|will|is|was|are|were)\s+not|\bcannot|\bnever)\s+(?:establish(?:es|ed)?|prov(?:e|es|ed)|confirm(?:s|ed)?|show(?:s|ed)?|mean(?:s|t)?|claim(?:s|ed)?|demonstrat(?:e|es|ed)|indicat(?:e|es|ed)|conclud(?:e|es|ed))(?:\s+that)?\s*$/iu.test(prefix);
+    });
+    if (!safariLifecycle
+      || !braveStatusLifecycle
+      || !braveZeroMatchAttribution
+      || !bodylessEvidenceBoundary
+      || !edgeTelemetryBoundary
+      || new Set(utcTimestamps).size < 2
+      || new Set(evidenceDigests).size < 2
+      || requiredEvidence.some((pattern) => !pattern.test(productionEvidence))
+      || antiBotContradiction
+      || analyticsDisabledContradiction
+      || /before declaring the release operationally complete/iu.test(productionLifecycleGate.evidenceNeeded)
+      || !/retain[\s\S]{0,160}(?:completed|reviewed)[\s\S]{0,160}first activation session/iu.test(productionLifecycleGate.evidenceNeeded)) {
+      fail("GATE-06 satisfied production evidence must bind the canonical URL and deployed revision, a timestamped and digested Safari/WebKit method-and-status lifecycle, a timestamped and digested Brave/Chromium ordered 428/200/204 status lifecycle, the two-origin zero-match privacy review, an honestly classified bodyless-request boundary, an absent or CSP-blocked zero-byte Cloudflare beacon without RUM submission, and the official-testing profile's absent production anti-bot assurance.");
+    }
   }
 }
 
