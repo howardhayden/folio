@@ -4,7 +4,7 @@
   "revision": "2026-09-09",
   "implementationBaselineRevision": "233bdbc8dbafd401a94babe14a64c198be110830",
   "qualificationScope": "The named commit is the completed implementation baseline. The qualified source set binds the current activation, runtime, validator, test, license-routing, shipped legal-notice, response-policy, secret-bootstrap, and release-workflow sources without claiming that unobserved deployed behavior has occurred. A Cloudflare-published testing-key fallback is authorized only for the explicitly bounded demonstrable release and is not represented as production anti-bot assurance.",
-  "overallStatus": "held",
+  "overallStatus": "qualified",
   "statusVocabulary": [
     "satisfied-in-source",
     "satisfied-in-production",
@@ -16,7 +16,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "8d8799494aa96bd24be470b0c53d1439a889bbf448bdea2d233001cc3feefdcd",
+    "qualificationDossierSha256": "90d66cf4df7ed920033a7604f6f33991c621bc20d69d65481e935b4e6864fec4",
     "qualifiedSourceSet": {
       "algorithm": "sha256-path-and-bytes-v1",
       "files": [
@@ -46,7 +46,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "201c7b3f2039126f5087fceeb3aca176a6e689fb8272f71dd62988ec73dee587",
+      "sha256": "a4d3ac832142bf8a820d7cd9616b8cfe5627aff759e52511adfc8197b708e8e3",
       "claim": "This digest binds the named source paths only, including the complete test tree, license-routing map, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. Current-main workflow checks separately bind the deployed commit."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -54,30 +54,17 @@
     "claimBoundary": "This register records engineering evidence and release disposition. It is not legal advice, an upstream warranty, independent certification, or proof about artifacts other than the exact revisions and digests named here."
   },
   "publicClient": {
-    "status": "held",
-    "publicationMode": "documentation-only",
-    "reason": "GATE-02 is the sole open release blocker while the response-policy, verification-frame, and lease services await their first live deployment and fail-closed probes. The remaining factual gaps are classified as workflow-enforced, accepted residual risk, or bounded post-deployment verification.",
-    "heldBoundary": {
-      "allow": [
-        "canonical Text to Lattice project page",
-        "Lattice and wrapper documentation",
-        "source code and test evidence"
-      ],
-      "deny": [
-        "public conversion dialog",
-        "public model preparation or inference",
-        "public lease or attestation request",
-        "runtime download of the pinned model, tokenizer, or WASM assets"
-      ]
-    }
+    "status": "enabled",
+    "publicationMode": "interactive-client",
+    "reason": "GATE-02 is satisfied in production by the exact successful service deployment and live qualification recorded below, so the bounded Text to Lattice demonstrator is eligible for interactive publication. GATE-06 remains explicit first-session canonical-browser and privacy-trace follow-up with immediate held rollback on consequential failure; the direct testing-token probe does not satisfy that browser-only evidence boundary or establish production anti-bot assurance."
   },
   "ownerDisposition": {
     "status": "release-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "201c7b3f2039126f5087fceeb3aca176a6e689fb8272f71dd62988ec73dee587",
+    "qualifiedSourceSetSha256": "a4d3ac832142bf8a820d7cd9616b8cfe5627aff759e52511adfc8197b708e8e3",
     "decidedOn": "2026-09-09",
-    "record": "The active owner direction is to qualify and include the newest Text to Lattice once the consequential release boundary is satisfied.",
-    "note": "Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence. No live-service, browser, model-execution, or production-trace result is inferred from the direction."
+    "record": "The owner-directed activation condition was met when the exact production service workflow satisfied GATE-02; the newest qualified Text to Lattice is approved for interactive publication as a bounded demonstrable release.",
+    "note": "Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence. GATE-02 closure rests on the separately recorded production workflow evidence, while canonical-browser lifecycle, privacy-trace, exact-model-execution, and provenance limits remain typed without overclaim."
   },
   "artifactSet": {
     "runtime": {
@@ -247,25 +234,32 @@
     {
       "id": "GATE-02",
       "label": "Deployed origin, secret, and demonstration boundary",
-      "status": "open-release-blocker",
+      "status": "satisfied-in-production",
       "marginalValue": "high",
       "requirement": "The deployed hah.dev and verify.hah.dev origins, the four exact response-policy routes hah.dev/, hah.dev/index.html, hah.dev/resume/, and hah.dev/resume/index.html, the independent lease Worker route, response policies, bindings, and independent encrypted secrets match the documented protocol, and every live noninteractive or intentionally invalid-token probe fails closed. If the bounded demonstrable release uses Cloudflare's official testing pair, that fact remains explicit and does not count as production anti-bot evidence.",
-      "currentEvidence": "During the 2026-09-09 review, the live lease path returned HTTP 404, verify.hah.dev did not resolve, and the reviewed hah.dev response did not carry Content-Security-Policy or Permissions-Policy. The qualified source now supplies a response-policy Worker, authenticated exact-route inventory inspection, an exact secret-name inventory, independent signing-secret bootstrap, and an explicitly classified official testing-key fallback, but source contracts cannot substitute for the pending public deployment evidence.",
-      "evidenceNeeded": "Deploy the response-policy Worker only on hah.dev/, hah.dev/index.html, hah.dev/resume/, and hah.dev/resume/index.html; deploy the verification frame and independent lease service; preserve a complete existing Turnstile pair without reading or replacing its values, or install Cloudflare's official testing pair when both bindings are absent; configure independent generated signing secrets; inspect live headers, origins, exact routes, bindings, and secret names without disclosing values; then pass the checked-in method, cross-origin, cookie, missing-attestation, intentionally invalid-attestation, exact official demonstration-site-key, and exact official dummy-token acquisition-and-release probes. The current demonstrable release qualifies only when the returned site key and direct dummy-token lifecycle match that exact official testing profile. A different complete pair remains preserved but fails this profile's verifier until the workflow, register, and live qualification intentionally change. The direct dummy-token lifecycle establishes only the deployed Siteverify, lease, and release path; it is not evidence that the frame or widget participated or that canonical-browser GATE-06 passed.",
+      "currentEvidence": "The canonical run URL is https://github.com/howardhayden/folio/actions/runs/34320931448; service job 102367490246; commit a9b1db818dc7bb87b5bee16d0e168bf17d130185; live verification at 2026-09-09T06:52:40.6740509Z; and current-main postcheck at 2026-09-09T06:52:41.0031258Z. The successful job deployed response-policy Worker version 06e29e21-bbba-48d7-9fe3-28e8a960a88f, verification-frame Worker version 8c7d9e11-f6b8-40b2-9b5d-b9e2af082271, and lease Worker version 1a18b449-2341-449b-96e1-f27451efd483. The exact route inventory covered hah.dev/, hah.dev/index.html, hah.dev/resume/, hah.dev/resume/index.html, verify.hah.dev, and hah.dev/api/text-to-lattice/lease, with no missing, extra, or stale owned routes; the job verified frame bytes and isolation headers, main-page response policies, and the four encrypted binding-name inventory without reading values. Its fail-closed probes covered method, cross-origin, cookie, missing-attestation, and invalid-attestation behavior, including first-visitor and returning-visitor flows. The exact official dummy-token lifecycle returned HTTP 200 acquisition and authenticated bodyless HTTP 204 release. The direct dummy-token lifecycle establishes only the deployed Siteverify, lease, and release path; it is not evidence that the frame or widget participated or that canonical-browser GATE-06 passed, and it does not establish human verification or production anti-bot assurance.",
+      "evidenceNeeded": "Retain this successful production workflow record and, on every consequential requalification, deploy the response-policy Worker only on hah.dev/, hah.dev/index.html, hah.dev/resume/, and hah.dev/resume/index.html; deploy the verification frame and independent lease service; preserve a complete existing Turnstile pair without reading or replacing its values, or install Cloudflare's official testing pair when both bindings are absent; configure independent generated signing secrets; inspect live headers, origins, exact routes, bindings, and secret names without disclosing values; then pass the checked-in method, cross-origin, cookie, missing-attestation, intentionally invalid-attestation, exact official demonstration-site-key, and exact official dummy-token acquisition-and-release probes. The current demonstrable release remains qualified only while the returned site key and direct dummy-token lifecycle match that exact official testing profile. A different complete pair remains preserved but fails this profile's verifier until the workflow, register, and live qualification intentionally change. The direct dummy-token lifecycle establishes only the deployed Siteverify, lease, and release path; it is not evidence that the frame or widget participated or that canonical-browser GATE-06 passed.",
       "rationale": "The ordinary public flow cannot work without the deployed origin, policy, secret, and lease boundaries. Those controls have high consequence and lifecycle value. A production anti-bot credential remains useful, but its incremental value for a capacity-capped demonstrator is moderate: the official test pair removes bot assurance without weakening same-origin, privacy, signing, lease, or global admission controls. Those controls bound consequence but do not assure availability.",
       "evidence": [
-        "2026-09-09 live lease request returned HTTP 404",
-        "2026-09-09 DNS review found verify.hah.dev absent",
-        "2026-09-09 hah.dev response review found no Content-Security-Policy or Permissions-Policy",
+        "https://github.com/howardhayden/folio/actions/runs/34320931448",
+        "service job 102367490246; commit a9b1db818dc7bb87b5bee16d0e168bf17d130185; live verification at 2026-09-09T06:52:40.6740509Z; current-main postcheck at 2026-09-09T06:52:41.0031258Z",
+        "response-policy Worker version 06e29e21-bbba-48d7-9fe3-28e8a960a88f",
+        "verification-frame Worker version 8c7d9e11-f6b8-40b2-9b5d-b9e2af082271",
+        "lease Worker version 1a18b449-2341-449b-96e1-f27451efd483",
+        "exact route inventory for hah.dev/, hah.dev/index.html, hah.dev/resume/, hah.dev/resume/index.html, verify.hah.dev, and hah.dev/api/text-to-lattice/lease, including absence of missing, extra, or stale owned routes",
+        "live frame byte and isolation-header verification, main-page response policies, and four encrypted binding-name inventory without reading values",
+        "fail-closed probes for method, cross-origin, cookie, missing-attestation, and invalid-attestation behavior, including first-visitor and returning-visitor flows",
+        "exact official dummy-token lifecycle returned HTTP 200 acquisition and authenticated bodyless HTTP 204 release",
+        "direct dummy-token lifecycle establishes only the deployed Siteverify, lease, and release path; it is not evidence that the frame or widget participated or that canonical-browser GATE-06 passed",
         "workers/text-to-lattice-response-policy/worker.js",
         "scripts/bootstrap-text-to-lattice-secrets.mjs",
         "scripts/verify-text-to-lattice-route-inventory.mjs",
         "Cloudflare official Turnstile testing-key documentation"
       ],
       "safeguards": [
-        "the held source imports no interactive project surface",
-        "the held artifact validator rejects lease, verification, model, and runtime execution surfaces",
-        "documentation and the canonical project page remain available without inference",
+        "the enabled release validator requires the qualified interactive surface and rejects stale held-only copy",
+        "the exact successful service workflow is retained with deployed commit, job identity, and completion time",
+        "the canonical project page and mapped documentation remain available independently of inference availability",
         "the live service verifier exercises public fail-closed behavior without a valid token or lease credential, then proves the declared server profile with an exact dummy-token acquisition and cleanup",
         "authenticated zone inventory rejects missing, extra, or stale wildcard routes owned by either hah.dev Text to Lattice Worker",
         "two generated signing secrets remain independent encrypted bindings and are never printed or committed",
@@ -274,8 +268,8 @@
         "the canonical launch uses /resume/#text-to-lattice, whose fragment does not alter the protected /resume/ document request",
         "unrelated portfolio paths and traffic bypass the Text to Lattice response-policy Worker"
       ],
-      "followUp": "Provision the exact two-origin and response-policy boundary, run the live configuration inspection and noninteractive, invalid-token, exact demonstration-site-key, and direct dummy-token lifecycle probes, and change this status only from recorded evidence. Keep the canonical-browser acquisition and release in GATE-06. Before describing the release as operationally anti-bot protected, intentionally change the declared profile, workflow verifier, and register to a hostname-restricted real widget pair and repeat qualification; do not add a bespoke bypass route or unsigned token mode.",
-      "rollbackCondition": null,
+      "followUp": "Retain workflow run 34320931448, service job 102367490246, deployed commit a9b1db818dc7bb87b5bee16d0e168bf17d130185, and its live qualification record; rerun the exact route, header, binding-name, noninteractive, invalid-token, exact demonstration-site-key, and direct dummy-token lifecycle checks after any consequential deployment or protocol change. Keep canonical-browser acquisition, release, and privacy tracing in GATE-06 and do not relabel the direct token result as browser evidence. Before describing the release as operationally anti-bot protected, intentionally change the declared profile, workflow verifier, and register to a hostname-restricted real widget pair and repeat qualification; do not add a bespoke bypass route or unsigned token mode.",
+      "rollbackCondition": "Reopen GATE-02 as an open release blocker and return the public client to held documentation-only publication if any exact origin, route, response policy, frame byte, isolation header, encrypted binding-name inventory, signing-domain separation, fail-closed probe, official demonstration-site-key, direct dummy-token acquisition, or release-cleanup check fails or materially drifts.",
       "acceptanceBasis": null
     },
     {
@@ -408,8 +402,8 @@
       "marginalValue": "high",
       "requirement": "The activated canonical page, in its first session, completes one real end-to-end 200 acquisition and 204 release through the declared deployed credential profile; a sanitized trace from both origins shows no source, clarification, candidate, verifier finding, or output in lease, attestation, model-asset, error, or telemetry traffic. Testing-profile success establishes demonstrator integration, not production anti-bot assurance.",
       "currentEvidence": "Local lifecycle, data-flow, and request policies are implemented and tested, and GATE-02 binds live fail-closed probes plus a direct exact-dummy-token Siteverify, acquisition, and release round trip. Those server probes do not prove frame or widget participation, the activated canonical-page lifecycle, final browser behavior, or third-party request surface under the deployed credential profile. The official testing profile also cannot prove human verification or production anti-bot assurance, which the demonstrable release expressly does not claim.",
-      "evidenceNeeded": "In the first activation session, use only the canonical public page in the supported browser engines to complete the deployed verification flow, record a 200 acquisition and 204 release, and review a sanitized trace from both origins. Record the declared credential profile with the trace and do not treat testing-profile success as anti-bot evidence. If an ordinary session naturally reaches the renewal interval, retain its bodyless renewal status as follow-up evidence, but do not deliberately wait for that interval or treat a 200 renewal as a condition of operational completion. Do not create a public or operator bypass harness to manufacture this evidence while the client is held.",
-      "rationale": "A broken declared-profile acquisition or release would make the newly activated interaction unusable or strand capacity, and source-text disclosure would be a high-consequence privacy failure. The held artifact intentionally exposes no client, so genuine official-page evidence can exist only after activation. Immediate acquisition, release, and two-origin privacy verification with rapid held rollback has greater reliability, privacy, and lifecycle value than adding a bespoke preactivation harness and its new attack surface. A hostname-restricted widget provides additional bot assurance but is not required for an honestly labeled, capacity-capped demonstrable release. A deliberately timed renewal trace has lower incremental value because extensive renewal contracts, bodyless PATCH requests, fail-closed client termination, bounded lease expiry, and eventual cleanup already constrain the plausible failure while an ordinary session can expose it without holding release completion.",
+      "evidenceNeeded": "In the first activation session, use only the canonical public page in the supported browser engines to complete the deployed verification flow, record a 200 acquisition and 204 release, and review a sanitized trace from both origins. Record the declared credential profile with the trace and do not treat testing-profile success as anti-bot evidence. If an ordinary session naturally reaches the renewal interval, retain its bodyless renewal status as follow-up evidence, but do not deliberately wait for that interval or treat a 200 renewal as a condition of operational completion. Do not create a public or operator bypass harness; this evidence must originate from the activated canonical public client.",
+      "rationale": "A broken declared-profile acquisition or release would make the newly activated interaction unusable or strand capacity, and source-text disclosure would be a high-consequence privacy failure. Before activation, the held artifact intentionally exposed no client, so genuine official-page evidence could exist only after activation; it now must originate from the enabled canonical client. Immediate acquisition, release, and two-origin privacy verification with rapid held rollback has greater reliability, privacy, and lifecycle value than adding a bespoke preactivation harness and its new attack surface. A hostname-restricted widget provides additional bot assurance but is not required for an honestly labeled, capacity-capped demonstrable release. A deliberately timed renewal trace has lower incremental value because extensive renewal contracts, bodyless PATCH requests, fail-closed client termination, bounded lease expiry, and eventual cleanup already constrain the plausible failure while an ordinary session can expose it without holding release completion.",
       "evidence": [
         "acquisition, renewal, release, and teardown source contracts",
         "bodyless lease request contract",
@@ -520,6 +514,18 @@
       "classification": "moderate",
       "disposition": "fixed-and-regression-tested",
       "rationale": "A slowly settling first asset could leave later healthy frame assets only a token verification window and create a recoverable deployment false negative. Independent bounded windows are cheap and improve lifecycle reliability."
+    },
+    {
+      "finding": "Pinned Workerd redirect incompatibility in the Siteverify subrequest",
+      "classification": "high",
+      "disposition": "fixed-and-regression-tested",
+      "rationale": "The deployed runtime rejected redirect:error before Siteverify ran, making every realistic acquisition fail with HTTP 403. Manual redirect handling restores interoperability while the response validator still rejects and cancels every 3xx; a regression binds that fail-closed behavior."
+    },
+    {
+      "finding": "Replay of an ambiguous live lease acquisition probe",
+      "classification": "moderate",
+      "disposition": "fixed-and-regression-tested",
+      "rationale": "Retrying a non-idempotent grant after a transient response or timeout could consume more than one lease and obscure the production result. A single bounded acquisition attempt is cheap, prevents verifier-created capacity leakage, and leaves ordinary idempotent deployment probes retryable."
     },
     {
       "finding": "Simultaneous programmatic résumé-modal body-class race",

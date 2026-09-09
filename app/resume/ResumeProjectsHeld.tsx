@@ -113,11 +113,10 @@ export default function ResumeProjectsHeld() {
 
                 {project.id === "lattice" ? (
                   <p className="card-text lattice-noscript-note">
-                    Text to Lattice is held because its sole open release blocker—the live lease,
-                    verification-origin, and response-policy boundary—is not yet established.
-                    Accepted model, WebAssembly, and accessibility residuals remain documented,
-                    alongside bounded post-deployment capacity and privacy follow-ups; Lattice
-                    itself and every mapped document remain available.
+                    Text to Lattice is unavailable when the machine release record contains an
+                    open blocker. Accepted model, WebAssembly, accessibility, capacity, and
+                    privacy residuals remain documented; Lattice itself and every mapped document
+                    remain available.
                   </p>
                 ) : null}
 

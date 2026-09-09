@@ -1,6 +1,6 @@
 # Third-party notices
 
-The completed Text to Lattice implementation is designed to run locally in a supported browser. While its release register is held, the public site bundle excludes the conversion dialog, inference and tokenizer runtimes, lease and attestation clients, and model or WebAssembly download paths. The inventory below binds the dormant implementation's dependencies; it is not a claim that every row is publicly executing.
+The qualified Text to Lattice client is designed to run locally in a supported browser. The public site bundle includes the conversion dialog and its browser-local clients; pinned model, tokenizer, and WebAssembly assets are downloaded from their public upstream hosts only after the user starts the tool. The inventory below binds the enabled implementation's dependencies; it is not a claim that every row executes on every visit.
 
 | Component | Resolved version or pinned revision | Upstream | Terms supplied here |
 | --- | --- | --- | --- |
@@ -13,7 +13,7 @@ The completed Text to Lattice implementation is designed to run locally in a sup
 | loglevel | 1.9.2 | https://github.com/pimterry/loglevel | [MIT License](LICENSES/MIT-loglevel.txt) |
 | Qwen3 4B generator, MLC build | a5c9fab855e3ccbdfed2e7e69683d75f30332161 | https://huggingface.co/mlc-ai/Qwen3-4B-q4f16_1-MLC | The Qwen/Qwen3-4B base model is [Apache-2.0](LICENSES/Apache-2.0.txt); the MLC artifact repository does not attach separate license metadata. |
 | Llama 3.2 3B verifier, MLC build | 1e80abf71e3d17cd564e2d2b63caa15cb226018e | https://huggingface.co/mlc-ai/Llama-3.2-3B-Instruct-q4f16_1-MLC | The base model and derivatives remain governed by the [Llama 3.2 Community License](LICENSES/Llama-3.2-Community-License.txt) and [Acceptable Use Policy](LICENSES/Llama-3.2-Acceptable-Use-Policy.md); the MLC artifact repository does not attach separate license metadata. |
-| MLC WebGPU model libraries | 025bcaf3780fa8254f5e5efd3bfea0a5397248f4 | https://github.com/mlc-ai/binary-mlc-llm-libs | Held from public execution. The pinned binary repository does not publish a standalone root license; exact identity and partial lineage are recorded below, while reproducibility and artifact-level notice disposition remain open. |
+| MLC WebGPU model libraries | 025bcaf3780fa8254f5e5efd3bfea0a5397248f4 | https://github.com/mlc-ai/binary-mlc-llm-libs | Available to the bounded interactive release as runtime-downloaded code. The pinned binary repository does not publish a standalone root license; exact identity and partial lineage are recorded below, while reproducibility and artifact-level notice disposition remain accepted residuals. |
 
 The Qwen and Llama rows describe runtime-downloaded compiled model artifacts, not models authored by Hayden Howard. Upstream model cards and terms remain controlling. No project claim supersedes a third-party license, acceptable-use policy, attribution, or restriction.
 

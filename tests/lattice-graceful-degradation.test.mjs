@@ -13,13 +13,14 @@ test("Text to Lattice exposes a no-JavaScript and unavailable-runtime fallback",
     readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(resumeHtml, /Text to Lattice is held because its sole open release blocker/u);
   assert.match(resumeHtml, /href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/u);
   assert.match(
     resumeHtml,
-    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
+    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*data-lattice-launch="text-to-lattice")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Use Text to Lattice")(?=[^>]*aria-haspopup="dialog")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
   );
-  assert.doesNotMatch(resumeHtml, /lattice-demo-dialog|lattice-demo-input/u);
+  assert.match(resumeHtml, /id="lattice-demo-dialog"/u);
+  assert.match(resumeHtml, /id="lattice-demo-input"/u);
+  assert.match(resumeHtml, /<noscript>[\s\S]*?Text to Lattice is unavailable here[\s\S]*?href="\/projects\/lattice\/text-to-lattice\/"[\s\S]*?Read the tool details/iu);
   assert.match(interfaceSource, /latticeSupported === false \? \([\s\S]*?aria-label="Availability"/u);
   assert.match(interfaceSource, /disabled=\{busy \|\| latticeSupported === false\}/u);
   assert.match(interfaceSource, /latticeFailureMessage\(error\)/u);
@@ -27,8 +28,8 @@ test("Text to Lattice exposes a no-JavaScript and unavailable-runtime fallback",
   assert.match(interfaceSource, /!latticeInputInvalid \? <> <a href="\/projects\/lattice\/text-to-lattice\/#text-to-lattice-availability">Tool details<\/a>\.<\/> : null/u);
   assert.match(toolHtml, /data-tool-availability="progressive-enhancement"/u);
   assert.match(toolHtml, /Without JavaScript/u);
-  assert.match(toolHtml, /absence(?:<!-- -->)? of secure-context WebGPU support/u);
-  assert.match(toolHtml, /absence(?:<!-- -->)? of uncached pinned model assets/u);
+  assert.match(toolHtml, /absence(?:<!-- -->)? of secure-context WebGPU support/iu);
+  assert.match(toolHtml, /absence(?:<!-- -->)? of uncached pinned model assets/iu);
   assert.match(toolHtml, /href="\/projects\.json"/u);
   assert.match(toolHtml, /href="\/knowledge-graph\.jsonld"/u);
 });

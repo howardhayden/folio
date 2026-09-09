@@ -1233,9 +1233,12 @@ test("renders current projects and consistent project documentation icons", asyn
   );
   assert.match(
     html,
-    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/,
+    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*data-lattice-launch="text-to-lattice")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Use Text to Lattice")(?=[^>]*aria-haspopup="dialog")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/,
   );
-  assert.doesNotMatch(html, /lattice-demo-dialog|lattice-demo-input|data-lattice-launch="text-to-lattice"/u);
+  assert.equal((html.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 1);
+  assert.match(html, /id="lattice-demo-dialog"/u);
+  assert.match(html, /id="lattice-demo-input"/u);
+  assert.match(html, /id="lattice-use-confirmation"/u);
   assert.match(
     html,
     /Lattice makes linguistic register explicit, testable, and accountable to meaning\./,
@@ -1453,7 +1456,7 @@ test("keeps Lattice documentation direct in canonical no-JavaScript project surf
   }
 });
 
-test("retains the bounded and accessible dormant Text to Lattice dialog contract", async () => {
+test("retains the bounded and accessible Text to Lattice dialog contract", async () => {
   const [source, shelfSource, css] = await Promise.all([
     readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/shelf/ShelfExplorer.tsx", import.meta.url), "utf8"),

@@ -1,6 +1,6 @@
 import { documentsForProject } from "../content/projectDocuments.js";
 
-export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v4";
+export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v5";
 export const PROJECT_CONTENT_UPDATED = "2026-09-09";
 
 export const LATTICE_DOCUMENTATION_RESOURCES = Object.freeze(
@@ -51,7 +51,7 @@ export const projects = Object.freeze([
     limitations: Object.freeze([
       "The hah.dev Text to Lattice demonstrator is browser-local, requires WebGPU, and accepts at most 700 words.",
       "A review-required draft is not certified as semantically equivalent.",
-      "The machine release register keeps the interactive client outside the public bundle while its sole open blocker—the live lease, verification-origin, and response-policy boundary—remains unestablished.",
+      "The demonstrable release uses Cloudflare’s official testing profile; it provides no production anti-bot assurance, and its public reusable token can occupy all eight shared slots, so availability is not assured.",
     ]),
     emphasis: Object.freeze(["linguistic register", "semantic fidelity", "relational systems"]),
     relationships: Object.freeze([
@@ -66,8 +66,8 @@ export const projects = Object.freeze([
     ]),
     publication: Object.freeze({ label: "September 2026", value: "2026-09", precision: "month" }),
     status: "public",
-    interaction: null,
-    interactiveRelease: "held",
+    interaction: "lattice-demo",
+    interactiveRelease: "enabled",
     readmeAfterFirstParagraph: true,
   }),
   Object.freeze({

@@ -229,6 +229,27 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
     || gate02ProfileContradiction) {
     fail("GATE-02 must disclose the bounded Cloudflare official-testing profile without claiming anti-bot assurance and must prohibit bespoke bypass or unsigned alternatives.");
   }
+  if (productionBoundaryGate.status === "satisfied-in-production") {
+    const productionEvidence = `${productionBoundaryGate.currentEvidence} ${productionBoundaryGate.evidence.join(" ")}`;
+    const requiredEvidence = [
+      /https:\/\/github\.com\/howardhayden\/folio\/actions\/runs\/\d+/u,
+      /service job \d+/u,
+      /commit [a-f0-9]{40}/u,
+      /live verification at \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u,
+      /response-policy Worker version [0-9a-f]{8}-[0-9a-f-]{27}/u,
+      /verification-frame Worker version [0-9a-f]{8}-[0-9a-f-]{27}/u,
+      /lease Worker version [0-9a-f]{8}-[0-9a-f-]{27}/u,
+      /exact route inventory/iu,
+      /four encrypted binding-name inventory without reading values/iu,
+      /fail-closed probes[\s\S]*method[\s\S]*cross-origin[\s\S]*cookie[\s\S]*missing-attestation[\s\S]*invalid-attestation/iu,
+      /HTTP 200 acquisition/iu,
+      /authenticated bodyless HTTP 204 release/iu,
+      /direct dummy-token lifecycle establishes only[\s\S]*Siteverify[\s\S]*lease[\s\S]*release path[\s\S]*not evidence[\s\S]*frame[\s\S]*widget[\s\S]*canonical-browser GATE-06 passed/iu,
+    ];
+    if (requiredEvidence.some((pattern) => !pattern.test(productionEvidence))) {
+      fail("GATE-02 satisfied production evidence must bind the retained run, commit, job, live timestamp, Worker versions, route and encrypted-binding inventories, fail-closed probes, direct 200/204 lifecycle, and non-browser evidentiary limit.");
+    }
+  }
 
   const lifecycleStatuses = new Set(["post-deployment-verification", "open-release-blocker"]);
   const privacyClasses = ["source", "clarification", "candidate", "verifier finding", "output"];
@@ -1111,7 +1132,8 @@ async function verifyHtmlRoute(site, htmlPath, inspectedScripts) {
   }
 }
 
-async function verifyHeldBuiltBoundary(site, files) {
+export async function verifyHeldBuiltBoundary(site, files) {
+  files ??= await filesBelow(site);
   const resume = await readFile(join(site, "resume/index.html"), "utf8");
   if (!/href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/u.test(resume)) {
     fail("held résumé lacks the canonical Lattice title link.");
@@ -1185,17 +1207,33 @@ async function verifyEnabledBuiltBoundary(site, files) {
     .filter((path) => heldExecutableExtensions.has(extname(path).toLowerCase()))
     .map((path) => readFile(path, "utf8"))))
     .join("\n");
-  for (const required of [
-    "/api/text-to-lattice/lease",
-    "https://verify.hah.dev",
-    LATTICE_MODEL_ROLES.generator.id,
-    LATTICE_MODEL_ROLES.verifier.id,
-    LATTICE_MODEL_ROLES.generator.model,
-    LATTICE_MODEL_ROLES.verifier.model,
-    LATTICE_MODEL_ROLES.generator.modelLib,
-    LATTICE_MODEL_ROLES.verifier.modelLib,
-  ]) {
+  for (const required of ["/api/text-to-lattice/lease", "https://verify.hah.dev"]) {
     if (!executable.includes(required)) fail(`enabled release artifact omits the pinned runtime binding ${required}.`);
+  }
+
+  const modelWorkerPaths = files.filter((path) => (
+    /^_next\/static\/workers\/latticeWebllm\.worker-[a-zA-Z0-9_-]+\.js$/u
+      .test(relative(site, path).split("\\").join("/"))
+  ));
+  if (modelWorkerPaths.length !== 1) {
+    fail("enabled release artifact must contain exactly one dedicated Text to Lattice model Worker.");
+  }
+  const modelWorker = await readFile(modelWorkerPaths[0], "utf8");
+  const firstModelLibrary = new URL(LATTICE_MODEL_ROLES.generator.modelLib);
+  const factoredModelLibraryBindings = [
+    `${firstModelLibrary.origin}/mlc-ai/binary-mlc-llm-libs/`,
+    LATTICE_WASM_REVISION,
+    LATTICE_WASM_BUILD_LINEAGE.releaseDirectory,
+    ...Object.values(LATTICE_MODEL_ROLES).flatMap((role) => [
+      role.id,
+      role.model,
+      new URL(role.modelLib).pathname.split("/").at(-1),
+    ]),
+  ];
+  for (const required of factoredModelLibraryBindings) {
+    if (!required || !modelWorker.includes(required)) {
+      fail(`enabled model Worker omits the pinned runtime binding ${required}.`);
+    }
   }
 }
 

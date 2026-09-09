@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import test from "node:test";
@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { projectBySlug } from "../app/resume/projects.js";
 import {
   qualifiedFilesBelow,
+  verifyHeldBuiltBoundary,
   verifyLifecycleGateContract,
   verifyReleaseStatusState,
 } from "../scripts/verify-text-to-lattice-release.mjs";
@@ -20,14 +21,19 @@ const validator = join(root, "scripts/verify-text-to-lattice-release.mjs");
 const registerPath = join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json");
 const expectedGateIds = ["GATE-01", "GATE-02", "GATE-03", "GATE-04A", "GATE-04B", "GATE-04C", "GATE-05", "GATE-06"];
 
-async function withCopiedSiteFixture(mutate, expectedFailure) {
+async function withHeldSiteFixture(mutate, expectedFailure) {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "lattice-held-site-test-"));
   const fixtureSite = join(temporaryDirectory, "site");
   try {
-    await cp(join(root, "site"), fixtureSite, { recursive: true });
+    await mkdir(join(fixtureSite, "resume"), { recursive: true });
+    await mkdir(join(fixtureSite, "projects/medium"), { recursive: true });
+    await mkdir(join(fixtureSite, "_next"), { recursive: true });
+    await writeFile(join(fixtureSite, "resume/index.html"), '<a href="/projects/lattice/">Lattice</a><a class="tool-icon project-modal-trigger signal-fuzz" href="/projects/lattice/text-to-lattice/" aria-label="Read Text to Lattice release status"><svg></svg></a>');
+    await writeFile(join(fixtureSite, "projects/medium/index.html"), "<body></body>");
+    await verifyHeldBuiltBoundary(fixtureSite);
     await mutate(fixtureSite);
     await assert.rejects(
-      execute(process.execPath, [validator, "--source", "--site", `--site-root=${fixtureSite}`], { cwd: root }),
+      verifyHeldBuiltBoundary(fixtureSite),
       (error) => expectedFailure.test(`${error.stderr ?? ""}${error.message ?? ""}`),
     );
   } finally {
@@ -59,7 +65,7 @@ test("qualified source trees ignore only Wrangler's reserved local residue", asy
   }
 });
 
-test("the release register holds only the consequential live-service blocker", async () => {
+test("the release register qualifies the bounded interactive client", async () => {
   const [registerSource, atlasSource, evaluationSource, view, held, projectsSource, packageSource, workflow, validatorSource, documentationBuilder, operatorReadme, wasmFetcher] = await Promise.all([
     readFile(registerPath, "utf8"),
     readFile(join(root, "docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json"), "utf8"),
@@ -80,9 +86,10 @@ test("the release register holds only the consequential live-service blocker", a
   const packageJson = JSON.parse(packageSource);
   const lattice = projectBySlug("lattice");
 
-  assert.equal(register.overallStatus, "held");
-  assert.equal(register.publicClient.status, "held");
-  assert.equal(register.publicClient.publicationMode, "documentation-only");
+  assert.equal(register.overallStatus, "qualified");
+  assert.equal(register.publicClient.status, "enabled");
+  assert.equal(register.publicClient.publicationMode, "interactive-client");
+  assert.equal("heldBoundary" in register.publicClient, false);
   assert.deepEqual(register.statusVocabulary, [
     "satisfied-in-source",
     "satisfied-in-production",
@@ -124,7 +131,7 @@ test("the release register holds only the consequential live-service blocker", a
   assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
   assert.deepEqual(register.gates.map(({ id, status, marginalValue }) => [id, status, marginalValue]), [
     ["GATE-01", "release-workflow-enforced", "high"],
-    ["GATE-02", "open-release-blocker", "high"],
+    ["GATE-02", "satisfied-in-production", "high"],
     ["GATE-03", "post-deployment-verification", "moderate"],
     ["GATE-04A", "accepted-residual-risk", "moderate"],
     ["GATE-04B", "accepted-residual-risk", "moderate"],
@@ -208,10 +215,10 @@ test("the release register holds only the consequential live-service blocker", a
   assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionPerformed, false);
   assert.equal(register.artifactSet.models.verifier.artifactProvenanceEstablished, false);
   assert.equal(register.artifactSet.wasm.reproducibility.established, false);
-  assert.equal(lattice.interactiveRelease, "held");
-  assert.equal(lattice.interaction, null);
-  assert.match(view, /from "\.\/ResumeProjectsHeld"/u);
-  assert.doesNotMatch(view, /from "\.\/ResumeProjects"/u);
+  assert.equal(lattice.interactiveRelease, "enabled");
+  assert.equal(lattice.interaction, "lattice-demo");
+  assert.match(view, /from "\.\/ResumeProjects"/u);
+  assert.doesNotMatch(view, /from "\.\/ResumeProjectsHeld"/u);
   assert.doesNotMatch(held, /<form\b|<textarea\b|role="dialog"|aria-haspopup=/iu);
   assert.doesNotMatch(held, /from\s+["'].+\/(?:lattice|latticeDemo)/u);
   assert.doesNotMatch(projectsSource, /from\s+["'][^"']*(?:siteContent|\/lattice(?:\/|["']))/u);
@@ -259,9 +266,11 @@ test("a failed GATE-06 can become the machine-enforced blocker after GATE-02 clo
   const register = JSON.parse(await readFile(registerPath, "utf8"));
   const gate02 = register.gates.find(({ id }) => id === "GATE-02");
   const gate06 = register.gates.find(({ id }) => id === "GATE-06");
-  gate02.status = "satisfied-in-production";
-  gate02.rollbackCondition = "Reopen GATE-02 and return to held publication if the deployed boundary drifts.";
   gate06.status = "open-release-blocker";
+  register.overallStatus = "held";
+  register.publicClient.status = "held";
+  register.publicClient.publicationMode = "documentation-only";
+  register.publicClient.heldBoundary = "GATE-06";
 
   assert.doesNotThrow(() => verifyLifecycleGateContract(gate02, gate06));
   assert.deepEqual(verifyReleaseStatusState(register), {
@@ -307,20 +316,11 @@ test("the bounded official testing profile cannot become an anti-bot claim or un
 
 test("the validator rejects a nominally enabled client while any gate is open", async () => {
   const register = JSON.parse(await readFile(registerPath, "utf8"));
-  register.overallStatus = "qualified";
-  register.publicClient.status = "enabled";
-  register.publicClient.publicationMode = "interactive-client";
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), "lattice-release-test-"));
-  const fixture = join(temporaryDirectory, "register.json");
-  await writeFile(fixture, `${JSON.stringify(register, null, 2)}\n`);
-  try {
-    await assert.rejects(
-      execute(process.execPath, [validator, "--source", `--register=${fixture}`], { cwd: root }),
-      (error) => /public client must be enabled if and only if no open release blocker remains/u.test(`${error.stderr ?? ""}${error.message ?? ""}`),
-    );
-  } finally {
-    await rm(temporaryDirectory, { recursive: true, force: true });
-  }
+  register.gates.find(({ id }) => id === "GATE-06").status = "open-release-blocker";
+  assert.throws(
+    () => verifyReleaseStatusState(register),
+    /public client must be enabled if and only if no open release blocker remains/u,
+  );
 });
 
 test("qualification statuses retain their evidence, safeguard, acceptance, rollback, and source bindings", async () => {
@@ -333,7 +333,12 @@ test("qualification statuses retain their evidence, safeguard, acceptance, rollb
     [(record) => { record.authority.qualifiedSourceSet.trees = record.authority.qualifiedSourceSet.trees.filter((path) => path !== "workers\/text-to-lattice-response-policy"); }, /exact reviewed activation, runtime, validator, test, license-routing, legal-notice, response-policy, secret-bootstrap, and workflow path inventory/u],
     [(record) => { record.statusVocabulary = record.statusVocabulary.filter((status) => status !== "satisfied-in-production"); }, /statusVocabulary does not match/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").evidence = []; }, /GATE-02 evidence must be a nonempty array/u],
-    [(record) => { record.gates.find(({ id }) => id === "GATE-02").status = "satisfied-in-production"; }, /GATE-02 rollbackCondition must be a nonempty string/u],
+    [(record) => {
+      const gate = record.gates.find(({ id }) => id === "GATE-02");
+      gate.currentEvidence = gate.currentEvidence.replace("https://github.com/howardhayden/folio/actions/runs/34320931448", "");
+      gate.evidence = gate.evidence.filter((entry) => !entry.includes("/actions/runs/"));
+    }, /GATE-02 satisfied production evidence must bind the retained run/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-02").rollbackCondition = null; }, /GATE-02 rollbackCondition must be a nonempty string/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").status = "satisfied-in-source"; }, /GATE-02 must remain an open release blocker until it is satisfied in production/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").evidenceNeeded = "Complete one real official-page lifecycle and wait through the five-minute server renewal minimum."; }, /GATE-02 must bind live noninteractive, invalid-token, and direct official dummy-token probes/u],
     [(record) => { record.gates.find(({ id }) => id === "GATE-02").followUp += " Complete a real official-page lifecycle before activation."; }, /GATE-02 cannot require a real canonical-page lifecycle while the public client is held/u],
@@ -427,7 +432,7 @@ test("the release register cannot redirect or relabel pinned runtime artifacts",
   }
 });
 
-test("the held Pages artifact contains evidence but no Text to Lattice execution surface", async () => {
+test("the enabled Pages artifact contains the bounded Text to Lattice execution surface", async () => {
   const [resume, project, qualification, exportedRegister, exportedEvaluation, sourceRegister, sourceEvaluation] = await Promise.all([
     readFile(join(root, "site/resume/index.html"), "utf8"),
     readFile(join(root, "site/projects/lattice/text-to-lattice/index.html"), "utf8"),
@@ -441,14 +446,20 @@ test("the held Pages artifact contains evidence but no Text to Lattice execution
   assert.match(resume, /href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/u);
   assert.match(
     resume,
-    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>\s*<svg\b[\s\S]*?<\/svg>\s*<\/a>/u,
+    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*data-lattice-launch="text-to-lattice")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Use Text to Lattice")(?=[^>]*aria-haspopup="dialog")[^>]*>\s*<svg\b[\s\S]*?<\/svg>\s*<\/a>/u,
   );
-  assert.doesNotMatch(resume, /lattice-demo-dialog|lattice-demo-input|data-lattice-launch="text-to-lattice"/u);
-  assert.match(project, /Release status:\s*(?:<!-- -->)?held/u);
+  assert.equal((resume.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 1);
+  for (const marker of ["lattice-demo-dialog", "lattice-demo-input", "lattice-use-confirmation"]) {
+    assert.match(resume, new RegExp(`id="${marker}"`, "u"));
+  }
+  assert.match(project, /Release status:\s*(?:<!-- -->)?enabled/u);
+  assert.match(project, /href="\/resume\/#text-to-lattice"[^>]*>Use Text to Lattice<\/a>/u);
   assert.match(project, /TEXT-TO-LATTICE-RELEASE-QUALIFICATION\.md/u);
   assert.match(qualification, /consequence × plausibility × lifecycle value/u);
-  assert.match(qualification, /GATE-02 can and must establish the deployed response policy.*frame.*live noninteractive or intentionally invalid-token result.*direct exact-dummy-token.*before activation/u);
-  assert.match(qualification, /GATE-06 therefore requires a real `200` acquisition.*rapid return to the held artifact on failure/u);
+  assert.match(qualification, /34320931448/u);
+  assert.match(qualification, /`HTTP 200 acquisition`.*`authenticated bodyless HTTP 204 release`/iu);
+  assert.match(qualification, /does not (?:show|prove).*frame.*widget.*GATE-06/iu);
+  assert.match(qualification, /GATE-06.*real `200` acquisition.*rapid return to held publication on failure/isu);
   assert.match(qualification, /deliberately waiting five minutes.*moderate incremental value.*not a condition of operational completion/u);
   assert.match(qualification, /A separate public or operator bypass harness.*outside the authorized boundary/u);
   assert.match(qualification, /Cloudflare(?:'s|\u2019s) official testing pair[\s\S]{0,500}(?:rather than|does not (?:provide|establish)|provides? no)[^.]{0,160}production anti-bot (?:assurance|protection)/iu);
@@ -457,7 +468,7 @@ test("the held Pages artifact contains evidence but no Text to Lattice execution
   assert.match(qualification, /Cloudflare official testing credentials for the demonstrable release/iu);
   assert.match(qualification, /Bespoke attestation bypass route or unsigned token mode/iu);
   assert.match(qualification, /Portfolio-wide response-policy Worker route/iu);
-  assert.equal(JSON.parse(exportedRegister).overallStatus, "held");
+  assert.equal(JSON.parse(exportedRegister).overallStatus, "qualified");
   assert.equal(exportedRegister, sourceRegister);
   assert.equal(exportedEvaluation, sourceEvaluation);
   await execute(process.execPath, [validator, "--source", "--site"], { cwd: root });
@@ -466,107 +477,107 @@ test("the held Pages artifact contains evidence but no Text to Lattice execution
 test("the held-site validator rejects executable bypasses outside the résumé", async () => {
   const route = (site) => join(site, "projects/medium/index.html");
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script type="text/&#106;avascript">fetch("/api/text-to-lattice/lease")</script>'),
     /held inline executable script in projects\/medium\/index\.html contains \/api\/text-to-lattice\/lease/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script data-type="application/ld+json">fetch("/api/text-to-lattice/lease")</script>'),
     /held inline executable script in projects\/medium\/index\.html contains \/api\/text-to-lattice\/lease/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script data-src="/runtime-entry">fetch("/api/text-to-lattice/lease")</script>'),
     /held inline executable script in projects\/medium\/index\.html contains \/api\/text-to-lattice\/lease/u,
   );
 
-  await withCopiedSiteFixture(async (site) => {
+  await withHeldSiteFixture(async (site) => {
     await writeFile(join(site, "runtime-entry"), 'fetch("https://verify.hah.dev")');
     await appendToHtml(route(site), '<script src="/runtime-entry"></script>');
   }, /held referenced script asset runtime-entry contains https:\/\/verify\.hah\.dev/u);
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<div id="lattice-demo-dialog"></div>'),
     /held HTML route projects\/medium\/index\.html contains a Lattice interactive marker/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script src="https://attacker.example/inference.js"></script>'),
     /references a cross-origin executable script/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script/src="https://attacker.example/inference.js"></script>'),
     /references a cross-origin executable script/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script data-description=">" src="https://attacker.example/inference.js"></script>'),
     /references a cross-origin executable script/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<iframe src="HTTPS://VERIFY.HAH.DEV/challenge"></iframe>'),
     /exposes the verification or lease boundary through iframe src/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<iframe srcdoc="&lt;script&gt;fetch(\'/api/text-to-lattice/lease\')&lt;/script&gt;"></iframe>'),
     /contains an executable iframe srcdoc/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<form action="&#47;api&#47;text-to-lattice&#47;lease"></form>'),
     /exposes the verification or lease boundary through form action/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<button onclick="fetch(\'/api/text-\' + \'to-lattice/lease\')">Run</button>'),
     /contains an inline event handler/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<svg/onload="fetch(\'/api/text-to-lattice/lease\')"></svg>'),
     /contains an inline event handler/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<button data-description=">" onclick="fetch(\'/api/text-to-lattice/lease\')">Run</button>'),
     /contains an inline event handler/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<base/href="https://attacker.example/"><script src="/_next/static/chunks/index-CtFJ3rYh.js"></script>'),
     /contains a base element/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<a/href="java&#x09script:fetch(\'/api/text-to-lattice/lease\')">Run</a>'),
     /contains a javascript: URL/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => writeFile(join(site, "runtime.data"), Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00])),
     /contains WebAssembly bytes regardless of filename: runtime\.data/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => symlink(join(site, "_next"), join(site, "linked-assets"), "dir"),
     /release site contains a symbolic link/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<link rel="preload" as="fetch" href="https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Qwen3-4B-q4f16_1-ctx4k_cs1k-webgpu.wasm">'),
     /held network-active link href in projects\/medium\/index\.html contains raw\.githubusercontent\.com\/mlc-ai\/binary-mlc-llm-libs/u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<style>.preview { background: url("https://huggingface.co/mlc-ai/Llama-3.2-3B-Instruct-q4f16_1-MLC/resolve/model.safetensors"); }</style>'),
     /held inline style block in projects\/medium\/index\.html contains huggingface\.co\/mlc-ai\/Llama-3\.2-3B-Instruct-q4f16_1-MLC\/resolve\//u,
   );
 
-  await withCopiedSiteFixture(
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script type="application/json">{"endpoint":"/api/text-to-lattice/lease"}</script>'),
     /held inline JSON data in projects\/medium\/index\.html contains \/api\/text-to-lattice\/lease/u,
   );

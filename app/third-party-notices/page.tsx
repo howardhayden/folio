@@ -65,9 +65,9 @@ export default function ThirdPartyNoticesPage() {
             <div className="paper-meta-item"><dt>Verifier</dt><dd><a href={verifier.repository}>{verifier.name}</a>, revision {verifier.revision}; deterministic decoding with fixed seed {verifier.inference.seed}</dd></div>
             <div className="paper-meta-item"><dt>Runtime</dt><dd><a href={runtime.packageUrl}>{runtime.name} {runtime.version}</a>; {runtime.tokenizerName} {runtime.tokenizerVersion}; <a href={runtime.wasmRepository}>WASM revision {runtime.wasmRevision}</a>. {runtime.wasmLicenseStatus}</dd></div>
           </dl>
-          <p>{interactiveRelease === "held"
-            ? "The completed client is held outside the public bundle while its sole open blocker—the live lease, verification-origin, and response-policy boundary—remains unestablished. Accepted provenance residuals remain documented. If a later qualified release is enabled, the browser is designed to download pinned model and WebAssembly assets from their public upstream hosts."
-            : "When the interactive client is enabled, the browser downloads pinned model and WebAssembly assets from their public upstream hosts."} The models and runtime are third-party materials, not works authored by Hayden Howard.</p>
+          <p>{String(interactiveRelease) === "held"
+            ? "When the machine release record contains an open blocker, the client stays outside the public bundle and accepted provenance residuals remain documented. After a qualified release is enabled, the browser downloads pinned model and WebAssembly assets from their public upstream hosts."
+            : "When the interactive client is enabled, the browser downloads pinned model and WebAssembly assets from their public upstream hosts only after the visitor starts the tool."} The models and runtime are third-party materials, not works authored by Hayden Howard.</p>
           <p>Built with Llama. Llama 3.2 is licensed under the <a href={verifier.licenseUrl}>Llama 3.2 Community License</a> and <a href={verifier.acceptableUseUrl}>Acceptable Use Policy</a>, Copyright © Meta Platforms, Inc. All Rights Reserved.</p>
 
           <h2>Notices and index</h2>

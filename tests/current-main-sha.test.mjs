@@ -171,5 +171,6 @@ test("Pages checks current main around build, service deployment, and page deplo
   assert.equal(workflow.match(/GITHUB_TOKEN: \$\{\{ github\.token \}\}/gu)?.length, 5);
   assert.match(qualification, /requires its exact commit to equal `GITHUB_SHA` at its publication boundaries/u);
   assert.match(qualification, /a stale workflow commit fail closed/u);
-  assert.match(qualification, /A successful future run and deployed commit remain workflow evidence; this source record does not predeclare them/u);
+  assert.match(qualification, /34320931448/u);
+  assert.match(qualification, /a9b1db818dc7bb87b5bee16d0e168bf17d130185/u);
 });

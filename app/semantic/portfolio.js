@@ -626,7 +626,7 @@ export function renderProjectMarkdown(slug) {
     ? ""
     : `\n\nInteractive client release: ${machineValueLabel(project.interactiveRelease)}`;
   const applicationAvailability = applicationReleaseStatus === "held"
-    ? "The completed interactive client is not included in the public bundle while its sole open blocker—the live lease, verification-origin, and response-policy boundary—remains unestablished. This section documents the client contract and accepted residuals; it does not make the conversion client available."
+    ? "The interactive client is not included in the public bundle when the machine release record contains an open blocker. This section documents the client contract and accepted residuals; it does not make the conversion client available."
     : applicationReleaseStatus === "enabled"
       ? "The public interactive client is included in the public bundle."
       : "No public interactive client is represented as available.";

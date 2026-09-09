@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SiteHeader, type SiteRouteKey } from "../components/SiteChrome";
 import type { Paper } from "../data";
-import { arrangeShelfPapers } from "./shelfLogic.js";
+import { arrangeShelfPapers, randomShelfSeed } from "./shelfLogic.js";
 import { shelfNotice } from "../content/siteContent.js";
 
 const MONTH_CODES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
@@ -41,15 +41,13 @@ export default function ShelfExplorer({ papers, onNavigate }: { papers: Paper[];
   const [filtered, setFiltered] = useState(papers);
   const menuRef = useRef<HTMLLIElement>(null);
   const filtersRef = useRef(filters);
-  const arrangementRevisionRef = useRef(0);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      arrangementRevisionRef.current = 1;
       setFiltered((current) => arrangeShelfPapers(
         papers,
         filtersRef.current,
-        arrangementRevisionRef.current,
+        randomShelfSeed(),
         current.map((paper) => paper.title),
       ));
     });
@@ -72,12 +70,11 @@ export default function ShelfExplorer({ papers, onNavigate }: { papers: Paper[];
   const changeFilter = (field: keyof typeof filters, value: string) => {
     const nextFilters = { ...filtersRef.current, [field]: value };
     filtersRef.current = nextFilters;
-    arrangementRevisionRef.current += 1;
     setFilters(nextFilters);
     setFiltered((current) => arrangeShelfPapers(
       papers,
       nextFilters,
-      arrangementRevisionRef.current,
+      randomShelfSeed(),
       current.map((paper) => paper.title),
     ));
   };

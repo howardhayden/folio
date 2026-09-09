@@ -25,6 +25,8 @@ test("production builds clear only the resolved bundle directory before emitting
   assert.match(cleaner, /dirname\(output\) !== root \|\| output === root/u);
   assert.match(cleaner, /await rm\(output, \{ recursive: true, force: true \}\)/u);
   assert.match(exporter, /const clientAssets = resolve\(root, "dist\/client"\)/u);
+  assert.match(exporter, /const output = resolve\(root, "site"\)/u);
+  assert.match(exporter, /await rm\(output, \{ recursive: true, force: true \}\)/u);
   assert.match(exporter, /await cp\(clientAssets, output, \{ recursive: true \}\)/u);
 });
 
@@ -37,13 +39,19 @@ test("the HTML-only Pages artifact uses native anchors for application navigatio
   }
 
   const chrome = await readFile(new URL("../app/components/SiteChrome.tsx", import.meta.url), "utf8");
-  const [resumeView, heldProjects] = await Promise.all([
+  const [resumeView, projects, heldProjects] = await Promise.all([
     readFile(new URL("../app/resume/ResumeView.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/resume/ResumeProjectsHeld.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(chrome, /<a className="navbar-brand" href="\/"/u);
   assert.match(chrome, /<a[\s\S]*?className="nav-link"[\s\S]*?href=\{route\.href\}/u);
-  assert.match(resumeView, /from "\.\/ResumeProjectsHeld"/u);
+  assert.match(resumeView, /from "\.\/ResumeProjects"/u);
+  assert.doesNotMatch(resumeView, /from "\.\/ResumeProjectsHeld"/u);
+  assert.match(
+    projects,
+    /"interaction" in project && project\.interaction === "lattice-demo"[\s\S]*?className="tool-icon project-modal-trigger signal-fuzz"[\s\S]*?data-lattice-launch="text-to-lattice"[\s\S]*?href="\/projects\/lattice\/text-to-lattice\/"[\s\S]*?aria-label="Use Text to Lattice"/u,
+  );
   assert.match(
     heldProjects,
     /project\.id === "lattice"[\s\S]*?className="tool-icon project-modal-trigger signal-fuzz"[\s\S]*?href="\/projects\/lattice\/text-to-lattice\/"[\s\S]*?aria-label="Read Text to Lattice release status"/u,

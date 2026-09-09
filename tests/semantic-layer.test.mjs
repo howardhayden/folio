@@ -341,7 +341,7 @@ test("every canonical route is a substantive no-JavaScript document", async () =
   }
 });
 
-test("project and résumé records remain present while the Lattice interaction is held", async () => {
+test("project and résumé records remain present with the enabled Lattice interaction", async () => {
   const response = await request("/resume/", "text/html");
   const html = await response.text();
   const text = decodedText(html);
@@ -356,13 +356,16 @@ test("project and résumé records remain present while the Lattice interaction 
       assert.ok(text.includes(line), `${detail.id} modal content is server-rendered`);
     }
   }
-  assert.match(html, /Text to Lattice is held because its sole open release blocker/u);
   assert.match(html, /href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/u);
   assert.match(
     html,
-    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
+    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*data-lattice-launch="text-to-lattice")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Use Text to Lattice")(?=[^>]*aria-haspopup="dialog")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
   );
-  assert.doesNotMatch(html, /class="modal resume-modal lattice-modal"|id="lattice-demo-dialog"|id="lattice-demo-input"/u);
+  assert.equal((html.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 1);
+  assert.match(html, /class="modal resume-modal"/u);
+  assert.match(html, /id="lattice-demo-dialog"/u);
+  assert.match(html, /id="lattice-demo-input"/u);
+  assert.match(html, /id="lattice-use-confirmation"/u);
 });
 
 test("machine manifests match their authoritative source objects", async () => {
@@ -665,7 +668,7 @@ test("the not-found document contains only exclusionary crawler directives", asy
 test("project and Text to Lattice implementation provenance stays source-aligned", async () => {
   const graphById = new Map(knowledgeGraph["@graph"].map((node) => [node["@id"], node]));
   const resumeMarkdown = renderResumeMarkdown();
-  assert.equal(PROJECT_CONTENT_VERSION, "hah-portfolio-projects.v4");
+  assert.equal(PROJECT_CONTENT_VERSION, "hah-portfolio-projects.v5");
   assert.equal(projectsManifest.version, PROJECT_CONTENT_VERSION);
   assert.equal(projectsManifest.asOf, PROJECT_CONTENT_UPDATED);
   const expectedLeadingProjectIds = ["lattice", "in-keeping", "fog-of-sea"];
@@ -759,16 +762,16 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   const latticeRecord = projectsManifest.projects.find(({ id }) => id === "lattice");
   const latticeResumeRecord = resumeManifest.projects.find(({ id }) => id === "lattice");
   assert.ok(latticeRecord && latticeResumeRecord);
-  assert.equal(latticeRecord.interactiveRelease, "held");
+  assert.equal(latticeRecord.interactiveRelease, "enabled");
   assert.deepEqual(latticeResumeRecord.documentation, latticeRecord.documentation);
-  assert.equal(latticeResumeRecord.interactiveRelease, "held");
+  assert.equal(latticeResumeRecord.interactiveRelease, "enabled");
   assert.deepEqual(latticeResumeRecord.limitations, latticeRecord.limitations);
   assert.deepEqual(
     latticeRecord.documentation.filter(({ markdownUrl }) => markdownUrl).map(({ artifactId }) => artifactId),
     projectDocuments.map(({ artifactId }) => artifactId),
   );
   const latticeGraph = graphById.get("https://hah.dev/projects/lattice/#work");
-  assert.equal(latticeGraph["hah:interactiveRelease"], "held");
+  assert.equal(latticeGraph["hah:interactiveRelease"], "enabled");
   assert.deepEqual(latticeGraph.hasPart, projectDocuments.map(({ htmlUrl }) => ({ "@id": htmlUrl })));
   for (const document of projectDocuments) {
     const node = graphById.get(document.htmlUrl);
@@ -847,7 +850,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     application["hah:publicationMode"],
     latticeRecord.interactiveRelease === "enabled" ? "interactive-client" : "documentation-only",
   );
-  assert.match(application.description, /public interactive client is held; this page publishes documentation only/iu);
+  assert.equal(application.description, textToLatticeContract.purpose);
   assert.equal(graphById.get(`${new URL(textToLatticeContract.canonicalPath, "https://hah.dev").href}#page`)?.description, application.description);
   assert.deepEqual(application["hah:generator"], expectedGenerator);
   assert.deepEqual(application["hah:verifier"], expectedVerifier);
@@ -873,7 +876,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     assert.ok(body.includes(`Interactive client release: ${machineValueLabel(latticeRecord.interactiveRelease)}`));
     assert.ok(body.includes(`Public client status: ${machineValueLabel(application["hah:interactiveRelease"])}`));
     assert.ok(body.includes(`Publication mode: ${machineValueLabel(application["hah:publicationMode"])}`));
-    assert.match(body, /completed interactive client is not included in the public bundle[\s\S]*?does not make the conversion client available/iu);
+    assert.match(body, /public interactive client is included in the public bundle/iu);
   }
   const publicProvenance = [authoredDocument(toolHtml), latticeMarkdown];
   for (const body of publicProvenance) {
@@ -954,9 +957,9 @@ test("robots, sitemap, and llms discovery cover canonical public records", async
   ]);
   for (const { markdownUrl } of projectDocuments) assert.equal(sitemapUrls.includes(markdownUrl), false);
 
-  assert.match(resumeMarkdown, /## Lattice[\s\S]*?Interactive client: held[\s\S]*?### Limitations[\s\S]*?machine release register keeps the interactive client outside the public bundle[\s\S]*?sole open blocker/iu);
-  assert.equal(JSON.parse(resumeJson).projects.find(({ id }) => id === "lattice")?.interactiveRelease, "held");
-  assert.match(llms, /The Text to Lattice interactive client is held/u);
+  assert.match(resumeMarkdown, /## Lattice[\s\S]*?Interactive client: enabled[\s\S]*?### Limitations[\s\S]*?official testing profile[\s\S]*?no production anti-bot assurance/iu);
+  assert.equal(JSON.parse(resumeJson).projects.find(({ id }) => id === "lattice")?.interactiveRelease, "enabled");
+  assert.match(llms, /The Text to Lattice interactive client is enabled/u);
   assert.match(portfolioSource, /const releaseBoundary = applicationReleaseStatus === "held"/u);
   assert.match(portfolioSource, /applicationReleaseStatus === "enabled"[\s\S]*?interactive client is enabled/u);
   for (const filename of [

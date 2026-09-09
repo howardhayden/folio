@@ -148,6 +148,6 @@ test("third-party notice release-evidence links resolve from the deployed site r
   }
   assert.doesNotMatch(notices, /\]\(docs\/text-to-lattice\/TEXT-TO-LATTICE-RELEASE-/u);
   assert.match(noticePage, /"interactiveRelease" in latticeProject/u);
-  assert.match(noticePage, /completed client is held outside the public bundle/u);
+  assert.match(noticePage, /When the interactive client is enabled, the browser downloads pinned model and WebAssembly assets[\s\S]*?only after the visitor starts the tool/u);
   assert.doesNotMatch(noticePage, /The browser downloads[^.]+when the tool is used/u);
 });

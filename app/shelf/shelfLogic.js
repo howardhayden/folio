@@ -9,7 +9,8 @@ function includes(values, needle) {
 }
 
 function seededRandom(seed) {
-  let state = (Number(seed) >>> 0) || DEFAULT_SEED;
+  const numericSeed = Number(seed);
+  let state = Number.isFinite(numericSeed) ? numericSeed >>> 0 : DEFAULT_SEED;
   return () => {
     state += 0x6d2b79f5;
     let value = state;
@@ -17,6 +18,18 @@ function seededRandom(seed) {
     value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
     return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+export function randomShelfSeed(cryptoSource = globalThis.crypto, fallbackRandom = Math.random) {
+  if (typeof cryptoSource?.getRandomValues === "function") {
+    const seed = new Uint32Array(1);
+    cryptoSource.getRandomValues(seed);
+    return seed[0];
+  }
+
+  // Shelf order is not security-sensitive, but older browsers still deserve
+  // a fresh arrangement rather than the former fixed revision sequence.
+  return Math.floor(fallbackRandom() * 0x1_0000_0000) >>> 0;
 }
 
 export function filterShelfPapers(papers, filters) {
