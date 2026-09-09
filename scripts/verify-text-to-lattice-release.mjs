@@ -263,6 +263,7 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
     || !/200 acquisition/iu.test(productionLifecycleGate.requirement)
     || !/204 release/iu.test(productionLifecycleGate.requirement)
     || !/declared deployed credential profile/iu.test(productionLifecycleGate.requirement)
+    || !/non-error terminal conversion result/iu.test(productionLifecycleGate.requirement)
     || !/Testing-profile success establishes demonstrator integration, not production anti-bot assurance/iu.test(productionLifecycleGate.requirement)
     || !/first activation session/iu.test(`${productionLifecycleGate.evidenceNeeded} ${productionLifecycleGate.followUp}`)
     || !/supported browser engines/iu.test(productionLifecycleGate.evidenceNeeded)
@@ -279,7 +280,7 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
     || !/observed real renewal attempt fails/iu.test(productionLifecycleGate.rollbackCondition)
     || !/release fails/iu.test(productionLifecycleGate.rollbackCondition)
     || !/content-bearing request/iu.test(productionLifecycleGate.rollbackCondition)) {
-    fail("GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification or a machine-representable open blocker, defer a deliberately timed renewal trace, and preserve held rollback without a bypass harness.");
+    fail("GATE-06 must retain first-session canonical-page acquisition, a non-error terminal conversion result, release, and two-origin privacy verification or a machine-representable open blocker, defer a deliberately timed renewal trace, and preserve held rollback without a bypass harness.");
   }
   if (productionLifecycleGate.status === "open-release-blocker") {
     requireString(productionLifecycleGate.rollbackCondition, "GATE-06 rollbackCondition");
@@ -289,9 +290,24 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
     const evidenceEntries = productionLifecycleGate.evidence;
     const utcTimestamps = productionEvidence.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/gu) ?? [];
     const evidenceDigests = productionEvidence.match(/\b[a-f0-9]{64}\b/gu) ?? [];
+    const repairedDeploymentRevisions = [
+      ...productionLifecycleGate.currentEvidence.matchAll(/\brepaired runtime deployed commit ([a-f0-9]{40})\b/giu),
+    ].map((match) => match[1].toLowerCase());
+    const repairedDeploymentRevision = repairedDeploymentRevisions.length === 1
+      ? repairedDeploymentRevisions[0]
+      : undefined;
+    const deployedRevisionFor = (entry) => (
+      /(?:deployed (?:commit|revision)|commit) ([a-f0-9]{40})/iu.exec(entry)?.[1]?.toLowerCase()
+    );
+    const bindsRepairedDeployment = (entry) => (
+      repairedDeploymentRevision !== undefined
+      && deployedRevisionFor(entry) === repairedDeploymentRevision
+    );
     const safariLifecycle = evidenceEntries.some((entry) => (
       /Safari Version \d+(?:\.\d+)* \([^)]+\)/u.test(entry)
       && /WebKit/iu.test(entry)
+      && entry.includes("https://hah.dev/resume/#text-to-lattice")
+      && bindsRepairedDeployment(entry)
       && /\bPOST\b[\s\S]{0,120}\b428\b[\s\S]{0,320}\bPOST\b[\s\S]{0,120}\b200\b[\s\S]{0,320}\bDELETE\b[\s\S]{0,120}\b204\b/iu.test(entry)
       && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
       && /\b[a-f0-9]{64}\b/u.test(entry)
@@ -299,28 +315,60 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
     const braveStatusLifecycle = evidenceEntries.some((entry) => (
       /Brave \d+(?:\.\d+)*/u.test(entry)
       && /Chromium \d+(?:\.\d+)*/u.test(entry)
+      && entry.includes("https://hah.dev/resume/#text-to-lattice")
+      && bindsRepairedDeployment(entry)
       && /\b(?:lease )?(?:statuses|status sequence)\b[\s\S]{0,160}\b428\b[\s\S]{0,160}\b200\b[\s\S]{0,160}\b204\b/iu.test(entry)
       && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
       && /\b[a-f0-9]{64}\b/u.test(entry)
     ));
-    const payloadPaneOverclaim = /(?:Payload-pane|Payload pane) inspection (?:confirmed|showed|proved)/iu.test(productionEvidence);
-    const bodylessEvidenceBoundary = (
-      /(?:Payload-pane|Payload pane) inspection (?:was not|is not) (?:captured|claimed)/iu.test(productionEvidence)
-        && /bodyless[\s\S]{0,240}(?:source contract|client source|pre-dispatch)/iu.test(productionEvidence)
-        && !payloadPaneOverclaim
+    const terminalConversion = evidenceEntries.some((entry) => {
+      const supportedBrowserEngine = (
+        /Safari Version \d+(?:\.\d+)* \([^)]+\)[\s\S]{0,160}\bWebKit\b/iu.test(entry)
+        || /Brave \d+(?:\.\d+)*[\s\S]{0,160}\bChromium \d+(?:\.\d+)*/u.test(entry)
+      );
+      return supportedBrowserEngine
+        && entry.includes("https://hah.dev/resume/#text-to-lattice")
+        && bindsRepairedDeployment(entry)
+        && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
+        && /sanitized capture with SHA-256 [a-f0-9]{64}/iu.test(entry)
+        && /supported-browser WebGPU terminal conversion result: (?:translated|conformant-for-context|review-required)/u.test(entry);
+    });
+    const hasBodylessEvidenceBoundary = (evidence) => {
+      const payloadPaneOverclaim = /(?:Payload-pane|Payload pane) inspection (?:confirmed|showed|proved)/iu.test(evidence);
+      return (
+        /(?:Payload-pane|Payload pane) inspection (?:was not|is not) (?:captured|claimed)/iu.test(evidence)
+          && /bodyless[\s\S]{0,240}(?:source contract|client source|pre-dispatch)/iu.test(evidence)
+          && !payloadPaneOverclaim
+      ) || (
+        /(?:Payload-pane|Payload pane) inspection (?:captured|reviewed|confirmed|showed)[\s\S]{0,160}no request (?:body|data)/iu.test(evidence)
+          && /bodyless/iu.test(evidence)
+      );
+    };
+    const hasEdgeTelemetryBoundary = (evidence) => (
+      /static\.cloudflareinsights\.com\/beacon\.min\.js/iu.test(evidence)
+        && /(?:blocked:csp|blocked by (?:the )?Content-Security-Policy)/iu.test(evidence)
+        && /(?:0(?:\.0)?\s*(?:B|bytes|kB)|zero bytes)/iu.test(evidence)
+        && /no (?:observed )?\/cdn-cgi\/rum/iu.test(evidence)
     ) || (
-      /(?:Payload-pane|Payload pane) inspection (?:captured|reviewed|confirmed|showed)[\s\S]{0,160}no request (?:body|data)/iu.test(productionEvidence)
-        && /bodyless/iu.test(productionEvidence)
+      /no (?:edge-injected |observed |injected )?(?:https:\/\/)?static\.cloudflareinsights\.com\/beacon\.min\.js/iu.test(evidence)
+        && /no (?:observed )?\/cdn-cgi\/rum/iu.test(evidence)
     );
-    const edgeTelemetryBoundary = (
-      /static\.cloudflareinsights\.com\/beacon\.min\.js/iu.test(productionEvidence)
-        && /(?:blocked:csp|blocked by (?:the )?Content-Security-Policy)/iu.test(productionEvidence)
-        && /(?:0(?:\.0)?\s*(?:B|bytes|kB)|zero bytes)/iu.test(productionEvidence)
-        && /no (?:observed )?\/cdn-cgi\/rum/iu.test(productionEvidence)
-    ) || (
-      /no (?:edge-injected |observed |injected )?(?:https:\/\/)?static\.cloudflareinsights\.com\/beacon\.min\.js/iu.test(productionEvidence)
-        && /no (?:observed )?\/cdn-cgi\/rum/iu.test(productionEvidence)
-    );
+    const bodylessEvidenceBoundary = hasBodylessEvidenceBoundary(productionEvidence);
+    const edgeTelemetryBoundary = hasEdgeTelemetryBoundary(productionEvidence);
+    const repairedPrivacyTrace = evidenceEntries.some((entry) => (
+      /Brave \d+(?:\.\d+)*/u.test(entry)
+      && /Chromium \d+(?:\.\d+)*/u.test(entry)
+      && entry.includes("https://hah.dev/resume/#text-to-lattice")
+      && bindsRepairedDeployment(entry)
+      && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
+      && /sanitized two-origin privacy capture with SHA-256 [a-f0-9]{64}/iu.test(entry)
+      && /both hah\.dev and verify\.hah\.dev origins/iu.test(entry)
+      && /owner(?:-attested| (?:reports?|reported))\b[\s\S]{0,320}\bcapture-wide\b[\s\S]{0,240}(?:returned|reported|found) `?0 matches`?[\s\S]{0,200}\bBrave\b/iu.test(entry)
+      && privacyClasses.every((contentClass) => entry.includes(contentClass))
+      && /lease[\s\S]{0,160}attestation[\s\S]{0,160}model-asset[\s\S]{0,160}error[\s\S]{0,160}telemetry/iu.test(entry)
+      && hasBodylessEvidenceBoundary(entry)
+      && hasEdgeTelemetryBoundary(entry)
+    ));
     const braveZeroMatchAttribution = /owner(?:-attested| (?:reports?|reported))\b[\s\S]{0,320}\bcapture-wide\b[\s\S]{0,240}(?:returned|reported|found) `?0 matches`?[\s\S]{0,200}\bBrave\b/iu.test(productionEvidence);
     const requiredEvidence = [
       /https:\/\/hah\.dev\/resume\/#text-to-lattice/u,
@@ -350,6 +398,8 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
     });
     if (!safariLifecycle
       || !braveStatusLifecycle
+      || !terminalConversion
+      || !repairedPrivacyTrace
       || !braveZeroMatchAttribution
       || !bodylessEvidenceBoundary
       || !edgeTelemetryBoundary
@@ -360,7 +410,7 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
       || analyticsDisabledContradiction
       || /before declaring the release operationally complete/iu.test(productionLifecycleGate.evidenceNeeded)
       || !/retain[\s\S]{0,160}(?:completed|reviewed)[\s\S]{0,160}first activation session/iu.test(productionLifecycleGate.evidenceNeeded)) {
-      fail("GATE-06 satisfied production evidence must bind the canonical URL and deployed revision, a timestamped and digested Safari/WebKit method-and-status lifecycle, a timestamped and digested Brave/Chromium ordered 428/200/204 status lifecycle, the two-origin zero-match privacy review, an honestly classified bodyless-request boundary, an absent or CSP-blocked zero-byte Cloudflare beacon without RUM submission, and the official-testing profile's absent production anti-bot assurance.");
+      fail("GATE-06 satisfied production evidence must bind the canonical URL and exactly one repaired runtime deployed commit; timestamped and digested Safari/WebKit lifecycle, Brave/Chromium lifecycle, supported-browser WebGPU terminal conversion, and sanitized two-origin privacy records must each bind that same revision. The privacy record must retain the zero-match review, an honestly classified bodyless-request boundary, and an absent or CSP-blocked zero-byte Cloudflare beacon without RUM submission; the official testing profile must remain explicitly short of production anti-bot assurance.");
     }
   }
 }

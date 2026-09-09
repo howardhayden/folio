@@ -51,15 +51,17 @@ function withSatisfiedGate06Evidence(gate) {
   const satisfied = structuredClone(gate);
   satisfied.status = "satisfied-in-production";
   satisfied.currentEvidence = [
-    "The canonical https://hah.dev/resume/#text-to-lattice client was associated through deployment chronology with https://github.com/howardhayden/folio/actions/runs/34325228788 and deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2.",
+    "The repaired runtime at the canonical https://hah.dev/resume/#text-to-lattice client was associated through deployment chronology with https://github.com/howardhayden/folio/actions/runs/34325228788 and repaired runtime deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2.",
     "The reviewed sanitized trace covered both hah.dev and verify.hah.dev origins. The owner reports that a capture-wide unique-source-marker search returned `0 matches` across the Brave network record; that search establishes the source-specific negative check. Deployed source contracts and tests keep source, clarification, candidate, verifier finding, and output browser-local and exclude them from lease, attestation, model-asset, error, and telemetry traffic; the captured request inventory showed no undocumented content-bearing route.",
     "Payload-pane inspection was not captured or claimed; bodyless lease behavior is source-correlated through the client source and the Worker pre-dispatch source contract.",
     "Cloudflare's static.cloudflareinsights.com/beacon.min.js edge injection was blocked by the Content-Security-Policy with 0.0 kB transferred and no /cdn-cgi/rum request observed.",
     "The official Cloudflare testing profile established demonstrator integration and did not establish production anti-bot assurance.",
   ].join(" ");
   satisfied.evidence = [
-    "Safari Version 26.5 (21624.2.5.11.4), WebKit, on macOS 26.5.1 (25F80): at 2026-09-09T08:05:50Z, a sanitized capture with SHA-256 266db6b8264a0aa42ac16916ddf696554c846b239960e7d19fc002917d843950 recorded POST lease 428, POST lease 200, and DELETE lease 204.",
-    "Brave 1.94.121 (arm64), Chromium 152.0.7977.83, on macOS 26.5.1 (25F80): at 2026-09-09T08:15:12Z, a sanitized capture with SHA-256 d9b84b3f5a49b383d2472ffdb909dfe0bd68fb822bdd5d64ae05421654092741 independently recorded lease statuses 428, 200, and 204.",
+    "Safari Version 26.5 (21624.2.5.11.4), WebKit, on macOS 26.5.1 (25F80): at 2026-09-09T08:05:50Z, a sanitized capture with SHA-256 266db6b8264a0aa42ac16916ddf696554c846b239960e7d19fc002917d843950 of https://hah.dev/resume/#text-to-lattice at deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2 recorded POST lease 428, POST lease 200, and DELETE lease 204.",
+    "Brave 1.94.121 (arm64), Chromium 152.0.7977.83, on macOS 26.5.1 (25F80): at 2026-09-09T08:15:12Z, a sanitized capture with SHA-256 d9b84b3f5a49b383d2472ffdb909dfe0bd68fb822bdd5d64ae05421654092741 of https://hah.dev/resume/#text-to-lattice at deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2 independently recorded lease statuses 428, 200, and 204.",
+    "Brave 1.94.121 (arm64), Chromium 152.0.7977.83, on macOS 26.5.1 (25F80): at 2026-09-09T08:15:12Z, a sanitized capture with SHA-256 d9b84b3f5a49b383d2472ffdb909dfe0bd68fb822bdd5d64ae05421654092741 of https://hah.dev/resume/#text-to-lattice at deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2 recorded supported-browser WebGPU terminal conversion result: translated.",
+    "Brave 1.94.121 (arm64), Chromium 152.0.7977.83, on macOS 26.5.1 (25F80): at 2026-09-09T08:16:30Z, a sanitized two-origin privacy capture with SHA-256 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa of https://hah.dev/resume/#text-to-lattice for deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2 covered both hah.dev and verify.hah.dev origins. The owner reports that a capture-wide unique-source-marker search returned `0 matches` across the Brave network record for source, clarification, candidate, verifier finding, and output markers in lease, attestation, model-asset, error, and telemetry traffic. Payload-pane inspection was not captured or claimed; bodyless lease behavior is source-correlated through the client source and the Worker pre-dispatch source contract. Cloudflare's static.cloudflareinsights.com/beacon.min.js edge injection was blocked by the Content-Security-Policy with 0.0 kB transferred and no /cdn-cgi/rum request observed.",
   ];
   satisfied.evidenceNeeded = "Retain the reviewed completed first activation session evidence, and repeat the canonical lifecycle and privacy review in the supported browser engines and across both origins after every consequential boundary change. If an ordinary session naturally reaches the renewal interval, retain its result, but do not deliberately wait for it. Do not create a public or operator bypass harness.";
   return satisfied;
@@ -155,7 +157,7 @@ test("the release register qualifies the bounded interactive client", async () =
     ["GATE-04B", "accepted-residual-risk", "moderate"],
     ["GATE-04C", "accepted-residual-risk", "moderate"],
     ["GATE-05", "accepted-residual-risk", "moderate"],
-    ["GATE-06", "satisfied-in-production", "high"],
+    ["GATE-06", "post-deployment-verification", "high"],
   ]);
   const gateProjectionFields = ["id", "label", "status", "marginalValue", "requirement", "currentEvidence", "evidenceNeeded", "rationale", "evidence", "safeguards", "followUp", "rollbackCondition", "acceptanceBasis"];
   assert.deepEqual(atlas.securityModel.prePublicationGates, register.gates.map((gate) => Object.fromEntries(gateProjectionFields.map((field) => [field, gate[field]]))));
@@ -183,9 +185,10 @@ test("the release register qualifies the bounded interactive client", async () =
   assert.match(gate02.followUp, /do not add a bespoke bypass route or unsigned token mode/iu);
   assert.doesNotMatch(`${gate02.requirement} ${gate02.evidenceNeeded} ${gate02.followUp}`, /complete one real official-page lifecycle|wait through (?:at least )?the five-minute server renewal minimum/iu);
   assert.equal(gate06.label, "Production lifecycle and privacy trace");
-  assert.equal(gate06.status, "satisfied-in-production");
-  assert.match(gate06.requirement, /activated canonical page.*200 acquisition and 204 release/iu);
+  assert.equal(gate06.status, "post-deployment-verification");
+  assert.match(gate06.requirement, /activated canonical page.*200 acquisition.*204 release/iu);
   assert.match(gate06.requirement, /declared deployed credential profile/iu);
+  assert.match(gate06.requirement, /non-error terminal conversion result/iu);
   assert.match(gate06.requirement, /Testing-profile success establishes demonstrator integration, not production anti-bot assurance/iu);
   assert.match(gate06.evidenceNeeded, /first activation session/iu);
   assert.match(gate06.evidenceNeeded, /supported browser engines/iu);
@@ -224,7 +227,7 @@ test("the release register qualifies the bounded interactive client", async () =
   assert.equal(publicTokenStarvationDecision?.disposition, "accepted-residual-with-operational-hardening");
   assert.match(publicTokenStarvationDecision?.rationale ?? "", /16-request acquisition sequence.*all eight slots.*48-per-10-second per-IP rule does not prevent.*limit consequence to demonstrator availability.*observed abuse triggers requalification/iu);
   assert.match(validatorSource, /GATE-02 cannot require a real canonical-page lifecycle while the public client is held/u);
-  assert.match(documentationBuilder, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification or a machine-representable open blocker/u);
+  assert.match(documentationBuilder, /GATE-06 must retain first-session canonical-page acquisition, a non-error terminal conversion result, release, and two-origin privacy verification or a machine-representable open blocker/u);
   assert.match(operatorReadme, /GATE-06 begins only after the canonical public client is activated/u);
   assert.match(operatorReadme, /Do not add a public route, operator-only page, unsigned token mode, or test-key\s+behavior beyond Cloudflare's exact published pair/u);
   assert.equal(evaluation.cases.length, 10);
@@ -298,29 +301,56 @@ test("a failed GATE-06 can become the machine-enforced blocker after GATE-02 clo
   });
 });
 
-test("GATE-06 production satisfaction requires composite browser lifecycle and privacy evidence", async () => {
+test("GATE-06 production satisfaction requires terminal conversion, lifecycle, and privacy evidence", async () => {
   const register = JSON.parse(await readFile(registerPath, "utf8"));
   const gate02 = register.gates.find(({ id }) => id === "GATE-02");
   const gate06 = withSatisfiedGate06Evidence(register.gates.find(({ id }) => id === "GATE-06"));
   assert.doesNotThrow(() => verifyLifecycleGateContract(gate02, gate06));
 
   const mutations = [
-    ["canonical URL", (gate) => { gate.currentEvidence = gate.currentEvidence.replace("https://hah.dev/resume/#text-to-lattice", "the canonical client"); }],
+    ["canonical URL", (gate) => {
+      gate.currentEvidence = gate.currentEvidence.replace("https://hah.dev/resume/#text-to-lattice", "the canonical client");
+      gate.evidence[2] = gate.evidence[2].replace("https://hah.dev/resume/#text-to-lattice", "the canonical page");
+    }],
     ["Safari lifecycle", (gate) => { gate.evidence = gate.evidence.filter((entry) => !entry.includes("Safari Version")); }],
     ["Safari full build", (gate) => { gate.evidence[0] = gate.evidence[0].replace(" (21624.2.5.11.4)", ""); }],
+    ["Safari repaired revision", (gate) => { gate.evidence[0] = gate.evidence[0].replace("9ab26b95cc1f9a94697118c0fc20a849db8f6ad2", "1111111111111111111111111111111111111111"); }],
     ["Brave lifecycle", (gate) => { gate.evidence = gate.evidence.filter((entry) => !entry.includes("Brave 1.94.121")); }],
     ["Brave 428 status", (gate) => { gate.evidence[1] = gate.evidence[1].replace("428, 200, and 204", "200 and 204"); }],
     ["Brave 200 status", (gate) => { gate.evidence[1] = gate.evidence[1].replace("428, 200, and 204", "428 and 204"); }],
     ["Brave 204 status", (gate) => { gate.evidence[1] = gate.evidence[1].replace("428, 200, and 204", "428 and 200"); }],
-    ["privacy search", (gate) => { gate.currentEvidence = gate.currentEvidence.replace("capture-wide unique-source-marker search returned `0 matches`", "the marker search was not retained"); }],
-    ["Brave privacy-search attribution", (gate) => { gate.currentEvidence = gate.currentEvidence.replace("across the Brave network record", "across the Safari network record"); }],
-    ["Payload-pane claim boundary", (gate) => { gate.currentEvidence = gate.currentEvidence.replace("Payload-pane inspection was not captured or claimed", "Payload-pane inspection confirmed empty bodies"); }],
-    ["blocked beacon boundary", (gate) => { gate.currentEvidence = gate.currentEvidence.replace("blocked by the Content-Security-Policy with 0.0 kB transferred and no /cdn-cgi/rum request observed", "appeared in the document"); }],
+    ["Brave repaired revision", (gate) => { gate.evidence[1] = gate.evidence[1].replace("9ab26b95cc1f9a94697118c0fc20a849db8f6ad2", "1111111111111111111111111111111111111111"); }],
+    ["terminal conversion", (gate) => { gate.evidence = gate.evidence.filter((entry) => !entry.includes("terminal conversion result")); }],
+    ["terminal canonical URL", (gate) => { gate.evidence[2] = gate.evidence[2].replace("https://hah.dev/resume/#text-to-lattice", "the canonical page"); }],
+    ["terminal browser and engine", (gate) => { gate.evidence[2] = gate.evidence[2].replace("Brave 1.94.121 (arm64), Chromium 152.0.7977.83", "a supported browser"); }],
+    ["terminal deployed revision", (gate) => { gate.evidence[2] = gate.evidence[2].replace("at deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2", "at the deployed revision"); }],
+    ["terminal revision association", (gate) => { gate.currentEvidence = gate.currentEvidence.replace("9ab26b95cc1f9a94697118c0fc20a849db8f6ad2", "0000000000000000000000000000000000000000"); }],
+    ["repaired deployment marker", (gate) => { gate.currentEvidence = gate.currentEvidence.replace("repaired runtime deployed commit", "deployed commit"); }],
+    ["terminal timestamp", (gate) => { gate.evidence[2] = gate.evidence[2].replace("at 2026-09-09T08:15:12Z", "at an unrecorded time"); }],
+    ["terminal capture digest", (gate) => { gate.evidence[2] = gate.evidence[2].replace(/a sanitized capture with SHA-256 [a-f0-9]{64}/u, "an undigested capture"); }],
+    ["repaired privacy trace", (gate) => { gate.evidence = gate.evidence.filter((entry) => !entry.includes("sanitized two-origin privacy capture")); }],
+    ["privacy repaired revision", (gate) => { gate.evidence[3] = gate.evidence[3].replace("9ab26b95cc1f9a94697118c0fc20a849db8f6ad2", "1111111111111111111111111111111111111111"); }],
+    ["privacy search", (gate) => {
+      gate.currentEvidence = gate.currentEvidence.replace("capture-wide unique-source-marker search returned `0 matches`", "the marker search was not retained");
+      gate.evidence[3] = gate.evidence[3].replace("capture-wide unique-source-marker search returned `0 matches`", "the marker search was not retained");
+    }],
+    ["Brave privacy-search attribution", (gate) => {
+      gate.currentEvidence = gate.currentEvidence.replace("across the Brave network record", "across the Safari network record");
+      gate.evidence[3] = gate.evidence[3].replace("across the Brave network record", "across the Safari network record");
+    }],
+    ["Payload-pane claim boundary", (gate) => {
+      gate.currentEvidence = gate.currentEvidence.replace("Payload-pane inspection was not captured or claimed", "Payload-pane inspection confirmed empty bodies");
+      gate.evidence[3] = gate.evidence[3].replace("Payload-pane inspection was not captured or claimed", "Payload-pane inspection confirmed empty bodies");
+    }],
+    ["blocked beacon boundary", (gate) => {
+      gate.currentEvidence = gate.currentEvidence.replace("blocked by the Content-Security-Policy with 0.0 kB transferred and no /cdn-cgi/rum request observed", "appeared in the document");
+      gate.evidence[3] = gate.evidence[3].replace("blocked by the Content-Security-Policy with 0.0 kB transferred and no /cdn-cgi/rum request observed", "appeared in the document");
+    }],
     ["anti-bot claim boundary", (gate) => { gate.currentEvidence = gate.currentEvidence.replace("did not establish production anti-bot assurance", "established production anti-bot assurance"); }],
     ["contradictory anti-bot claim", (gate) => { gate.currentEvidence += " The testing profile establishes production anti-bot assurance."; }],
     ["mixed-clause anti-bot claim", (gate) => { gate.currentEvidence += " The testing profile does not fail; it establishes production anti-bot assurance."; }],
     ["analytics-disabled claim", (gate) => { gate.currentEvidence += " This proves Cloudflare Web Analytics is disabled."; }],
-    ["completed evidence state", (gate) => { gate.evidenceNeeded = gate.evidenceNeeded.replace("Retain the reviewed completed first activation session evidence", "Complete the lifecycle before declaring the release operationally complete"); }],
+    ["completed evidence state", (gate) => { gate.evidenceNeeded = gate.evidenceNeeded.replace("Retain the reviewed completed first activation session evidence", "Retain the reviewed completed first activation session evidence before declaring the release operationally complete"); }],
   ];
   for (const [label, mutate] of mutations) {
     const changed = structuredClone(gate06);
@@ -337,6 +367,10 @@ test("GATE-06 production satisfaction requires composite browser lifecycle and p
     "Payload-pane inspection was not captured or claimed; bodyless lease behavior is source-correlated through the client source and the Worker pre-dispatch source contract.",
     "Payload-pane inspection captured no request body; the lease requests were bodyless.",
   );
+  payloadPaneCaptured.evidence[3] = payloadPaneCaptured.evidence[3].replace(
+    "Payload-pane inspection was not captured or claimed; bodyless lease behavior is source-correlated through the client source and the Worker pre-dispatch source contract.",
+    "Payload-pane inspection captured no request body; the lease requests were bodyless.",
+  );
   assert.doesNotThrow(
     () => verifyLifecycleGateContract(gate02, payloadPaneCaptured),
     "a future sanitized Payload-pane observation does not require a validator rewrite",
@@ -344,6 +378,10 @@ test("GATE-06 production satisfaction requires composite browser lifecycle and p
 
   const beaconAbsent = structuredClone(gate06);
   beaconAbsent.currentEvidence = beaconAbsent.currentEvidence.replace(
+    "Cloudflare's static.cloudflareinsights.com/beacon.min.js edge injection was blocked by the Content-Security-Policy with 0.0 kB transferred and no /cdn-cgi/rum request observed.",
+    "The sanitized browser trace found no injected static.cloudflareinsights.com/beacon.min.js and no /cdn-cgi/rum request.",
+  );
+  beaconAbsent.evidence[3] = beaconAbsent.evidence[3].replace(
     "Cloudflare's static.cloudflareinsights.com/beacon.min.js edge injection was blocked by the Content-Security-Policy with 0.0 kB transferred and no /cdn-cgi/rum request observed.",
     "The sanitized browser trace found no injected static.cloudflareinsights.com/beacon.min.js and no /cdn-cgi/rum request.",
   );
@@ -431,22 +469,22 @@ test("qualification statuses retain their evidence, safeguard, acceptance, rollb
       const gate = record.gates.find(({ id }) => id === "GATE-06");
       gate.status = "satisfied-in-source";
       gate.rollbackCondition = null;
-    }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
+    }, /GATE-06 must retain first-session canonical-page acquisition, a non-error terminal conversion result, release, and two-origin privacy verification/u],
     [(record) => {
       const gate = record.gates.find(({ id }) => id === "GATE-06");
       gate.evidenceNeeded = gate.evidenceNeeded.replace("first activation session", "later session").replace("supported browser engine", "browser");
       gate.followUp = gate.followUp.replace("first activation session", "later session");
-    }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
+    }, /GATE-06 must retain first-session canonical-page acquisition, a non-error terminal conversion result, release, and two-origin privacy verification/u],
     [(record) => {
       const gate = record.gates.find(({ id }) => id === "GATE-06");
       gate.requirement = gate.requirement.replace("clarification, ", "");
-    }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
+    }, /GATE-06 must retain first-session canonical-page acquisition, a non-error terminal conversion result, release, and two-origin privacy verification/u],
     [(record) => {
       const gate = record.gates.find(({ id }) => id === "GATE-06");
       gate.requirement = gate.requirement.replace("declared deployed credential profile", "production widget");
-    }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
-    [(record) => { record.gates.find(({ id }) => id === "GATE-06").evidenceNeeded = "Create an operator bypass harness before activation."; }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
-    [(record) => { record.gates.find(({ id }) => id === "GATE-06").followUp += " Wait through the five-minute interval before completion."; }, /GATE-06 must retain first-session canonical-page acquisition, release, and two-origin privacy verification/u],
+    }, /GATE-06 must retain first-session canonical-page acquisition, a non-error terminal conversion result, release, and two-origin privacy verification/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-06").evidenceNeeded = "Create an operator bypass harness before activation."; }, /GATE-06 must retain first-session canonical-page acquisition, a non-error terminal conversion result, release, and two-origin privacy verification/u],
+    [(record) => { record.gates.find(({ id }) => id === "GATE-06").followUp += " Wait through the five-minute interval before completion."; }, /GATE-06 must retain first-session canonical-page acquisition, a non-error terminal conversion result, release, and two-origin privacy verification/u],
     [(record) => { record.marginalValueDecisions[0].classification = "novelty-only"; }, /marginal-value decision 0 has an unsupported classification/u],
     [(record) => { record.marginalValueDecisions[1].rationale = ""; }, /marginal-value decision 1 rationale must be a nonempty string/u],
     [(record) => { record.marginalValueDecisions.find(({ finding }) => finding === "Deliberately timed real-browser renewal trace").classification = "low"; }, /deliberately timed real-browser renewal trace must remain a moderate/u],
@@ -532,8 +570,9 @@ test("the enabled Pages artifact contains the bounded Text to Lattice execution 
   assert.match(qualification, /34320931448/u);
   assert.match(qualification, /`HTTP 200 acquisition`.*`authenticated bodyless HTTP 204 release`/iu);
   assert.match(qualification, /does not (?:show|prove).*frame.*widget.*GATE-06/iu);
-  assert.match(qualification, /GATE-06.*real `200` acquisition.*rapid return to held publication.*future failure/isu);
-  assert.match(qualification, /deliberately waiting five minutes.*moderate incremental value.*not a condition of operational completion/u);
+  assert.match(qualification, /GATE-06 is therefore post-deployment verification.*supported-browser non-error terminal conversion.*sanitized two-origin privacy trace/isu);
+  assert.match(qualification, /consequential failure returns the client immediately to held documentation-only publication/iu);
+  assert.match(qualification, /deliberately waiting to record a renewal.*not a condition of operational completion/u);
   assert.match(qualification, /A separate public or operator bypass harness.*outside the authorized boundary/u);
   assert.match(qualification, /Cloudflare(?:'s|\u2019s) official testing pair[\s\S]{0,500}(?:rather than|does not (?:provide|establish)|provides? no)[^.]{0,160}production anti-bot (?:assurance|protection)/iu);
   assert.match(qualification, /exact published dummy token[\s\S]{0,500}reusable/iu);

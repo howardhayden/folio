@@ -22,8 +22,8 @@ const [atlas, manifest] = await Promise.all([
 test("the documentation generator reserves production satisfaction for the two live-evidence gates", async () => {
   const builder = await readText(rootUrl, "scripts/docs/build-text-to-lattice-documentation.mjs");
   assert.match(builder, /productionSatisfiedGateIds = new Set\(\["GATE-02", "GATE-06"\]\)/u);
-  assert.match(builder, /release gate GATE-06 satisfied production evidence must bind the canonical URL and deployed revision/u);
-  assert.match(builder, /productionLifecycleGate\.status === "satisfied-in-production"[\s\S]{0,120}GATE-06 now records the completed first-session official-page acquisition/u);
+  assert.match(builder, /release gate GATE-06 satisfied production evidence must bind the canonical URL and exactly one repaired runtime deployed commit/u);
+  assert.match(builder, /productionLifecycleGate\.status === "satisfied-in-production"[\s\S]{0,160}GATE-06 now records a completed first-session official-page acquisition, non-error terminal conversion result/u);
 });
 
 test("Lattice documentation has one registered authority and byte-identical Markdown exports", async () => {
