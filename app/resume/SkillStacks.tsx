@@ -16,9 +16,9 @@ const iconByStackId: Record<string, LegacyIconName> = {
   "fabrication-and-electronics": "tools",
 };
 
-type SkillStack = (typeof skillStacks)[number];
+export type SkillStack = (typeof skillStacks)[number];
 
-function SkillStackContent({ stack, contentId }: { stack: SkillStack; contentId: string }) {
+export function SkillStackContent({ stack, contentId }: { stack: SkillStack; contentId: string }) {
   return (
     <div className="skill-stack-details" id={contentId}>
       {stack.items.length > 0 ? (
@@ -38,6 +38,49 @@ function SkillStackContent({ stack, contentId }: { stack: SkillStack; contentId:
         );
       })}
     </div>
+  );
+}
+
+type SkillStackCardProps = Readonly<{
+  stack: SkillStack;
+  idPrefix?: string;
+  onOpen?: (stackId: string, trigger: HTMLElement) => void;
+}>;
+
+/** The canonical skill card; Search uses a unique ID scope and native disclosure. */
+export function SkillStackCard({ stack, idPrefix = "skill-stack", onOpen }: SkillStackCardProps) {
+  const titleId = `${idPrefix}-title-${stack.id}`;
+  const contentId = `${idPrefix}-content-${stack.id}`;
+  return (
+    <article
+      aria-labelledby={titleId}
+      className="card skill-stack-card"
+      data-skill-stack-id={stack.id}
+      id={`${idPrefix}-${stack.id}`}
+    >
+      <div className="card-body skill-stack-card-body">
+        <div className="row justify-content-center stack-icon signal-fuzz">
+          <LegacyIcon name={iconByStackId[stack.id]} />
+        </div>
+        <h3 className="card-title tools-card-title row justify-content-center" id={titleId}>
+          {stack.title}
+        </h3>
+        <details className="skill-stack-disclosure">
+          <summary
+            aria-controls={contentId}
+            onClick={onOpen ? (event) => {
+              event.preventDefault();
+              event.currentTarget.parentElement?.removeAttribute("open");
+              onOpen(stack.id, event.currentTarget);
+            } : undefined}
+          >
+            <span>Read More</span>
+            <span className="skill-stack-summary-context"> about {stack.title}</span>
+          </summary>
+          <SkillStackContent stack={stack} contentId={contentId} />
+        </details>
+      </div>
+    </article>
   );
 }
 
@@ -139,42 +182,9 @@ export default function SkillStacks() {
       <section ref={sectionRef} className="container skill-stacks-section" aria-labelledby="skill-stacks-title">
         <h2 className="text-center skill-stack-heading" id="skill-stacks-title">Skill Stacks</h2>
         <div className="skill-stack-grid" id="skill-stacks-grid">
-          {skillStacks.map((stack) => {
-            const titleId = `skill-stack-title-${stack.id}`;
-            const contentId = `skill-stack-content-${stack.id}`;
-
-            return (
-              <article
-                aria-labelledby={titleId}
-                className="card skill-stack-card"
-                data-skill-stack-id={stack.id}
-                key={stack.id}
-              >
-                <div className="card-body skill-stack-card-body">
-                  <div className="row justify-content-center stack-icon signal-fuzz">
-                    <LegacyIcon name={iconByStackId[stack.id]} />
-                  </div>
-                  <h3 className="card-title tools-card-title row justify-content-center" id={titleId}>
-                    {stack.title}
-                  </h3>
-                  <details className="skill-stack-disclosure">
-                    <summary
-                      aria-controls={contentId}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.currentTarget.parentElement?.removeAttribute("open");
-                        openSkillStack(stack.id, event.currentTarget);
-                      }}
-                    >
-                      <span>Read More</span>
-                      <span className="skill-stack-summary-context"> about {stack.title}</span>
-                    </summary>
-                    <SkillStackContent stack={stack} contentId={contentId} />
-                  </details>
-                </div>
-              </article>
-            );
-          })}
+          {skillStacks.map((stack) => (
+            <SkillStackCard stack={stack} onOpen={openSkillStack} key={stack.id} />
+          ))}
         </div>
       </section>
 

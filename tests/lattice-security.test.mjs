@@ -19,18 +19,22 @@ import {
   LATTICE_WASM_SRI,
 } from "../app/resume/lattice/modelContract.js";
 import {
+  LATTICE_ENVIRONMENT_TIMEOUTS,
   LATTICE_COMPLETION_CALL_LIMIT,
   claimLatticeCompletionCall,
   createLocalLatticeAdapter,
   discardLocalLatticeModel,
   isLocalLatticeModelCached,
   prepareLocalLatticeModel,
+  probeLocalLatticeCapability,
+  probeLocalLatticeStorage,
 } from "../app/resume/lattice/localModel.js";
 import {
   LATTICE_MODEL_RPC_MAX_MESSAGE_TEXT,
   createLatticeModelRpcRequest,
   latticeModelRpcFailure,
   latticeModelRpcProgress,
+  latticeModelRpcStarted,
   latticeModelRpcSuccess,
   parseLatticeModelRpcMessage,
   parseLatticeModelRpcRequest,
@@ -279,6 +283,12 @@ test("the inference worker rejects unexpected external fetch destinations", asyn
 });
 
 test("the model RPC rejects oversized, ambiguous, and mismatched messages", () => {
+  const probe = createLatticeModelRpcRequest(2, "probe", {});
+  assert.equal(parseLatticeModelRpcRequest(probe), probe);
+  const probeSuccess = latticeModelRpcSuccess(2, "probe", { supported: true, reason: null });
+  assert.equal(parseLatticeModelRpcMessage(probeSuccess, "probe"), probeSuccess);
+  assert.equal(parseLatticeModelRpcMessage({ ...probeSuccess, value: { supported: "yes", reason: null } }, "probe"), null);
+
   const valid = createLatticeModelRpcRequest(1, "complete", {
     role: "generator",
     messages: [{ role: "user", content: "bounded" }],
@@ -298,6 +308,10 @@ test("the model RPC rejects oversized, ambiguous, and mismatched messages", () =
   assert.equal(parseLatticeModelRpcRequest({ ...valid, payload: { ...valid.payload, maxTokens: 2_001 } }), null);
 
   const success = latticeModelRpcSuccess(1, "complete", { finishReason: "stop", content: "{}" });
+  const started = latticeModelRpcStarted(1, "complete");
+  assert.equal(parseLatticeModelRpcMessage(started, "complete"), started);
+  assert.equal(parseLatticeModelRpcMessage(started, "prepare"), null);
+  assert.equal(parseLatticeModelRpcMessage({ ...started, unexpected: true }, "complete"), null);
   assert.equal(parseLatticeModelRpcMessage(success, "complete"), success);
   assert.equal(parseLatticeModelRpcMessage(success, "token-count"), null);
   assert.equal(parseLatticeModelRpcMessage({ ...success, value: { finishReason: "stop", content: "{}", extra: true } }, "complete"), null);
@@ -310,6 +324,340 @@ test("the model RPC rejects oversized, ambiguous, and mismatched messages", () =
   assert.deepEqual(serialized, { name: "RangeError", message: "bounded", code: "bounded-code" });
   const failure = latticeModelRpcFailure(1, "complete", serialized);
   assert.equal(parseLatticeModelRpcMessage(failure, "complete"), failure);
+});
+
+test("capability and preparation run through the worker and clear a completed download bar", async () => {
+  const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const workerDescriptor = Object.getOwnPropertyDescriptor(globalThis, "Worker");
+  const operations = [];
+
+  class FakeWorker {
+    constructor() {
+      this.listeners = new Map();
+    }
+
+    addEventListener(type, listener) {
+      this.listeners.set(type, listener);
+    }
+
+    postMessage(request) {
+      operations.push(request.operation);
+      queueMicrotask(() => {
+        this.listeners.get("message")?.({
+          data: latticeModelRpcStarted(request.id, request.operation),
+        });
+        if (request.operation === "probe") {
+          this.listeners.get("message")?.({
+            data: latticeModelRpcSuccess(request.id, request.operation, { supported: true, reason: null }),
+          });
+          return;
+        }
+        if (request.operation === "prepare") {
+          this.listeners.get("message")?.({
+            data: latticeModelRpcProgress(request.id, request.payload.role, { progress: 1, text: "done" }),
+          });
+          this.listeners.get("message")?.({
+            data: latticeModelRpcSuccess(request.id, request.operation, null),
+          });
+        }
+      });
+    }
+
+    terminate() {}
+  }
+
+  const limits = {
+    maxBufferSize: 268_435_456,
+    maxStorageBufferBindingSize: 134_217_728,
+    maxComputeWorkgroupStorageSize: 32_768,
+    maxStorageBuffersPerShaderStage: 10,
+  };
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { isSecureContext: true } });
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: { gpu: { requestAdapter: async () => ({ limits }) } },
+  });
+  Object.defineProperty(globalThis, "Worker", { configurable: true, value: FakeWorker });
+
+  try {
+    assert.deepEqual(await probeLocalLatticeCapability(), { supported: true, reason: null });
+    const reports = [];
+    await prepareLocalLatticeModel({ onProgress: (report) => reports.push(report) });
+    assert.deepEqual(operations, ["probe", "prepare"]);
+    assert.equal(reports.at(-1)?.phase, "initializing-model");
+    assert.equal(reports.at(-1)?.progress, null);
+  } finally {
+    discardLocalLatticeModel();
+    for (const [name, descriptor] of [
+      ["window", windowDescriptor],
+      ["navigator", navigatorDescriptor],
+      ["Worker", workerDescriptor],
+    ]) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else delete globalThis[name];
+    }
+  }
+});
+
+test("environment probes settle and distinguish retryable checks from hardware negatives", async () => {
+  const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const timers = [];
+  globalThis.setTimeout = (callback, milliseconds) => {
+    const timer = { callback, milliseconds, cleared: false };
+    timers.push(timer);
+    return timer;
+  };
+  globalThis.clearTimeout = (timer) => { if (timer) timer.cleared = true; };
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { isSecureContext: true } });
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      gpu: { requestAdapter: () => new Promise(() => {}) },
+      storage: { estimate: () => new Promise(() => {}) },
+    },
+  });
+  try {
+    const capability = probeLocalLatticeCapability();
+    const adapterDeadline = timers.find(({ milliseconds }) => milliseconds === LATTICE_ENVIRONMENT_TIMEOUTS.adapter);
+    assert.ok(adapterDeadline);
+    adapterDeadline.callback();
+    await assert.rejects(capability, /did not finish checking its WebGPU adapter/u);
+
+    const storage = probeLocalLatticeStorage();
+    const storageDeadline = timers.find(({ milliseconds, cleared }) => milliseconds === LATTICE_ENVIRONMENT_TIMEOUTS.storage && !cleared);
+    assert.ok(storageDeadline);
+    storageDeadline.callback();
+    assert.deepEqual(await storage, { known: false, sufficient: null, availableBytes: null });
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+    if (windowDescriptor) Object.defineProperty(globalThis, "window", windowDescriptor);
+    else delete globalThis.window;
+    if (navigatorDescriptor) Object.defineProperty(globalThis, "navigator", navigatorDescriptor);
+    else delete globalThis.navigator;
+  }
+});
+
+test("preparation progress survives WebLLM phase resets without restoring a completed bar", async () => {
+  const previousWorker = globalThis.Worker;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const timers = [];
+  const workers = [];
+  class FakeWorker {
+    constructor() {
+      this.listeners = new Map();
+      this.terminated = false;
+      this.request = null;
+      workers.push(this);
+    }
+
+    addEventListener(type, listener) { this.listeners.set(type, listener); }
+    postMessage(request) { this.request = request; }
+    terminate() { this.terminated = true; }
+  }
+  globalThis.setTimeout = (callback, milliseconds) => {
+    const timer = { callback, milliseconds, cleared: false };
+    timers.push(timer);
+    return timer;
+  };
+  globalThis.clearTimeout = (timer) => { if (timer) timer.cleared = true; };
+  globalThis.Worker = FakeWorker;
+  try {
+    const reports = [];
+    const preparing = prepareLocalLatticeModel({ onProgress: (report) => reports.push(report) });
+    workers[0].listeners.get("message")?.({
+      data: latticeModelRpcStarted(workers[0].request.id, workers[0].request.operation),
+    });
+    const send = (progress) => workers[0].listeners.get("message")?.({
+      data: latticeModelRpcProgress(workers[0].request.id, "generator", { progress, text: `progress ${progress}` }),
+    });
+    const initialInactivity = timers.find(({ milliseconds }) => milliseconds === 120_000);
+    assert.ok(initialInactivity);
+    send(0.5);
+    const advancedInactivity = timers.find(({ milliseconds, cleared }) => milliseconds === 120_000 && !cleared);
+    assert.ok(advancedInactivity);
+    send(0.5);
+    assert.equal(advancedInactivity.cleared, false, "duplicate progress does not slide the watchdog");
+    send(1);
+    send(0.1);
+    send(0.2);
+    send(1);
+    assert.equal(timers.some(({ milliseconds, cleared }) => milliseconds === 60_000 && !cleared), false,
+      "a phase-local 100 percent report is not treated as global finalization");
+    assert.ok(reports.slice(-4).every(({ phase, progress }) => phase === "initializing-model" && progress === null),
+      "once one phase completes, later phase resets remain nondeterminate");
+    workers[0].listeners.get("message")?.({
+      data: latticeModelRpcSuccess(workers[0].request.id, workers[0].request.operation, null),
+    });
+    await preparing;
+    assert.equal(workers[0].terminated, false);
+  } finally {
+    discardLocalLatticeModel();
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+    if (previousWorker === undefined) delete globalThis.Worker;
+    else globalThis.Worker = previousWorker;
+  }
+});
+
+test("a duplicate preparation report cannot postpone the active inactivity deadline", async () => {
+  const previousWorker = globalThis.Worker;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const timers = [];
+  const workers = [];
+  class FakeWorker {
+    constructor() {
+      this.listeners = new Map();
+      this.terminated = false;
+      this.request = null;
+      workers.push(this);
+    }
+
+    addEventListener(type, listener) { this.listeners.set(type, listener); }
+    postMessage(request) { this.request = request; }
+    terminate() { this.terminated = true; }
+  }
+  globalThis.setTimeout = (callback, milliseconds) => {
+    const timer = { callback, milliseconds, cleared: false };
+    timers.push(timer);
+    return timer;
+  };
+  globalThis.clearTimeout = (timer) => { if (timer) timer.cleared = true; };
+  globalThis.Worker = FakeWorker;
+  try {
+    const preparing = prepareLocalLatticeModel();
+    const request = workers[0].request;
+    const deliver = (data) => workers[0].listeners.get("message")?.({ data });
+    deliver(latticeModelRpcStarted(request.id, request.operation));
+    deliver(latticeModelRpcProgress(request.id, "generator", { progress: 0.25, text: "phase" }));
+    const activeInactivity = timers.findLast(({ milliseconds, cleared }) => milliseconds === 120_000 && !cleared);
+    assert.ok(activeInactivity);
+    deliver(latticeModelRpcProgress(request.id, "generator", { progress: 0.25, text: "duplicate" }));
+    assert.equal(activeInactivity.cleared, false);
+    activeInactivity.callback();
+    await assert.rejects(preparing, /stopped making progress during prepare/u);
+    assert.equal(workers[0].terminated, true);
+  } finally {
+    discardLocalLatticeModel();
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+    if (previousWorker === undefined) delete globalThis.Worker;
+    else globalThis.Worker = previousWorker;
+  }
+});
+
+test("queued RPC deadlines begin only when the worker starts that request", async () => {
+  const previousWorker = globalThis.Worker;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const timers = [];
+  const workers = [];
+  class FakeWorker {
+    constructor() {
+      this.listeners = new Map();
+      this.requests = [];
+      this.terminated = false;
+      workers.push(this);
+    }
+
+    addEventListener(type, listener) { this.listeners.set(type, listener); }
+    postMessage(request) { this.requests.push(request); }
+    terminate() { this.terminated = true; }
+  }
+  globalThis.setTimeout = (callback, milliseconds) => {
+    const timer = { callback, milliseconds, cleared: false };
+    timers.push(timer);
+    return timer;
+  };
+  globalThis.clearTimeout = (timer) => { if (timer) timer.cleared = true; };
+  globalThis.Worker = FakeWorker;
+  try {
+    const preparing = prepareLocalLatticeModel();
+    const worker = workers[0];
+    const prepareRequest = worker.requests[0];
+    const deliver = (data) => worker.listeners.get("message")?.({ data });
+    deliver(latticeModelRpcStarted(prepareRequest.id, prepareRequest.operation));
+    const cached = isLocalLatticeModelCached();
+    const cachedRequest = worker.requests[1];
+    assert.equal(timers.some(({ milliseconds, cleared }) => milliseconds === 30_000 && !cleared), false,
+      "the queued cache probe has no execution deadline while preparation is active");
+    deliver(latticeModelRpcSuccess(prepareRequest.id, prepareRequest.operation, null));
+    await preparing;
+    const queuedStartWatchdog = timers.findLast(({ milliseconds, cleared }) => milliseconds === 30_000 && !cleared);
+    assert.ok(queuedStartWatchdog, "the next queued request is bounded while waiting for its start acknowledgement");
+    deliver(latticeModelRpcStarted(cachedRequest.id, cachedRequest.operation));
+    assert.equal(queuedStartWatchdog.cleared, true);
+    const cacheExecutionDeadline = timers.findLast(({ milliseconds, cleared }) => milliseconds === 30_000 && !cleared);
+    assert.ok(cacheExecutionDeadline);
+    deliver(latticeModelRpcSuccess(cachedRequest.id, cachedRequest.operation, true));
+    assert.equal(await cached, true);
+    assert.equal(worker.terminated, false);
+  } finally {
+    discardLocalLatticeModel();
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+    if (previousWorker === undefined) delete globalThis.Worker;
+    else globalThis.Worker = previousWorker;
+  }
+});
+
+test("only the queue head owns a start watchdog before the first acknowledgement", async () => {
+  const previousWorker = globalThis.Worker;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const timers = [];
+  const workers = [];
+  class FakeWorker {
+    constructor() {
+      this.listeners = new Map();
+      this.requests = [];
+      this.terminated = false;
+      workers.push(this);
+    }
+
+    addEventListener(type, listener) { this.listeners.set(type, listener); }
+    postMessage(request) { this.requests.push(request); }
+    terminate() { this.terminated = true; }
+  }
+  globalThis.setTimeout = (callback, milliseconds) => {
+    const timer = { callback, milliseconds, cleared: false };
+    timers.push(timer);
+    return timer;
+  };
+  globalThis.clearTimeout = (timer) => { if (timer) timer.cleared = true; };
+  globalThis.Worker = FakeWorker;
+  try {
+    const preparing = prepareLocalLatticeModel();
+    const cached = isLocalLatticeModelCached();
+    const worker = workers[0];
+    const [prepareRequest, cachedRequest] = worker.requests;
+    const liveStartTimers = () => timers.filter(({ milliseconds, cleared }) => (
+      milliseconds === 30_000 && !cleared
+    ));
+    assert.equal(liveStartTimers().length, 1, "the unstarted queue has one head watchdog");
+    const deliver = (data) => worker.listeners.get("message")?.({ data });
+    deliver(latticeModelRpcStarted(prepareRequest.id, prepareRequest.operation));
+    assert.equal(liveStartTimers().length, 0, "the queue-head watchdog clears on acknowledgement");
+    deliver(latticeModelRpcSuccess(prepareRequest.id, prepareRequest.operation, null));
+    await preparing;
+    assert.equal(liveStartTimers().length, 1, "the successor becomes bounded only after the head settles");
+    deliver(latticeModelRpcStarted(cachedRequest.id, cachedRequest.operation));
+    deliver(latticeModelRpcSuccess(cachedRequest.id, cachedRequest.operation, true));
+    assert.equal(await cached, true);
+    assert.equal(worker.terminated, false);
+  } finally {
+    discardLocalLatticeModel();
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+    if (previousWorker === undefined) delete globalThis.Worker;
+    else globalThis.Worker = previousWorker;
+  }
 });
 
 test("aborting an RPC rejects pending work, terminates its worker, and permits a clean successor", async () => {
@@ -328,9 +676,12 @@ test("aborting an RPC rejects pending work, terminates its worker, and permits a
 
     postMessage(request) {
       if (request.operation !== "cached") return;
-      queueMicrotask(() => this.listeners.get("message")?.({
-        data: latticeModelRpcSuccess(request.id, request.operation, true),
-      }));
+      queueMicrotask(() => {
+        this.listeners.get("message")?.({ data: latticeModelRpcStarted(request.id, request.operation) });
+        this.listeners.get("message")?.({
+          data: latticeModelRpcSuccess(request.id, request.operation, true),
+        });
+      });
     }
 
     terminate() {
@@ -347,6 +698,105 @@ test("aborting an RPC rejects pending work, terminates its worker, and permits a
     assert.equal(workers[0].terminated, true);
     assert.equal(await isLocalLatticeModelCached(), true);
     assert.equal(workers.length, 2);
+  } finally {
+    discardLocalLatticeModel();
+    if (previousWorker === undefined) delete globalThis.Worker;
+    else globalThis.Worker = previousWorker;
+  }
+});
+
+test("context sizing and correction announce nondeterminate work before every model RPC", async () => {
+  const previousWorker = globalThis.Worker;
+  const observations = [];
+  const reports = [];
+  let completionCount = 0;
+
+  class FakeWorker {
+    constructor() {
+      this.listeners = new Map();
+    }
+
+    addEventListener(type, listener) {
+      this.listeners.set(type, listener);
+    }
+
+    postMessage(request) {
+      if (request.operation === "token-count" || request.operation === "complete") {
+        observations.push({
+          operation: request.operation,
+          phase: reports.at(-1)?.phase,
+          progress: reports.at(-1)?.progress,
+          correction: request.operation === "token-count"
+            ? request.payload.serialized.includes("<INVALID_MODEL_DATA>")
+            : request.payload.messages.some(({ content }) => content.includes("<INVALID_MODEL_DATA>")),
+        });
+      }
+      queueMicrotask(() => {
+        this.listeners.get("message")?.({
+          data: latticeModelRpcStarted(request.id, request.operation),
+        });
+        if (request.operation === "prepare") {
+          this.listeners.get("message")?.({
+            data: latticeModelRpcSuccess(request.id, request.operation, null),
+          });
+          return;
+        }
+        if (request.operation === "token-count") {
+          this.listeners.get("message")?.({
+            data: latticeModelRpcSuccess(request.id, request.operation, 1),
+          });
+          return;
+        }
+        if (request.operation === "complete") {
+          completionCount += 1;
+          this.listeners.get("message")?.({
+            data: latticeModelRpcSuccess(request.id, request.operation, {
+              finishReason: "stop",
+              content: completionCount === 1 ? "not JSON" : '{"corrected":true}',
+            }),
+          });
+        }
+      });
+    }
+
+    terminate() {}
+  }
+
+  globalThis.Worker = FakeWorker;
+  try {
+    const adapter = createLocalLatticeAdapter(undefined, {
+      onProgress: (report) => reports.push(report),
+    });
+    const result = await adapter.analyze({
+      batch: {
+        id: "progress-order",
+        passages: [{
+          id: "p0001",
+          text: "A short sentence.",
+          separatorBefore: "",
+          separatorAfter: "",
+        }],
+      },
+      sourceSpans: [{
+        passageId: "p0001",
+        spans: [{ id: "p0001:s01", kind: "source", text: "A short sentence." }],
+        literalAnnotations: [],
+        directionFrames: [],
+      }],
+      context: null,
+      documentLedger: [],
+      clarificationAnswers: [],
+    });
+
+    assert.deepEqual(result, { corrected: true });
+    const tokenCounts = observations.filter(({ operation }) => operation === "token-count");
+    const completions = observations.filter(({ operation }) => operation === "complete");
+    assert.ok(tokenCounts.length >= 3, "initial fitting, final sizing, and correction are each counted");
+    assert.ok(tokenCounts.every(({ phase, progress }) => phase === "token-counting" && progress === null));
+    assert.ok(completions.every(({ phase, progress }) => phase === "model-inference" && progress === null));
+    assert.deepEqual(completions.map(({ correction }) => correction), [false, true]);
+    assert.equal(tokenCounts.some(({ correction }) => correction), true,
+      "the invalid first response enters the correction-sizing path");
   } finally {
     discardLocalLatticeModel();
     if (previousWorker === undefined) delete globalThis.Worker;

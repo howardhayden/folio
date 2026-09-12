@@ -7,6 +7,7 @@ import {
   useState,
   type FormEvent,
   type MouseEvent as ReactMouseEvent,
+  type Ref,
   type SyntheticEvent,
 } from "react";
 import {
@@ -34,6 +35,7 @@ import {
   LLAMA_3_2_TERMS_PROVENANCE,
 } from "./lattice/modelContract.js";
 import {
+  LATTICE_CANONICAL_ORIGIN_MESSAGE,
   LatticeLeaseError,
   acquireLatticeLease,
   releaseLatticeLease,
@@ -212,11 +214,118 @@ function ProjectIcon({ icon }: { icon: ProjectIconName }) {
   }
 }
 
-function projectHeadingId(name: string) {
-  return `project-${name
+function projectHeadingId(name: string, prefix = "project") {
+  return `${prefix}-${name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")}`;
+}
+
+type ResumeProject = (typeof projects)[number];
+
+type ResumeProjectCardProps = Readonly<{
+  project: ResumeProject;
+  headingPrefix?: string;
+  disclosureId?: string;
+  latticeLaunchRef?: Ref<HTMLAnchorElement>;
+  onLatticeLaunch?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
+  onNavigate?: (event: ReactMouseEvent<HTMLAnchorElement>, href: string) => void;
+}>;
+
+/** The canonical Resume project card, shared verbatim with Resume Search. */
+export function ResumeProjectCard({
+  project,
+  headingPrefix = "project",
+  disclosureId = project.id,
+  latticeLaunchRef,
+  onLatticeLaunch,
+  onNavigate,
+}: ResumeProjectCardProps) {
+  const headingId = projectHeadingId(project.name, headingPrefix);
+  const latticeProject = "interaction" in project && project.interaction === "lattice-demo";
+
+  return (
+    <article className="card" aria-labelledby={headingId}>
+      <div className="card-body">
+        <div className="row justify-content-center">
+          {latticeProject && onLatticeLaunch ? (
+            <a
+              ref={latticeLaunchRef}
+              className="tool-icon project-modal-trigger signal-fuzz"
+              data-lattice-launch="text-to-lattice"
+              href="/projects/lattice/text-to-lattice/"
+              aria-label="Use Text to Lattice"
+              aria-haspopup="dialog"
+              aria-controls="lattice-demo-dialog"
+              onClick={onLatticeLaunch}
+            >
+              <ProjectIcon icon={project.icon as ProjectIconName} />
+            </a>
+          ) : latticeProject ? (
+            <a
+              className="tool-icon project-modal-trigger signal-fuzz"
+              href="/projects/lattice/text-to-lattice/"
+              aria-label="Open Text to Lattice"
+              onClick={(event) => onNavigate?.(event, "/projects/lattice/text-to-lattice/")}
+            >
+              <ProjectIcon icon={project.icon as ProjectIconName} />
+            </a>
+          ) : (
+            <span className="tool-icon signal-fuzz" aria-hidden="true">
+              <ProjectIcon icon={project.icon as ProjectIconName} />
+            </span>
+          )}
+        </div>
+
+        <h3 className="card-title tools-card-title row justify-content-center" id={headingId}>
+          <a
+            className="signal-fuzz"
+            href={project.canonicalPath}
+            onClick={(event) => onNavigate?.(event, project.canonicalPath)}
+          >
+            {project.name}
+          </a>
+        </h3>
+
+        <ProjectDescriptionDisclosure
+          hook={project.summary[0]}
+          paragraph={project.summary[1]}
+          projectId={disclosureId}
+          projectName={project.name}
+        />
+
+        {project.resources?.length ? (
+          <nav className="project-resources" aria-label={`${project.name} supporting materials`}>
+            <ul className="list-unstyled">
+              {project.resources.map((resource) => {
+                const opensInNewTab = resource.opensInNewTab === true;
+                return (
+                  <li key={`${resource.label}-${resource.url}`}>
+                    <a
+                      className="signal-fuzz"
+                      href={resource.url}
+                      target={opensInNewTab ? "_blank" : undefined}
+                      rel={opensInNewTab ? "noopener noreferrer" : undefined}
+                      aria-label={opensInNewTab ? `${resource.label}, opens in a new tab` : resource.label}
+                    >
+                      <span aria-hidden="true">
+                        <ProjectIcon icon={resource.icon as ProjectIconName} />
+                      </span>{" "}
+                      <span>{resource.label}</span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        ) : null}
+
+        <p className="card-text">
+          <small>{project.publication.label}</small>
+        </p>
+      </div>
+    </article>
+  );
 }
 
 type LatticeResult = Awaited<ReturnType<typeof runTextToLattice>>;
@@ -281,6 +390,9 @@ function latticeInputFailureMessage(error: unknown, clarification = false) {
 
 function latticeFailureMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "";
+  if (error instanceof LatticeLeaseError && error.code === "canonical-origin-required") {
+    return LATTICE_CANONICAL_ORIGIN_MESSAGE;
+  }
   if (error instanceof LatticeLeaseError && error.limited) {
     return error.code === "visitor-day-limit"
       ? "This browser has reached its Text to Lattice demonstration limit."
@@ -303,6 +415,11 @@ function latticeProgressText(report: { phase: string; text?: string; current?: n
   const labels: Record<string, string> = {
     "reserving-slot": "Checking availability",
     "loading-model": "Preparing on this device",
+    "initializing-model": "Finishing setup on this device",
+    "token-counting": "Checking local context",
+    "model-inference": "Processing on this device",
+    "binding-source-integrity": "Checking source integrity",
+    "binding-result-integrity": "Checking result integrity",
     atomizing: "Reading the source",
     generating: "Drafting",
     verifying: "Checking meaning",
@@ -311,6 +428,7 @@ function latticeProgressText(report: { phase: string; text?: string; current?: n
     regenerating: "Revising",
     reverifying: "Checking the revision",
     "certifying-document": "Checking the whole text",
+    "planning-certification": "Planning the whole-text checks",
     "certifying-windows": "Checking the whole text",
     "certifying-relations": "Checking relationships",
     clarification: "One question before continuing",
@@ -392,14 +510,31 @@ export default function ResumeProjects() {
   const latticeCompletionBudgetRef = useRef({ used: 0, limit: LATTICE_COMPLETION_CALL_LIMIT });
   const latticeJobRef = useRef(0);
   const latticeMountedRef = useRef(true);
+  const latticePhaseRef = useRef<LatticePhase>(latticePhase);
+  const latticeResultRef = useRef<LatticeResult | null>(latticeResult);
   const wordCount = countLatticeWords(latticeInput);
   const busy = latticePhase === "reserving" || latticePhase === "loading" || latticePhase === "converting" || latticePhase === "canceling";
+  const taskContinuesWhileClosed = latticePhase === "checking" || busy;
   const overLimit = wordCount > LATTICE_WORD_LIMIT;
   const progressText = latticeProgressText(latticeProgress);
   const latticeRetryPending = isLatticeRetryPending(latticeRetryAt, latticeRetryClock);
   const primaryUnavailable = busy || latticePhase === "checking" || latticeSupported === false || latticeInputInvalid || wordCount === 0 || overLimit || latticeRetryPending || !latticeUseConfirmed;
   const readyLabel = latticeModelCached === false ? "Download and convert" : "Convert";
-  const primaryLabel = latticePhase === "error" && latticeSupported !== false ? "Try again" : readyLabel;
+  const primaryLabel = latticePhase === "reserving"
+    ? "Checking availability…"
+    : latticePhase === "loading"
+      ? latticeModelCached === false ? "Downloading and preparing…" : "Preparing…"
+      : latticePhase === "converting"
+        ? "Converting…"
+        : latticePhase === "error" && latticeSupported !== false ? "Try again" : readyLabel;
+
+  useEffect(() => {
+    latticePhaseRef.current = latticePhase;
+  }, [latticePhase]);
+
+  useEffect(() => {
+    latticeResultRef.current = latticeResult;
+  }, [latticeResult]);
 
   const clearLatticeLeaseExpiryTimer = useCallback(() => {
     if (latticeLeaseExpiryTimerRef.current !== null) {
@@ -614,19 +749,11 @@ export default function ResumeProjects() {
   }, [latticeRetryAt, latticeRetryMode]);
 
   const closeLattice = useCallback(() => {
-    cancelLattice();
+    // Closing is visibility-only. Cancel and Start over are the explicit
+    // teardown controls; input, attestation, lease-bound work, clarification,
+    // and any eventual result remain mounted for the next open.
     setLatticeOpen(false);
-    setLatticeInput("");
-    setLatticeUseConfirmed(false);
-    setLatticeResult(null);
-    setClarificationAnswers({});
-    setClarificationErrors({});
-    setClarificationHistory([]);
-    setLatticeError("");
-    setLatticeInputInvalid(false);
-    setLatticeProgress(null);
-    latticeCompletionBudgetRef.current = { used: 0, limit: LATTICE_COMPLETION_CALL_LIMIT };
-  }, [cancelLattice]);
+  }, []);
 
   useEffect(() => {
     latticeCloseRef.current = closeLattice;
@@ -637,28 +764,38 @@ export default function ResumeProjects() {
     const environmentJobId = latticeJobRef.current;
     setLatticePhase("checking");
     setLatticeError("");
-    const capability = await probeLocalLatticeCapability();
-    if (!latticeMountedRef.current || latticeJobRef.current !== environmentJobId) return;
-    if (!capability.supported) {
-      setLatticeSupported(false);
-      setLatticeModelCached(false);
+    try {
+      const capability = await probeLocalLatticeCapability();
+      if (!latticeMountedRef.current || latticeJobRef.current !== environmentJobId) return;
+      if (!capability.supported) {
+        setLatticeSupported(false);
+        setLatticeModelCached(false);
+        setLatticeStorageWarning("");
+        setLatticeError(capabilityMessage());
+        setLatticeInputInvalid(false);
+        setLatticePhase("error");
+        return;
+      }
+      setLatticeSupported(true);
+      const [cached, storage] = await Promise.all([
+        isLocalLatticeModelCached(),
+        probeLocalLatticeStorage(),
+      ]);
+      if (!latticeMountedRef.current || latticeJobRef.current !== environmentJobId) return;
+      setLatticeModelCached(cached);
+      setLatticeStorageWarning(!cached && storage.known && storage.sufficient === false
+        ? "This download may need more free space."
+        : "");
+      setLatticePhase("ready");
+    } catch {
+      if (!latticeMountedRef.current || latticeJobRef.current !== environmentJobId) return;
+      setLatticeSupported(null);
+      setLatticeModelCached(null);
       setLatticeStorageWarning("");
-      setLatticeError(capabilityMessage());
+      setLatticeError("Text to Lattice could not start its local engine. Check again. Nothing was sent.");
       setLatticeInputInvalid(false);
       setLatticePhase("error");
-      return;
     }
-    setLatticeSupported(true);
-    const [cached, storage] = await Promise.all([
-      isLocalLatticeModelCached().catch(() => false),
-      probeLocalLatticeStorage(),
-    ]);
-    if (!latticeMountedRef.current || latticeJobRef.current !== environmentJobId) return;
-    setLatticeModelCached(cached);
-    setLatticeStorageWarning(!cached && storage.known && storage.sufficient === false
-      ? "This download may need more free space."
-      : "");
-    setLatticePhase("ready");
   }, []);
 
   useEffect(() => {
@@ -680,16 +817,42 @@ export default function ResumeProjects() {
       dialog?.querySelectorAll<HTMLElement>(focusableSelector) ?? [],
     ).filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
     let containmentFrame = 0;
+    const preferredFocusTarget = () => {
+      const phase = latticePhaseRef.current;
+      const result = latticeResultRef.current;
+      if (phase === "reserving") {
+        const attestation = latticeAttestationRef.current?.querySelector<HTMLElement>(
+          "iframe:not([tabindex='-1']), [tabindex]:not([tabindex='-1'])",
+        );
+        if (attestation) return attestation;
+      }
+      if (["reserving", "loading", "converting", "canceling"].includes(phase)) {
+        const cancel = latticeCancelButtonRef.current;
+        if (cancel?.isConnected && !cancel.disabled) return cancel;
+      }
+      if (result?.status === "needs-clarification") {
+        const clarification = latticeOutputRef.current?.querySelector<HTMLElement>(
+          ".lattice-clarification-input, .lattice-clarifications input, .lattice-clarifications button",
+        );
+        if (clarification) return clarification;
+      }
+      if (result && latticeOutputRef.current) return latticeOutputRef.current;
+      const input = latticeInputRef.current;
+      if (input && !input.disabled) return input;
+      return dialog;
+    };
     const containFocus = () => {
       if (!dialog) return;
       const active = document.activeElement;
       const activeIsUsable = active instanceof HTMLElement
         && dialog.contains(active)
         && !active.matches(":disabled, [hidden], [aria-hidden='true'], [tabindex='-1']");
-      if (activeIsUsable) return;
-      const cancel = latticeCancelButtonRef.current;
-      if (cancel?.isConnected && !cancel.disabled) cancel.focus({ preventScroll: true });
-      else dialog.focus({ preventScroll: true });
+      const preferred = preferredFocusTarget();
+      const attestationBecameReady = latticePhaseRef.current === "reserving"
+        && preferred instanceof HTMLIFrameElement
+        && active !== preferred;
+      if (activeIsUsable && !attestationBecameReady) return;
+      preferred?.focus({ preventScroll: true });
     };
     const scheduleFocusContainment = () => {
       window.cancelAnimationFrame(containmentFrame);
@@ -744,7 +907,7 @@ export default function ResumeProjects() {
       });
     }
     const focusFrame = window.requestAnimationFrame(() => {
-      (latticeInputRef.current ?? dialog)?.focus({ preventScroll: true });
+      preferredFocusTarget()?.focus({ preventScroll: true });
     });
 
     return () => {
@@ -824,8 +987,10 @@ export default function ResumeProjects() {
 
     window.addEventListener("blur", shield);
     window.addEventListener("focus", reveal);
+    window.addEventListener("pageshow", reveal);
     window.addEventListener("beforeprint", handleBeforePrint);
     window.addEventListener("afterprint", handleAfterPrint);
+    document.addEventListener("focusin", reveal);
     document.addEventListener("visibilitychange", handleVisibility);
     document.addEventListener("keydown", handlePrintScreen, true);
     document.addEventListener("keyup", handlePrintScreen, true);
@@ -835,23 +1000,22 @@ export default function ResumeProjects() {
       window.clearTimeout(printScreenTimer);
       window.removeEventListener("blur", shield);
       window.removeEventListener("focus", reveal);
+      window.removeEventListener("pageshow", reveal);
       window.removeEventListener("beforeprint", handleBeforePrint);
       window.removeEventListener("afterprint", handleAfterPrint);
+      document.removeEventListener("focusin", reveal);
       document.removeEventListener("visibilitychange", handleVisibility);
       document.removeEventListener("keydown", handlePrintScreen, true);
       document.removeEventListener("keyup", handlePrintScreen, true);
-      output?.removeAttribute("data-shielded");
+      output?.setAttribute("data-shielded", "true");
     };
   }, [latticeOpen]);
 
   const openLattice = useCallback((trigger: HTMLAnchorElement) => {
     latticeTriggerRef.current = trigger;
-    setLatticeError("");
-    setLatticeInputInvalid(false);
-    setLatticeUseConfirmed(false);
     setLatticeOpen(true);
-    void checkEnvironment();
-  }, [checkEnvironment]);
+    if (latticeSupported === null && latticePhase === "idle") void checkEnvironment();
+  }, [checkEnvironment, latticePhase, latticeSupported]);
 
   const launchLattice = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
     if (
@@ -998,7 +1162,7 @@ export default function ResumeProjects() {
           else controller.abort();
           return;
         }
-        setLatticePhase(report.phase === "loading-model" ? "loading" : "converting");
+        setLatticePhase(["loading-model", "initializing-model"].includes(report.phase) ? "loading" : "converting");
         setLatticeProgress({
           phase: report.phase,
           progress: report.progress ?? null,
@@ -1013,8 +1177,7 @@ export default function ResumeProjects() {
       });
       const leaseToken = latticeLeaseRef.current?.token;
       if (!leaseToken) {
-        controller.abort();
-        return;
+        throw new Error("The Text to Lattice lease was unavailable before local processing began.");
       }
       const result = await runTextToLattice(latticeInput, {
         adapter,
@@ -1026,14 +1189,18 @@ export default function ResumeProjects() {
       const currentLease = latticeLeaseRef.current;
       if (!currentLease || currentLease.token !== leaseToken || currentLease.expiresAt <= Date.now()) {
         if (currentLease?.token === leaseToken) expireCurrentLatticeLease(leaseToken);
-        else controller.abort();
+        else throw new Error("The Text to Lattice lease ended before the result could be returned.");
         return;
       }
       setLatticeResult(result);
       setClarificationErrors({});
-      void isLocalLatticeModelCached().catch(() => false).then((cached) => {
+      void isLocalLatticeModelCached().then((cached) => {
         if (!latticeMountedRef.current || latticeJobRef.current !== jobId) return;
         setLatticeModelCached(cached);
+      }).catch(() => {
+        // Cache inspection is advisory after a completed conversion. Keep the
+        // last known state instead of claiming that an operational failure is
+        // a cache miss.
       });
       setLatticeProgress(null);
       if (result.status !== "needs-clarification") {
@@ -1046,7 +1213,18 @@ export default function ResumeProjects() {
       }
       setLatticePhase("ready");
     } catch (error) {
-      if (!latticeMountedRef.current || latticeJobRef.current !== jobId || (error instanceof DOMException && error.name === "AbortError")) return;
+      if (!latticeMountedRef.current || latticeJobRef.current !== jobId) return;
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setLatticeResult(null);
+        setLatticeProgress(null);
+        setLatticeError("Text to Lattice could not continue. Your text stayed here.");
+        setLatticeQuotaError("");
+        setLatticeInputInvalid(false);
+        setLatticePhase("error");
+        releaseCurrentLatticeLease();
+        discardLocalLatticeModel();
+        return;
+      }
       setLatticeResult(null);
       setLatticeProgress(null);
       if (isLatticeQuotaLimit(error)) {
@@ -1161,91 +1339,14 @@ export default function ResumeProjects() {
         </h2>
 
         <div className="folio-card-grid">
-          {projects.map((project) => {
-            const headingId = projectHeadingId(project.name);
-            return (
-              <article
-                className="card"
-                key={project.name}
-                aria-labelledby={headingId}
-              >
-                <div className="card-body">
-                  <div className="row justify-content-center">
-                    {"interaction" in project && project.interaction === "lattice-demo" ? (
-                      <a
-                        ref={latticeDirectLaunchRef}
-                        className="tool-icon project-modal-trigger signal-fuzz"
-                        data-lattice-launch="text-to-lattice"
-                        href="/projects/lattice/text-to-lattice/"
-                        aria-label="Use Text to Lattice"
-                        aria-haspopup="dialog"
-                        aria-controls="lattice-demo-dialog"
-                        onClick={launchLattice}
-                      >
-                        <ProjectIcon icon={project.icon as ProjectIconName} />
-                      </a>
-                    ) : (
-                      <span className="tool-icon signal-fuzz" aria-hidden="true">
-                        <ProjectIcon icon={project.icon as ProjectIconName} />
-                      </span>
-                    )}
-                  </div>
-
-                  <h3
-                    className="card-title tools-card-title row justify-content-center"
-                    id={headingId}
-                  >
-                    <a className="signal-fuzz" href={project.canonicalPath}>{project.name}</a>
-                  </h3>
-
-                  <ProjectDescriptionDisclosure
-                    hook={project.summary[0]}
-                    paragraph={project.summary[1]}
-                    projectId={project.id}
-                    projectName={project.name}
-                  />
-
-                  {project.resources?.length ? (
-                    <nav
-                      className="project-resources"
-                      aria-label={`${project.name} supporting materials`}
-                    >
-                      <ul className="list-unstyled">
-                        {project.resources.map((resource) => {
-                          const opensInNewTab = resource.opensInNewTab === true;
-
-                          return (
-                            <li key={`${resource.label}-${resource.url}`}>
-                              <a
-                                className="signal-fuzz"
-                                href={resource.url}
-                                target={opensInNewTab ? "_blank" : undefined}
-                                rel={opensInNewTab ? "noopener noreferrer" : undefined}
-                                aria-label={
-                                  opensInNewTab
-                                    ? `${resource.label}, opens in a new tab`
-                                    : resource.label
-                                }
-                              >
-                                <span aria-hidden="true">
-                                  <ProjectIcon icon={resource.icon as ProjectIconName} />
-                                </span>{" "}
-                                <span>{resource.label}</span>
-                              </a>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </nav>
-                  ) : null}
-
-                  <p className="card-text">
-                    <small>{project.publication.label}</small>
-                  </p>
-                </div>
-              </article>
-            );
-          })}
+          {projects.map((project) => (
+            <ResumeProjectCard
+              project={project}
+              latticeLaunchRef={project.id === "lattice" ? latticeDirectLaunchRef : undefined}
+              onLatticeLaunch={"interaction" in project && project.interaction === "lattice-demo" ? launchLattice : undefined}
+              key={project.id}
+            />
+          ))}
         </div>
         <p className="project-record-link"><a href="/projects/">All canonical project records</a></p>
         <noscript>
@@ -1256,7 +1357,7 @@ export default function ResumeProjects() {
       </section>
 
       <div
-        className="modal resume-modal"
+        className="modal resume-modal lattice-modal"
         role="presentation"
         onClick={(event) => {
           if (event.target === event.currentTarget) closeLattice();
@@ -1379,9 +1480,15 @@ export default function ResumeProjects() {
               </div>
             ) : null}
             <div className="lattice-actions">
-              <button className="lattice-run-button" type="submit" disabled={primaryUnavailable}>
-                {latticePhase === "checking" ? "Checking availability…" : primaryLabel}
-              </button>
+              {latticeSupported === false || latticeSupported === null && latticePhase === "error" ? (
+                <button className="lattice-run-button" type="button" onClick={() => void checkEnvironment()} disabled={latticePhase === "checking"}>
+                  {latticePhase === "checking" ? "Checking again…" : "Check again"}
+                </button>
+              ) : (
+                <button className="lattice-run-button" type="submit" disabled={primaryUnavailable}>
+                  {latticePhase === "checking" ? "Checking availability…" : primaryLabel}
+                </button>
+              )}
               {latticeResult ? (
                 <button className="lattice-cancel-button" type="button" onClick={startLatticeOver} disabled={busy}>
                   Start over
@@ -1392,6 +1499,9 @@ export default function ResumeProjects() {
                   {latticePhase === "canceling" ? "Canceling…" : "Cancel"}
                 </button>
               ) : null}
+              <button className="lattice-cancel-button" type="button" onClick={closeLattice} aria-label={taskContinuesWhileClosed ? "Close; current task continues" : "Close"}>
+                Close
+              </button>
             </div>
             <div ref={latticeAttestationRef} className="lattice-attestation" aria-live="polite" />
           </form>
@@ -1400,6 +1510,7 @@ export default function ResumeProjects() {
             ref={latticeOutputRef}
             className="lattice-output"
             aria-labelledby="lattice-output-title"
+            tabIndex={-1}
             onCopy={blockLatticeOutputTransfer}
             onCut={blockLatticeOutputTransfer}
             onDragStart={blockLatticeOutputTransfer}

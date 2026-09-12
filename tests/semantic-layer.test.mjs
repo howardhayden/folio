@@ -27,6 +27,7 @@ import {
 } from "../app/resume/lattice/modelContract.js";
 import {
   knowledgeGraph,
+  namespaceGraphId,
   namespaceTerms,
   projectsManifest,
   projectsSchema,
@@ -37,6 +38,8 @@ import {
   shelfManifest,
   toolsManifest,
 } from "../app/semantic/portfolio.js";
+
+const hah = namespaceGraphId;
 import {
   canonicalHtmlRoutes,
   semanticArtifactRoutes,
@@ -390,6 +393,29 @@ test("machine manifests match their authoritative source objects", async () => {
   }
 });
 
+test("JSON-LD uses a scalar context and absolute extension IRIs for WebKit compatibility", () => {
+  assert.equal(knowledgeGraph["@context"], "https://schema.org");
+  const visit = (value, path = "$") => {
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, `${path}[${index}]`));
+      return;
+    }
+    if (!value || typeof value !== "object") {
+      if (typeof value === "string") assert.equal(value.startsWith("hah:"), false, `${path} has no compact hah IRI`);
+      return;
+    }
+    for (const [key, item] of Object.entries(value)) {
+      assert.equal(key.startsWith("hah:"), false, `${path}.${key} has no compact hah key`);
+      visit(item, `${path}.${key}`);
+    }
+  };
+  visit(knowledgeGraph);
+  assert.ok(
+    knowledgeGraph["@graph"].some((node) => Object.keys(node).some((key) => key.startsWith("https://hah.dev/ns/#"))),
+    "the extension vocabulary remains explicit rather than being discarded",
+  );
+});
+
 test("the nine skill stacks retain their exact hierarchy across AI-readable artifacts", async () => {
   assert.deepEqual(resumeManifest.skillStacks, expectedSkillStacks);
   assert.deepEqual(
@@ -526,11 +552,11 @@ test("the completed King's College London record is exact across representations
       role: graphRole.roleName,
       start: graphRole.startDate,
       end: graphRole.endDate,
-      period: graphRole["hah:periodLabel"],
-      organization: graphRole["hah:organization"],
-      engagementKind: graphRole["hah:engagementKind"],
-      ongoing: graphRole["hah:ongoing"],
-      details: graphRole["hah:detail"],
+      period: graphRole[hah("periodLabel")],
+      organization: graphRole[hah("organization")],
+      engagementKind: graphRole[hah("engagementKind")],
+      ongoing: graphRole[hah("ongoing")],
+      details: graphRole[hah("detail")],
     },
     {
       type: "Role",
@@ -544,7 +570,7 @@ test("the completed King's College London record is exact across representations
       details: expected.details,
     },
   );
-  assert.deepEqual(graphRole["hah:heldBy"], { "@id": "https://hah.dev/#hayden-howard" });
+  assert.deepEqual(graphRole[hah("heldBy")], { "@id": "https://hah.dev/#hayden-howard" });
   assert.equal(Object.hasOwn(graphRole, "worksFor"), false, "education is not represented as employment");
   assert.equal(Object.hasOwn(graphRole, "member"), false, "education is not represented as membership");
 
@@ -759,7 +785,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     });
     const graphNode = graphById.get(`${record.canonicalUrl}#work`);
     assert.ok(graphNode, `${source.id} has a graph record`);
-    assert.deepEqual(graphNode["hah:provenance"], record.provenance);
+    assert.deepEqual(graphNode[hah("provenance")], record.provenance);
     assert.equal(graphNode.mainEntityOfPage?.["@id"], `${record.canonicalUrl}#page`);
   }
 
@@ -775,7 +801,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     projectDocuments.map(({ artifactId }) => artifactId),
   );
   const latticeGraph = graphById.get("https://hah.dev/projects/lattice/#work");
-  assert.equal(latticeGraph["hah:interactiveRelease"], "enabled");
+  assert.equal(latticeGraph[hah("interactiveRelease")], "enabled");
   assert.deepEqual(latticeGraph.hasPart, projectDocuments.map(({ htmlUrl }) => ({ "@id": htmlUrl })));
   for (const document of projectDocuments) {
     const node = graphById.get(document.htmlUrl);
@@ -849,17 +875,17 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   assert.equal(textToLatticeContract.canonicalPath, "/projects/lattice/text-to-lattice/");
   assert.equal(application.name, "Text to Lattice");
   assert.equal(application.creativeWorkStatus, latticeRecord.interactiveRelease);
-  assert.equal(application["hah:interactiveRelease"], latticeRecord.interactiveRelease);
+  assert.equal(application[hah("interactiveRelease")], latticeRecord.interactiveRelease);
   assert.equal(
-    application["hah:publicationMode"],
+    application[hah("publicationMode")],
     latticeRecord.interactiveRelease === "enabled" ? "interactive-client" : "documentation-only",
   );
   assert.equal(application.description, textToLatticeContract.purpose);
   assert.equal(graphById.get(`${new URL(textToLatticeContract.canonicalPath, "https://hah.dev").href}#page`)?.description, application.description);
-  assert.deepEqual(application["hah:generator"], expectedGenerator);
-  assert.deepEqual(application["hah:verifier"], expectedVerifier);
-  assert.deepEqual(application["hah:runtime"], expectedRuntime);
-  assert.deepEqual(application["hah:securityAndPrivacy"], textToLatticeContract.securityAndPrivacy);
+  assert.deepEqual(application[hah("generator")], expectedGenerator);
+  assert.deepEqual(application[hah("verifier")], expectedVerifier);
+  assert.deepEqual(application[hah("runtime")], expectedRuntime);
+  assert.deepEqual(application[hah("securityAndPrivacy")], textToLatticeContract.securityAndPrivacy);
 
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   const webLlmPackage = JSON.parse(await readFile(new URL("../node_modules/@mlc-ai/web-llm/package.json", import.meta.url), "utf8"));
@@ -878,8 +904,8 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   };
   for (const body of [renderProjectMarkdown("lattice"), latticeMarkdown]) {
     assert.ok(body.includes(`Interactive client release: ${machineValueLabel(latticeRecord.interactiveRelease)}`));
-    assert.ok(body.includes(`Public client status: ${machineValueLabel(application["hah:interactiveRelease"])}`));
-    assert.ok(body.includes(`Publication mode: ${machineValueLabel(application["hah:publicationMode"])}`));
+    assert.ok(body.includes(`Public client status: ${machineValueLabel(application[hah("interactiveRelease")])}`));
+    assert.ok(body.includes(`Publication mode: ${machineValueLabel(application[hah("publicationMode")])}`));
     assert.match(body, /public interactive client is included in the public bundle/iu);
   }
   const publicProvenance = [authoredDocument(toolHtml), latticeMarkdown];

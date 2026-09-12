@@ -16,6 +16,7 @@ import {
   LATTICE_MODEL_RPC_MAX_RESPONSE_TEXT,
   latticeModelRpcFailure,
   latticeModelRpcProgress,
+  latticeModelRpcStarted,
   latticeModelRpcSuccess,
   parseLatticeModelRpcRequest,
   serializeLatticeModelError,
@@ -186,10 +187,42 @@ async function unloadRuntime() {
   tokenizerPromises.clear();
 }
 
+async function probeWorkerCapability() {
+  await Promise.all([guardedWebLlmModule, guardedTokenizerModule]);
+  const gpu = (globalThis.navigator as Navigator & {
+    gpu?: { requestAdapter(options?: { powerPreference?: string }): Promise<{
+      limits: Record<string, number>;
+    } | null> };
+  }).gpu;
+  if (!gpu || typeof gpu.requestAdapter !== "function") {
+    return Object.freeze({ supported: false, reason: "worker-webgpu-unavailable" });
+  }
+  try {
+    const adapter = await gpu.requestAdapter({ powerPreference: "high-performance" });
+    if (!adapter) return Object.freeze({ supported: false, reason: "worker-adapter-unavailable" });
+    const limits = adapter.limits;
+    const supported = Number(limits.maxBufferSize) >= 268_435_456
+      && Number(limits.maxStorageBufferBindingSize) >= 134_217_728
+      && Number(limits.maxComputeWorkgroupStorageSize) >= 32_768
+      && Number(limits.maxStorageBuffersPerShaderStage) >= 10;
+    return Object.freeze({ supported, reason: supported ? null : "worker-webgpu-limits" });
+  } catch {
+    return Object.freeze({ supported: false, reason: "worker-adapter-unavailable" });
+  }
+}
+
 async function runRequest(request: NonNullable<ReturnType<typeof parseLatticeModelRpcRequest>>) {
   const { id, operation, payload } = request;
   try {
+    // Host-side execution and inactivity deadlines begin here, not when a
+    // request enters this worker's serialized queue.
+    self.postMessage(latticeModelRpcStarted(id, operation));
     switch (operation) {
+      case "probe": {
+        const capability = await probeWorkerCapability();
+        self.postMessage(latticeModelRpcSuccess(id, operation, capability));
+        return;
+      }
       case "cached": {
         const webllm = await guardedWebLlmModule;
         const appConfig = localAppConfig(webllm);

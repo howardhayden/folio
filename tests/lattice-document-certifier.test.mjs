@@ -403,11 +403,14 @@ test("capacity fallback reports a distinct monotonic active-window sequence", as
   });
   assert.equal(result.status, "translated");
   const flat = reports.filter(({ phase }) => phase === "certifying-document");
+  const planning = reports.filter(({ phase }) => phase === "planning-certification");
   const windows = reports.filter(({ phase }) => phase === "certifying-windows");
   assert.deepEqual(flat.map(({ current, total }) => [current, total]), [[0, 1]]);
-  assert.deepEqual(windows.map(({ current }) => current), windows.map((_, index) => index));
-  assert.ok(windows.every(({ total }, _index, items) => total === items.length));
-  assert.ok(windows.every(({ progress }, index) => progress === (index + 1) / windows.length));
+  assert.ok(planning.length > 0);
+  assert.ok(planning.every(({ progress }) => progress === null));
+  assert.deepEqual(windows.map(({ current }) => current), [0, 1, 1, 2, 2, 3]);
+  assert.ok(windows.every(({ total }) => total === 3));
+  assert.deepEqual(windows.map(({ progress }) => progress), [0, 1 / 3, 1 / 3, 2 / 3, 2 / 3, 1]);
 });
 
 test("an exactly reservable production-shaped budget skips flat certification", async () => {

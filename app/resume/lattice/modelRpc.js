@@ -5,7 +5,7 @@ export const LATTICE_MODEL_RPC_MAX_MESSAGE_TEXT = 256_000;
 export const LATTICE_MODEL_RPC_MAX_RESPONSE_TEXT = 128_000;
 export const LATTICE_MODEL_RPC_MAX_OUTPUT_TOKENS = 2_000;
 
-const OPERATIONS = new Set(["cached", "prepare", "token-count", "complete", "interrupt", "unload"]);
+const OPERATIONS = new Set(["probe", "cached", "prepare", "token-count", "complete", "interrupt", "unload"]);
 const ROLES = new Set(["generator", "verifier"]);
 const SCHEMAS = new Set(["analysis", "reanalysis", "candidate", "verification", "certification"]);
 const MESSAGE_ROLES = new Set(["system", "user", "assistant"]);
@@ -63,6 +63,7 @@ function validMessages(messages) {
 
 function validRequestPayload(operation, payload) {
   switch (operation) {
+    case "probe":
     case "cached":
     case "interrupt":
     case "unload":
@@ -114,6 +115,10 @@ function validError(value) {
 
 function validResult(operation, value) {
   switch (operation) {
+    case "probe":
+      return exactKeys(value, ["supported", "reason"])
+        && typeof value.supported === "boolean"
+        && (value.reason === null || validText(value.reason, 120));
     case "cached":
       return typeof value === "boolean";
     case "prepare":
@@ -145,6 +150,13 @@ export function latticeModelRpcFailure(id, operation, error) {
   return { channel: LATTICE_MODEL_RPC_CHANNEL, kind: "response", id, operation, ok: false, error };
 }
 
+export function latticeModelRpcStarted(id, operation) {
+  if (!validId(id) || typeof operation !== "string" || !OPERATIONS.has(operation)) {
+    throw new TypeError("Text to Lattice rejected an invalid model-worker start acknowledgement.");
+  }
+  return { channel: LATTICE_MODEL_RPC_CHANNEL, kind: "started", id, operation };
+}
+
 export function latticeModelRpcProgress(id, role, report) {
   if (!validId(id) || !validRole(role)) throw new TypeError("Text to Lattice rejected invalid model progress.");
   const progress = Number.isFinite(report?.progress) ? Math.max(0, Math.min(1, report.progress)) : null;
@@ -154,6 +166,10 @@ export function latticeModelRpcProgress(id, role, report) {
 
 export function parseLatticeModelRpcMessage(value, expectedOperation) {
   if (!record(value) || value.channel !== LATTICE_MODEL_RPC_CHANNEL || !validId(value.id)) return null;
+  if (value.kind === "started") {
+    if (!exactKeys(value, ["channel", "kind", "id", "operation"])) return null;
+    return value.operation === expectedOperation && OPERATIONS.has(value.operation) ? value : null;
+  }
   if (value.kind === "progress") {
     if (!exactKeys(value, ["channel", "kind", "id", "role", "progress", "text"])) return null;
     if (!validRole(value.role) || (value.progress !== null && (!Number.isFinite(value.progress) || value.progress < 0 || value.progress > 1))) return null;

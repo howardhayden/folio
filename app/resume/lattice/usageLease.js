@@ -2,6 +2,15 @@ import { LATTICE_USAGE_POLICY } from "./usagePolicy.js";
 import { isLatticeAttestationToken } from "./attestation.js";
 
 const LEASE_PATH = "/api/text-to-lattice/lease";
+export const LATTICE_LEASE_ACCEPT =
+  "application/vnd.hah.text-to-lattice-lease.v1+json, application/json";
+export const LATTICE_LEASE_PROTOCOL = "hah-text-to-lattice-lease";
+export const LATTICE_LEASE_PROTOCOL_VERSION = 1;
+export const LATTICE_LEASE_CHALLENGE_TYPE = "attestation-challenge";
+export const LATTICE_CANONICAL_ORIGIN = "https://hah.dev";
+export const LATTICE_CANONICAL_ORIGIN_MESSAGE =
+  "Text to Lattice runs only on the deployed hah.dev Resume. Open https://hah.dev/resume/ to convert; your text stayed here.";
+export const LATTICE_LEASE_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_LEASE_RESPONSE_BYTES = 16_384;
 const MAX_RETRY_SECONDS = LATTICE_USAGE_POLICY.visitor.windowSeconds + 60;
 const MAX_RELEASE_RETRY_SECONDS = Math.max(
@@ -26,6 +35,19 @@ const ATTESTATION_HEADER = "X-Lattice-Attestation";
 const ATTESTATION_SITE_KEY_PATTERN = /^[A-Za-z0-9_-]{1,128}$/u;
 const LEASE_TOKEN_PATTERN = /^[A-Za-z0-9._-]{1,512}$/u;
 const releaseOperations = new Map();
+const TYPED_CHALLENGE_KEYS = Object.freeze([
+  "allowed",
+  "attestationSiteKey",
+  "code",
+  "protocol",
+  "type",
+  "version",
+].sort());
+const LEGACY_CHALLENGE_KEYS = Object.freeze([
+  "allowed",
+  "attestationSiteKey",
+  "code",
+].sort());
 
 export class LatticeLeaseError extends Error {
   constructor(message, {
@@ -38,6 +60,59 @@ export class LatticeLeaseError extends Error {
     this.code = code;
     this.retryAfterSeconds = retryAfterSeconds;
     this.limited = limited;
+  }
+}
+
+export function requireCanonicalLatticeBrowserOrigin(
+  location = typeof window === "undefined" ? null : window.location,
+) {
+  if (location === null || location?.origin === LATTICE_CANONICAL_ORIGIN) return;
+  throw new LatticeLeaseError(
+    LATTICE_CANONICAL_ORIGIN_MESSAGE,
+    { code: "canonical-origin-required", retryAfterSeconds: 0 },
+  );
+}
+
+function leaseAbortError() {
+  return new DOMException("The Text to Lattice request was canceled.", "AbortError");
+}
+
+async function fetchBoundedLatticeLeaseResponse(options, signal) {
+  if (signal?.aborted) throw leaseAbortError();
+  const controller = new AbortController();
+  let timedOut = false;
+  let rejectBoundary = () => {};
+  const boundary = new Promise((_resolve, reject) => { rejectBoundary = reject; });
+  const abort = () => {
+    controller.abort();
+    rejectBoundary(leaseAbortError());
+  };
+  signal?.addEventListener("abort", abort, { once: true });
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+    rejectBoundary(leaseAbortError());
+  }, LATTICE_LEASE_REQUEST_TIMEOUT_MS);
+  try {
+    const request = (async () => {
+      const response = await fetch(LEASE_PATH, { ...options, signal: controller.signal });
+      const responseBody = await boundedLatticeLeaseResponseBody(response, controller.signal);
+      if (signal?.aborted || timedOut) throw leaseAbortError();
+      return [response, responseBody];
+    })();
+    return await Promise.race([request, boundary]);
+  } catch (error) {
+    if (signal?.aborted) throw leaseAbortError();
+    if (timedOut) {
+      throw new LatticeLeaseError(
+        "The Text to Lattice availability service did not respond in time. Your text stayed here.",
+        { code: "lease-request-timeout", retryAfterSeconds: 0 },
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
   }
 }
 
@@ -238,15 +313,33 @@ function messageForCode(code, limited = false) {
   return "Text to Lattice is unavailable right now.";
 }
 
-export async function boundedLatticeLeaseResponseBody(response) {
+function readLatticeLeaseResponseChunk(reader, signal) {
+  if (!signal) return reader.read();
+  if (signal.aborted) {
+    void reader.cancel().catch(() => {});
+    return Promise.reject(leaseAbortError());
+  }
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      void reader.cancel().catch(() => {});
+      reject(leaseAbortError());
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    reader.read().then(resolve, reject).finally(() => {
+      signal.removeEventListener("abort", abort);
+    });
+  });
+}
+
+export async function boundedLatticeLeaseResponseBody(response, signal) {
   const mediaType = (response.headers.get("Content-Type") ?? "").split(";", 1)[0].trim().toLowerCase();
   if (mediaType !== "application/json") {
-    await response.body?.cancel().catch(() => {});
+    void response.body?.cancel().catch(() => {});
     return null;
   }
   const declaredLength = Number(response.headers.get("Content-Length"));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_LEASE_RESPONSE_BYTES) {
-    void response.body?.cancel();
+    void response.body?.cancel().catch(() => {});
     return null;
   }
   if (!response.body) return null;
@@ -256,23 +349,24 @@ export async function boundedLatticeLeaseResponseBody(response) {
   let text = "";
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await readLatticeLeaseResponseChunk(reader, signal);
       if (done) break;
       bytesRead += value.byteLength;
       if (bytesRead > MAX_LEASE_RESPONSE_BYTES) {
-        await reader.cancel();
+        void reader.cancel().catch(() => {});
         return null;
       }
       text += decoder.decode(value, { stream: true });
       if (text.length > MAX_LEASE_RESPONSE_BYTES) {
-        await reader.cancel();
+        void reader.cancel().catch(() => {});
         return null;
       }
     }
     text += decoder.decode();
     return JSON.parse(text);
-  } catch {
-    await reader.cancel().catch(() => {});
+  } catch (error) {
+    void reader.cancel().catch(() => {});
+    if (signal?.aborted) throw error;
     return null;
   }
 }
@@ -299,7 +393,43 @@ function matchesPublishedPolicy(policy) {
     && policy?.activeLeases?.maximumLifetimeSeconds === LATTICE_USAGE_POLICY.activeLeases.maximumLifetimeSeconds;
 }
 
+function hasExactKeys(value, expected) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Object.keys(value).sort();
+  return keys.length === expected.length
+    && keys.every((key, index) => key === expected[index]);
+}
+
+function hasValidChallengeFields(body) {
+  return body?.allowed === false
+    && ["visitor-cookie-required", "attestation-required"].includes(body?.code)
+    && ATTESTATION_SITE_KEY_PATTERN.test(body?.attestationSiteKey ?? "");
+}
+
+function isTypedLeaseChallenge(response, body) {
+  return response.status === 200
+    && hasExactKeys(body, TYPED_CHALLENGE_KEYS)
+    && body.protocol === LATTICE_LEASE_PROTOCOL
+    && body.version === LATTICE_LEASE_PROTOCOL_VERSION
+    && body.type === LATTICE_LEASE_CHALLENGE_TYPE
+    && hasValidChallengeFields(body);
+}
+
+function isLegacyLeaseChallenge(response, body) {
+  if (response.status !== 428 || !hasValidChallengeFields(body)) return false;
+  return hasExactKeys(body, LEGACY_CHALLENGE_KEYS) || (
+    hasExactKeys(body, TYPED_CHALLENGE_KEYS)
+    && body.protocol === LATTICE_LEASE_PROTOCOL
+    && body.version === LATTICE_LEASE_PROTOCOL_VERSION
+    && body.type === LATTICE_LEASE_CHALLENGE_TYPE
+  );
+}
+
 export async function acquireLatticeLease(signal, obtainAttestation) {
+  // The lease and isolated attestation are an exact-origin production
+  // boundary. Local Vite previews may inspect the interface, but they must not
+  // generate a misleading /api 404 or proxy around that boundary.
+  requireCanonicalLatticeBrowserOrigin();
   // Start the browser deadline before either empty request. This makes the
   // browser's permitted run no longer than the server lease even when the
   // initial cookie-establishment round trip adds latency.
@@ -307,31 +437,29 @@ export async function acquireLatticeLease(signal, obtainAttestation) {
   let attestationToken = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let response;
+    let body;
     try {
-      response = await fetch(LEASE_PATH, {
+      [response, body] = await fetchBoundedLatticeLeaseResponse({
         method: "POST",
         headers: {
-          Accept: "application/json",
+          Accept: LATTICE_LEASE_ACCEPT,
           ...(attestationToken ? { [ATTESTATION_HEADER]: attestationToken } : {}),
         },
         credentials: "same-origin",
         cache: "no-store",
         redirect: "error",
         referrerPolicy: "no-referrer",
-        signal,
-      });
+      }, signal);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") throw error;
+      if (error instanceof LatticeLeaseError) throw error;
       throw new LatticeLeaseError(
         "Text to Lattice is unavailable right now. Your text stayed here.",
       );
     }
-    const body = await boundedLatticeLeaseResponseBody(response);
     if (
-      response.status === 428
-      && ["visitor-cookie-required", "attestation-required"].includes(body?.code)
+      (isTypedLeaseChallenge(response, body) || isLegacyLeaseChallenge(response, body))
       && attempt === 0
-      && ATTESTATION_SITE_KEY_PATTERN.test(body?.attestationSiteKey ?? "")
       && typeof obtainAttestation === "function"
     ) {
       attestationToken = await obtainAttestation(body.attestationSiteKey, signal);
@@ -407,26 +535,26 @@ export async function renewLatticeLease(lease, signal) {
   }
   const renewalStartedAt = Date.now();
   let response;
+  let body;
   try {
-    response = await fetch(LEASE_PATH, {
+    [response, body] = await fetchBoundedLatticeLeaseResponse({
       method: "PATCH",
       headers: {
-        Accept: "application/json",
+        Accept: LATTICE_LEASE_ACCEPT,
         Authorization: `Bearer ${lease.token}`,
       },
       credentials: "same-origin",
       cache: "no-store",
       redirect: "error",
       referrerPolicy: "no-referrer",
-      signal,
-    });
+    }, signal);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
+    if (error instanceof LatticeLeaseError) throw error;
     throw new LatticeLeaseError(
       "The run could not continue. Your text stayed here.",
     );
   }
-  const body = await boundedLatticeLeaseResponseBody(response);
   const code = typeof body?.code === "string" ? body.code : "usage-gate-unavailable";
   const responseLimited = response.status === 429;
   const wait = retrySeconds(response, body);
@@ -481,10 +609,10 @@ function waitForReleaseRetry(milliseconds) {
 async function performLatticeLeaseRelease(token, wait) {
   for (let attempt = 0; attempt < MAX_RELEASE_ATTEMPTS; attempt += 1) {
     try {
-      const response = await fetch(LEASE_PATH, {
+      const [response, body] = await fetchBoundedLatticeLeaseResponse({
         method: "DELETE",
         headers: {
-          Accept: "application/json",
+          Accept: LATTICE_LEASE_ACCEPT,
           Authorization: `Bearer ${token}`,
         },
         credentials: "same-origin",
@@ -495,7 +623,6 @@ async function performLatticeLeaseRelease(token, wait) {
       });
       if (response.ok) return true;
       if (response.status !== 429 || attempt + 1 >= MAX_RELEASE_ATTEMPTS) return false;
-      const body = await boundedLatticeLeaseResponseBody(response);
       const retryAfterSeconds = retrySeconds(response, body);
       if (retryAfterSeconds > MAX_RELEASE_RETRY_SECONDS) return false;
       await wait(retryAfterSeconds * 1_000);

@@ -42,6 +42,10 @@ const INTERNAL_LEASE_CREDENTIAL_HEADER = "X-Lattice-Lease-Credential";
 const STATE_KEY = "usage-policy-v1";
 const GLOBAL_OBJECT_NAME = "text-to-lattice-global-v1";
 const VISITOR_ID_PATTERN = /^[A-Za-z0-9_-]{24}$/u;
+const TYPED_LEASE_ACCEPT = "application/vnd.hah.text-to-lattice-lease.v1+json";
+const LEASE_PROTOCOL = "hah-text-to-lattice-lease";
+const LEASE_PROTOCOL_VERSION = 1;
+const LEASE_CHALLENGE_TYPE = "attestation-challenge";
 
 const responseHeaders = Object.freeze({
   "Cache-Control": "no-store, max-age=0",
@@ -117,6 +121,12 @@ function cookieValue(request) {
 function bearerValue(request) {
   const match = request.headers.get("Authorization")?.match(/^Bearer ([^\s]{1,256})$/u);
   return match?.[1] ?? null;
+}
+
+function acceptsTypedLeaseChallenge(request) {
+  return (request.headers.get("Accept") ?? "")
+    .split(",")
+    .some((value) => value.trim().toLowerCase() === TYPED_LEASE_ACCEPT);
 }
 
 function internalLeaseId(request) {
@@ -424,7 +434,15 @@ async function publicHandler(request, env) {
     );
     attestationToken = request.headers.get(LATTICE_ATTESTATION_HEADER);
     if (!visitorId || !attestationToken) {
-      const challengeResponse = jsonResponse(428, {
+      // The current client opts into a typed HTTP 200 challenge so a normal
+      // protocol step is not surfaced as a failed network request. The legacy
+      // 428 status remains available to already-published clients while the
+      // unversioned Worker and Pages deployments overlap or roll back.
+      const challengeStatus = acceptsTypedLeaseChallenge(request) ? 200 : 428;
+      const challengeResponse = jsonResponse(challengeStatus, {
+        protocol: LEASE_PROTOCOL,
+        version: LEASE_PROTOCOL_VERSION,
+        type: LEASE_CHALLENGE_TYPE,
         allowed: false,
         code: visitorId ? "attestation-required" : "visitor-cookie-required",
         attestationSiteKey: turnstileSiteKey,

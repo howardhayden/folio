@@ -121,13 +121,37 @@ test("the Lattice project SVG alone intercepts unmodified primary activations", 
     preventAt >= 0 && openAt > preventAt,
     "the modal opens only after native navigation is intentionally intercepted",
   );
+
+  const cardStart = source.indexOf("export function ResumeProjectCard");
+  const cardEnd = source.indexOf("\nexport default function ResumeProjects", cardStart);
+  assert.ok(cardStart >= 0 && cardEnd > cardStart, "the canonical shared project card is present");
+  const card = source.slice(cardStart, cardEnd);
+  const interactiveIconStart = card.indexOf("{latticeProject && onLatticeLaunch ? (");
+  const fallbackIconStart = card.indexOf(") : latticeProject ? (", interactiveIconStart);
+  assert.ok(
+    interactiveIconStart >= 0 && fallbackIconStart > interactiveIconStart,
+    "the shared card keeps the interactive and canonical Lattice icon branches distinct",
+  );
+  const interactiveIcon = card.slice(interactiveIconStart, fallbackIconStart);
   assert.equal(
-    (source.match(/onClick=\{launchLattice\}/gu) ?? []).length,
+    (interactiveIcon.match(/onClick=\{onLatticeLaunch\}/gu) ?? []).length,
     1,
     "only the project SVG link launches the modal",
   );
-  assert.match(source, /className="tool-icon project-modal-trigger signal-fuzz"[\s\S]*?<ProjectIcon/u);
-  assert.match(source, /<a className="signal-fuzz" href=\{project\.canonicalPath\}>\{project\.name\}<\/a>/u);
+  assert.match(interactiveIcon, /className="tool-icon project-modal-trigger signal-fuzz"[\s\S]*?data-lattice-launch="text-to-lattice"[\s\S]*?<ProjectIcon/u);
+
+  const titleStart = card.indexOf('<h3 className="card-title tools-card-title');
+  const titleEnd = card.indexOf("</h3>", titleStart);
+  assert.ok(titleStart >= 0 && titleEnd > titleStart, "the shared card retains canonical title navigation");
+  const title = card.slice(titleStart, titleEnd);
+  assert.match(title, /href=\{project\.canonicalPath\}/u);
+  assert.doesNotMatch(title, /onLatticeLaunch|launchLattice/u);
+
+  assert.match(
+    source,
+    /onLatticeLaunch=\{"interaction" in project && project\.interaction === "lattice-demo" \? launchLattice : undefined\}/u,
+    "the canonical project list delegates launch interception only for the Lattice project",
+  );
   assert.doesNotMatch(source, /project-title-button|lattice-project-launch/u);
 });
 
@@ -160,23 +184,17 @@ test("resume detail links preserve native modified and nonprimary navigation", a
   assert.match(source, /<article className=\{className\}[\s\S]*?<TimelineEntry[\s\S]*?detailLink=\{detailLink\}/u);
   assert.match(source, /className="timeline-icon-trigger signal-fuzz"[\s\S]*?aria-haspopup="dialog"/u);
   assert.doesNotMatch(source, /<a className=\{`\$\{className\} timeline-button`\}/u);
-  assert.match(source, /<div className="progress-container university-progress-entry">/u);
-  assert.match(css, /\.university-progress-entry \.progress-bar-fill \{[\s\S]*?text-align: left;/u);
-  assert.match(css, /\.university-progress-entry \.progress-value \{[\s\S]*?padding-left: \.25rem;[\s\S]*?padding-right: 0;[\s\S]*?text-align: left;/u);
-  assert.match(css, /\.university-progress-entry \.progress-label \{[\s\S]*?text-align: right;/u);
-  assert.match(source, /<a[\s\S]*?className=\{`\$\{className\} button-reset`\}[\s\S]*?onClick=/u);
-  assert.match(source, /<div className=\{className\} style=\{\{ width, cursor: "auto" \}\}>/u);
-  assert.doesNotMatch(css, /\.progress-bar-fill:hover\s*\{/u, "static University bars have no hover affordance");
-  assert.match(css, /\.progress-bar-fill\.button-reset:focus-visible \{[\s\S]*?outline: 2px solid currentColor;/u);
-  assert.match(css, /\.university-progress-entry \.progress-bar-fill\.button-reset::after \{[\s\S]*?background: whitesmoke;[\s\S]*?opacity: 0;[\s\S]*?transition: opacity \.42s cubic-bezier\(\.22, 1, \.36, 1\);/u);
-  assert.match(css, /\.university-progress-entry \.progress-bar-fill\.button-reset:focus-visible::after \{[\s\S]*?opacity: 1;/u);
-  assert.match(css, /@media \(hover: hover\) \{[\s\S]*?\.university-progress-entry \.progress-bar-fill\.button-reset:hover::after \{[\s\S]*?opacity: 1;/u);
-  assert.doesNotMatch(css, /\.progress-bar-fill\.button-reset:(?:focus-visible|hover) \{[^}]*background-image: none;/u,
-    "the Flash cross-fades over the existing fill instead of snapping its background away");
+  assert.match(source, /function UniversityChronologyEntry\([\s\S]*?aria-controls=\{`resume-modal-\$\{record\.detail\}`\}[\s\S]*?aria-haspopup="dialog"[\s\S]*?href=\{detail\.canonicalPath\}[\s\S]*?if \(!shouldInterceptResumeModalLink\(event\)\) return;/u);
+  assert.match(source, /<section className=\{`container university-section\$\{blurred\}`\} aria-labelledby="resume-university-title">/u);
+  assert.match(css, /\.university-chronology-entry \.progress-label a:focus-visible \{[\s\S]*?outline: 2px solid currentColor;/u);
+  assert.doesNotMatch(css, /\.progress-bar-fill:hover\s*\{/u, "static University chronology marks have no false hover affordance");
+  assert.match(css, /\.university-chronology-entry--interactive \.university-progress-span::after \{[\s\S]*?background: whitesmoke;[\s\S]*?opacity: 0;[\s\S]*?transition: opacity \.42s cubic-bezier\(\.22, 1, \.36, 1\);/u);
+  assert.doesNotMatch(css, /\.university-progress-span[^}]*background-image: none;/u,
+    "the University disclosure flash cross-fades over the existing fill instead of replacing it");
   assert.match(css, /\.background-gradient-green-blue::before \{[\s\S]*?background-image: var\(--signal-grain-1\);[\s\S]*?opacity: 0\.12;[\s\S]*?pointer-events: none;/u);
   assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?signal-film-grain-frame \.48s steps\(1, end\) infinite,[\s\S]*?signal-film-weave 7\.6s/u);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.progress-bar-fill\.button-reset \{[\s\S]*?transition: none;[\s\S]*?\.university-progress-entry \.progress-bar-fill\.button-reset::after,[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none;[\s\S]*?transition: none;/u);
-  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.background-gradient-green-blue \{[\s\S]*?background: CanvasText !important;[\s\S]*?color: Canvas !important;[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none !important;[\s\S]*?background-image: none !important;[\s\S]*?\.progress-bar-fill\.button-reset:focus-visible \{[\s\S]*?outline-color: Highlight !important;/u);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.university-progress-span \.progress-value \{[\s\S]*?transition: none;[\s\S]*?\.university-chronology-entry--interactive \.university-progress-span::after,[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none;[\s\S]*?transition: none;/u);
+  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.background-gradient-green-blue \{[\s\S]*?background: CanvasText !important;[\s\S]*?color: Canvas !important;[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none !important;[\s\S]*?background-image: none !important;[\s\S]*?\.university-chronology-entry \.progress-label a:focus-visible \{[\s\S]*?outline-color: Highlight !important;/u);
   assert.match(css, /@media print \{[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none !important;[\s\S]*?background-image: none !important;/u);
   assert.match(css, /\.project-modal-trigger,\s*\.timeline-icon-trigger \{[\s\S]*?min-height: 24px;[\s\S]*?min-width: 24px;/u);
 });

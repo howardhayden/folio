@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { stripBootstrapSourceMapReference } from "../postcss.config.mjs";
+
 async function sourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = await Promise.all(entries.map(async (entry) => {
@@ -104,4 +106,15 @@ test("the documented Bootstrap version matches the exact installed dependency", 
   assert.equal(packageJson.dependencies.bootstrap, installedVersion);
   assert.equal(packageLock.packages[""].dependencies.bootstrap, installedVersion);
   assert.ok(readme.includes(`Bootstrap ${installedVersion} styling`));
+});
+
+test("development CSS removes only Bootstrap's stale source-map reference", () => {
+  const comments = [
+    { text: "# sourceMappingURL=bootstrap.min.css.map", removed: false, remove() { this.removed = true; } },
+    { text: "# sourceMappingURL=application.css.map", removed: false, remove() { this.removed = true; } },
+    { text: "preserve this comment", removed: false, remove() { this.removed = true; } },
+  ];
+  const plugin = stripBootstrapSourceMapReference();
+  plugin.Once({ walkComments(callback) { comments.forEach(callback); } });
+  assert.deepEqual(comments.map(({ removed }) => removed), [true, false, false]);
 });

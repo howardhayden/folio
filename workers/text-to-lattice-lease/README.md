@@ -545,10 +545,18 @@ It does not write IP addresses, user-agent strings, referrers, source text, or
 results to application storage, and Worker observability is disabled. Cloudflare
 may still process request, security, and recovery metadata under its service terms.
 
-On the first bodyless acquisition request, the Worker sets the signed cookie,
-returns the public Turnstile site key with `428`, and the client retries once
-with the attestation header produced by the declared credential profile and
-without adding a body. Under a production profile that token is fresh and
+On the first bodyless acquisition request, the Worker sets the signed cookie
+and returns the public Turnstile site key in a closed, versioned
+`hah-text-to-lattice-lease` challenge envelope. The current client advertises
+`application/vnd.hah.text-to-lattice-lease.v1+json` and receives that normal
+protocol step with HTTP `200`; it still requires `allowed: false`, the exact
+protocol, version, type, code, site key, and key set before obtaining an
+attestation and retrying once without adding a body. During the non-atomic
+Worker/Pages deployment window, a previously published client that does not
+advertise the versioned media type receives the same challenge with legacy
+HTTP `428`. The current client temporarily accepts the exact historical
+untyped `428` envelope as a rollback path but never accepts an untyped HTTP
+`200` challenge. Under a production profile the attestation token is fresh and
 single-use; under the official testing profile it is the exact reusable dummy
 token and carries no such assurance. That cheap challenge
 is locally shaped but never calls the singleton; the attested retry crosses the
