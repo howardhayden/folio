@@ -1116,7 +1116,7 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
   );
   assert.equal(
     (resumeDocument.match(/class="tool-icon(?: project-modal-trigger)? signal-fuzz"/gu) ?? []).length,
-    6,
+    projects.length,
     "every primary Project icon receives the shared film effect",
   );
 
@@ -1316,7 +1316,7 @@ test("renders current projects and consistent project documentation icons", asyn
     latticeAt >= 0 && inKeepingAt > latticeAt && fogAt > inKeepingAt,
     "IN KEEPING is the second project in left-to-right document order",
   );
-  assert.equal((html.match(/class="bi bi-bricks"/g) ?? []).length, 1);
+  assert.equal((html.match(/class="bi bi-bricks"/g) ?? []).length, 2);
   assert.match(
     html,
     /IN KEEPING keeps a library’s evidence, obligations, and recovery paths legible through change\./,
@@ -1333,8 +1333,12 @@ test("renders current projects and consistent project documentation icons", asyn
     (count, project) => count + project.resources.length,
     0,
   );
-  assert.equal(expectedProjectResourceCount, 14, "the current project register exposes fourteen scented resources");
-  assert.equal((html.match(/class="bi bi-backpack4"/g) ?? []).length, expectedProjectResourceCount);
+  assert.equal(expectedProjectResourceCount, 22, "the current project register exposes twenty-two scented resources");
+  const primaryBackpackCount = projects.filter(({ icon }) => icon === "backpack4").length;
+  assert.equal(
+    (html.match(/class="bi bi-backpack4"/g) ?? []).length,
+    expectedProjectResourceCount + primaryBackpackCount,
+  );
 });
 
 test("keeps project hooks, native Read More content, and scented resources in a stable no-JavaScript order", async () => {
