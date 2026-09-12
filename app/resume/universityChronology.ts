@@ -16,6 +16,7 @@ export type UniversityChronologyRecord = Readonly<{
   endLabel: string | null;
   detail: keyof typeof resumeDetails | null;
   gradient?: boolean;
+  displayQuarters?: readonly [1 | 2 | 3 | 4, 1 | 2 | 3 | 4];
 }>;
 
 export type UniversityChronologyGeometry = Readonly<{
@@ -53,6 +54,7 @@ export const universityChronology = Object.freeze<readonly UniversityChronologyR
     endLabel: "May 2023",
     detail: "undergrad",
     gradient: true,
+    displayQuarters: Object.freeze([1, 4] as const),
   }),
   Object.freeze({
     id: "digital-humanities-forum-committee",
@@ -62,6 +64,7 @@ export const universityChronology = Object.freeze<readonly UniversityChronologyR
     end: "2022-05",
     endLabel: "May 2022",
     detail: null,
+    displayQuarters: Object.freeze([3, 3] as const),
   }),
   Object.freeze({
     id: ohiolink.id,
@@ -72,6 +75,7 @@ export const universityChronology = Object.freeze<readonly UniversityChronologyR
     endLabel: "May 2023",
     detail: "ohiolink",
     gradient: true,
+    displayQuarters: Object.freeze([3, 4] as const),
   }),
   Object.freeze({
     id: teaching.id,
@@ -90,6 +94,7 @@ export const universityChronology = Object.freeze<readonly UniversityChronologyR
     end: "2023-05",
     endLabel: "May 2023",
     detail: null,
+    displayQuarters: Object.freeze([4, 4] as const),
   }),
 ]);
 
@@ -104,7 +109,7 @@ function clamp(value: number, minimum: number, maximum: number) {
 }
 
 export function deriveUniversityChronologyGeometry(
-  record: Pick<UniversityChronologyRecord, "start" | "end">,
+  record: Pick<UniversityChronologyRecord, "start" | "end" | "displayQuarters">,
   interval = UNDERGRADUATE_INTERVAL,
 ): UniversityChronologyGeometry {
   const intervalStart = monthIndex(interval.start);
@@ -122,6 +127,9 @@ export function deriveUniversityChronologyGeometry(
   const startQuarter = clamp(Math.floor(startPercent / 25) + 1, 1, 4) as 1 | 2 | 3 | 4;
 
   if (record.end === null) {
+    if (record.displayQuarters) {
+      throw new RangeError("A point event cannot claim a University chronology display interval");
+    }
     return Object.freeze({ kind: "point", startPercent, spanPercent: 0, startQuarter, endQuarter: null });
   }
 
@@ -131,6 +139,20 @@ export function deriveUniversityChronologyGeometry(
   }
   if (recordEnd >= intervalEndExclusive) {
     throw new RangeError("A University chronology end cannot exceed the degree interval");
+  }
+
+  if (record.displayQuarters) {
+    const [displayStartQuarter, displayEndQuarter] = record.displayQuarters;
+    if (displayEndQuarter < displayStartQuarter) {
+      throw new RangeError("A University chronology display quarter cannot precede its start quarter");
+    }
+    return Object.freeze({
+      kind: "interval",
+      startPercent: (displayStartQuarter - 1) * 25,
+      spanPercent: (displayEndQuarter - displayStartQuarter + 1) * 25,
+      startQuarter: displayStartQuarter,
+      endQuarter: displayEndQuarter,
+    });
   }
 
   const endOffset = recordEnd + 1 - intervalStart;
