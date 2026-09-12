@@ -274,6 +274,9 @@ function UniversityChronologyEntry({
     "--university-start": universityChronologyPercent(geometry.startPercent),
     "--university-span": universityChronologyPercent(geometry.spanPercent),
   } as CSSProperties;
+  const quarterLabel = geometry.endQuarter && geometry.endQuarter !== geometry.startQuarter
+    ? `Q${geometry.startQuarter}–Q${geometry.endQuarter}`
+    : `Q${geometry.startQuarter}`;
   const title = detail && onActivate ? (
     <a
       aria-controls={`resume-modal-${record.detail}`}
@@ -303,8 +306,8 @@ function UniversityChronologyEntry({
             {record.end && record.endLabel ? (
               <> – <time dateTime={record.end}>{record.endLabel}</time></>
             ) : null}
-            <span className="university-quarter-label" aria-label={`Degree quarter ${geometry.startQuarter}`}>
-              Q{geometry.startQuarter}
+            <span className="university-quarter-label" aria-label={`Degree ${quarterLabel}`}>
+              {quarterLabel}
             </span>
           </p>
         </div>

@@ -1222,7 +1222,6 @@ a:hover {
 .modal.resume-modal { display: block; inset: 0; }
 .modal.resume-modal[hidden] { display: none !important; }
 .modal.resume-modal.lattice-modal {
-  background: #fff;
   isolation: isolate;
 }
 .skill-stack-modal-open { overflow: hidden !important; }

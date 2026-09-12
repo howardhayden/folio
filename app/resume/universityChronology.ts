@@ -23,6 +23,7 @@ export type UniversityChronologyGeometry = Readonly<{
   startPercent: number;
   spanPercent: number;
   startQuarter: 1 | 2 | 3 | 4;
+  endQuarter: 1 | 2 | 3 | 4 | null;
 }>;
 
 function timelineRecord(id: string) {
@@ -58,8 +59,8 @@ export const universityChronology = Object.freeze<readonly UniversityChronologyR
     label: digitalHumanities.label,
     start: "2021-08",
     startLabel: digitalHumanities.start,
-    end: null,
-    endLabel: null,
+    end: "2022-05",
+    endLabel: "May 2022",
     detail: null,
   }),
   Object.freeze({
@@ -70,6 +71,7 @@ export const universityChronology = Object.freeze<readonly UniversityChronologyR
     end: ohiolink.end,
     endLabel: "May 2023",
     detail: "ohiolink",
+    gradient: true,
   }),
   Object.freeze({
     id: teaching.id,
@@ -85,8 +87,8 @@ export const universityChronology = Object.freeze<readonly UniversityChronologyR
     label: diversityEquityInclusion.label,
     start: "2022-08",
     startLabel: diversityEquityInclusion.start,
-    end: null,
-    endLabel: null,
+    end: "2023-05",
+    endLabel: "May 2023",
     detail: null,
   }),
 ]);
@@ -120,7 +122,7 @@ export function deriveUniversityChronologyGeometry(
   const startQuarter = clamp(Math.floor(startPercent / 25) + 1, 1, 4) as 1 | 2 | 3 | 4;
 
   if (record.end === null) {
-    return Object.freeze({ kind: "point", startPercent, spanPercent: 0, startQuarter });
+    return Object.freeze({ kind: "point", startPercent, spanPercent: 0, startQuarter, endQuarter: null });
   }
 
   const recordEnd = monthIndex(record.end);
@@ -132,11 +134,13 @@ export function deriveUniversityChronologyGeometry(
   }
 
   const endOffset = recordEnd + 1 - intervalStart;
+  const endQuarter = clamp(Math.ceil(endOffset / duration * 4), 1, 4) as 1 | 2 | 3 | 4;
   return Object.freeze({
     kind: "interval",
     startPercent,
     spanPercent: (endOffset - startOffset) / duration * 100,
     startQuarter,
+    endQuarter,
   });
 }
 
