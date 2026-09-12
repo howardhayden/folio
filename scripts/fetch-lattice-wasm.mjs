@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { LATTICE_MODEL_ROLES } from "../app/resume/lattice/modelContract.js";
+import { LATTICE_COMPATIBILITY_WASM, LATTICE_MODEL_ROLES } from "../app/resume/lattice/modelContract.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const register = JSON.parse(await readFile(
@@ -13,11 +13,20 @@ const register = JSON.parse(await readFile(
 const destinations = Object.freeze({
   generator: process.env.LATTICE_QWEN_WASM ?? "/tmp/qwen3-lattice-model-lib.wasm",
   verifier: process.env.LATTICE_LLAMA_WASM ?? "/tmp/llama32-lattice-model-lib.wasm",
+  compatibilityGenerator: process.env.LATTICE_QWEN_COMPATIBILITY_WASM ?? "/tmp/qwen3-lattice-compatibility-model-lib.wasm",
+  compatibilityVerifier: process.env.LATTICE_LLAMA_COMPATIBILITY_WASM ?? "/tmp/llama32-lattice-compatibility-model-lib.wasm",
+});
+
+const modelLibraries = Object.freeze({
+  generator: LATTICE_MODEL_ROLES.generator.modelLib,
+  verifier: LATTICE_MODEL_ROLES.verifier.modelLib,
+  compatibilityGenerator: LATTICE_COMPATIBILITY_WASM.generator.modelLib,
+  compatibilityVerifier: LATTICE_COMPATIBILITY_WASM.verifier.modelLib,
 });
 
 async function fetchPinnedWasm(role) {
   const record = register.artifactSet.wasm.files[role];
-  const url = new URL(LATTICE_MODEL_ROLES[role].modelLib);
+  const url = new URL(modelLibraries[role]);
   if (!url.pathname.endsWith(`/${record.name}`)) throw new Error(`${role} WASM filename drifted from the release register.`);
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -45,7 +54,7 @@ async function fetchPinnedWasm(role) {
   throw new Error(`Could not verify the pinned ${role} WASM: ${lastError?.message ?? "request failed"}`);
 }
 
-for (const role of ["generator", "verifier"]) {
+for (const role of ["generator", "verifier", "compatibilityGenerator", "compatibilityVerifier"]) {
   const bytes = await fetchPinnedWasm(role);
   const destination = destinations[role];
   await mkdir(dirname(destination), { recursive: true });

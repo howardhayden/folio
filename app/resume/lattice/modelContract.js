@@ -38,6 +38,42 @@ export const LATTICE_WASM_SRI = Object.freeze({
   verifier: "sha256-NN4NYKtZjGqFrogrSEdPJQGTB2+QIFeiEHC7LarpbVs=",
 });
 
+export const LATTICE_COMPATIBILITY_WASM = Object.freeze({
+  generator: Object.freeze({
+    name: "Qwen3-4B-q4f32_1-ctx4k_cs1k-webgpu.wasm",
+    bytes: 5_929_497,
+    gitBlob: "0031457311199bad79750852478fe44e2ae62627",
+    modelLib: `${LATTICE_WASM_BASE}/Qwen3-4B-q4f32_1-ctx4k_cs1k-webgpu.wasm`,
+    sha256: "6484148ff499c15433ab85e4d2c376aef453a6d797f48047e6bd6fd495a59e39",
+    sri: "sha256-ZIQUj/SZwVQzq4Xk0sN2rvRTpteX9IBH5r1v1JWlnjk=",
+  }),
+  verifier: Object.freeze({
+    name: "Llama-3.2-3B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
+    bytes: 5_935_137,
+    gitBlob: "5f1cc840767185ed275b008205cb27750a8abe8d",
+    modelLib: `${LATTICE_WASM_BASE}/Llama-3.2-3B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm`,
+    sha256: "224e4cd5c235621684257aad3ebfdaf6e337d50f783614d1e7ed63e78d693ad6",
+    sri: "sha256-Ik5M1cI1YhaEJXqtPr/a9uM31Q94NhTR5+1j541pOtY=",
+  }),
+});
+
+export function requiresCompatibleLatticeKernels(userAgent = "", shaderF16Supported = true) {
+  const webKit = /AppleWebKit\//u.test(userAgent)
+    && /Safari\//u.test(userAgent)
+    && !/(?:Chrome|Chromium|CriOS|Edg|OPR|FxiOS)\//u.test(userAgent);
+  const firefox = /(?:Firefox|FxiOS)\//u.test(userAgent);
+  return webKit || firefox || shaderF16Supported !== true;
+}
+
+export function latticeModelLibrary(role, userAgent = "", shaderF16Supported = true) {
+  if (!(role in LATTICE_MODEL_ROLES)) {
+    throw new TypeError("Text to Lattice rejected an unknown model role.");
+  }
+  return requiresCompatibleLatticeKernels(userAgent, shaderF16Supported)
+    ? LATTICE_COMPATIBILITY_WASM[role].modelLib
+    : LATTICE_MODEL_ROLES[role].modelLib;
+}
+
 export const LATTICE_WASM_BUILD_LINEAGE = Object.freeze({
   binaryRepositoryRevision: LATTICE_WASM_REVISION,
   releaseDirectory: "web-llm-models/v0_2_80",

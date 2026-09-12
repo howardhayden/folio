@@ -16,6 +16,7 @@ import {
   LATTICE_WASM_REPOSITORY,
   LATTICE_WASM_REVISION,
   LATTICE_WASM_SHA256,
+  LATTICE_COMPATIBILITY_WASM,
 } from "../app/resume/lattice/modelContract.js";
 import { projectBySlug } from "../app/resume/projects.js";
 
@@ -112,6 +113,7 @@ const heldRuntimeAssetPatterns = Object.freeze([
 const heldExecutableExtensions = new Set([".js", ".mjs", ".cjs", ".map"]);
 const heldArtifactDigests = new Set([
   ...Object.values(LATTICE_WASM_SHA256),
+  ...Object.values(LATTICE_COMPATIBILITY_WASM).map(({ sha256 }) => sha256),
   ...Object.values(LATTICE_TOKENIZER_SHA256),
 ]);
 const heldForbiddenNetworkStrings = Object.freeze([
@@ -122,6 +124,8 @@ const heldForbiddenNetworkStrings = Object.freeze([
   "raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs",
   "Qwen3-4B-q4f16_1-ctx4k_cs1k-webgpu.wasm",
   "Llama-3.2-3B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
+  "Qwen3-4B-q4f32_1-ctx4k_cs1k-webgpu.wasm",
+  "Llama-3.2-3B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
 ]);
 const heldForbiddenExecutableStrings = Object.freeze([
   ...heldForbiddenNetworkStrings,
@@ -597,6 +601,13 @@ async function verifyQualificationDossier(register) {
       artifacts.wasm.files[role].sri,
       artifacts.wasm.files[role].gitBlob,
     ]),
+    ...["compatibilityGenerator", "compatibilityVerifier"].flatMap((key) => [
+      artifacts.wasm.files[key].name,
+      artifacts.wasm.files[key].bytes.toLocaleString("en-US"),
+      artifacts.wasm.files[key].sha256,
+      artifacts.wasm.files[key].sri,
+      artifacts.wasm.files[key].gitBlob,
+    ]),
     artifacts.wasm.repository,
     artifacts.wasm.repositoryRevision,
     artifacts.wasm.directory,
@@ -667,6 +678,15 @@ function verifyArtifactSet(register) {
     if (wasm.sri !== `sha256-${Buffer.from(wasm.sha256, "hex").toString("base64")}`) fail(`${role} WASM SRI does not encode its SHA-256 digest.`);
     if (!gitRevisionPattern.test(wasm.gitBlob)) fail(`${role} WASM git blob is invalid.`);
     if (!LATTICE_MODEL_ROLES[role].modelLib.endsWith(`/${wasm.name}`)) fail(`${role} WASM filename drifted from the model contract.`);
+  }
+  for (const [key, role] of [["compatibilityGenerator", "generator"], ["compatibilityVerifier", "verifier"]]) {
+    const wasm = artifacts.wasm.files[key];
+    const contract = LATTICE_COMPATIBILITY_WASM[role];
+    if (!Number.isSafeInteger(wasm.bytes) || wasm.bytes !== contract.bytes) fail(`${key} WASM byte count drifted from the model contract.`);
+    if (wasm.name !== contract.name || !contract.modelLib.endsWith(`/${wasm.name}`)) fail(`${key} WASM filename drifted from the model contract.`);
+    if (wasm.sha256 !== contract.sha256) fail(`${key} WASM digest drifted from the model contract.`);
+    if (wasm.sri !== contract.sri || wasm.sri !== `sha256-${Buffer.from(wasm.sha256, "hex").toString("base64")}`) fail(`${key} WASM SRI drifted from the model contract.`);
+    if (wasm.gitBlob !== contract.gitBlob || !gitRevisionPattern.test(wasm.gitBlob)) fail(`${key} WASM git blob drifted from the model contract.`);
   }
   if (artifacts.wasm.repository !== LATTICE_WASM_REPOSITORY) fail("WASM repository URL drifted from the release register.");
   if (artifacts.wasm.repositoryRevision !== LATTICE_WASM_REVISION) fail("WASM repository revision drifted from the release register.");
@@ -1362,6 +1382,7 @@ async function verifyEnabledBuiltBoundary(site, files) {
       role.model,
       new URL(role.modelLib).pathname.split("/").at(-1),
     ]),
+    ...Object.values(LATTICE_COMPATIBILITY_WASM).map(({ name }) => name),
   ];
   for (const required of factoredModelLibraryBindings) {
     if (!required || !modelWorker.includes(required)) {

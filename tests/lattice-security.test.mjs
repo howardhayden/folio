@@ -13,10 +13,13 @@ import {
   LATTICE_MODEL_ROLES,
   LATTICE_TOKENIZER_SHA256,
   LATTICE_TOKENIZER_SRI,
+  LATTICE_COMPATIBILITY_WASM,
   LATTICE_WASM_BASE,
   LATTICE_WASM_REVISION,
   LATTICE_WASM_SHA256,
   LATTICE_WASM_SRI,
+  latticeModelLibrary,
+  requiresCompatibleLatticeKernels,
 } from "../app/resume/lattice/modelContract.js";
 import {
   LATTICE_ENVIRONMENT_TIMEOUTS,
@@ -64,6 +67,7 @@ test("model asset requests are fixed, credential-free, bodyless, and no-referrer
   assert.equal(isAllowedLatticeAssetUrl(modelUrl), true);
   assert.equal(isAllowedLatticeAssetUrl(new URL("tensor-cache.json", LATTICE_MODEL_ROLES.generator.model)), true);
   assert.equal(isAllowedLatticeAssetUrl(`${LATTICE_WASM_BASE}/Qwen3-4B-q4f16_1-ctx4k_cs1k-webgpu.wasm`), true);
+  assert.equal(isAllowedLatticeAssetUrl(LATTICE_COMPATIBILITY_WASM.generator.modelLib), true);
   for (const blocked of [
     "https://huggingface.co/unpinned/model/resolve/main/tokenizer.json",
     `${modelUrl}?source=entered-text`,
@@ -93,11 +97,33 @@ test("model asset requests are fixed, credential-free, bodyless, and no-referrer
   assert.ok(LATTICE_WASM_BASE.includes(`/${LATTICE_WASM_REVISION}/`));
 });
 
+test("Safari, Firefox, and Chromium without shader-f16 receive compatible kernels", () => {
+  const safari = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15";
+  const chrome = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+  const firefox = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:143.0) Gecko/20100101 Firefox/143.0";
+  assert.equal(requiresCompatibleLatticeKernels(safari, true), true);
+  assert.equal(requiresCompatibleLatticeKernels(firefox, true), true);
+  assert.equal(requiresCompatibleLatticeKernels(chrome, true), false);
+  assert.equal(requiresCompatibleLatticeKernels(chrome, false), true);
+  assert.equal(latticeModelLibrary("generator", safari, true), LATTICE_COMPATIBILITY_WASM.generator.modelLib);
+  assert.equal(latticeModelLibrary("verifier", firefox, true), LATTICE_COMPATIBILITY_WASM.verifier.modelLib);
+  assert.equal(latticeModelLibrary("generator", chrome, false), LATTICE_COMPATIBILITY_WASM.generator.modelLib);
+  assert.equal(latticeModelLibrary("generator", chrome, true), LATTICE_MODEL_ROLES.generator.modelLib);
+  assert.throws(() => latticeModelLibrary("unknown", safari), /unknown model role/u);
+
+  for (const asset of Object.values(LATTICE_COMPATIBILITY_WASM)) {
+    assert.equal(asset.sri, `sha256-${Buffer.from(asset.sha256, "hex").toString("base64")}`);
+    assert.equal(latticeAssetIntegrity(asset.modelLib), asset.sri);
+    assert.equal(hardenedLatticeAssetRequest(asset.modelLib).integrity, asset.sri);
+  }
+});
+
 test("pinned executable and tokenizer requests enforce their exact SHA-256 integrity", () => {
   for (const [role, model] of Object.entries(LATTICE_MODEL_ROLES)) {
     const tokenizerUrl = new URL("tokenizer.json", model.model);
     for (const [url, sha256, sri] of [
       [model.modelLib, LATTICE_WASM_SHA256[role], LATTICE_WASM_SRI[role]],
+      [LATTICE_COMPATIBILITY_WASM[role].modelLib, LATTICE_COMPATIBILITY_WASM[role].sha256, LATTICE_COMPATIBILITY_WASM[role].sri],
       [tokenizerUrl, LATTICE_TOKENIZER_SHA256[role], LATTICE_TOKENIZER_SRI[role]],
     ]) {
       assert.equal(sri, `sha256-${Buffer.from(sha256, "hex").toString("base64")}`);
