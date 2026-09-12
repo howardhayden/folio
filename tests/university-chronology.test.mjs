@@ -109,6 +109,8 @@ test("the modernized University view keeps semantic time, disclosure, and visual
   assert.match(css, /\.university-progress-track \{[\s\S]*?background-color: transparent;[\s\S]*?height: 20px;/u);
   assert.match(css, /\.university-progress-span \{[\s\S]*?display: block;[\s\S]*?left: var\(--university-start\);[\s\S]*?width: var\(--university-span\);/u);
   assert.match(css, /\.university-progress-span\.background-gradient-green-blue \{[\s\S]*?position: absolute;/u);
+  assert.match(css, /\.university-progress-span\.background-gradient-green-blue::before \{[\s\S]*?background-size: 3px 3px, 3px 3px, 6px 6px, 6px 6px, 12px 12px, 12px 12px;[\s\S]*?opacity: \.2;/u);
+  assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\.university-progress-span\.background-gradient-green-blue::before \{\s*animation: static \.1s steps\(20\) infinite;/u);
   assert.match(css, /\.university-progress-point \{[\s\S]*?left: var\(--university-start\);[\s\S]*?transform: translateX\(-50%\);/u);
   assert.match(css, /\.university-chronology-entry \.progress-label \{[\s\S]*?text-align: right;/u);
   assert.match(css, /\.university-chronology-entry \.progress-label a \{[\s\S]*?display: inline-flex;[\s\S]*?min-height: 24px;/u);

@@ -591,6 +591,18 @@ svg.signal-fuzz,
   position: absolute;
 }
 
+.university-progress-span.background-gradient-green-blue::before {
+  background:
+    linear-gradient(transparent 50%, rgb(255 255 255 / 30%) 50%),
+    linear-gradient(90deg, rgb(255 255 255 / 30%) 50%, transparent 50%),
+    linear-gradient(transparent 25%, rgb(255 255 255 / 20%) 25%),
+    linear-gradient(90deg, rgb(255 255 255 / 20%) 25%, transparent 25%),
+    linear-gradient(transparent 12.5%, rgb(255 255 255 / 10%) 12.5%),
+    linear-gradient(90deg, rgb(255 255 255 / 10%) 12.5%, transparent 12.5%);
+  background-size: 3px 3px, 3px 3px, 6px 6px, 6px 6px, 12px 12px, 12px 12px;
+  opacity: .2;
+}
+
 .university-progress-span .progress-value {
   overflow: hidden;
   padding-left: .25rem;
@@ -686,6 +698,10 @@ svg.signal-fuzz,
     animation:
       signal-film-grain-frame .48s steps(1, end) infinite,
       signal-film-weave 7.6s cubic-bezier(.37, 0, .63, 1) infinite;
+  }
+
+  .university-progress-span.background-gradient-green-blue::before {
+    animation: static .1s steps(20) infinite;
   }
 }
 
