@@ -22,29 +22,36 @@ test("RTD-015: University chronology derives four-quarter placement from verifie
   assert.equal(degree.startPercent, 0);
   assert.equal(degree.spanPercent, 100);
   assert.equal(degree.startQuarter, 1);
+  assert.equal(degree.endQuarter, 4);
 
   const digitalHumanities = deriveUniversityChronologyGeometry(record("digital-humanities-forum-committee"));
-  assert.equal(digitalHumanities.kind, "point", "an unverified end date must not become an invented duration");
-  assert.equal(digitalHumanities.spanPercent, 0);
+  assert.equal(digitalHumanities.kind, "interval");
+  assert.equal(digitalHumanities.spanPercent, 10 / 46 * 100);
   assert.equal(digitalHumanities.startPercent, 24 / 46 * 100);
   assert.equal(digitalHumanities.startQuarter, 3, "August 2021 begins in the degree's third quarter");
+  assert.equal(digitalHumanities.endQuarter, 3);
 
   const diversity = deriveUniversityChronologyGeometry(record("diversity-equity-inclusion-committee"));
-  assert.equal(diversity.kind, "point");
+  assert.equal(diversity.kind, "interval");
+  assert.equal(diversity.spanPercent, 10 / 46 * 100);
   assert.equal(diversity.startPercent, 36 / 46 * 100);
   assert.equal(diversity.startQuarter, 4);
+  assert.equal(diversity.endQuarter, 4);
 
   const ohiolink = deriveUniversityChronologyGeometry(record("ohiolink-luminary"));
   assert.equal(ohiolink.kind, "interval");
   assert.equal(ohiolink.startPercent, 24 / 46 * 100);
   assert.equal(ohiolink.spanPercent, 22 / 46 * 100);
   assert.equal(ohiolink.startQuarter, 3);
+  assert.equal(ohiolink.endQuarter, 4);
+  assert.equal(record("ohiolink-luminary").gradient, true, "Luminary retains the blue-green rill");
 
   const teaching = deriveUniversityChronologyGeometry(record("miami-university-undergraduate-teaching-assistant"));
   assert.equal(teaching.kind, "interval");
   assert.equal(teaching.startPercent, 33 / 46 * 100);
   assert.equal(teaching.spanPercent, 13 / 46 * 100);
   assert.equal(teaching.startQuarter, 3);
+  assert.equal(teaching.endQuarter, 4);
 });
 
 test("GATE-D09: date geometry fails closed instead of drawing indefensible spans", () => {
@@ -88,6 +95,8 @@ test("the modernized University view keeps semantic time, disclosure, and visual
   assert.match(source, /<time dateTime=\{record\.end\}>\{record\.endLabel\}<\/time>/u);
   assert.match(source, /data-chronology-kind=\{geometry\.kind\}/u);
   assert.match(source, /data-degree-quarter=\{geometry\.startQuarter\}/u);
+  assert.match(source, /const quarterLabel = geometry\.endQuarter && geometry\.endQuarter !== geometry\.startQuarter/u);
+  assert.match(source, /aria-label=\{`Degree \$\{quarterLabel\}`\}/u);
   assert.match(source, /geometry\.kind === "interval"[\s\S]*?university-progress-span[\s\S]*?: \([\s\S]*?university-progress-point/u);
   assert.match(source, /aria-controls=\{`resume-modal-\$\{record\.detail\}`\}[\s\S]*?aria-haspopup="dialog"[\s\S]*?href=\{detail\.canonicalPath\}/u);
   assert.doesNotMatch(source, /width=\{(?:"49%"|"22%"|"29%"|"100%")\}/u, "manual chronology widths stay retired");

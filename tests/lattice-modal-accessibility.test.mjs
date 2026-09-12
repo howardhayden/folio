@@ -69,11 +69,21 @@ test("backdrop dismissal waits for a completed same-target click", () => {
   assert.doesNotMatch(resumeProjectsSource, /onPointerDown=\{closeLattice\}/u);
 });
 
-test("Text to Lattice owns an opaque isolated viewport so the Resume cannot bleed through", () => {
+test("Text to Lattice uses the shared frosted Resume backdrop without clipping its isolated viewport", () => {
   assert.match(resumeProjectsSource, /className="modal resume-modal lattice-modal"/u);
   assert.match(
     globalsCss,
-    /\.modal\.resume-modal\.lattice-modal \{[\s\S]*?background: #fff;[\s\S]*?isolation: isolate;/u,
+    /\.modal\.resume-modal\.lattice-modal \{\s*isolation: isolate;\s*\}/u,
+  );
+  assert.doesNotMatch(
+    globalsCss.match(/\.modal\.resume-modal\.lattice-modal \{([\s\S]*?)\n\}/u)?.[1] ?? "",
+    /background/u,
+    "Text to Lattice must inherit the same transparent backdrop as every Resume modal",
+  );
+  assert.match(resumeProjectsSource, /document\.body\.classList\.add\("resume-modal-open"\)/u);
+  assert.match(
+    globalsCss,
+    /\.resume-modal-open main > \.container,[\s\S]*?\.resume-modal-open \.resume-search-canonical > \.container,[\s\S]*?\.resume-modal-open \.resume-search-results \{ filter: blur\(5px\); \}/u,
   );
 
   const baseStageRule = globalsCss.match(/\.resume-search-stage \{([\s\S]*?)\n\}/u)?.[1] ?? "";
