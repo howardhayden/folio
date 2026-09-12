@@ -1121,15 +1121,20 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
   );
 
   const resumeExperience = await readFile(new URL("../app/resume/ResumeExperience.tsx", import.meta.url), "utf8");
-  for (const circle of ["circle-1", "circle-2", "circle-3"]) {
-    assert.match(resumeExperience, new RegExp(`className="${circle}"`));
-  }
   assert.match(resumeExperience, /timeline-icon signal-fuzz/);
-  assert.match(resume, /label text-blue signal-fuzz/);
-  assert.match(resume, /label text-red signal-fuzz/);
-  assert.match(resume, /label text-secondary signal-fuzz/);
-  assert.match(resumeExperience, /className="circular-chart signal-fuzz"/);
-  assert.doesNotMatch(resumeExperience, /circular-chart-film-host|ChorusFilm/);
+  assert.match(resumeExperience, /manifest: "technology-ethics-global-society", percent: 20, tone: "red-orange"/u);
+  assert.match(resumeExperience, /manifest: "software-engineering-ui-ux", percent: 34, tone: "blue-green"/u);
+  assert.match(resumeExperience, /manifest: "introduction-software-engineering", percent: 46, tone: "storm-gray"/u);
+  assert.match(resumeExperience, /teaching\.support/u);
+  assert.match(resumeExperience, /index === courses\.length - 1 \? "└─" : "├─"/u);
+  assert.match(resume, /teaching-manifest-entry teaching-manifest-entry--red-orange/u);
+  assert.match(resume, /teaching-manifest-entry teaching-manifest-entry--blue-green/u);
+  assert.match(resume, /teaching-manifest-entry teaching-manifest-entry--storm-gray/u);
+  assert.match(resume, /teaching-manifest-percent">20(?:<!-- -->)?%/u);
+  assert.match(resume, /teaching-manifest-percent">34(?:<!-- -->)?%/u);
+  assert.match(resume, /teaching-manifest-percent">46(?:<!-- -->)?%/u);
+  assert.equal((resume.match(/class="teaching-manifest-caret"/gu) ?? []).length, 3);
+  assert.doesNotMatch(resumeExperience, /circular-chart|circle-[123]|ChorusFilm/u);
 
   for (const html of [home, resume, tools]) {
     assert.match(html, /class="signal-fuzz-defs"/);
@@ -1139,6 +1144,12 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
   }
 
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.teaching-manifest-fill::before \{[\s\S]*?signal-film-grain-frame[\s\S]*?signal-film-weave/u);
+  assert.match(css, /\.teaching-manifest-caret \{[\s\S]*?teaching-manifest-caret 1s steps\(1, end\) infinite/u);
+  assert.match(css, /\.teaching-manifest-entry--red-orange \{[\s\S]*?--teaching-caret-fill: #f4c7b8;[\s\S]*?--teaching-caret-outline: #c74b28;/u);
+  assert.match(css, /\.teaching-manifest-entry--blue-green \{[\s\S]*?--teaching-caret-fill: #d9f0e5;[\s\S]*?--teaching-caret-outline: #056b83;/u);
+  assert.match(css, /\.teaching-manifest-entry--storm-gray \{[\s\S]*?--teaching-caret-fill: #f4f2ed;[\s\S]*?--teaching-caret-outline: #777c82;/u);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.teaching-manifest-caret \{ animation: none;/u);
   const filterSource = await readFile(new URL("../app/components/SignalFuzz.tsx", import.meta.url), "utf8");
   assert.match(filterSource, /id="signal-film-grain-static"/);
   assert.match(filterSource, /id="signal-film-grain" animated/);

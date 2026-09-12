@@ -329,21 +329,35 @@ function UniversityChronologyEntry({
 }
 
 function CourseChart() {
+  const courses = [
+    { label: resumeDetails.teaching.courses[0], manifest: "technology-ethics-global-society", percent: 20, tone: "red-orange" },
+    { label: resumeDetails.teaching.courses[1], manifest: "software-engineering-ui-ux", percent: 34, tone: "blue-green" },
+    { label: resumeDetails.teaching.courses[2], manifest: "introduction-software-engineering", percent: 46, tone: "storm-gray" },
+  ] as const;
+
   return (
-    <div className="progress-container">
-      <svg viewBox="0 0 36 36" className="circular-chart signal-fuzz" aria-label="Courses supported">
-        <circle className="circle-background" cx="18" cy="18" r="15.9155" fill="none" stroke="#efefef" strokeWidth="2" />
-        <circle className="circle-3" cx="18" cy="18" r="15.9155" fill="none" stroke="#950F22" strokeWidth="2" strokeDasharray="73, 27" strokeDashoffset="0" />
-        <circle className="circle-2" cx="18" cy="18" r="15.9155" fill="none" stroke="#077995" strokeWidth="2" strokeDasharray="17, 83" strokeDashoffset="17.5" />
-        <circle className="circle-1" cx="18" cy="18" r="15.9155" fill="none" stroke="#6c757d" strokeWidth="2" strokeDasharray="10, 90" strokeDashoffset="26.5" />
-      </svg>
-      <div className="labelContainer small">
-        {resumeDetails.teaching.courses.map((course, index) => (
-          <span className={`label ${["text-blue", "text-red", "text-secondary"][index]} signal-fuzz`} key={course}>
-            {course}{index < resumeDetails.teaching.courses.length - 1 ? <br /> : null}
-          </span>
+    <figure className="teaching-manifest" aria-labelledby="teaching-manifest-title">
+      <figcaption id="teaching-manifest-title">
+        <span aria-hidden="true">teaching.support</span>
+        <span className="sr-only">Courses supported and their share of the Teaching Assistant appointment</span>
+      </figcaption>
+      <ol className="teaching-manifest-list">
+        {courses.map((course, index) => (
+          <li className={`teaching-manifest-entry teaching-manifest-entry--${course.tone}`} key={course.manifest}>
+            <div className="teaching-manifest-line">
+              <span className="teaching-manifest-branch" aria-hidden="true">{index === courses.length - 1 ? "└─" : "├─"}</span>
+              <span className="teaching-manifest-key" aria-hidden="true">{course.manifest}</span>
+              <span className="sr-only">{course.label}</span>
+              <span className="teaching-manifest-percent">{course.percent}%</span>
+            </div>
+            <div className="teaching-manifest-track" aria-hidden="true">
+              <span className="teaching-manifest-fill" style={{ "--teaching-support": `${course.percent}%` } as CSSProperties}>
+                <span className="teaching-manifest-caret" />
+              </span>
+            </div>
+          </li>
         ))}
-      </div>
-    </div>
+      </ol>
+    </figure>
   );
 }
