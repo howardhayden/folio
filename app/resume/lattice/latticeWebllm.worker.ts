@@ -3,7 +3,11 @@ import {
   hardenedLatticeAssetRequest,
   isAllowedLatticeAssetUrl,
 } from "./assetRequestPolicy.js";
-import { LATTICE_MODEL_ROLES, LOCAL_LATTICE_MODEL } from "./modelContract.js";
+import {
+  LATTICE_MODEL_ROLES,
+  LOCAL_LATTICE_MODEL,
+  latticeModelLibrary,
+} from "./modelContract.js";
 import {
   ANALYSIS_SCHEMA,
   CANDIDATE_SCHEMA,
@@ -93,16 +97,18 @@ let modelEngine: ModelEngine | null = null;
 let activeModelRole: ModelRole | null = null;
 let queuedRequestCount = 0;
 let operationQueue = Promise.resolve();
+let shaderF16Supported = false;
 const tokenizerPromises = new Map<ModelRole, Promise<ModelTokenizer>>();
 
 function localAppConfig(webllm: WebLlmModule) {
+  const userAgent = globalThis.navigator?.userAgent ?? "";
   const records = LOCAL_LATTICE_MODEL.models.map((model) => {
     const record = webllm.prebuiltAppConfig.model_list.find(({ model_id: modelId }) => modelId === model.id);
     if (!record) throw new Error(`The configured local model ${model.id} is unavailable in this WebLLM build.`);
     return {
       ...record,
       model: model.model,
-      model_lib: model.modelLib,
+      model_lib: latticeModelLibrary(model.role, userAgent, shaderF16Supported),
     };
   });
   return { model_list: records, useIndexedDBCache: false };
@@ -192,6 +198,7 @@ async function probeWorkerCapability() {
   const gpu = (globalThis.navigator as Navigator & {
     gpu?: { requestAdapter(options?: { powerPreference?: string }): Promise<{
       limits: Record<string, number>;
+      features?: { has(feature: string): boolean };
     } | null> };
   }).gpu;
   if (!gpu || typeof gpu.requestAdapter !== "function") {
@@ -201,6 +208,7 @@ async function probeWorkerCapability() {
     const adapter = await gpu.requestAdapter({ powerPreference: "high-performance" });
     if (!adapter) return Object.freeze({ supported: false, reason: "worker-adapter-unavailable" });
     const limits = adapter.limits;
+    shaderF16Supported = adapter.features?.has("shader-f16") === true;
     const supported = Number(limits.maxBufferSize) >= 268_435_456
       && Number(limits.maxStorageBufferBindingSize) >= 134_217_728
       && Number(limits.maxComputeWorkgroupStorageSize) >= 32_768

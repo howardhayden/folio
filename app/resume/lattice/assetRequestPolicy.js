@@ -3,6 +3,7 @@ import {
   LATTICE_TOKENIZER_FILENAME,
   LATTICE_TOKENIZER_SHA256,
   LATTICE_TOKENIZER_SRI,
+  LATTICE_COMPATIBILITY_WASM,
   LATTICE_WASM_SHA256,
   LATTICE_WASM_SRI,
 } from "./modelContract.js";
@@ -49,7 +50,10 @@ const MODEL_ASSET_MANIFEST = new Map([
   ])],
 ]);
 const ALLOWED_MODEL_ROOTS = Object.freeze([...MODEL_ASSET_MANIFEST.keys()]);
-const ALLOWED_WASM_URLS = new Set(Object.values(LATTICE_MODEL_ROLES).map(({ modelLib }) => modelLib));
+const ALLOWED_WASM_URLS = new Set([
+  ...Object.values(LATTICE_MODEL_ROLES).map(({ modelLib }) => modelLib),
+  ...Object.values(LATTICE_COMPATIBILITY_WASM).map(({ modelLib }) => modelLib),
+]);
 const PROTECTED_ASSETS = Object.freeze(Object.entries(LATTICE_MODEL_ROLES).flatMap(([role, model]) => [
   Object.freeze({
     integrity: validateLatticeAssetIntegrity(LATTICE_WASM_SHA256[role], LATTICE_WASM_SRI[role]),
@@ -60,6 +64,14 @@ const PROTECTED_ASSETS = Object.freeze(Object.entries(LATTICE_MODEL_ROLES).flatM
     integrity: validateLatticeAssetIntegrity(LATTICE_TOKENIZER_SHA256[role], LATTICE_TOKENIZER_SRI[role]),
     sha256: LATTICE_TOKENIZER_SHA256[role],
     url: new URL(LATTICE_TOKENIZER_FILENAME, model.model).href,
+  }),
+  Object.freeze({
+    integrity: validateLatticeAssetIntegrity(
+      LATTICE_COMPATIBILITY_WASM[role].sha256,
+      LATTICE_COMPATIBILITY_WASM[role].sri,
+    ),
+    sha256: LATTICE_COMPATIBILITY_WASM[role].sha256,
+    url: LATTICE_COMPATIBILITY_WASM[role].modelLib,
   }),
 ]));
 const INTEGRITY_BY_ASSET_URL = new Map(PROTECTED_ASSETS.map(({ integrity, url }) => [url, integrity]));
