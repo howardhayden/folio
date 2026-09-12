@@ -26,22 +26,22 @@ test("RTD-015: University chronology derives four-quarter placement from verifie
 
   const digitalHumanities = deriveUniversityChronologyGeometry(record("digital-humanities-forum-committee"));
   assert.equal(digitalHumanities.kind, "interval");
-  assert.equal(digitalHumanities.spanPercent, 10 / 46 * 100);
-  assert.equal(digitalHumanities.startPercent, 24 / 46 * 100);
+  assert.equal(digitalHumanities.spanPercent, 25);
+  assert.equal(digitalHumanities.startPercent, 50);
   assert.equal(digitalHumanities.startQuarter, 3, "August 2021 begins in the degree's third quarter");
   assert.equal(digitalHumanities.endQuarter, 3);
 
   const diversity = deriveUniversityChronologyGeometry(record("diversity-equity-inclusion-committee"));
   assert.equal(diversity.kind, "interval");
-  assert.equal(diversity.spanPercent, 10 / 46 * 100);
-  assert.equal(diversity.startPercent, 36 / 46 * 100);
+  assert.equal(diversity.spanPercent, 25);
+  assert.equal(diversity.startPercent, 75);
   assert.equal(diversity.startQuarter, 4);
   assert.equal(diversity.endQuarter, 4);
 
   const ohiolink = deriveUniversityChronologyGeometry(record("ohiolink-luminary"));
   assert.equal(ohiolink.kind, "interval");
-  assert.equal(ohiolink.startPercent, 24 / 46 * 100);
-  assert.equal(ohiolink.spanPercent, 22 / 46 * 100);
+  assert.equal(ohiolink.startPercent, 50);
+  assert.equal(ohiolink.spanPercent, 50);
   assert.equal(ohiolink.startQuarter, 3);
   assert.equal(ohiolink.endQuarter, 4);
   assert.equal(record("ohiolink-luminary").gradient, true, "Luminary retains the blue-green rill");
@@ -78,6 +78,10 @@ test("GATE-D09: date geometry fails closed instead of drawing indefensible spans
     ),
     /positive duration/u,
   );
+  assert.throws(
+    () => deriveUniversityChronologyGeometry({ start: "2021-08", end: "2022-05", displayQuarters: [4, 3] }),
+    /display quarter cannot precede/u,
+  );
 });
 
 test("the modernized University view keeps semantic time, disclosure, and visual contracts", async () => {
@@ -103,7 +107,8 @@ test("the modernized University view keeps semantic time, disclosure, and visual
 
   assert.match(css, /\.university-quarter-scale \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/u);
   assert.match(css, /\.university-progress-track \{[\s\S]*?background-color: transparent;[\s\S]*?height: 20px;/u);
-  assert.match(css, /\.university-progress-span \{[\s\S]*?left: var\(--university-start\);[\s\S]*?width: var\(--university-span\);/u);
+  assert.match(css, /\.university-progress-span \{[\s\S]*?display: block;[\s\S]*?left: var\(--university-start\);[\s\S]*?width: var\(--university-span\);/u);
+  assert.match(css, /\.university-progress-span\.background-gradient-green-blue \{[\s\S]*?position: absolute;/u);
   assert.match(css, /\.university-progress-point \{[\s\S]*?left: var\(--university-start\);[\s\S]*?transform: translateX\(-50%\);/u);
   assert.match(css, /\.university-chronology-entry \.progress-label \{[\s\S]*?text-align: right;/u);
   assert.match(css, /\.university-chronology-entry \.progress-label a \{[\s\S]*?display: inline-flex;[\s\S]*?min-height: 24px;/u);

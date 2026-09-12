@@ -16,7 +16,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "bb88b5025db50c5e565fc70eca2e7b7389ca7549b0750fb5e60c0e9624ede0c6",
+    "qualificationDossierSha256": "55938d24747cee0a63387841aa790398fd796fa8137dffe4fee153630ee153e6",
     "qualifiedSourceSet": {
       "algorithm": "sha256-path-and-bytes-v1",
       "files": [
@@ -46,7 +46,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "5939cc7aa0168e93ff5e3ad6e81d0c0234e2c38c3847683d55eef2d767460059",
+      "sha256": "31520f1e6f623115ca8995b50f4b71b7b748ff3cc02781e2ff392708502e2cb7",
       "claim": "This digest binds the named source paths only, including the complete test tree, license-routing map, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. Current-main workflow checks separately bind the deployed commit."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -61,7 +61,7 @@
   "ownerDisposition": {
     "status": "release-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "5939cc7aa0168e93ff5e3ad6e81d0c0234e2c38c3847683d55eef2d767460059",
+    "qualifiedSourceSetSha256": "31520f1e6f623115ca8995b50f4b71b7b748ff3cc02781e2ff392708502e2cb7",
     "decidedOn": "2026-09-11",
     "record": "The site owner directs the replacement Text to Lattice source candidate to remain available as a bounded demonstrable release for VSCodium and subsequent canonical-browser testing. This source-bound direction does not close GATE-06, establish a successful production conversion, or replace separately required deployed evidence.",
     "note": "Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence. GATE-02 closure rests on separately recorded production workflow evidence. The earlier GATE-06 canonical-browser lifecycle and sanitized two-origin privacy evidence remains historical for its deployed revision. The site's 2026-09-11 failed repaired-runtime observation is recorded without inventing a deployed commit, trace, or terminal result; the replacement source candidate still requires supported-browser verification, one non-error terminal conversion, and a repeated sanitized two-origin privacy trace. Capacity, broader exact-model execution, assistive-technology, provenance, and reproducibility limits remain typed without overclaim."

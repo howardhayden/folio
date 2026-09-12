@@ -575,6 +575,7 @@ svg.signal-fuzz,
 }
 
 .university-progress-span {
+  display: block;
   height: 20px;
   isolation: isolate;
   left: var(--university-start);
@@ -584,6 +585,10 @@ svg.signal-fuzz,
   text-align: left;
   top: 0;
   width: var(--university-span);
+}
+
+.university-progress-span.background-gradient-green-blue {
+  position: absolute;
 }
 
 .university-progress-span .progress-value {
