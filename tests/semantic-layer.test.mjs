@@ -694,7 +694,7 @@ test("the not-found document contains only exclusionary crawler directives", asy
 test("project and Text to Lattice implementation provenance stays source-aligned", async () => {
   const graphById = new Map(knowledgeGraph["@graph"].map((node) => [node["@id"], node]));
   const resumeMarkdown = renderResumeMarkdown();
-  assert.equal(PROJECT_CONTENT_VERSION, "hah-portfolio-projects.v6");
+  assert.equal(PROJECT_CONTENT_VERSION, "hah-portfolio-projects.v7");
   assert.equal(projectsManifest.version, PROJECT_CONTENT_VERSION);
   assert.equal(projectsManifest.asOf, PROJECT_CONTENT_UPDATED);
   const mediumProject = projects.find(({ id }) => id === "medium");

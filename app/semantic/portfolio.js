@@ -255,6 +255,9 @@ function projectJsonLdNode(project) {
     url: record.canonicalUrl,
     sameAs: project.url,
     datePublished: project.publication.value,
+    ...(project.publication.start && project.publication.end ? {
+      temporalCoverage: `${project.publication.start}/${project.publication.end}`,
+    } : {}),
     creativeWorkStatus: project.status,
     author: { "@id": person.id },
     isPartOf: { "@id": `${SITE_ORIGIN}/#website` },
@@ -733,7 +736,13 @@ export const projectsSchema = {
     status: { type: "object", additionalProperties: false, required: ["value", "asOf"], properties: { value: { type: "string", enum: projectStatuses }, asOf: { type: "string", format: "date" } } },
     publication: {
       type: "object", additionalProperties: false, required: ["label", "value", "precision"],
-      properties: { label: { "$ref": "#/$defs/nonEmptyString" }, value: { type: "string", pattern: "^\\d{4}-\\d{2}$" }, precision: { type: "string", enum: publicationPrecisions } },
+      properties: {
+        label: { "$ref": "#/$defs/nonEmptyString" },
+        value: { type: "string", pattern: "^\\d{4}-\\d{2}$" },
+        start: { type: "string", pattern: "^\\d{4}-\\d{2}$" },
+        end: { type: "string", pattern: "^\\d{4}-\\d{2}$" },
+        precision: { type: "string", enum: publicationPrecisions },
+      },
     },
     documentation: {
       type: "object",

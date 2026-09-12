@@ -43,7 +43,7 @@ type ProjectSource = Readonly<{
   emphasis: readonly string[];
   relationships: readonly Readonly<{ relation: string; target: string; scope: string }>[];
   resources: readonly ProjectResource[];
-  publication: Readonly<{ label: string; value: string; precision: string }>;
+  publication: Readonly<{ label: string; value: string; start?: string; end?: string; precision: string }>;
   status: string;
 }>;
 
@@ -1278,6 +1278,9 @@ export const resumeSearchConcepts: readonly SearchConceptDefinition[] = Object.f
   Object.freeze({ id: "software-engineering", label: "Software Engineering", aliases: Object.freeze(["Software Engineer", "Application Engineering"]), broader: Object.freeze(["software-development"]), related: Object.freeze(["systems-architecture", "requirements"]) }),
   Object.freeze({ id: "web-development", label: "Web Development", aliases: Object.freeze(["Frontend Development", "Front-end Development", "Frontend Engineer"]), broader: Object.freeze(["software-development"]), related: Object.freeze(["interaction-design"]) }),
   Object.freeze({ id: "programming", label: "Programming", aliases: Object.freeze(["Coding"]), broader: Object.freeze(["software-development"]) }),
+  Object.freeze({ id: "typescript", label: "TypeScript", abbreviations: Object.freeze(["TS"]), broader: Object.freeze(["programming"]) }),
+  Object.freeze({ id: "javascript", label: "JavaScript", aliases: Object.freeze(["ECMAScript"]), abbreviations: Object.freeze(["JS"]), broader: Object.freeze(["programming"]) }),
+  Object.freeze({ id: "glsl", label: "GLSL", aliases: Object.freeze(["OpenGL Shading Language"]), broader: Object.freeze(["programming"]) }),
   Object.freeze({ id: "devops", label: "DevOps", aliases: Object.freeze(["Platform Engineering", "Release Engineering", "Build and Delivery"]), abbreviations: Object.freeze(["CI/CD"]), broader: Object.freeze(["software-development"]) }),
   Object.freeze({ id: "version-control", label: "Version Control", aliases: Object.freeze(["Source Control"]), related: Object.freeze(["devops", "software-development"]) }),
   Object.freeze({ id: "data", label: "Data", broader: Object.freeze(["systems"]) }),
@@ -1321,6 +1324,12 @@ export const resumeSearchConcepts: readonly SearchConceptDefinition[] = Object.f
   Object.freeze({ id: "api-wrapper", label: "API Wrapper", aliases: Object.freeze(["Model API Wrapper", "LLM Wrapper"]), broader: Object.freeze(["api-integration"]) }),
   Object.freeze({ id: "webgpu", label: "WebGPU", broader: Object.freeze(["web-development"]), related: Object.freeze(["human-computer-interaction"]) }),
   Object.freeze({ id: "webgl", label: "WebGL", broader: Object.freeze(["web-development"]), related: Object.freeze(["human-computer-interaction"]) }),
+  Object.freeze({ id: "react", label: "React", aliases: Object.freeze(["React.js", "ReactJS"]), broader: Object.freeze(["web-development"]) }),
+  Object.freeze({ id: "threejs", label: "Three.js", aliases: Object.freeze(["ThreeJS"]), broader: Object.freeze(["web-development"]), related: Object.freeze(["webgl"]) }),
+  Object.freeze({ id: "vite", label: "Vite", aliases: Object.freeze(["Vite.js"]), broader: Object.freeze(["devops"]) }),
+  Object.freeze({ id: "npm", label: "npm", aliases: Object.freeze(["Node Package Manager"]), broader: Object.freeze(["devops"]) }),
+  Object.freeze({ id: "cloudflare-workers", label: "Cloudflare Workers", aliases: Object.freeze(["Cloudflare Worker"]), broader: Object.freeze(["devops"]) }),
+  Object.freeze({ id: "wrangler", label: "Wrangler", aliases: Object.freeze(["Cloudflare Wrangler"]), broader: Object.freeze(["devops"]) }),
   Object.freeze({ id: "business-analysis", label: "Business Analysis", aliases: Object.freeze(["Business Analyst", "Process Analysis"]), related: Object.freeze(["requirements", "project-management"]) }),
   Object.freeze({ id: "requirements", label: "Requirements Engineering", aliases: Object.freeze(["Requirements Analysis", "Traceability"]), broader: Object.freeze(["systems-architecture"]), related: Object.freeze(["business-analysis", "documentation"]) }),
   Object.freeze({ id: "project-management", label: "Project Management", aliases: Object.freeze(["Project Manager", "Program Management", "Program Manager"]), related: Object.freeze(["business-analysis", "strategy"]) }),
@@ -1380,6 +1389,12 @@ export const resumeSearchConcepts: readonly SearchConceptDefinition[] = Object.f
   Object.freeze({ id: "war-studies", label: "War Studies", aliases: Object.freeze(["War", "Warfare", "Military History", "Military Studies", "Defense Studies", "Defence Studies"]), broader: Object.freeze(["military"]), related: Object.freeze(["strategy", "national-security"]) }),
   Object.freeze({ id: "nextjs", label: "Next.js", aliases: Object.freeze(["NextJS", "Next"]), broader: Object.freeze(["web-development"]) }),
   Object.freeze({ id: "nodejs", label: "Node.js", aliases: Object.freeze(["NodeJS", "Node"]), broader: Object.freeze(["software-development"]) }),
+  Object.freeze({ id: "jekyll", label: "Jekyll", broader: Object.freeze(["web-development"]) }),
+  Object.freeze({ id: "ruby-on-rails", label: "Ruby on Rails", aliases: Object.freeze(["Rails", "RoR"]), broader: Object.freeze(["web-development"]) }),
+  Object.freeze({ id: "google-cloud-platform", label: "Google Cloud Platform", abbreviations: Object.freeze(["GCP"]), broader: Object.freeze(["devops"]) }),
+  Object.freeze({ id: "sierra-ils", label: "Sierra Integrated Library System", aliases: Object.freeze(["Sierra ILS", "Sierra"]), broader: Object.freeze(["library-technology"]) }),
+  Object.freeze({ id: "google-bigquery", label: "Google BigQuery", aliases: Object.freeze(["BigQuery"]), broader: Object.freeze(["database-systems"]) }),
+  Object.freeze({ id: "wireshark", label: "Wireshark", broader: Object.freeze(["systems"]) }),
   Object.freeze({ id: "fabrication", label: "Fabrication", aliases: Object.freeze(["Digital Fabrication", "Makerspace"]), broader: Object.freeze(["engineering"]) }),
   Object.freeze({ id: "electronics", label: "Electronics", aliases: Object.freeze(["Soldering", "Electrostatic Discharge Controls"]), abbreviations: Object.freeze(["ESD"]), broader: Object.freeze(["engineering"]) }),
 ]);
@@ -1424,6 +1439,9 @@ const CONCEPT_PATTERNS: readonly ConceptPattern[] = Object.freeze([
   { id: "software-engineering", pattern: /\bsoftware engineer(?:ing)?\b|\bapplication engineering\b/iu },
   { id: "web-development", pattern: /\bweb\b|front-?end/iu },
   { id: "programming", pattern: /programming|coding|typescript|javascript|python|c#|c\+\+|java\b|bash|glsl/iu },
+  { id: "typescript", pattern: /\btypescript\b|^ts$/iu },
+  { id: "javascript", pattern: /\bjavascript\b|\becmascript\b|^js$/iu },
+  { id: "glsl", pattern: /\bglsl\b|\bopengl shading language\b/iu },
   // Generic delivery, release, and change-management language is not enough
   // to establish DevOps; require the discipline or a named delivery tool.
   { id: "devops", pattern: /\bdevops\b|\b(?:software|build) delivery\b|\brelease engineering\b|\bgithub actions\b|\bcontinuous integration\b|\bci\/cd\b|\bcloudflare(?: workers)?\b|\bwrangler\b|\bvite\b|\bnpm\b|\bgit\b/iu },
@@ -1461,6 +1479,20 @@ const CONCEPT_PATTERNS: readonly ConceptPattern[] = Object.freeze([
   { id: "wargaming", pattern: /\bwar ?gam(?:e|es|ing)\b|\bwargam(?:e|es|ing)\b|\bkriegsspiel\b/iu },
   { id: "wargame-design", pattern: /\bwargame design\b|\bscenario (?:design|development)\b|\badjudication\b|\bdecision support\b|\bassumption testing\b/iu },
   { id: "artificial-intelligence", pattern: /artificial intelligence|machine learning|\bai\b/iu },
+  { id: "react", pattern: /\breact(?:\.js|js)?\b/iu },
+  { id: "nextjs", pattern: /\bnext(?:\.js|js)\b/iu },
+  { id: "nodejs", pattern: /\bnode(?:\.js|js)\b/iu },
+  { id: "jekyll", pattern: /\bjekyll\b/iu },
+  { id: "ruby-on-rails", pattern: /\bruby on rails\b|\brails\b|\bror\b/iu },
+  { id: "google-cloud-platform", pattern: /\bgoogle cloud platform\b|\bgcp\b/iu },
+  { id: "sierra-ils", pattern: /\bsierra(?: integrated library system| ils)?\b/iu },
+  { id: "google-bigquery", pattern: /\bgoogle bigquery\b|\bbigquery\b/iu },
+  { id: "wireshark", pattern: /\bwireshark\b/iu },
+  { id: "threejs", pattern: /\bthree(?:\.js|js)\b/iu },
+  { id: "vite", pattern: /\bvite(?:\.js)?\b/iu },
+  { id: "npm", pattern: /\bnpm\b|\bnode package manager\b/iu },
+  { id: "cloudflare-workers", pattern: /\bcloudflare workers?\b/iu },
+  { id: "wrangler", pattern: /\b(?:cloudflare )?wrangler\b/iu },
   { id: "natural-language-processing", pattern: /\bnatural language processing\b|\blanguage processing\b|\bnlp\b/iu },
   { id: "large-language-models", pattern: /\blarge language models?\b|\bgenerative ai\b|\bllms?\b/iu },
   { id: "national-security-ai", pattern: /\b(?:national security|defen[cs]e|military) ai\b|\bai in national security\b/iu },
@@ -1671,6 +1703,32 @@ const PROJECT_AUTHORED_SEARCH_METADATA: Readonly<Record<string, readonly Authore
     Object.freeze({ text: "Software engineering", conceptIds: Object.freeze(["software-engineering"]) }),
     Object.freeze({ text: "Systems thinking", conceptIds: Object.freeze(["systems-thinking"]) }),
   ]),
+  "lms-reimplementation-proposal": Object.freeze([
+    Object.freeze({ text: "Learning management system", conceptIds: Object.freeze(["education"]) }),
+    Object.freeze({ text: "Business analysis", conceptIds: Object.freeze(["business-analysis"]) }),
+    Object.freeze({ text: "Project management", conceptIds: Object.freeze(["project-management"]) }),
+    Object.freeze({ text: "Requirements analysis", conceptIds: Object.freeze(["requirements"]) }),
+  ]),
+  "chromebook-management": Object.freeze([
+    Object.freeze({ text: "Library technology", conceptIds: Object.freeze(["library-technology"]) }),
+    Object.freeze({ text: "Web development", conceptIds: Object.freeze(["web-development"]) }),
+  ]),
+  "finding-freedom-summer-traveling-exhibit": Object.freeze([
+    Object.freeze({ text: "Library technology", conceptIds: Object.freeze(["library-technology"]) }),
+    Object.freeze({ text: "Web services librarianship", conceptIds: Object.freeze(["web-services-librarianship"]) }),
+  ]),
+  "information-studies-and-digital-citizenship": Object.freeze([
+    Object.freeze({ text: "Course design", conceptIds: Object.freeze(["teaching"]) }),
+    Object.freeze({ text: "Emerging technology education", conceptIds: Object.freeze(["education"]) }),
+  ]),
+  "comparative-database-design-and-data-analytics": Object.freeze([
+    Object.freeze({ text: "Database systems", conceptIds: Object.freeze(["database-systems"]) }),
+    Object.freeze({ text: "Data architecture", conceptIds: Object.freeze(["data-architecture"]) }),
+  ]),
+  "ux-optimization-case-study": Object.freeze([
+    Object.freeze({ text: "User experience design", conceptIds: Object.freeze(["interaction-design"]) }),
+    Object.freeze({ text: "Interaction design", conceptIds: Object.freeze(["interaction-design"]) }),
+  ]),
 });
 
 function projectRecords(): SearchRecord[] {
@@ -1701,6 +1759,8 @@ function projectRecords(): SearchRecord[] {
     });
     pushText(items, project.publication.label, "app/resume/projects.js", `projects[${order}].publication.label`);
     pushText(items, project.publication.value, "app/resume/projects.js", `projects[${order}].publication.value`);
+    pushText(items, project.publication.start, "app/resume/projects.js", `projects[${order}].publication.start`);
+    pushText(items, project.publication.end, "app/resume/projects.js", `projects[${order}].publication.end`);
     pushText(items, project.publication.precision, "app/resume/projects.js", `projects[${order}].publication.precision`);
     pushText(items, project.status, "app/resume/projects.js", `projects[${order}].status`);
     (PROJECT_AUTHORED_SEARCH_METADATA[project.id] ?? []).forEach((item, index) => {
@@ -1722,8 +1782,8 @@ function projectRecords(): SearchRecord[] {
       href: project.canonicalPath,
       summary: project.thesis,
       interval: Object.freeze({
-        start: project.publication.value,
-        end: ongoing ? null : project.publication.value,
+        start: project.publication.start ?? project.publication.value,
+        end: ongoing ? null : (project.publication.end ?? project.publication.value),
         ongoing,
       }),
       evidence: Object.freeze(items),

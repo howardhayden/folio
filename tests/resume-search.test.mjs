@@ -18,11 +18,11 @@ const search = (query) => searchOntology(resumeSearchIndex, query);
 
 test("Resume Search covers every canonical content class and preserves evidence provenance", () => {
   assert.deepEqual(resumeSearchCoverage, {
-    projects: 6,
+    projects: 12,
     experiences: 8,
     skills: 9,
     education: 5,
-    evidence: 1434,
+    evidence: 1672,
   });
   for (const indexed of resumeSearchIndex.records) {
     assert.ok(indexed.record.evidence.length > 0, indexed.record.id);
@@ -61,7 +61,8 @@ test("Resume Search covers every canonical content class and preserves evidence 
         }
       }
     });
-    for (const field of ["label", "value", "precision"]) {
+    for (const field of ["label", "value", "start", "end", "precision"]) {
+      if (typeof project.publication[field] !== "string") continue;
       expectPath("app/resume/projects.js", `projects[${projectIndex}].publication.${field}`);
     }
   });
@@ -189,7 +190,7 @@ test("Resume Search covers every canonical content class and preserves evidence 
   assert.ok(fogAuthored.every(({ strength }) => strength === "curated"));
 
   const recordIds = resumeSearchIndex.records.map(({ record }) => record.id);
-  assert.equal(new Set(recordIds).size, 28, "expanded timeline details merge into canonical records");
+  assert.equal(new Set(recordIds).size, 34, "expanded timeline details merge into canonical records");
   for (const { record } of resumeSearchIndex.records) {
     const normalizedEvidence = record.evidence.map(({ text }) => normalizeSearchText(text));
     for (const displayed of [record.title, record.subtitle].filter(Boolean)) {
@@ -362,14 +363,18 @@ test("Resume subject ontology exposes high-value occupational paths without adja
   const security = "resume-skill-security-and-verification";
   const data = "resume-skill-data-architecture-and-interoperability";
   const miami = "resume-education-miami-university";
+  const chromebook = "resume-project-chromebook-management";
+  const freedomSummer = "resume-project-finding-freedom-summer-traveling-exhibit";
+  const comparativeDatabases = "resume-project-comparative-database-design-and-data-analytics";
 
   const matrices = [
     [["strategic communications", "strategic comms", "StratCom", "information operations", "narrative influence"], [chorus, kings]],
     [["decision-making under uncertainty"], [fog, chorus, officerCandidate, kings]],
     [["scenario design", "adjudication", "decision support"], [fog, kings]],
     [["multi-agent", "multi agent", "agent-based simulation"], [chorus, systems]],
-    [["library technology", "systems librarian"], [inKeeping, germantown, ohioLink, wisconsin]],
-    [["web services librarian"], [inKeeping, ohioLink]],
+    [["library technology"], [chromebook, freedomSummer, inKeeping, germantown, ohioLink, wisconsin]],
+    [["systems librarian"], [inKeeping, germantown, ohioLink, wisconsin]],
+    [["web services librarian"], [freedomSummer, inKeeping, ohioLink]],
     [["digital preservation", "archive continuity", "digitization", "DAM"], [inKeeping, wisconsin]],
     [["metadata"], [inKeeping, ohioLink, germantown, data, wisconsin]],
     [["information retrieval"], [inKeeping, germantown, ohioLink]],
@@ -388,7 +393,7 @@ test("Resume subject ontology exposes high-value occupational paths without adja
     [["WebGL"], [fog, evenward]],
     [["MARC", "RIS", "BibTeX", "parser hardening", "rollback"], [inKeeping]],
     [["hostile imports"], [inKeeping, fog]],
-    [["database", "databases"], [data, miami]],
+    [["database", "databases"], [comparativeDatabases, data, miami]],
   ];
 
   for (const [queries, expected] of matrices) {
@@ -430,6 +435,7 @@ test("Resume ontology keeps engineering, institutional, and domain aliases insid
   const frameworks = "resume-skill-frameworks-platforms-and-delivery";
   const fabrication = "resume-skill-fabrication-and-electronics";
   const miami = "resume-education-miami-university";
+  const comparativeDatabases = "resume-project-comparative-database-design-and-data-analytics";
 
   assert.deepEqual(ids("escalation"), [fog, kings]);
   assert.deepEqual(ids("de-escalation"), [corrections, madisonTeacher]);
@@ -456,7 +462,7 @@ test("Resume ontology keeps engineering, institutional, and domain aliases insid
   ]);
 
   for (const query of ["relational database", "NoSQL", "graph database"]) {
-    assert.deepEqual(ids(query), [data, miami], query);
+    assert.deepEqual(ids(query), [comparativeDatabases, data, miami], query);
     assert.equal(ids(query).includes(germantown), false, query);
   }
   assert.deepEqual(ids("fog of war"), [fog, officerCandidate]);
@@ -482,6 +488,79 @@ test("Resume ontology keeps engineering, institutional, and domain aliases insid
   ];
   for (const [query, expected] of skillAliases) assert.deepEqual(ids(query), [expected], query);
   assert.ok(ids("multi-agent").includes(systems));
+});
+
+test("Resume Search tracks project evidence for languages, frameworks, runtimes, and delivery tools", () => {
+  const projectIds = (query) => search(query)
+    .map(({ record }) => record)
+    .filter(({ class: recordClass }) => recordClass === "Projects")
+    .map(({ id }) => id);
+
+  const lattice = "resume-project-lattice";
+  const inKeeping = "resume-project-in-keeping";
+  const fog = "resume-project-fog-of-sea";
+  const chorus = "resume-project-chorus";
+  const evenward = "resume-project-evenward";
+
+  assert.deepEqual(projectIds("TypeScript"), [inKeeping, fog, chorus, evenward]);
+  assert.deepEqual(projectIds("TypScript"), [inKeeping, fog, chorus, evenward]);
+  assert.deepEqual(projectIds("React"), [inKeeping, fog, chorus, evenward]);
+  assert.deepEqual(projectIds("Next.js"), [chorus, evenward]);
+  assert.deepEqual(projectIds("Three.js"), [fog, evenward]);
+  assert.deepEqual(projectIds("Vite"), [inKeeping, fog, chorus]);
+  assert.deepEqual(projectIds("Vtie"), [inKeeping, fog, chorus]);
+  assert.deepEqual(projectIds("WebGL"), [fog, evenward]);
+  assert.deepEqual(projectIds("WebGPU"), [lattice]);
+  assert.deepEqual(projectIds("Cloudflare Workers"), [lattice, inKeeping, fog, chorus]);
+  assert.deepEqual(projectIds("Wrangler"), [lattice, inKeeping, fog, chorus]);
+  assert.deepEqual(search("React").map(({ record }) => record.id), [
+    inKeeping, fog, chorus, evenward, "resume-skill-frameworks-platforms-and-delivery",
+  ]);
+  assert.equal(projectIds("TypeScript").includes("resume-project-medium"), false);
+});
+
+test("historical project records preserve supplied dates, collaborators, qualifications, and technical metadata", () => {
+  const byId = new Map(projects.map((project) => [project.id, project]));
+  const expectedPublications = {
+    "lms-reimplementation-proposal": ["February 2023", "2023-02", undefined],
+    "chromebook-management": ["August 2022 – November 2022", "2022-08", "2022-11"],
+    "finding-freedom-summer-traveling-exhibit": ["October 2021 – December 2021", "2021-10", "2021-12"],
+    "information-studies-and-digital-citizenship": ["May 2021", "2021-05", undefined],
+    "comparative-database-design-and-data-analytics": ["August 2021 – May 2022", "2021-08", "2022-05"],
+    "ux-optimization-case-study": ["August 2021 – December 2022", "2021-08", "2022-12"],
+  };
+
+  for (const [id, [label, start, end]] of Object.entries(expectedPublications)) {
+    const project = byId.get(id);
+    assert.ok(project, id);
+    assert.equal(project.publication.label, label);
+    assert.equal(project.publication.start ?? project.publication.value, start);
+    assert.equal(project.publication.end, end);
+    assert.equal(project.status, "completed");
+  }
+
+  assert.deepEqual(byId.get("chromebook-management").technologies, [
+    "Jekyll", "Ruby on Rails", "Google Cloud Platform", "Node.js", "Sierra ILS",
+  ]);
+  assert.deepEqual(byId.get("finding-freedom-summer-traveling-exhibit").resources.map(({ label }) => label), [
+    "Finding Freedom Summer Traveling Exhibit contributor: Ken Irwin",
+    "Finding Freedom Summer Traveling Exhibit contributor: Meng Qu",
+    "Finding Freedom Summer Traveling Exhibit contributor: Jerry Yarnetsky",
+  ]);
+  assert.match(byId.get("information-studies-and-digital-citizenship").summary.join(" "), /Jaclynn Spraetz/u);
+  for (const id of ["comparative-database-design-and-data-analytics", "ux-optimization-case-study"]) {
+    assert.match(byId.get(id).limitations.join(" "), /non-concurrent, non-sequential, interdepartmental undergraduate courses/u);
+  }
+
+  const projectIds = (query) => search(query)
+    .filter(({ record }) => record.class === "Projects")
+    .map(({ record }) => record.id);
+  assert.deepEqual(projectIds("Google Cloud Platform"), ["resume-project-chromebook-management"]);
+  assert.deepEqual(projectIds("Sierra ILS"), [
+    "resume-project-chromebook-management", "resume-project-finding-freedom-summer-traveling-exhibit",
+  ]);
+  assert.equal(projectIds("BigQuery")[0], "resume-project-comparative-database-design-and-data-analytics");
+  assert.equal(projectIds("Wireshark")[0], "resume-project-ux-optimization-case-study");
 });
 
 test("Resume result ordering never lets a lower class leapfrog an upper class", () => {
