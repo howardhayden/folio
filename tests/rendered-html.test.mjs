@@ -1046,7 +1046,8 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
     readFile(new URL("../app/resume/SkillStacks.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(source, /^"use client";/u);
-  assert.match(source, /<details className="skill-stack-disclosure">[\s\S]*?<summary[\s\S]*?onClick=\{\(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?openSkillStack\(stack\.id, event\.currentTarget\)/u);
+  assert.match(source, /export function SkillStackCard[\s\S]*?<details className="skill-stack-disclosure">[\s\S]*?onClick=\{onOpen \? \(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?onOpen\(stack\.id, event\.currentTarget\)/u);
+  assert.match(source, /<SkillStackCard stack=\{stack\} onOpen=\{openSkillStack\}/u);
   assert.match(source, /event\.currentTarget\.parentElement\?\.removeAttribute\("open"\)/u);
   assert.match(source, /className="modal resume-modal skill-stack-modal"[\s\S]*?role="presentation"[\s\S]*?hidden=\{!selectedStack\}/u);
   assert.match(source, /role="dialog"[\s\S]*?aria-modal="true"[\s\S]*?aria-labelledby=\{`skill-stack-modal-title-/u);
@@ -1073,7 +1074,7 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
   assert.match(css, /\.skill-stack-grid \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: 1fr/);
   assert.match(css, /@media \(min-width: 768px\) \{[\s\S]*?\.skill-stack-grid \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /@media \(min-width: 1200px\) \{[\s\S]*?\.skill-stack-grid \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(css, /\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container \{ filter: blur\(5px\); \}/);
+  assert.match(css, /\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container,\s*\.resume-modal-open \.resume-search-canonical > \.container,\s*\.resume-modal-open \.resume-search-results \{ filter: blur\(5px\); \}/);
   assert.match(css, /\.skill-stack-modal-open \{ overflow: hidden !important; \}/);
   assert.match(css, /\.modal \{[\s\S]*?background: transparent/);
   assert.match(css, /\.modal-content \{[\s\S]*?background-color: #FFFFFF;[\s\S]*?padding: 20px;[\s\S]*?max-width: 400px;[\s\S]*?border: none/);
@@ -1081,9 +1082,9 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
   assert.match(css, /@media screen and \(max-width: 600px\) \{[\s\S]*?\.modal-content \{[\s\S]*?width: 90%;[\s\S]*?max-width: none;[\s\S]*?padding: 10px/);
   assert.match(css, /@media print \{[\s\S]*?\.skill-stack-disclosure:not\(\[open\]\) > \.skill-stack-details \{[\s\S]*?display: block !important/);
   assert.match(css, /@media print \{[\s\S]*?\.skill-stack-modal \{[\s\S]*?display: none !important/);
-  assert.match(css, /@media print \{[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container \{[\s\S]*?filter: none !important/);
-  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.lattice-cancel-button \{[\s\S]*?border: 1px solid ButtonText !important[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container \{[\s\S]*?filter: none !important/);
-  assert.match(css, /@media \(prefers-reduced-transparency: reduce\) \{[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container \{[\s\S]*?filter: none !important/);
+  assert.match(css, /@media print \{[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container,\s*\.resume-modal-open \.resume-search-canonical > \.container,\s*\.resume-modal-open \.resume-search-results \{[\s\S]*?filter: none !important/);
+  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.lattice-cancel-button \{[\s\S]*?border: 1px solid ButtonText !important[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container,\s*\.resume-modal-open \.resume-search-canonical > \.container,\s*\.resume-modal-open \.resume-search-results \{[\s\S]*?filter: none !important/);
+  assert.match(css, /@media \(prefers-reduced-transparency: reduce\) \{[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container,\s*\.resume-modal-open \.resume-search-canonical > \.container,\s*\.resume-modal-open \.resume-search-results \{[\s\S]*?filter: none !important/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.skill-stack-card \{[\s\S]*?transition: none[\s\S]*?\.skill-stack-grid \.card:hover \{[\s\S]*?transform: none/);
   assert.doesNotMatch(css, /:has\([^)]*skill-stack[^)]*open/iu, "no-JavaScript disclosure use does not trigger the JavaScript focus blur");
 });
@@ -1430,7 +1431,7 @@ test("uses the established Resume alert language for JavaScript project descript
   assert.match(source, /document\.body\.classList\.remove\("skill-stack-modal-open"\)/u);
 
   assert.match(css, /\.project-description-modal-content \.project-readme-copy \{[\s\S]*?text-align: left;/u);
-  assert.match(css, /\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container \{ filter: blur\(5px\); \}/u);
+  assert.match(css, /\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container,\s*\.resume-modal-open \.resume-search-canonical > \.container,\s*\.resume-modal-open \.resume-search-results \{ filter: blur\(5px\); \}/u);
   assert.match(css, /@media print \{[\s\S]*?\.project-readme:not\(\[open\]\) > \.project-readme-copy \{[\s\S]*?display: block !important[\s\S]*?\.project-description-modal \{[\s\S]*?display: none !important/u);
   assert.doesNotMatch(css, /:has\([^)]*project-(?:readme|description)[^)]*open/iu, "native no-JavaScript disclosure does not blur the page");
 });
@@ -1490,8 +1491,16 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.match(source, /Source text/);
   assert.match(source, /<h4 id="lattice-output-title">Result<\/h4>/u);
   assert.doesNotMatch(source, /Text-to-Lattice/u);
-  assert.match(source, /className="modal resume-modal"[\s\S]*?onClick=\{\(event\) => \{[\s\S]*?event\.target === event\.currentTarget[\s\S]*?closeLattice\(\)/u);
+  assert.match(source, /className="modal resume-modal lattice-modal"[\s\S]*?onClick=\{\(event\) => \{[\s\S]*?event\.target === event\.currentTarget[\s\S]*?closeLattice\(\)/u);
   assert.match(source, /className="modal-content lattice-modal-content"/u);
+  const canonicalSearchStageRule = css.match(/\.resume-search-stage \{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  const transitioningSearchStageRule = css.match(/\.resume-search-stage--clip-canonical \{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  assert.doesNotMatch(
+    canonicalSearchStageRule,
+    /\b(?:filter|isolation|perspective|transform|will-change)\s*:/u,
+    "the canonical Search stage must not form a stacking or containing context around the fixed Lattice modal",
+  );
+  assert.match(transitioningSearchStageRule, /isolation: isolate/u);
   const genericModalRule = css.match(/^\.modal-content \{([\s\S]*?)^\}/mu)?.[1] ?? "";
   assert.match(genericModalRule, /margin: auto/u, "the shared modal rule keeps the wider dialog centered");
   const latticeModalRule = css.match(/\.lattice-modal-content \{([\s\S]*?)\n\}/u)?.[1] ?? "";
@@ -1505,7 +1514,7 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.doesNotMatch(source, /onPointerDown=\{closeLattice\}/u);
   assert.match(source, /trigger\?\.isConnected[\s\S]*?trigger\.focus/u);
   assert.doesNotMatch(source, /lattice-modal-close/u);
-  assert.doesNotMatch(source, />\s*Close\s*<\/button>/u);
+  assert.match(source, /aria-label=\{taskContinuesWhileClosed \? "Close; current task continues" : "Close"\}>\s*Close\s*<\/button>/u);
   assert.match(shelfSource, /className="form-control shelf-search-entry px-0 px-sm-2"/u);
   assert.match(source, /className="form-control shelf-search-entry lattice-input"/u);
   const searchEntryRule = css.match(/\.form-control\.shelf-search-entry \{([\s\S]*?)\n\}/u)?.[1] ?? "";
@@ -1514,6 +1523,11 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.match(searchEntryRule, /border-radius: \.25rem/u);
   assert.match(searchEntryRule, /box-shadow: none/u);
   assert.match(css, /\.form-control\.shelf-search-entry:focus \{[\s\S]*?box-shadow: 0 0 5px lightgray;[\s\S]*?outline: none;/u);
+  assert.match(
+    css,
+    /\.form-control\.resume-search-input,\s*\.form-control\.resume-search-input:focus,\s*\.form-control\.lattice-input,\s*\.form-control\.lattice-input:focus \{\s*box-shadow: 0 6px 6px -7px rgb\(0 0 0 \/ 58%\);/u,
+    "Source text shares Resume Search's lower-edge shadow instead of introducing a separate input treatment",
+  );
   const latticeInputRule = css.match(/\.form-control\.lattice-input \{([\s\S]*?)\n\}/u)?.[1] ?? "";
   assert.match(latticeInputRule, /min-height: 13rem/u);
   assert.match(latticeInputRule, /font: inherit/u);

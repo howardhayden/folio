@@ -461,6 +461,7 @@ test("the static bridge rejects foreign messages and returns only bounded protoc
 });
 
 test("the verification origin ships a restrictive embed policy and static-only route", () => {
+  assert.match(frameHeaders, /Cache-Control: no-store, max-age=0, no-transform/u);
   assert.match(frameHeaders, /Content-Security-Policy: default-src 'none';/u);
   assert.match(frameHeaders, /script-src 'self' https:\/\/challenges\.cloudflare\.com/u);
   assert.match(frameHeaders, /frame-ancestors https:\/\/hah\.dev/u);

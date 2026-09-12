@@ -15,10 +15,10 @@ test("the interactive release uses only the established project SVG as its card 
   assert.match(resumeProjectsSource, /data-lattice-launch="text-to-lattice"/u);
   assert.match(
     resumeProjectsSource,
-    /className="tool-icon project-modal-trigger signal-fuzz"[\s\S]*?data-lattice-launch="text-to-lattice"[\s\S]*?aria-label="Use Text to Lattice"[\s\S]*?aria-haspopup="dialog"[\s\S]*?aria-controls="lattice-demo-dialog"[\s\S]*?onClick=\{launchLattice\}[\s\S]*?<ProjectIcon/u,
+    /className="tool-icon project-modal-trigger signal-fuzz"[\s\S]*?data-lattice-launch="text-to-lattice"[\s\S]*?aria-label="Use Text to Lattice"[\s\S]*?aria-haspopup="dialog"[\s\S]*?aria-controls="lattice-demo-dialog"[\s\S]*?onClick=\{onLatticeLaunch\}[\s\S]*?<ProjectIcon/u,
   );
-  assert.equal((resumeProjectsSource.match(/onClick=\{launchLattice\}/gu) ?? []).length, 1);
-  assert.match(resumeProjectsSource, /<h3[\s\S]*?<a className="signal-fuzz" href=\{project\.canonicalPath\}>\{project\.name\}<\/a>[\s\S]*?<\/h3>/u);
+  assert.match(resumeProjectsSource, /onLatticeLaunch=\{[\s\S]*?project\.interaction === "lattice-demo" \? launchLattice : undefined\}/u);
+  assert.match(resumeProjectsSource, /<h3[\s\S]*?<a[\s\S]*?className="signal-fuzz"[\s\S]*?href=\{project\.canonicalPath\}[\s\S]*?>[\s\S]*?\{project\.name\}[\s\S]*?<\/a>[\s\S]*?<\/h3>/u);
   assert.match(resumeProjectsSource, /url\.hash !== "#text-to-lattice"/u);
   assert.match(resumeProjectsSource, /window\.location\.replace\("\/resume\/#text-to-lattice"\)/u);
   assert.match(resumeProjectsSource, /window\.history\.replaceState[\s\S]*?openLattice\(trigger\)/u);
@@ -58,7 +58,7 @@ test("focus remains contained when controls disable or the attestation frame is 
   assert.match(resumeProjectsSource, /const focusObserver = new MutationObserver\(scheduleFocusContainment\)/u);
   assert.match(resumeProjectsSource, /attributeFilter: \["aria-hidden", "disabled", "hidden", "tabindex"\]/u);
   assert.match(resumeProjectsSource, /childList: true,[\s\S]*?subtree: true/u);
-  assert.match(resumeProjectsSource, /latticeCancelButtonRef\.current[\s\S]*?cancel\?\.isConnected[\s\S]*?cancel\.focus/u);
+  assert.match(resumeProjectsSource, /latticeAttestationRef\.current[\s\S]*?latticeCancelButtonRef\.current[\s\S]*?needs-clarification[\s\S]*?latticeOutputRef\.current[\s\S]*?latticeInputRef\.current/u);
   assert.match(resumeProjectsSource, /focusObserver\.disconnect\(\)/u);
   assert.match(resumeProjectsSource, /latticeCloseRef\.current\(\)/u);
   assert.match(resumeProjectsSource, /\}, \[latticeOpen\]\);/u);
@@ -67,6 +67,110 @@ test("focus remains contained when controls disable or the attestation frame is 
 test("backdrop dismissal waits for a completed same-target click", () => {
   assert.match(resumeProjectsSource, /onClick=\{\(event\) => \{[\s\S]*?event\.target === event\.currentTarget[\s\S]*?closeLattice\(\)/u);
   assert.doesNotMatch(resumeProjectsSource, /onPointerDown=\{closeLattice\}/u);
+});
+
+test("Text to Lattice owns an opaque isolated viewport so the Resume cannot bleed through", () => {
+  assert.match(resumeProjectsSource, /className="modal resume-modal lattice-modal"/u);
+  assert.match(
+    globalsCss,
+    /\.modal\.resume-modal\.lattice-modal \{[\s\S]*?background: #fff;[\s\S]*?isolation: isolate;/u,
+  );
+
+  const baseStageRule = globalsCss.match(/\.resume-search-stage \{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  const clippedStageRule = globalsCss.match(/\.resume-search-stage--clip-canonical \{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  assert.doesNotMatch(
+    baseStageRule,
+    /\b(?:filter|isolation|perspective|transform|will-change)\s*:/u,
+    "the canonical Search stage must not trap the fixed dialog below a sibling stacking context",
+  );
+  assert.match(
+    clippedStageRule,
+    /isolation: isolate/u,
+    "Search-only crossfades remain locally isolated while the canonical modal is closed",
+  );
+});
+
+test("the source field is a large instance of the Resume Search input treatment", () => {
+  const sourceInput = resumeProjectsSource.match(/<textarea[\s\S]*?\/>/u)?.[0] ?? "";
+  assert.match(sourceInput, /className="form-control shelf-search-entry lattice-input"/u);
+  assert.match(sourceInput, /id="lattice-demo-input"/u);
+  assert.match(sourceInput, /rows=\{9\}/u);
+  assert.match(resumeProjectsSource, /<label className="lattice-input-label" htmlFor="lattice-demo-input">/u);
+
+  assert.match(
+    globalsCss,
+    /\.form-control\.resume-search-input,\s*\.form-control\.resume-search-input:focus,\s*\.form-control\.lattice-input,\s*\.form-control\.lattice-input:focus \{\s*box-shadow: 0 6px 6px -7px rgb\(0 0 0 \/ 58%\);/u,
+    "both inputs use the same faint lower-edge and lower-corner shadow atom",
+  );
+  const latticeInputRule = globalsCss.match(/\.form-control\.lattice-input \{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  assert.match(latticeInputRule, /min-height: 13rem/u);
+  assert.match(latticeInputRule, /resize: vertical/u);
+  assert.doesNotMatch(
+    latticeInputRule,
+    /(?:background(?:-color)?|border(?:-radius)?|box-shadow)\s*:/u,
+    "the large field must inherit Search's visual atoms rather than introduce another skin",
+  );
+});
+
+test("dismissing and reopening preserves the same Text to Lattice session", () => {
+  const closeStart = resumeProjectsSource.indexOf("const closeLattice = useCallback");
+  const closeEnd = resumeProjectsSource.indexOf("useEffect(() => {\n    latticeCloseRef.current", closeStart);
+  const closeSource = resumeProjectsSource.slice(closeStart, closeEnd);
+  assert.match(closeSource, /setLatticeOpen\(false\)/u);
+  assert.doesNotMatch(closeSource, /cancelLattice\(|abort\(|releaseCurrentLatticeLease|discardLocalLatticeModel/u);
+  for (const destructiveCall of [
+    "setLatticeInput(\"\")",
+    "setLatticeResult(null)",
+    "setLatticeProgress(null)",
+    "setClarificationHistory([])",
+  ]) {
+    assert.equal(closeSource.includes(destructiveCall), false, `dismiss does not call ${destructiveCall}`);
+  }
+
+  const openStart = resumeProjectsSource.indexOf("const openLattice = useCallback");
+  const openEnd = resumeProjectsSource.indexOf("const launchLattice", openStart);
+  const openSource = resumeProjectsSource.slice(openStart, openEnd);
+  assert.match(openSource, /setLatticeOpen\(true\)/u);
+  assert.match(openSource, /latticeSupported === null && latticePhase === "idle"/u);
+  assert.doesNotMatch(openSource, /setLatticeInput|setLatticeResult|setLatticeProgress|setLatticeUseConfirmed/u);
+  assert.match(resumeProjectsSource, /aria-label=\{taskContinuesWhileClosed \? "Close; current task continues" : "Close"\}/u);
+  assert.match(resumeProjectsSource, /if \(result && latticeOutputRef\.current\) return latticeOutputRef\.current;[\s\S]*?input && !input\.disabled/u);
+  const protectionStart = resumeProjectsSource.indexOf('window.addEventListener("blur", shield)');
+  const protectionEnd = resumeProjectsSource.indexOf("}, [latticeOpen]);", protectionStart);
+  const protectionLifecycle = resumeProjectsSource.slice(protectionStart, protectionEnd);
+  assert.match(protectionLifecycle, /return \(\) => \{[\s\S]*?output\?\.setAttribute\("data-shielded", "true"\)/u);
+  assert.match(protectionLifecycle, /window\.addEventListener\("pageshow", reveal\)/u);
+  assert.match(protectionLifecycle, /document\.addEventListener\("focusin", reveal\)/u);
+  assert.match(resumeProjectsSource, />\s*\{latticePhase === "checking" \? "Checking again…" : "Check again"\}\s*</u);
+});
+
+test("model preparation completion cannot masquerade as a finished conversion", async () => {
+  const localModelSource = await readFile(new URL("../app/resume/lattice/localModel.js", import.meta.url), "utf8");
+  const rpcSource = await readFile(new URL("../app/resume/lattice/modelRpc.js", import.meta.url), "utf8");
+  const workerSource = await readFile(new URL("../app/resume/lattice/latticeWebllm.worker.ts", import.meta.url), "utf8");
+  assert.match(localModelSource, /initializing \? "initializing-model" : "loading-model"/u);
+  assert.match(localModelSource, /progress: initializing \? null : progress/u);
+  assert.match(localModelSource, /phase: "model-inference"/u);
+  assert.match(localModelSource, /phase: "token-counting"/u);
+  assert.match(
+    localModelSource,
+    /await assertContextEnvelope\(role, firstMessages, maxTokens, signal, onProgress\);\s*modelInferenceProgress\(role, onProgress\);\s*let response = await generateCompletion/u,
+    "inference is announced only after local token counting finishes",
+  );
+  assert.match(localModelSource, /MODEL_RPC_INACTIVITY_TIMEOUTS[\s\S]*?prepare: 120_000[\s\S]*?complete: 720_000/u);
+  assert.match(localModelSource, /MODEL_RPC_COMPLETED_PHASE_PROGRESS = 0\.999/u);
+  assert.match(localModelSource, /startsNextProgressPhase[\s\S]*?pending\.lastProgress >= MODEL_RPC_COMPLETED_PHASE_PROGRESS/u);
+  assert.match(localModelSource, /pending\.completedProgressPhase = true/u);
+  assert.match(localModelSource, /if \(advance\.meaningful\) resetPendingInactivity\(parsed\.id, pending\)/u);
+  assert.match(localModelSource, /if \(parsed\.kind === "started"\)[\s\S]*?armPendingExecution/u);
+  assert.match(workerSource, /latticeModelRpcStarted\(id, operation\)/u);
+  assert.match(resumeProjectsSource, /"initializing-model": "Finishing setup on this device"/u);
+  assert.match(resumeProjectsSource, /"token-counting": "Checking local context"/u);
+  assert.match(resumeProjectsSource, /"model-inference": "Processing on this device"/u);
+  assert.match(resumeProjectsSource, /latticePhase === "converting"[\s\S]*?"Converting…"/u);
+  assert.match(rpcSource, /"probe", "cached", "prepare"/u);
+  assert.match(workerSource, /async function probeWorkerCapability/u);
+  assert.match(localModelSource, /requestModelWorker\("probe", \{\}\)/u);
 });
 
 test("the custom clarification control keeps its visible label in its accessible name", () => {

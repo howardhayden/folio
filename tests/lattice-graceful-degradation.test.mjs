@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { textToLatticeContract } from "../app/content/textToLatticeContent.js";
-import { knowledgeGraph } from "../app/semantic/portfolio.js";
+import { knowledgeGraph, namespaceGraphId } from "../app/semantic/portfolio.js";
 
 const staticFile = (path) => new URL(`../site/${path}`, import.meta.url);
 
@@ -44,7 +44,7 @@ test("fallback availability is part of the public semantic tool contract", async
   const application = knowledgeGraph["@graph"].find((node) => node["@id"] === applicationId);
   assert.ok(application);
   for (const constraint of fallbackConstraints) {
-    assert.ok(application["hah:constraint"].includes(constraint));
+    assert.ok(application[namespaceGraphId("constraint")].includes(constraint));
   }
 
   const [projectMarkdown, completeText] = await Promise.all([

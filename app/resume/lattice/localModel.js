@@ -50,12 +50,23 @@ let activeModelRole = null;
 let nextModelRequestId = 1;
 const pendingModelRequests = new Map();
 const MODEL_RPC_TIMEOUTS = Object.freeze({
+  probe: 30_000,
   cached: 30_000,
   prepare: 2_700_000,
   "token-count": 120_000,
   complete: 2_700_000,
   interrupt: 10_000,
   unload: 30_000,
+});
+const MODEL_RPC_INACTIVITY_TIMEOUTS = Object.freeze({
+  prepare: 120_000,
+  complete: 720_000,
+});
+const MODEL_RPC_COMPLETED_PHASE_PROGRESS = 0.999;
+export const LATTICE_MODEL_RPC_START_TIMEOUT_MS = 30_000;
+export const LATTICE_ENVIRONMENT_TIMEOUTS = Object.freeze({
+  adapter: 15_000,
+  storage: 10_000,
 });
 
 const choices = (items) => items.join(" | ");
@@ -104,13 +115,50 @@ function raceAbort(operation, signal) {
   });
 }
 
-function modelProgress(role, onProgress) {
-  return (report) => onProgress?.(Object.freeze({
-    phase: "loading-model",
+function withDeadline(operation, milliseconds, message) {
+  let timeout = null;
+  const deadline = new Promise((_resolve, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), milliseconds);
+  });
+  return Promise.race([operation, deadline]).finally(() => {
+    if (timeout !== null) clearTimeout(timeout);
+  });
+}
+
+function modelProgress(role, onProgress, completedProgressPhase) {
+  return (report) => {
+    const progress = Number.isFinite(report.progress) ? Math.max(0, Math.min(1, report.progress)) : null;
+    const initializing = completedProgressPhase
+      || progress !== null && progress >= MODEL_RPC_COMPLETED_PHASE_PROGRESS;
+    onProgress?.(Object.freeze({
+      phase: initializing ? "initializing-model" : "loading-model",
+      modelRole: role,
+      modelId: LATTICE_MODEL_ROLES[role].id,
+      progress: initializing ? null : progress,
+      text: initializing
+        ? `${role === "verifier" ? "Verifier" : "Generator"} download complete; finishing setup.`
+        : `${role === "verifier" ? "Preparing verifier" : "Preparing generator"}: ${report.text}`,
+    }));
+  };
+}
+
+function modelInferenceProgress(role, onProgress) {
+  onProgress?.(Object.freeze({
+    phase: "model-inference",
     modelRole: role,
     modelId: LATTICE_MODEL_ROLES[role].id,
-    progress: Number.isFinite(report.progress) ? Math.max(0, Math.min(1, report.progress)) : null,
-    text: `${role === "verifier" ? "Preparing verifier" : "Preparing generator"}: ${report.text}`,
+    progress: null,
+    text: `${role === "verifier" ? "Verifier" : "Generator"} is processing on this device.`,
+  }));
+}
+
+function modelTokenCountProgress(role, onProgress) {
+  onProgress?.(Object.freeze({
+    phase: "token-counting",
+    modelRole: role,
+    modelId: LATTICE_MODEL_ROLES[role].id,
+    progress: null,
+    text: `${role === "verifier" ? "Verifier" : "Generator"} is checking the local context size.`,
   }));
 }
 
@@ -122,9 +170,76 @@ function clearPendingRequest(id) {
   const pending = pendingModelRequests.get(id);
   if (!pending) return null;
   pendingModelRequests.delete(id);
-  clearTimeout(pending.timeout);
+  if (pending.startTimeout !== null) clearTimeout(pending.startTimeout);
+  if (pending.timeout !== null) clearTimeout(pending.timeout);
+  if (pending.inactivityTimeout !== null) clearTimeout(pending.inactivityTimeout);
   pending.signal?.removeEventListener("abort", pending.abort);
   return pending;
+}
+
+function resetPendingInactivity(id, pending, milliseconds = pending.inactivityMilliseconds) {
+  if (!milliseconds) return;
+  if (pending.inactivityTimeout !== null) clearTimeout(pending.inactivityTimeout);
+  pending.inactivityTimeout = setTimeout(() => {
+    if (!pendingModelRequests.has(id)) return;
+    terminateModelWorker(new Error(`The isolated local model worker stopped making progress during ${pending.operation}.`));
+  }, milliseconds);
+}
+
+function armPendingExecution(id, pending) {
+  if (pending.started) return false;
+  pending.started = true;
+  if (pending.startTimeout !== null) {
+    clearTimeout(pending.startTimeout);
+    pending.startTimeout = null;
+  }
+  pending.timeout = setTimeout(() => {
+    if (!pendingModelRequests.has(id)) return;
+    terminateModelWorker(new Error(`The isolated local model worker timed out during ${pending.operation}.`));
+  }, MODEL_RPC_TIMEOUTS[pending.operation]);
+  resetPendingInactivity(id, pending);
+  return true;
+}
+
+function ensurePendingStartWatchdog() {
+  const pendingRequests = [...pendingModelRequests.entries()];
+  if (pendingRequests.some(([, pending]) => pending.started || pending.startTimeout !== null)) return;
+  // Only the oldest request that can actually be next owns the queue-start
+  // watchdog. Requests posted in the same turn must not each begin a deadline
+  // before the worker acknowledges the head of its serialized queue.
+  const entry = pendingRequests.find(([, pending]) => !pending.started);
+  if (!entry) return;
+  const [id, pending] = entry;
+  pending.startTimeout = setTimeout(() => {
+    if (!pendingModelRequests.has(id) || pending.started) return;
+    terminateModelWorker(new Error(`The isolated local model worker did not start ${pending.operation}.`));
+  }, LATTICE_MODEL_RPC_START_TIMEOUT_MS);
+}
+
+function progressMeaningfullyAdvanced(pending, parsed) {
+  const progress = Number.isFinite(parsed.progress)
+    ? Math.max(0, Math.min(1, parsed.progress))
+    : null;
+  const text = typeof parsed.text === "string" ? parsed.text : "";
+  const startsNextProgressPhase = progress !== null
+    && pending.lastProgress !== null
+    && pending.lastProgress >= MODEL_RPC_COMPLETED_PHASE_PROGRESS
+    && progress < MODEL_RPC_COMPLETED_PHASE_PROGRESS;
+  const numericalAdvance = progress !== null && (
+    startsNextProgressPhase
+    || pending.lastProgress === null
+    || progress > pending.lastProgress + Number.EPSILON
+  );
+  const unquantifiedAdvance = progress === null && pending.sawProgress !== true;
+  if (progress !== null) {
+    pending.lastProgress = startsNextProgressPhase
+      ? progress
+      : Math.max(pending.lastProgress ?? 0, progress);
+    if (progress >= MODEL_RPC_COMPLETED_PHASE_PROGRESS) pending.completedProgressPhase = true;
+  }
+  pending.sawProgress = true;
+  pending.lastProgressText = text;
+  return { meaningful: numericalAdvance || unquantifiedAdvance, progress };
 }
 
 function terminateModelWorker(error = abortError()) {
@@ -147,15 +262,31 @@ function onModelWorkerMessage(worker, message) {
     terminateModelWorker(new TypeError("The isolated local model worker returned an invalid protocol message."));
     return;
   }
+  if (parsed.kind === "started") {
+    if (!armPendingExecution(parsed.id, pending)) {
+      terminateModelWorker(new TypeError("The isolated local model worker repeated a start acknowledgement."));
+    }
+    return;
+  }
+  if (!pending.started) {
+    terminateModelWorker(new TypeError("The isolated local model worker answered before starting its request."));
+    return;
+  }
   if (parsed.kind === "progress") {
     if ((pending.operation !== "prepare" && pending.operation !== "complete") || parsed.role !== pending.role) {
       terminateModelWorker(new TypeError("The isolated local model worker returned mismatched progress."));
       return;
     }
-    modelProgress(parsed.role, pending.onProgress)({ progress: parsed.progress, text: parsed.text });
+    const advance = progressMeaningfullyAdvanced(pending, parsed);
+    if (advance.meaningful) resetPendingInactivity(parsed.id, pending);
+    modelProgress(parsed.role, pending.onProgress, pending.completedProgressPhase)({
+      progress: parsed.progress,
+      text: parsed.text,
+    });
     return;
   }
   clearPendingRequest(parsed.id);
+  ensurePendingStartWatchdog();
   if (parsed.ok) pending.resolve(parsed.value);
   else pending.reject(deserializeLatticeModelError(parsed.error));
 }
@@ -214,27 +345,35 @@ function requestModelWorker(operation, payload, { signal, onProgress, terminateO
         return;
       }
       clearPendingRequest(id)?.reject(abortError());
+      ensurePendingStartWatchdog();
       postUntrackedInterrupt(worker);
     };
-    const timeout = setTimeout(() => {
-      if (!pendingModelRequests.has(id)) return;
-      terminateModelWorker(new Error(`The isolated local model worker timed out during ${operation}.`));
-    }, MODEL_RPC_TIMEOUTS[operation]);
-    pendingModelRequests.set(id, {
+    const pending = {
       operation,
       role: typeof payload.role === "string" ? payload.role : null,
       resolve,
       reject,
       signal,
       abort,
-      timeout,
+      startTimeout: null,
+      timeout: null,
+      started: false,
+      inactivityMilliseconds: MODEL_RPC_INACTIVITY_TIMEOUTS[operation] ?? 0,
+      inactivityTimeout: null,
+      lastProgress: null,
+      lastProgressText: "",
+      sawProgress: false,
+      completedProgressPhase: false,
       onProgress,
-    });
+    };
+    pendingModelRequests.set(id, pending);
+    ensurePendingStartWatchdog();
     signal?.addEventListener("abort", abort, { once: true });
     try {
       worker.postMessage(request);
     } catch (error) {
       clearPendingRequest(id)?.reject(error);
+      ensurePendingStartWatchdog();
     }
   });
 }
@@ -252,17 +391,30 @@ export async function probeLocalLatticeCapability() {
   if (!navigator.gpu || typeof navigator.gpu.requestAdapter !== "function") {
     return Object.freeze({ supported: false, reason: "webgpu-unavailable" });
   }
+  let adapter;
   try {
-    const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+    adapter = await withDeadline(
+      navigator.gpu.requestAdapter({ powerPreference: "high-performance" }),
+      LATTICE_ENVIRONMENT_TIMEOUTS.adapter,
+      "The browser did not finish checking its WebGPU adapter.",
+    );
     if (!adapter) return Object.freeze({ supported: false, reason: "adapter-unavailable" });
     const limits = adapter.limits;
     const sufficient = Number(limits.maxBufferSize) >= 268_435_456
       && Number(limits.maxStorageBufferBindingSize) >= 134_217_728
       && Number(limits.maxComputeWorkgroupStorageSize) >= 32_768
       && Number(limits.maxStorageBuffersPerShaderStage) >= 10;
-    return Object.freeze({ supported: sufficient, reason: sufficient ? null : "webgpu-limits" });
-  } catch {
-    return Object.freeze({ supported: false, reason: "adapter-unavailable" });
+    if (!sufficient) return Object.freeze({ supported: false, reason: "webgpu-limits" });
+  } catch (error) {
+    throw new Error("The browser did not finish checking its WebGPU adapter.", { cause: error });
+  }
+  try {
+    const workerCapability = await requestModelWorker("probe", {});
+    if (!workerCapability.supported) terminateModelWorker(new Error("The local model worker cannot use WebGPU."));
+    return Object.freeze(workerCapability);
+  } catch (error) {
+    terminateModelWorker(new Error("The local model worker capability check failed."));
+    throw new Error("The isolated local model worker could not start.", { cause: error });
   }
 }
 
@@ -271,7 +423,11 @@ export async function probeLocalLatticeStorage() {
     return Object.freeze({ known: false, sufficient: null, availableBytes: null });
   }
   try {
-    const estimate = await navigator.storage.estimate();
+    const estimate = await withDeadline(
+      navigator.storage.estimate(),
+      LATTICE_ENVIRONMENT_TIMEOUTS.storage,
+      "The browser did not finish checking available storage.",
+    );
     if (!Number.isFinite(estimate.quota) || !Number.isFinite(estimate.usage)) {
       return Object.freeze({ known: false, sufficient: null, availableBytes: null });
     }
@@ -361,8 +517,9 @@ function completionMessages(messages, schema) {
   return [...messages, { role: "user", content: `${guide} Return one minified JSON object matching the response schema.` }];
 }
 
-async function contextEnvelope(role, messages, maxTokens, signal) {
+async function contextEnvelope(role, messages, maxTokens, signal, onProgress) {
   const serialized = messages.map(({ role: messageRole, content }) => `<|${messageRole}|>\n${content}`).join("\n");
+  modelTokenCountProgress(role, onProgress);
   const tokenCount = await requestModelWorker("token-count", { role, serialized }, {
     signal,
     terminateOnAbort: true,
@@ -372,8 +529,8 @@ async function contextEnvelope(role, messages, maxTokens, signal) {
   return Object.freeze({ inputTokens, totalTokens: inputTokens + maxTokens, fits: inputTokens + maxTokens <= CONTEXT_WINDOW_TOKENS });
 }
 
-async function assertContextEnvelope(role, messages, maxTokens, signal) {
-  const envelope = await contextEnvelope(role, messages, maxTokens, signal);
+async function assertContextEnvelope(role, messages, maxTokens, signal, onProgress) {
+  const envelope = await contextEnvelope(role, messages, maxTokens, signal, onProgress);
   if (!envelope.fits) {
     throw latticeModelError(
       "lattice-context",
@@ -533,7 +690,7 @@ export async function fitLatticeDocumentLedger(request, fits) {
   return best;
 }
 
-async function fitStageRequest(role, request, messageFactory, schema, maxTokens) {
+async function fitStageRequest(role, request, messageFactory, schema, maxTokens, onProgress) {
   const analysisSchema = schema === ANALYSIS_SCHEMA || schema === REANALYSIS_SCHEMA;
   const minimumAtoms = analysisSchema ? minimumAnalysisAtomCount(request) : null;
   const atomLimits = minimumAtoms === null
@@ -562,6 +719,7 @@ async function fitStageRequest(role, request, messageFactory, schema, maxTokens)
           messages,
           outputTokens + CORRECTION_HEADROOM_TOKENS,
           request.signal,
+          onProgress,
         )).fits;
       });
       if (fitted) return Object.freeze({ request: fitted, maxTokens: outputTokens });
@@ -580,11 +738,12 @@ async function fitStageRequest(role, request, messageFactory, schema, maxTokens)
     completionMessages(messageFactory(terminal), schema),
     terminalTokens + CORRECTION_HEADROOM_TOKENS,
     request.signal,
+    onProgress,
   );
   throw latticeModelError("lattice-context", `The ${role} request has no safe structured-output envelope.`);
 }
 
-async function fitCorrectionMessages(role, messages, schema, firstContent, maxTokens, signal) {
+async function fitCorrectionMessages(role, messages, schema, firstContent, maxTokens, signal, onProgress) {
   const limits = [1_200, 800, 400, 200, 80, 0];
   for (const limit of limits) {
     const [systemMessage, ...dataMessages] = messages;
@@ -599,9 +758,9 @@ async function fitCorrectionMessages(role, messages, schema, firstContent, maxTo
         content: `<INVALID_MODEL_DATA>${serializeInertModelData({ content: firstContent.slice(0, limit) })}</INVALID_MODEL_DATA>`,
       },
     ];
-    if ((await contextEnvelope(role, correctionMessages, maxTokens, signal)).fits) return correctionMessages;
+    if ((await contextEnvelope(role, correctionMessages, maxTokens, signal, onProgress)).fits) return correctionMessages;
   }
-  await assertContextEnvelope(role, messages, maxTokens + CORRECTION_HEADROOM_TOKENS, signal);
+  await assertContextEnvelope(role, messages, maxTokens + CORRECTION_HEADROOM_TOKENS, signal, onProgress);
   throw latticeModelError("lattice-context", `The ${role} correction request does not fit the local context.`);
 }
 
@@ -624,6 +783,7 @@ async function generateCompletion(role, messages, schema, maxTokens, signal, onP
   }, {
     signal,
     onProgress,
+    terminateOnAbort: true,
   });
 }
 
@@ -632,7 +792,8 @@ async function completeJson(role, messages, schema, maxTokens, signal, onProgres
   await prepareLocalLatticeRole(role, { signal, onProgress });
   throwIfAborted(signal);
   const firstMessages = completionMessages(messages, schema);
-  await assertContextEnvelope(role, firstMessages, maxTokens, signal);
+  await assertContextEnvelope(role, firstMessages, maxTokens, signal, onProgress);
+  modelInferenceProgress(role, onProgress);
   let response = await generateCompletion(role, firstMessages, schema, maxTokens, signal, onProgress, budget);
   throwIfAborted(signal);
   if (response.finishReason === "length") throw latticeModelError("lattice-output-length", "The local model reached its structured-output limit.");
@@ -642,7 +803,8 @@ async function completeJson(role, messages, schema, maxTokens, signal, onProgres
   try {
     return parseLocalLatticeJsonObject(firstContent);
   } catch {
-    const correctionMessages = await fitCorrectionMessages(role, messages, schema, firstContent, maxTokens, signal);
+    const correctionMessages = await fitCorrectionMessages(role, messages, schema, firstContent, maxTokens, signal, onProgress);
+    modelInferenceProgress(role, onProgress);
     response = await generateCompletion(role, correctionMessages, schema, maxTokens, signal, onProgress, budget);
     throwIfAborted(signal);
     if (response.finishReason === "length") throw latticeModelError("lattice-output-length", "The local model reached its corrected structured-output limit.");
@@ -654,7 +816,7 @@ async function completeJson(role, messages, schema, maxTokens, signal, onProgres
 }
 
 async function completeStage(role, request, messageFactory, schema, maxTokens, onProgress, budget) {
-  const fitted = await fitStageRequest(role, request, messageFactory, schema, maxTokens);
+  const fitted = await fitStageRequest(role, request, messageFactory, schema, maxTokens, onProgress);
   const result = await completeJson(
     role,
     messageFactory(fitted.request),
@@ -706,6 +868,7 @@ export function createLocalLatticeAdapter(engine, { onProgress, completionBudget
           documentCertificationMessages,
           DOCUMENT_CERTIFICATION_SCHEMA,
           LATTICE_STAGE_OUTPUT_TOKENS.certification,
+          onProgress,
         );
         return true;
       } catch (error) {

@@ -167,7 +167,7 @@ function validateLifecycleGateContract(productionBoundaryGate, productionLifecyc
       && /WebKit/iu.test(entry)
       && entry.includes("https://hah.dev/resume/#text-to-lattice")
       && bindsRepairedDeployment(entry)
-      && /\bPOST\b[\s\S]{0,120}\b428\b[\s\S]{0,320}\bPOST\b[\s\S]{0,120}\b200\b[\s\S]{0,320}\bDELETE\b[\s\S]{0,120}\b204\b/iu.test(entry)
+      && /\bPOST\b[\s\S]{0,160}\btyped challenge\b[\s\S]{0,80}\bHTTP 200\b[\s\S]{0,320}\bPOST\b[\s\S]{0,160}\blease grant\b[\s\S]{0,80}\bHTTP 200\b[\s\S]{0,320}\bDELETE\b[\s\S]{0,160}\blease release\b[\s\S]{0,80}\bHTTP 204\b/iu.test(entry)
       && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
       && /\b[a-f0-9]{64}\b/u.test(entry)
     ));
@@ -176,7 +176,7 @@ function validateLifecycleGateContract(productionBoundaryGate, productionLifecyc
       && /Chromium \d+(?:\.\d+)*/u.test(entry)
       && entry.includes("https://hah.dev/resume/#text-to-lattice")
       && bindsRepairedDeployment(entry)
-      && /\b(?:lease )?(?:statuses|status sequence)\b[\s\S]{0,160}\b428\b[\s\S]{0,160}\b200\b[\s\S]{0,160}\b204\b/iu.test(entry)
+      && /\blease outcome sequence\b[\s\S]{0,160}\btyped challenge\b[\s\S]{0,80}\bHTTP 200\b[\s\S]{0,160}\bgrant\b[\s\S]{0,80}\bHTTP 200\b[\s\S]{0,160}\brelease\b[\s\S]{0,80}\bHTTP 204\b/iu.test(entry)
       && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
       && /\b[a-f0-9]{64}\b/u.test(entry)
     ));

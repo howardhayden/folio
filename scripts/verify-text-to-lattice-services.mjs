@@ -12,11 +12,32 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const mainOrigin = "https://hah.dev";
 const frameOrigin = "https://verify.hah.dev";
 const leaseUrl = `${mainOrigin}/api/text-to-lattice/lease`;
-const sameOriginLeaseHeaders = Object.freeze({
+const typedLeaseAccept = "application/vnd.hah.text-to-lattice-lease.v1+json, application/json";
+const leaseProtocol = "hah-text-to-lattice-lease";
+const leaseProtocolVersion = 1;
+const leaseChallengeType = "attestation-challenge";
+const legacySameOriginLeaseHeaders = Object.freeze({
   Origin: mainOrigin,
   "Sec-Fetch-Site": "same-origin",
   "Sec-Fetch-Mode": "cors",
   "Sec-Fetch-Dest": "empty",
+});
+const sameOriginLeaseHeaders = Object.freeze({
+  ...legacySameOriginLeaseHeaders,
+  Accept: typedLeaseAccept,
+});
+const browserNavigationHeaders = Object.freeze({
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15",
+});
+const browserFrameNavigationHeaders = Object.freeze({
+  ...browserNavigationHeaders,
+  Referer: `${mainOrigin}/resume/`,
+  "Sec-Fetch-Dest": "iframe",
+  "Sec-Fetch-Site": "same-site",
 });
 const mainPages = Object.freeze([
   Object.freeze({ label: "hah.dev root résumé", url: `${mainOrigin}/` }),
@@ -123,6 +144,13 @@ function verifyNoStore(response, label) {
   requireToken(value, "max-age=0", "Cache-Control", label);
 }
 
+function verifyNoAnalyticsInjection(bytes, label) {
+  const source = new TextDecoder().decode(bytes);
+  if (/static\.cloudflareinsights\.com\/beacon\.min\.js|data-cf-beacon|\/cdn-cgi\/rum/iu.test(source)) {
+    fail(`${label} contains an injected analytics beacon.`);
+  }
+}
+
 function requireDisabledPermission(value, feature, label) {
   const assignments = value
     .split(",")
@@ -142,6 +170,7 @@ function verifyDisabledPermissions(response, features, label) {
 
 function verifyFrameHeaders(response, label) {
   verifyNoStore(response, label);
+  requireToken(header(response, "cache-control", label), "no-transform", "Cache-Control", label);
   const policy = header(response, "content-security-policy", label);
   const expectedDirectives = new Map([
     ["default-src", ["'none'"]],
@@ -268,6 +297,9 @@ async function verifyFrameFile(fetchImpl, file, retryDelay, deadline) {
     let response = null;
     try {
       response = await fetchImpl(`${frameOrigin}${file.pathname}`, {
+        headers: file.contentType === "text/html"
+          ? browserFrameNavigationHeaders
+          : { "User-Agent": browserNavigationHeaders["User-Agent"], Accept: "*/*" },
         redirect: "error",
         signal: AbortSignal.timeout(Math.min(7_000, Math.max(1, deadline - Date.now()))),
       });
@@ -278,6 +310,7 @@ async function verifyFrameFile(fetchImpl, file, retryDelay, deadline) {
         fail(`${file.label} has the wrong Content-Type.`);
       }
       const deployed = Buffer.from(await response.arrayBuffer());
+      verifyNoAnalyticsInjection(deployed, file.label);
       if (digest(deployed) !== digest(source)) {
         fail(`${file.label} bytes differ from the checked-out release.`);
       }
@@ -306,6 +339,34 @@ function requireStatus(response, expected, label) {
   }
 }
 
+function requireTypedLeaseChallenge(value, expectedCode, label) {
+  const expectedKeys = [
+    "allowed",
+    "attestationSiteKey",
+    "code",
+    "protocol",
+    "type",
+    "version",
+  ].sort();
+  const keys = value !== null && typeof value === "object" && !Array.isArray(value)
+    ? Object.keys(value).sort()
+    : [];
+  if (
+    keys.length !== expectedKeys.length
+    || !keys.every((key, index) => key === expectedKeys[index])
+    || value?.protocol !== leaseProtocol
+    || value?.version !== leaseProtocolVersion
+    || value?.type !== leaseChallengeType
+    || value?.allowed !== false
+    || value?.code !== expectedCode
+  ) {
+    fail(`${label} returned a malformed or unsupported typed challenge.`);
+  }
+  if (value.attestationSiteKey !== CLOUDFLARE_DEMONSTRATION_SITE_KEY) {
+    fail(`${label} does not expose the declared demonstration profile.`);
+  }
+}
+
 function digest(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
@@ -318,7 +379,7 @@ async function verifyFrame(fetchImpl, retryDelay) {
 }
 
 async function verifyMainPageResponse(fetchImpl, { label, url }) {
-  const response = await request(fetchImpl, url, {}, label);
+  const response = await request(fetchImpl, url, { headers: browserNavigationHeaders }, label);
   requireStatus(response, 200, label);
   const policy = header(response, "content-security-policy", label);
   const directives = directiveMap(policy);
@@ -339,7 +400,8 @@ async function verifyMainPageResponse(fetchImpl, { label, url }) {
     requireExactDirective(policy, name, values, label);
   }
   requireDisabledPermission(header(response, "permissions-policy", label), "document-domain", label);
-  await response.arrayBuffer();
+  requireToken(header(response, "cache-control", label), "no-transform", "Cache-Control", label);
+  verifyNoAnalyticsInjection(await response.arrayBuffer(), label);
 }
 
 async function verifyMainPageHeaders(fetchImpl) {
@@ -384,20 +446,33 @@ async function verifyLease(fetchImpl) {
     fail("lease cross-origin rejection returned the wrong public result.");
   }
 
+  const legacyChallengeResponse = await request(fetchImpl, leaseUrl, {
+    method: "POST",
+    headers: legacySameOriginLeaseHeaders,
+  }, "lease legacy-client compatibility probe");
+  requireStatus(legacyChallengeResponse, 428, "lease legacy-client compatibility probe");
+  verifyLeaseHeaders(legacyChallengeResponse, "lease legacy-client compatibility probe");
+  requireTypedLeaseChallenge(
+    await responseJson(legacyChallengeResponse, "lease legacy-client compatibility probe"),
+    "visitor-cookie-required",
+    "lease legacy-client compatibility probe",
+  );
+  if (!legacyChallengeResponse.headers.has("set-cookie")) {
+    fail("lease legacy-client compatibility probe did not establish browser identity.");
+  }
+
   const firstPartyResponse = await request(fetchImpl, leaseUrl, {
     method: "POST",
     headers: sameOriginLeaseHeaders,
   }, "lease first-party challenge probe");
-  requireStatus(firstPartyResponse, 428, "lease first-party challenge probe");
+  requireStatus(firstPartyResponse, 200, "lease first-party challenge probe");
   verifyLeaseHeaders(firstPartyResponse, "lease first-party challenge probe");
   const firstPartyResult = await responseJson(firstPartyResponse, "lease first-party challenge probe");
-  if (
-    firstPartyResult?.allowed !== false
-    || firstPartyResult?.code !== "visitor-cookie-required"
-    || firstPartyResult?.attestationSiteKey !== CLOUDFLARE_DEMONSTRATION_SITE_KEY
-  ) {
-    fail("lease first-party challenge does not expose the declared demonstration profile.");
-  }
+  requireTypedLeaseChallenge(
+    firstPartyResult,
+    "visitor-cookie-required",
+    "lease first-party challenge probe",
+  );
   const setCookie = header(firstPartyResponse, "set-cookie", "lease first-party challenge probe");
   const cookiePair = setCookie.split(";", 1)[0];
   if (
@@ -418,16 +493,14 @@ async function verifyLease(fetchImpl) {
       Cookie: cookiePair,
     },
   }, "lease returning-browser challenge probe");
-  requireStatus(returningResponse, 428, "lease returning-browser challenge probe");
+  requireStatus(returningResponse, 200, "lease returning-browser challenge probe");
   verifyLeaseHeaders(returningResponse, "lease returning-browser challenge probe");
   const returningResult = await responseJson(returningResponse, "lease returning-browser challenge probe");
-  if (
-    returningResult?.allowed !== false
-    || returningResult?.code !== "attestation-required"
-    || returningResult?.attestationSiteKey !== firstPartyResult.attestationSiteKey
-  ) {
-    fail("lease returning-browser challenge returned the wrong public result.");
-  }
+  requireTypedLeaseChallenge(
+    returningResult,
+    "attestation-required",
+    "lease returning-browser challenge probe",
+  );
 
   const invalidAttestationResponse = await request(fetchImpl, leaseUrl, {
     method: "POST",

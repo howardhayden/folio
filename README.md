@@ -23,8 +23,11 @@ A progressively enhanced portfolio for Hayden Howard, centered on systems, infor
 - React-managed interactions in place of jQuery and page-global DOM scripts
 - A single responsive stylesheet with reduced-motion fallbacks
 - Direct JSON, JSON-LD, Markdown, sitemap, robots, and llms artifacts for machine-readable access
+- Ontology-first fuzzy Search adapters whose evolving subject vocabularies remain part of each product's information architecture
 
 The ASCII character's state model, collision map, accessibility behavior, and validation rules are documented in [`docs/ascii-character.md`](docs/ascii-character.md).
+
+The [`docs/search/ONTOLOGY-SEARCH.md`](docs/search/ONTOLOGY-SEARCH.md) contract is the default for new Search work: define and maintain the product or service subject ontology first, then apply the shared collision-safe fuzzy engine through a product-bounded adapter.
 
 ## Lattice documentation
 

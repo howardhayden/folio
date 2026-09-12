@@ -17,6 +17,11 @@ export function applyTextToLatticeDocumentPolicy(response, pathname) {
   for (const [name, value] of Object.entries(TEXT_TO_LATTICE_DOCUMENT_POLICY)) {
     headers.set(name, value);
   }
+  const cacheControl = headers.get("Cache-Control");
+  if (!cacheControl) headers.set("Cache-Control", "no-transform");
+  else if (!cacheControl.toLowerCase().split(/\s*,\s*/u).includes("no-transform")) {
+    headers.set("Cache-Control", `${cacheControl}, no-transform`);
+  }
   return new Response(response.body, {
     headers,
     status: response.status,

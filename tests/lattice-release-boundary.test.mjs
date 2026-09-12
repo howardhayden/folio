@@ -20,6 +20,8 @@ const root = dirname(fileURLToPath(new URL("../package.json", import.meta.url)))
 const validator = join(root, "scripts/verify-text-to-lattice-release.mjs");
 const registerPath = join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json");
 const expectedGateIds = ["GATE-01", "GATE-02", "GATE-03", "GATE-04A", "GATE-04B", "GATE-04C", "GATE-05", "GATE-06"];
+const syntheticGate06Revision = "1111111111111111111111111111111111111111";
+const syntheticGate06Run = "https://github.com/howardhayden/folio/actions/runs/99999999999";
 
 async function withHeldSiteFixture(mutate, expectedFailure) {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "lattice-held-site-test-"));
@@ -51,17 +53,17 @@ function withSatisfiedGate06Evidence(gate) {
   const satisfied = structuredClone(gate);
   satisfied.status = "satisfied-in-production";
   satisfied.currentEvidence = [
-    "The repaired runtime at the canonical https://hah.dev/resume/#text-to-lattice client was associated through deployment chronology with https://github.com/howardhayden/folio/actions/runs/34325228788 and repaired runtime deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2.",
+    `Synthetic validator fixture only; this is not a production record. The hypothetical repaired runtime at the canonical https://hah.dev/resume/#text-to-lattice client was associated through deployment chronology with ${syntheticGate06Run} and repaired runtime deployed commit ${syntheticGate06Revision}.`,
     "The reviewed sanitized trace covered both hah.dev and verify.hah.dev origins. The owner reports that a capture-wide unique-source-marker search returned `0 matches` across the Brave network record; that search establishes the source-specific negative check. Deployed source contracts and tests keep source, clarification, candidate, verifier finding, and output browser-local and exclude them from lease, attestation, model-asset, error, and telemetry traffic; the captured request inventory showed no undocumented content-bearing route.",
     "Payload-pane inspection was not captured or claimed; bodyless lease behavior is source-correlated through the client source and the Worker pre-dispatch source contract.",
     "Cloudflare's static.cloudflareinsights.com/beacon.min.js edge injection was blocked by the Content-Security-Policy with 0.0 kB transferred and no /cdn-cgi/rum request observed.",
     "The official Cloudflare testing profile established demonstrator integration and did not establish production anti-bot assurance.",
   ].join(" ");
   satisfied.evidence = [
-    "Safari Version 26.5 (21624.2.5.11.4), WebKit, on macOS 26.5.1 (25F80): at 2026-09-09T08:05:50Z, a sanitized capture with SHA-256 266db6b8264a0aa42ac16916ddf696554c846b239960e7d19fc002917d843950 of https://hah.dev/resume/#text-to-lattice at deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2 recorded POST lease 428, POST lease 200, and DELETE lease 204.",
-    "Brave 1.94.121 (arm64), Chromium 152.0.7977.83, on macOS 26.5.1 (25F80): at 2026-09-09T08:15:12Z, a sanitized capture with SHA-256 d9b84b3f5a49b383d2472ffdb909dfe0bd68fb822bdd5d64ae05421654092741 of https://hah.dev/resume/#text-to-lattice at deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2 independently recorded lease statuses 428, 200, and 204.",
-    "Brave 1.94.121 (arm64), Chromium 152.0.7977.83, on macOS 26.5.1 (25F80): at 2026-09-09T08:15:12Z, a sanitized capture with SHA-256 d9b84b3f5a49b383d2472ffdb909dfe0bd68fb822bdd5d64ae05421654092741 of https://hah.dev/resume/#text-to-lattice at deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2 recorded supported-browser WebGPU terminal conversion result: translated.",
-    "Brave 1.94.121 (arm64), Chromium 152.0.7977.83, on macOS 26.5.1 (25F80): at 2026-09-09T08:16:30Z, a sanitized two-origin privacy capture with SHA-256 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa of https://hah.dev/resume/#text-to-lattice for deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2 covered both hah.dev and verify.hah.dev origins. The owner reports that a capture-wide unique-source-marker search returned `0 matches` across the Brave network record for source, clarification, candidate, verifier finding, and output markers in lease, attestation, model-asset, error, and telemetry traffic. Payload-pane inspection was not captured or claimed; bodyless lease behavior is source-correlated through the client source and the Worker pre-dispatch source contract. Cloudflare's static.cloudflareinsights.com/beacon.min.js edge injection was blocked by the Content-Security-Policy with 0.0 kB transferred and no /cdn-cgi/rum request observed.",
+    `Synthetic validator fixture only; Safari Version 99.1 (99999.1), WebKit, on macOS 99.1 (99Z1): at 2099-01-01T00:00:00Z, a sanitized capture with SHA-256 ${"a".repeat(64)} of https://hah.dev/resume/#text-to-lattice at deployed commit ${syntheticGate06Revision} recorded POST typed challenge HTTP 200, POST lease grant HTTP 200, and DELETE lease release HTTP 204.`,
+    `Synthetic validator fixture only; Brave 99.1 (arm64), Chromium 199.0.9999.1, on macOS 99.1 (99Z1): at 2099-01-01T00:01:00Z, a sanitized capture with SHA-256 ${"b".repeat(64)} of https://hah.dev/resume/#text-to-lattice at deployed commit ${syntheticGate06Revision} independently recorded lease outcome sequence: typed challenge HTTP 200, grant HTTP 200, and release HTTP 204.`,
+    `Synthetic validator fixture only; Brave 99.1 (arm64), Chromium 199.0.9999.1, on macOS 99.1 (99Z1): at 2099-01-01T00:01:00Z, a sanitized capture with SHA-256 ${"b".repeat(64)} of https://hah.dev/resume/#text-to-lattice at deployed commit ${syntheticGate06Revision} recorded supported-browser WebGPU terminal conversion result: translated.`,
+    `Synthetic validator fixture only; Brave 99.1 (arm64), Chromium 199.0.9999.1, on macOS 99.1 (99Z1): at 2099-01-01T00:02:00Z, a sanitized two-origin privacy capture with SHA-256 ${"c".repeat(64)} of https://hah.dev/resume/#text-to-lattice for deployed commit ${syntheticGate06Revision} covered both hah.dev and verify.hah.dev origins. The owner reports that a capture-wide unique-source-marker search returned \`0 matches\` across the Brave network record for source, clarification, candidate, verifier finding, and output markers in lease, attestation, model-asset, error, and telemetry traffic. Payload-pane inspection was not captured or claimed; bodyless lease behavior is source-correlated through the client source and the Worker pre-dispatch source contract. Cloudflare's static.cloudflareinsights.com/beacon.min.js edge injection was blocked by the Content-Security-Policy with 0.0 kB transferred and no /cdn-cgi/rum request observed.`,
   ];
   satisfied.evidenceNeeded = "Retain the reviewed completed first activation session evidence, and repeat the canonical lifecycle and privacy review in the supported browser engines and across both origins after every consequential boundary change. If an ordinary session naturally reaches the renewal interval, retain its result, but do not deliberately wait for it. Do not create a public or operator bypass harness.";
   return satisfied;
@@ -313,23 +315,23 @@ test("GATE-06 production satisfaction requires terminal conversion, lifecycle, a
       gate.evidence[2] = gate.evidence[2].replace("https://hah.dev/resume/#text-to-lattice", "the canonical page");
     }],
     ["Safari lifecycle", (gate) => { gate.evidence = gate.evidence.filter((entry) => !entry.includes("Safari Version")); }],
-    ["Safari full build", (gate) => { gate.evidence[0] = gate.evidence[0].replace(" (21624.2.5.11.4)", ""); }],
-    ["Safari repaired revision", (gate) => { gate.evidence[0] = gate.evidence[0].replace("9ab26b95cc1f9a94697118c0fc20a849db8f6ad2", "1111111111111111111111111111111111111111"); }],
-    ["Brave lifecycle", (gate) => { gate.evidence = gate.evidence.filter((entry) => !entry.includes("Brave 1.94.121")); }],
-    ["Brave 428 status", (gate) => { gate.evidence[1] = gate.evidence[1].replace("428, 200, and 204", "200 and 204"); }],
-    ["Brave 200 status", (gate) => { gate.evidence[1] = gate.evidence[1].replace("428, 200, and 204", "428 and 204"); }],
-    ["Brave 204 status", (gate) => { gate.evidence[1] = gate.evidence[1].replace("428, 200, and 204", "428 and 200"); }],
-    ["Brave repaired revision", (gate) => { gate.evidence[1] = gate.evidence[1].replace("9ab26b95cc1f9a94697118c0fc20a849db8f6ad2", "1111111111111111111111111111111111111111"); }],
+    ["Safari full build", (gate) => { gate.evidence[0] = gate.evidence[0].replace(" (99999.1)", ""); }],
+    ["Safari repaired revision", (gate) => { gate.evidence[0] = gate.evidence[0].replace(syntheticGate06Revision, "2222222222222222222222222222222222222222"); }],
+    ["Brave lifecycle", (gate) => { gate.evidence = gate.evidence.filter((entry) => !entry.includes("Brave 99.1")); }],
+    ["Brave typed challenge", (gate) => { gate.evidence[1] = gate.evidence[1].replace("typed challenge HTTP 200, ", ""); }],
+    ["Brave grant", (gate) => { gate.evidence[1] = gate.evidence[1].replace("grant HTTP 200, and ", ""); }],
+    ["Brave release", (gate) => { gate.evidence[1] = gate.evidence[1].replace("release HTTP 204", "release outcome omitted"); }],
+    ["Brave repaired revision", (gate) => { gate.evidence[1] = gate.evidence[1].replace(syntheticGate06Revision, "2222222222222222222222222222222222222222"); }],
     ["terminal conversion", (gate) => { gate.evidence = gate.evidence.filter((entry) => !entry.includes("terminal conversion result")); }],
     ["terminal canonical URL", (gate) => { gate.evidence[2] = gate.evidence[2].replace("https://hah.dev/resume/#text-to-lattice", "the canonical page"); }],
-    ["terminal browser and engine", (gate) => { gate.evidence[2] = gate.evidence[2].replace("Brave 1.94.121 (arm64), Chromium 152.0.7977.83", "a supported browser"); }],
-    ["terminal deployed revision", (gate) => { gate.evidence[2] = gate.evidence[2].replace("at deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2", "at the deployed revision"); }],
-    ["terminal revision association", (gate) => { gate.currentEvidence = gate.currentEvidence.replace("9ab26b95cc1f9a94697118c0fc20a849db8f6ad2", "0000000000000000000000000000000000000000"); }],
+    ["terminal browser and engine", (gate) => { gate.evidence[2] = gate.evidence[2].replace("Brave 99.1 (arm64), Chromium 199.0.9999.1", "a supported browser"); }],
+    ["terminal deployed revision", (gate) => { gate.evidence[2] = gate.evidence[2].replace(`at deployed commit ${syntheticGate06Revision}`, "at the deployed revision"); }],
+    ["terminal revision association", (gate) => { gate.currentEvidence = gate.currentEvidence.replace(syntheticGate06Revision, "0000000000000000000000000000000000000000"); }],
     ["repaired deployment marker", (gate) => { gate.currentEvidence = gate.currentEvidence.replace("repaired runtime deployed commit", "deployed commit"); }],
-    ["terminal timestamp", (gate) => { gate.evidence[2] = gate.evidence[2].replace("at 2026-09-09T08:15:12Z", "at an unrecorded time"); }],
+    ["terminal timestamp", (gate) => { gate.evidence[2] = gate.evidence[2].replace("at 2099-01-01T00:01:00Z", "at an unrecorded time"); }],
     ["terminal capture digest", (gate) => { gate.evidence[2] = gate.evidence[2].replace(/a sanitized capture with SHA-256 [a-f0-9]{64}/u, "an undigested capture"); }],
     ["repaired privacy trace", (gate) => { gate.evidence = gate.evidence.filter((entry) => !entry.includes("sanitized two-origin privacy capture")); }],
-    ["privacy repaired revision", (gate) => { gate.evidence[3] = gate.evidence[3].replace("9ab26b95cc1f9a94697118c0fc20a849db8f6ad2", "1111111111111111111111111111111111111111"); }],
+    ["privacy repaired revision", (gate) => { gate.evidence[3] = gate.evidence[3].replace(syntheticGate06Revision, "2222222222222222222222222222222222222222"); }],
     ["privacy search", (gate) => {
       gate.currentEvidence = gate.currentEvidence.replace("capture-wide unique-source-marker search returned `0 matches`", "the marker search was not retained");
       gate.evidence[3] = gate.evidence[3].replace("capture-wide unique-source-marker search returned `0 matches`", "the marker search was not retained");

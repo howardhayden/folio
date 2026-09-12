@@ -56,7 +56,7 @@ const mainPageUrls = new Set([
 ]);
 
 const frameHeaders = {
-  "Cache-Control": "no-store, max-age=0",
+  "Cache-Control": "no-store, max-age=0, no-transform",
   "Content-Security-Policy": "default-src 'none'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src data: https://challenges.cloudflare.com; frame-ancestors https://hah.dev; base-uri 'none'; form-action 'none'; object-src 'none'",
   "Cross-Origin-Resource-Policy": "same-site",
   "Origin-Agent-Cluster": "?1",
@@ -73,6 +73,13 @@ const leaseHeaders = {
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
 };
+const typedLeaseAccept = "application/vnd.hah.text-to-lattice-lease.v1+json, application/json";
+const typedChallenge = Object.freeze({
+  protocol: "hah-text-to-lattice-lease",
+  version: 1,
+  type: "attestation-challenge",
+  allowed: false,
+});
 const fixtureLeaseToken = `l1.${"A".repeat(32)}.1893456000000.${"B".repeat(43)}`;
 
 const frameSources = new Map([
@@ -122,6 +129,7 @@ function fixtureFetch({
       return new Response("resume", {
         status: 200,
         headers: mutateMainHeaders({
+          "Cache-Control": "public, max-age=60, no-transform",
           "Content-Security-Policy": responseMainPolicy,
           "Permissions-Policy": "camera=(), document-domain=()",
         }, url),
@@ -145,8 +153,8 @@ function fixtureFetch({
       }, leaseHeaders);
     }
     if (!requestHeaders.has("Cookie")) {
-      return jsonResponse(428, {
-        allowed: false,
+      return jsonResponse(requestHeaders.get("Accept") === typedLeaseAccept ? 200 : 428, {
+        ...typedChallenge,
         code: "visitor-cookie-required",
         attestationSiteKey: CLOUDFLARE_DEMONSTRATION_SITE_KEY,
       }, {
@@ -174,8 +182,8 @@ function fixtureFetch({
         code: "attestation-rejected",
       }, leaseHeaders);
     }
-    return jsonResponse(428, {
-      allowed: false,
+    return jsonResponse(requestHeaders.get("Accept") === typedLeaseAccept ? 200 : 428, {
+      ...typedChallenge,
       code: "attestation-required",
       attestationSiteKey: CLOUDFLARE_DEMONSTRATION_SITE_KEY,
     }, leaseHeaders);
@@ -299,6 +307,7 @@ test("the exact-route edge policy and in-document fallback avoid a portfolio-wid
     TEXT_TO_LATTICE_DOCUMENT_POLICY["Content-Security-Policy"],
   );
   assert.equal(protectedResponse.headers.get("Permissions-Policy"), "document-domain=()");
+  assert.equal(protectedResponse.headers.get("Cache-Control"), "no-transform");
   assert.equal(await protectedResponse.text(), "resume");
 
   const asset = new Response("asset", { headers: { "Content-Type": "text/css" } });
@@ -591,17 +600,52 @@ test("live qualification accepts the exact public route, cookie, and header cont
   assert.deepEqual(requestedMainPages, mainPageUrls);
 });
 
+test("live qualification uses browser-shaped requests and rejects edge analytics injection", async () => {
+  const navigationHeaders = [];
+  await verifyTextToLatticeServices({
+    fetchImpl: fixtureFetch({
+      observeRequest(url, init) {
+        if (mainPageUrls.has(url) || url === "https://verify.hah.dev/turnstile/") {
+          navigationHeaders.push(new Headers(init.headers));
+        }
+      },
+    }),
+    retryDelay: async () => {},
+  });
+  assert.ok(navigationHeaders.length >= mainPageUrls.size + 1);
+  assert.ok(navigationHeaders.every((headers) => headers.get("User-Agent")?.includes("Safari")));
+  assert.ok(navigationHeaders.every((headers) => headers.get("Accept")?.includes("text/html")));
+  assert.equal(navigationHeaders.filter((headers) => headers.get("Sec-Fetch-Dest") === "iframe").length, 1);
+  assert.equal(navigationHeaders.find((headers) => headers.get("Sec-Fetch-Dest") === "iframe")?.get("Sec-Fetch-Site"), "same-site");
+
+  const baseFetch = fixtureFetch();
+  await assert.rejects(verifyTextToLatticeServices({
+    async fetchImpl(input, init) {
+      const response = await baseFetch(input, init);
+      if (`${input}` !== "https://hah.dev/resume/") return response;
+      return new Response(`${await response.text()}<script data-cf-beacon src="https://static.cloudflareinsights.com/beacon.min.js"></script>`, {
+        status: response.status,
+        headers: response.headers,
+      });
+    },
+    retryDelay: async () => {},
+  }), /injected analytics beacon/u);
+});
+
 test("live qualification rejects a credential profile that advertises another site key", async () => {
   const fetchImpl = fixtureFetch();
   await assert.rejects(
     verifyTextToLatticeServices({
       async fetchImpl(input, init) {
         const response = await fetchImpl(input, init);
-        if (`${input}` !== "https://hah.dev/api/text-to-lattice/lease" || response.status !== 428) {
+        if (`${input}` !== "https://hah.dev/api/text-to-lattice/lease" || response.status !== 200) {
           return response;
         }
         const value = await response.json();
-        return jsonResponse(428, {
+        if (value?.type !== "attestation-challenge") {
+          return jsonResponse(200, value, Object.fromEntries(response.headers));
+        }
+        return jsonResponse(200, {
           ...value,
           attestationSiteKey: "0x4AAAA-production-profile",
         }, Object.fromEntries(response.headers));
@@ -610,6 +654,39 @@ test("live qualification rejects a credential profile that advertises another si
     }),
     /does not expose the declared demonstration profile/u,
   );
+});
+
+test("live qualification rejects drift in the closed typed HTTP 200 challenge", async () => {
+  const scenarios = [
+    ["protocol", (value) => ({ ...value, protocol: "another-protocol" })],
+    ["version", (value) => ({ ...value, version: 2 })],
+    ["type", (value) => ({ ...value, type: "lease-grant" })],
+    ["key set", (value) => ({ ...value, unexpected: true })],
+  ];
+  for (const [label, mutate] of scenarios) {
+    const fetchImpl = fixtureFetch();
+    await assert.rejects(
+      verifyTextToLatticeServices({
+        async fetchImpl(input, init) {
+          const response = await fetchImpl(input, init);
+          const headers = new Headers(init?.headers);
+          if (
+            `${input}` !== "https://hah.dev/api/text-to-lattice/lease"
+            || response.status !== 200
+            || headers.get("Accept") !== typedLeaseAccept
+          ) return response;
+          const value = await response.json();
+          if (value?.type !== "attestation-challenge") {
+            return jsonResponse(200, value, Object.fromEntries(response.headers));
+          }
+          return jsonResponse(200, mutate(value), Object.fromEntries(response.headers));
+        },
+        retryDelay: async () => {},
+      }),
+      /malformed or unsupported typed challenge/u,
+      label,
+    );
+  }
 });
 
 test("live qualification attempts cleanup when an acquired lease has malformed lifecycle metadata", async () => {
@@ -696,8 +773,8 @@ test("live qualification rejects a route that does not reach attestation rejecti
       async fetchImpl(input, init) {
         const headers = new Headers(init?.headers);
         if (headers.has("X-Lattice-Attestation")) {
-          return jsonResponse(428, {
-            allowed: false,
+          return jsonResponse(200, {
+            ...typedChallenge,
             code: "attestation-required",
             attestationSiteKey: CLOUDFLARE_DEMONSTRATION_SITE_KEY,
           }, leaseHeaders);
@@ -706,7 +783,7 @@ test("live qualification rejects a route that does not reach attestation rejecti
       },
       retryDelay: async () => {},
     }),
-    /invalid-attestation probe returned HTTP 428; expected 403/u,
+    /invalid-attestation probe returned HTTP 200; expected 403/u,
   );
 });
 

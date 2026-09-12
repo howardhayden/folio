@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { LegacyIcon, type LegacyIconName } from "../components/LegacyIcon";
 import { timeline } from "../data";
 import { resumeEducationOverview } from "../content/siteContent.js";
 import { resumeDetails } from "./resumeDetails.js";
+import {
+  deriveUniversityChronologyGeometry,
+  universityChronology,
+  universityChronologyPercent,
+  type UniversityChronologyRecord,
+} from "./universityChronology";
 
 type ModalKey = keyof typeof resumeDetails;
 type ModalId = ModalKey | null;
@@ -139,23 +145,37 @@ export default function ResumeExperience() {
         </section>
       </div>
 
-      <div className={`container${blurred}`}>
-        <h2 className="text-red text-center signal-fuzz" style={{ marginTop: "-3vh" }}>
+      <section className={`container university-section${blurred}`} aria-labelledby="resume-university-title">
+        <h2 className="text-red text-center signal-fuzz" id="resume-university-title">
           <LegacyIcon name="graduation-cap" /> &nbsp;University&nbsp; <LegacyIcon name="graduation-cap" />
         </h2>
-        <p className="lead text-center" style={{ marginBottom: "9vh" }}>Graduated {resumeEducationOverview.graduated}</p>
-        {resumeEducationOverview.activities.map((activity, index) => (
-          <Progress label={activity.label} start={activity.start} width={index === 0 ? "49%" : "22%"} key={activity.label} />
-        ))}
-        <Progress label="OhioLINK Luminary" start="August 2021" width="49%" href={resumeDetails.ohiolink.canonicalPath} onClick={(trigger) => openModal("ohiolink", trigger)} />
-        <Progress label="B.A. Computer Science – Miami University" start="August 2019" width="100%" href={resumeDetails.undergrad.canonicalPath} gradient onClick={(trigger) => openModal("undergrad", trigger)} />
-        <Progress label="Teaching Assistant" start="May 2022" width="29%" href={resumeDetails.teaching.canonicalPath} onClick={(trigger) => openModal("teaching", trigger)} />
-      </div>
+        <p className="lead text-center university-graduation">
+          Graduated <time dateTime="2023-05">{resumeEducationOverview.graduated}</time>
+        </p>
+        <div className="university-chronology">
+          <ol className="university-quarter-scale" aria-label="Four equal quarters of the degree">
+            {[1, 2, 3, 4].map((quarter) => (
+              <li aria-label={`Degree quarter ${quarter}`} data-degree-quarter={quarter} key={quarter}>
+                <span aria-hidden="true">Q{quarter}</span>
+              </li>
+            ))}
+          </ol>
+          <ul className="university-chronology-list" aria-label="University degree, roles, and activities">
+            {universityChronology.map((record) => (
+              <UniversityChronologyEntry
+                key={record.id}
+                onActivate={record.detail ? (trigger) => openModal(record.detail!, trigger) : undefined}
+                record={record}
+              />
+            ))}
+          </ul>
+        </div>
+      </section>
 
       <div className={`container${blurred}`}>
         <section className="design-section-container" aria-label="Earlier experience">
           <div className="timeline">
-            <article className="timeline-entry right" data-record-id="kettering-health-network-volunteer">
+            <article className="timeline-entry right" data-record-id="kettering-health-network-volunteer" id="kettering-health-network-volunteer">
               <h3>Volunteer</h3>
               <p>March 2019 – August 2019<br />Kettering Health Network</p>
               <LegacyIcon name="capsule" className="rotate-left timeline-icon signal-fuzz" />
@@ -240,29 +260,68 @@ function TimelineEntry({
   );
 }
 
-function Progress({ label, start, width, gradient = false, href, onClick }: { label: string; start: string; width: string; gradient?: boolean; href?: string; onClick?: (trigger: HTMLAnchorElement) => void }) {
-  const className = `progress-bar-fill ml-auto ${gradient ? "background-gradient-green-blue" : ""}`;
+function UniversityChronologyEntry({
+  record,
+  onActivate,
+}: {
+  record: UniversityChronologyRecord;
+  onActivate?: (trigger: HTMLAnchorElement) => void;
+}) {
+  const geometry = deriveUniversityChronologyGeometry(record);
+  const detail = record.detail ? resumeDetails[record.detail] : null;
+  const titleId = `university-chronology-title-${record.id}`;
+  const trackStyle = {
+    "--university-start": universityChronologyPercent(geometry.startPercent),
+    "--university-span": universityChronologyPercent(geometry.spanPercent),
+  } as CSSProperties;
+  const title = detail && onActivate ? (
+    <a
+      aria-controls={`resume-modal-${record.detail}`}
+      aria-haspopup="dialog"
+      href={detail.canonicalPath}
+      onClick={(event) => {
+        if (!shouldInterceptResumeModalLink(event)) return;
+        event.preventDefault();
+        onActivate(event.currentTarget);
+      }}
+    >
+      {record.label}
+    </a>
+  ) : record.label;
+
   return (
-    <div className="progress-container university-progress-entry">
-      <div className="progress-bar-wrapper rounded-0">
-        {onClick && href ? (
-          <a
-            aria-label={`${label}, beginning ${start}`}
-            className={`${className} button-reset`}
-            style={{ width }}
-            href={href}
-            onClick={(event) => {
-              if (!shouldInterceptResumeModalLink(event)) return;
-              event.preventDefault();
-              onClick(event.currentTarget);
-            }}
-          ><span className="progress-value" aria-hidden="true">{start}</span></a>
-        ) : (
-          <div className={className} style={{ width, cursor: "auto" }}><span className="progress-value">{start}</span></div>
-        )}
-      </div>
-      <div className="progress-label">{label}</div>
-    </div>
+    <li
+      className={`university-chronology-entry${detail ? " university-chronology-entry--interactive" : ""}`}
+      data-chronology-kind={geometry.kind}
+      data-degree-quarter={geometry.startQuarter}
+    >
+      <article aria-labelledby={titleId}>
+        <div className="university-chronology-heading">
+          <h3 className="progress-label" id={titleId}>{title}</h3>
+          <p className="university-chronology-period">
+            <time dateTime={record.start}>{record.startLabel}</time>
+            {record.end && record.endLabel ? (
+              <> – <time dateTime={record.end}>{record.endLabel}</time></>
+            ) : null}
+            <span className="university-quarter-label" aria-label={`Degree quarter ${geometry.startQuarter}`}>
+              Q{geometry.startQuarter}
+            </span>
+          </p>
+        </div>
+        <div className="progress-bar-wrapper university-progress-track" aria-hidden="true">
+          {geometry.kind === "interval" ? (
+            <span
+              className={`progress-bar-fill university-progress-span${record.gradient ? " background-gradient-green-blue" : ""}`}
+              style={trackStyle}
+            >
+              <span className="progress-value">{record.startLabel}</span>
+            </span>
+          ) : (
+            <span className="university-progress-point" style={trackStyle} />
+          )}
+        </div>
+      </article>
+    </li>
   );
 }
 

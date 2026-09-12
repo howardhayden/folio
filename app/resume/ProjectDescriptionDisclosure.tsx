@@ -81,13 +81,13 @@ export default function ProjectDescriptionDisclosure({
 
     document.body.classList.add("resume-modal-open");
     document.body.classList.add("skill-stack-modal-open");
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
     document.addEventListener("focusin", handleFocusIn);
     const focusFrame = window.requestAnimationFrame(() => dialog?.focus({ preventScroll: true }));
 
     return () => {
       window.cancelAnimationFrame(focusFrame);
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
       document.removeEventListener("focusin", handleFocusIn);
       document.body.classList.remove("resume-modal-open");
       document.body.classList.remove("skill-stack-modal-open");

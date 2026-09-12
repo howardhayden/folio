@@ -80,6 +80,8 @@ export {
   validateLatticeInput,
 };
 
+export const LATTICE_PROVENANCE_DIGEST_TIMEOUT_MS = 10_000;
+
 const LAYERS = new Set(LATTICE_LAYERS);
 const DISPOSITIONS = new Set(LATTICE_DISPOSITIONS);
 const ATOM_KINDS = new Set(LATTICE_ATOM_KINDS);
@@ -264,7 +266,7 @@ async function normalizeAnalysis(
   revisionId,
   sourceFingerprint,
   committedProvenance = [],
-  { allowClarification = true } = {},
+  { allowClarification = true, signal } = {},
 ) {
   protocol(typeof revisionId === "string" && ANALYSIS_REVISION_ID_PATTERN.test(revisionId),
     "The host supplied an invalid atomization revision.");
@@ -486,6 +488,7 @@ async function normalizeAnalysis(
       sourceFingerprint,
       analysisRevisionId: revisionId,
       questionStage: "analysis",
+      signal,
     }) : Object.freeze([]),
   });
 }
@@ -643,6 +646,7 @@ async function normalizeQuestions(rawQuestions, passagesById, {
   analysisRevisionId = "",
   candidateFingerprint = "",
   questionStage = "analysis",
+  signal,
 } = {}) {
   protocol(Array.isArray(rawQuestions) && rawQuestions.length <= 1, "Clarification questions must contain at most one direct question.");
   const normalizedQuestionStage = stringValue(questionStage, "Clarification question stage", { maximum: 120 });
@@ -757,7 +761,7 @@ async function normalizeQuestions(rawQuestions, passagesById, {
       graphProvenance,
       options: options.map(({ label }, optionIndex) => [rawQuestion.options[optionIndex].id, label])
         .sort(canonicalQuestionTupleOrder),
-    });
+    }, signal);
     return Object.freeze({
       id,
       fingerprint,
@@ -773,17 +777,39 @@ async function normalizeQuestions(rawQuestions, passagesById, {
   })));
 }
 
-async function provenanceFingerprint(prefix, value) {
+async function provenanceFingerprint(prefix, value, signal) {
   const serialized = JSON.stringify(value);
   protocol(typeof TextEncoder === "function" && typeof globalThis.crypto?.subtle?.digest === "function",
     "Text to Lattice requires a secure browser digest implementation.");
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(serialized));
+  throwIfAborted(signal);
+  let timeout = null;
+  let cancel = null;
+  const boundary = new Promise((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error("Text to Lattice did not finish a local integrity check in time."));
+    }, LATTICE_PROVENANCE_DIGEST_TIMEOUT_MS);
+    if (signal) {
+      cancel = () => reject(new DOMException("The local conversion was canceled.", "AbortError"));
+      signal.addEventListener("abort", cancel, { once: true });
+    }
+  });
+  let digest;
+  try {
+    digest = await Promise.race([
+      globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(serialized)),
+      boundary,
+    ]);
+  } finally {
+    if (timeout !== null) clearTimeout(timeout);
+    if (cancel) signal?.removeEventListener("abort", cancel);
+  }
+  throwIfAborted(signal);
   const hex = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
   return `${prefix}-${hex}`;
 }
 
-function clarificationFingerprint(value) {
-  return provenanceFingerprint("qf", value);
+function clarificationFingerprint(value, signal) {
+  return provenanceFingerprint("qf", value, signal);
 }
 
 function assembledCandidateProvenance(entries, assembledText) {
@@ -1226,9 +1252,21 @@ function activeCertificationProgress(onProgress, current, total, batchId) {
     current,
     total,
     batchId,
-    progress: total ? (current + 1) / total : null,
+    progress: total ? current / total : null,
     text: "Checking bounded text windows",
   }));
+}
+
+function certificationPlanningProgress(onProgress) {
+  onProgress?.(Object.freeze({
+    phase: "planning-certification",
+    progress: null,
+    text: "Planning the whole-text checks",
+  }));
+}
+
+function provenanceProgress(onProgress, phase, text) {
+  onProgress?.(Object.freeze({ phase, progress: null, text }));
 }
 
 function certificationWindowContext(passages, passageIndex, candidateById) {
@@ -1690,6 +1728,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
   }
   const expectedRelationIds = relationObligations.map(({ id }) => id);
   const modelPassageIndexes = passages.map((passage, index) => ({ passage, index }));
+  if (!preparedPlan) certificationPlanningProgress(onProgress);
   const certificationPlan = preparedPlan ?? await prepareWindowCertificationPlan({
     passages,
     analyses,
@@ -1756,6 +1795,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
         atomIds: Object.freeze([]),
         message: "A required lossless certification window lacked a fully verified candidate or relational ledger.",
       }));
+      activeCertificationProgress(onProgress, modelIndex + 1, modelPassageIndexes.length, passage.id);
       continue;
     }
     activeCertificationProgress(onProgress, modelIndex, modelPassageIndexes.length, request.window.id);
@@ -1809,6 +1849,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
           : "A required lossless document window did not return a valid independent check.",
       }));
     }
+    activeCertificationProgress(onProgress, modelIndex + 1, modelPassageIndexes.length, request.window.id);
   }
 
   for (const [boundaryId, requiredPassages] of expectedBoundaryPassages) {
@@ -1983,6 +2024,7 @@ async function certifyWholeDocument({
   let preparedPlan = null;
   if (fallbackReady) {
     try {
+      certificationPlanningProgress(onProgress);
       preparedPlan = await prepareWindowCertificationPlan({
         passages,
         analyses,
@@ -2723,10 +2765,11 @@ export async function runTextToLattice(value, options = {}) {
   const onProgress = options.onProgress;
   const clarificationAnswers = clarificationAnswersPayload(options.clarificationAnswers);
   throwIfAborted(signal);
+  provenanceProgress(onProgress, "binding-source-integrity", "Binding source integrity on this device");
   const sourceFingerprint = await provenanceFingerprint("sf", {
     scope: "normalized-source",
     text: source,
-  });
+  }, signal);
   throwIfAborted(signal);
 
   const pendingBatches = [...batches];
@@ -2768,6 +2811,7 @@ export async function runTextToLattice(value, options = {}) {
           analysisRevisionId,
           sourceFingerprint,
           clarificationDocumentProvenance,
+          { signal },
         ),
         signal,
       });
@@ -2925,9 +2969,11 @@ export async function runTextToLattice(value, options = {}) {
   };
 
   let assembly = assemble(candidates);
+  provenanceProgress(onProgress, "binding-result-integrity", "Binding result integrity on this device");
   let candidateFingerprint = await provenanceFingerprint(
     "cf",
     assembledCandidateProvenance(candidates, assembly.text),
+    signal,
   );
   throwIfAborted(signal);
   const reviews = [];
@@ -3070,7 +3116,7 @@ export async function runTextToLattice(value, options = {}) {
           analysisRevisionId,
           sourceFingerprint,
           clarificationDocumentProvenance,
-          { allowClarification: false },
+          { allowClarification: false, signal },
         ),
         signal,
       });
@@ -3164,9 +3210,11 @@ export async function runTextToLattice(value, options = {}) {
   const retryCandidateByBatch = new Map(retriedCandidates.map((entry) => [entry.batch.id, entry]));
   let tentativeCandidates = candidates.map((entry) => retryCandidateByBatch.get(entry.batch.id) ?? entry);
   assembly = assemble(tentativeCandidates);
+  provenanceProgress(onProgress, "binding-result-integrity", "Binding revised result integrity on this device");
   candidateFingerprint = await provenanceFingerprint(
     "cf",
     assembledCandidateProvenance(tentativeCandidates, assembly.text),
+    signal,
   );
   throwIfAborted(signal);
   const secondReviews = [];

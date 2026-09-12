@@ -1,11 +1,9 @@
+import { filterShelfPapersWithOntology } from "./shelfSearchOntology.ts";
+
 const DEFAULT_SEED = 0x484148;
 
 function paperKey(paper) {
   return paper.title;
-}
-
-function includes(values, needle) {
-  return !needle || values.join(", ").toLowerCase().includes(needle.toLowerCase());
 }
 
 function seededRandom(seed) {
@@ -33,10 +31,7 @@ export function randomShelfSeed(cryptoSource = globalThis.crypto, fallbackRandom
 }
 
 export function filterShelfPapers(papers, filters) {
-  return papers.filter((paper) => includes(paper.languages, filters.language)
-    && includes(paper.publishers, filters.publisher)
-    && includes(paper.authors, filters.author)
-    && includes(paper.collections, filters.collection));
+  return filterShelfPapersWithOntology(papers, filters);
 }
 
 export function shuffleShelfPapers(items, seed, previousOrder = []) {

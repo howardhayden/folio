@@ -8,6 +8,7 @@ import {
   LATTICE_CLARIFICATION_WORD_LIMIT,
   LATTICE_COMPLETION_CALL_LIMIT,
   LATTICE_INPUT_SAFETY_LIMIT,
+  LATTICE_PROVENANCE_DIGEST_TIMEOUT_MS,
   LATTICE_WORD_LIMIT,
   countLatticeWords,
   preflightLatticeInput,
@@ -534,6 +535,91 @@ test("malformed source fails before every model stage", async () => {
     await assert.rejects(() => runTextToLattice(value, { adapter }));
   }
   assert.deepEqual(adapter.calls, { analyze: 0, generate: 0, verify: 0, repair: 0 });
+});
+
+test("local provenance digests have fixed timeout and cancellation boundaries", async () => {
+  const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const timers = [];
+  globalThis.setTimeout = (callback, milliseconds) => {
+    const timer = { callback, milliseconds, cleared: false };
+    timers.push(timer);
+    return timer;
+  };
+  globalThis.clearTimeout = (timer) => { if (timer) timer.cleared = true; };
+  Object.defineProperty(globalThis, "crypto", {
+    configurable: true,
+    value: { subtle: { digest: () => new Promise(() => {}) } },
+  });
+  try {
+    const timedRun = runTextToLattice("Stable source text.", { adapter: scriptedAdapter() });
+    const deadline = timers.find(({ milliseconds, cleared }) => (
+      milliseconds === LATTICE_PROVENANCE_DIGEST_TIMEOUT_MS && !cleared
+    ));
+    assert.ok(deadline);
+    deadline.callback();
+    await assert.rejects(timedRun, /did not finish a local integrity check in time/u);
+
+    const controller = new AbortController();
+    const canceledRun = runTextToLattice("Another stable source.", {
+      adapter: scriptedAdapter(),
+      signal: controller.signal,
+    });
+    controller.abort();
+    await assert.rejects(canceledRun, (error) => error?.name === "AbortError");
+    const latestDeadline = timers.findLast(({ milliseconds }) => (
+      milliseconds === LATTICE_PROVENANCE_DIGEST_TIMEOUT_MS
+    ));
+    assert.equal(latestDeadline?.cleared, true);
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+    if (cryptoDescriptor) Object.defineProperty(globalThis, "crypto", cryptoDescriptor);
+    else delete globalThis.crypto;
+  }
+});
+
+test("candidate fingerprinting replaces a completed stage bar with indeterminate work", async () => {
+  const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  const nativeCrypto = globalThis.crypto;
+  const nativeDigest = nativeCrypto.subtle.digest.bind(nativeCrypto.subtle);
+  let digestCalls = 0;
+  let releaseCandidateDigest;
+  let announceCandidateDigest;
+  const candidateDigestStarted = new Promise((resolve) => { announceCandidateDigest = resolve; });
+  Object.defineProperty(globalThis, "crypto", {
+    configurable: true,
+    value: {
+      subtle: {
+        digest(algorithm, bytes) {
+          digestCalls += 1;
+          if (digestCalls !== 2) return nativeDigest(algorithm, bytes);
+          announceCandidateDigest();
+          return new Promise((resolve) => { releaseCandidateDigest = resolve; });
+        },
+      },
+    },
+  });
+  try {
+    const reports = [];
+    const running = runTextToLattice("The stable gate opens safely.", {
+      adapter: scriptedAdapter(),
+      onProgress: (report) => reports.push(report),
+    });
+    await candidateDigestStarted;
+    assert.ok(reports.some(({ phase, progress: value }) => phase === "generating" && value === 1));
+    assert.deepEqual(reports.at(-1), {
+      phase: "binding-result-integrity",
+      progress: null,
+      text: "Binding result integrity on this device",
+    });
+    releaseCandidateDigest(new Uint8Array(32).buffer);
+    assert.equal((await running).status, "translated");
+  } finally {
+    if (cryptoDescriptor) Object.defineProperty(globalThis, "crypto", cryptoDescriptor);
+    else delete globalThis.crypto;
+  }
 });
 
 test("segments and reassembles Unicode source without changing any source unit", () => {
@@ -3044,9 +3130,9 @@ test("all resume production sources remain free of canned transformations and ru
   const fetchRecords = records.flatMap(({ file, source }) => [...source.matchAll(/\bfetch\s*\(/gu)].map((match) => ({ file, source, index: match.index })));
   const tokenizerFetches = fetchRecords.filter(({ file }) => /\/app\/resume\/lattice\/latticeWebllm\.worker\.ts$/u.test(file.pathname));
   const leaseFetches = fetchRecords.filter(({ file }) => /\/app\/resume\/lattice\/usageLease\.js$/u.test(file.pathname));
-  assert.equal(fetchRecords.length, 4);
+  assert.equal(fetchRecords.length, 2);
   assert.equal(tokenizerFetches.length, 1);
-  assert.equal(leaseFetches.length, 3);
+  assert.equal(leaseFetches.length, 1, "lease methods share one bounded, bodyless transport helper");
   const fetchWindow = tokenizerFetches[0].source.slice(tokenizerFetches[0].index, tokenizerFetches[0].index + 360);
   assert.match(fetchWindow, /fetch\(new URL\("tokenizer\.json", LATTICE_MODEL_ROLES\[role\]\.model\)/u);
   assert.doesNotMatch(fetchWindow, /\bbody\s*:|\bmethod\s*:/u);

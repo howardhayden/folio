@@ -1,0 +1,102 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+import {
+  UNDERGRADUATE_INTERVAL,
+  deriveUniversityChronologyGeometry,
+  universityChronology,
+} from "../app/resume/universityChronology.ts";
+
+const record = (id) => {
+  const match = universityChronology.find((candidate) => candidate.id === id);
+  assert.ok(match, `chronology record ${id} exists`);
+  return match;
+};
+
+test("RTD-015: University chronology derives four-quarter placement from verified dates", () => {
+  assert.deepEqual(UNDERGRADUATE_INTERVAL, { start: "2019-08", end: "2023-05" });
+
+  const degree = deriveUniversityChronologyGeometry(record("miami-university-degree"));
+  assert.equal(degree.kind, "interval");
+  assert.equal(degree.startPercent, 0);
+  assert.equal(degree.spanPercent, 100);
+  assert.equal(degree.startQuarter, 1);
+
+  const digitalHumanities = deriveUniversityChronologyGeometry(record("digital-humanities-forum-committee"));
+  assert.equal(digitalHumanities.kind, "point", "an unverified end date must not become an invented duration");
+  assert.equal(digitalHumanities.spanPercent, 0);
+  assert.equal(digitalHumanities.startPercent, 24 / 46 * 100);
+  assert.equal(digitalHumanities.startQuarter, 3, "August 2021 begins in the degree's third quarter");
+
+  const diversity = deriveUniversityChronologyGeometry(record("diversity-equity-inclusion-committee"));
+  assert.equal(diversity.kind, "point");
+  assert.equal(diversity.startPercent, 36 / 46 * 100);
+  assert.equal(diversity.startQuarter, 4);
+
+  const ohiolink = deriveUniversityChronologyGeometry(record("ohiolink-luminary"));
+  assert.equal(ohiolink.kind, "interval");
+  assert.equal(ohiolink.startPercent, 24 / 46 * 100);
+  assert.equal(ohiolink.spanPercent, 22 / 46 * 100);
+  assert.equal(ohiolink.startQuarter, 3);
+
+  const teaching = deriveUniversityChronologyGeometry(record("miami-university-undergraduate-teaching-assistant"));
+  assert.equal(teaching.kind, "interval");
+  assert.equal(teaching.startPercent, 33 / 46 * 100);
+  assert.equal(teaching.spanPercent, 13 / 46 * 100);
+  assert.equal(teaching.startQuarter, 3);
+});
+
+test("GATE-D09: date geometry fails closed instead of drawing indefensible spans", () => {
+  assert.throws(
+    () => deriveUniversityChronologyGeometry({ start: "August 2021", end: null }),
+    /YYYY-MM/u,
+  );
+  assert.throws(
+    () => deriveUniversityChronologyGeometry({ start: "2019-07", end: null }),
+    /inside the degree interval/u,
+  );
+  assert.throws(
+    () => deriveUniversityChronologyGeometry({ start: "2021-08", end: "2021-07" }),
+    /cannot precede/u,
+  );
+  assert.throws(
+    () => deriveUniversityChronologyGeometry({ start: "2021-08", end: "2023-06" }),
+    /cannot exceed/u,
+  );
+  assert.throws(
+    () => deriveUniversityChronologyGeometry(
+      { start: "2021-08", end: null },
+      { start: "2023-05", end: "2019-08" },
+    ),
+    /positive duration/u,
+  );
+});
+
+test("the modernized University view keeps semantic time, disclosure, and visual contracts", async () => {
+  const [source, css] = await Promise.all([
+    readFile(new URL("../app/resume/ResumeExperience.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(source, /<section className=\{`container university-section\$\{blurred\}`\} aria-labelledby="resume-university-title">/u);
+  assert.match(source, /<ol className="university-quarter-scale" aria-label="Four equal quarters of the degree">/u);
+  assert.match(source, /<li aria-label=\{`Degree quarter \$\{quarter\}`\} data-degree-quarter=\{quarter\} key=\{quarter\}>[\s\S]*?<span aria-hidden="true">Q\{quarter\}<\/span>/u);
+  assert.match(source, /<ul className="university-chronology-list" aria-label="University degree, roles, and activities">/u);
+  assert.match(source, /<time dateTime="2023-05">\{resumeEducationOverview\.graduated\}<\/time>/u);
+  assert.match(source, /<time dateTime=\{record\.start\}>\{record\.startLabel\}<\/time>/u);
+  assert.match(source, /<time dateTime=\{record\.end\}>\{record\.endLabel\}<\/time>/u);
+  assert.match(source, /data-chronology-kind=\{geometry\.kind\}/u);
+  assert.match(source, /data-degree-quarter=\{geometry\.startQuarter\}/u);
+  assert.match(source, /geometry\.kind === "interval"[\s\S]*?university-progress-span[\s\S]*?: \([\s\S]*?university-progress-point/u);
+  assert.match(source, /aria-controls=\{`resume-modal-\$\{record\.detail\}`\}[\s\S]*?aria-haspopup="dialog"[\s\S]*?href=\{detail\.canonicalPath\}/u);
+  assert.doesNotMatch(source, /width=\{(?:"49%"|"22%"|"29%"|"100%")\}/u, "manual chronology widths stay retired");
+
+  assert.match(css, /\.university-quarter-scale \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/u);
+  assert.match(css, /\.university-progress-track \{[\s\S]*?background-color: transparent;[\s\S]*?height: 20px;/u);
+  assert.match(css, /\.university-progress-span \{[\s\S]*?left: var\(--university-start\);[\s\S]*?width: var\(--university-span\);/u);
+  assert.match(css, /\.university-progress-point \{[\s\S]*?left: var\(--university-start\);[\s\S]*?transform: translateX\(-50%\);/u);
+  assert.match(css, /\.university-chronology-entry \.progress-label \{[\s\S]*?text-align: right;/u);
+  assert.match(css, /\.university-chronology-entry \.progress-label a \{[\s\S]*?display: inline-flex;[\s\S]*?min-height: 24px;/u);
+  assert.match(source, /background-gradient-green-blue/u, "the degree retains the established gradient language");
+});

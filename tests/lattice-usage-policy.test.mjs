@@ -15,10 +15,17 @@ import {
 } from "../workers/text-to-lattice-lease/policy.js";
 import { LATTICE_USAGE_POLICY as PUBLISHED_LATTICE_USAGE_POLICY } from "../app/resume/lattice/usagePolicy.js";
 import {
+  LATTICE_CANONICAL_ORIGIN_MESSAGE,
+  LATTICE_LEASE_ACCEPT,
+  LATTICE_LEASE_CHALLENGE_TYPE,
+  LATTICE_LEASE_PROTOCOL,
+  LATTICE_LEASE_PROTOCOL_VERSION,
+  LATTICE_LEASE_REQUEST_TIMEOUT_MS,
   LatticeLeaseError,
   MAX_TRACKED_LATTICE_RELEASE_OPERATIONS,
   acquireLatticeLease,
   boundedLatticeLeaseResponseBody,
+  requireCanonicalLatticeBrowserOrigin,
   releaseLatticeLease,
   renewLatticeLease as renewBrowserLease,
 } from "../app/resume/lattice/usageLease.js";
@@ -1435,6 +1442,228 @@ test("the browser lease adapter cannot accept or transmit source text or a body"
   assert.match(source, /matchesPublishedPolicy\(body\?\.policy\)/u);
 });
 
+test("local previews reject the canonical lease boundary before making a request", async () => {
+  assert.throws(
+    () => requireCanonicalLatticeBrowserOrigin({ origin: "http://localhost:5173" }),
+    (error) => error instanceof LatticeLeaseError
+      && error.code === "canonical-origin-required"
+      && error.retryAfterSeconds === 0
+      && error.message === LATTICE_CANONICAL_ORIGIN_MESSAGE,
+  );
+  assert.doesNotThrow(() => requireCanonicalLatticeBrowserOrigin({ origin: "https://hah.dev" }));
+
+  const originalWindow = globalThis.window;
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  try {
+    globalThis.window = { location: { origin: "http://localhost:5173" } };
+    globalThis.fetch = async () => { requestCount += 1; return new Response(); };
+    await assert.rejects(acquireLatticeLease(new AbortController().signal), {
+      name: "LatticeLeaseError",
+      code: "canonical-origin-required",
+    });
+    assert.equal(requestCount, 0);
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("lease acquisition times out even when fetch ignores its abort signal", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  let deadline = null;
+  let internalSignal = null;
+  try {
+    globalThis.setTimeout = (callback, milliseconds) => {
+      assert.equal(milliseconds, LATTICE_LEASE_REQUEST_TIMEOUT_MS);
+      deadline = callback;
+      return 1;
+    };
+    globalThis.clearTimeout = () => {};
+    globalThis.fetch = (_url, options) => {
+      internalSignal = options.signal;
+      return new Promise(() => {});
+    };
+
+    const caller = new AbortController();
+    const pending = acquireLatticeLease(caller.signal);
+    assert.equal(internalSignal?.aborted, false);
+    assert.equal(typeof deadline, "function");
+    deadline();
+    await assert.rejects(
+      pending,
+      (error) => error instanceof LatticeLeaseError
+        && error.code === "lease-request-timeout"
+        && error.retryAfterSeconds === 0
+        && error.limited === false,
+    );
+    assert.equal(internalSignal.aborted, true, "the deadline aborts the transport signal");
+    assert.equal(caller.signal.aborted, false, "a transport deadline does not abort its caller");
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
+test("successful lease acquisition clears its deadline and caller-abort listener", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const caller = new AbortController();
+  const nativeSignal = caller.signal;
+  let addedAbort = null;
+  let removedAbort = null;
+  const signal = {
+    get aborted() { return nativeSignal.aborted; },
+    addEventListener(type, listener, options) {
+      if (type === "abort") addedAbort = listener;
+      nativeSignal.addEventListener(type, listener, options);
+    },
+    removeEventListener(type, listener, options) {
+      if (type === "abort") removedAbort = listener;
+      nativeSignal.removeEventListener(type, listener, options);
+    },
+  };
+  let timer = null;
+  let internalSignal = null;
+  const now = Date.now();
+  try {
+    globalThis.setTimeout = (callback, milliseconds) => {
+      assert.equal(milliseconds, LATTICE_LEASE_REQUEST_TIMEOUT_MS);
+      timer = {
+        callback,
+        cleared: false,
+        fire() { if (!this.cleared) this.callback(); },
+      };
+      return timer;
+    };
+    globalThis.clearTimeout = (value) => { value.cleared = true; };
+    globalThis.fetch = async (_url, options) => {
+      internalSignal = options.signal;
+      return new Response(JSON.stringify({
+        allowed: true,
+        leaseToken: lease(908),
+        expiresAt: now + PUBLISHED_LATTICE_USAGE_POLICY.activeLeases.ttlSeconds * 1_000,
+        maximumExpiresAt: now + PUBLISHED_LATTICE_USAGE_POLICY.activeLeases.maximumLifetimeSeconds * 1_000,
+        leaseSecondsRemaining: PUBLISHED_LATTICE_USAGE_POLICY.activeLeases.ttlSeconds,
+        policy: PUBLISHED_LATTICE_USAGE_POLICY,
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    };
+
+    const acquired = await acquireLatticeLease(signal);
+    assert.equal(acquired.token, lease(908));
+    assert.ok(timer);
+    assert.equal(timer.cleared, true);
+    assert.equal(removedAbort, addedAbort, "the exact caller-abort listener is removed");
+    assert.equal(internalSignal?.aborted, false);
+
+    caller.abort();
+    timer.fire();
+    assert.equal(internalSignal.aborted, false, "settled transport cannot be aborted by stale boundaries");
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
+test("lease acquisition deadlines cover stalled response bodies", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  let deadline = null;
+  let canceled = false;
+  try {
+    globalThis.setTimeout = (callback, milliseconds) => {
+      assert.equal(milliseconds, LATTICE_LEASE_REQUEST_TIMEOUT_MS);
+      deadline = callback;
+      return 1;
+    };
+    globalThis.clearTimeout = () => {};
+    globalThis.fetch = async () => new Response(new ReadableStream({
+      cancel() { canceled = true; },
+    }), { headers: { "Content-Type": "application/json" } });
+    const pending = acquireLatticeLease(new AbortController().signal);
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(typeof deadline, "function");
+    deadline();
+    await assert.rejects(
+      pending,
+      (error) => error instanceof LatticeLeaseError
+        && error.code === "lease-request-timeout"
+        && error.retryAfterSeconds === 0
+        && error.limited === false,
+    );
+    await Promise.resolve();
+    assert.equal(canceled, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
+test("caller cancellation remains AbortError after lease response headers", async () => {
+  const originalFetch = globalThis.fetch;
+  let canceled = false;
+  try {
+    globalThis.fetch = async () => new Response(new ReadableStream({
+      cancel() { canceled = true; },
+    }), { headers: { "Content-Type": "application/json" } });
+    const controller = new AbortController();
+    const pending = acquireLatticeLease(controller.signal);
+    await Promise.resolve();
+    await Promise.resolve();
+    controller.abort();
+    await assert.rejects(pending, (error) => error instanceof DOMException && error.name === "AbortError");
+    await Promise.resolve();
+    assert.equal(canceled, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("lease release also settles when its response body stalls", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  let deadline = null;
+  let canceled = false;
+  let requestCount = 0;
+  try {
+    globalThis.setTimeout = (callback, milliseconds) => {
+      assert.equal(milliseconds, LATTICE_LEASE_REQUEST_TIMEOUT_MS);
+      deadline = callback;
+      return 1;
+    };
+    globalThis.clearTimeout = () => {};
+    globalThis.fetch = async () => {
+      requestCount += 1;
+      return new Response(new ReadableStream({
+        cancel() { canceled = true; },
+      }), { headers: { "Content-Type": "application/json" } });
+    };
+    const pending = releaseLatticeLease(lease(909));
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(typeof deadline, "function");
+    deadline();
+    assert.equal(await pending, false);
+    await Promise.resolve();
+    assert.equal(canceled, true);
+    assert.equal(requestCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
 test("the browser preserves bounded quota retry timing for the UI ETA", async () => {
   const originalFetch = globalThis.fetch;
   try {
@@ -1833,6 +2062,31 @@ test("lease responses stop at the declared or streamed byte ceiling", async () =
   const chunkedOversize = new Response(stream, { headers: { "Content-Type": "application/json; charset=utf-8" } });
   assert.equal(await boundedLatticeLeaseResponseBody(chunkedOversize), null);
   assert.equal(streamedCanceled, true);
+
+  let stalledCancelCalled = false;
+  const stalledCancel = {
+    headers: new Headers({ "Content-Type": "application/json" }),
+    body: {
+      getReader() {
+        return {
+          read: async () => ({ done: false, value: new Uint8Array(16_385) }),
+          cancel() {
+            stalledCancelCalled = true;
+            return new Promise(() => {});
+          },
+        };
+      },
+    },
+  };
+  assert.equal(await boundedLatticeLeaseResponseBody(stalledCancel), null);
+  assert.equal(stalledCancelCalled, true, "oversize parsing does not await an uncooperative cancel");
+
+  const rejectedCancel = {
+    headers: new Headers({ "Content-Type": "application/json", "Content-Length": "16385" }),
+    body: { cancel: async () => { throw new Error("cancel rejected"); } },
+  };
+  assert.equal(await boundedLatticeLeaseResponseBody(rejectedCancel), null);
+  await Promise.resolve();
 });
 
 test("a non-JSON edge denial still preserves its bounded retry estimate", async () => {
@@ -1864,10 +2118,13 @@ test("the browser obtains one bounded attestation without sending prose or a bod
       calls.push(options);
       if (calls.length === 1) {
         return new Response(JSON.stringify({
+          protocol: LATTICE_LEASE_PROTOCOL,
+          version: LATTICE_LEASE_PROTOCOL_VERSION,
+          type: LATTICE_LEASE_CHALLENGE_TYPE,
           allowed: false,
           code: "attestation-required",
           attestationSiteKey: "0x4AAAA-test-site-key",
-        }), { status: 428, headers: { "Content-Type": "application/json" } });
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
       return new Response(JSON.stringify({
         allowed: true,
@@ -1887,9 +2144,120 @@ test("the browser obtains one bounded attestation without sending prose or a bod
     assert.equal(calls.length, 2);
     assert.equal(calls[0].body, undefined);
     assert.equal(calls[1].body, undefined);
+    assert.equal(calls[0].headers.Accept, LATTICE_LEASE_ACCEPT);
+    assert.equal(calls[1].headers.Accept, LATTICE_LEASE_ACCEPT);
     assert.equal(calls[0].headers["X-Lattice-Attestation"], undefined);
     assert.equal(calls[1].headers["X-Lattice-Attestation"], token);
     assert.doesNotMatch(JSON.stringify(calls), /source|prompt|candidate|result/iu);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("the browser accepts the legacy 428 challenge only for rollback compatibility", async () => {
+  const originalFetch = globalThis.fetch;
+  const now = Date.now();
+  let calls = 0;
+  try {
+    globalThis.fetch = async () => {
+      calls += 1;
+      if (calls === 1) {
+        return new Response(JSON.stringify({
+          allowed: false,
+          code: "attestation-required",
+          attestationSiteKey: "0x4AAAA-test-site-key",
+        }), { status: 428, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({
+        allowed: true,
+        leaseToken: lease(701),
+        expiresAt: now + PUBLISHED_LATTICE_USAGE_POLICY.activeLeases.ttlSeconds * 1_000,
+        maximumExpiresAt: now + PUBLISHED_LATTICE_USAGE_POLICY.activeLeases.maximumLifetimeSeconds * 1_000,
+        leaseSecondsRemaining: PUBLISHED_LATTICE_USAGE_POLICY.activeLeases.ttlSeconds,
+        policy: PUBLISHED_LATTICE_USAGE_POLICY,
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    };
+    const acquired = await acquireLatticeLease(
+      new AbortController().signal,
+      async () => "0.provider+/token=:~",
+    );
+    assert.equal(acquired.token, lease(701));
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("HTTP 200 challenges are accepted only through the exact closed versioned envelope", async () => {
+  const originalFetch = globalThis.fetch;
+  const base = {
+    protocol: LATTICE_LEASE_PROTOCOL,
+    version: LATTICE_LEASE_PROTOCOL_VERSION,
+    type: LATTICE_LEASE_CHALLENGE_TYPE,
+    allowed: false,
+    code: "attestation-required",
+    attestationSiteKey: "0x4AAAA-test-site-key",
+  };
+  const malformed = [
+    { label: "bare", value: { allowed: false, code: base.code, attestationSiteKey: base.attestationSiteKey } },
+    { label: "wrong protocol", value: { ...base, protocol: "another-protocol" } },
+    { label: "wrong version", value: { ...base, version: 2 } },
+    { label: "wrong type", value: { ...base, type: "lease-grant" } },
+    { label: "extension drift", value: { ...base, unexpected: true } },
+  ];
+  try {
+    for (const scenario of malformed) {
+      let fetches = 0;
+      let attestations = 0;
+      globalThis.fetch = async () => {
+        fetches += 1;
+        return new Response(JSON.stringify(scenario.value), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      };
+      await assert.rejects(
+        acquireLatticeLease(new AbortController().signal, async () => {
+          attestations += 1;
+          return "0.provider+/token=:~";
+        }),
+        (error) => error instanceof LatticeLeaseError,
+        scenario.label,
+      );
+      assert.equal(fetches, 1, `${scenario.label} does not cause a retry`);
+      assert.equal(attestations, 0, `${scenario.label} does not invoke attestation`);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("a second typed challenge fails closed instead of looping or treating HTTP 200 as a grant", async () => {
+  const originalFetch = globalThis.fetch;
+  let fetches = 0;
+  let attestations = 0;
+  try {
+    globalThis.fetch = async () => {
+      fetches += 1;
+      return new Response(JSON.stringify({
+        protocol: LATTICE_LEASE_PROTOCOL,
+        version: LATTICE_LEASE_PROTOCOL_VERSION,
+        type: LATTICE_LEASE_CHALLENGE_TYPE,
+        allowed: false,
+        code: fetches === 1 ? "attestation-required" : "visitor-cookie-required",
+        attestationSiteKey: "0x4AAAA-test-site-key",
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    };
+    await assert.rejects(
+      acquireLatticeLease(new AbortController().signal, async () => {
+        attestations += 1;
+        return "0.provider+/token=:~";
+      }),
+      (error) => error instanceof LatticeLeaseError
+        && error.code === "visitor-cookie-required",
+    );
+    assert.equal(fetches, 2);
+    assert.equal(attestations, 1);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -2151,7 +2519,7 @@ test("the production route layers independent local shapers before the exact glo
   const rejectAt = workerSource.indexOf("rejectUnsafeRequest(request, PUBLIC_ORIGIN)");
   const secretsAt = workerSource.indexOf("requiredSigningSecrets(env)");
   const shapeAt = workerSource.indexOf("shapeLatticeUsageRequest(");
-  const challengeAt = workerSource.indexOf("const challengeResponse = jsonResponse(428", publicHandlerAt);
+  const challengeAt = workerSource.indexOf("const challengeStatus = acceptsTypedLeaseChallenge(request) ? 200 : 428", publicHandlerAt);
   const attestAt = workerSource.indexOf("await verifyLatticeAttestation(");
   const gateAt = workerSource.indexOf("env.LATTICE_USAGE_GATE.getByName");
   const admitAt = workerSource.indexOf("const admissionDenial = await admitGlobalRequest(gate)");
@@ -2172,6 +2540,16 @@ test("the production route layers independent local shapers before the exact glo
     "malformed actionable requests fail before configuration and downstream shaping");
   assert.ok(shapeAt >= 0 && challengeAt > shapeAt,
     "location shaping precedes the cheap acquisition challenge");
+  assert.match(
+    workerSource.slice(challengeAt, gateAt),
+    /protocol: LEASE_PROTOCOL,[\s\S]*?version: LEASE_PROTOCOL_VERSION,[\s\S]*?type: LEASE_CHALLENGE_TYPE,[\s\S]*?allowed: false/iu,
+    "the negotiated 200 and legacy 428 paths share one closed typed challenge body",
+  );
+  assert.match(
+    workerSource,
+    /TYPED_LEASE_ACCEPT[\s\S]*?application\/vnd\.hah\.text-to-lattice-lease\.v1\+json[\s\S]*?acceptsTypedLeaseChallenge/iu,
+    "only the explicit versioned media type opts a client into the HTTP 200 challenge",
+  );
   assert.ok(
     challengeAt >= 0
       && gateAt > challengeAt
