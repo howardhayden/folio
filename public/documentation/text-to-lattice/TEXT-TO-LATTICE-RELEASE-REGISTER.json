@@ -17,7 +17,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "e35ee96744656d0f3977e25fd0badbc1a67ceb9496ad193ce8946f25f97e6d1b",
+    "qualificationDossierSha256": "87889f8649f2fb0002f4873f87b8316dc62340f4951373262d0bd959be239293",
     "browserEvidence": {
       "status": "not-collected",
       "path": null,
@@ -78,7 +78,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "87b5d4af77b027387e4b2f4276271e9160f7467a171915c7f5da908edc597e1b",
+      "sha256": "7198faed27a161931a3f1d70f74cebb794b830c9faa593c05353328e80ef8259",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, license-routing map, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -105,7 +105,7 @@
   "ownerDisposition": {
     "status": "hold-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "87b5d4af77b027387e4b2f4276271e9160f7467a171915c7f5da908edc597e1b",
+    "qualifiedSourceSetSha256": "7198faed27a161931a3f1d70f74cebb794b830c9faa593c05353328e80ef8259",
     "decidedOn": "2026-09-14",
     "record": "The site owner directs the remote Text to Lattice source candidate to remain held and documentation-only until the active production and canonical-browser release blockers close. Source review, Worker deployment preparation, and explicit historical evidence do not activate the public client.",
     "note": "The earlier GATE-02 deployment record and GATE-06 canonical-browser lifecycle and privacy captures remain verbatim historical evidence for their browser-local revisions. They do not establish the /api/lattice route, HF_TOKEN and VISITOR_COOKIE_SECRET bindings, exact quota-cookie boundary, exact 30-global and scoped 3-cooperating-cookie-jar UTC-day admission, fixed Hugging Face and Featherless provider targets, remote retention boundary, successful remote conversion, or current privacy trace."

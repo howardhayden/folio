@@ -285,6 +285,33 @@ async function boundedRequestText(request, maximumBytes, signal) {
   }
 }
 
+async function requestBodyHasBytes(request, signal) {
+  if (request.body === null) return false;
+  let reader;
+  try {
+    reader = request.body.getReader();
+    // Cloudflare can represent a zero-byte POST as a non-null, already-closing
+    // stream. Inspect only until closure or the first actual payload byte.
+    while (true) {
+      const part = await raceAbort(reader.read(), signal);
+      if (part.done) return false;
+      if ((part.value?.byteLength ?? 0) > 0) return true;
+    }
+  } catch (error) {
+    if (signal.aborted) throw signal.reason ?? error;
+    return true;
+  } finally {
+    if (reader) {
+      cancelReader(reader);
+      try {
+        reader.releaseLock();
+      } catch {
+        // The content-free body check has already settled.
+      }
+    }
+  }
+}
+
 function validateEnvelope(value) {
   if (!isLatticeApiRequest(value)) {
     throw apiError(400, "invalid_request");
@@ -396,8 +423,7 @@ export function createLatticeApiWorker({
         return errorResponse(403, "invalid_request");
       }
       const isVisitorSessionSetup = request.headers.get("accept") === LATTICE_VISITOR_SESSION_ACCEPT;
-      if (isVisitorSessionSetup
-        && (request.headers.has("content-type") || request.body !== null)) {
+      if (isVisitorSessionSetup && request.headers.has("content-type")) {
         return errorResponse(400, "invalid_request");
       }
       if (!isVisitorSessionSetup && request.headers.get("accept") !== "application/json") {
@@ -419,6 +445,9 @@ export function createLatticeApiWorker({
       let response;
       try {
         if (isVisitorSessionSetup) {
+          if (await requestBodyHasBytes(request, deadline.signal)) {
+            throw apiError(400, "invalid_request");
+          }
           let visitor;
           try {
             assertRequestPhaseOpen(deadline, qualificationWindow, now());

@@ -125,6 +125,7 @@ function visitorSessionRequest({
   headers = {},
   origin = LATTICE_API_ORIGIN,
   visitorCookie = null,
+  body,
 } = {}) {
   const requestHeaders = new Headers(headers);
   requestHeaders.set("Accept", LATTICE_VISITOR_SESSION_ACCEPT);
@@ -132,10 +133,15 @@ function visitorSessionRequest({
   if (visitorCookie !== null && !requestHeaders.has("Cookie")) {
     requestHeaders.set("Cookie", `${LATTICE_API_VISITOR_COOKIE_NAME}=${visitorCookie}`);
   }
-  return new Request(`${LATTICE_API_ORIGIN}${LATTICE_API_PATH}`, {
+  const init = {
     method: "POST",
     headers: requestHeaders,
-  });
+  };
+  if (body !== undefined) {
+    init.body = body;
+    if (body instanceof ReadableStream) init.duplex = "half";
+  }
+  return new Request(`${LATTICE_API_ORIGIN}${LATTICE_API_PATH}`, init);
 }
 
 async function json(response) {
@@ -704,6 +710,112 @@ test("the bodyless visitor-session setup creates only the API cookie and touches
     response.headers.get("set-cookie"),
     new RegExp(`^${LATTICE_API_VISITOR_COOKIE_NAME}=v1\\.[A-Za-z0-9_-]{24}\\.[A-Za-z0-9_-]{43}; Max-Age=[1-9][0-9]{0,5}; Path=${LATTICE_API_VISITOR_COOKIE_PATH}; Secure; HttpOnly; SameSite=Strict$`, "u"),
   );
+  assert.deepEqual(calls, []);
+  assert.equal(hfTokenReads, 0);
+});
+
+test("visitor-session setup accepts a non-null stream only after proving it contains zero bytes", async () => {
+  const calls = [];
+  let hfTokenReads = 0;
+  const worker = createProductionLatticeApiWorker({
+    establishVisitor: async () => {
+      calls.push("visitor");
+      return resolveTestVisitor();
+    },
+    enforceRateLimit: async () => { calls.push("rate-limiter"); },
+    admitTransformation: async () => {
+      calls.push("admission");
+      return { allowed: true, retryAfterSeconds: null };
+    },
+    createAdapter: () => {
+      calls.push("adapter");
+      return Object.freeze({});
+    },
+    runTextToLatticeImpl: async () => {
+      calls.push("pipeline");
+      return validLatticeResult();
+    },
+  });
+  const env = { VISITOR_COOKIE_SECRET: TEST_VISITOR_SECRET };
+  Object.defineProperty(env, "HF_TOKEN", {
+    get() {
+      hfTokenReads += 1;
+      return "must-not-be-read";
+    },
+  });
+  const request = visitorSessionRequest({
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(0));
+        controller.close();
+      },
+    }),
+  });
+  assert.notEqual(request.body, null);
+  assert.equal(request.headers.has("content-type"), false);
+
+  const response = await worker.fetch(request, env);
+  assert.equal(response.status, 204);
+  assert.equal(await response.text(), "");
+  assert.match(
+    response.headers.get("set-cookie"),
+    new RegExp(`^${LATTICE_API_VISITOR_COOKIE_NAME}=`, "u"),
+  );
+  assert.deepEqual(calls, ["visitor"]);
+  assert.equal(hfTokenReads, 0);
+});
+
+test("visitor-session setup rejects a real body byte or Content-Type before visitor or downstream work", async () => {
+  const calls = [];
+  let hfTokenReads = 0;
+  const worker = createProductionLatticeApiWorker({
+    establishVisitor: async () => {
+      calls.push("visitor");
+      return resolveTestVisitor();
+    },
+    enforceRateLimit: async () => { calls.push("rate-limiter"); },
+    admitTransformation: async () => {
+      calls.push("admission");
+      return { allowed: true, retryAfterSeconds: null };
+    },
+    createAdapter: () => {
+      calls.push("adapter");
+      return Object.freeze({});
+    },
+    runTextToLatticeImpl: async () => {
+      calls.push("pipeline");
+      return validLatticeResult();
+    },
+  });
+  const env = { VISITOR_COOKIE_SECRET: TEST_VISITOR_SECRET };
+  Object.defineProperty(env, "HF_TOKEN", {
+    get() {
+      hfTokenReads += 1;
+      return "must-not-be-read";
+    },
+  });
+  let bodyCanceled = false;
+  const requests = [
+    visitorSessionRequest({
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1]));
+        },
+        cancel() {
+          bodyCanceled = true;
+        },
+      }),
+    }),
+    visitorSessionRequest({ headers: { "Content-Type": "application/octet-stream" } }),
+  ];
+
+  for (const request of requests) {
+    const response = await worker.fetch(request, env);
+    assert.equal(response.status, 400);
+    assert.deepEqual(await json(response), { error: "invalid_request" });
+    assert.equal(response.headers.has("set-cookie"), false);
+  }
+  assert.equal(bodyCanceled, true);
   assert.deepEqual(calls, []);
   assert.equal(hfTokenReads, 0);
 });
