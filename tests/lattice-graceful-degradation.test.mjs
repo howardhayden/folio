@@ -4,55 +4,48 @@ import test from "node:test";
 import { textToLatticeContract } from "../app/content/textToLatticeContent.js";
 import { knowledgeGraph, namespaceGraphId } from "../app/semantic/portfolio.js";
 
-const staticFile = (path) => new URL(`../site/${path}`, import.meta.url);
+const resumeSource = await readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8");
+const toolPageSource = await readFile(new URL("../app/projects/lattice/text-to-lattice/page.tsx", import.meta.url), "utf8");
 
-test("Text to Lattice exposes a no-JavaScript and unavailable-runtime fallback", async () => {
-  const [resumeHtml, toolHtml, interfaceSource] = await Promise.all([
-    readFile(staticFile("resume/index.html"), "utf8"),
-    readFile(staticFile("projects/lattice/text-to-lattice/index.html"), "utf8"),
-    readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8"),
-  ]);
-
-  assert.match(resumeHtml, /href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/u);
+test("Text to Lattice keeps a useful no-JavaScript and remote-service fallback", () => {
   assert.match(
-    resumeHtml,
-    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*data-lattice-launch="text-to-lattice")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Use Text to Lattice")(?=[^>]*aria-haspopup="dialog")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
+    resumeSource,
+    /href="\/projects\/lattice\/text-to-lattice\/"[\s\S]*?aria-label="Use Text to Lattice"/u,
   );
-  assert.match(resumeHtml, /id="lattice-demo-dialog"/u);
-  assert.match(resumeHtml, /id="lattice-demo-input"/u);
-  assert.match(resumeHtml, /<noscript>[\s\S]*?Text to Lattice is unavailable here[\s\S]*?href="\/projects\/lattice\/text-to-lattice\/"[\s\S]*?Read the tool details/iu);
-  assert.match(interfaceSource, /latticeSupported === false \? \([\s\S]*?aria-label="Availability"/u);
-  assert.match(interfaceSource, /disabled=\{busy \|\| latticeSupported === false\}/u);
-  assert.match(interfaceSource, /latticeFailureMessage\(error\)/u);
-  assert.match(interfaceSource, /navigator\.onLine === false/u);
-  assert.match(interfaceSource, /!latticeInputInvalid \? <> <a href="\/projects\/lattice\/text-to-lattice\/#text-to-lattice-availability">Tool details<\/a>\.<\/> : null/u);
-  assert.match(toolHtml, /data-tool-availability="progressive-enhancement"/u);
-  assert.match(toolHtml, /Without JavaScript/u);
-  assert.match(toolHtml, /absence(?:<!-- -->)? of secure-context WebGPU support/iu);
-  assert.match(toolHtml, /absence(?:<!-- -->)? of uncached pinned model assets/iu);
-  assert.match(toolHtml, /href="\/projects\.json"/u);
-  assert.match(toolHtml, /href="\/knowledge-graph\.jsonld"/u);
+  assert.match(
+    resumeSource,
+    /<noscript>[\s\S]*?Text to Lattice is unavailable here[\s\S]*?Read the tool details[\s\S]*?<\/noscript>/u,
+  );
+
+  assert.match(toolPageSource, /data-tool-availability="progressive-enhancement"/u);
+  assert.match(toolPageSource, /Without JavaScript/u);
+  assert.match(toolPageSource, /secure same-origin capability/u);
+  assert.match(toolPageSource, /Provider unavailability, timeout, rate limit, or malformed output terminates explicitly/u);
+  assert.match(toolPageSource, /no automatic retry or fallback presents the source as transformed text/u);
+  assert.match(toolPageSource, /complete public contract remains on this page/u);
 });
 
-test("fallback availability is part of the public semantic tool contract", async () => {
-  const fallbackConstraints = textToLatticeContract.constraints.filter((constraint) => (
-    constraint.includes("network access") || constraint.includes("remain readable without JavaScript")
+test("fallback and explicit external submission are part of the semantic tool contract", () => {
+  const fallbackConstraint = textToLatticeContract.constraints.find((constraint) => (
+    constraint.includes("remain readable without JavaScript or conversion availability")
   ));
-  assert.equal(fallbackConstraints.length, 2);
+  const submissionConstraint = textToLatticeContract.constraints.find((constraint) => (
+    constraint.includes("one same-origin POST to /api/lattice")
+  ));
+  assert.ok(fallbackConstraint);
+  assert.ok(submissionConstraint);
 
   const applicationId = "https://hah.dev/projects/lattice/text-to-lattice/#application";
   const application = knowledgeGraph["@graph"].find((node) => node["@id"] === applicationId);
   assert.ok(application);
-  for (const constraint of fallbackConstraints) {
-    assert.ok(application[namespaceGraphId("constraint")].includes(constraint));
-  }
+  const semanticConstraints = application[namespaceGraphId("constraint")];
+  assert.ok(semanticConstraints.includes(fallbackConstraint));
+  assert.ok(semanticConstraints.includes(submissionConstraint));
 
-  const [projectMarkdown, completeText] = await Promise.all([
-    readFile(staticFile("content/projects/lattice.md"), "utf8"),
-    readFile(staticFile("llms-full.txt"), "utf8"),
-  ]);
-  for (const constraint of fallbackConstraints) {
-    assert.ok(projectMarkdown.includes(constraint));
-    assert.ok(completeText.includes(constraint));
-  }
+  assert.ok(textToLatticeContract.securityAndPrivacy.api.rules.some((rule) => (
+    rule.includes("modal opening, dismissal, and cancellation before submission cause no transformation request")
+  )));
+  assert.ok(textToLatticeContract.securityAndPrivacy.api.rules.some((rule) => (
+    rule.includes("browser does not retry automatically")
+  )));
 });

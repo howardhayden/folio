@@ -11,7 +11,7 @@ import {
 import { skillStacks, timeline } from "../data.ts";
 import { searchOntology, type SearchHit } from "../search/ontologySearch.ts";
 import { projects } from "./projects.js";
-import { ResumeProjectCard } from "./ResumeProjects";
+import { ResumeProjectHeldCard } from "./ResumeProjectsHeld";
 import {
   RESUME_SEARCH_CLASS_ORDER,
   resumeSearchIndex,
@@ -35,7 +35,6 @@ const RESULT_DURATION_MS = 180;
 
 type ExitSearchOptions = Readonly<{
   destination?: URL;
-  afterRestore?: () => void;
 }>;
 
 type FollowResult = (event: MouseEvent<HTMLAnchorElement>, href: string) => void;
@@ -53,21 +52,18 @@ const TIMELINE_BY_SEARCH_ID: ReadonlyMap<string, (typeof timeline)[number]> = ne
 function ResumeSearchResultCard({
   hit,
   followResult,
-  followLatticeResult,
 }: {
   hit: SearchHit;
   followResult: FollowResult;
-  followLatticeResult: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const { record } = hit;
   const project = PROJECT_BY_SEARCH_ID.get(record.id);
   if (project) {
     return (
-      <ResumeProjectCard
+      <ResumeProjectHeldCard
         project={project}
         headingPrefix="resume-search-project"
         disclosureId={`resume-search-${project.id}`}
-        onLatticeLaunch={project.id === "lattice" ? followLatticeResult : undefined}
         onNavigate={followResult}
       />
     );
@@ -246,15 +242,11 @@ export default function ResumeSearch({ children }: { children: ReactNode }) {
       setQuery("");
       setResultPhase("stable");
       changeSurface("canonical");
-      if (!options.destination && !options.afterRestore) {
+      if (!options.destination) {
         focusSearchInputWithoutOpening();
         return;
       }
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-        if (options.afterRestore) {
-          options.afterRestore();
-          return;
-        }
         const destination = options.destination;
         if (!destination) return;
         window.history.pushState(null, "", `${destination.pathname}${destination.search}${destination.hash}`);
@@ -315,23 +307,6 @@ export default function ResumeSearch({ children }: { children: ReactNode }) {
     if (!destination.hash || currentPath !== destinationPath) return;
     event.preventDefault();
     exitSearch({ destination });
-  }, [exitSearch]);
-
-  const followLatticeResult = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
-    if (
-      event.defaultPrevented
-      || event.button !== 0
-      || event.metaKey
-      || event.ctrlKey
-      || event.shiftKey
-      || event.altKey
-    ) return;
-    event.preventDefault();
-    exitSearch({
-      afterRestore: () => document.querySelector<HTMLAnchorElement>(
-        '.resume-search-canonical [data-lattice-launch="text-to-lattice"]',
-      )?.click(),
-    });
   }, [exitSearch]);
 
   useEffect(() => {
@@ -485,7 +460,6 @@ export default function ResumeSearch({ children }: { children: ReactNode }) {
                     <ResumeSearchResultCard
                       hit={hit}
                       followResult={followResult}
-                      followLatticeResult={followLatticeResult}
                       key={hit.record.id}
                     />
                   ))}

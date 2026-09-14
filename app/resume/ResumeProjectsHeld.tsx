@@ -1,3 +1,6 @@
+"use client";
+
+import type { MouseEvent } from "react";
 import { projects } from "./projects.js";
 import ProjectDescriptionDisclosure from "./ProjectDescriptionDisclosure";
 
@@ -58,11 +61,119 @@ function ProjectIcon({ icon }: { icon: ProjectIconName }) {
   );
 }
 
-function projectHeadingId(name: string) {
-  return `project-${name
+function projectHeadingId(name: string, prefix = "project") {
+  return `${prefix}-${name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")}`;
+}
+
+type ResumeProject = (typeof projects)[number];
+
+type ResumeProjectHeldCardProps = Readonly<{
+  project: ResumeProject;
+  headingPrefix?: string;
+  disclosureId?: string;
+  onNavigate?: (event: MouseEvent<HTMLAnchorElement>, href: string) => void;
+}>;
+
+/** A documentation-only project card shared by the held Resume and Resume Search. */
+export function ResumeProjectHeldCard({
+  project,
+  headingPrefix = "project",
+  disclosureId = project.id,
+  onNavigate,
+}: ResumeProjectHeldCardProps) {
+  const headingId = projectHeadingId(project.name, headingPrefix);
+
+  return (
+    <article className="card" aria-labelledby={headingId}>
+      <div className="card-body">
+        <div className="row justify-content-center">
+          {project.id === "lattice" ? (
+            <a
+              className="tool-icon project-modal-trigger signal-fuzz"
+              href="/projects/lattice/text-to-lattice/"
+              aria-label="Read Text to Lattice release status"
+              onClick={(event) => onNavigate?.(event, "/projects/lattice/text-to-lattice/")}
+            >
+              <ProjectIcon icon={project.icon as ProjectIconName} />
+            </a>
+          ) : (
+            <span className="tool-icon signal-fuzz" aria-hidden="true">
+              <ProjectIcon icon={project.icon as ProjectIconName} />
+            </span>
+          )}
+        </div>
+
+        <h3
+          className="card-title tools-card-title row justify-content-center"
+          id={headingId}
+        >
+          <a
+            className="signal-fuzz"
+            href={project.canonicalPath}
+            onClick={(event) => onNavigate?.(event, project.canonicalPath)}
+          >
+            {project.name}
+          </a>
+        </h3>
+
+        <ProjectDescriptionDisclosure
+          hook={project.summary[0]}
+          paragraph={project.summary[1]}
+          projectId={disclosureId}
+          projectName={project.name}
+        />
+
+        {project.id === "lattice" ? (
+          <p className="card-text lattice-noscript-note">
+            Text to Lattice remains held while deployment and end-to-end privacy evidence for
+            the remote-provider candidate are incomplete. Lattice source and documentation
+            remain available.
+          </p>
+        ) : null}
+
+        {project.resources.length ? (
+          <nav
+            className="project-resources"
+            aria-label={`${project.name} supporting materials`}
+          >
+            <ul className="list-unstyled">
+              {project.resources.map((resource) => {
+                const opensInNewTab = resource.opensInNewTab === true;
+
+                return (
+                  <li key={`${resource.label}-${resource.url}`}>
+                    <a
+                      className="signal-fuzz"
+                      href={resource.url}
+                      target={opensInNewTab ? "_blank" : undefined}
+                      rel={opensInNewTab ? "noopener noreferrer" : undefined}
+                      aria-label={
+                        opensInNewTab
+                          ? `${resource.label}, opens in a new tab`
+                          : resource.label
+                      }
+                    >
+                      <span aria-hidden="true">
+                        <ProjectIcon icon={resource.icon as ProjectIconName} />
+                      </span>{" "}
+                      <span>{resource.label}</span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        ) : null}
+
+        <p className="card-text">
+          <small>{project.publication.label}</small>
+        </p>
+      </div>
+    </article>
+  );
 }
 
 export default function ResumeProjectsHeld() {
@@ -73,94 +184,9 @@ export default function ResumeProjectsHeld() {
       </h2>
 
       <div className="folio-card-grid">
-        {projects.map((project) => {
-          const headingId = projectHeadingId(project.name);
-
-          return (
-            <article className="card" key={project.id} aria-labelledby={headingId}>
-              <div className="card-body">
-                <div className="row justify-content-center">
-                  {project.id === "lattice" ? (
-                    <a
-                      className="tool-icon project-modal-trigger signal-fuzz"
-                      href="/projects/lattice/text-to-lattice/"
-                      aria-label="Read Text to Lattice release status"
-                    >
-                      <ProjectIcon icon={project.icon as ProjectIconName} />
-                    </a>
-                  ) : (
-                    <span className="tool-icon signal-fuzz" aria-hidden="true">
-                      <ProjectIcon icon={project.icon as ProjectIconName} />
-                    </span>
-                  )}
-                </div>
-
-                <h3
-                  className="card-title tools-card-title row justify-content-center"
-                  id={headingId}
-                >
-                  <a className="signal-fuzz" href={project.canonicalPath}>
-                    {project.name}
-                  </a>
-                </h3>
-
-                <ProjectDescriptionDisclosure
-                  hook={project.summary[0]}
-                  paragraph={project.summary[1]}
-                  projectId={project.id}
-                  projectName={project.name}
-                />
-
-                {project.id === "lattice" ? (
-                  <p className="card-text lattice-noscript-note">
-                    Text to Lattice is unavailable when the machine release record contains an
-                    open blocker. Accepted model, WebAssembly, accessibility, capacity, and
-                    privacy residuals remain documented; Lattice itself and every mapped document
-                    remain available.
-                  </p>
-                ) : null}
-
-                {project.resources.length ? (
-                  <nav
-                    className="project-resources"
-                    aria-label={`${project.name} supporting materials`}
-                  >
-                    <ul className="list-unstyled">
-                      {project.resources.map((resource) => {
-                        const opensInNewTab = resource.opensInNewTab === true;
-
-                        return (
-                          <li key={`${resource.label}-${resource.url}`}>
-                            <a
-                              className="signal-fuzz"
-                              href={resource.url}
-                              target={opensInNewTab ? "_blank" : undefined}
-                              rel={opensInNewTab ? "noopener noreferrer" : undefined}
-                              aria-label={
-                                opensInNewTab
-                                  ? `${resource.label}, opens in a new tab`
-                                  : resource.label
-                              }
-                            >
-                              <span aria-hidden="true">
-                                <ProjectIcon icon={resource.icon as ProjectIconName} />
-                              </span>{" "}
-                              <span>{resource.label}</span>
-                            </a>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </nav>
-                ) : null}
-
-                <p className="card-text">
-                  <small>{project.publication.label}</small>
-                </p>
-              </div>
-            </article>
-          );
-        })}
+        {projects.map((project) => (
+          <ResumeProjectHeldCard project={project} key={project.id} />
+        ))}
       </div>
 
       <p className="project-record-link">

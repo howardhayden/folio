@@ -36,8 +36,9 @@ const releaseGateStatuses = new Set([
   "accepted-residual-risk",
   "post-deployment-verification",
   "open-release-blocker",
+  "historical-inactive",
 ]);
-const productionSatisfiedGateIds = new Set(["GATE-02", "GATE-06"]);
+const productionSatisfiedGateIds = new Set(["GATE-02", "GATE-03", "GATE-06"]);
 const rollbackRequiredStatuses = new Set([
   "satisfied-in-production",
   "post-deployment-verification",
@@ -49,6 +50,9 @@ const releaseGateProjectionFields = Object.freeze([
   "marginalValue",
   "requirement",
   "currentEvidence",
+  "historicalInactiveRecord",
+  "activeCurrentEvidence",
+  "activeEvidence",
   "evidenceNeeded",
   "rationale",
   "evidence",
@@ -78,202 +82,130 @@ function requireArray(value, label, minimum = 1) {
 
 function gateRequiresRollbackCondition(gate) {
   return rollbackRequiredStatuses.has(gate.status)
-    || (gate.id === "GATE-06" && gate.status === "open-release-blocker");
+    || gate.status === "open-release-blocker";
 }
 
-function validateLifecycleGateContract(productionBoundaryGate, productionLifecycleGate) {
-  const gate02PreactivationBoundary = `${productionBoundaryGate.requirement} ${productionBoundaryGate.evidenceNeeded} ${productionBoundaryGate.followUp}`;
-  if (!/noninteractive/iu.test(gate02PreactivationBoundary)
-    || !/invalid-(?:token|attestation)/iu.test(gate02PreactivationBoundary)
-    || !/intentionally invalid-attestation/iu.test(productionBoundaryGate.evidenceNeeded)
-    || !/exact official demonstration-site-key, and exact official dummy-token acquisition-and-release probes/iu.test(productionBoundaryGate.evidenceNeeded)
-    || !/direct dummy-token lifecycle establishes only the deployed Siteverify, lease, and release path/iu.test(productionBoundaryGate.evidenceNeeded)
-    || !/not evidence that the frame or widget participated or that canonical-browser GATE-06 passed/iu.test(productionBoundaryGate.evidenceNeeded)) {
-    fail("release gate GATE-02 must bind live noninteractive, invalid-token, and direct official dummy-token probes without treating their server result as frame, widget, or canonical-browser evidence.");
+function validateHistoricalEvidenceBoundary(gate) {
+  const boundary = gate.historicalInactiveRecord;
+  if (boundary?.status !== "historical-inactive"
+    || JSON.stringify(boundary.appliesToFields) !== JSON.stringify(["currentEvidence", "evidence"])
+    || !/^[a-f0-9]{64}$/u.test(boundary.verbatimSha256 ?? "")
+    || !/do(?:es)? not (?:satisfy|establish)/iu.test(boundary.claimBoundary ?? "")) {
+    fail(`release gate ${gate.id} must classify its verbatim currentEvidence and evidence fields as historical inactive and non-authorizing.`);
   }
-  const gate02Sentences = gate02PreactivationBoundary.split(/(?<=[.!?])\s+/u);
-  const requiresRealLifecycle = gate02Sentences.some((sentence) => {
-    if (/\b(?:not|cannot|without|rather than)\b/iu.test(sentence)) return false;
-    return /\b(?:complete|finish|record|pass|require|wait through)\b/iu.test(sentence)
-      && /\b(?:real|genuine|successful|production-widget|official-page|canonical-page)\b/iu.test(sentence)
-      && /\b(?:acquisition|grant|renewal|release|lifecycle)\b/iu.test(sentence);
+  requireString(boundary.architecture, `release gate ${gate.id} historical architecture`);
+  requireString(gate.activeCurrentEvidence, `release gate ${gate.id} activeCurrentEvidence`);
+  requireArray(gate.activeEvidence, `release gate ${gate.id} activeEvidence`).forEach((entry, index) => {
+    requireString(entry, `release gate ${gate.id} activeEvidence[${index}]`);
   });
-  if (requiresRealLifecycle) {
-    fail("release gate GATE-02 cannot require a real canonical-page lifecycle while the public client is held.");
-  }
-  for (const exactRoute of ["hah.dev/", "hah.dev/index.html", "hah.dev/resume/", "hah.dev/resume/index.html"]) {
-    if (!gate02PreactivationBoundary.includes(exactRoute)) {
-      fail(`release gate GATE-02 must bind the exact response-policy route ${exactRoute}.`);
+}
+
+function validateLifecycleGateContract(productionBoundaryGate, providerCapacityGate, productionLifecycleGate) {
+  for (const gate of [productionBoundaryGate, providerCapacityGate, productionLifecycleGate]) {
+    if (!gate || !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
+      fail(`release gate ${gate?.id ?? "missing"} must remain open until satisfied by current production evidence.`);
     }
-  }
-  if (!/unrelated portfolio (?:paths|traffic).*bypass/iu.test(`${productionBoundaryGate.safeguards.join(" ")} ${productionBoundaryGate.followUp}`)) {
-    fail("release gate GATE-02 must keep unrelated portfolio traffic outside the Text to Lattice response-policy Worker.");
+    validateHistoricalEvidenceBoundary(gate);
   }
 
-  const lifecycleStatuses = new Set([
-    "satisfied-in-production",
-    "post-deployment-verification",
-    "open-release-blocker",
-  ]);
-  const privacyClasses = ["source", "clarification", "candidate", "verifier finding", "output"];
-  if (!lifecycleStatuses.has(productionLifecycleGate.status)
-    || productionLifecycleGate.label !== "Production lifecycle and privacy trace"
-    || !/activated canonical page/iu.test(productionLifecycleGate.requirement)
-    || !/200 acquisition/iu.test(productionLifecycleGate.requirement)
-    || !/204 release/iu.test(productionLifecycleGate.requirement)
-    || !/declared deployed credential profile/iu.test(productionLifecycleGate.requirement)
-    || !/non-error terminal conversion result/iu.test(productionLifecycleGate.requirement)
-    || !/Testing-profile success establishes demonstrator integration, not production anti-bot assurance/iu.test(productionLifecycleGate.requirement)
-    || !/first activation session/iu.test(`${productionLifecycleGate.evidenceNeeded} ${productionLifecycleGate.followUp}`)
-    || !/supported browser engines/iu.test(productionLifecycleGate.evidenceNeeded)
-    || !/both origins/iu.test(productionLifecycleGate.evidenceNeeded)
-    || /wait .*five-minute|record a 200 renewal/iu.test(`${productionLifecycleGate.requirement} ${productionLifecycleGate.evidenceNeeded} ${productionLifecycleGate.followUp}`)
-    || !/naturally reaches the renewal interval/iu.test(`${productionLifecycleGate.evidenceNeeded} ${productionLifecycleGate.followUp}`)
-    || !/do not deliberately wait/iu.test(productionLifecycleGate.evidenceNeeded)
-    || privacyClasses.some((contentClass) => !productionLifecycleGate.requirement.includes(contentClass)
-      || !productionLifecycleGate.rollbackCondition.includes(contentClass))
-    || !/Do not create a public or operator bypass harness/iu.test(productionLifecycleGate.evidenceNeeded)
-    || !/held documentation-only artifact/iu.test(productionLifecycleGate.rollbackCondition)
-    || !/GATE-06 to open-release-blocker/iu.test(productionLifecycleGate.rollbackCondition)
-    || !/acquisition fails/iu.test(productionLifecycleGate.rollbackCondition)
-    || !/observed real renewal attempt fails/iu.test(productionLifecycleGate.rollbackCondition)
-    || !/release fails/iu.test(productionLifecycleGate.rollbackCondition)
-    || !/content-bearing request/iu.test(productionLifecycleGate.rollbackCondition)) {
-    fail("release gate GATE-06 must retain first-session canonical-page acquisition, a non-error terminal conversion result, release, and two-origin privacy verification or a machine-representable open blocker, defer a deliberately timed renewal trace, and preserve held rollback without a bypass harness.");
+  const gate02ActiveBoundary = [
+    productionBoundaryGate.requirement,
+    productionBoundaryGate.activeCurrentEvidence,
+    productionBoundaryGate.evidenceNeeded,
+    productionBoundaryGate.activeEvidence.join(" "),
+    productionBoundaryGate.safeguards.join(" "),
+    productionBoundaryGate.followUp,
+    productionBoundaryGate.rollbackCondition,
+  ].join(" ");
+  const gate02Required = [
+    /same-origin POST \/api\/lattice/iu,
+    /schema version 1/iu,
+    /text, requested_mode, and schema_version/iu,
+    /HF_TOKEN/u,
+    /fixed Hugging Face router/iu,
+    /Featherless-qualified Qwen and Llama targets/iu,
+    /Cache-Control: no-store/iu,
+    /no application content storage or logging/iu,
+    /no automatic retry/iu,
+    /no alternate provider or model fallback/iu,
+    /connect-src is ['"]self['"]/iu,
+    /bounded non-reflective/iu,
+  ];
+  if (productionBoundaryGate.label !== "Remote API origin, secret, and privacy boundary"
+    || gate02Required.some((pattern) => !pattern.test(gate02ActiveBoundary))) {
+    fail("release gate GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face and Featherless targets, restrictive CSP, application nonretention, bounded no-store errors, and no retry or fallback.");
   }
-  if (productionLifecycleGate.status === "open-release-blocker") {
-    requireString(productionLifecycleGate.rollbackCondition, "release gate GATE-06 rollbackCondition");
+
+  const gate03ActiveBoundary = [
+    providerCapacityGate.requirement,
+    providerCapacityGate.activeCurrentEvidence,
+    providerCapacityGate.evidenceNeeded,
+    providerCapacityGate.activeEvidence.join(" "),
+    providerCapacityGate.safeguards.join(" "),
+    providerCapacityGate.followUp,
+    providerCapacityGate.rollbackCondition,
+  ].join(" ");
+  const gate03Required = [
+    /60 seconds/iu,
+    /32 provider calls/iu,
+    /path-scoped (?:Worker )?rate limiter/iu,
+    /response (?:bytes|size)/iu,
+    /provider (?:quota|rate|retention|availability|cost)/iu,
+    /no (?:paid or )?generic proxy/iu,
+    /no (?:browser )?retry/iu,
+    /no .*fallback/iu,
+    /held documentation-only/iu,
+  ];
+  if (providerCapacityGate.label !== "Remote provider capacity and cost boundary"
+    || gate03Required.some((pattern) => !pattern.test(gate03ActiveBoundary))) {
+    fail("release gate GATE-03 must keep the provider call, stage, response, limiter, cost, generic-proxy, retry, fallback, and held-rollback boundaries explicit.");
   }
-  if (productionLifecycleGate.status === "satisfied-in-production") {
-    const productionEvidence = `${productionLifecycleGate.currentEvidence} ${productionLifecycleGate.evidence.join(" ")}`;
-    const evidenceEntries = productionLifecycleGate.evidence;
-    const utcTimestamps = productionEvidence.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/gu) ?? [];
-    const evidenceDigests = productionEvidence.match(/\b[a-f0-9]{64}\b/gu) ?? [];
-    const repairedDeploymentRevisions = [
-      ...productionLifecycleGate.currentEvidence.matchAll(/\brepaired runtime deployed commit ([a-f0-9]{40})\b/giu),
-    ].map((match) => match[1].toLowerCase());
-    const repairedDeploymentRevision = repairedDeploymentRevisions.length === 1
-      ? repairedDeploymentRevisions[0]
-      : undefined;
-    const deployedRevisionFor = (entry) => (
-      /(?:deployed (?:commit|revision)|commit) ([a-f0-9]{40})/iu.exec(entry)?.[1]?.toLowerCase()
-    );
-    const bindsRepairedDeployment = (entry) => (
-      repairedDeploymentRevision !== undefined
-      && deployedRevisionFor(entry) === repairedDeploymentRevision
-    );
-    const safariLifecycle = evidenceEntries.some((entry) => (
-      /Safari Version \d+(?:\.\d+)* \([^)]+\)/u.test(entry)
-      && /WebKit/iu.test(entry)
-      && entry.includes("https://hah.dev/resume/#text-to-lattice")
-      && bindsRepairedDeployment(entry)
-      && /\bPOST\b[\s\S]{0,160}\btyped challenge\b[\s\S]{0,80}\bHTTP 200\b[\s\S]{0,320}\bPOST\b[\s\S]{0,160}\blease grant\b[\s\S]{0,80}\bHTTP 200\b[\s\S]{0,320}\bDELETE\b[\s\S]{0,160}\blease release\b[\s\S]{0,80}\bHTTP 204\b/iu.test(entry)
-      && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
-      && /\b[a-f0-9]{64}\b/u.test(entry)
-    ));
-    const braveStatusLifecycle = evidenceEntries.some((entry) => (
-      /Brave \d+(?:\.\d+)*/u.test(entry)
-      && /Chromium \d+(?:\.\d+)*/u.test(entry)
-      && entry.includes("https://hah.dev/resume/#text-to-lattice")
-      && bindsRepairedDeployment(entry)
-      && /\blease outcome sequence\b[\s\S]{0,160}\btyped challenge\b[\s\S]{0,80}\bHTTP 200\b[\s\S]{0,160}\bgrant\b[\s\S]{0,80}\bHTTP 200\b[\s\S]{0,160}\brelease\b[\s\S]{0,80}\bHTTP 204\b/iu.test(entry)
-      && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
-      && /\b[a-f0-9]{64}\b/u.test(entry)
-    ));
-    const terminalConversion = evidenceEntries.some((entry) => {
-      const supportedBrowserEngine = (
-        /Safari Version \d+(?:\.\d+)* \([^)]+\)[\s\S]{0,160}\bWebKit\b/iu.test(entry)
-        || /Brave \d+(?:\.\d+)*[\s\S]{0,160}\bChromium \d+(?:\.\d+)*/u.test(entry)
-      );
-      return supportedBrowserEngine
-        && entry.includes("https://hah.dev/resume/#text-to-lattice")
-        && bindsRepairedDeployment(entry)
-        && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
-        && /sanitized capture with SHA-256 [a-f0-9]{64}/iu.test(entry)
-        && /supported-browser WebGPU terminal conversion result: (?:translated|conformant-for-context|review-required)/u.test(entry);
-    });
-    const hasBodylessEvidenceBoundary = (evidence) => {
-      const payloadPaneOverclaim = /(?:Payload-pane|Payload pane) inspection (?:confirmed|showed|proved)/iu.test(evidence);
-      return (
-        /(?:Payload-pane|Payload pane) inspection (?:was not|is not) (?:captured|claimed)/iu.test(evidence)
-          && /bodyless[\s\S]{0,240}(?:source contract|client source|pre-dispatch)/iu.test(evidence)
-          && !payloadPaneOverclaim
-      ) || (
-        /(?:Payload-pane|Payload pane) inspection (?:captured|reviewed|confirmed|showed)[\s\S]{0,160}no request (?:body|data)/iu.test(evidence)
-          && /bodyless/iu.test(evidence)
-      );
-    };
-    const hasEdgeTelemetryBoundary = (evidence) => (
-      /static\.cloudflareinsights\.com\/beacon\.min\.js/iu.test(evidence)
-        && /(?:blocked:csp|blocked by (?:the )?Content-Security-Policy)/iu.test(evidence)
-        && /(?:0(?:\.0)?\s*(?:B|bytes|kB)|zero bytes)/iu.test(evidence)
-        && /no (?:observed )?\/cdn-cgi\/rum/iu.test(evidence)
-    ) || (
-      /no (?:edge-injected |observed |injected )?(?:https:\/\/)?static\.cloudflareinsights\.com\/beacon\.min\.js/iu.test(evidence)
-        && /no (?:observed )?\/cdn-cgi\/rum/iu.test(evidence)
-    );
-    const bodylessEvidenceBoundary = hasBodylessEvidenceBoundary(productionEvidence);
-    const edgeTelemetryBoundary = hasEdgeTelemetryBoundary(productionEvidence);
-    const repairedPrivacyTrace = evidenceEntries.some((entry) => (
-      /Brave \d+(?:\.\d+)*/u.test(entry)
-      && /Chromium \d+(?:\.\d+)*/u.test(entry)
-      && entry.includes("https://hah.dev/resume/#text-to-lattice")
-      && bindsRepairedDeployment(entry)
-      && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(entry)
-      && /sanitized two-origin privacy capture with SHA-256 [a-f0-9]{64}/iu.test(entry)
-      && /both hah\.dev and verify\.hah\.dev origins/iu.test(entry)
-      && /owner(?:-attested| (?:reports?|reported))\b[\s\S]{0,320}\bcapture-wide\b[\s\S]{0,240}(?:returned|reported|found) `?0 matches`?[\s\S]{0,200}\bBrave\b/iu.test(entry)
-      && privacyClasses.every((contentClass) => entry.includes(contentClass))
-      && /lease[\s\S]{0,160}attestation[\s\S]{0,160}model-asset[\s\S]{0,160}error[\s\S]{0,160}telemetry/iu.test(entry)
-      && hasBodylessEvidenceBoundary(entry)
-      && hasEdgeTelemetryBoundary(entry)
-    ));
-    const braveZeroMatchAttribution = /owner(?:-attested| (?:reports?|reported))\b[\s\S]{0,320}\bcapture-wide\b[\s\S]{0,240}(?:returned|reported|found) `?0 matches`?[\s\S]{0,200}\bBrave\b/iu.test(productionEvidence);
-    const requiredEvidence = [
-      /https:\/\/hah\.dev\/resume\/#text-to-lattice/u,
-      /https:\/\/github\.com\/howardhayden\/folio\/actions\/runs\/\d+/u,
-      /(?:deployed (?:commit|revision)|commit) [a-f0-9]{40}/iu,
-      /macOS \d+(?:\.\d+)*(?: \([A-Za-z0-9]+\))?/u,
-      /both (?:hah\.dev and verify\.hah\.dev )?origins|hah\.dev[\s\S]{0,160}verify\.hah\.dev/iu,
-      /capture-wide[\s\S]{0,160}(?:returned|reported|found) `?0 matches`?/iu,
-      /source[\s\S]{0,160}clarification[\s\S]{0,160}candidate[\s\S]{0,160}verifier finding[\s\S]{0,160}output/iu,
-      /lease[\s\S]{0,160}attestation[\s\S]{0,160}model-asset[\s\S]{0,160}error[\s\S]{0,160}telemetry/iu,
-      /(?:official Cloudflare testing profile|Cloudflare(?:'s|\u2019s)?(?: exact)? official testing (?:pair|profile)|official demonstration profile)/iu,
-      /(?:(?:does not|did not)[\s\S]{0,220}|\bnot\b[\s\S]{0,100})(?:production )?anti-bot assurance/iu,
-    ];
-    const evidenceSentences = productionEvidence.split(/(?<=[.!?])\s+/u);
-    const antiBotContradiction = evidenceSentences.some((sentence) => (
-      [...sentence.matchAll(/\b(?:testing|demonstration) (?:pair|profile)\b([\s\S]{0,200}?)\b(?:establishes?|proves?|provides?|assures?|claims?)\b([\s\S]{0,120}?)\banti-bot\b/giu)]
-        .some((match) => (
-          !/(?:\b(?:does|did|do|can|could|would|will|is|was|are|were)\s+not|\bcannot|\bnever)\s*$/iu.test(match[1])
-          && !/\b(?:no|not|without|absent)\b/iu.test(match[2])
-        ))
-    ));
-    const analyticsDisabledContradiction = evidenceSentences.some((sentence) => {
-      const match = /\b(?:Cloudflare(?: Web)? Analytics|Cloudflare analytics|RUM)\b[\s\S]{0,60}\b(?:is|was|are|were)\s+disabled\b/iu.exec(sentence);
-      if (!match) return false;
-      const prefix = sentence.slice(0, match.index);
-      return !/(?:\b(?:does|did|do|can|could|would|will|is|was|are|were)\s+not|\bcannot|\bnever)\s+(?:establish(?:es|ed)?|prov(?:e|es|ed)|confirm(?:s|ed)?|show(?:s|ed)?|mean(?:s|t)?|claim(?:s|ed)?|demonstrat(?:e|es|ed)|indicat(?:e|es|ed)|conclud(?:e|es|ed))(?:\s+that)?\s*$/iu.test(prefix);
-    });
-    if (!safariLifecycle
-      || !braveStatusLifecycle
-      || !terminalConversion
-      || !repairedPrivacyTrace
-      || !braveZeroMatchAttribution
-      || !bodylessEvidenceBoundary
-      || !edgeTelemetryBoundary
-      || new Set(utcTimestamps).size < 2
-      || new Set(evidenceDigests).size < 2
-      || requiredEvidence.some((pattern) => !pattern.test(productionEvidence))
-      || antiBotContradiction
-      || analyticsDisabledContradiction
-      || /before declaring the release operationally complete/iu.test(productionLifecycleGate.evidenceNeeded)
-      || !/retain[\s\S]{0,160}(?:completed|reviewed)[\s\S]{0,160}first activation session/iu.test(productionLifecycleGate.evidenceNeeded)) {
-      fail("release gate GATE-06 satisfied production evidence must bind the canonical URL and exactly one repaired runtime deployed commit; timestamped and digested Safari/WebKit lifecycle, Brave/Chromium lifecycle, supported-browser WebGPU terminal conversion, and sanitized two-origin privacy records must each bind that same revision. The privacy record must retain the zero-match review, an honestly classified bodyless-request boundary, and an absent or CSP-blocked zero-byte Cloudflare beacon without RUM submission; the official testing profile must remain explicitly short of production anti-bot assurance.");
+
+  const gate06ActiveBoundary = [
+    productionLifecycleGate.requirement,
+    productionLifecycleGate.activeCurrentEvidence,
+    productionLifecycleGate.evidenceNeeded,
+    productionLifecycleGate.activeEvidence.join(" "),
+    productionLifecycleGate.safeguards.join(" "),
+    productionLifecycleGate.followUp,
+    productionLifecycleGate.rollbackCondition,
+  ].join(" ");
+  const gate06Required = [
+    /activated canonical page/iu,
+    /explicit confirm/iu,
+    /exactly one same-origin POST \/api\/lattice/iu,
+    /text, requested_mode, and schema_version 1/iu,
+    /non-error terminal result/iu,
+    /no provider origin/iu,
+    /no automatic retry/iu,
+    /no .*fallback/iu,
+    /no service-worker (?:replay|or cache replay)/iu,
+    /application (?:storage|state)/iu,
+    /provider processing/iu,
+    /held documentation-only/iu,
+  ];
+  if (productionLifecycleGate.label !== "Remote production lifecycle and privacy trace"
+    || gate06Required.some((pattern) => !pattern.test(gate06ActiveBoundary))) {
+    fail("release gate GATE-06 must require one explicit canonical-browser remote lifecycle, a non-error result, a sanitized application privacy trace, no browser provider contact, retry, fallback, or cache replay, and held rollback.");
+  }
+
+  for (const gate of [productionBoundaryGate, providerCapacityGate, productionLifecycleGate]) {
+    const activeEvidenceText = `${gate.activeCurrentEvidence} ${gate.activeEvidence.join(" ")}`;
+    if (gate.status === "open-release-blocker"
+      && !/(?:No retained production|have not been observed|No canonical production)/iu.test(activeEvidenceText)) {
+      fail(`release gate ${gate.id} is open but its active evidence does not state the missing current production proof.`);
+    }
+    if (gate.status === "satisfied-in-production") {
+      const hasCanonicalEvidence = /https:\/\/hah\.dev\/resume\/#text-to-lattice/u.test(activeEvidenceText)
+        && /https:\/\/github\.com\/howardhayden\/folio\/actions\/runs\/\d+/u.test(activeEvidenceText)
+        && /\b[a-f0-9]{40}\b/u.test(activeEvidenceText)
+        && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u.test(activeEvidenceText);
+      if (!hasCanonicalEvidence) {
+        fail(`release gate ${gate.id} satisfied production evidence must bind the canonical page, workflow run, deployed commit, and UTC observation.`);
+      }
     }
   }
 }
-
 function uniqueById(values, label) {
   const observed = new Set();
   for (const value of requireArray(values, label)) {
@@ -303,6 +235,12 @@ function validateAtlas(data) {
   }
   for (const field of ["claimBoundary", "changePolicy", "marginalValuePolicy", "exportPolicy"]) {
     requireString(data.authority?.[field], `authority.${field}`);
+  }
+  if (data.historicalBoundary?.status !== "inactive"
+    || !/WebLLM/iu.test(data.historicalBoundary?.supersededArchitecture ?? "")
+    || !/POST to \/api\/lattice/iu.test(data.historicalBoundary?.currentArchitecture ?? "")
+    || !/do not satisfy the current remote-service release gates/iu.test(data.historicalBoundary?.evidencePolicy ?? "")) {
+    fail("historicalBoundary must keep the WebLLM, Turnstile, and lease architecture explicit, inactive, and non-authorizing beside the current remote capability.");
   }
 
   const expectedArtifacts = new Map([
@@ -346,6 +284,28 @@ function validateAtlas(data) {
       }
     }
   }
+  const expectedRemoteSources = new Map([
+    ["SRC-PUBLIC-CONTRACT", "app/content/textToLatticeContent.js"],
+    ["SRC-NETWORK-CAPABILITY", "app/privacy/networkCapabilities.js"],
+    ["SRC-REMOTE-PROTOCOL", "app/resume/lattice/remoteProtocol.js"],
+    ["SRC-REMOTE-CLIENT", "app/resume/lattice/remoteRequest.js"],
+    ["SRC-API-WORKER", "workers/text-to-lattice-api/worker.js"],
+    ["SRC-HF-ADAPTER", "workers/text-to-lattice-api/huggingFaceAdapter.js"],
+    ["SRC-API-CONFIG", "workers/text-to-lattice-api/wrangler.jsonc"],
+    ["SRC-TEST-CAPABILITY", "tests/lattice-network-capability.test.mjs"],
+    ["SRC-TEST-GOVERNANCE", "tests/lattice-network-governance.test.mjs"],
+    ["SRC-TEST-API", "tests/lattice-api-worker.test.mjs"],
+  ]);
+  for (const [id, path] of expectedRemoteSources) {
+    const source = data.sources.find((candidate) => candidate.id === id);
+    if (source?.path !== path) fail(`source ${id} must identify ${path}.`);
+  }
+  for (const id of ["SRC-LOCAL-MODEL", "SRC-MODEL-CONTRACT", "SRC-MODEL-WORKER", "SRC-ASSET-POLICY", "SRC-ATTESTATION", "SRC-USAGE-LEASE", "SRC-USAGE-POLICY", "SRC-LEASE-WORKER", "SRC-DEMO-PROFILE", "SRC-USAGE-STORAGE", "SRC-FRAME"]) {
+    const source = data.sources.find((candidate) => candidate.id === id);
+    if (!/^Historical inactive /u.test(source?.label ?? "")) {
+      fail(`source ${id} must remain available and be labeled historical inactive.`);
+    }
+  }
 
   const groupIds = uniqueById(data.conceptMap?.groups, "concept groups");
   const perspectiveIds = uniqueById(data.conceptMap?.perspectives, "concept perspectives");
@@ -365,6 +325,12 @@ function validateAtlas(data) {
     if (edge.source === edge.target) fail(`concept edge ${edge.id} cannot relate a node to itself.`);
     if (!relationKindIds.has(edge.kind)) fail(`concept edge ${edge.id} has unknown kind ${edge.kind}.`);
     requireString(edge.label, `concept edge ${edge.id} label`);
+  }
+  const textToLatticeNode = data.conceptMap.nodes.find(({ id }) => id === "LAT-N-021");
+  if (!/same-origin API/iu.test(textToLatticeNode?.definition ?? "")
+    || !/Qwen generation and Llama verification/iu.test(textToLatticeNode?.definition ?? "")
+    || !/external-processing boundary/iu.test(textToLatticeNode?.definition ?? "")) {
+    fail("LAT-N-021 must describe the current same-origin remote Qwen and Llama wrapper and its weaker external-processing authority boundary.");
   }
 
   const scale = requireArray(data.skillMap?.scale, "skill scale", 6);
@@ -418,11 +384,41 @@ function validateAtlas(data) {
     }
     assertReferences(owner.sourceIds, sourceIds, `lifecycle owner ${owner.id} sources`);
   }
+  const activeBlueprint = JSON.stringify(data.serviceBlueprint);
+  for (const required of [
+    "/api/lattice",
+    "Qwen/Qwen3-4B:featherless-ai",
+    "meta-llama/Llama-3.2-3B-Instruct:featherless-ai",
+    "HF_TOKEN",
+    "no automatic retry",
+    "provider or model fallback",
+    "questions required to be empty",
+    "no application database, object storage, cache, queue, raw-content log, or analytics event",
+  ]) {
+    if (!activeBlueprint.includes(required)) fail(`active service blueprint must include ${required}.`);
+  }
+  if (/WebLLM|Turnstile|text-to-lattice\/lease|Backstage browser-local/iu.test(activeBlueprint)) {
+    fail("active service blueprint cannot use the historical WebLLM, Turnstile, or lease architecture.");
+  }
+  if (data.historicalBrowserLocalServiceBlueprint?.stages?.length !== 8
+    || data.historicalBrowserLocalServiceBlueprint?.lifecycleOwners?.length !== 8
+    || !/WebGPU/iu.test(JSON.stringify(data.historicalBrowserLocalServiceBlueprint))) {
+    fail("the historical browser-local service blueprint must remain intact and explicitly separate from the active blueprint.");
+  }
 
   requireString(data.securityModel?.scope, "security model scope");
   requireString(data.securityModel?.method, "security model method");
   const assetIds = uniqueById(data.securityModel.assets, "security assets");
   const boundaryIds = uniqueById(data.securityModel.trustBoundaries, "trust boundaries");
+  if (assetIds.size !== 6 || boundaryIds.size !== 6) fail("security model must contain exactly six assets and six trust boundaries.");
+  for (const asset of data.securityModel.assets) {
+    requireString(asset.label, `security asset ${asset.id} label`);
+    requireString(asset.objective, `security asset ${asset.id} objective`);
+  }
+  for (const boundary of data.securityModel.trustBoundaries) {
+    requireString(boundary.label, `trust boundary ${boundary.id} label`);
+    requireString(boundary.crossing, `trust boundary ${boundary.id} crossing`);
+  }
   const threatIds = uniqueById(data.securityModel.threats, "security threats");
   const expectedThreatIds = Array.from({ length: 12 }, (_, index) => `SEC-${String(index + 1).padStart(2, "0")}`);
   if (expectedThreatIds.some((id) => !threatIds.has(id)) || threatIds.size !== expectedThreatIds.length) {
@@ -451,8 +447,9 @@ function validateAtlas(data) {
     if (gate.status === "satisfied-in-production" && !productionSatisfiedGateIds.has(gate.id)) {
       fail(`release gate ${gate.id} cannot use satisfied-in-production status.`);
     }
-    if (gate.id === "GATE-02" && !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
-      fail("release gate GATE-02 must remain an open release blocker until it is satisfied in production.");
+    if (["GATE-02", "GATE-03", "GATE-06"].includes(gate.id)
+      && !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
+      fail(`release gate ${gate.id} must remain an open release blocker until it is satisfied in production.`);
     }
     if (!marginalValues.has(gate.marginalValue)) {
       fail(`release gate ${gate.id} has unknown marginal value.`);
@@ -471,21 +468,61 @@ function validateAtlas(data) {
     } else if (gate.rollbackCondition !== null) {
       fail(`release gate ${gate.id} rollbackCondition must be null outside rollback-bearing statuses.`);
     }
-    if (gate.status === "accepted-residual-risk") {
+    if (["accepted-residual-risk", "historical-inactive"].includes(gate.status)) {
       requireString(gate.acceptanceBasis, `release gate ${gate.id} acceptanceBasis`);
     } else if (gate.acceptanceBasis !== null) {
-      fail(`release gate ${gate.id} acceptanceBasis must be null outside accepted residual risk.`);
+      fail(`release gate ${gate.id} acceptanceBasis must be null outside accepted or historical residual records.`);
     }
   }
   const productionBoundaryGate = data.securityModel.prePublicationGates.find(({ id }) => id === "GATE-02");
+  const providerCapacityGate = data.securityModel.prePublicationGates.find(({ id }) => id === "GATE-03");
   const productionLifecycleGate = data.securityModel.prePublicationGates.find(({ id }) => id === "GATE-06");
-  validateLifecycleGateContract(productionBoundaryGate, productionLifecycleGate);
+  validateLifecycleGateContract(productionBoundaryGate, providerCapacityGate, productionLifecycleGate);
   requireArray(data.securityModel.honestResidualBoundary, "honest residual boundary");
+  if (data.historicalBrowserLocalSecurityModel?.threats?.length !== 12
+    || data.historicalBrowserLocalSecurityModel?.prePublicationGates?.length !== 8
+    || !/browser-local/iu.test(JSON.stringify(data.historicalBrowserLocalSecurityModel))) {
+    fail("the historical browser-local security model must remain intact and explicitly separate from the active security model.");
+  }
 }
 
 function validateReleaseGateProjection(data, releaseRegister) {
   if (releaseRegister?.format !== "TEXT_TO_LATTICE_RELEASE_REGISTER" || releaseRegister?.schemaVersion !== 1) {
     fail("release register format is unsupported.");
+  }
+  if (releaseRegister.revision !== data.revision) {
+    fail("documentation atlas and release register revisions must match.");
+  }
+  const activeCapability = releaseRegister.artifactSet?.activeCapability;
+  const activeProvider = activeCapability?.provider;
+  if (activeCapability?.status !== "held-pending-production-evidence"
+    || activeCapability?.route !== "/api/lattice"
+    || activeCapability?.method !== "POST"
+    || activeCapability?.schemaVersion !== 1
+    || JSON.stringify(activeCapability?.requestFields) !== JSON.stringify(["text", "requested_mode", "schema_version"])
+    || activeCapability?.trigger !== "explicit-user-submit"
+    || activeCapability?.secretBindingName !== "HF_TOKEN"
+    || activeProvider?.endpoint !== "https://router.huggingface.co/v1/chat/completions"
+    || activeProvider?.generatorModel !== "Qwen/Qwen3-4B:featherless-ai"
+    || activeProvider?.verifierModel !== "meta-llama/Llama-3.2-3B-Instruct:featherless-ai"
+    || activeProvider?.revisionStatus !== "provider-managed-not-byte-pinned"
+    || activeProvider?.historicalByteEquivalenceEstablished !== false
+    || activeCapability?.automaticRetry !== false
+    || activeCapability?.alternateProviderFallback !== false
+    || activeCapability?.responseCachePolicy !== "no-store"
+    || !/no application storage, raw-content logs, cache, queue, or analytics/iu.test(activeCapability?.applicationRetention ?? "")
+    || !/not guaranteed by hah\.dev/iu.test(activeCapability?.providerRetentionBoundary ?? "")) {
+    fail("release artifactSet.activeCapability must encode the exact held same-origin remote request, fixed provider and models, server-only secret name, application nonretention, provider limitation, no retry or fallback, and no-store response policy.");
+  }
+  const historicalArtifacts = releaseRegister.artifactSet?.historicalBrowserLocalArtifacts;
+  if (historicalArtifacts?.status !== "historical-inactive"
+    || !/WebLLM\/MLC\/WebGPU/iu.test(historicalArtifacts?.architecture ?? "")
+    || !/Turnstile attestation and bodyless lease lifecycle/iu.test(historicalArtifacts?.architecture ?? "")
+    || JSON.stringify(historicalArtifacts?.recordFields) !== JSON.stringify(["runtime", "tokenizerRuntime", "structuredOutputRuntime", "models", "tokenizers", "wasm"])
+    || !/^[a-f0-9]{64}$/u.test(historicalArtifacts?.verbatimSha256 ?? "")
+    || !/not loaded by the held public artifact/iu.test(historicalArtifacts?.claimBoundary ?? "")
+    || !/do not identify provider-served runtime bytes/iu.test(historicalArtifacts?.claimBoundary ?? "")) {
+    fail("release artifactSet must preserve and explicitly deactivate the browser-local WebLLM, Turnstile, lease, and byte-identity records.");
   }
   const projection = releaseRegister.gates?.map((gate) => Object.fromEntries(releaseGateProjectionFields.map((field) => [field, gate[field]])));
   if (JSON.stringify(data.securityModel.prePublicationGates) !== JSON.stringify(projection)) {
@@ -496,35 +533,48 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || [...releaseGateStatuses].some((status) => !releaseRegister.statusVocabulary.includes(status))) {
     fail("release register statusVocabulary does not match the documentation gate vocabulary.");
   }
-  const timedRenewalDecision = releaseRegister.marginalValueDecisions?.find(({ finding }) => finding === "Deliberately timed real-browser renewal trace");
-  if (timedRenewalDecision?.classification !== "moderate"
-    || timedRenewalDecision?.disposition !== "observe-naturally-and-defer-as-release-gate"
-    || !/source and adversarial tests/iu.test(timedRenewalDecision.rationale)
-    || !/bodyless PATCH/iu.test(timedRenewalDecision.rationale)
-    || !/bounded lease expiry/iu.test(timedRenewalDecision.rationale)
-    || !/eventual cleanup/iu.test(timedRenewalDecision.rationale)
-    || !/roll back on an observed defect/iu.test(timedRenewalDecision.rationale)
-    || !/must not hold operational completion/iu.test(timedRenewalDecision.rationale)) {
-    fail("the deliberately timed real-browser renewal trace must remain a moderate, naturally observed follow-up rather than a release gate, with bounded controls and rollback on an observed defect.");
+  const activeDecisionScopes = requireArray(releaseRegister.marginalValueDecisionScopes?.active, "active marginal-value decision scopes");
+  const historicalDecisionScopes = requireArray(releaseRegister.marginalValueDecisionScopes?.historicalInactive, "historical-inactive marginal-value decision scopes");
+  if (!/neither qualify nor constrain the active remote candidate/iu.test(releaseRegister.marginalValueDecisionScopes?.claimBoundary ?? "")) {
+    fail("historical marginal-value decisions must be explicitly non-authorizing for the active remote candidate.");
   }
-  const broadResponsePolicyDecision = releaseRegister.marginalValueDecisions?.find(({ finding }) => finding === "Portfolio-wide response-policy Worker route");
-  if (broadResponsePolicyDecision?.classification !== "negative"
-    || broadResponsePolicyDecision?.disposition !== "do-not-implement"
-    || !/unrelated portfolio (?:pages|traffic)/iu.test(broadResponsePolicyDecision.rationale)
-    || !/(?:allowance|quota)/iu.test(broadResponsePolicyDecision.rationale)
-    || !/(?:failure blast radius|failure surface)/iu.test(broadResponsePolicyDecision.rationale)
-    || !/four exact document routes/iu.test(broadResponsePolicyDecision.rationale)) {
-    fail("a portfolio-wide response-policy Worker route must remain a negative-marginal-value non-solution; four exact document routes preserve the required boundary without the broader allowance and failure surface.");
+  const requiredActiveDecisions = [
+    "Remote privacy boundary before activation",
+    "Provider-managed revision and historical byte equivalence",
+    "Automatic retry or alternate provider or model fallback",
+  ];
+  const requiredHistoricalDecisions = [
+    "Immediate post-deployment official-page acquisition, terminal conversion, release, and privacy trace",
+    "Deliberately timed real-browser renewal trace",
+    "Cloudflare official testing credentials for the demonstrable release",
+    "Bespoke attestation bypass route or unsigned token mode",
+    "Public testing-token slot starvation and the 48-per-10-second edge rule",
+  ];
+  if (requiredActiveDecisions.some((finding) => !activeDecisionScopes.includes(finding))
+    || requiredHistoricalDecisions.some((finding) => !historicalDecisionScopes.includes(finding))) {
+    fail("marginal-value decision scopes must separate current remote decisions from historical browser-local decisions.");
   }
-  const publicTokenStarvationDecision = releaseRegister.marginalValueDecisions?.find(({ finding }) => finding === "Public testing-token slot starvation and the 48-per-10-second edge rule");
-  if (publicTokenStarvationDecision?.classification !== "moderate"
-    || publicTokenStarvationDecision?.disposition !== "accepted-residual-with-operational-hardening"
-    || !/16-request acquisition sequence/iu.test(publicTokenStarvationDecision.rationale)
-    || !/all eight slots/iu.test(publicTokenStarvationDecision.rationale)
-    || !/48-per-10-second per-IP rule does not prevent/iu.test(publicTokenStarvationDecision.rationale)
-    || !/limit consequence to demonstrator availability/iu.test(publicTokenStarvationDecision.rationale)
-    || !/observed abuse triggers requalification/iu.test(publicTokenStarvationDecision.rationale)) {
-    fail("public testing-token slot starvation must remain a moderate accepted availability residual; the 48-per-10-second edge rule is operational hardening, not a release prerequisite or prevention claim.");
+  const decisionFor = (finding) => releaseRegister.marginalValueDecisions?.find((decision) => decision.finding === finding);
+  const privacyDecision = decisionFor("Remote privacy boundary before activation");
+  if (privacyDecision?.classification !== "high"
+    || privacyDecision?.disposition !== "hold-until-production-evidence"
+    || !/same-origin API and external provider/iu.test(privacyDecision.rationale)
+    || !/GATE-02, GATE-03, and GATE-06 close/iu.test(privacyDecision.rationale)) {
+    fail("the remote privacy boundary must remain a high-value hold until all three current production gates close.");
+  }
+  const providerRevisionDecision = decisionFor("Provider-managed revision and historical byte equivalence");
+  if (providerRevisionDecision?.classification !== "moderate"
+    || providerRevisionDecision?.disposition !== "accepted-explicit-boundary"
+    || !/not byte-pinned/iu.test(providerRevisionDecision.rationale)
+    || !/not established as equivalent to historical MLC artifacts/iu.test(providerRevisionDecision.rationale)) {
+    fail("provider-managed serving must remain explicitly non-byte-pinned and non-equivalent to historical MLC artifacts.");
+  }
+  const fallbackDecision = decisionFor("Automatic retry or alternate provider or model fallback");
+  if (fallbackDecision?.classification !== "negative"
+    || fallbackDecision?.disposition !== "do-not-implement"
+    || !/retransmit visitor text without a new deliberate action/iu.test(fallbackDecision.rationale)
+    || !/silently expand recipients and model behavior/iu.test(fallbackDecision.rationale)) {
+    fail("automatic retry and alternate provider or model fallback must remain negative-value non-solutions.");
   }
   const hasOpenBlocker = releaseRegister.gates.some(({ status }) => status === "open-release-blocker");
   const enabled = releaseRegister.overallStatus === "qualified"
@@ -580,9 +630,9 @@ function humanLabel(value) {
 
 function lifecycleGateNarrative(productionLifecycleGate) {
   if (productionLifecycleGate.status === "satisfied-in-production") {
-    return "Before activation, the held artifact had no canonical interactive client. GATE-06 now records a completed first-session official-page acquisition, non-error terminal conversion result, release, and sanitized two-origin privacy evidence in the supported browser engines under the declared deployed credential profile. The capture-wide source-marker review returned zero matches, while Cloudflare’s edge-injected Web Analytics resource was blocked by the exact CSP with zero bytes transferred and no observed RUM submission; that blocked residual is not a content-bearing request or proof that Cloudflare analytics is disabled. Under Cloudflare’s official testing profile, the evidence establishes demonstrator integration and observed privacy behavior, not human verification or production anti-bot assurance. A failed mandatory step, an observed real renewal defect, or a privacy-trace failure still sets GATE-06 to open-release-blocker and returns the client to held publication. Renewal remains follow-up evidence when an ordinary session naturally reaches its interval, not a deliberately timed condition of operational completion.";
+    return "GATE-06 records current canonical-browser evidence for one deliberately confirmed same-origin POST /api/lattice, a non-error remote result through the fixed Qwen generator and Llama verifier, bounded no-store handling, no automatic retry or alternate provider or model fallback, and a sanitized hah.dev application privacy trace. That evidence acknowledges the submitted body as an intentional transmission and does not claim control over Hugging Face, Featherless AI, or their infrastructure retention. A later route, model, provider, response, cache, persistence, telemetry, or lifecycle drift reopens the blocker and restores held documentation-only publication.";
   }
-  return "Before activation, the held artifact had no canonical interactive client. End-to-end acquisition, a non-error terminal conversion result, release, and two-origin privacy evidence through the declared deployed credential profile must now originate from the enabled official page under GATE-06; it does not authorize a separate public or operator bypass harness. Under Cloudflare’s official testing profile, that evidence establishes demonstrator integration and privacy behavior, not human verification or production anti-bot assurance. A failed mandatory step, an observed real renewal defect, or a privacy-trace failure sets GATE-06 to open-release-blocker, making return to the held publication machine-enforceable after GATE-02 closes. Renewal remains follow-up evidence when an ordinary session naturally reaches its interval, not a deliberately timed condition of operational completion.";
+  return "The public client remains held and documentation-only. GATE-06 has source and test evidence for the explicit-submit, exact same-origin POST /api/lattice, fixed server targets, bounded response, cancellation, no-retry, no-fallback, and application nonretention contracts, but no remote production evidence or successful canonical-browser remote transformation. Historical WebLLM, Turnstile, lease, and two-origin traces remain preserved as inactive evidence for their own deployed revisions and cannot satisfy the current gate.";
 }
 
 function sourceMapFor(data) {
@@ -723,6 +773,7 @@ tbody th { color: var(--red); }
 .gate-open-release-blocker { border-left: .25rem solid var(--red); }
 .gate-post-deployment-verification { border-left: .25rem solid var(--amber); }
 .gate-accepted-residual-risk { border-left: .25rem solid var(--blue); }
+.gate-historical-inactive { border-left: .25rem solid var(--muted); background: var(--field); }
 .gate-release-workflow-enforced,
 .gate-satisfied-in-production,
 .gate-satisfied-in-source { border-left: .25rem solid var(--green); }
@@ -1208,7 +1259,7 @@ function blueprintMarkdown(data) {
     "",
     "## Complete blueprint",
     "",
-    "| Stage | Visitor action | Frontstage | Backstage browser-local | Support/network | Evidence/recovery | Data crossing boundary |",
+    "| Stage | Visitor action | Frontstage | Backstage client/server | Support/network | Evidence/recovery | Data crossing boundary |",
     "| --- | --- | --- | --- | --- | --- | --- |",
     ...blueprint.stages.map((stage) => `| **${stage.id} · ${markdownCell(stage.phase)}** | ${markdownCell(stage.visitorAction)} | ${markdownCell(stage.frontstage)} | ${markdownCell(stage.backstage)} | ${markdownCell(stage.supportNetwork)} | ${markdownCell(stage.evidenceRecovery)} | ${markdownCell(stage.dataCrossing)} |`),
     "",
@@ -1239,9 +1290,9 @@ function blueprintMarkdown(data) {
     "",
     "## Binding data-flow rule",
     "",
-    "Source, clarification, candidate, verifier findings, and result text cross only between the résumé document and the same-device model worker in the official client. Model hosts receive public asset requests. The attestation and lease services receive closed tokens, opaque credentials, request metadata, and lifecycle state—never prose.",
+    "After explicit confirmation, the browser sends exactly `{text, requested_mode, schema_version: 1}` in one same-origin `POST /api/lattice`. The Worker uses server-created prompts with the fixed Hugging Face and Featherless Qwen generator and Llama verifier, then returns one validated bounded result or machine-readable error. `HF_TOKEN` remains server-only; hah.dev defines no application storage, raw-content log, cache, queue, or analytics sink for content, performs no automatic retry, and has no alternate provider or model fallback. External-provider processing and retention remain governed by provider policies.",
     "",
-    "Repository tests support the as-built rows. They do not establish that independent origins, provider rules, secrets, headers, or production traces match the source tree.",
+    "Repository tests support the as-built rows. They do not establish that the remote API, encrypted secret binding, provider behavior, response policy, application nonretention boundary, or canonical-browser lifecycle is deployed or observed in production.",
     "",
     ...markdownSourceRegister(data),
     ...markdownTerms(),
@@ -1258,7 +1309,7 @@ function blueprintHtml(data) {
       <div class="record-body" data-record-body><dl>
         <dt>Visitor action</dt><dd>${escapeHtml(stage.visitorAction)}</dd>
         <dt>Frontstage</dt><dd>${escapeHtml(stage.frontstage)}</dd>
-        <dt>Backstage browser-local</dt><dd>${escapeHtml(stage.backstage)}</dd>
+        <dt>Backstage client/server</dt><dd>${escapeHtml(stage.backstage)}</dd>
         <dt>Support/network</dt><dd>${escapeHtml(stage.supportNetwork)}</dd>
         <dt>Evidence/recovery</dt><dd>${escapeHtml(stage.evidenceRecovery)}</dd>
         <dt>Data crossing boundary</dt><dd>${escapeHtml(stage.dataCrossing)}</dd>
@@ -1285,17 +1336,46 @@ function blueprintHtml(data) {
   <section class="panel method-note"><p class="eyebrow">Specific actor · specific goal · exact crossings</p><h2>Scenario contract</h2><p><strong>Scenario:</strong> ${escapeHtml(blueprint.scenario)}</p><p><strong>Actor:</strong> ${escapeHtml(blueprint.actor)}</p><p><strong>Goal:</strong> ${escapeHtml(blueprint.goal)}</p><p>${escapeHtml(blueprint.methodNote)} <a href="https://www.nngroup.com/articles/service-blueprints-definition/">Read NN/g's definition</a>.</p></section>
   <section class="panel" aria-labelledby="lines-heading"><h2 id="lines-heading">Four lines of accountability</h2><ul class="boundary-list">${lineItems}</ul></section>
   ${toolbar}<div class="record-grid">${cards}</div></section>
-  <section class="panel" aria-labelledby="blueprint-heading"><h2 id="blueprint-heading">Complete six-layer blueprint</h2><p>This canonical table remains complete when the interactive cards are filtered.</p><div class="table-wrap" tabindex="0" aria-label="Scrollable complete Text to Lattice service blueprint"><table class="blueprint-table"><caption>Eight lifecycle stages across six service layers</caption><thead><tr><th scope="col">Stage</th><th scope="col">Visitor action</th><th scope="col">Frontstage</th><th scope="col">Backstage browser-local</th><th scope="col">Support/network</th><th scope="col">Evidence/recovery</th><th scope="col">Data crossing boundary</th></tr></thead><tbody>${stageRows}</tbody></table></div></section>
+  <section class="panel" aria-labelledby="blueprint-heading"><h2 id="blueprint-heading">Complete six-layer blueprint</h2><p>This canonical table remains complete when the interactive cards are filtered.</p><div class="table-wrap" tabindex="0" aria-label="Scrollable complete Text to Lattice service blueprint"><table class="blueprint-table"><caption>Eight lifecycle stages across six service layers</caption><thead><tr><th scope="col">Stage</th><th scope="col">Visitor action</th><th scope="col">Frontstage</th><th scope="col">Backstage client/server</th><th scope="col">Support/network</th><th scope="col">Evidence/recovery</th><th scope="col">Data crossing boundary</th></tr></thead><tbody>${stageRows}</tbody></table></div></section>
   <section class="panel" aria-labelledby="owners-heading"><h2 id="owners-heading">Lifecycle ownership</h2><p>External providers are dependencies, not assumed accountable owners. Each handoff names retained accountability and required evidence.</p><div class="table-wrap" tabindex="0" aria-label="Scrollable lifecycle ownership matrix"><table><caption>Accountable owner and handoff evidence</caption><thead><tr><th scope="col">ID</th><th scope="col">Surface</th><th scope="col">Accountable owner</th><th scope="col">Responsibility</th><th scope="col">Handoff evidence</th></tr></thead><tbody>${ownerRows}</tbody></table></div></section>
-  <section class="panel boundary"><h2>Binding data-flow rule</h2><p>Source, clarification, candidate, verifier findings, and result text cross only between the résumé document and the same-device model worker in the official client. Model hosts receive public asset requests. Attestation and lease services receive closed tokens, opaque credentials, request metadata, and lifecycle state—never prose.</p></section>
+  <section class="panel boundary"><h2>Binding data-flow rule</h2><p>After explicit confirmation, the browser sends exactly {text, requested_mode, schema_version: 1} in one same-origin POST /api/lattice. The Worker uses server-created prompts with the fixed Hugging Face and Featherless Qwen generator and Llama verifier, then returns one validated bounded result or machine-readable error. HF_TOKEN remains server-only; hah.dev defines no application storage, raw-content log, cache, queue, or analytics sink for content, performs no automatic retry, and has no alternate provider or model fallback. External-provider processing and retention remain governed by provider policies.</p></section>
   <section class="panel"><h2>Sources and exports</h2><p><a class="button-link" href="TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md" download>Download complete Markdown</a> <a class="button-link" href="documentation-atlas.json" download>Download authoritative JSON</a> <a class="button-link" href="artifact-manifest.json">Inspect integrity manifest</a></p></section>
   ${htmlSources(data)}${htmlTerms()}`;
   return htmlPage(data, {
     title: "Text to Lattice service blueprint",
-    description: "Eight stages expose visitor action, frontstage, browser-local work, support systems, recovery evidence, and every data crossing.",
+    description: "Eight stages expose visitor action, frontstage behavior, same-origin API work, fixed external model processing, recovery evidence, and every data crossing.",
     current: "blueprint",
     content,
   });
+}
+
+function gateCurrentEvidence(gate) {
+  if (typeof gate.activeCurrentEvidence === "string") return gate.activeCurrentEvidence;
+  if (gate.status === "historical-inactive") return `Historical inactive — ${gate.currentEvidence}`;
+  return gate.currentEvidence;
+}
+
+function gateMarkdownEvidence(gate) {
+  if (gate.historicalInactiveRecord) {
+    return [
+      `- **Current active evidence:** ${gate.activeCurrentEvidence}`,
+      `- **Active evidence record:** ${gate.activeEvidence.join("; ")}`,
+      `- **Historical inactive classification:** ${gate.historicalInactiveRecord.claimBoundary}`,
+      `- **Historical inactive architecture:** ${gate.historicalInactiveRecord.architecture}`,
+      `- **Historical inactive current evidence (verbatim):** ${gate.currentEvidence}`,
+      `- **Historical inactive evidence record (verbatim):** ${gate.evidence.join("; ")}`,
+    ];
+  }
+  if (gate.status === "historical-inactive") {
+    return [
+      `- **Historical inactive current evidence:** ${gate.currentEvidence}`,
+      `- **Historical inactive evidence record:** ${gate.evidence.join("; ")}`,
+    ];
+  }
+  return [
+    `- **Current evidence:** ${gate.currentEvidence}`,
+    `- **Evidence record:** ${gate.evidence.join("; ")}`,
+  ];
 }
 
 function securityMarkdown(data) {
@@ -1380,12 +1460,12 @@ function securityMarkdown(data) {
   lines.push(
     "## Release qualification gates",
     "",
-    "Only `open-release-blocker` prevents activation. `satisfied-in-source` records repository evidence; `satisfied-in-production` records observed live evidence for the permitted production gates. Every other status preserves its distinct evidence boundary, safeguards, and follow-up, while production satisfaction and post-deployment verification require an explicit rollback condition.",
+    "Only `open-release-blocker` prevents activation. `satisfied-in-source` records repository evidence; `satisfied-in-production` records current observed live evidence for the permitted production gates; `historical-inactive` preserves non-authorizing evidence for a superseded architecture. Every other status preserves its distinct evidence boundary, safeguards, and follow-up.",
     lifecycleGateNarrative(productionLifecycleGate),
     "",
-    "| ID | Gate | Status | Marginal value | Requirement | Current evidence | Evidence needed |",
+    "| ID | Gate | Status | Marginal value | Requirement | Current active evidence | Evidence needed |",
     "| --- | --- | --- | --- | --- | --- | --- |",
-    ...security.prePublicationGates.map((gate) => `| ${gate.id} | ${markdownCell(gate.label)} | ${humanLabel(gate.status)} | ${humanLabel(gate.marginalValue)} | ${markdownCell(gate.requirement)} | ${markdownCell(gate.currentEvidence)} | ${markdownCell(gate.evidenceNeeded)} |`),
+    ...security.prePublicationGates.map((gate) => `| ${gate.id} | ${markdownCell(gate.label)} | ${humanLabel(gate.status)} | ${humanLabel(gate.marginalValue)} | ${markdownCell(gate.requirement)} | ${markdownCell(gateCurrentEvidence(gate))} | ${markdownCell(gate.evidenceNeeded)} |`),
     "",
   );
   for (const gate of security.prePublicationGates) {
@@ -1393,7 +1473,7 @@ function securityMarkdown(data) {
       `### ${gate.id} · ${gate.label}`,
       "",
       `- **Rationale:** ${gate.rationale}`,
-      `- **Evidence:** ${gate.evidence.join("; ")}`,
+      ...gateMarkdownEvidence(gate),
       `- **Safeguards:** ${gate.safeguards.join("; ")}`,
       `- **Follow-up:** ${gate.followUp}`,
       ...(gate.acceptanceBasis ? [`- **Acceptance basis:** ${gate.acceptanceBasis}`] : []),
@@ -1414,6 +1494,16 @@ function securityMarkdown(data) {
 
 function htmlList(items) {
   return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+}
+
+function gateHtmlEvidence(gate) {
+  if (gate.historicalInactiveRecord) {
+    return `<p><strong>Current active evidence:</strong> ${escapeHtml(gate.activeCurrentEvidence)}</p><p><strong>Active evidence record:</strong></p>${htmlList(gate.activeEvidence)}<details><summary>Historical inactive evidence</summary><p>${escapeHtml(gate.historicalInactiveRecord.claimBoundary)}</p><p><strong>Architecture:</strong> ${escapeHtml(gate.historicalInactiveRecord.architecture)}</p><p><strong>Historical current evidence (verbatim):</strong> ${escapeHtml(gate.currentEvidence)}</p><p><strong>Historical evidence record (verbatim):</strong></p>${htmlList(gate.evidence)}</details>`;
+  }
+  if (gate.status === "historical-inactive") {
+    return `<p><strong>Historical inactive current evidence:</strong> ${escapeHtml(gate.currentEvidence)}</p><p><strong>Historical inactive evidence record:</strong></p>${htmlList(gate.evidence)}`;
+  }
+  return `<p><strong>Current evidence:</strong> ${escapeHtml(gate.currentEvidence)}</p><p><strong>Evidence record:</strong></p>${htmlList(gate.evidence)}`;
 }
 
 function securityHtml(data) {
@@ -1438,7 +1528,7 @@ function securityHtml(data) {
       </dl></div>
     </details>
   </article>`).join("");
-  const gateCards = security.prePublicationGates.map((gate) => `<article class="panel gate-${escapeHtml(gate.status)}"><p class="identifier">${escapeHtml(gate.id)} · ${escapeHtml(humanLabel(gate.status))} · ${escapeHtml(humanLabel(gate.marginalValue))} marginal value</p><h3>${escapeHtml(gate.label)}</h3><p>${escapeHtml(gate.requirement)}</p><p><strong>Rationale:</strong> ${escapeHtml(gate.rationale)}</p><p><strong>Current evidence:</strong> ${escapeHtml(gate.currentEvidence)}</p><p><strong>Evidence needed:</strong> ${escapeHtml(gate.evidenceNeeded)}</p><p><strong>Evidence record:</strong></p>${htmlList(gate.evidence)}<p><strong>Safeguards:</strong></p>${htmlList(gate.safeguards)}<p><strong>Follow-up:</strong> ${escapeHtml(gate.followUp)}</p>${gate.acceptanceBasis ? `<p><strong>Acceptance basis:</strong> ${escapeHtml(gate.acceptanceBasis)}</p>` : ""}${gate.rollbackCondition ? `<p><strong>Rollback condition:</strong> ${escapeHtml(gate.rollbackCondition)}</p>` : ""}</article>`).join("");
+  const gateCards = security.prePublicationGates.map((gate) => `<article class="panel gate-${escapeHtml(gate.status)}"><p class="identifier">${escapeHtml(gate.id)} · ${escapeHtml(humanLabel(gate.status))} · ${escapeHtml(humanLabel(gate.marginalValue))} marginal value</p><h3>${escapeHtml(gate.label)}</h3><p>${escapeHtml(gate.requirement)}</p><p><strong>Rationale:</strong> ${escapeHtml(gate.rationale)}</p>${gateHtmlEvidence(gate)}<p><strong>Evidence needed:</strong> ${escapeHtml(gate.evidenceNeeded)}</p><p><strong>Safeguards:</strong></p>${htmlList(gate.safeguards)}<p><strong>Follow-up:</strong> ${escapeHtml(gate.followUp)}</p>${gate.acceptanceBasis ? `<p><strong>Acceptance basis:</strong> ${escapeHtml(gate.acceptanceBasis)}</p>` : ""}${gate.rollbackCondition ? `<p><strong>Rollback condition:</strong> ${escapeHtml(gate.rollbackCondition)}</p>` : ""}</article>`).join("");
   const toolbar = htmlToolbar({
     searchLabel: "Search threats, controls, gates, or residuals",
     filters: [
@@ -1454,7 +1544,7 @@ function securityHtml(data) {
   <section class="panel" aria-labelledby="assets-heading"><h2 id="assets-heading">Protected assets</h2><div class="table-wrap" tabindex="0" aria-label="Scrollable protected asset table"><table><caption>Security and trust objectives</caption><thead><tr><th scope="col">ID</th><th scope="col">Asset</th><th scope="col">Objective</th></tr></thead><tbody>${assets}</tbody></table></div></section>
   <section class="panel" aria-labelledby="boundaries-heading"><h2 id="boundaries-heading">Trust boundaries</h2><ul class="boundary-list">${boundaries}</ul></section>
   ${toolbar}<div class="record-grid">${cards}</div></section>
-  <section aria-labelledby="gates-heading"><div class="panel boundary"><p class="eyebrow">Evidence stays typed</p><h2 id="gates-heading">Release qualification gates</h2><p>Only an open release blocker prevents activation. Source-satisfied, production-satisfied, workflow-enforced, accepted-residual, and post-deployment statuses keep distinct evidence and lifecycle duties; production satisfaction records observed live evidence only for its permitted gates, and none converts missing runtime evidence into a completed claim.</p><p>${escapeHtml(lifecycleGateNarrative(productionLifecycleGate))}</p></div><div class="record-grid">${gateCards}</div></section>
+  <section aria-labelledby="gates-heading"><div class="panel boundary"><p class="eyebrow">Evidence stays typed</p><h2 id="gates-heading">Release qualification gates</h2><p>Only an open release blocker prevents activation. Current source and production evidence appears first. Historical-inactive evidence remains readable under an explicit non-authorizing label and cannot qualify the remote capability.</p><p>${escapeHtml(lifecycleGateNarrative(productionLifecycleGate))}</p></div><div class="record-grid">${gateCards}</div></section>
   <section class="panel" aria-labelledby="residual-heading"><h2 id="residual-heading">Honest residual boundary</h2>${htmlList(security.honestResidualBoundary)}</section>
   <section class="panel"><h2>Sources and exports</h2><p><a class="button-link" href="TEXT-TO-LATTICE-SECURITY-MODEL.md" download>Download complete Markdown</a> <a class="button-link" href="documentation-atlas.json" download>Download authoritative JSON</a> <a class="button-link" href="artifact-manifest.json">Inspect integrity manifest</a></p></section>
   ${htmlSources(data)}${htmlTerms()}`;
@@ -1477,10 +1567,10 @@ function indexHtml(data, releaseRegister) {
   const productionLifecycleSatisfied = releaseRegister.gates
     .some(({ id, status }) => id === "GATE-06" && status === "satisfied-in-production");
   const releaseSummary = releaseRegister.publicClient?.status === "held"
-    ? "The interactive client is held because an open release blocker remains. The records distinguish that blocker from accepted residuals and evidence that can exist only after deployment."
+    ? "The remote interactive client is held and documentation-only because GATE-02, GATE-03, and GATE-06 remain open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face and Featherless path, but there is no remote production evidence. Historical WebLLM, Turnstile, and lease records remain inactive."
     : productionLifecycleSatisfied
-      ? "The interactive client is qualified and its canonical browser lifecycle and sanitized two-origin privacy evidence are satisfied in production. The records preserve accepted residuals, workflow controls, follow-up observations, and rollback conditions without claiming production anti-bot assurance."
-      : "The interactive client is qualified. The records preserve accepted residuals, workflow controls, post-deployment checks, and rollback conditions without overstating runtime evidence.";
+      ? "The remote interactive client is qualified with current canonical-browser lifecycle, same-origin API, fixed-provider, capacity, and application privacy evidence. External-provider retention remains outside hah.dev's guarantee."
+      : "The interactive client is qualified. The records preserve accepted residuals, workflow controls, post-deployment checks, and rollback conditions without overstating remote runtime or provider evidence.";
   const releaseEvidence = `<section class="panel"><p class="eyebrow">Release evidence</p><h2>Text to Lattice qualification</h2><p>${escapeHtml(releaseSummary)}</p><ul><li><a href="TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md">Release qualification</a></li><li><a href="TEXT-TO-LATTICE-RELEASE-REGISTER.json">Machine release register</a></li><li><a href="LLAMA-USE-EVALUATION-CASES.json">Llama-use evaluation cases</a></li></ul></section>`;
   const content = `<section class="panel boundary"><p class="eyebrow">Method beside implementation</p><h2>Two authorities, four coordinated views</h2><p>The concept and system skill maps describe the upstream typed Lattice engine. The service blueprint and security model describe the separate Text to Lattice wrapper. The wrapper infers bounded meaning from prose and does not inherit a caller-supplied typed authority guarantee.</p><p>Every document remains complete without JavaScript. Scripting adds read-only search, filters, disclosure controls, and local Markdown export.</p></section>
   <section class="index-grid" aria-label="Available Lattice documentation">${cards}</section>
@@ -1489,7 +1579,7 @@ function indexHtml(data, releaseRegister) {
   ${htmlTerms()}`;
   return htmlPage(data, {
     title: "Lattice documentation",
-    description: "Interactive, downloadable maps for the upstream Lattice engine and its bounded Text to Lattice wrapper.",
+    description: "Interactive, downloadable maps for the upstream Lattice engine and its held, bounded remote Text to Lattice wrapper.",
     current: "index",
     content,
     interactive: false,
@@ -1504,6 +1594,17 @@ function validateGeneratedMarkdown(filename, markdown, data, expectedIds) {
   if (!markdown.includes("## Terms and provenance")) fail(`${filename} omits terms and provenance.`);
   for (const id of expectedIds) {
     if (!markdown.includes(id)) fail(`${filename} omits record ${id}.`);
+  }
+  if (filename === "TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md") {
+    for (const requirement of ["Backstage client/server", "POST /api/lattice", "HF_TOKEN", "Hugging Face and Featherless", "no automatic retry", "no alternate provider or model fallback"]) {
+      if (!markdown.includes(requirement)) fail(`${filename} omits the active remote-service boundary: ${requirement}.`);
+    }
+    if (markdown.includes("Backstage browser-local")) fail(`${filename} renders the historical browser-local architecture as active.`);
+  }
+  if (filename === "TEXT-TO-LATTICE-SECURITY-MODEL.md") {
+    for (const requirement of ["Current active evidence", "Historical inactive evidence", "no remote production evidence", "same-origin POST /api/lattice", "not byte-pinned"]) {
+      if (!markdown.includes(requirement)) fail(`${filename} omits the current-versus-historical remote qualification boundary: ${requirement}.`);
+    }
   }
 }
 
@@ -1541,6 +1642,17 @@ function validateGeneratedHtml(filename, html, {
   }
   for (const id of expectedIds) {
     if (!html.includes(id)) fail(`${filename} omits pre-rendered record ${id}.`);
+  }
+  if (filename === "text-to-lattice-service-blueprint.html") {
+    for (const requirement of ["Backstage client/server", "POST /api/lattice", "HF_TOKEN", "Hugging Face and Featherless", "no automatic retry", "no alternate provider or model fallback"]) {
+      if (!html.includes(requirement)) fail(`${filename} omits the active remote-service boundary: ${requirement}.`);
+    }
+    if (html.includes("Backstage browser-local")) fail(`${filename} renders the historical browser-local architecture as active.`);
+  }
+  if (filename === "text-to-lattice-security-model.html") {
+    for (const requirement of ["Current active evidence", "Historical inactive evidence", "no remote production evidence", "same-origin POST /api/lattice", "not byte-pinned"]) {
+      if (!html.includes(requirement)) fail(`${filename} omits the current-versus-historical remote qualification boundary: ${requirement}.`);
+    }
   }
   if (interactive) {
     for (const requirement of ["data-interactive-register", "type=\"search\"", "data-filter-key", "<details", "role=\"status\"", "aria-live=\"polite\"", "new Blob", "textContent", "document.createElement"]) {

@@ -1245,12 +1245,16 @@ test("renders current projects and consistent project documentation icons", asyn
   );
   assert.match(
     html,
-    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*data-lattice-launch="text-to-lattice")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Use Text to Lattice")(?=[^>]*aria-haspopup="dialog")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/,
+    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/,
   );
-  assert.equal((html.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 1);
-  assert.match(html, /id="lattice-demo-dialog"/u);
-  assert.match(html, /id="lattice-demo-input"/u);
-  assert.match(html, /id="lattice-use-confirmation"/u);
+  assert.equal((html.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 0);
+  assert.doesNotMatch(html, /id="lattice-demo-dialog"/u);
+  assert.doesNotMatch(html, /id="lattice-demo-input"/u);
+  assert.doesNotMatch(html, /id="lattice-use-confirmation"/u);
+  assert.match(
+    html,
+    /Text to Lattice remains held while deployment and end-to-end privacy evidence for the remote-provider candidate are incomplete\./u,
+  );
   assert.match(
     html,
     /Lattice makes linguistic register explicit, testable, and accountable to meaning\./,
@@ -1482,11 +1486,11 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
   assert.match(source, /aria-labelledby="lattice-demo-title"/);
-  assert.match(source, /aria-describedby="lattice-demo-description lattice-local-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"/);
-  assert.equal((source.match(/spellCheck=\{false\}/gu) ?? []).length, 2);
-  assert.equal((source.match(/autoCorrect="off"/gu) ?? []).length, 2);
-  assert.equal((source.match(/autoCapitalize="off"/gu) ?? []).length, 2);
-  assert.equal((source.match(/autoComplete="off"/gu) ?? []).length, 2);
+  assert.match(source, /aria-describedby="lattice-demo-description lattice-external-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"/);
+  assert.equal((source.match(/spellCheck=\{false\}/gu) ?? []).length, 1);
+  assert.equal((source.match(/autoCorrect="off"/gu) ?? []).length, 1);
+  assert.equal((source.match(/autoCapitalize="off"/gu) ?? []).length, 1);
+  assert.equal((source.match(/autoComplete="off"/gu) ?? []).length, 1);
   const sourceInput = source.match(/<textarea[\s\S]*?\/>/u)?.[0] ?? "";
   assert.match(sourceInput, /spellCheck=\{false\}/u);
   assert.match(sourceInput, /autoCorrect="off"/u);
@@ -1529,7 +1533,10 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.doesNotMatch(source, /onPointerDown=\{closeLattice\}/u);
   assert.match(source, /trigger\?\.isConnected[\s\S]*?trigger\.focus/u);
   assert.doesNotMatch(source, /lattice-modal-close/u);
-  assert.match(source, /aria-label=\{taskContinuesWhileClosed \? "Close; current task continues" : "Close"\}>\s*Close\s*<\/button>/u);
+  assert.match(
+    source,
+    /aria-label=\{taskContinuesWhileClosed \? "Close; current task continues" : latticeResult \? "Close" : "Cancel"\}/u,
+  );
   assert.match(shelfSource, /className="form-control shelf-search-entry px-0 px-sm-2"/u);
   assert.match(source, /className="form-control shelf-search-entry lattice-input"/u);
   const searchEntryRule = css.match(/\.form-control\.shelf-search-entry \{([\s\S]*?)\n\}/u)?.[1] ?? "";
@@ -1565,22 +1572,18 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
     /if \(value\.length > LATTICE_INPUT_SAFETY_LIMIT\) \{[\s\S]*?setLatticeInputInvalid\(true\);[\s\S]*?return;[\s\S]*?\}\s*setLatticeInput\(value\);/u,
     "a 12,001-code-unit source is rejected before controlled state can accept a shortened value",
   );
-  assert.match(
-    source,
-    /const updateLatticeClarificationInput = \(questionId: string, value: string\) => \{[\s\S]*?if \(value\.length > LATTICE_CLARIFICATION_SAFETY_LIMIT\) \{[\s\S]*?setClarificationErrors[\s\S]*?return;[\s\S]*?\}\s*setClarificationAnswers/u,
-    "a 1,001-code-unit clarification is rejected before answer state is updated",
-  );
-  assert.match(
-    source,
-    /onChange=\{\(event\) => updateLatticeClarificationInput\(question\.id, event\.currentTarget\.value\)\}/u,
-  );
+  assert.doesNotMatch(source, /updateLatticeClarificationInput|lattice-clarification-input/u);
   assert.match(source, /const nextCount = countLatticeWords\(value\)/);
   assert.match(source, /validateLatticeInput\(value\)/);
-  assert.match(source, /preflightLatticeInput\(latticeInput\)[\s\S]*?acquireLatticeLease/u);
+  assert.match(
+    source,
+    /validateLatticeInput\(latticeInput\)[\s\S]*?requestRemoteLattice\(latticeInput, \{[\s\S]*?requestedMode: "auto"/u,
+  );
   assert.match(source, /\{wordCount\} of \{LATTICE_WORD_LIMIT\} words/);
-  assert.match(source, /"Download and convert" : "Convert"/);
+  assert.match(source, />\s*Process with external service\s*<\/button>/u);
   assert.match(source, /className="lattice-progress"/);
   assert.match(source, /cancelLattice/);
+  assert.match(source, /output\.scrollIntoView\(\{ block: "nearest" \}\)[\s\S]*?output\.focus\(\{ preventScroll: true \}\)/u);
   assert.match(source, /className="lattice-output-text"[\s\S]*?data-nosnippet=""[\s\S]*?draggable=\{false\}/u);
   assert.match(source, /latticeVisibleFindings\(latticeResult\)\.map/);
   assert.match(source, /function latticeFindingMessage/);
@@ -1589,19 +1592,13 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.match(source, /aria-invalid=\{latticeInputInvalid \? "true" : undefined\}/);
   assert.doesNotMatch(source, /lattice-modal-kicker/);
   assert.doesNotMatch(source, /Lattice-iciz(?:e|ed|ing)/);
-  assert.match(source, /latticeLeaseExpiryTimerRef\.current = setTimeout\(\(\) => \{/);
-  assert.match(source, /latticeLeaseHeartbeatTimerRef\.current = setInterval\(\s*renewCurrentLease,/u);
-  assert.match(source, /error\.retryAfterSeconds \* 1_000/u);
-  assert.match(source, /latticeRetryEta\(latticeRetryAt, latticeRetryClock, undefined, latticeRetryMode\)/u);
-  assert.match(source, /latticeRetryPending/u);
+  assert.doesNotMatch(source, /acquireLatticeLease|renewCurrentLease|latticeLease|latticeRetryPending/u);
+  assert.match(source, /error\.retryAfterSeconds === null \? "later" : `in \$\{error\.retryAfterSeconds\} seconds`/u);
   assert.match(source, /onCopy=\{blockLatticeOutputTransfer\}/u);
   assert.match(source, /onCut=\{blockLatticeOutputTransfer\}/u);
   assert.match(source, /onDragStart=\{blockLatticeOutputTransfer\}/u);
   assert.match(source, /onContextMenu=\{blockLatticeOutputTransfer\}/u);
-  assert.match(source, /isLatticeClarificationTarget\(event\.target\)/u);
   assert.match(source, /event\.preventDefault\(\)/u);
-  assert.match(css, /\.form-control\.lattice-clarification-input \{[^}]*-webkit-user-select: text;[^}]*user-select: text;/u);
-  assert.doesNotMatch(css, /\.lattice-clarifications \{[^}]*user-select: text;/u);
   assert.doesNotMatch(
     source,
     /reappropriat|retyp|dedicat|manual(?:ly)? transcrib|circumvent.{0,30}(?:copy|output)|copying is disabled/iu,
@@ -1624,7 +1621,9 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   const formAt = source.indexOf("<form", dialogAt);
   const preFormSource = source.slice(dialogAt, formAt);
   assert.match(preFormSource, /href="\/projects\/lattice\/text-to-lattice\/#text-to-lattice-privacy"/u);
-  assert.doesNotMatch(preFormSource, /\b(?:HMAC|HttpOnly|same-origin|lease|rolling|Cloudflare)\b/iu);
+  assert.match(preFormSource, /This text leaves hah\.dev[\s\S]*?Process with external service/u);
+  assert.match(preFormSource, /one user-initiated, same-origin request[\s\S]*?<code> \/api\/lattice<\/code>/u);
+  assert.doesNotMatch(preFormSource, /\b(?:HMAC|HttpOnly|lease|rolling|Cloudflare)\b/iu);
   assert.doesNotMatch(source, /setTimeout\s*\(\s*\(\) =>\s*setLatticeResult/);
   assert.doesNotMatch(source, /aria-atomic/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);

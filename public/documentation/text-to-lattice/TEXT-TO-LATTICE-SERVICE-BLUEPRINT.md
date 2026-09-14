@@ -1,6 +1,6 @@
 ---
 title: Text to Lattice service blueprint
-revision: 2026-09-11
+revision: 2026-09-14
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
@@ -9,7 +9,7 @@ generator: scripts/docs/build-text-to-lattice-documentation.mjs
 
 # Text to Lattice service blueprint
 
-A visitor converts authorized prose into one bounded Lattice outcome in the résumé demonstrator.
+A visitor converts authorized prose into one bounded Lattice outcome through the disclosed remote capability.
 
 [Open the interactive HTML edition](https://hah.dev/documentation/text-to-lattice/text-to-lattice-service-blueprint.html) · [Download complete Markdown](https://hah.dev/documentation/text-to-lattice/TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md) · [Download the machine-readable register](https://hah.dev/documentation/text-to-lattice/documentation-atlas.json) · [Inspect the artifact manifest](https://hah.dev/documentation/text-to-lattice/artifact-manifest.json)
 
@@ -23,40 +23,40 @@ Markdown and HTML are deterministic projections of this register. Filtered brows
 
 ## Scenario contract
 
-- **Actor:** A visitor using a secure, JavaScript-capable browser with Unicode segmentation, WebGPU, and sufficient local storage.
-- **Goal:** Receive a materially revised, locally checked result; an unchanged context-bounded clearance; a review-marked draft; one precise clarification; or an honest refusal without transmitting prose to the lease service.
-- **Method:** The blueprint follows NN/g's service-blueprint separation of user action, visible service, backstage process, and support process, then adds evidence and data-boundary rows because trust and recovery are part of this service.
+- **Actor:** A visitor using a secure, JavaScript-capable browser who is authorized to send the submitted text to the disclosed external service.
+- **Goal:** Receive a bounded checked result, a review-marked material draft, an unable-to-attempt outcome with no transformed text, or a finite machine-readable error after one deliberate external-processing submission.
+- **Method:** The blueprint follows NN/g's service-blueprint separation of user action, visible service, backstage process, and support process, then makes the client/server, provider, evidence, retention, and recovery boundaries explicit.
 
 ## Lines
 
 | ID | Line | Between | Accountability meaning |
 | --- | --- | --- | --- |
-| BP-LINE-01 | Line of interaction | Visitor action and frontstage | What the visitor directly acts upon and what the interface returns. |
-| BP-LINE-02 | Line of visibility | Frontstage and backstage browser-local | What is disclosed as status or outcome versus what remains internal pipeline work. |
-| BP-LINE-03 | Line of trust and network | Backstage browser-local and support/network | The only crossings are bounded attestation, lease metadata, and revision-pinned model assets; prose stays local. |
-| BP-LINE-04 | Line of accountability | As-built evidence and release claims | Source and tests support repository claims; deployment, provider measurement, and manual exercises require separate evidence. |
+| BP-LINE-01 | Line of interaction | Visitor action and frontstage | What the visitor directly authorizes, acts upon, cancels, and receives. |
+| BP-LINE-02 | Line of visibility | Frontstage and backstage client/server | The interface discloses external processing and bounded outcomes; prompts, provider calls, validation, and repair remain implementation details. |
+| BP-LINE-03 | Line of trust and network | Browser, same-origin API, and external provider | After explicit confirmation, the browser sends exactly text, requested_mode, and schema_version 1 to same-origin /api/lattice; the Worker alone holds HF_TOKEN and calls the fixed Hugging Face router and Featherless-served models. |
+| BP-LINE-04 | Line of accountability | As-built evidence and release claims | Source and tests support repository claims; current remote deployment, live-provider behavior, provider retention, and manual exercises require separate evidence. |
 
 ## Complete blueprint
 
-| Stage | Visitor action | Frontstage | Backstage browser-local | Support/network | Evidence/recovery | Data crossing boundary |
+| Stage | Visitor action | Frontstage | Backstage client/server | Support/network | Evidence/recovery | Data crossing boundary |
 | --- | --- | --- | --- | --- | --- | --- |
-| **BP-01 · Read the boundary** | Opens Text to Lattice and reads the purpose, limits, privacy caution, and capability requirements. | The dialog names a local, bounded demonstration and keeps the canonical documentation path available. | The interface probes secure context, Unicode segmentation, WebGPU, storage estimate, and cached-model state. | No service call and no model download occurs during source preflight or capability explanation. | Unsupported capability yields a precise unavailable state and preserves access to the semantic documentation page. | Capability metadata remains in the browser; no prose exists yet. |
-| **BP-02 · Compose and preflight** | Enters one to 700 Unicode-aware words and chooses Convert. | The shared counter, inline validation, and concise status expose only actionable limits. | The host validates control characters, Unicode structure, 12,000 code units, passage count, initial work groups, clarification limits, and completion ceilings before requesting capacity. | None; admission and model systems remain untouched until complete preflight succeeds. | The source stays editable. Rejection is local, bounded, and does not truncate or relabel text. | Source and structural findings stay in the browser document. |
-| **BP-03 · Attest and admit** | Continues through the acquisition check when the service requires it. | A dedicated acquisition surface reports pending, interactive, completed, limited, or unavailable state; the demonstrable release discloses that Cloudflare's official testing profile supplies protocol exercise without anti-bot or availability assurance. | An exact-origin guard rejects every browser origin other than https://hah.dev before any lease fetch. The official parent flow then creates a fresh correlation identifier, accepts only the exact frame origin and Window, and requests a lease with no request body. | In the official browser flow, the verify.hah.dev frame obtains the provider's public dummy token. The lease Worker accepts only that exact token with the matching official testing secret, requires Siteverify success, bounds the returned response timestamp, and then applies exact global admission, visitor eligibility, signing, and lease state. A direct caller can replay the public token without the frame; the profile provides no token-freshness, single-use, human-or-bot, hostname, or action assurance. | Acquisition, renewal, and release fetch plus response-body handling have a shared 30-second deadline; caller cancellation stays distinct from timeout. Bounded Retry-After values become a local retry ETA, and every terminal browser-flow path removes the frame and stale listeners. Local or Vite preview explains the canonical requirement without producing a missing local lease-route request. | Only closed acquisition messages, a token, request metadata, an opaque signed cookie, and lease credentials cross. Source, clarification, candidate, and output do not. |
-| **BP-04 · Prepare local models** | Waits while actual download or nondeterminate final-setup progress is announced, may dismiss and later return to the same work, or explicitly cancels. | The interface reports real generator or verifier download progress, becomes nondeterminate after the first completed WebLLM progress phase, stays nondeterminate across GPU-loading and shader-compilation resets, and never simulates delay or displays a stale full bar during later work. | A dedicated worker proves its own WebGPU capability before lease acquisition, installs its network boundary before importing model libraries, validates closed RPC, acknowledges when each serialized request actually starts, loads one role at a time, and disables WebLLM's IndexedDB cache path. Per-operation deadlines begin at that acknowledgement, so a queued short request cannot terminate active work. Public model cache may remain and contains no prose. | Only manifest-enumerated, revision-pinned HTTPS model shards, tokenizers, and WASM assets may be requested with credentials omitted and no referrer. | Worker start is bounded to 30 seconds; preparation inactivity is 120 seconds, completion inactivity is 720 seconds, and 45-minute hard execution ceilings remain absolute. Phase-local progress resets count as liveness while duplicates do not postpone inactivity. The adapter check is bounded to 15 seconds, and the 10-second storage estimate degrades to unknown. Cancel interrupts generation, terminates the worker when necessary, and releases any acquired lease through bounded idempotent handling. | Pinned asset requests reveal ordinary network metadata and selected public model revisions; prose is not part of any URL, header, or asset body. |
-| **BP-05 · Atomize and select register** | Reads bounded progress; no additional action is required unless ambiguity is material. | Status names analysis rather than claiming completion. | Lossless passages are serialized as inert JSON, analyzed without clarification history, schema-checked, host-normalized, and checked against evidence spans and context budgets. Each SHA-256 provenance binding has a 10-second browser deadline. | No support service receives model prompts or prose; inference runs inside the browser worker. | Malformed, oversized, mismatched, or under-evidenced analysis is rejected before it can authorize drafting. An unavailable or stalled browser digest fails explicitly rather than leaving processing pending. | Source crosses the document-to-worker boundary through closed RPC; it does not cross the browser network boundary. |
-| **BP-06 · Clarify or draft** | Answers one short, enumerated clarification when asked, or continues waiting for a draft. | The interface exposes only a precise host-normalized question and bounded answer controls; candidate text remains hidden. | One exact matching answer authorizes one analyzer recheck. The generator drafts a material candidate subject to protected spans, semantic obligations, word materiality, and fixed completion budgets. | Lease renewal may extend bounded capacity; its request carries the credential but no prose. | A repeated question cannot become acceptance. A draft that merely changes punctuation, casing, or spacing is not material. | Clarification and draft remain inside the browser and local worker; renewal metadata alone crosses the network. |
-| **BP-07 · Verify and certify** | Waits through explicit verification and bounded repair states. | The interface reports checking, repair, or certification without presenting rejected work as a result. | A distinct verifier model, deterministic validators, post-candidate re-atomization, bounded repair, and whole-document certification test fidelity, coverage, domain correctness, accessibility, clarity, register fit, and materiality. | No verifier finding, atom identifier, candidate, or certification record leaves the browser. | Rejected candidates are withheld. The public projection removes candidate-dependent identifiers, counts, layers, and issue categories. | Candidate data crosses only the closed document-to-worker boundary; support services receive no semantic content. |
-| **BP-08 · Return and release** | Reads the outcome, dismisses and later returns to the same input, request, process, clarification, error, or result, or explicitly cancels or starts over. | The interface presents exactly one outcome state, explicit limitation, and protected result region; it never calls review-required complete clearance. A visible Close action, backdrop, and Escape are visibility-only in every phase while the résumé remains mounted. | Ordinary dismissal preserves input, availability or attestation request, lease-bound conversion, post-request processing, clarification, error, terminal state, and result for reopening. Cancel and Start over terminate or reset the current request, and component unmount tears it down; completion and error may release runtime resources, but their terminal state remains reopenable; output remains transient and is concealed on blur, page invisibility, print, and detectable Print Screen events. | Ordinary dismissal does not release an opaque lease or abort an in-flight acquisition or attestation. Completion, explicit cancellation, or teardown releases capacity with bounded idempotent retries; the global authority updates lifecycle state and expiry alarms. | Reopening restores the same mounted request and state in every phase. A release failure remains bounded and retryable. Static HTML, Markdown, JSON, JSON-LD, sitemap, and llms surfaces remain available when the service fails closed. | Release credentials and operation identifiers may cross; result text stays transient in browser memory and is never sent to the lease service or static evidence surfaces. |
+| **BP-01 · Read the boundary** | Opens Text to Lattice and reads the purpose, limits, external-processing warning, restricted-information warning, and canonical documentation link. | The dialog names the same-origin API, external service, fixed model roles, application no-retention rule, provider limitation, and finite outcomes before accepting a submission. | The interface resolves the named lattice.remote capability and local input prerequisites without contacting /api/lattice. | No transformation request or provider call occurs on open, edit, validation failure, dismissal, or cancellation before submission. | Unsupported capability yields a precise unavailable state while the semantic documentation remains available. | No submitted prose crosses a network boundary. |
+| **BP-02 · Compose and preflight** | Enters one to 700 Unicode-aware words and chooses a supported requested mode. | The shared counter and concise inline validation expose only actionable limits. | The browser validates Unicode structure, 12,000 code units, 65,536 request bytes, passage and work-group ceilings, the requested mode, and schema version before enabling submission. | The same-origin API and provider remain untouched during editing and failed preflight. | The source stays editable; rejection is local, bounded, and does not truncate or relabel text. | Source and structural findings remain in the browser document. |
+| **BP-03 · Authorize external processing** | Reviews the warning and deliberately chooses Process with external service, or chooses Cancel. | The action states that the text leaves hah.dev and that Hugging Face, Featherless AI, and their infrastructure process it under their own policies. | Only the explicit submission action creates the exact request body; there is no implicit submit, prefetch, or background send, and no automatic retry. | No remote request exists unless the visitor confirms. | Cancel and pre-submit dismissal preserve local work without transmission. | Authorization precedes the first and only browser transformation request for this attempt. |
+| **BP-04 · Submit and validate** | Waits after the deliberate submission or cancels the client wait. | A finite working state is announced without promising success. | The browser sends one same-origin POST /api/lattice with exactly text, requested_mode, and schema_version 1; the Worker rejects alternate origins, methods, paths, queries, media types, shapes, modes, versions, and oversized bodies. | The API Worker uses a 240-second request deadline, closed machine-readable errors, bounded Retry-After metadata, and Cache-Control: no-store. | Cancellation aborts the client wait; rate limit, timeout, invalid request, and service failures terminate without an automatic retry. | The submitted text enters bounded API request memory; HF_TOKEN remains server-only and no provider address enters the browser request. |
+| **BP-05 · Analyze with fixed generator** | Receives progress semantics only; cannot select a provider, URL, model, prompt, header, or credential. | The interface continues to describe external processing, not browser-local inference. | The Worker creates bounded prompts, segments protected source spans, and uses the fixed Qwen/Qwen3-4B:featherless-ai generator for atomization, classification, and planning; remote clarification remains disabled with questions required to be empty. | Only https://router.huggingface.co/v1/chat/completions is eligible; each provider call has a 60-second timeout and bounded structured output. | Malformed, oversized, hostile, or unavailable upstream output fails closed or receives only bounded same-model schema correction within the overall pipeline budget. | Server-created prompts containing submitted text cross to Hugging Face and Featherless; the browser never receives raw provider bodies. |
+| **BP-06 · Draft and deterministically check** | Waits for the bounded pipeline; no clarification question is presented. | The service does not solicit follow-up prose or silently broaden the requested mode. | The fixed Qwen generator drafts a material candidate while deterministic checks enforce source coverage, protected spans, semantic polarity, quantities, modality, uncertainty, and bounded work and repair ceilings. | Schema correction and repair may call the same fixed generator within the declared completion budget, never as transport retry or provider/model fallback. | Rejected candidates and provider-authored issue prose cannot become new semantic authority. | Only bounded pipeline prompts and candidate records exist in request memory and provider processing; the application defines no persistent content sink. |
+| **BP-07 · Verify and classify** | Waits for one terminal outcome. | The eventual label distinguishes translated, conformant-for-context, review-required, unable-to-attempt, and finite request errors. | The fixed meta-llama/Llama-3.2-3B-Instruct:featherless-ai verifier and deterministic validators independently check coverage, fidelity, accessibility, clarity, domain correctness, register fit, and ornament; verifier records cannot emit clarification questions. | The same fixed Hugging Face/Featherless destination serves the verifier under the 60-second call and total completion bounds. | A verifier or schema failure cannot be relabeled as success and cannot trigger a provider or model fallback. | Verification prompts and candidate text cross the external-provider boundary in bounded request memory. |
+| **BP-08 · Return, retain locally, or start over** | Reads, copies, closes, starts over, or deliberately submits a later attempt. | The browser renders only the validated closed response, protects output interaction without claiming capture prevention, and exposes accurate retry timing without initiating it. | The client rejects invalid, oversized, HTML, or non-JSON responses; terminal state remains local and reopenable while mounted, and teardown aborts active work. | API responses carry no-store; hah.dev defines no application database, object storage, cache, queue, raw-content log, or analytics event for content. | A new attempt requires a new explicit action. Repository checks do not prove live provider behavior or external-provider retention. | Bounded result or error returns to the browser; application request memory is released, while external-provider handling remains governed by its own policies. |
 
 ## Failure and recovery register
 
 <details id="bp-01">
 <summary><strong>BP-01</strong> · Read the boundary</summary>
 
-- **Failure:** A browser cannot support the runtime or cannot establish a secure context.
-- **Recovery:** Read the method and limitation record; use a compatible browser or device without losing entered work.
-- **Network boundary:** Capability metadata remains in the browser; no prose exists yet.
+- **Failure:** The browser cannot satisfy the secure-context, JavaScript, segmentation, or named-capability requirement.
+- **Recovery:** Read the method and limitation record or use a compatible browser; no text was transmitted.
+- **Network boundary:** No submitted prose crosses a network boundary.
 
 </details>
 
@@ -64,62 +64,62 @@ Markdown and HTML are deterministic projections of this register. Filtered brows
 <summary><strong>BP-02</strong> · Compose and preflight</summary>
 
 - **Failure:** Input exceeds a published boundary or contains unsafe structure.
-- **Recovery:** Revise the source locally; no quota was consumed.
-- **Network boundary:** Source and structural findings stay in the browser document.
+- **Recovery:** Revise the source locally; no remote work began.
+- **Network boundary:** Source and structural findings remain in the browser document.
 
 </details>
 
 <details id="bp-03">
-<summary><strong>BP-03</strong> · Attest and admit</summary>
+<summary><strong>BP-03</strong> · Authorize external processing</summary>
 
-- **Failure:** The browser origin is not canonical, acquisition rejects, the global or visitor budget is ineligible, or the support service is unavailable.
-- **Recovery:** Fail closed, show the canonical location, bounded reason, or ETA, and leave canonical documentation public; do not proxy or bypass the admission boundary.
-- **Network boundary:** Only closed acquisition messages, a token, request metadata, an opaque signed cookie, and lease credentials cross. Source, clarification, candidate, and output do not.
+- **Failure:** Authorization is absent, stale, or the component unmounts.
+- **Recovery:** Remain local and require a fresh deliberate action for any later attempt.
+- **Network boundary:** Authorization precedes the first and only browser transformation request for this attempt.
 
 </details>
 
 <details id="bp-04">
-<summary><strong>BP-04</strong> · Prepare local models</summary>
+<summary><strong>BP-04</strong> · Submit and validate</summary>
 
-- **Failure:** Worker start or worker-realm capability, storage, WebGPU, CORS, pinned assets, upstream availability, runtime preparation, or inference fails.
-- **Recovery:** Stop before lease acquisition when the worker realm is unsupported; otherwise unload local runtime, release capacity, and return an explicit unavailable result without candidate text.
-- **Network boundary:** Pinned asset requests reveal ordinary network metadata and selected public model revisions; prose is not part of any URL, header, or asset body.
+- **Failure:** The request is invalid, rate limited, canceled, timed out, or cannot reach the same-origin API.
+- **Recovery:** Return a bounded error; any retry requires a new deliberate submission.
+- **Network boundary:** The submitted text enters bounded API request memory; HF_TOKEN remains server-only and no provider address enters the browser request.
 
 </details>
 
 <details id="bp-05">
-<summary><strong>BP-05</strong> · Atomize and select register</summary>
+<summary><strong>BP-05</strong> · Analyze with fixed generator</summary>
 
-- **Failure:** A provenance digest stalls, or the model cannot return a complete, closed, evidence-linked analysis within fixed budgets.
-- **Recovery:** Return unable-to-attempt, or ask one provenance-bound clarification when the analyzer identifies a resolvable ambiguity.
-- **Network boundary:** Source crosses the document-to-worker boundary through closed RPC; it does not cross the browser network boundary.
+- **Failure:** The fixed generator times out, fails, or cannot produce an admissible closed record within budget.
+- **Recovery:** Terminate with a bounded error or unable-to-attempt outcome; do not switch provider or model.
+- **Network boundary:** Server-created prompts containing submitted text cross to Hugging Face and Featherless; the browser never receives raw provider bodies.
 
 </details>
 
 <details id="bp-06">
-<summary><strong>BP-06</strong> · Clarify or draft</summary>
+<summary><strong>BP-06</strong> · Draft and deterministically check</summary>
 
-- **Failure:** Ambiguity remains, provenance mismatches, or no material candidate can be produced safely.
-- **Recovery:** Return needs-clarification or unable-to-attempt without exposing a candidate-dependent trace.
-- **Network boundary:** Clarification and draft remain inside the browser and local worker; renewal metadata alone crosses the network.
+- **Failure:** No candidate clears the protected gates within the finite budget.
+- **Recovery:** Return unable-to-attempt with no transformed text or a bounded machine error.
+- **Network boundary:** Only bounded pipeline prompts and candidate records exist in request memory and provider processing; the application defines no persistent content sink.
 
 </details>
 
 <details id="bp-07">
-<summary><strong>BP-07</strong> · Verify and certify</summary>
+<summary><strong>BP-07</strong> · Verify and classify</summary>
 
-- **Failure:** A release gate fails, budgets exhaust, or a lower-priority issue remains.
-- **Recovery:** Repair within fixed ceilings; otherwise return review-required when semantically releasable or unable-to-attempt with one host-authored record.
-- **Network boundary:** Candidate data crosses only the closed document-to-worker boundary; support services receive no semantic content.
+- **Failure:** The candidate fails a semantic gate or the verifier cannot return a valid closed record.
+- **Recovery:** Bounded same-model repair may occur within policy; otherwise return review-required, unable-to-attempt, or a finite error as the closed protocol permits.
+- **Network boundary:** Verification prompts and candidate text cross the external-provider boundary in bounded request memory.
 
 </details>
 
 <details id="bp-08">
-<summary><strong>BP-08</strong> · Return and release</summary>
+<summary><strong>BP-08</strong> · Return, retain locally, or start over</summary>
 
-- **Failure:** Output capture cannot be fully prevented, focus must be restored safely when hidden work is reopened, release can race unload, or the remote authority can be unavailable.
-- **Recovery:** Preserve mounted work across ordinary dismissal; focus the active attestation, Cancel, clarification, result, or source when reopened; tear down the current request only through Cancel, Start over, or component unmount; keep completion and error reopenable; and retain lease expiry as the final backstop. Documentation states that browser, operating-system, camera, and assistive-technology capture cannot be guaranteed away.
-- **Network boundary:** Release credentials and operation identifiers may cross; result text stays transient in browser memory and is never sent to the lease service or static evidence surfaces.
+- **Failure:** The response is malformed, too large, interrupted, or the visitor dismisses during work.
+- **Recovery:** Show a bounded error or preserve valid terminal state; never auto-retry or route content elsewhere.
+- **Network boundary:** Bounded result or error returns to the browser; application request memory is released, while external-provider handling remains governed by its own policies.
 
 </details>
 
@@ -130,19 +130,19 @@ External providers are dependencies, not assumed accountable owners. Accountabil
 | ID | Surface | Accountable owner | Responsibility | Handoff evidence |
 | --- | --- | --- | --- | --- |
 | OWN-01 | Lattice contract | Lattice maintainer | Govern the method, licensed profile boundary, version, and authorized conformance claims. | A cited upstream revision, applicable license terms, and an explicit public claim boundary. |
-| OWN-02 | hah.dev client | Portfolio implementation maintainer | Keep input, interaction, local pipeline, accessibility, privacy, teardown, and public outcome behavior aligned with the requirements. | Exact source revision, automated contracts, manual interaction matrix, and built static artifact inspection. |
-| OWN-03 | Supply-chain and model pins | Text to Lattice release maintainer | Approve exact model, tokenizer, runtime, and WASM revisions plus their integrity, provenance, and license boundary. | Pinned URLs and versions, tokenizer hashes, fetched artifact record, licenses, and a recorded disposition for the WASM provenance gap. |
-| OWN-04 | Cloudflare lease service | hah.dev service operator | Operate request safety, secrets, signed credentials, exact admission, lifecycle accounting, alarms, retention, and fail-closed capacity policy; disclose whether the bounded testing or hostname-restricted attestation profile is active. | Reviewed Worker revision, binding and secret-name inventory, exact authenticated route inventory, attestation-profile classification, provider metrics, and bounded load results. |
-| OWN-05 | verify.hah.dev frame | hah.dev verification-surface operator | Keep the dedicated static frame, origin policy, message protocol, CSP, provider action, and teardown boundary exact. | Deployed header capture, route and origin inspection, protocol tests, provider hostname/action evidence, and accessibility exercise. |
-| OWN-06 | Static Pages, response policy, and documentation export | Portfolio documentation maintainer | Publish complete no-JavaScript semantics, deterministic projections, working links, escaped register content, matching integrity metadata, and the exact main-document response policy. | Documentation drift check, SHA-256 manifest, generated-page inspection, static-route tests, authenticated exact Worker-route inventory, and live CSP and Permissions-Policy captures. |
-| OWN-07 | Exact-revision release approval | Site owner | Accept or reject residuals and approve only the exact source, configuration, artifacts, provider controls, and evidence that were reviewed. | Dated gate record naming the revision and artifact digests, with every open exception assigned or explicitly deferred. |
-| OWN-08 | Visitor input and device choice | Visitor | Use text they are authorized to process, choose whether to download large local models, and decide whether the published device and provider residuals are acceptable. | Visible purpose, size, privacy, capability, provider, outcome, and residual disclosures before consequential action. |
+| OWN-02 | hah.dev client | Portfolio implementation maintainer | Keep input bounds, explicit external-processing consent, exact request construction, accessibility, cancellation, and public outcome behavior aligned with the requirements. | Exact source revision, named capability tests, modal lifecycle tests, and built static artifact inspection. |
+| OWN-03 | Same-origin Text to Lattice API | hah.dev service operator | Validate method, path, origin, media type, schema, modes, content limits, deadlines, response size, and closed success and error envelopes; return no-store responses. | Reviewed Worker revision, route and secret inventory, instrumented tests, bounded live probes, and deployed response captures. |
+| OWN-04 | Hugging Face and Featherless provider boundary | Text to Lattice release maintainer | Keep egress fixed to the Hugging Face chat-completions router, Qwen generation, and Llama verification; prohibit user-selected targets and provider or model fallback. | Exact endpoint and model identifiers, server-only secret proof, adapter allowlist tests, provider terms review, and bounded live-provider evidence. |
+| OWN-05 | Application data lifecycle | hah.dev service operator | Define no application storage, raw-content logging, cache, queue, or analytics sink for source, prompts, candidates, results, or raw provider bodies; keep content only in bounded request memory. | Static sink scan, binding inventory, no-store response capture, log configuration review, and an explicit provider-policy limitation. |
+| OWN-06 | Static Pages, response policy, and documentation export | Portfolio documentation maintainer | Publish concise external-processing semantics, deterministic projections, working links, escaped register content, matching integrity metadata, and a browser policy that permits only the named same-origin capability. | Documentation drift check, SHA-256 manifest, generated-page inspection, route tests, and live CSP and Permissions-Policy captures. |
+| OWN-07 | Exact-revision release approval | Site owner | Accept or reject residuals and approve only the exact source, configuration, artifacts, provider controls, and current remote deployment evidence reviewed. | A dated gate record naming the revision and artifact digests, with GATE-02 and GATE-06 satisfied by current remote evidence rather than historical browser-local evidence. |
+| OWN-08 | Visitor authorization and information choice | Visitor | Use text they are authorized to process, avoid restricted information, deliberately choose Process with external service, and decide whether disclosed external-provider residuals are acceptable. | Visible purpose, transmission, restricted-information, provider, retention-boundary, outcome, and residual disclosures before submission. |
 
 ## Binding data-flow rule
 
-Source, clarification, candidate, verifier findings, and result text cross only between the résumé document and the same-device model worker in the official client. Model hosts receive public asset requests. The attestation and lease services receive closed tokens, opaque credentials, request metadata, and lifecycle state—never prose.
+After explicit confirmation, the browser sends exactly `{text, requested_mode, schema_version: 1}` in one same-origin `POST /api/lattice`. The Worker uses server-created prompts with the fixed Hugging Face and Featherless Qwen generator and Llama verifier, then returns one validated bounded result or machine-readable error. `HF_TOKEN` remains server-only; hah.dev defines no application storage, raw-content log, cache, queue, or analytics sink for content, performs no automatic retry, and has no alternate provider or model fallback. External-provider processing and retention remain governed by provider policies.
 
-Repository tests support the as-built rows. They do not establish that independent origins, provider rules, secrets, headers, or production traces match the source tree.
+Repository tests support the as-built rows. They do not establish that the remote API, encrypted secret binding, provider behavior, response policy, application nonretention boundary, or canonical-browser lifecycle is deployed or observed in production.
 
 ## Source register
 
@@ -153,19 +153,26 @@ Repository tests support the as-built rows. They do not establish that independe
 - **SRC-PROTECTED — Protected-span handling:** `app/resume/lattice/protectedSpans.js`
 - **SRC-PROMPTS — Closed prompts and schemas:** `app/resume/lattice/promptContract.js`
 - **SRC-VALIDATORS — Deterministic semantic validators:** `app/resume/lattice/validators.js`
-- **SRC-LOCAL-MODEL — Local model adapter:** `app/resume/lattice/localModel.js`
-- **SRC-MODEL-CONTRACT — Pinned model contract:** `app/resume/lattice/modelContract.js`
-- **SRC-MODEL-WORKER — Isolated model worker:** `app/resume/lattice/latticeWebllm.worker.ts`
-- **SRC-ASSET-POLICY — Model-asset request policy:** `app/resume/lattice/assetRequestPolicy.js`
-- **SRC-ATTESTATION — Cross-origin attestation protocol:** `app/resume/lattice/attestation.js`
-- **SRC-USAGE-LEASE — Browser lease client:** `app/resume/lattice/usageLease.js`
-- **SRC-USAGE-POLICY — Published usage and capacity policy:** `app/resume/lattice/usagePolicy.js`
+- **SRC-LOCAL-MODEL — Historical inactive local model adapter:** `app/resume/lattice/localModel.js`
+- **SRC-MODEL-CONTRACT — Historical inactive browser-model contract:** `app/resume/lattice/modelContract.js`
+- **SRC-MODEL-WORKER — Historical inactive isolated WebLLM worker:** `app/resume/lattice/latticeWebllm.worker.ts`
+- **SRC-ASSET-POLICY — Historical inactive model-asset request policy:** `app/resume/lattice/assetRequestPolicy.js`
+- **SRC-ATTESTATION — Historical inactive cross-origin attestation protocol:** `app/resume/lattice/attestation.js`
+- **SRC-USAGE-LEASE — Historical inactive browser lease client:** `app/resume/lattice/usageLease.js`
+- **SRC-USAGE-POLICY — Historical inactive usage and capacity policy:** `app/resume/lattice/usagePolicy.js`
 - **SRC-OUTPUT — Output protection controls:** `app/resume/lattice/outputProtection.js`
-- **SRC-LEASE-WORKER — Lease Worker request coordinator:** `workers/text-to-lattice-lease/worker.js`
-- **SRC-DEMO-PROFILE — Bounded Cloudflare demonstration profile:** `workers/text-to-lattice-lease/demonstrationProfile.js`
-- **SRC-USAGE-STORAGE — Global usage authority:** `workers/text-to-lattice-lease/usageStorage.js`
-- **SRC-FRAME — Dedicated verification bridge:** `workers/text-to-lattice-attestation-frame/public/turnstile/bridge.js`
+- **SRC-LEASE-WORKER — Historical inactive lease Worker request coordinator:** `workers/text-to-lattice-lease/worker.js`
+- **SRC-DEMO-PROFILE — Historical inactive bounded Cloudflare demonstration profile:** `workers/text-to-lattice-lease/demonstrationProfile.js`
+- **SRC-USAGE-STORAGE — Historical inactive global usage authority:** `workers/text-to-lattice-lease/usageStorage.js`
+- **SRC-FRAME — Historical inactive Turnstile verification bridge:** `workers/text-to-lattice-attestation-frame/public/turnstile/bridge.js`
 - **SRC-RESPONSE-POLICY — Résumé response-policy Worker:** `workers/text-to-lattice-response-policy/worker.js`
+- **SRC-PUBLIC-CONTRACT — Public Text to Lattice disclosure and policy contract:** `app/content/textToLatticeContent.js`
+- **SRC-NETWORK-CAPABILITY — Named browser network capability:** `app/privacy/networkCapabilities.js`
+- **SRC-REMOTE-PROTOCOL — Remote request and response protocol:** `app/resume/lattice/remoteProtocol.js`
+- **SRC-REMOTE-CLIENT — Same-origin remote request client:** `app/resume/lattice/remoteRequest.js`
+- **SRC-API-WORKER — Same-origin Text to Lattice API Worker:** `workers/text-to-lattice-api/worker.js`
+- **SRC-HF-ADAPTER — Fixed Hugging Face and Featherless provider adapter:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
+- **SRC-API-CONFIG — Text to Lattice API Worker configuration:** `workers/text-to-lattice-api/wrangler.jsonc`
 - **SRC-SECRET-BOOTSTRAP — Fail-closed secret bootstrap:** `scripts/bootstrap-text-to-lattice-secrets.mjs`
 - **SRC-ROUTE-INVENTORY — Authenticated Worker route inventory verifier:** `scripts/verify-text-to-lattice-route-inventory.mjs`
 - **SRC-TEST-ENGINE — Engine executable contracts:** `tests/lattice-demo.test.mjs`
@@ -173,6 +180,9 @@ Repository tests support the as-built rows. They do not establish that independe
 - **SRC-TEST-ISOLATE — Isolate hardening executable contracts:** `tests/lattice-isolate-hardening.test.mjs`
 - **SRC-TEST-CAPACITY — Protocol capacity executable contracts:** `tests/lattice-protocol-capacity.test.mjs`
 - **SRC-TEST-A11Y — Modal accessibility source contracts:** `tests/lattice-modal-accessibility.test.mjs`
+- **SRC-TEST-CAPABILITY — Remote capability executable contracts:** `tests/lattice-network-capability.test.mjs`
+- **SRC-TEST-GOVERNANCE — Remote governance executable contracts:** `tests/lattice-network-governance.test.mjs`
+- **SRC-TEST-API — Remote API Worker executable contracts:** `tests/lattice-api-worker.test.mjs`
 - **SRC-PROJECTS — Portfolio project and ecosystem register:** `app/resume/projects.js`
 - **SRC-RELEASE-REGISTER — Machine-enforced Text to Lattice release register:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json`
 - **SRC-RELEASE-QUALIFICATION — Text to Lattice release qualification:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
@@ -190,6 +200,10 @@ Repository tests support the as-built rows. They do not establish that independe
 - **SRC-LAT-ADVERSARIAL — Lattice adversarial executable contracts at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/test/adversarial.test.mjs)
 - **SRC-NNG-SKILL — NN/g skill mapping:** [Reviewed source](https://www.nngroup.com/articles/skill-mapping/)
 - **SRC-NNG-BLUEPRINT — NN/g service blueprint definition:** [Reviewed source](https://www.nngroup.com/articles/service-blueprints-definition/)
+- **SRC-HF-CHAT — Hugging Face OpenAI-compatible chat-completions API:** [Reviewed source](https://huggingface.co/docs/inference-providers/tasks/chat-completion)
+- **SRC-HF-STRUCTURED — Hugging Face structured-output guidance:** [Reviewed source](https://huggingface.co/docs/inference-providers/guides/structured-output)
+- **SRC-HF-SECURITY — Hugging Face security and privacy policy:** [Reviewed source](https://huggingface.co/security)
+- **SRC-HF-FEATHERLESS — Hugging Face Featherless provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/featherless-ai)
 - **SRC-LATTICE-UPSTREAM — Lattice upstream repository:** [Reviewed source](https://github.com/howardhayden/lattice)
 
 ## Terms and provenance

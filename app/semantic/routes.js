@@ -69,6 +69,7 @@ export const staticSourceCopies = Object.freeze([
   sourceCopyRecord("/LICENSES/MIT-React.txt", "LICENSES/MIT-React.txt", "LICENSES/MIT-React.txt", "text/plain"),
   sourceCopyRecord("/LICENSES/MIT-loglevel.txt", "LICENSES/MIT-loglevel.txt", "LICENSES/MIT-loglevel.txt", "text/plain"),
   sourceCopyRecord("/LICENSES/MIT-vinext.txt", "LICENSES/MIT-vinext.txt", "LICENSES/MIT-vinext.txt", "text/plain"),
+  sourceCopyRecord("/LICENSES/OFL-1.1-Jost.txt", "LICENSES/OFL-1.1-Jost.txt", "LICENSES/OFL-1.1-Jost.txt", "text/plain"),
   sourceCopyRecord("/LICENSES/PolyForm-Noncommercial-1.0.0.txt", "LICENSES/PolyForm-Noncommercial-1.0.0.txt", "LICENSES/PolyForm-Noncommercial-1.0.0.txt", "text/plain"),
 ]);
 

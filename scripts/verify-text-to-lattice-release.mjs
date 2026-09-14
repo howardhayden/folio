@@ -18,7 +18,22 @@ import {
   LATTICE_WASM_SHA256,
   LATTICE_COMPATIBILITY_WASM,
 } from "../app/resume/lattice/modelContract.js";
+import { REMOTE_CAPABILITIES } from "../app/privacy/networkCapabilities.js";
+import {
+  LATTICE_API_PATH,
+  LATTICE_API_SCHEMA_VERSION,
+  LATTICE_REQUEST_FIELDS,
+  LATTICE_REQUEST_MODES,
+} from "../app/resume/lattice/remoteProtocol.js";
 import { projectBySlug } from "../app/resume/projects.js";
+import {
+  HUGGING_FACE_CHAT_COMPLETIONS_URL,
+  LATTICE_PROVIDER_CALL_LIMIT,
+  LATTICE_PROVIDER_CALL_TIMEOUT_MS,
+  LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT,
+  LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
+  LATTICE_REMOTE_MODELS,
+} from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const registerPath = join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json");
@@ -44,11 +59,12 @@ const gateStatuses = new Set([
   "accepted-residual-risk",
   "post-deployment-verification",
   "open-release-blocker",
+  "historical-inactive",
 ]);
 const artifactQualificationStatuses = new Set(
   [...gateStatuses].filter((status) => status !== "satisfied-in-production"),
 );
-const productionSatisfiedGateIds = new Set(["GATE-02", "GATE-06"]);
+const productionSatisfiedGateIds = new Set(["GATE-02", "GATE-03", "GATE-06"]);
 const rollbackRequiredStatuses = new Set([
   "satisfied-in-production",
   "post-deployment-verification",
@@ -69,6 +85,9 @@ const gateProjectionFields = Object.freeze([
   "followUp",
   "rollbackCondition",
   "acceptanceBasis",
+  "historicalInactiveRecord",
+  "activeCurrentEvidence",
+  "activeEvidence",
 ]);
 const qualifiedSourceSetAlgorithm = "sha256-path-and-bytes-v1";
 const qualifiedSourceFiles = Object.freeze([
@@ -78,6 +97,7 @@ const qualifiedSourceFiles = Object.freeze([
   "NOTICE",
   "THIRD_PARTY_LICENSES.txt",
   "THIRD_PARTY_NOTICES.md",
+  "docs/lattice-resume-demo-requirements.md",
   "eslint.config.mjs",
   "next-env.d.ts",
   "next.config.ts",
@@ -94,6 +114,7 @@ const qualifiedSourceTrees = Object.freeze([
   "app",
   "scripts",
   "tests",
+  "workers/text-to-lattice-api",
   "workers/text-to-lattice-attestation-frame",
   "workers/text-to-lattice-lease",
   "workers/text-to-lattice-response-policy",
@@ -136,6 +157,12 @@ const heldForbiddenExecutableStrings = Object.freeze([
   "text-to-lattice:model:v1",
   "lattice-demo-dialog",
   "lattice-demo-input",
+  "requestRemoteLattice",
+  "Network policy denied text-to-lattice",
+  "LatticeRemoteError",
+  "https://router.huggingface.co/v1/chat/completions",
+  "Qwen/Qwen3-4B:featherless-ai",
+  "meta-llama/Llama-3.2-3B-Instruct:featherless-ai",
 ]);
 const staleEnabledPublicationPattern = /release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)|sole open (?:release )?blocker|held solely because|hold the interactive client/iu;
 const serializedVinextRscScript = /^\s*\(\(self\[Symbol\.for\("vinext\.navigationRuntime"\)\]\?\?=\{bootstrap:\{routeManifest:null\},functions:\{\}\}\)\.bootstrap\.rsc\?\?=\{rsc:\[\]\}\)\.rsc\.push\(("(?:\\[\s\S]|[^"\\])*")\)\s*;?\s*$/u;
@@ -169,7 +196,7 @@ function requireStringArray(value, label) {
 
 function gateRequiresRollbackCondition(gate) {
   return rollbackRequiredStatuses.has(gate.status)
-    || (gate.id === "GATE-06" && gate.status === "open-release-blocker");
+    || gate.status === "open-release-blocker";
 }
 
 export function verifyReleaseStatusState(register) {
@@ -186,7 +213,7 @@ export function verifyReleaseStatusState(register) {
   return { hasOpenBlocker, enabled, held };
 }
 
-export function verifyLifecycleGateContract(productionBoundaryGate, productionLifecycleGate) {
+export function verifyHistoricalBrowserLocalLifecycleGateContract(productionBoundaryGate, productionLifecycleGate) {
   const gate02PreactivationBoundary = `${productionBoundaryGate.requirement} ${productionBoundaryGate.evidenceNeeded} ${productionBoundaryGate.followUp}`;
   if (!/noninteractive/iu.test(gate02PreactivationBoundary)
     || !/invalid-(?:token|attestation)/iu.test(gate02PreactivationBoundary)
@@ -419,6 +446,133 @@ export function verifyLifecycleGateContract(productionBoundaryGate, productionLi
   }
 }
 
+const historicalGateEvidenceDigests = Object.freeze({
+  "GATE-02": "f3d468f06b104cbc4435e4902ca519aecb54bfd62da2d2ddf1001cf551c88b24",
+  "GATE-03": "df0907c36021a720319c12fd81b3a55ee22c3aafed3e82f720f5e9c14fb0d1f7",
+  "GATE-06": "5e46d2ba74a423dfb21b40dc1fe689d865d612eda66d703e077dff6217732dd7",
+});
+
+function verifyHistoricalInactiveGateEvidence(gate) {
+  const record = gate.historicalInactiveRecord;
+  if (record?.status !== "historical-inactive"
+    || JSON.stringify(record.appliesToFields) !== JSON.stringify(["currentEvidence", "evidence"])
+    || record.verbatimSha256 !== historicalGateEvidenceDigests[gate.id]) {
+    fail(`${gate.id} must classify its preserved browser-local evidence as historical inactive.`);
+  }
+  const observed = digest(Buffer.from(JSON.stringify({
+    currentEvidence: gate.currentEvidence,
+    evidence: gate.evidence,
+  })));
+  if (observed !== record.verbatimSha256) {
+    fail(`${gate.id} historical browser-local evidence is not verbatim.`);
+  }
+  requireString(record.architecture, `${gate.id} historical architecture`);
+  requireString(record.claimBoundary, `${gate.id} historical claim boundary`);
+}
+
+function activeGateText(gate) {
+  return [
+    gate.label,
+    gate.requirement,
+    gate.activeCurrentEvidence,
+    gate.evidenceNeeded,
+    gate.rationale,
+    ...(gate.activeEvidence ?? []),
+    ...(gate.safeguards ?? []),
+    gate.followUp,
+    gate.rollbackCondition,
+  ].join(" ");
+}
+
+export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate, productionLifecycleGate) {
+  for (const gate of [productionBoundaryGate, capacityGate, productionLifecycleGate]) {
+    verifyHistoricalInactiveGateEvidence(gate);
+    requireString(gate.activeCurrentEvidence, `${gate.id} activeCurrentEvidence`);
+    requireStringArray(gate.activeEvidence, `${gate.id} activeEvidence`);
+    if (!new Set(["open-release-blocker", "satisfied-in-production"]).has(gate.status)) {
+      fail(`${gate.id} must remain open until its active remote production evidence is satisfied.`);
+    }
+    if (/Turnstile|Siteverify|verify\.hah\.dev|WebGPU|WebLLM|\/api\/text-to-lattice\/lease|\blease\b|\battestation\b/iu.test(activeGateText(gate))) {
+      fail(`${gate.id} active remote requirement contains a browser-local lease assumption.`);
+    }
+  }
+
+  const gate02 = activeGateText(productionBoundaryGate);
+  for (const required of [
+    "/api/lattice",
+    "POST",
+    "schema version 1",
+    "text",
+    "requested_mode",
+    "schema_version",
+    "HF_TOKEN",
+    "Hugging Face",
+    "Qwen",
+    "Llama",
+    "no-store",
+    "no application content storage or logging",
+    "no automatic retry",
+    "no alternate provider or model fallback",
+    "connect-src 'self'",
+  ]) {
+    if (!gate02.includes(required)) fail(`GATE-02 omits the active remote boundary atom ${required}.`);
+  }
+  for (const failure of ["wrong path", "method", "origin", "media type", "additional or missing fields", "invalid mode", "invalid schema version", "oversized input", "non-reflective JSON errors"]) {
+    if (!gate02.includes(failure)) fail(`GATE-02 omits the live failure probe ${failure}.`);
+  }
+
+  const gate03 = activeGateText(capacityGate);
+  for (const required of ["rate limiter", "provider-call", "timeout", "response size", "cost", "no generic proxy", "no availability"]) {
+    if (!gate03.toLowerCase().includes(required.toLowerCase())) fail(`GATE-03 omits the remote capacity atom ${required}.`);
+  }
+
+  const gate06 = activeGateText(productionLifecycleGate);
+  for (const required of [
+    "canonical page",
+    "supported browser engines",
+    "explicit confirmation",
+    "exactly one",
+    "POST /api/lattice",
+    "text",
+    "requested_mode",
+    "schema_version 1",
+    "non-error terminal result",
+    "no provider-origin browser request",
+    "no automatic retry",
+    "no service-worker or cache replay",
+    "timestamped sanitized captures",
+  ]) {
+    if (!gate06.includes(required)) fail(`GATE-06 omits the remote lifecycle atom ${required}.`);
+  }
+
+  if (productionBoundaryGate.status === "satisfied-in-production") {
+    const evidence = `${productionBoundaryGate.activeCurrentEvidence} ${productionBoundaryGate.activeEvidence.join(" ")}`;
+    for (const pattern of [
+      /actions\/runs\/\d+/u,
+      /deployed commit [a-f0-9]{40}/u,
+      /API Worker version [0-9a-f-]{36}/u,
+      /response-policy Worker version [0-9a-f-]{36}/u,
+      /HF_TOKEN binding name/iu,
+      /live .*\/api\/lattice/iu,
+    ]) {
+      if (!pattern.test(evidence)) fail("GATE-02 cannot be satisfied without deployed remote route, version, commit, and binding-name evidence.");
+    }
+  }
+  if (capacityGate.status === "satisfied-in-production" && !/production[^.]*rate limiter/iu.test(capacityGate.activeCurrentEvidence)) {
+    fail("GATE-03 cannot be satisfied without observed production rate-limiter evidence.");
+  }
+  if (productionLifecycleGate.status === "satisfied-in-production") {
+    const evidence = `${productionLifecycleGate.activeCurrentEvidence} ${productionLifecycleGate.activeEvidence.join(" ")}`;
+    if (!/supported-browser/iu.test(evidence)
+      || !/sanitized capture with SHA-256 [a-f0-9]{64}/iu.test(evidence)
+      || !/deployed commit [a-f0-9]{40}/iu.test(evidence)
+      || !/non-error terminal result/iu.test(evidence)
+      || !/exactly one .*POST \/api\/lattice/iu.test(evidence)) {
+      fail("GATE-06 cannot be satisfied without a revision-bound canonical-browser remote conversion and privacy trace.");
+    }
+  }
+}
+
 function exactIds(records, expected, label) {
   if (!Array.isArray(records)) fail(`${label} must be an array.`);
   const ids = records.map((record) => record?.id);
@@ -586,6 +740,20 @@ async function verifyQualificationDossier(register) {
   const artifactSetDigest = digest(Buffer.from(JSON.stringify(canonicalJson(register.artifactSet))));
   const artifacts = register.artifactSet;
   const artifactClaims = [
+    artifacts.activeCapability.route,
+    artifacts.activeCapability.method,
+    String(artifacts.activeCapability.schemaVersion),
+    ...artifacts.activeCapability.requestFields,
+    ...artifacts.activeCapability.requestedModes,
+    artifacts.activeCapability.secretBindingName,
+    artifacts.activeCapability.provider.endpoint,
+    artifacts.activeCapability.provider.generatorModel,
+    artifacts.activeCapability.provider.verifierModel,
+    artifacts.activeCapability.provider.revisionStatus,
+    artifacts.activeCapability.applicationRetention,
+    artifacts.activeCapability.providerRetentionBoundary,
+    artifacts.historicalBrowserLocalArtifacts.status,
+    artifacts.historicalBrowserLocalArtifacts.verbatimSha256,
     ...[artifacts.runtime, artifacts.tokenizerRuntime, artifacts.structuredOutputRuntime]
       .flatMap(({ name, version, url }) => [name, version, url]),
     ...["generator", "verifier"].flatMap((role) => [
@@ -630,8 +798,8 @@ async function verifyQualificationDossier(register) {
     ...(register.overallStatus === "held" && register.publicClient?.status === "held"
       ? ["**Decision:** hold the interactive client; publish the method, implementation record, and documentation only."]
       : []),
-    ...(register.ownerDisposition?.status === "release-directed"
-      ? ["Owner direction authorizes inclusion after the open release blocker closes; it is not deployment or runtime evidence."]
+    ...(register.ownerDisposition?.status === "hold-directed"
+      ? ["Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence."]
       : []),
     ...gateRows,
     "consequence × plausibility × lifecycle value",
@@ -639,17 +807,71 @@ async function verifyQualificationDossier(register) {
   ]) {
     if (!source.includes(required)) fail(`release qualification dossier omits ${required}.`);
   }
-  if (!/Cloudflare(?:'s|\u2019s) official testing pair[\s\S]{0,500}(?:rather than|does not (?:provide|establish)|provides? no)[^.]{0,160}production anti-bot (?:assurance|protection)/iu.test(source)
-    || !/exact published dummy token[\s\S]{0,500}reusable/iu.test(source)
-    || !/Cloudflare official testing credentials for the demonstrable release/iu.test(source)
-    || !/Bespoke attestation bypass route or unsigned token mode/iu.test(source)
-    || !/Portfolio-wide response-policy Worker route/iu.test(source)) {
-    fail("release qualification must disclose the reusable official dummy token and absent production anti-bot assurance, and must record the bespoke attestation and portfolio-wide routing alternatives as rejected.");
+  if (!/same-origin `?POST \/api\/lattice`?/iu.test(source)
+    || !/HF_TOKEN/iu.test(source)
+    || !/Hugging Face[\s\S]{0,300}Featherless/iu.test(source)
+    || !/no automatic retry/iu.test(source)
+    || !/no (?:alternate )?provider or model fallback/iu.test(source)
+    || !/provider-managed[\s\S]{0,240}not byte/iu.test(source)
+    || !/historical inactive[\s\S]{0,300}(?:WebLLM|lease)/iu.test(source)
+    || !/no remote production evidence/iu.test(source)) {
+    fail("release qualification must disclose the held remote capability, fixed provider, finite failure policy, provider-managed provenance, and historical inactive browser-local record.");
   }
 }
 
 function verifyArtifactSet(register) {
   const artifacts = register.artifactSet;
+  const capability = artifacts.activeCapability;
+  const manifest = REMOTE_CAPABILITIES.textToLattice;
+  if (capability.status !== "held-pending-production-evidence"
+    || capability.route !== LATTICE_API_PATH
+    || capability.route !== manifest.route
+    || capability.method !== manifest.method
+    || capability.schemaVersion !== LATTICE_API_SCHEMA_VERSION
+    || JSON.stringify(capability.requestFields) !== JSON.stringify(LATTICE_REQUEST_FIELDS)
+    || JSON.stringify(capability.requestFields) !== JSON.stringify(manifest.transmittedFields)
+    || JSON.stringify(capability.requestedModes) !== JSON.stringify(LATTICE_REQUEST_MODES)
+    || capability.trigger !== manifest.trigger
+    || capability.secretBindingName !== "HF_TOKEN"
+    || capability.provider.endpoint !== HUGGING_FACE_CHAT_COMPLETIONS_URL
+    || capability.provider.generatorModel !== LATTICE_REMOTE_MODELS.generator
+    || capability.provider.verifierModel !== LATTICE_REMOTE_MODELS.verifier
+    || capability.provider.callTimeoutMs !== LATTICE_PROVIDER_CALL_TIMEOUT_MS
+    || capability.provider.callLimit !== LATTICE_PROVIDER_CALL_LIMIT
+    || capability.provider.responseByteLimit !== LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT
+    || capability.provider.contentCharacterLimit !== LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT
+    || capability.provider.revisionStatus !== "provider-managed-not-byte-pinned"
+    || capability.provider.historicalByteEquivalenceEstablished !== false
+    || capability.automaticRetry !== false
+    || capability.automaticRetry !== manifest.automaticRetry
+    || capability.alternateProviderFallback !== false
+    || capability.alternateProviderFallback !== manifest.alternateProviderFallback
+    || capability.responseCachePolicy !== "no-store"
+    || !/no application storage/iu.test(capability.applicationRetention)
+    || !/external-provider/iu.test(capability.providerRetentionBoundary)) {
+    fail("active remote capability drifted from the browser manifest, protocol, or fixed provider adapter.");
+  }
+  const historical = artifacts.historicalBrowserLocalArtifacts;
+  const historicalRecordFields = [
+    "runtime",
+    "tokenizerRuntime",
+    "structuredOutputRuntime",
+    "models",
+    "tokenizers",
+    "wasm",
+  ];
+  if (historical?.status !== "historical-inactive"
+    || JSON.stringify(historical.recordFields) !== JSON.stringify(historicalRecordFields)
+    || !/not loaded by the held public artifact/iu.test(historical.claimBoundary)
+    || !sha256Pattern.test(historical.verbatimSha256 ?? "")) {
+    fail("browser-local artifact records must be explicitly historical inactive.");
+  }
+  const historicalDigest = digest(Buffer.from(JSON.stringify(Object.fromEntries(
+    historicalRecordFields.map((field) => [field, artifacts[field]]),
+  ))));
+  if (historicalDigest !== historical.verbatimSha256) {
+    fail("historical browser-local artifact evidence is not verbatim.");
+  }
   for (const [record, contract, label] of [
     [artifacts.runtime, LATTICE_RUNTIME, "WebLLM"],
     [artifacts.tokenizerRuntime, LATTICE_TOKENIZER_RUNTIME, "tokenizer runtime"],
@@ -718,10 +940,10 @@ function verifyArtifactSet(register) {
   if (!artifactQualificationStatuses.has(artifacts.llamaBehaviorEvaluation.exactModelExecutionStatus)) fail("Llama exact-model execution has an unsupported qualification status.");
   if (artifacts.wasm.reproducibility.established !== false) fail("WASM reproducibility must remain explicitly unestablished.");
   if (artifacts.models.verifier.artifactProvenanceEstablished !== false) fail("Llama MLC-artifact provenance must remain explicitly unestablished.");
-  if (artifacts.models.verifier.artifactProvenanceStatus !== register.gates.find(({ id }) => id === "GATE-04B")?.status
-    || artifacts.wasm.reproducibility.status !== register.gates.find(({ id }) => id === "GATE-04C")?.status
+  if (register.gates.find(({ id }) => id === "GATE-04B")?.status !== "historical-inactive"
+    || register.gates.find(({ id }) => id === "GATE-04C")?.status !== "historical-inactive"
     || artifacts.llamaBehaviorEvaluation.exactModelExecutionStatus !== register.gates.find(({ id }) => id === "GATE-04A")?.status) {
-    fail("artifact qualification substatuses must match GATE-04A, GATE-04B, and GATE-04C.");
+    fail("active Llama behavior status and historical browser-local artifact gate classifications drifted.");
   }
   if (artifacts.llamaTerms.officialSourceCommit !== LLAMA_3_2_TERMS_PROVENANCE.upstreamCommit
     || artifacts.llamaTerms.license.sha256 !== LLAMA_3_2_TERMS_PROVENANCE.sha256.license
@@ -743,10 +965,11 @@ async function verifySourceBoundary(register) {
   if (register.authority?.canonicalSource !== canonicalRegisterSource) fail("release-register canonical source declaration drifted.");
   if (register.authority?.qualificationDossier !== canonicalQualificationSource) fail("release qualification dossier declaration drifted.");
   if (!gitRevisionPattern.test(register.implementationBaselineRevision)) fail("implementationBaselineRevision must identify the reviewed baseline commit.");
-  if (!/Cloudflare-published testing-key fallback/iu.test(register.qualificationScope)
-    || !/bounded demonstrable release/iu.test(register.qualificationScope)
-    || !/not represented as production anti-bot assurance/iu.test(register.qualificationScope)) {
-    fail("qualificationScope must disclose the bounded official-testing fallback without representing it as production anti-bot assurance.");
+  if (!/last pulled hah\.dev deployment and ancestry baseline/iu.test(register.qualificationScope)
+    || !/held remote-capability candidate/iu.test(register.qualificationScope)
+    || !/without claiming.*deployed or observed in production/iu.test(register.qualificationScope)
+    || !/historical and inactive/iu.test(register.qualificationScope)) {
+    fail("qualificationScope must distinguish the held remote source candidate from the last deployed browser-local baseline.");
   }
   if (!Array.isArray(register.statusVocabulary) || register.statusVocabulary.length !== gateStatuses.size
     || [...gateStatuses].some((status) => !register.statusVocabulary.includes(status))) {
@@ -755,7 +978,8 @@ async function verifySourceBoundary(register) {
   requireString(register.authority?.decisionRule, "release decision rule");
   requireString(register.authority?.marginalValueRule, "marginal-value rule");
   const qualifiedSourceSetDigest = await verifyQualifiedSourceSet(register);
-  if (register.ownerDisposition?.status !== "release-directed") fail("owner disposition must record the current release direction.");
+  const expectedOwnerStatus = register.overallStatus === "held" ? "hold-directed" : "release-directed";
+  if (register.ownerDisposition?.status !== expectedOwnerStatus) fail("owner disposition must match the current release direction.");
   requireString(register.ownerDisposition.owner, "owner disposition owner");
   requireString(register.ownerDisposition.record, "owner disposition record");
   requireString(register.ownerDisposition.note, "owner disposition note");
@@ -772,6 +996,12 @@ async function verifySourceBoundary(register) {
     if (gate.id === "GATE-02" && !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
       fail("GATE-02 must remain an open release blocker until it is satisfied in production.");
     }
+    if (gate.id === "GATE-03" && !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
+      fail("GATE-03 must remain an open release blocker until remote capacity is satisfied in production.");
+    }
+    if (gate.id === "GATE-06" && !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
+      fail("GATE-06 must remain an open release blocker until the canonical remote lifecycle is satisfied in production.");
+    }
     if (!marginalValues.has(gate.marginalValue)) fail(`${gate.id} has an unsupported marginal-value classification.`);
     for (const field of ["label", "requirement", "currentEvidence", "evidenceNeeded", "rationale", "followUp"]) {
       requireString(gate[field], `${gate.id} ${field}`);
@@ -780,13 +1010,14 @@ async function verifySourceBoundary(register) {
     requireStringArray(gate.safeguards, `${gate.id} safeguards`);
     if (gateRequiresRollbackCondition(gate)) requireString(gate.rollbackCondition, `${gate.id} rollbackCondition`);
     else if (gate.rollbackCondition !== null) fail(`${gate.id} rollbackCondition must be null outside rollback-bearing statuses.`);
-    if (gate.status === "accepted-residual-risk") requireString(gate.acceptanceBasis, `${gate.id} acceptanceBasis`);
-    else if (gate.acceptanceBasis !== null) fail(`${gate.id} acceptanceBasis must be null outside accepted residual risk.`);
+    if (["accepted-residual-risk", "historical-inactive"].includes(gate.status)) requireString(gate.acceptanceBasis, `${gate.id} acceptanceBasis`);
+    else if (gate.acceptanceBasis !== null) fail(`${gate.id} acceptanceBasis must be null outside accepted residual risk or historical evidence.`);
   }
 
   const productionBoundaryGate = register.gates.find(({ id }) => id === "GATE-02");
+  const capacityGate = register.gates.find(({ id }) => id === "GATE-03");
   const productionLifecycleGate = register.gates.find(({ id }) => id === "GATE-06");
-  verifyLifecycleGateContract(productionBoundaryGate, productionLifecycleGate);
+  verifyLifecycleGateContract(productionBoundaryGate, capacityGate, productionLifecycleGate);
 
   if (!Array.isArray(register.marginalValueDecisions) || register.marginalValueDecisions.length === 0) {
     fail("marginal-value decisions must be a nonempty array.");
@@ -801,6 +1032,43 @@ async function verifySourceBoundary(register) {
       fail(`marginal-value decision ${index} has an unsupported classification.`);
     }
   }
+  const decisionScopes = register.marginalValueDecisionScopes;
+  requireStringArray(decisionScopes?.active, "active marginal-value decision scope");
+  requireStringArray(decisionScopes?.historicalInactive, "historical marginal-value decision scope");
+  requireString(decisionScopes?.claimBoundary, "marginal-value decision claim boundary");
+  const scopedFindings = [...decisionScopes.active, ...decisionScopes.historicalInactive];
+  if (new Set(scopedFindings).size !== findingNames.length
+    || scopedFindings.length !== findingNames.length
+    || findingNames.some((finding) => !scopedFindings.includes(finding))) {
+    fail("active and historical-inactive marginal-value scopes must partition every decision exactly once.");
+  }
+  const requireDecision = (finding, classification, disposition, requiredRationale) => {
+    const decision = register.marginalValueDecisions.find((item) => item.finding === finding);
+    if (!decisionScopes.active.includes(finding)
+      || decision?.classification !== classification
+      || decision?.disposition !== disposition
+      || requiredRationale.some((pattern) => !pattern.test(decision.rationale))) {
+      fail(`${finding} does not preserve the active remote release disposition.`);
+    }
+  };
+  requireDecision(
+    "Remote privacy boundary before activation",
+    "high",
+    "hold-until-production-evidence",
+    [/new same-origin API/iu, /external provider/iu, /GATE-02, GATE-03, and GATE-06/iu, /false privacy qualification/iu],
+  );
+  requireDecision(
+    "Provider-managed revision and historical byte equivalence",
+    "moderate",
+    "accepted-explicit-boundary",
+    [/provider-managed runtime is not byte-pinned/iu, /not established as equivalent to historical MLC artifacts/iu],
+  );
+  requireDecision(
+    "Automatic retry or alternate provider or model fallback",
+    "negative",
+    "do-not-implement",
+    [/retransmit visitor text/iu, /silently expand recipients and model behavior/iu],
+  );
   const timedRenewalDecision = register.marginalValueDecisions.find(({ finding }) => finding === "Deliberately timed real-browser renewal trace");
   if (timedRenewalDecision?.classification !== "moderate"
     || timedRenewalDecision?.disposition !== "observe-naturally-and-defer-as-release-gate"
@@ -871,10 +1139,11 @@ async function verifySourceBoundary(register) {
   await verifyLlamaUseEvaluation(register);
   await verifyQualificationDossier(register);
 
-  const [viewSource, heldSource, interactiveSource, projectsSource, routesSource, projectPageSource, noticesSource, portfolioSource] = await Promise.all([
+  const [viewSource, heldSource, interactiveSource, searchSource, projectsSource, routesSource, projectPageSource, noticesSource, portfolioSource] = await Promise.all([
     readFile(join(root, "app/resume/ResumeView.tsx"), "utf8"),
     readFile(join(root, "app/resume/ResumeProjectsHeld.tsx"), "utf8"),
     readFile(join(root, "app/resume/ResumeProjects.tsx"), "utf8"),
+    readFile(join(root, "app/resume/ResumeSearch.tsx"), "utf8"),
     readFile(join(root, "app/resume/projects.js"), "utf8"),
     readFile(join(root, "app/semantic/routes.js"), "utf8"),
     readFile(join(root, "app/projects/lattice/text-to-lattice/page.tsx"), "utf8"),
@@ -924,6 +1193,11 @@ async function verifySourceBoundary(register) {
     requireStringArray(register.publicClient.heldBoundary?.allow, "held publication allow boundary");
     requireStringArray(register.publicClient.heldBoundary?.deny, "held publication deny boundary");
     if (!viewSource.includes('from "./ResumeProjectsHeld"') || viewSource.includes('from "./ResumeProjects"')) fail("held mode must import only the held project surface.");
+    if (!viewSource.includes('from "./ResumeSearch"')) fail("held mode must preserve the résumé search wrapper.");
+    if (/from\s+["']\.\/ResumeProjects["']/u.test(searchSource)
+      || /onLatticeLaunch|followLatticeResult|requestRemoteLattice|\.\/lattice\//u.test(searchSource)) {
+      fail("held résumé search must not import or replay the interactive Text to Lattice path.");
+    }
     if (lattice.interactiveRelease !== "held") fail("held mode requires the Lattice project record to say held.");
     if (lattice.interaction !== null) fail("held mode must remove the public interaction activation marker.");
     const heldImports = [...projectsSource.matchAll(/^import\s+.+?from\s+["']([^"']+)["'];?$/gmu)].map((match) => match[1]);
@@ -1110,6 +1384,10 @@ function verifyForbiddenStrings(source, label, forbiddenStrings) {
 }
 
 function verifyExecutableSource(source, label) {
+  if (/\b(?:fetch|sendBeacon)\s*\(\s*["'`]\/api\/lattice(?:[?#"'`])/iu.test(source)
+    || /\.open\s*\(\s*["'`]POST["'`]\s*,\s*["'`]\/api\/lattice(?:[?#"'`])/iu.test(source)) {
+    fail(`${label} contains an executable /api/lattice request path.`);
+  }
   verifyForbiddenStrings(source, label, heldForbiddenExecutableStrings);
 }
 
@@ -1179,6 +1457,9 @@ function verifyHeldNavigationBoundary(site, htmlPath, tags) {
       }
       if (url.hostname === "verify.hah.dev" || (url.origin === "https://hah.dev" && url.pathname.startsWith("/api/text-to-lattice/lease"))) {
         fail(`held HTML route ${rel} exposes the verification or lease boundary through ${element} ${attribute}.`);
+      }
+      if (url.origin === "https://hah.dev" && url.pathname.startsWith("/api/lattice")) {
+        fail(`held HTML route ${rel} exposes the remote API boundary through ${element} ${attribute}.`);
       }
     }
   }
@@ -1324,7 +1605,7 @@ export async function verifyHeldBuiltBoundary(site, files) {
 
 }
 
-async function verifyEnabledBuiltBoundary(site, files) {
+export async function verifyHistoricalBrowserLocalEnabledBuiltBoundary(site, files) {
   const [resume, project] = await Promise.all([
     readFile(join(site, "resume/index.html"), "utf8"),
     readFile(join(site, "projects/lattice/text-to-lattice/index.html"), "utf8"),
@@ -1389,6 +1670,56 @@ async function verifyEnabledBuiltBoundary(site, files) {
       fail(`enabled model Worker omits the pinned runtime binding ${required}.`);
     }
   }
+}
+
+async function verifyEnabledBuiltBoundary(site, files) {
+  const [resume, project] = await Promise.all([
+    readFile(join(site, "resume/index.html"), "utf8"),
+    readFile(join(site, "projects/lattice/text-to-lattice/index.html"), "utf8"),
+  ]);
+  for (const pattern of [
+    /data-lattice-launch="text-to-lattice"/u,
+    /aria-label="Use Text to Lattice"/u,
+    /aria-haspopup="dialog"/u,
+    /id="lattice-demo-dialog"/u,
+    /id="lattice-demo-input"/u,
+    /id="lattice-use-confirmation"/u,
+  ]) {
+    if (!pattern.test(resume)) fail(`enabled résumé artifact omits its required interaction contract: ${pattern}.`);
+  }
+  if ((resume.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length !== 1) {
+    fail("enabled résumé artifact must expose exactly one Text to Lattice modal launcher.");
+  }
+  if (!/href="\/resume\/#text-to-lattice"[^>]*>Use Text to Lattice<\/a>/u.test(project)) {
+    fail("enabled canonical project page lacks its direct Text to Lattice launch path.");
+  }
+
+  const renderedEvidence = await Promise.all(files
+    .filter((path) => [".html", ".json", ".jsonld", ".md", ".txt"].includes(extname(path).toLowerCase()))
+    .map(async (path) => [relative(site, path).split("\\").join("/"), await readFile(path, "utf8")]));
+  const staleEvidence = renderedEvidence.find(([, source]) => staleEnabledPublicationPattern.test(source));
+  if (staleEvidence) fail(`enabled release artifact contains stale held-gate copy in ${staleEvidence[0]}.`);
+
+  const executableEntries = await Promise.all(files
+    .filter((path) => heldExecutableExtensions.has(extname(path).toLowerCase()))
+    .map(async (path) => [relative(site, path).split("\\").join("/"), await readFile(path, "utf8")]));
+  const executable = executableEntries.map(([, source]) => source).join("\n");
+  if (!executable.includes(LATTICE_API_PATH)) {
+    fail(`enabled release artifact omits the same-origin capability ${LATTICE_API_PATH}.`);
+  }
+  for (const forbidden of [
+    "/api/text-to-lattice/lease",
+    "https://verify.hah.dev",
+    HUGGING_FACE_CHAT_COMPLETIONS_URL,
+    LATTICE_REMOTE_MODELS.generator,
+    LATTICE_REMOTE_MODELS.verifier,
+    "@mlc-ai/web-llm",
+    "CreateWebWorkerMLCEngine",
+  ]) {
+    if (executable.includes(forbidden)) fail(`enabled browser executable graph contains forbidden boundary ${forbidden}.`);
+  }
+  const modelWorker = files.find((path) => /latticeWebllm|text-to-lattice[^/]*worker/iu.test(relative(site, path)));
+  if (modelWorker) fail(`enabled remote release contains a retired local model Worker: ${relative(site, modelWorker)}.`);
 }
 
 async function verifyExportedReleaseEvidence(site, files) {

@@ -10,20 +10,22 @@ const repositoryUrl = ({ repository }) => (typeof repository === "string" ? repo
   .replace(/^git\+/u, "")
   .replace(/\.git$/u, "");
 
-test("direct framework dependencies ship their resolved MIT notices and exact license texts", async () => {
-  const [notices, index, react, reactDom, vinext, bootstrap] = await Promise.all([
+test("direct framework and font dependencies ship their resolved notices and license texts", async () => {
+  const [notices, index, react, reactDom, vinext, bootstrap, jost] = await Promise.all([
     readText("THIRD_PARTY_NOTICES.md"),
     readText("THIRD_PARTY_LICENSES.txt"),
     readPackage("react"),
     readPackage("react-dom"),
     readPackage("vinext"),
     readPackage("bootstrap"),
+    readPackage("@fontsource/jost"),
   ]);
 
   for (const dependency of [react, reactDom, vinext, bootstrap]) {
     assert.equal(dependency.license, "MIT", `${dependency.name} declares MIT terms`);
   }
   assert.equal(react.version, reactDom.version, "React and React DOM use one shared notice version");
+  assert.equal(jost.license, "OFL-1.1");
 
   const distributions = [
     {
@@ -64,6 +66,16 @@ test("direct framework dependencies ship their resolved MIT notices and exact li
       assert.equal(suppliedText, await readText(installedPath), `${distribution.supplied} matches ${installedPath}`);
     }
   }
+
+  const jostTerms = "LICENSES/OFL-1.1-Jost.txt";
+  assert.ok(
+    notices.includes("| Jost | Font files distributed through `@fontsource/jost` " + jost.version + " |"),
+    "the resolved Jost package version is disclosed",
+  );
+  assert.ok(notices.includes(`](${jostTerms})`), "the Jost notice links its OFL terms");
+  assert.ok(index.includes(jostTerms), "the Jost terms are indexed");
+  assert.ok(copiedSources.has(jostTerms), "the Jost terms are copied into the static site");
+  assert.match(await readText(jostTerms), /SIL OPEN FONT LICENSE Version 1\.1/u);
 });
 
 test("Text to Lattice implementation stays under the declared software license", async () => {
@@ -148,6 +160,17 @@ test("third-party notice release-evidence links resolve from the deployed site r
   }
   assert.doesNotMatch(notices, /\]\(docs\/text-to-lattice\/TEXT-TO-LATTICE-RELEASE-/u);
   assert.match(noticePage, /"interactiveRelease" in latticeProject/u);
-  assert.match(noticePage, /When the interactive client is enabled, the browser downloads pinned model and WebAssembly assets[\s\S]*?only after the visitor starts the tool/u);
-  assert.doesNotMatch(noticePage, /The browser downloads[^.]+when the tool is used/u);
+  assert.match(
+    noticePage,
+    /When the machine release record contains an open blocker, the client stays outside the public bundle and makes no transformation submission/u,
+  );
+  assert.match(
+    noticePage,
+    /The browser sends one same-origin <code>POST \/api\/lattice<\/code> request whose JSON body contains exactly/u,
+  );
+  assert.match(
+    noticePage,
+    /former browser-local WebLLM\/MLC runtime[\s\S]*?historical and inactive/u,
+  );
+  assert.doesNotMatch(noticePage, /enabled implementation[^.]*downloads pinned model|active browser-local/iu);
 });

@@ -537,7 +537,7 @@ test("malformed source fails before every model stage", async () => {
   assert.deepEqual(adapter.calls, { analyze: 0, generate: 0, verify: 0, repair: 0 });
 });
 
-test("local provenance digests have fixed timeout and cancellation boundaries", async () => {
+test("provenance digests have fixed timeout and cancellation boundaries", async () => {
   const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
@@ -559,7 +559,7 @@ test("local provenance digests have fixed timeout and cancellation boundaries", 
     ));
     assert.ok(deadline);
     deadline.callback();
-    await assert.rejects(timedRun, /did not finish a local integrity check in time/u);
+    await assert.rejects(timedRun, /did not finish an integrity check in time/u);
 
     const controller = new AbortController();
     const canceledRun = runTextToLattice("Another stable source.", {
@@ -612,7 +612,7 @@ test("candidate fingerprinting replaces a completed stage bar with indeterminate
     assert.deepEqual(reports.at(-1), {
       phase: "binding-result-integrity",
       progress: null,
-      text: "Binding result integrity on this device",
+      text: "Binding result integrity",
     });
     releaseCandidateDigest(new Uint8Array(32).buffer);
     assert.equal((await running).status, "translated");
@@ -3071,10 +3071,10 @@ test("unknown model fields fail closed and invalid Unicode is rejected before mo
   assert.throws(() => validateLatticeInput(`u0000${String.fromCharCode(0xD800)}`), RangeError);
 });
 
-test("ResumeProjects unmount cleanup invalidates work and releases input-bearing runtime state", async () => {
+test("ResumeProjects unmount cleanup invalidates and aborts input-bearing remote work", async () => {
   const source = await readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8");
   const cleanup = source.match(
-    /useEffect\(\(\) => \{\s*latticeMountedRef\.current = true;\s*return \(\) => \{(?<body>[\s\S]*?)\n    \};\n  \}, \[releaseCurrentLatticeLease\]\);/u,
+    /useEffect\(\(\) => \{\s*latticeMountedRef\.current = true;\s*return \(\) => \{(?<body>[\s\S]*?)\n    \};\n  \}, \[\]\);/u,
   )?.groups?.body;
   assert.ok(cleanup, "the unmount cleanup must remain explicit and independently inspectable");
 
@@ -3084,9 +3084,6 @@ test("ResumeProjects unmount cleanup invalidates work and releases input-bearing
     "const controller = latticeAbortRef.current",
     "latticeAbortRef.current = null",
     "controller?.abort()",
-    "releaseCurrentLatticeLease()",
-    "interruptLocalLatticeModel()",
-    "discardLocalLatticeModel()",
     "latticeInputRef.current.value = \"\"",
     "latticeInputRef.current = null",
   ];
@@ -3099,10 +3096,10 @@ test("ResumeProjects unmount cleanup invalidates work and releases input-bearing
   assert.doesNotMatch(cleanup, /\bset[A-Z][A-Za-z]+\(/u, "unmount cleanup must not schedule React state updates");
 
   const lateUpdateGuards = source.match(
-    /!latticeMountedRef\.current \|\| latticeJobRef\.current !== (?:environmentJobId|jobId)/gu,
+    /!latticeMountedRef\.current \|\| latticeJobRef\.current !== jobId/gu,
   ) ?? [];
-  assert.ok(lateUpdateGuards.length >= 6, "each asynchronous environment or conversion continuation must be mount-and-job guarded");
-  assert.doesNotMatch(source, /setLatticeModelCached\(await/u);
+  assert.ok(lateUpdateGuards.length >= 3, "each asynchronous remote continuation must be mount-and-job guarded");
+  assert.doesNotMatch(source, /discardLocalLatticeModel|interruptLocalLatticeModel|releaseCurrentLatticeLease/u);
 });
 
 test("all resume production sources remain free of canned transformations and runtime-text persistence or exfiltration", async () => {

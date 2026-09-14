@@ -22,7 +22,7 @@ test("Resume Search covers every canonical content class and preserves evidence 
     experiences: 8,
     skills: 9,
     education: 5,
-    evidence: 1672,
+    evidence: 1676,
   });
   for (const indexed of resumeSearchIndex.records) {
     assert.ok(indexed.record.evidence.length > 0, indexed.record.id);
@@ -578,7 +578,7 @@ test("Resume Search keeps one compact control row and reverses Shelf's five-pixe
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/resume/ResumeView.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(view, /<ResumeSearch>[\s\S]*?<ResumeProjects \/>[\s\S]*?<SkillStacks \/>[\s\S]*?<ResumeExperience \/>/u);
+  assert.match(view, /<ResumeSearch>[\s\S]*?<ResumeProjectsHeld \/>[\s\S]*?<SkillStacks \/>[\s\S]*?<ResumeExperience \/>/u);
   assert.match(source, /className="form-control shelf-search-entry resume-search-input px-2"/u);
   assert.match(source, /placeholder="Search"/u);
   assert.match(source, /inert=\{canonicalInert \? true : undefined\}/u);
@@ -601,10 +601,10 @@ test("Resume Search keeps one compact control row and reverses Shelf's five-pixe
   assert.match(source, /window\.history\.pushState[\s\S]*?target\.focus[\s\S]*?target\.scrollIntoView/u);
   assert.doesNotMatch(source, /matches\.map|record\.evidence/u, "curated aliases and evidence are not placed in accessible result copy");
   assert.doesNotMatch(source, /Search is ready\.|Searching the Resume/u);
-  assert.match(source, /<ResumeProjectCard[\s\S]*?onLatticeLaunch=/u);
+  assert.match(source, /<ResumeProjectHeldCard[\s\S]*?onNavigate=\{followResult\}/u);
+  assert.doesNotMatch(source, /from "\.\/ResumeProjects"|onLatticeLaunch|followLatticeResult|data-lattice-launch/u);
   assert.match(source, /<SkillStackCard stack=\{stack\}/u);
   assert.match(source, /classList\.contains\("resume-modal-open"\)/u);
-  assert.match(source, /resume-search-canonical \[data-lattice-launch=/u);
   const resultsSection = source.slice(source.indexOf('<section\n          className={`container resume-search-surface resume-search-results'), source.indexOf("</section>", source.indexOf('id="resume-search-results"')));
   assert.doesNotMatch(resultsSection, /aria-live=/u, "complex result cards are not one giant live region");
   assert.match(source, /prefers-reduced-motion[\s\S]*?prefers-reduced-transparency[\s\S]*?forced-colors/u);

@@ -95,11 +95,11 @@ export const namespaceTerms = Object.freeze([
   ["inputContract", "input contract", "The public input boundary of a tool.", "Property"],
   ["outputContract", "output contract", "The public output boundary of a tool.", "Property"],
   ["constraint", "constraint", "A public operational or representation constraint.", "Property"],
-  ["usagePolicy", "usage policy", "The public purpose, quota, retention, and failure-mode contract for a bounded interactive demonstration.", "Property"],
+  ["usagePolicy", "usage policy", "The public request, external-processing, retention, and failure-mode contract for a bounded interactive demonstration.", "Property"],
   ["securityAndPrivacy", "security and privacy", "The documented input, upstream-service, API, and output-protection boundaries of a public tool.", "Property"],
   ["generator", "generator", "The model assigned to draft candidates.", "Property"],
   ["verifier", "verifier", "The independently trained model family assigned to check candidates.", "Property"],
-  ["runtime", "runtime", "The local inference runtime and pinned implementation metadata.", "Property"],
+  ["runtime", "runtime", "The server-side inference-provider runtime and implementation metadata.", "Property"],
   ["traits", "traits", "Documented traits of a tool.", "Property"],
   ["collection", "collection", "An authored shelf collection label.", "Property"],
   ["displayDate", "display date", "A publication-local date or era string preserved at its authored precision.", "Property"],
@@ -407,7 +407,7 @@ export const knowledgeGraph = {
       "@id": applicationId, "@type": "SoftwareApplication", name: textToLatticeContract.name,
       description: applicationDescription,
       url: absoluteUrl(textToLatticeContract.canonicalPath),
-      applicationCategory: "Portfolio demonstration", operatingSystem: "Secure browser with WebGPU",
+      applicationCategory: "Portfolio demonstration", operatingSystem: "Modern browser with JavaScript over HTTPS",
       creativeWorkStatus: applicationReleaseStatus,
       isPartOf: { "@id": projectGraphId(projectBySlug("lattice")) },
       mainEntityOfPage: { "@id": `${absoluteUrl(textToLatticeContract.canonicalPath)}#page` },
@@ -416,7 +416,18 @@ export const knowledgeGraph = {
       [namespaceGraphId("inputContract")]: textToLatticeContract.input,
       [namespaceGraphId("outputContract")]: textToLatticeContract.output,
       [namespaceGraphId("constraint")]: [...textToLatticeContract.constraints],
-      [namespaceGraphId("usagePolicy")]: textToLatticeContract.usagePolicy,
+      [namespaceGraphId("usagePolicy")]: {
+        status: "active",
+        endpoint: absoluteUrl("/api/lattice"),
+        method: "POST",
+        requestBody: Object.freeze(["text", "requested_mode", "schema_version"]),
+        schemaVersion: 1,
+        trigger: "explicit user confirmation",
+        applicationRetention: "No application storage, raw-content logging, cache, queue, or analytics for source, prompts, candidates, or results.",
+        retry: "No automatic browser retry.",
+        providerFallback: "None; generator and verifier provider targets are fixed.",
+        historicalControls: "The WebLLM/MLC runtime, quota lease, Turnstile attestation, renewal, and release protocol are inactive provenance.",
+      },
       [namespaceGraphId("securityAndPrivacy")]: textToLatticeContract.securityAndPrivacy,
       [namespaceGraphId("generator")]: textToLatticeContract.implementation.generator,
       [namespaceGraphId("verifier")]: textToLatticeContract.implementation.verifier,
@@ -530,41 +541,23 @@ function relationshipLabel(item) {
 }
 
 function implementationMarkdown() {
-  const { generator, verifier, runtime } = textToLatticeContract.implementation;
-  return `### Implementation provenance\n\n- Generator: ${generator.name} (${generator.modelId}), revision ${generator.revision}; ${generator.inferenceSummary}; pinned artifact ${generator.revisionUrl}; base model ${generator.baseModelRepository}; ${generator.licenseName}: ${generator.licenseUrl}\n- Verifier: ${verifier.name} (${verifier.modelId}), revision ${verifier.revision}; deterministic decoding with fixed seed ${verifier.inference.seed}; pinned artifact ${verifier.revisionUrl}; base model ${verifier.baseModelRepository}\n- Runtime: ${runtime.name} ${runtime.version}; documentation ${runtime.documentationUrl}; source ${runtime.repository}; tokenizer ${runtime.tokenizerName} ${runtime.tokenizerVersion}; constrained JSON via ${runtime.structuredOutputName} ${runtime.structuredOutputVersion}; model-library WASM revision ${runtime.wasmRevision}; ${runtime.wasmRepository}\n- Structured-output runtime: ${runtime.structuredOutputRepository}; ${runtime.structuredOutputLicenseName}: ${runtime.structuredOutputLicenseUrl}\n- Model-library WASM license status: ${runtime.wasmLicenseStatus}\n- Llama license: ${verifier.licenseUrl}\n- Llama acceptable-use policy: ${verifier.acceptableUseUrl}`;
+  const { generator, verifier, runtime, historicalLocalRuntime } = textToLatticeContract.implementation;
+  return `### Server-side implementation provenance\n\n- Generator: ${generator.name} (${generator.modelId}); ${generator.revision}; ${generator.inferenceSummary}; model card ${generator.repository}; ${generator.licenseName}: ${generator.licenseUrl}\n- Verifier: ${verifier.name} (${verifier.modelId}); ${verifier.revision}; request seed ${verifier.inference.seed}; model card ${verifier.repository}\n- Runtime: ${runtime.name} ${runtime.version}; documentation ${runtime.documentationUrl}; fixed provider endpoint ${runtime.repository}; tokenizer ${runtime.tokenizerName} ${runtime.tokenizerVersion}; ${runtime.structuredOutputName} ${runtime.structuredOutputVersion}\n- Provider terms: ${runtime.structuredOutputLicenseName}: ${runtime.structuredOutputLicenseUrl}\n- Historical local runtime: ${historicalLocalRuntime.status}; ${historicalLocalRuntime.runtime}; ${historicalLocalRuntime.statement}\n- Runtime equivalence boundary: ${runtime.wasmLicenseStatus}\n- Llama license: ${verifier.licenseUrl}\n- Llama acceptable-use policy: ${verifier.acceptableUseUrl}`;
 }
 
 function usagePolicyMarkdown() {
-  const policy = textToLatticeContract.usagePolicy;
+  const security = textToLatticeContract.securityAndPrivacy;
   return [
     "### Usage policy",
     "",
-    `- Purpose: ${policy.purpose}`,
-    `- Endpoint: ${absoluteUrl(policy.endpoint)}`,
-    `- Request body: ${policy.requestBody}; source transmission: ${policy.sourceTransmission}`,
-    `- Pseudonymous browser: ${policy.visitor.limit} grants per rolling ${policy.visitor.windowSeconds}-second window; identity: ${policy.visitor.identity}; application-visible retention target: ${policy.visitor.applicationRetentionTargetSeconds} seconds`,
-    `- Exact shared request admission: ${policy.globalRequests.limit} validated public POST, PATCH, or DELETE requests per rolling ${policy.globalRequests.windowSeconds}-second window; ${policy.globalRequests.scope}; application-visible retention target: ${policy.globalRequests.applicationRetentionTargetSeconds} seconds`,
-    `- Exact shared daily request budget: ${policy.globalDailyRequests.limit} actionable public POST, PATCH, or DELETE requests per ${policy.globalDailyRequests.window}; ${policy.globalDailyRequests.scope}; application-visible retention target: ${policy.globalDailyRequests.applicationRetentionTargetSeconds} seconds`,
-    `- Shared grant attempts: ${policy.globalAttempts.limit} otherwise grant-eligible acquisitions per rolling ${policy.globalAttempts.windowSeconds}-second window; application-visible retention target: ${policy.globalAttempts.applicationRetentionTargetSeconds} seconds`,
-    `- Shared grants: ${policy.globalGrants.limit} per rolling ${policy.globalGrants.windowSeconds}-second window; application-visible retention target: ${policy.globalGrants.applicationRetentionTargetSeconds} seconds`,
-    `- Concurrent leases: ${policy.activeLeases.limit} service-wide and ${policy.activeLeases.perVisitorLimit} per pseudonymous browser; idle expiry: ${policy.activeLeases.ttlSeconds} seconds; client renewal interval: ${policy.activeLeases.renewalIntervalSeconds} seconds; minimum accepted renewal interval: ${policy.activeLeases.minimumRenewalIntervalSeconds} seconds; absolute lifetime: ${policy.activeLeases.maximumLifetimeSeconds} seconds; inactive retention target: ${policy.activeLeases.applicationRetentionTargetSeconds} seconds; maximum active retention target: ${policy.activeLeases.maximumApplicationRetentionTargetSeconds} seconds`,
-    `- Enforcement authority: ${policy.enforcement.authority}`,
-    `- Exact request admission: ${policy.enforcement.exactRequestAdmission.limit} per ${policy.enforcement.exactRequestAdmission.windowSeconds} seconds ${policy.enforcement.exactRequestAdmission.scope}; evaluated after ${policy.enforcement.exactRequestAdmission.evaluatedAfter}; evaluated before ${policy.enforcement.exactRequestAdmission.evaluatedBefore}; ${policy.enforcement.exactRequestAdmission.role}`,
-    `- Exact daily request admission: ${policy.enforcement.exactDailyRequestAdmission.limit} per ${policy.enforcement.exactDailyRequestAdmission.window}; ${policy.enforcement.exactDailyRequestAdmission.scope}; evaluated before ${policy.enforcement.exactDailyRequestAdmission.evaluatedBefore}; ${policy.enforcement.exactDailyRequestAdmission.role}`,
-    `- Earliest ingress shaper: ${policy.enforcement.ingressLocationShaper.limit} exact-route calls per ${policy.enforcement.ingressLocationShaper.windowSeconds} seconds ${policy.enforcement.ingressLocationShaper.scope}; evaluated after ${policy.enforcement.ingressLocationShaper.evaluatedAfter}; evaluated before ${policy.enforcement.ingressLocationShaper.evaluatedBefore}; ${policy.enforcement.ingressLocationShaper.role}`,
-    `- Combined location shaper: ${policy.enforcement.pathLocationShaper.limit} POST, PATCH, or DELETE calls per ${policy.enforcement.pathLocationShaper.windowSeconds} seconds ${policy.enforcement.pathLocationShaper.scope}; ${policy.enforcement.pathLocationShaper.role}`,
-    `- Lease credential: ${policy.enforcement.leaseCredential.format}; ${policy.enforcement.leaseCredential.validation}; ${policy.enforcement.leaseCredential.storage}; replay boundary: ${policy.enforcement.leaseCredential.replayBoundary}`,
-    `- Acquisition admission: ${policy.enforcement.humanAttestation.provider}; real-profile action constraint: ${policy.enforcement.humanAttestation.action}; real-profile hostname constraint: ${policy.enforcement.humanAttestation.hostname}; ${policy.enforcement.humanAttestation.browserIsolation}; message boundary: ${policy.enforcement.humanAttestation.messageBoundary}; source transmission: ${policy.enforcement.humanAttestation.sourceTransmission}`,
-    `- Acquisition shaper: ${policy.enforcement.locationShaper.limit} ${policy.enforcement.locationShaper.method} calls per ${policy.enforcement.locationShaper.windowSeconds} seconds in ${policy.enforcement.locationShaper.scope}; ${policy.enforcement.locationShaper.role}`,
-    `- Renewal shaper: ${policy.enforcement.renewalLocationShaper.limit} ${policy.enforcement.renewalLocationShaper.method} calls per ${policy.enforcement.renewalLocationShaper.windowSeconds} seconds in ${policy.enforcement.renewalLocationShaper.scope}; ${policy.enforcement.renewalLocationShaper.role}`,
-    `- Release shaper: ${policy.enforcement.releaseLocationShaper.limit} ${policy.enforcement.releaseLocationShaper.method} calls per ${policy.enforcement.releaseLocationShaper.windowSeconds} seconds in ${policy.enforcement.releaseLocationShaper.scope}; ${policy.enforcement.releaseLocationShaper.role}`,
-    `- Per-lease renewal shaper: ${policy.enforcement.renewalLeaseLocationShaper.limit} ${policy.enforcement.renewalLeaseLocationShaper.method} calls per ${policy.enforcement.renewalLeaseLocationShaper.windowSeconds} seconds in ${policy.enforcement.renewalLeaseLocationShaper.scope}; evaluated before ${policy.enforcement.renewalLeaseLocationShaper.evaluatedBefore}; ${policy.enforcement.renewalLeaseLocationShaper.role}`,
-    `- Per-lease release shaper: ${policy.enforcement.releaseLeaseLocationShaper.limit} ${policy.enforcement.releaseLeaseLocationShaper.method} calls per ${policy.enforcement.releaseLeaseLocationShaper.windowSeconds} seconds in ${policy.enforcement.releaseLeaseLocationShaper.scope}; evaluated before ${policy.enforcement.releaseLeaseLocationShaper.evaluatedBefore}; ${policy.enforcement.releaseLeaseLocationShaper.role}`,
-    `- Required edge rule: ${policy.enforcement.edgeFloodProtection.plan}; exact path ${policy.enforcement.edgeFloodProtection.path}; count by ${policy.enforcement.edgeFloodProtection.characteristic}; ${policy.enforcement.edgeFloodProtection.limit} calls per ${policy.enforcement.edgeFloodProtection.windowSeconds} seconds; block for ${policy.enforcement.edgeFloodProtection.mitigationSeconds} seconds; ${policy.enforcement.edgeFloodProtection.role}; worst documented legitimate same-IP burst: ${policy.enforcement.legitimateBurstBasis.maximumColdStartPosts} cold-start POSTs + ${policy.enforcement.legitimateBurstBasis.maximumReleaseCalls} DELETEs + ${policy.enforcement.legitimateBurstBasis.maximumConcurrentRenewalCalls} PATCHes = ${policy.enforcement.legitimateBurstBasis.maximumPathCalls} calls, leaving ${policy.enforcement.edgeFloodProtection.limit - policy.enforcement.legitimateBurstBasis.maximumPathCalls} calls of margin`,
-    `- Public GET paths: ${policy.enforcement.publicGetPaths}`,
-    `- Free-tier basis as of ${policy.freeTierBasis.asOf}: ${policy.freeTierBasis.workerRequestsPerDay} Worker requests/day, ${policy.freeTierBasis.durableObjectRequestsPerDay} Durable Object requests/day, ${policy.freeTierBasis.durableObjectRowsReadPerDay} SQLite rows read/day, ${policy.freeTierBasis.durableObjectRowsWrittenPerDay} SQLite rows written/day, and ${policy.freeTierBasis.durableObjectGigabyteSecondsPerDay} Durable Object GB-s/day. Eight continuously occupied slots admit at most ${policy.freeTierBasis.maximumAcceptedRenewalsPerUtcDayAtActiveCap} renewals per UTC day; with grants and releases, the concurrency-tight protocol ceiling is ${policy.freeTierBasis.maximumProtocolLifecycleActionsPerUtcDay} lifecycle actions and ${policy.freeTierBasis.maximumProtocolDirectDurableObjectRequestsPerUtcDay} direct Durable Object calls. Under the nominal single-location configured rates, the ${policy.globalDailyRequests.limit}-admission budget and ${policy.enforcement.pathLocationShaper.limit}-per-minute combined local shaper budget ${policy.freeTierBasis.maximumBudgetedDurableObjectRequestsPerDay} service-wide Durable Object requests, ${policy.freeTierBasis.maximumBudgetedDurableObjectRowsReadPerDay} rows read, and ${policy.freeTierBasis.maximumBudgetedDurableObjectRowsWrittenPerDay} rows written. This includes ${policy.freeTierBasis.maximumBudgetedAlarmInvocationsPerUtcDay} alarm invocations after ${policy.freeTierBasis.alarmMaximumRetriesPerEvent} retries per event and prior-day retry spill, preserving ${policy.freeTierBasis.durableObjectRequestHeadroomPerDay} request, ${policy.freeTierBasis.durableObjectRowsReadHeadroomPerDay} row-read, and ${policy.freeTierBasis.durableObjectRowsWrittenHeadroomPerDay} row-write headroom. One ${policy.freeTierBasis.durableObjectMemoryGigabytes}-GB (${policy.freeTierBasis.durableObjectMemoryMegabytes}-MB) singleton active for all ${policy.freeTierBasis.secondsPerUtcDay} seconds would use ${policy.freeTierBasis.maximumSingletonDurationGigabyteSecondsPerDay} GB-s and preserve ${policy.freeTierBasis.durableObjectDurationHeadroomGigabyteSecondsPerDay} GB-s. This is not an aggregate Worker-request or distributed-abuse guarantee: in-Worker denials are already billed, and distributed hostile traffic plus permissive-counter overshoot remain additional. The dedicated verification frame adds ${policy.freeTierBasis.verificationFrameWorkerCallsForDailyGrants} Worker calls under its static-only hosting contract: ${policy.freeTierBasis.verificationFrameHosting}. ${policy.freeTierBasis.exhaustionMode}; ${policy.freeTierBasis.workerLimitsUrl}; ${policy.freeTierBasis.staticAssetsBillingUrl}; ${policy.freeTierBasis.durableObjectPricingUrl}; ${policy.freeTierBasis.durableObjectAlarmsUrl}`,
-    `- Provider-managed recovery history: up to ${policy.providerRecoveryHistoryDays} days`,
-    `- Failure mode: ${policy.failureMode}`,
+    `- Endpoint: ${absoluteUrl("/api/lattice")} with same-origin POST only; no query, redirect, cookie, browser credential, or provider origin`,
+    "- Exact JSON request body: {text, requested_mode, schema_version: 1}; no additional fields",
+    "- Trigger: only the visitor's explicit Process with external service confirmation",
+    `- External processing: ${security.huggingFace.summary}`,
+    "- Application retention: no database, object storage, raw-content log, cache, queue, or analytics event for source, prompts, candidates, results, or raw provider bodies; responses use Cache-Control: no-store",
+    "- Failure: one bounded success or machine-readable error; no automatic browser retry and no provider or model fallback",
+    `- Provider boundary: ${security.api.limitation}`,
+    "- Historical boundary: the WebLLM/MLC browser runtime, bodyless quota lease, Turnstile attestation, renewal, and release protocol are inactive and retained only as provenance",
   ].join("\n");
 }
 
@@ -597,7 +590,7 @@ function securityAndPrivacyMarkdown() {
     "",
     upstreamLinks,
     "",
-    "#### Quota API",
+    "#### Same-origin remote capability",
     "",
     security.api.summary,
     "",
@@ -664,13 +657,13 @@ export function renderLlmsTxt() {
     : applicationReleaseStatus === "enabled"
       ? "The Text to Lattice interactive client is enabled."
       : "No Text to Lattice interactive client is represented as available.";
-  return `# hah.dev\n\n> ${person.headline}\n\nAuthoritative public portfolio map. ${releaseBoundary} Source and results remain transient and are never included in these files.\n\n## Primary pages\n\n- [About](${SITE_ORIGIN}/)\n- [Resume](${absoluteUrl("/resume/")})\n- [Projects](${absoluteUrl("/projects/")})\n- [Requirements](${absoluteUrl("/requirements/")})\n- [Semantic vocabulary](${absoluteUrl("/ns/")})\n- [Third-party notices](${absoluteUrl("/third-party-notices/")})\n- [Tools](${absoluteUrl("/tools/")})\n- [Shelf](${absoluteUrl("/shelf/")})\n\n## Lattice documentation\n\n${documentation}\n\n### Text to Lattice release evidence\n\n${releaseEvidence}\n\n## Structured records\n\n- [Project manifest](${absoluteUrl("/projects.json")})\n- [Resume manifest](${absoluteUrl("/resume.json")})\n- [Tools manifest](${absoluteUrl("/tools.json")})\n- [Shelf manifest](${absoluteUrl("/shelf.json")})\n- [Knowledge graph](${absoluteUrl("/knowledge-graph.jsonld")})\n- [Project schema, current v2](${absoluteUrl("/schemas/projects-v2.schema.json")})\n- [Project schema, archived v1](${absoluteUrl("/schemas/projects-v1.schema.json")})\n\n## Canonical text\n\n- [About Markdown](${absoluteUrl("/content/about.md")})\n- [Resume Markdown](${absoluteUrl("/content/resume.md")})\n- [Projects Markdown](${absoluteUrl("/content/projects.md")})\n- [Tools Markdown](${absoluteUrl("/content/tools.md")})\n- [Shelf Markdown](${absoluteUrl("/content/shelf.md")})\n- [Complete authoritative text](${absoluteUrl("/llms-full.txt")})\n\n## Provenance and terms\n\n- [Portfolio repository](${SITE_REPOSITORY})\n- Site content version: ${SITE_CONTENT_VERSION}\n- Last updated: ${SITE_CONTENT_UPDATED}\n- [Source-code license](${SITE_SOURCE_LICENSE_URL})\n- [Authored portfolio-content terms](${SITE_CONTENT_TERMS_URL})\n- [Third-party notices and supplied license texts](${absoluteUrl("/third-party-notices/")})\n`;
+  return `# hah.dev\n\n> ${person.headline}\n\nAuthoritative public portfolio map. ${releaseBoundary} After explicit confirmation, Text to Lattice sends exactly {text, requested_mode, schema_version: 1} by same-origin POST to /api/lattice. The server uses a fixed Qwen generator and Llama verifier through Hugging Face Inference Providers and Featherless AI. hah.dev does not incorporate submitted text or results into these public files or retain them in application storage, raw-content logs, caches, queues, or analytics; the browser does not retry automatically, and the server does not fall back to another provider or model. Submitted content leaves hah.dev and is processed under external-provider policies.\n\n## Primary pages\n\n- [About](${SITE_ORIGIN}/)\n- [Resume](${absoluteUrl("/resume/")})\n- [Projects](${absoluteUrl("/projects/")})\n- [Requirements](${absoluteUrl("/requirements/")})\n- [Semantic vocabulary](${absoluteUrl("/ns/")})\n- [Third-party notices](${absoluteUrl("/third-party-notices/")})\n- [Tools](${absoluteUrl("/tools/")})\n- [Shelf](${absoluteUrl("/shelf/")})\n\n## Lattice documentation\n\n${documentation}\n\n### Text to Lattice release evidence\n\n${releaseEvidence}\n\n## Structured records\n\n- [Project manifest](${absoluteUrl("/projects.json")})\n- [Resume manifest](${absoluteUrl("/resume.json")})\n- [Tools manifest](${absoluteUrl("/tools.json")})\n- [Shelf manifest](${absoluteUrl("/shelf.json")})\n- [Knowledge graph](${absoluteUrl("/knowledge-graph.jsonld")})\n- [Project schema, current v2](${absoluteUrl("/schemas/projects-v2.schema.json")})\n- [Project schema, archived v1](${absoluteUrl("/schemas/projects-v1.schema.json")})\n\n## Canonical text\n\n- [About Markdown](${absoluteUrl("/content/about.md")})\n- [Resume Markdown](${absoluteUrl("/content/resume.md")})\n- [Projects Markdown](${absoluteUrl("/content/projects.md")})\n- [Tools Markdown](${absoluteUrl("/content/tools.md")})\n- [Shelf Markdown](${absoluteUrl("/content/shelf.md")})\n- [Complete authoritative text](${absoluteUrl("/llms-full.txt")})\n\n## Provenance and terms\n\n- [Portfolio repository](${SITE_REPOSITORY})\n- Site content version: ${SITE_CONTENT_VERSION}\n- Last updated: ${SITE_CONTENT_UPDATED}\n- [Source-code license](${SITE_SOURCE_LICENSE_URL})\n- [Authored portfolio-content terms](${SITE_CONTENT_TERMS_URL})\n- [Third-party notices and supplied license texts](${absoluteUrl("/third-party-notices/")})\n`;
 }
 
 export function renderLlmsFull() {
   const requirements = [...sharedRequirements, ...practiceStandards].map((item) => `- ${item.label}: ${item.description} (${requirementGraphId(item.id)})`).join("\n");
   const vocabulary = namespaceTerms.map((item) => `- ${item.id}: ${item.description}`).join("\n");
-  return `# hah.dev — complete authoritative portfolio text\n\nAs of: ${SITE_CONTENT_UPDATED}\nVersion: ${SITE_CONTENT_VERSION}\nRepository: ${SITE_REPOSITORY}\nSite source-code license: ${SITE_SOURCE_LICENSE_URL}\nAuthored portfolio-content terms: ${SITE_CONTENT_TERMS_URL}\n\n## Representation boundary\n\nThis file contains owner-authored public portfolio information. Text entered into Text to Lattice, generated candidates, clarification answers, findings, and results remain transient browser state and are never incorporated here.\n\n## Requirements and practice standards\n\n${requirements}\n\n## Semantic vocabulary\n\n${vocabulary}\n\n---\n\n${renderAboutMarkdown()}\n\n---\n\n${renderResumeMarkdown()}\n\n---\n\n${renderProjectsMarkdown()}\n\n---\n\n${renderToolsMarkdown()}\n\n---\n\n${renderShelfMarkdown()}`;
+  return `# hah.dev — complete authoritative portfolio text\n\nAs of: ${SITE_CONTENT_UPDATED}\nVersion: ${SITE_CONTENT_VERSION}\nRepository: ${SITE_REPOSITORY}\nSite source-code license: ${SITE_SOURCE_LICENSE_URL}\nAuthored portfolio-content terms: ${SITE_CONTENT_TERMS_URL}\n\n## Representation boundary\n\nThis file contains owner-authored public portfolio information. Only after explicit confirmation, Text to Lattice sends exactly {text, requested_mode, schema_version: 1} to the same-origin /api/lattice capability. Its server uses a fixed Qwen generator and Llama verifier through the configured Hugging Face/Featherless service. hah.dev does not incorporate source, prompts, candidates, findings, or results here or keep them in application storage, raw-content logs, caches, queues, or analytics. The browser does not retry automatically, and the server does not fall back to another provider or model. External providers process submitted content under their own policies; do not submit restricted information.\n\n## Requirements and practice standards\n\n${requirements}\n\n## Semantic vocabulary\n\n${vocabulary}\n\n---\n\n${renderAboutMarkdown()}\n\n---\n\n${renderResumeMarkdown()}\n\n---\n\n${renderProjectsMarkdown()}\n\n---\n\n${renderToolsMarkdown()}\n\n---\n\n${renderShelfMarkdown()}`;
 }
 
 const xmlEscape = (value) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
@@ -683,7 +676,7 @@ export function renderSitemap() {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${rows}\n</urlset>\n`;
 }
 export function renderRobots() {
-  return `User-agent: *\nAllow: /\nDisallow: /api/text-to-lattice/\n\nSitemap: ${absoluteUrl("/sitemap.xml")}\n`;
+  return `User-agent: *\nAllow: /\nDisallow: /api/lattice\n\nSitemap: ${absoluteUrl("/sitemap.xml")}\n`;
 }
 
 const projectKinds = [...new Set(projects.map(({ type }) => type))];

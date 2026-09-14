@@ -110,7 +110,7 @@ function visibilityHarness() {
   };
 }
 
-const returnedResult = () => ({ text: "Returned local result", status: "review-required" });
+const returnedResult = () => ({ text: "Returned remote result", status: "review-required" });
 
 test("returned output refreshes visibility without a new focus or visibility event", () => {
   const h = visibilityHarness();

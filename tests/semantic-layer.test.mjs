@@ -17,14 +17,12 @@ import {
   PROJECT_DOCUMENTS_UPDATED, PROJECT_DOCUMENTS_VERSION, projectDocuments,
 } from "../app/content/projectDocuments.js";
 import {
-  LOCAL_LATTICE_MODEL,
-  LATTICE_MODEL_ROLES,
-  LATTICE_RUNTIME,
-  LATTICE_STRUCTURED_OUTPUT_RUNTIME,
-  LATTICE_TOKENIZER_RUNTIME,
-  LATTICE_WASM_REVISION,
-  LATTICE_WASM_REPOSITORY,
+  LOCAL_LATTICE_MODEL as HISTORICAL_LOCAL_LATTICE_MODEL,
 } from "../app/resume/lattice/modelContract.js";
+import {
+  HUGGING_FACE_CHAT_COMPLETIONS_URL,
+  LATTICE_REMOTE_MODELS,
+} from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
   knowledgeGraph,
   namespaceGraphId,
@@ -344,7 +342,7 @@ test("every canonical route is a substantive no-JavaScript document", async () =
   }
 });
 
-test("project and résumé records remain present with the enabled Lattice interaction", async () => {
+test("project and résumé records remain present while the Lattice interaction is held", async () => {
   const response = await request("/resume/", "text/html");
   const html = await response.text();
   const text = decodedText(html);
@@ -362,13 +360,12 @@ test("project and résumé records remain present with the enabled Lattice inter
   assert.match(html, /href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/u);
   assert.match(
     html,
-    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*data-lattice-launch="text-to-lattice")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Use Text to Lattice")(?=[^>]*aria-haspopup="dialog")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
+    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
   );
-  assert.equal((html.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 1);
+  assert.equal((html.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 0);
   assert.match(html, /class="modal resume-modal"/u);
-  assert.match(html, /id="lattice-demo-dialog"/u);
-  assert.match(html, /id="lattice-demo-input"/u);
-  assert.match(html, /id="lattice-use-confirmation"/u);
+  assert.doesNotMatch(html, /id="lattice-demo-dialog"|id="lattice-demo-input"|id="lattice-use-confirmation"/u);
+  assert.match(html, /Text to Lattice remains held while deployment and end-to-end privacy evidence/iu);
 });
 
 test("machine manifests match their authoritative source objects", async () => {
@@ -694,7 +691,7 @@ test("the not-found document contains only exclusionary crawler directives", asy
 test("project and Text to Lattice implementation provenance stays source-aligned", async () => {
   const graphById = new Map(knowledgeGraph["@graph"].map((node) => [node["@id"], node]));
   const resumeMarkdown = renderResumeMarkdown();
-  assert.equal(PROJECT_CONTENT_VERSION, "hah-portfolio-projects.v7");
+  assert.equal(PROJECT_CONTENT_VERSION, "hah-portfolio-projects.v8");
   assert.equal(projectsManifest.version, PROJECT_CONTENT_VERSION);
   assert.equal(projectsManifest.asOf, PROJECT_CONTENT_UPDATED);
   const mediumProject = projects.find(({ id }) => id === "medium");
@@ -791,17 +788,19 @@ test("project and Text to Lattice implementation provenance stays source-aligned
 
   const latticeRecord = projectsManifest.projects.find(({ id }) => id === "lattice");
   const latticeResumeRecord = resumeManifest.projects.find(({ id }) => id === "lattice");
-  assert.ok(latticeRecord && latticeResumeRecord);
-  assert.equal(latticeRecord.interactiveRelease, "enabled");
+  const latticeSource = projects.find(({ id }) => id === "lattice");
+  assert.ok(latticeRecord && latticeResumeRecord && latticeSource);
+  assert.equal(latticeSource.interaction, null);
+  assert.equal(latticeRecord.interactiveRelease, "held");
   assert.deepEqual(latticeResumeRecord.documentation, latticeRecord.documentation);
-  assert.equal(latticeResumeRecord.interactiveRelease, "enabled");
+  assert.equal(latticeResumeRecord.interactiveRelease, "held");
   assert.deepEqual(latticeResumeRecord.limitations, latticeRecord.limitations);
   assert.deepEqual(
     latticeRecord.documentation.filter(({ markdownUrl }) => markdownUrl).map(({ artifactId }) => artifactId),
     projectDocuments.map(({ artifactId }) => artifactId),
   );
   const latticeGraph = graphById.get("https://hah.dev/projects/lattice/#work");
-  assert.equal(latticeGraph[hah("interactiveRelease")], "enabled");
+  assert.equal(latticeGraph[hah("interactiveRelease")], "held");
   assert.deepEqual(latticeGraph.hasPart, projectDocuments.map(({ htmlUrl }) => ({ "@id": htmlUrl })));
   for (const document of projectDocuments) {
     const node = graphById.get(document.htmlUrl);
@@ -815,57 +814,77 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     assert.equal(node.encoding.encodingFormat, document.markdownMediaType);
   }
 
-  const generatorInferenceSummary = `${Object.entries(LATTICE_MODEL_ROLES.generator.inference.stages)
-    .map(([stage, settings]) => `${stage} temperature ${settings.temperature}, top-p ${settings.topP}`)
-    .join("; ")}; fixed seed ${LATTICE_MODEL_ROLES.generator.inference.seed}; thinking disabled`;
   const expectedGenerator = {
-    name: LATTICE_MODEL_ROLES.generator.label,
-    modelId: LATTICE_MODEL_ROLES.generator.id,
-    revision: LATTICE_MODEL_ROLES.generator.revision,
-    repository: LATTICE_MODEL_ROLES.generator.repository,
-    revisionUrl: LATTICE_MODEL_ROLES.generator.revisionUrl,
-    baseModelRepository: LATTICE_MODEL_ROLES.generator.baseModelRepository,
-    licenseName: LATTICE_MODEL_ROLES.generator.licenseName,
-    licenseUrl: LATTICE_MODEL_ROLES.generator.licenseUrl,
-    inference: { ...LATTICE_MODEL_ROLES.generator.inference },
-    inferenceSummary: generatorInferenceSummary,
+    name: "Qwen3-4B server-side generator",
+    modelId: LATTICE_REMOTE_MODELS.generator,
+    revision: "provider-managed remote serving revision",
+    repository: "https://huggingface.co/Qwen/Qwen3-4B",
+    revisionUrl: "https://huggingface.co/Qwen/Qwen3-4B",
+    baseModelRepository: "https://huggingface.co/Qwen/Qwen3-4B",
+    licenseName: "Apache License 2.0",
+    licenseUrl: "https://huggingface.co/Qwen/Qwen3-4B/blob/main/LICENSE",
+    inference: {
+      seed: 71_903,
+      thinking: false,
+      stages: {
+        analysis: { temperature: 0.1, topP: 0.9, maximumOutputTokens: 2_000 },
+        candidate: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
+        repair: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
+      },
+    },
+    inferenceSummary: "server-side structured completion through Hugging Face Inference Providers and Featherless AI; fixed seed 71903; Qwen thinking disabled; bounded stage-specific output limits",
   };
   const expectedVerifier = {
-    name: LATTICE_MODEL_ROLES.verifier.label,
-    modelId: LATTICE_MODEL_ROLES.verifier.id,
-    revision: LATTICE_MODEL_ROLES.verifier.revision,
-    repository: LATTICE_MODEL_ROLES.verifier.repository,
-    revisionUrl: LATTICE_MODEL_ROLES.verifier.revisionUrl,
-    baseModelRepository: LATTICE_MODEL_ROLES.verifier.baseModelRepository,
-    licenseName: LATTICE_MODEL_ROLES.verifier.licenseName,
-    licenseUrl: LATTICE_MODEL_ROLES.verifier.licenseUrl,
-    acceptableUseUrl: LATTICE_MODEL_ROLES.verifier.acceptableUseUrl,
-    inference: { ...LATTICE_MODEL_ROLES.verifier.inference },
+    name: "Llama 3.2 3B Instruct server-side verifier",
+    modelId: LATTICE_REMOTE_MODELS.verifier,
+    revision: "provider-managed remote serving revision",
+    repository: "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct",
+    revisionUrl: "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct",
+    baseModelRepository: "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct",
+    licenseName: "Llama 3.2 Community License Agreement",
+    licenseUrl: "https://developer.meta.com/ai/llama3_2/license/",
+    acceptableUseUrl: "https://developer.meta.com/ai/llama3_2/use-policy/",
+    inference: {
+      seed: 71_903,
+      stages: {
+        verification: { temperature: 0, topP: 1, maximumOutputTokens: 1_200 },
+        certification: { temperature: 0, topP: 1, maximumOutputTokens: 520 },
+      },
+    },
   };
   const expectedRuntime = {
-    name: LATTICE_RUNTIME.name,
-    version: LATTICE_RUNTIME.version,
-    packageUrl: LATTICE_RUNTIME.packageUrl,
-    documentationUrl: LATTICE_RUNTIME.documentationUrl,
-    repository: LATTICE_RUNTIME.repository,
-    tokenizerName: LATTICE_TOKENIZER_RUNTIME.name,
-    tokenizerVersion: LATTICE_TOKENIZER_RUNTIME.version,
-    tokenizerPackageUrl: LATTICE_TOKENIZER_RUNTIME.packageUrl,
-    structuredOutputName: LATTICE_STRUCTURED_OUTPUT_RUNTIME.name,
-    structuredOutputVersion: LATTICE_STRUCTURED_OUTPUT_RUNTIME.version,
-    structuredOutputPackageUrl: LATTICE_STRUCTURED_OUTPUT_RUNTIME.packageUrl,
-    structuredOutputRepository: LATTICE_STRUCTURED_OUTPUT_RUNTIME.repository,
-    structuredOutputLicenseName: LATTICE_STRUCTURED_OUTPUT_RUNTIME.licenseName,
-    structuredOutputLicenseUrl: LATTICE_STRUCTURED_OUTPUT_RUNTIME.licenseUrl,
-    wasmRevision: LATTICE_WASM_REVISION,
-    wasmRepository: LATTICE_WASM_REPOSITORY,
-    wasmLicenseStatus: LOCAL_LATTICE_MODEL.wasmLicenseStatus,
+    name: "Hugging Face Inference Providers with Featherless AI",
+    version: "provider-managed remote service",
+    packageUrl: "https://huggingface.co/docs/inference-providers/",
+    documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
+    repository: HUGGING_FACE_CHAT_COMPLETIONS_URL,
+    tokenizerName: "Provider-managed model tokenizer",
+    tokenizerVersion: "provider-managed",
+    tokenizerPackageUrl: "https://huggingface.co/docs/inference-providers/",
+    structuredOutputName: "strict JSON Schema response formatting",
+    structuredOutputVersion: "provider-managed",
+    structuredOutputPackageUrl: "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
+    structuredOutputRepository: "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
+    structuredOutputLicenseName: "Hugging Face and provider service terms",
+    structuredOutputLicenseUrl: "https://huggingface.co/terms-of-service",
+    wasmRevision: "historical and inactive",
+    wasmRepository: HISTORICAL_LOCAL_LATTICE_MODEL.wasmRepository,
+    wasmLicenseStatus: "The active provider-managed runtime is not asserted to be byte-for-byte equivalent to the historical pinned MLC/WebGPU artifacts. Those artifact records describe the inactive browser-local release only.",
   };
   assert.deepEqual(textToLatticeContract.implementation.generator, expectedGenerator);
   assert.deepEqual(textToLatticeContract.implementation.verifier, expectedVerifier);
   assert.deepEqual(textToLatticeContract.implementation.runtime, expectedRuntime);
-  assert.equal(LOCAL_LATTICE_MODEL.models[0], LATTICE_MODEL_ROLES.generator);
-  assert.equal(LOCAL_LATTICE_MODEL.models[1], LATTICE_MODEL_ROLES.verifier);
+  const historicalRuntime = textToLatticeContract.implementation.historicalLocalRuntime;
+  assert.equal(historicalRuntime.status, "inactive");
+  assert.equal(historicalRuntime.generatorModelId, HISTORICAL_LOCAL_LATTICE_MODEL.models[0].id);
+  assert.equal(historicalRuntime.verifierModelId, HISTORICAL_LOCAL_LATTICE_MODEL.models[1].id);
+  assert.equal(
+    historicalRuntime.runtime,
+    `${HISTORICAL_LOCAL_LATTICE_MODEL.runtime.name} ${HISTORICAL_LOCAL_LATTICE_MODEL.runtime.version}`,
+  );
+  assert.match(historicalRuntime.statement, /provenance only[\s\S]*?not the active inference path/iu);
+  assert.notEqual(expectedGenerator.modelId, HISTORICAL_LOCAL_LATTICE_MODEL.models[0].id);
+  assert.notEqual(expectedVerifier.modelId, HISTORICAL_LOCAL_LATTICE_MODEL.models[1].id);
 
   const applicationId = `${new URL(textToLatticeContract.canonicalPath, "https://hah.dev").href}#application`;
   const application = graphById.get(applicationId);
@@ -876,22 +895,17 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   assert.equal(application.name, "Text to Lattice");
   assert.equal(application.creativeWorkStatus, latticeRecord.interactiveRelease);
   assert.equal(application[hah("interactiveRelease")], latticeRecord.interactiveRelease);
+  assert.equal(application[hah("publicationMode")], "documentation-only");
+  assert.equal(application.operatingSystem, "Modern browser with JavaScript over HTTPS");
   assert.equal(
-    application[hah("publicationMode")],
-    latticeRecord.interactiveRelease === "enabled" ? "interactive-client" : "documentation-only",
+    application.description,
+    `${textToLatticeContract.purpose} The public interactive client is held; this page publishes documentation only.`,
   );
-  assert.equal(application.description, textToLatticeContract.purpose);
   assert.equal(graphById.get(`${new URL(textToLatticeContract.canonicalPath, "https://hah.dev").href}#page`)?.description, application.description);
   assert.deepEqual(application[hah("generator")], expectedGenerator);
   assert.deepEqual(application[hah("verifier")], expectedVerifier);
   assert.deepEqual(application[hah("runtime")], expectedRuntime);
   assert.deepEqual(application[hah("securityAndPrivacy")], textToLatticeContract.securityAndPrivacy);
-
-  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-  const webLlmPackage = JSON.parse(await readFile(new URL("../node_modules/@mlc-ai/web-llm/package.json", import.meta.url), "utf8"));
-  assert.equal(packageJson.dependencies["@mlc-ai/web-llm"], LATTICE_RUNTIME.version);
-  assert.equal(packageJson.dependencies["@mlc-ai/web-tokenizers"], LATTICE_TOKENIZER_RUNTIME.version);
-  assert.equal(webLlmPackage.devDependencies["@mlc-ai/web-xgrammar"], LATTICE_STRUCTURED_OUTPUT_RUNTIME.version);
 
   const [toolHtml, latticeMarkdown, completeText] = await Promise.all([
     request(textToLatticeContract.canonicalPath, "text/html").then((response) => response.text()),
@@ -906,7 +920,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     assert.ok(body.includes(`Interactive client release: ${machineValueLabel(latticeRecord.interactiveRelease)}`));
     assert.ok(body.includes(`Public client status: ${machineValueLabel(application[hah("interactiveRelease")])}`));
     assert.ok(body.includes(`Publication mode: ${machineValueLabel(application[hah("publicationMode")])}`));
-    assert.match(body, /public interactive client is included in the public bundle/iu);
+    assert.match(body, /interactive client is not included in the public bundle|public interactive client is held/iu);
   }
   const publicProvenance = [authoredDocument(toolHtml), latticeMarkdown];
   for (const body of publicProvenance) {
@@ -916,18 +930,20 @@ test("project and Text to Lattice implementation provenance stays source-aligned
       expectedVerifier.name, expectedVerifier.revision, expectedVerifier.repository,
       expectedRuntime.name, expectedRuntime.version, expectedRuntime.tokenizerName,
       expectedRuntime.tokenizerVersion, expectedRuntime.structuredOutputName,
-      expectedRuntime.structuredOutputVersion, expectedRuntime.wasmRevision,
+      expectedRuntime.structuredOutputVersion,
     ]) assert.ok(body.includes(value), `public tool provenance includes ${value}`);
   }
   for (const body of [decodedText(toolHtml), latticeMarkdown, completeText]) {
     assert.match(body, /Text to Lattice/u);
     assert.doesNotMatch(body, /Text-to-Lattice/u);
-    assert.match(body, /does not use a Hugging Face inference API/iu);
-    assert.match(body, /source text.*never sent.*Hugging Face|entered text is never sent.*Hugging Face/iu);
-    assert.match(body, /ordinary connection and download metadata/iu);
-    assert.match(body, /credentials and referrers/iu);
+    assert.match(body, /same-origin (?:POST to |\/api\/lattice capability)|same-origin \/api\/lattice/iu);
+    assert.match(body, /text leaves hah\.dev|sends server-created prompts containing the submitted text/iu);
+    assert.match(body, /ordinary connection metadata/iu);
+    assert.match(body, /no cookies or credentials/iu);
     assert.match(body, /inert data/iu);
-    assert.match(body, /distinct Cloudflare encrypted Worker secrets/iu);
+    assert.match(body, /server-side encrypted Worker secret/iu);
+    assert.match(body, /no automatic (?:browser )?retry|does not retry automatically/iu);
+    assert.match(body, /no provider or model fallback|does not fall back to another provider or model/iu);
     assert.match(body, /cannot prevent operating-system screenshots/iu);
     assert.match(body, /cannot guarantee.*unreadable to an AI system/iu);
   }
@@ -939,9 +955,11 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   const upstreamUrls = new Set(textToLatticeContract.securityAndPrivacy.huggingFace.sources.map(({ url }) => url));
   for (const required of [
     "https://huggingface.co/privacy",
-    "https://huggingface.co/docs/hub/security",
-    "https://huggingface.co/docs/hub/models-downloading",
-    "https://huggingface.co/docs/huggingface_hub/guides/download",
+    "https://huggingface.co/terms-of-service",
+    "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
+    "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
+    "https://huggingface.co/docs/inference-providers/en/security",
+    "https://huggingface.co/docs/inference-providers/en/providers/featherless-ai",
   ]) assert.ok(upstreamUrls.has(required), required);
   for (const id of ["securityAndPrivacy", "interactiveRelease", "publicationMode"]) {
     assert.ok(namespaceTerms.some((term) => term.id === id), `${id} has a vocabulary definition`);
@@ -977,7 +995,7 @@ test("robots, sitemap, and llms discovery cover canonical public records", async
   ]);
   assert.match(robots, /^User-agent: \*$/mu);
   assert.match(robots, /^Allow: \/$/mu);
-  assert.match(robots, /^Disallow: \/api\/text-to-lattice\/$/mu);
+  assert.match(robots, /^Disallow: \/api\/lattice$/mu);
   assert.match(robots, /^Sitemap: https:\/\/hah\.dev\/sitemap\.xml$/mu);
 
   const sitemapUrls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/gu)].map((match) => match[1]);
@@ -987,9 +1005,9 @@ test("robots, sitemap, and llms discovery cover canonical public records", async
   ]);
   for (const { markdownUrl } of projectDocuments) assert.equal(sitemapUrls.includes(markdownUrl), false);
 
-  assert.match(resumeMarkdown, /## Lattice[\s\S]*?Interactive client: enabled[\s\S]*?### Limitations[\s\S]*?official testing profile[\s\S]*?no production anti-bot assurance/iu);
-  assert.equal(JSON.parse(resumeJson).projects.find(({ id }) => id === "lattice")?.interactiveRelease, "enabled");
-  assert.match(llms, /The Text to Lattice interactive client is enabled/u);
+  assert.match(resumeMarkdown, /## Lattice[\s\S]*?Interactive client: held[\s\S]*?### Limitations[\s\S]*?same-origin \/api\/lattice capability[\s\S]*?external services process submitted content/iu);
+  assert.equal(JSON.parse(resumeJson).projects.find(({ id }) => id === "lattice")?.interactiveRelease, "held");
+  assert.match(llms, /The Text to Lattice interactive client is held/u);
   assert.match(portfolioSource, /const releaseBoundary = applicationReleaseStatus === "held"/u);
   assert.match(portfolioSource, /applicationReleaseStatus === "enabled"[\s\S]*?interactive client is enabled/u);
   for (const filename of [
@@ -1020,7 +1038,10 @@ test("semantic artifacts exclude transient Text to Lattice state", async () => {
   ]) {
     assert.doesNotMatch(combined, new RegExp(privateStateIdentifier, "u"));
   }
-  assert.match(combined, /transient browser (?:memory|state)/u);
+  assert.match(
+    combined,
+    /bounded Worker and browser keep only transient in-memory state needed for the request and display/u,
+  );
 });
 
 test("semantic artifacts and supplied license records are directly present at their public paths", async () => {

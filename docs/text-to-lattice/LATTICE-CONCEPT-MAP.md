@@ -1,6 +1,6 @@
 ---
 title: Lattice concept and ecosystem map
-revision: 2026-09-11
+revision: 2026-09-14
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
@@ -71,7 +71,7 @@ flowchart TB
   end
   subgraph ecosystem["Ecosystem"]
     direction TB
-    LATN021["Text to Lattice<br/>Probabilistic wrapper, distinct authority model"]
+    LATN021["Text to Lattice<br/>Probabilistic remote wrapper, distinct authority model"]
     LATN022["FOG OF SEA<br/>Naval learning and operational uncertainty"]
     LATN023["CHORUS<br/>Social and epistemic systems"]
     LATN024["Evenward<br/>Selected embodied guidance and care"]
@@ -415,14 +415,14 @@ Disabled users, assistive technologies, domain reviewers, and editors test acces
 Products that apply or interpret Lattice under their own contracts.
 
 <details id="lat-n-021">
-<summary><strong>LAT-N-021</strong> · Text to Lattice — Probabilistic wrapper, distinct authority model</summary>
+<summary><strong>LAT-N-021</strong> · Text to Lattice — Probabilistic remote wrapper, distinct authority model</summary>
 
-The hah.dev demonstrator infers a bounded contract from prose with local models and independent checks. It does not inherit the upstream engine's typed caller-authority guarantee and must state its weaker semantic boundary separately.
+The hah.dev demonstrator sends visitor-authorized text through a same-origin API to fixed server-side Featherless-served Qwen generation and Llama verification models. It does not inherit the upstream engine's typed caller-authority guarantee and must state its weaker semantic and external-processing boundary separately.
 
 - **Group:** Ecosystem
 - **Authority:** Wrapper claim boundary
 - **Perspectives:** ecosystem, host, assurance
-- **Sources:** SRC-REQUIREMENTS, SRC-DEMO, SRC-PROJECTS
+- **Sources:** SRC-REQUIREMENTS, SRC-PUBLIC-CONTRACT, SRC-REMOTE-PROTOCOL, SRC-API-WORKER, SRC-HF-ADAPTER, SRC-PROJECTS
 - **Typed relations:** LAT-N-021 → acts as a probabilistic host wrapper → LAT-N-019 (LAT-E-023); LAT-N-021 → cannot inherit caller-supplied authority by inference → LAT-N-001 (LAT-E-024); LAT-N-021 → demonstrates Lattice principles without embedding the engine → LAT-N-000 (LAT-E-029)
 
 </details>
@@ -517,19 +517,26 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-PROTECTED — Protected-span handling:** `app/resume/lattice/protectedSpans.js`
 - **SRC-PROMPTS — Closed prompts and schemas:** `app/resume/lattice/promptContract.js`
 - **SRC-VALIDATORS — Deterministic semantic validators:** `app/resume/lattice/validators.js`
-- **SRC-LOCAL-MODEL — Local model adapter:** `app/resume/lattice/localModel.js`
-- **SRC-MODEL-CONTRACT — Pinned model contract:** `app/resume/lattice/modelContract.js`
-- **SRC-MODEL-WORKER — Isolated model worker:** `app/resume/lattice/latticeWebllm.worker.ts`
-- **SRC-ASSET-POLICY — Model-asset request policy:** `app/resume/lattice/assetRequestPolicy.js`
-- **SRC-ATTESTATION — Cross-origin attestation protocol:** `app/resume/lattice/attestation.js`
-- **SRC-USAGE-LEASE — Browser lease client:** `app/resume/lattice/usageLease.js`
-- **SRC-USAGE-POLICY — Published usage and capacity policy:** `app/resume/lattice/usagePolicy.js`
+- **SRC-LOCAL-MODEL — Historical inactive local model adapter:** `app/resume/lattice/localModel.js`
+- **SRC-MODEL-CONTRACT — Historical inactive browser-model contract:** `app/resume/lattice/modelContract.js`
+- **SRC-MODEL-WORKER — Historical inactive isolated WebLLM worker:** `app/resume/lattice/latticeWebllm.worker.ts`
+- **SRC-ASSET-POLICY — Historical inactive model-asset request policy:** `app/resume/lattice/assetRequestPolicy.js`
+- **SRC-ATTESTATION — Historical inactive cross-origin attestation protocol:** `app/resume/lattice/attestation.js`
+- **SRC-USAGE-LEASE — Historical inactive browser lease client:** `app/resume/lattice/usageLease.js`
+- **SRC-USAGE-POLICY — Historical inactive usage and capacity policy:** `app/resume/lattice/usagePolicy.js`
 - **SRC-OUTPUT — Output protection controls:** `app/resume/lattice/outputProtection.js`
-- **SRC-LEASE-WORKER — Lease Worker request coordinator:** `workers/text-to-lattice-lease/worker.js`
-- **SRC-DEMO-PROFILE — Bounded Cloudflare demonstration profile:** `workers/text-to-lattice-lease/demonstrationProfile.js`
-- **SRC-USAGE-STORAGE — Global usage authority:** `workers/text-to-lattice-lease/usageStorage.js`
-- **SRC-FRAME — Dedicated verification bridge:** `workers/text-to-lattice-attestation-frame/public/turnstile/bridge.js`
+- **SRC-LEASE-WORKER — Historical inactive lease Worker request coordinator:** `workers/text-to-lattice-lease/worker.js`
+- **SRC-DEMO-PROFILE — Historical inactive bounded Cloudflare demonstration profile:** `workers/text-to-lattice-lease/demonstrationProfile.js`
+- **SRC-USAGE-STORAGE — Historical inactive global usage authority:** `workers/text-to-lattice-lease/usageStorage.js`
+- **SRC-FRAME — Historical inactive Turnstile verification bridge:** `workers/text-to-lattice-attestation-frame/public/turnstile/bridge.js`
 - **SRC-RESPONSE-POLICY — Résumé response-policy Worker:** `workers/text-to-lattice-response-policy/worker.js`
+- **SRC-PUBLIC-CONTRACT — Public Text to Lattice disclosure and policy contract:** `app/content/textToLatticeContent.js`
+- **SRC-NETWORK-CAPABILITY — Named browser network capability:** `app/privacy/networkCapabilities.js`
+- **SRC-REMOTE-PROTOCOL — Remote request and response protocol:** `app/resume/lattice/remoteProtocol.js`
+- **SRC-REMOTE-CLIENT — Same-origin remote request client:** `app/resume/lattice/remoteRequest.js`
+- **SRC-API-WORKER — Same-origin Text to Lattice API Worker:** `workers/text-to-lattice-api/worker.js`
+- **SRC-HF-ADAPTER — Fixed Hugging Face and Featherless provider adapter:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
+- **SRC-API-CONFIG — Text to Lattice API Worker configuration:** `workers/text-to-lattice-api/wrangler.jsonc`
 - **SRC-SECRET-BOOTSTRAP — Fail-closed secret bootstrap:** `scripts/bootstrap-text-to-lattice-secrets.mjs`
 - **SRC-ROUTE-INVENTORY — Authenticated Worker route inventory verifier:** `scripts/verify-text-to-lattice-route-inventory.mjs`
 - **SRC-TEST-ENGINE — Engine executable contracts:** `tests/lattice-demo.test.mjs`
@@ -537,6 +544,9 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-TEST-ISOLATE — Isolate hardening executable contracts:** `tests/lattice-isolate-hardening.test.mjs`
 - **SRC-TEST-CAPACITY — Protocol capacity executable contracts:** `tests/lattice-protocol-capacity.test.mjs`
 - **SRC-TEST-A11Y — Modal accessibility source contracts:** `tests/lattice-modal-accessibility.test.mjs`
+- **SRC-TEST-CAPABILITY — Remote capability executable contracts:** `tests/lattice-network-capability.test.mjs`
+- **SRC-TEST-GOVERNANCE — Remote governance executable contracts:** `tests/lattice-network-governance.test.mjs`
+- **SRC-TEST-API — Remote API Worker executable contracts:** `tests/lattice-api-worker.test.mjs`
 - **SRC-PROJECTS — Portfolio project and ecosystem register:** `app/resume/projects.js`
 - **SRC-RELEASE-REGISTER — Machine-enforced Text to Lattice release register:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json`
 - **SRC-RELEASE-QUALIFICATION — Text to Lattice release qualification:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
@@ -554,6 +564,10 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-LAT-ADVERSARIAL — Lattice adversarial executable contracts at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/test/adversarial.test.mjs)
 - **SRC-NNG-SKILL — NN/g skill mapping:** [Reviewed source](https://www.nngroup.com/articles/skill-mapping/)
 - **SRC-NNG-BLUEPRINT — NN/g service blueprint definition:** [Reviewed source](https://www.nngroup.com/articles/service-blueprints-definition/)
+- **SRC-HF-CHAT — Hugging Face OpenAI-compatible chat-completions API:** [Reviewed source](https://huggingface.co/docs/inference-providers/tasks/chat-completion)
+- **SRC-HF-STRUCTURED — Hugging Face structured-output guidance:** [Reviewed source](https://huggingface.co/docs/inference-providers/guides/structured-output)
+- **SRC-HF-SECURITY — Hugging Face security and privacy policy:** [Reviewed source](https://huggingface.co/security)
+- **SRC-HF-FEATHERLESS — Hugging Face Featherless provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/featherless-ai)
 - **SRC-LATTICE-UPSTREAM — Lattice upstream repository:** [Reviewed source](https://github.com/howardhayden/lattice)
 
 ## Terms and provenance

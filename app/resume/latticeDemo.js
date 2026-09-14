@@ -50,6 +50,7 @@ import {
   LATTICE_LAYERS,
   LATTICE_PASSAGE_VERIFICATION_CHECKS,
   LATTICE_PRESERVATION_MODES,
+  LATTICE_REQUEST_MODES,
   LATTICE_VERIFICATION_DECISIONS,
   LATTICE_VERIFICATION_GATES,
   LATTICE_VERIFICATION_ISSUE_CHECKS,
@@ -74,6 +75,7 @@ export {
   LATTICE_INPUT_UTF8_LIMIT,
   LATTICE_TOKEN_CODE_POINT_LIMIT,
   LATTICE_WORD_LIMIT,
+  LATTICE_REQUEST_MODES,
   TEXT_TO_LATTICE_VERSION,
   countLatticeWords,
   validateLatticeClarificationAnswer,
@@ -186,7 +188,7 @@ function protocol(condition, message) {
 }
 
 function throwIfAborted(signal) {
-  if (signal?.aborted) throw new DOMException("The local conversion was canceled.", "AbortError");
+  if (signal?.aborted) throw new DOMException("The conversion was canceled.", "AbortError");
 }
 
 function record(value) {
@@ -780,16 +782,16 @@ async function normalizeQuestions(rawQuestions, passagesById, {
 async function provenanceFingerprint(prefix, value, signal) {
   const serialized = JSON.stringify(value);
   protocol(typeof TextEncoder === "function" && typeof globalThis.crypto?.subtle?.digest === "function",
-    "Text to Lattice requires a secure browser digest implementation.");
+    "Text to Lattice requires a secure digest implementation.");
   throwIfAborted(signal);
   let timeout = null;
   let cancel = null;
   const boundary = new Promise((_resolve, reject) => {
     timeout = setTimeout(() => {
-      reject(new Error("Text to Lattice did not finish a local integrity check in time."));
+      reject(new Error("Text to Lattice did not finish an integrity check in time."));
     }, LATTICE_PROVENANCE_DIGEST_TIMEOUT_MS);
     if (signal) {
-      cancel = () => reject(new DOMException("The local conversion was canceled.", "AbortError"));
+      cancel = () => reject(new DOMException("The conversion was canceled.", "AbortError"));
       signal.addEventListener("abort", cancel, { once: true });
     }
   });
@@ -1744,7 +1746,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
       performed: false,
       windowed: true,
       findings: Object.freeze([certificationCoverageFinding(
-        "At least one complete certification obligation could not fit the independent local context.",
+        "At least one complete certification obligation could not fit the independent context.",
       )]),
     });
   }
@@ -1777,7 +1779,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
         performed: false,
         windowed: true,
         findings: Object.freeze([certificationCoverageFinding(
-          "The remaining local completion budget could not cover every certification obligation.",
+          "The remaining completion budget could not cover every certification obligation.",
         )]),
       });
     }
@@ -1845,7 +1847,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
         passageId: passage.id,
         atomIds: Object.freeze([]),
         message: error?.code === "lattice-context"
-          ? "A required lossless document window did not fit the independent local check."
+          ? "A required lossless document window did not fit the independent check."
           : "A required lossless document window did not return a valid independent check.",
       }));
     }
@@ -1869,7 +1871,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
         const remaining = record(capacity) && Number.isSafeInteger(capacity.remaining) ? capacity.remaining : -1;
         if (remaining < queue.length * 2) {
           findings.push(certificationCoverageFinding(
-            "The remaining local completion budget could not cover every context-bounded relation job after splitting.",
+            "The remaining completion budget could not cover every context-bounded relation job after splitting.",
           ));
           break;
         }
@@ -1941,7 +1943,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
           passageId: "",
           atomIds: Object.freeze(obligations.flatMap(({ sourceAtomId, targetAtomId }) => [sourceAtomId, targetAtomId])),
           message: capacityFailure
-            ? "A required cross-passage relation obligation did not fit the independent local check."
+            ? "A required cross-passage relation obligation did not fit the independent check."
             : "A required cross-passage relation obligation did not return a valid independent check.",
         }));
       }
@@ -2058,7 +2060,7 @@ async function certifyWholeDocument({
         required: true,
         performed: false,
         findings: Object.freeze([certificationCoverageFinding(
-          "The local model did not expose a valid remaining certification budget.",
+          "The model adapter did not expose a valid remaining certification budget.",
         )]),
       });
     }
@@ -2072,7 +2074,7 @@ async function certifyWholeDocument({
         required: true,
         performed: false,
         findings: Object.freeze([certificationCoverageFinding(
-          "The remaining local completion budget could not cover a whole-document or complete bounded certification proof.",
+          "The remaining completion budget could not cover a whole-document or complete bounded certification proof.",
         )]),
       });
     }
@@ -2144,8 +2146,8 @@ async function certifyWholeDocument({
         passageId: "",
         atomIds: Object.freeze([]),
         message: contextFailure
-          ? "The complete source and candidate did not fit the required independent local document check."
-          : "The required independent local document check did not return a valid result after its bounded attempts.",
+          ? "The complete source and candidate did not fit the required independent document check."
+          : "The required independent document check did not return a valid result after its bounded attempts.",
       })]),
     });
   }
@@ -2744,16 +2746,16 @@ function resultFromState({
 }
 
 function adapterContract(adapter) {
-  protocol(record(adapter), "Text to Lattice requires a local model adapter.");
+  protocol(record(adapter), "Text to Lattice requires a model adapter.");
   for (const stage of ["analyze", "generate", "verify", "repair"]) {
-    protocol(typeof adapter[stage] === "function", `The local model adapter is missing ${stage}.`);
+    protocol(typeof adapter[stage] === "function", `The model adapter is missing ${stage}.`);
   }
   protocol(adapter.certify === undefined || typeof adapter.certify === "function",
-    "The local model adapter has an invalid document certifier.");
+    "The model adapter has an invalid document certifier.");
   protocol(adapter.completionCapacity === undefined || typeof adapter.completionCapacity === "function",
-    "The local model adapter has an invalid completion-capacity reporter.");
+    "The model adapter has an invalid completion-capacity reporter.");
   protocol(adapter.certificationFits === undefined || typeof adapter.certificationFits === "function",
-    "The local model adapter has an invalid certification-context preflight.");
+    "The model adapter has an invalid certification-context preflight.");
 }
 
 export async function runTextToLattice(value, options = {}) {
@@ -2763,9 +2765,20 @@ export async function runTextToLattice(value, options = {}) {
   adapterContract(options.adapter);
   const signal = options.signal;
   const onProgress = options.onProgress;
+  const requestedMode = options.requestedMode ?? "auto";
+  if (!LATTICE_REQUEST_MODES.includes(requestedMode)) {
+    throw new TypeError("Text to Lattice received an invalid requested mode.");
+  }
+  const allowClarification = options.allowClarification ?? true;
+  if (typeof allowClarification !== "boolean") {
+    throw new TypeError("Text to Lattice received an invalid clarification policy.");
+  }
   const clarificationAnswers = clarificationAnswersPayload(options.clarificationAnswers);
+  if (!allowClarification && clarificationAnswers.length > 0) {
+    throw new TypeError("Text to Lattice cannot accept clarification answers when clarification is disabled.");
+  }
   throwIfAborted(signal);
-  provenanceProgress(onProgress, "binding-source-integrity", "Binding source integrity on this device");
+  provenanceProgress(onProgress, "binding-source-integrity", "Binding source integrity");
   const sourceFingerprint = await provenanceFingerprint("sf", {
     scope: "normalized-source",
     text: source,
@@ -2795,6 +2808,8 @@ export async function runTextToLattice(value, options = {}) {
       context: contextPassagesForBatch(passages, batch),
       documentLedger,
       clarificationDocumentProvenance,
+      requestedMode,
+      allowClarification,
       signal,
     });
     progress(onProgress, "atomizing", analyses.length, analyses.length + pendingBatches.length + 1, batch.id);
@@ -2811,7 +2826,7 @@ export async function runTextToLattice(value, options = {}) {
           analysisRevisionId,
           sourceFingerprint,
           clarificationDocumentProvenance,
-          { signal },
+          { allowClarification, signal },
         ),
         signal,
       });
@@ -2848,7 +2863,7 @@ export async function runTextToLattice(value, options = {}) {
             id: "atomization-unavailable",
             passageId: batch.passages[0]?.id ?? "",
             atomIds: Object.freeze([]),
-            message: "The bounded local atomization attempts did not produce a valid semantic graph. No source text was presented as transformed output.",
+            message: "The bounded atomization attempts did not produce a valid semantic graph. No source text was presented as transformed output.",
           })],
         });
       }
@@ -2898,7 +2913,7 @@ export async function runTextToLattice(value, options = {}) {
             id: "generation-context-unavailable",
             passageId: request.batch.passages[0]?.id ?? "",
             atomIds: Object.freeze([]),
-            message: "This passage and its required structured output exceeded the local model context even after the cross-passage ledger was reduced. No source text was presented as transformed output.",
+            message: "This passage and its required structured output exceeded the model context even after the cross-passage ledger was reduced. No source text was presented as transformed output.",
           })],
         });
       }
@@ -2948,7 +2963,7 @@ export async function runTextToLattice(value, options = {}) {
             id: "generation-unavailable",
             passageId: request.batch.passages[0]?.id ?? "",
             atomIds: Object.freeze([]),
-            message: "The bounded local drafting attempts did not produce a valid material candidate. No source text was presented as transformed output.",
+            message: "The bounded drafting attempts did not produce a valid material candidate. No source text was presented as transformed output.",
           })],
         });
       }
@@ -2969,7 +2984,7 @@ export async function runTextToLattice(value, options = {}) {
   };
 
   let assembly = assemble(candidates);
-  provenanceProgress(onProgress, "binding-result-integrity", "Binding result integrity on this device");
+  provenanceProgress(onProgress, "binding-result-integrity", "Binding result integrity");
   let candidateFingerprint = await provenanceFingerprint(
     "cf",
     assembledCandidateProvenance(candidates, assembly.text),
@@ -3012,7 +3027,7 @@ export async function runTextToLattice(value, options = {}) {
       verification = unavailableVerification(
         request.batch,
         request.analysis,
-        "The independent local verifier did not return a valid bounded check after two attempts.",
+        "The independent verifier did not return a valid bounded check after two attempts.",
       );
     }
     reviews.push(Object.freeze({ ...verificationRequest, verification }));
@@ -3101,6 +3116,7 @@ export async function runTextToLattice(value, options = {}) {
       documentLedger: reanalysisLedger,
       clarificationDocumentProvenance,
       reanalysisFeedback: closedReanalysisFeedback(entry.verification),
+      requestedMode,
       allowClarification: false,
       signal,
     });
@@ -3210,7 +3226,7 @@ export async function runTextToLattice(value, options = {}) {
   const retryCandidateByBatch = new Map(retriedCandidates.map((entry) => [entry.batch.id, entry]));
   let tentativeCandidates = candidates.map((entry) => retryCandidateByBatch.get(entry.batch.id) ?? entry);
   assembly = assemble(tentativeCandidates);
-  provenanceProgress(onProgress, "binding-result-integrity", "Binding revised result integrity on this device");
+  provenanceProgress(onProgress, "binding-result-integrity", "Binding revised result integrity");
   candidateFingerprint = await provenanceFingerprint(
     "cf",
     assembledCandidateProvenance(tentativeCandidates, assembly.text),

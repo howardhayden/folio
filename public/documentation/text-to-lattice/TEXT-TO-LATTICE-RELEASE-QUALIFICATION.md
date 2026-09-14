@@ -1,3 +1,54 @@
+# Text to Lattice release qualification — held remote candidate
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Reviewed baseline:** `7a7ae672a9803136294bfae35a95db0b8204a205`
+
+**Qualification date:** 2026-09-14
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `23dedeb48c4f5eb2cbf8dfb5da39ff49fc3e9af5920aee50caabcf036a610165`
+
+**Artifact-set projection SHA-256:** `cb108f97625050ed64bdaf26767c1c9aaa947c21061c6603a9e6f83fbf97ee5f`
+
+Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence.
+
+This is a held, documentation-only qualification record. There is **no remote production evidence** for the active capability: the reviewed baseline is the most recent pulled hah.dev deployment and ancestry baseline, not a deployment of the remote Text to Lattice candidate. Source and tests establish candidate contracts; they do not establish the production route, encrypted secret binding, provider behavior, capacity, application data lifecycle, or a successful canonical-browser result.
+
+## Active remote capability
+
+After an explicit user submission, the browser is permitted one same-origin `POST /api/lattice` using schema version `1` and exactly the fields `text`, `requested_mode`, and `schema_version`. The supported modes are `auto`, `operative`, and `experiential`. The capability is `held-pending-production-evidence`; opening, editing, local validation failure, dismissal, and cancellation before submission cause no transformation request.
+
+The API Worker alone reads `HF_TOKEN` and calls `https://router.huggingface.co/v1/chat/completions`. Hugging Face routes the fixed generator `Qwen/Qwen3-4B:featherless-ai` and fixed verifier `meta-llama/Llama-3.2-3B-Instruct:featherless-ai` through Featherless AI. The provider endpoint, provider, generator, and verifier are fixed server-side. There is **no automatic retry** and **no alternate provider or model fallback**. Each failure is finite and requires a new deliberate submission.
+
+The response policy is `no-store`. The application-retention contract is exactly: **no application storage, raw-content logs, cache, queue, or analytics for source, prompts, candidates, raw provider bodies, or results**. Its external boundary is exactly: **external-provider processing and retention are governed by provider policies and are not guaranteed by hah.dev**. Hugging Face, Featherless AI, and their infrastructure necessarily receive the intentionally submitted content and ordinary connection metadata under their own policies.
+
+The hosted revision boundary is `provider-managed-not-byte-pinned`: provider-managed serving is not byte-pinned, and historical byte equivalence is not established. The fixed hosted identifiers constrain routing; they do not identify immutable serving weights, tokenizer bytes, provider infrastructure, or a byte-equivalent copy of the historical MLC artifacts.
+
+## Current release gates
+
+The register is the source of the exact gate rows. GATE-02, GATE-03, and GATE-06 are current production blockers. GATE-04B and GATE-04C are historical inactive records rather than active residual-risk authorization.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Open release blocker | High |
+| GATE-03 · Remote provider capacity and cost boundary | Open release blocker | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+GATE-02 requires the exact deployed `/api/lattice` route, `HF_TOKEN` binding name without its value, fixed Hugging Face and Featherless targets, restrictive `connect-src 'self'`, bounded non-reflective errors, `Cache-Control: no-store`, and the no-retention, no-retry, and no-fallback boundaries. GATE-03 requires deployed limiter, provider-call, latency, quota, cost, and abuse evidence. GATE-06 requires a current canonical-browser trace showing explicit confirmation, exactly one intended content-bearing same-origin request, one non-error terminal result, no browser provider origin or credential, no automatic retry or fallback, no service-worker or cache replay, and no content reflection or application retention outside the acknowledged request and bounded result.
+
+This classification follows consequence × plausibility × lifecycle value. The new browser/server/provider boundary is consequential, realistically exposed to deployment drift, and reusable across later model or provider revisions, so source-only evidence cannot close the three production gates. Historical browser-local deployment evidence has audit value but no current qualifying authority.
+
+## Historical inactive WebLLM and lease appendix
+
+Everything below this marker is the prior browser-local qualification preserved as `historical-inactive` evidence. Its WebLLM/MLC/WebGPU runtime, Turnstile attestation, bodyless lease lifecycle, production captures, artifact identifiers, digests, and analysis apply only to the superseded architecture. They do not establish `/api/lattice`, external model processing, application nonretention, current provider behavior, or a successful remote production lifecycle. The historical artifact-record digest is `d554dd2498cf84920ece4f7db2e7669c4fd4d3bbff1fba681807da0b7339da71`.
+
 # Text to Lattice release qualification
 
 **Decision:** qualify and enable the interactive client as a bounded demonstrable release.

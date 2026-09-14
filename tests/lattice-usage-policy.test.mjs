@@ -2344,74 +2344,68 @@ test("the published usage contract matches every enforced quota", () => {
   });
 });
 
-test("the UI acquires before model work and enforces the returned lease expiry", async () => {
-  const source = await readFile(
-    new URL("../app/resume/ResumeProjects.tsx", import.meta.url),
-    "utf8",
-  );
-  const executeStart = source.indexOf("const executeLattice");
-  const acquireAt = source.indexOf("await acquireLatticeLease(", executeStart);
-  const adapterAt = source.indexOf("createLocalLatticeAdapter", acquireAt);
-  assert.ok(executeStart >= 0 && acquireAt > executeStart, "lease acquisition is inside executeLattice");
-  assert.ok(adapterAt > acquireAt, "lease acquisition precedes model adapter creation");
-  assert.match(source, /latticeLeaseRef\.current\.expiresAt <= Date\.now\(\)/u);
-  assert.match(source, /lease\.expiresAt - Date\.now\(\)/u);
-  assert.match(source, /renewLatticeLease\(currentLease, controller\.signal\)/u);
-  assert.match(source, /isLatticeQuotaLimit\(error\)/u);
-  assert.match(source, /error\.retryAfterSeconds \* 1_000/u);
-  assert.match(source, /latticeRetryPending/u);
-  assert.match(source, /latticeRetryEta\(latticeRetryAt, latticeRetryClock, undefined, latticeRetryMode\)/u);
-  assert.match(source, /clearInterval\(latticeLeaseHeartbeatTimerRef\.current\)/u);
-  assert.match(source, /clearTimeout\(latticeLeaseRenewalRetryTimerRef\.current\)/u);
-  const heartbeatAt = source.indexOf("const armLatticeLeaseHeartbeat");
-  const cancelAt = source.indexOf("const cancelLattice", heartbeatAt);
-  const heartbeatSource = source.slice(heartbeatAt, cancelAt);
-  assert.match(heartbeatSource, /if \(isLatticeQuotaLimit\(error\)\)/u);
-  assert.match(heartbeatSource, /latticeLeaseRenewalRetryTimerRef\.current !== null/u);
-  assert.match(heartbeatSource, /setLatticeRetryAt\(retryAt\)/u);
-  assert.match(heartbeatSource, /setTimeout\(\(\) => \{[\s\S]*?renewCurrentLease\(\)/u);
-  assert.match(source, /clearLatticeLeaseHeartbeat\(\)/u);
-  assert.match(source, /controller\?\.abort\(\)/u);
-  assert.match(source, /expireCurrentLatticeLease\(lease\.token\)/u);
-  const expiryStart = source.indexOf("const expireCurrentLatticeLease");
-  const expiryEnd = source.indexOf("const armLatticeLeaseExpiry", expiryStart);
-  const expirySource = source.slice(expiryStart, expiryEnd);
-  assert.match(expirySource, /setLatticeRetryAt\(null\)/u);
-  assert.match(expirySource, /setLatticeRetryMode\("manual"\)/u);
-  const runAt = source.indexOf("await runTextToLattice", adapterAt);
-  const finalLeaseAt = source.indexOf("const currentLease = latticeLeaseRef.current", runAt);
-  const publishAt = source.indexOf("setLatticeResult(result)", runAt);
-  assert.ok(runAt > adapterAt && finalLeaseAt > runAt && publishAt > finalLeaseAt,
-    "the active lease is rechecked after inference and before result publication");
+test("the UI makes one consented same-origin API request without legacy model setup", async () => {
+  const [source, remoteRequestSource, remoteProtocolSource, capabilitySource] = await Promise.all([
+    readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/resume/lattice/remoteRequest.js", import.meta.url), "utf8"),
+    readFile(new URL("../app/resume/lattice/remoteProtocol.js", import.meta.url), "utf8"),
+    readFile(new URL("../app/privacy/networkCapabilities.js", import.meta.url), "utf8"),
+  ]);
+
+  const executeStart = source.indexOf("const executeLattice = async () => {");
+  const submitStart = source.indexOf("const runLattice = (", executeStart);
+  const executeSource = source.slice(executeStart, submitStart);
+  const consentAt = executeSource.indexOf("if (!latticeUseConfirmed)");
+  const requestAt = executeSource.indexOf("await requestRemoteLattice(latticeInput,");
+  assert.ok(executeStart >= 0 && submitStart > executeStart, "the explicit submission owns the API lifecycle");
+  assert.ok(consentAt >= 0 && requestAt > consentAt, "authorization confirmation precedes the remote request");
+  assert.equal((source.match(/await requestRemoteLattice\(/gu) ?? []).length, 1);
+  assert.match(source, /<form className="lattice-form" onSubmit=\{runLattice\} noValidate>/u);
+  assert.match(source, /id="lattice-use-confirmation"[\s\S]*?checked=\{latticeUseConfirmed\}[\s\S]*?required/u);
+  assert.match(source, /Process with external service/u);
+
+  assert.match(remoteProtocolSource, /LATTICE_API_PATH = "\/api\/lattice"/u);
+  assert.equal((remoteRequestSource.match(/capabilityFetch\(/gu) ?? []).length, 1);
   assert.match(
-    source.slice(finalLeaseAt, publishAt),
-    /currentLease\.token !== leaseToken \|\| currentLease\.expiresAt <= Date\.now\(\)/u,
+    remoteRequestSource,
+    /capabilityFetch\(LATTICE_REMOTE_CAPABILITY, LATTICE_API_PATH,[\s\S]*?method: "POST"/u,
   );
+  assert.match(capabilitySource, /route: "\/api\/lattice"[\s\S]*?method: "POST"[\s\S]*?sameOriginOnly: true/u);
+  assert.match(capabilitySource, /transmittedFields: Object\.freeze\(\["text", "requested_mode", "schema_version"\]\)/u);
+
+  const activeBrowserPath = `${source}\n${remoteRequestSource}\n${capabilitySource}`;
+  for (const retiredBinding of [
+    /(?:acquire|renew|release)LatticeLease/u,
+    /(?:requestLatticeAttestation|LATTICE_ATTESTATION|verify\.hah\.dev)/u,
+    /(?:createLocalLatticeAdapter|prepareLocalLatticeModel|latticeWebllm\.worker|CreateMLCEngine)/u,
+    /(?:@mlc-ai\/web-(?:llm|tokenizers)|mlc-chat-config\.json|tokenizer\.json|ctx4k_cs1k-webgpu\.wasm)/u,
+  ]) {
+    assert.doesNotMatch(activeBrowserPath, retiredBinding);
+  }
 });
 
-test("the canonical no-JavaScript contract exposes the usage-policy section", async () => {
+test("the canonical no-JavaScript contract exposes remote capability and privacy details", async () => {
   const source = await readFile(
     new URL("../app/projects/lattice/text-to-lattice/page.tsx", import.meta.url),
     "utf8",
   );
+  assert.match(source, /id="text-to-lattice-privacy"/u);
+  assert.match(source, /security\.huggingFace\.summary/u);
+  assert.match(source, /security\.huggingFace\.protections\.map/u);
+  assert.match(source, /security\.huggingFace\.residualDisclosure/u);
+  assert.match(source, /security\.huggingFace\.sources\.map/u);
   assert.match(source, /id="text-to-lattice-usage"/u);
-  assert.match(source, /policy\.globalRequests\.limit/u);
-  assert.match(source, /policy\.globalDailyRequests\.limit/u);
-  assert.match(source, /policy\.globalAttempts\.limit/u);
-  assert.match(source, /policy\.globalGrants\.limit/u);
-  assert.match(source, /policy\.activeLeases\.limit/u);
-  assert.match(source, /policy\.activeLeases\.perVisitorLimit/u);
-  assert.match(source, /policy\.enforcement\.exactRequestAdmission\.role/u);
-  assert.match(source, /policy\.enforcement\.exactDailyRequestAdmission\.role/u);
-  assert.match(source, /policy\.enforcement\.pathLocationShaper\.limit/u);
-  assert.match(source, /policy\.enforcement\.leaseCredential\.format/u);
-  assert.match(source, /policy\.enforcement\.leaseCredential\.keyManagement/u);
-  assert.match(source, /policy\.enforcement\.renewalLeaseLocationShaper\.limit/u);
-  assert.match(source, /policy\.enforcement\.releaseLeaseLocationShaper\.limit/u);
-  assert.match(source, /policy\.freeTierBasis\.workerRequestsPerDay/u);
-  assert.match(source, /policy\.freeTierBasis\.durableObjectGigabyteSecondsPerDay/u);
+  assert.match(source, /Same-origin <code>POST \/api\/lattice<\/code>; no query string, redirect, cookie, or provider origin/u);
+  assert.match(source, /\{"\{text, requested_mode, schema_version: 1\}"\}/u);
+  assert.match(source, /Qwen3-4B generates; Llama 3\.2 3B Instruct verifies through Hugging Face Inference Providers and Featherless AI/u);
+  assert.match(source, /No hah\.dev application storage, raw-content logging, caching, queueing, or analytics/u);
+  assert.match(source, /no browser retry and no provider or model fallback/u);
   assert.match(source, /security\.api\.rules\.map/u);
-  assert.match(source, /policy\.failureMode/u);
+  assert.match(source, /The Hugging Face token is an encrypted server-side Worker secret and never enters the browser or response/u);
+  assert.match(source, /WebLLM\/MLC download path, bodyless quota lease, Turnstile attestation frame, renewal, and release protocol are inactive/u);
+  assert.match(source, /Hugging Face, Featherless AI, and their infrastructure process submitted content under their own policies/u);
+  assert.match(source, /<noscript><p className="lattice-noscript-note">/u);
+  assert.doesNotMatch(source, /policy\.(?:globalRequests|globalDailyRequests|globalAttempts|globalGrants|activeLeases|enforcement|freeTierBasis)/u);
 });
 
 test("the production route layers independent local shapers before the exact global gate", async () => {
@@ -2504,10 +2498,14 @@ test("the production route layers independent local shapers before the exact glo
   assert.match(workerReadme, /only when\s+no gate is `open-release-blocker`/u);
   assert.match(workerReadme, /accepted residual risk and bounded\s+post-deployment verification remain explicit/u);
   const releaseRegister = JSON.parse(releaseRegisterSource);
-  for (const id of ["GATE-04A", "GATE-04B", "GATE-04C"]) {
+  for (const [id, status] of [
+    ["GATE-04A", "accepted-residual-risk"],
+    ["GATE-04B", "historical-inactive"],
+    ["GATE-04C", "historical-inactive"],
+  ]) {
     const gate = releaseRegister.gates.find((entry) => entry.id === id);
     assert.deepEqual({ status: gate?.status, marginalValue: gate?.marginalValue }, {
-      status: "accepted-residual-risk",
+      status,
       marginalValue: "moderate",
     });
   }

@@ -1,7 +1,7 @@
 import { documentsForProject } from "../content/projectDocuments.js";
 
-export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v7";
-export const PROJECT_CONTENT_UPDATED = "2026-09-12";
+export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v8";
+export const PROJECT_CONTENT_UPDATED = "2026-09-14";
 
 export const LATTICE_DOCUMENTATION_RESOURCES = Object.freeze(
   documentsForProject("lattice").map((document) => Object.freeze({
@@ -46,12 +46,15 @@ export const projects = Object.freeze([
       "Passage-level register selection",
       "Relational Systems Register",
     ]),
-    technologies: Object.freeze(["JavaScript", "Node.js", "npm", "WebGPU", "Cloudflare Workers", "Wrangler"]),
+    technologies: Object.freeze(["JavaScript", "Node.js", "npm", "Cloudflare Workers", "Hugging Face Inference Providers", "Featherless AI", "Wrangler"]),
     evidence: Object.freeze(["https://github.com/howardhayden/lattice"]),
     limitations: Object.freeze([
-      "The hah.dev Text to Lattice demonstrator is browser-local, requires WebGPU, and accepts at most 700 words.",
+      "The hah.dev Text to Lattice demonstrator accepts at most 700 words and submits text only after explicit confirmation through the same-origin /api/lattice capability.",
+      "Its exact request body is {text, requested_mode, schema_version: 1}; hah.dev does not retain or write the source or result to application storage, raw logs, caches, queues, or analytics.",
+      "Qwen3-4B drafts and Llama 3.2 3B Instruct verifies through a fixed server-side Hugging Face/Featherless service. There is no automatic provider or model fallback, and the remote runtime is not asserted to be byte-for-byte equivalent to the historical MLC/WebGPU artifacts.",
+      "Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information; external services process submitted content under their own policies.",
       "A review-required draft is not certified as semantically equivalent.",
-      "The demonstrable release uses Cloudflare’s official testing profile; it provides no production anti-bot assurance, and its public reusable token can occupy all eight shared slots, so availability is not assured.",
+      "Provider timeouts, rate limits, malformed responses, and availability failures terminate explicitly and require another deliberate submission.",
     ]),
     emphasis: Object.freeze(["linguistic register", "semantic fidelity", "relational systems"]),
     relationships: Object.freeze([
@@ -66,8 +69,8 @@ export const projects = Object.freeze([
     ]),
     publication: Object.freeze({ label: "September 2026", value: "2026-09", precision: "month" }),
     status: "public",
-    interaction: "lattice-demo",
-    interactiveRelease: "enabled",
+    interaction: null,
+    interactiveRelease: "held",
     readmeAfterFirstParagraph: true,
   }),
   Object.freeze({

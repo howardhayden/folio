@@ -11,42 +11,19 @@ import {
   type SyntheticEvent,
 } from "react";
 import {
-  LATTICE_CLARIFICATION_SAFETY_LIMIT,
-  LATTICE_CLARIFICATION_WORD_LIMIT,
-  LATTICE_COMPLETION_CALL_LIMIT,
   LATTICE_INPUT_SAFETY_LIMIT,
   countLatticeWords,
   LATTICE_WORD_LIMIT,
-  preflightLatticeInput,
-  runTextToLattice,
-  validateLatticeClarificationAnswer,
   validateLatticeInput,
-} from "./latticeDemo.js";
+} from "./lattice/inputPolicy.js";
 import {
-  createLocalLatticeAdapter,
-  discardLocalLatticeModel,
-  interruptLocalLatticeModel,
-  isLocalLatticeModelCached,
-  probeLocalLatticeCapability,
-  probeLocalLatticeStorage,
-} from "./lattice/localModel.js";
-import { LATTICE_USAGE_POLICY } from "./lattice/usagePolicy.js";
+  LLAMA_3_2_PUBLIC_TERMS,
+} from "./lattice/publicTerms.js";
 import {
-  LLAMA_3_2_TERMS_PROVENANCE,
-} from "./lattice/modelContract.js";
-import {
-  LATTICE_CANONICAL_ORIGIN_MESSAGE,
-  LatticeLeaseError,
-  acquireLatticeLease,
-  releaseLatticeLease,
-  renewLatticeLease,
-} from "./lattice/usageLease.js";
-import {
-  isLatticeClarificationTarget,
-  mayRevealLatticeOutput,
-} from "./lattice/outputProtection.js";
-import { isLatticeRetryPending, latticeRetryEta } from "./lattice/retryEta.js";
-import { obtainLatticeAttestation } from "./lattice/attestation.js";
+  LatticeRemoteError,
+  requestRemoteLattice,
+} from "./lattice/remoteRequest.js";
+import { mayRevealLatticeOutput } from "./lattice/outputProtection.js";
 import { projects } from "./projects.js";
 import ProjectDescriptionDisclosure from "./ProjectDescriptionDisclosure";
 
@@ -59,7 +36,7 @@ type ProjectIconName =
   | "pen-fill"
   | "archive";
 
-const LATTICE_USE_CONFIRMATION_ERROR = "Confirm this source's authority and allowed-use boundary before converting.";
+const LATTICE_USE_CONFIRMATION_ERROR = "Confirm that you are authorized to send this source to the external service.";
 
 function AirplaneEnginesIcon() {
   return (
@@ -328,15 +305,13 @@ export function ResumeProjectCard({
   );
 }
 
-type LatticeResult = Awaited<ReturnType<typeof runTextToLattice>>;
-type LatticePhase = "idle" | "checking" | "ready" | "reserving" | "loading" | "converting" | "canceling" | "error";
-const LATTICE_RENEWAL_RETRY_MARGIN_MS = 5_000;
+type LatticeResult = Awaited<ReturnType<typeof requestRemoteLattice>>;
+type LatticePhase = "idle" | "ready" | "validating" | "submitting" | "processing" | "success" | "canceling" | "error";
 
 function latticeOutcomeLabel(result: LatticeResult | null) {
   if (!result) return "";
   if (result.status === "translated") return "Latticed text";
   if (result.status === "conformant-for-context") return "Source fits this context";
-  if (result.status === "needs-clarification") return "One question";
   if (result.status === "unable-to-attempt") return "No Latticed result";
   return "Review needed";
 }
@@ -346,99 +321,73 @@ function latticeResultAnnouncement(result: LatticeResult) {
   return `Result ready. ${latticeOutcomeLabel(result)}.${register ? ` Register: ${register}.` : ""}`;
 }
 
-function capabilityMessage() {
-  return "Text to Lattice is unavailable on this device. Nothing ran.";
-}
-
 function isLatticeInputFailure(error: unknown) {
   if (!(error instanceof RangeError)) return false;
   return /^(?:This browser cannot safely segment Text to Lattice input\.|Text to Lattice input |Enter text with at least one word|Text to Lattice accepts up to |Text to Lattice cannot safely split |Text to Lattice supports at most |Text to Lattice cannot safely model |Text to Lattice could not create a safe work unit|Text to Lattice could not fit every exact literal)/u.test(error.message);
 }
 
-function latticeInputFailureMessage(error: unknown, clarification = false) {
+function latticeInputFailureMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "";
-  const subject = clarification ? "answer" : "source";
 
-  if (/at least one word|enter (?:text with|a clarification answer)/iu.test(message)) {
-    return clarification ? "Enter an answer before continuing." : "Enter at least one word.";
+  if (/at least one word/iu.test(message)) {
+    return "Enter at least one word.";
   }
-  if (/accepts up to 700 words|clarification answer to .* words|words or fewer/iu.test(message)) {
-    return clarification ? `Keep the answer to ${LATTICE_CLARIFICATION_WORD_LIMIT} words or fewer.` : `Keep the source to ${LATTICE_WORD_LIMIT} words or fewer.`;
+  if (/accepts up to 700 words|words or fewer/iu.test(message)) {
+    return `Keep the source to ${LATTICE_WORD_LIMIT} words or fewer.`;
   }
-  if (/shorten the clarification answer/iu.test(message)) {
-    return "Shorten the answer and try again.";
-  }
-  if (/12,000-character safety limit|clarification answer to .* characters|characters or fewer/iu.test(message)) {
-    return clarification
-      ? `Keep the answer to ${LATTICE_CLARIFICATION_SAFETY_LIMIT.toLocaleString("en-US")} characters or fewer.`
-      : `Keep the source to ${LATTICE_INPUT_SAFETY_LIMIT.toLocaleString("en-US")} characters or fewer.`;
+  if (/12,000-character safety limit|characters or fewer/iu.test(message)) {
+    return `Keep the source to ${LATTICE_INPUT_SAFETY_LIMIT.toLocaleString("en-US")} characters or fewer.`;
   }
   if (/too many separate exact literals|more than twenty-four separate exact literals/iu.test(message)) {
-    return `This ${subject} is too complex for one run. Shorten it and try again.`;
+    return "This source is too complex for one run. Shorten it and try again.";
   }
   if (/too many bounded passages|supports at most .*passages/iu.test(message)) {
     return "This source is too complex for one run. Shorten it and try again.";
   }
   if (/bounded work groups|too (?:large|structurally dense)/iu.test(message)) {
-    return `This ${subject} is too complex for one run. Shorten it and try again.`;
+    return "This source is too complex for one run. Shorten it and try again.";
   }
   if (/control|unicode|noncharacter|direction|grapheme|character sequence|word-like token|invisible formatting|segment/iu.test(message)) {
-    return `This ${subject} contains unsupported characters or formatting. Remove them and try again.`;
+    return "This source contains unsupported characters or formatting. Remove them and try again.";
   }
-  return clarification ? "That answer cannot be processed safely." : "This source cannot be processed safely.";
+  return "This source cannot be processed safely.";
 }
 
 function latticeFailureMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : "";
-  if (error instanceof LatticeLeaseError && error.code === "canonical-origin-required") {
-    return LATTICE_CANONICAL_ORIGIN_MESSAGE;
-  }
-  if (error instanceof LatticeLeaseError && error.limited) {
-    return error.code === "visitor-day-limit"
-      ? "This browser has reached its Text to Lattice demonstration limit."
-      : "Text to Lattice is busy right now.";
-  }
-  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
-  if (offline || /(?:failed to fetch|network|download|connection|offline)/iu.test(message)) {
-    return "Text to Lattice could not continue. Check the connection and try again. Your text stayed here.";
-  }
   if (isLatticeInputFailure(error)) return latticeInputFailureMessage(error);
-  return "Text to Lattice could not finish. Try again. Your text stayed here.";
+  if (error instanceof LatticeRemoteError) {
+    if (error.code === "invalid_request" || error.code === "input_too_large") {
+      return "The service rejected this source. Review the limits and submit again only if you choose.";
+    }
+    if (error.code === "rate_limited") {
+      const retry = error.retryAfterSeconds === null ? "later" : `in ${error.retryAfterSeconds} seconds`;
+      return `Text to Lattice is at capacity. You can make a new submission ${retry}.`;
+    }
+    if (error.code === "client_timeout" || error.code === "upstream_timeout") {
+      return "The external transformation timed out. hah.dev does not retain your sample or a partial result. Submit again only if you choose.";
+    }
+    if (error.code === "network_failure" || error.code === "upstream_unavailable") {
+      return "The request could not complete and may have reached the configured external service. hah.dev does not retain your sample or result. Submit again only if you choose.";
+    }
+    if (error.code === "malformed_upstream_response" || error.code === "invalid_response") {
+      return "The external service returned a result that hah.dev could not safely display. hah.dev does not retain your sample or result.";
+    }
+  }
+  return "Text to Lattice could not finish. The request may have reached the configured external service; hah.dev does not retain your sample or result.";
 }
 
-function isLatticeQuotaLimit(error: unknown): error is LatticeLeaseError {
-  return error instanceof LatticeLeaseError && error.limited === true;
-}
-
-function latticeProgressText(report: { phase: string; text?: string; current?: number; total?: number } | null) {
-  if (!report) return "";
-  const labels: Record<string, string> = {
-    "reserving-slot": "Checking availability",
-    "loading-model": "Preparing on this device",
-    "initializing-model": "Finishing setup on this device",
-    "token-counting": "Checking local context",
-    "model-inference": "Processing on this device",
-    "binding-source-integrity": "Checking source integrity",
-    "binding-result-integrity": "Checking result integrity",
-    atomizing: "Reading the source",
-    generating: "Drafting",
-    verifying: "Checking meaning",
-    repairing: "Revising",
-    reatomizing: "Reading again",
-    regenerating: "Revising",
-    reverifying: "Checking the revision",
-    "certifying-document": "Checking the whole text",
-    "planning-certification": "Planning the whole-text checks",
-    "certifying-windows": "Checking the whole text",
-    "certifying-relations": "Checking relationships",
-    clarification: "One question before continuing",
-    "lease-renewal-failed": "Run ended",
-    "lease-expired": "Run ended",
-    complete: "Result ready",
-    canceled: "Stopped",
+function latticeProgressText(phase: LatticePhase) {
+  const labels: Record<LatticePhase, string> = {
+    idle: "",
+    ready: "",
+    validating: "Validating source",
+    submitting: "Submitting to hah.dev",
+    processing: "Processing with the external service",
+    success: "",
+    canceling: "Canceling",
+    error: "",
   };
-  const label = labels[report.phase] ?? "Working";
-  return report.total ? `${label}: ${Math.min((report.current ?? 0) + 1, report.total)} of ${report.total}` : label;
+  return labels[phase];
 }
 
 function latticeFindingMessage(finding: { id: string }) {
@@ -477,57 +426,28 @@ export default function ResumeProjects() {
   const [latticeInput, setLatticeInput] = useState("");
   const [latticeUseConfirmed, setLatticeUseConfirmed] = useState(false);
   const [latticeError, setLatticeError] = useState("");
-  const [latticeQuotaError, setLatticeQuotaError] = useState("");
   const [latticeInputInvalid, setLatticeInputInvalid] = useState(false);
   const [latticeResult, setLatticeResult] = useState<LatticeResult | null>(null);
   const [latticePhase, setLatticePhase] = useState<LatticePhase>("idle");
-  const [latticeSupported, setLatticeSupported] = useState<boolean | null>(null);
-  const [latticeModelCached, setLatticeModelCached] = useState<boolean | null>(null);
-  const [latticeStorageWarning, setLatticeStorageWarning] = useState("");
-  const [latticeRetryAt, setLatticeRetryAt] = useState<number | null>(null);
-  const [latticeRetryClock, setLatticeRetryClock] = useState(0);
-  const [latticeRetryMode, setLatticeRetryMode] = useState<"manual" | "automatic">("manual");
-  const [latticeRetryAnnouncement, setLatticeRetryAnnouncement] = useState("");
-  const [latticeProgress, setLatticeProgress] = useState<{ phase: string; progress: number | null; text?: string; current?: number; total?: number } | null>(null);
-  const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
-  const [clarificationErrors, setClarificationErrors] = useState<Record<string, string>>({});
-  const [clarificationHistory, setClarificationHistory] = useState<Array<Record<string, string>>>([]);
   const latticeDialogRef = useRef<HTMLDivElement>(null);
   const latticeInputRef = useRef<HTMLTextAreaElement>(null);
   const latticeOutputRef = useRef<HTMLElement>(null);
   const latticeOutputRefreshRef = useRef<(() => void) | null>(null);
   const latticeTriggerRef = useRef<HTMLAnchorElement | null>(null);
   const latticeDirectLaunchRef = useRef<HTMLAnchorElement | null>(null);
-  const latticeAttestationRef = useRef<HTMLDivElement>(null);
   const latticeCancelButtonRef = useRef<HTMLButtonElement>(null);
   const latticeCloseRef = useRef<() => void>(() => {});
   const latticeAbortRef = useRef<AbortController | null>(null);
-  const latticeLeaseRef = useRef<Awaited<ReturnType<typeof acquireLatticeLease>> | null>(null);
-  const latticeLeaseExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latticeLeaseHeartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const latticeLeaseRenewalRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latticeLeaseHeartbeatAbortRef = useRef<AbortController | null>(null);
-  const latticeLeaseRenewalTokenRef = useRef<string | null>(null);
-  const latticeCompletionBudgetRef = useRef({ used: 0, limit: LATTICE_COMPLETION_CALL_LIMIT });
   const latticeJobRef = useRef(0);
   const latticeMountedRef = useRef(true);
   const latticePhaseRef = useRef<LatticePhase>(latticePhase);
   const latticeResultRef = useRef<LatticeResult | null>(latticeResult);
   const wordCount = countLatticeWords(latticeInput);
-  const busy = latticePhase === "reserving" || latticePhase === "loading" || latticePhase === "converting" || latticePhase === "canceling";
-  const taskContinuesWhileClosed = latticePhase === "checking" || busy;
+  const busy = ["validating", "submitting", "processing", "canceling"].includes(latticePhase);
+  const taskContinuesWhileClosed = busy;
   const overLimit = wordCount > LATTICE_WORD_LIMIT;
-  const progressText = latticeProgressText(latticeProgress);
-  const latticeRetryPending = isLatticeRetryPending(latticeRetryAt, latticeRetryClock);
-  const primaryUnavailable = busy || latticePhase === "checking" || latticeSupported === false || latticeInputInvalid || wordCount === 0 || overLimit || latticeRetryPending || !latticeUseConfirmed;
-  const readyLabel = latticeModelCached === false ? "Download and convert" : "Convert";
-  const primaryLabel = latticePhase === "reserving"
-    ? "Checking availability…"
-    : latticePhase === "loading"
-      ? latticeModelCached === false ? "Downloading and preparing…" : "Preparing…"
-      : latticePhase === "converting"
-        ? "Converting…"
-        : latticePhase === "error" && latticeSupported !== false ? "Try again" : readyLabel;
+  const progressText = latticeProgressText(latticePhase);
+  const primaryUnavailable = busy || latticeInputInvalid || wordCount === 0 || overLimit || !latticeUseConfirmed;
 
   useEffect(() => {
     latticePhaseRef.current = latticePhase;
@@ -537,174 +457,12 @@ export default function ResumeProjects() {
     latticeResultRef.current = latticeResult;
   }, [latticeResult]);
 
-  const clearLatticeLeaseExpiryTimer = useCallback(() => {
-    if (latticeLeaseExpiryTimerRef.current !== null) {
-      clearTimeout(latticeLeaseExpiryTimerRef.current);
-      latticeLeaseExpiryTimerRef.current = null;
-    }
-  }, []);
-
-  const clearLatticeLeaseHeartbeat = useCallback(() => {
-    if (latticeLeaseHeartbeatTimerRef.current !== null) {
-      clearInterval(latticeLeaseHeartbeatTimerRef.current);
-      latticeLeaseHeartbeatTimerRef.current = null;
-    }
-    if (latticeLeaseRenewalRetryTimerRef.current !== null) {
-      clearTimeout(latticeLeaseRenewalRetryTimerRef.current);
-      latticeLeaseRenewalRetryTimerRef.current = null;
-    }
-    const controller = latticeLeaseHeartbeatAbortRef.current;
-    latticeLeaseHeartbeatAbortRef.current = null;
-    latticeLeaseRenewalTokenRef.current = null;
-    controller?.abort();
-  }, []);
-
-  const releaseCurrentLatticeLease = useCallback(() => {
-    clearLatticeLeaseExpiryTimer();
-    clearLatticeLeaseHeartbeat();
-    const lease = latticeLeaseRef.current;
-    latticeLeaseRef.current = null;
-    if (lease) void releaseLatticeLease(lease.token);
-  }, [clearLatticeLeaseExpiryTimer, clearLatticeLeaseHeartbeat]);
-
-  const expireCurrentLatticeLease = useCallback((leaseToken: string, reason: "expired" | "renewal" = "expired") => {
-    if (latticeLeaseRef.current?.token !== leaseToken) return;
-    latticeJobRef.current += 1;
-    const controller = latticeAbortRef.current;
-    latticeAbortRef.current = null;
-    controller?.abort();
-    releaseCurrentLatticeLease();
-    interruptLocalLatticeModel();
-    discardLocalLatticeModel();
-    if (latticeMountedRef.current) {
-      setLatticeResult(null);
-      setLatticeQuotaError("");
-      setLatticeRetryAt(null);
-      setLatticeRetryClock(0);
-      setLatticeRetryMode("manual");
-      setLatticeRetryAnnouncement("");
-      setLatticeError(reason === "renewal"
-        ? "The run could not continue. Your text remains here."
-        : "This run reached its time limit. Your text remains here.");
-      setLatticeInputInvalid(false);
-      setLatticeProgress({
-        phase: reason === "renewal" ? "lease-renewal-failed" : "lease-expired",
-        progress: null,
-        text: "Run ended.",
-      });
-      setLatticePhase("error");
-    }
-  }, [releaseCurrentLatticeLease]);
-
-  const armLatticeLeaseExpiry = useCallback((lease: Awaited<ReturnType<typeof acquireLatticeLease>>) => {
-    clearLatticeLeaseExpiryTimer();
-    const remaining = Math.max(0, lease.expiresAt - Date.now());
-    latticeLeaseExpiryTimerRef.current = setTimeout(() => {
-      latticeLeaseExpiryTimerRef.current = null;
-      expireCurrentLatticeLease(lease.token);
-    }, remaining);
-  }, [clearLatticeLeaseExpiryTimer, expireCurrentLatticeLease]);
-
-  const armLatticeLeaseHeartbeat = useCallback((lease: Awaited<ReturnType<typeof acquireLatticeLease>>) => {
-    clearLatticeLeaseHeartbeat();
-    const controller = new AbortController();
-    latticeLeaseHeartbeatAbortRef.current = controller;
-    const renewCurrentLease = () => {
-      const currentLease = latticeLeaseRef.current;
-      if (
-        controller.signal.aborted
-        || !latticeMountedRef.current
-        || !currentLease
-        || currentLease.token !== lease.token
-        || latticeLeaseRenewalTokenRef.current !== null
-        || latticeLeaseRenewalRetryTimerRef.current !== null
-      ) return;
-      if (currentLease.expiresAt <= Date.now()) {
-        expireCurrentLatticeLease(lease.token, "expired");
-        return;
-      }
-      latticeLeaseRenewalTokenRef.current = lease.token;
-      void renewLatticeLease(currentLease, controller.signal).then((renewedLease) => {
-        if (
-          controller.signal.aborted
-          || !latticeMountedRef.current
-          || latticeLeaseRef.current?.token !== lease.token
-        ) return;
-        latticeLeaseRef.current = renewedLease;
-        armLatticeLeaseExpiry(renewedLease);
-        setLatticeQuotaError("");
-        setLatticeRetryAt(null);
-        setLatticeRetryClock(0);
-        setLatticeRetryMode("manual");
-        setLatticeRetryAnnouncement("");
-      }).catch((error) => {
-        if (
-          controller.signal.aborted
-          || !latticeMountedRef.current
-          || latticeLeaseRef.current?.token !== lease.token
-          || error instanceof DOMException && error.name === "AbortError"
-        ) return;
-        if (isLatticeQuotaLimit(error)) {
-          const now = Date.now();
-          const retryAt = now + error.retryAfterSeconds * 1_000;
-          if (retryAt + LATTICE_RENEWAL_RETRY_MARGIN_MS >= currentLease.expiresAt) {
-            expireCurrentLatticeLease(lease.token, "renewal");
-            setLatticeQuotaError(latticeFailureMessage(error));
-            setLatticeRetryAt(retryAt);
-            setLatticeRetryClock(now);
-            setLatticeRetryMode("manual");
-            setLatticeRetryAnnouncement(latticeRetryEta(retryAt, now));
-            return;
-          }
-          setLatticeQuotaError(latticeFailureMessage(error));
-          setLatticeRetryAt(retryAt);
-          setLatticeRetryClock(now);
-          setLatticeRetryMode("automatic");
-          setLatticeRetryAnnouncement(latticeRetryEta(retryAt, now, undefined, "automatic"));
-          latticeLeaseRenewalRetryTimerRef.current = setTimeout(() => {
-            latticeLeaseRenewalRetryTimerRef.current = null;
-            renewCurrentLease();
-          }, error.retryAfterSeconds * 1_000);
-          return;
-        }
-        const terminal = error instanceof LatticeLeaseError
-          && ["lease-not-active", "lease-maximum-lifetime"].includes(error.code);
-        if (terminal || (latticeLeaseRef.current?.expiresAt ?? 0) <= Date.now()) {
-          expireCurrentLatticeLease(lease.token, terminal ? "renewal" : "expired");
-        }
-      }).finally(() => {
-        if (latticeLeaseRenewalTokenRef.current === lease.token) {
-          latticeLeaseRenewalTokenRef.current = null;
-        }
-      });
-    };
-    latticeLeaseHeartbeatTimerRef.current = setInterval(
-      renewCurrentLease,
-      LATTICE_USAGE_POLICY.activeLeases.renewalIntervalSeconds * 1_000,
-    );
-  }, [armLatticeLeaseExpiry, clearLatticeLeaseHeartbeat, expireCurrentLatticeLease]);
-
   const cancelLattice = useCallback(() => {
     const controller = latticeAbortRef.current;
-    latticeJobRef.current += 1;
-    latticeAbortRef.current = null;
-    if (controller && latticeMountedRef.current) setLatticePhase("canceling");
-    controller?.abort();
-    releaseCurrentLatticeLease();
-    interruptLocalLatticeModel();
-    discardLocalLatticeModel();
-    if (controller && latticeMountedRef.current) {
-      setLatticeProgress({ phase: "canceled", progress: null, text: "Conversion canceled." });
-      setLatticePhase("ready");
-    }
-    if (latticeRetryMode === "automatic" && latticeMountedRef.current) {
-      setLatticeQuotaError("");
-      setLatticeRetryAt(null);
-      setLatticeRetryClock(0);
-      setLatticeRetryMode("manual");
-      setLatticeRetryAnnouncement("");
-    }
-  }, [latticeRetryMode, releaseCurrentLatticeLease]);
+    if (!controller || !latticeMountedRef.current) return;
+    setLatticePhase("canceling");
+    controller.abort(new DOMException("Text to Lattice was canceled.", "AbortError"));
+  }, []);
 
   useEffect(() => {
     latticeMountedRef.current = true;
@@ -714,9 +472,6 @@ export default function ResumeProjects() {
       const controller = latticeAbortRef.current;
       latticeAbortRef.current = null;
       controller?.abort();
-      releaseCurrentLatticeLease();
-      interruptLocalLatticeModel();
-      discardLocalLatticeModel();
       if (latticeInputRef.current) latticeInputRef.current.value = "";
       latticeInputRef.current = null;
       latticeDialogRef.current = null;
@@ -724,35 +479,12 @@ export default function ResumeProjects() {
       latticeTriggerRef.current = null;
       latticeDirectLaunchRef.current = null;
     };
-  }, [releaseCurrentLatticeLease]);
-
-  useEffect(() => {
-    if (latticeRetryAt === null) return;
-    const tick = () => {
-      const now = Date.now();
-      setLatticeRetryClock(now);
-      if (now >= latticeRetryAt) {
-        setLatticeRetryAt(null);
-        setLatticeRetryClock(0);
-        setLatticeQuotaError("");
-        setLatticeRetryAnnouncement(latticeRetryMode === "automatic" ? "The run is retrying now." : "You can try again now.");
-        if (latticeRetryMode === "manual") {
-          setLatticePhase((current) => current === "error" ? "ready" : current);
-        }
-      }
-    };
-    tick();
-    const timer = window.setInterval(() => {
-      tick();
-      if (Date.now() >= latticeRetryAt) window.clearInterval(timer);
-    }, 1_000);
-    return () => window.clearInterval(timer);
-  }, [latticeRetryAt, latticeRetryMode]);
+  }, []);
 
   const closeLattice = useCallback(() => {
     // Closing is visibility-only. Cancel and Start over are the explicit
-    // teardown controls; input, attestation, lease-bound work, clarification,
-    // and any eventual result remain mounted for the next open.
+    // teardown controls; input, active work, and any eventual result remain
+    // mounted for the next open.
     setLatticeOpen(false);
   }, []);
 
@@ -760,44 +492,6 @@ export default function ResumeProjects() {
     latticeCloseRef.current = closeLattice;
     return () => { latticeCloseRef.current = () => {}; };
   }, [closeLattice]);
-
-  const checkEnvironment = useCallback(async () => {
-    const environmentJobId = latticeJobRef.current;
-    setLatticePhase("checking");
-    setLatticeError("");
-    try {
-      const capability = await probeLocalLatticeCapability();
-      if (!latticeMountedRef.current || latticeJobRef.current !== environmentJobId) return;
-      if (!capability.supported) {
-        setLatticeSupported(false);
-        setLatticeModelCached(false);
-        setLatticeStorageWarning("");
-        setLatticeError(capabilityMessage());
-        setLatticeInputInvalid(false);
-        setLatticePhase("error");
-        return;
-      }
-      setLatticeSupported(true);
-      const [cached, storage] = await Promise.all([
-        isLocalLatticeModelCached(),
-        probeLocalLatticeStorage(),
-      ]);
-      if (!latticeMountedRef.current || latticeJobRef.current !== environmentJobId) return;
-      setLatticeModelCached(cached);
-      setLatticeStorageWarning(!cached && storage.known && storage.sufficient === false
-        ? "This download may need more free space."
-        : "");
-      setLatticePhase("ready");
-    } catch {
-      if (!latticeMountedRef.current || latticeJobRef.current !== environmentJobId) return;
-      setLatticeSupported(null);
-      setLatticeModelCached(null);
-      setLatticeStorageWarning("");
-      setLatticeError("Text to Lattice could not start its local engine. Check again. Nothing was sent.");
-      setLatticeInputInvalid(false);
-      setLatticePhase("error");
-    }
-  }, []);
 
   useEffect(() => {
     if (!latticeOpen) return;
@@ -811,7 +505,6 @@ export default function ResumeProjects() {
       "select:not([disabled])",
       "summary",
       "textarea:not([disabled])",
-      "iframe:not([tabindex='-1'])",
       "[tabindex]:not([tabindex='-1'])",
     ].join(",");
     const focusableElements = () => Array.from(
@@ -821,21 +514,9 @@ export default function ResumeProjects() {
     const preferredFocusTarget = () => {
       const phase = latticePhaseRef.current;
       const result = latticeResultRef.current;
-      if (phase === "reserving") {
-        const attestation = latticeAttestationRef.current?.querySelector<HTMLElement>(
-          "iframe:not([tabindex='-1']), [tabindex]:not([tabindex='-1'])",
-        );
-        if (attestation) return attestation;
-      }
-      if (["reserving", "loading", "converting", "canceling"].includes(phase)) {
+      if (["validating", "submitting", "processing", "canceling"].includes(phase)) {
         const cancel = latticeCancelButtonRef.current;
         if (cancel?.isConnected && !cancel.disabled) return cancel;
-      }
-      if (result?.status === "needs-clarification") {
-        const clarification = latticeOutputRef.current?.querySelector<HTMLElement>(
-          ".lattice-clarification-input, .lattice-clarifications input, .lattice-clarifications button",
-        );
-        if (clarification) return clarification;
       }
       if (result && latticeOutputRef.current) return latticeOutputRef.current;
       const input = latticeInputRef.current;
@@ -849,10 +530,7 @@ export default function ResumeProjects() {
         && dialog.contains(active)
         && !active.matches(":disabled, [hidden], [aria-hidden='true'], [tabindex='-1']");
       const preferred = preferredFocusTarget();
-      const attestationBecameReady = latticePhaseRef.current === "reserving"
-        && preferred instanceof HTMLIFrameElement
-        && active !== preferred;
-      if (activeIsUsable && !attestationBecameReady) return;
+      if (activeIsUsable) return;
       preferred?.focus({ preventScroll: true });
     };
     const scheduleFocusContainment = () => {
@@ -1023,8 +701,8 @@ export default function ResumeProjects() {
   const openLattice = useCallback((trigger: HTMLAnchorElement) => {
     latticeTriggerRef.current = trigger;
     setLatticeOpen(true);
-    if (latticeSupported === null && latticePhase === "idle") void checkEnvironment();
-  }, [checkEnvironment, latticePhase, latticeSupported]);
+    setLatticePhase((current) => current === "idle" ? "ready" : current);
+  }, []);
 
   const launchLattice = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
     if (
@@ -1060,32 +738,15 @@ export default function ResumeProjects() {
 
   const updateLatticeInput = (value: string) => {
     setLatticeUseConfirmed(false);
-    const endedActiveLease = latticeLeaseRef.current !== null;
-    releaseCurrentLatticeLease();
-    if (endedActiveLease) {
-      setLatticeQuotaError("");
-      setLatticeRetryAt(null);
-      setLatticeRetryClock(0);
-      setLatticeRetryMode("manual");
-      setLatticeRetryAnnouncement("");
-    }
-    latticeCompletionBudgetRef.current = { used: 0, limit: LATTICE_COMPLETION_CALL_LIMIT };
     if (value.length > LATTICE_INPUT_SAFETY_LIMIT) {
       setLatticeResult(null);
-      setClarificationAnswers({});
-      setClarificationErrors({});
-      setClarificationHistory([]);
-      setLatticeProgress(null);
       setLatticeError(`Keep the source to ${LATTICE_INPUT_SAFETY_LIMIT.toLocaleString("en-US")} characters or fewer.`);
       setLatticeInputInvalid(true);
+      setLatticePhase("ready");
       return;
     }
     setLatticeInput(value);
     setLatticeResult(null);
-    setClarificationAnswers({});
-    setClarificationErrors({});
-    setClarificationHistory([]);
-    setLatticeProgress(null);
     const nextCount = countLatticeWords(value);
     let validationError = "";
     if (nextCount > 0) {
@@ -1097,21 +758,10 @@ export default function ResumeProjects() {
     }
     setLatticeError(validationError);
     setLatticeInputInvalid(Boolean(validationError));
+    setLatticePhase("ready");
   };
 
-  const updateLatticeClarificationInput = (questionId: string, value: string) => {
-    if (value.length > LATTICE_CLARIFICATION_SAFETY_LIMIT) {
-      setClarificationErrors((current) => ({
-        ...current,
-        [questionId]: `Keep the answer to ${LATTICE_CLARIFICATION_SAFETY_LIMIT.toLocaleString("en-US")} characters or fewer.`,
-      }));
-      return;
-    }
-    setClarificationAnswers((current) => ({ ...current, [questionId]: value }));
-    setClarificationErrors((current) => ({ ...current, [questionId]: "" }));
-  };
-
-  const executeLattice = async (answers: Array<Record<string, string>> = clarificationHistory) => {
+  const executeLattice = async () => {
     if (latticeAbortRef.current) return;
     if (!latticeUseConfirmed) {
       setLatticeError(LATTICE_USE_CONFIRMATION_ERROR);
@@ -1123,141 +773,43 @@ export default function ResumeProjects() {
     const controller = new AbortController();
     latticeAbortRef.current = controller;
     try {
-      preflightLatticeInput(latticeInput);
-      if (latticeSupported === false) throw new Error("WebGPU is unavailable in this browser.");
+      setLatticePhase("validating");
+      validateLatticeInput(latticeInput);
       setLatticeResult(null);
       setLatticeError("");
-      setLatticeQuotaError("");
-      setLatticeRetryAnnouncement("");
-      setClarificationErrors({});
       setLatticeInputInvalid(false);
-      if (latticeLeaseRef.current && latticeLeaseRef.current.expiresAt <= Date.now()) {
-        releaseCurrentLatticeLease();
-      }
-      if (!latticeLeaseRef.current) {
-        latticeCompletionBudgetRef.current = { used: 0, limit: LATTICE_COMPLETION_CALL_LIMIT };
-        setLatticePhase("reserving");
-        setLatticeProgress({
-          phase: "reserving-slot",
-          progress: null,
-          text: "Checking availability…",
-        });
-        const lease = await acquireLatticeLease(
-          controller.signal,
-          (siteKey: string, signal: AbortSignal) => obtainLatticeAttestation(
-            siteKey,
-            latticeAttestationRef.current,
-            signal,
-          ),
-        );
-        if (!latticeMountedRef.current || latticeJobRef.current !== jobId || controller.signal.aborted) {
-          void releaseLatticeLease(lease.token);
-          return;
-        }
-        latticeLeaseRef.current = lease;
-        setLatticeRetryAt(null);
-        setLatticeRetryClock(0);
-        setLatticeRetryMode("manual");
-        armLatticeLeaseExpiry(lease);
-        armLatticeLeaseHeartbeat(lease);
-      }
-      setLatticePhase(latticeModelCached ? "converting" : "loading");
-      setLatticeProgress({ phase: "loading-model", progress: 0, text: "Preparing on this device…" });
-      const onProgress = (report: { phase: string; progress?: number | null; text?: string; current?: number; total?: number }) => {
-        if (!latticeMountedRef.current || latticeJobRef.current !== jobId) return;
-        const lease = latticeLeaseRef.current;
-        if (!lease || lease.expiresAt <= Date.now()) {
-          if (lease) expireCurrentLatticeLease(lease.token);
-          else controller.abort();
-          return;
-        }
-        setLatticePhase(["loading-model", "initializing-model"].includes(report.phase) ? "loading" : "converting");
-        setLatticeProgress({
-          phase: report.phase,
-          progress: report.progress ?? null,
-          text: report.text,
-          current: report.current,
-          total: report.total,
-        });
-      };
-      const adapter = createLocalLatticeAdapter(undefined, {
-        onProgress,
-        completionBudget: latticeCompletionBudgetRef.current,
-      });
-      const leaseToken = latticeLeaseRef.current?.token;
-      if (!leaseToken) {
-        throw new Error("The Text to Lattice lease was unavailable before local processing began.");
-      }
-      const result = await runTextToLattice(latticeInput, {
-        adapter,
+      const result = await requestRemoteLattice(latticeInput, {
+        requestedMode: "auto",
         signal: controller.signal,
-        onProgress,
-        clarificationAnswers: answers,
+        onState: (phase: LatticePhase) => {
+          if (!latticeMountedRef.current || latticeJobRef.current !== jobId) return;
+          setLatticePhase(phase);
+        },
       });
       if (!latticeMountedRef.current || latticeJobRef.current !== jobId || controller.signal.aborted) return;
-      const currentLease = latticeLeaseRef.current;
-      if (!currentLease || currentLease.token !== leaseToken || currentLease.expiresAt <= Date.now()) {
-        if (currentLease?.token === leaseToken) expireCurrentLatticeLease(leaseToken);
-        else throw new Error("The Text to Lattice lease ended before the result could be returned.");
-        return;
-      }
       setLatticeResult(result);
-      setClarificationErrors({});
-      void isLocalLatticeModelCached().then((cached) => {
-        if (!latticeMountedRef.current || latticeJobRef.current !== jobId) return;
-        setLatticeModelCached(cached);
-      }).catch(() => {
-        // Cache inspection is advisory after a completed conversion. Keep the
-        // last known state instead of claiming that an operational failure is
-        // a cache miss.
+      setLatticePhase("success");
+      window.requestAnimationFrame(() => {
+        const output = latticeOutputRef.current;
+        const modal = output?.closest(".modal");
+        if (!output || modal?.hasAttribute("hidden")) return;
+        latticeOutputRefreshRef.current?.();
+        output.scrollIntoView({ block: "nearest" });
+        output.focus({ preventScroll: true });
       });
-      setLatticeProgress(null);
-      if (result.status !== "needs-clarification") {
-        releaseCurrentLatticeLease();
-        setLatticeQuotaError("");
-        setLatticeRetryAt(null);
-        setLatticeRetryClock(0);
-        setLatticeRetryMode("manual");
-        setLatticeRetryAnnouncement("");
-      }
-      setLatticePhase("ready");
     } catch (error) {
       if (!latticeMountedRef.current || latticeJobRef.current !== jobId) return;
-      if (error instanceof DOMException && error.name === "AbortError") {
+      if (controller.signal.aborted || error instanceof DOMException && error.name === "AbortError") {
         setLatticeResult(null);
-        setLatticeProgress(null);
-        setLatticeError("Text to Lattice could not continue. Your text stayed here.");
-        setLatticeQuotaError("");
+        setLatticeError("Canceled. The request may already have reached the configured external service. hah.dev does not retain your sample or result.");
         setLatticeInputInvalid(false);
-        setLatticePhase("error");
-        releaseCurrentLatticeLease();
-        discardLocalLatticeModel();
+        setLatticePhase("ready");
         return;
       }
       setLatticeResult(null);
-      setLatticeProgress(null);
-      if (isLatticeQuotaLimit(error)) {
-        setLatticeError("");
-        setLatticeQuotaError(latticeFailureMessage(error));
-        setLatticeInputInvalid(false);
-        const now = Date.now();
-        const retryAt = now + error.retryAfterSeconds * 1_000;
-        setLatticeRetryAt(retryAt);
-        setLatticeRetryClock(now);
-        setLatticeRetryMode("manual");
-        setLatticeRetryAnnouncement(latticeRetryEta(retryAt, now));
-      } else {
-        setLatticeError(latticeFailureMessage(error));
-        setLatticeQuotaError("");
-        setLatticeRetryAnnouncement("");
-        setLatticeInputInvalid(isLatticeInputFailure(error));
-        setLatticeRetryAt(null);
-        setLatticeRetryClock(0);
-        setLatticeRetryMode("manual");
-      }
+      setLatticeError(latticeFailureMessage(error));
+      setLatticeInputInvalid(isLatticeInputFailure(error));
       setLatticePhase("error");
-      releaseCurrentLatticeLease();
-      discardLocalLatticeModel();
     } finally {
       if (latticeJobRef.current === jobId) latticeAbortRef.current = null;
     }
@@ -1265,72 +817,17 @@ export default function ResumeProjects() {
 
   const runLattice = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void executeLattice(clarificationHistory);
+    void executeLattice();
   };
 
   const startLatticeOver = () => {
     updateLatticeInput("");
     setLatticeUseConfirmed(false);
-    setLatticeQuotaError("");
-    setLatticeRetryAt(null);
-    setLatticeRetryClock(0);
-    setLatticeRetryMode("manual");
-    setLatticeRetryAnnouncement("");
-    setLatticePhase(latticeSupported === false ? "error" : "ready");
+    setLatticePhase("ready");
     window.requestAnimationFrame(() => latticeInputRef.current?.focus({ preventScroll: true }));
   };
 
-  const continueLattice = () => {
-    if (!latticeResult || latticeResult.status !== "needs-clarification") return;
-    const nextErrors: Record<string, string> = {};
-    latticeResult.questions.forEach((question) => {
-      if (!clarificationAnswers[question.id]?.trim()) nextErrors[question.id] = "Choose or enter an answer.";
-    });
-    if (Object.keys(nextErrors).length) {
-      setClarificationErrors(nextErrors);
-      return;
-    }
-    let answers;
-    try {
-      answers = latticeResult.questions.map((question) => {
-        const answer = clarificationAnswers[question.id];
-        const option = question.options.find((item: { id: string; label: string }) => item.id === answer);
-        const answerText = option?.label ?? answer;
-        try {
-          validateLatticeClarificationAnswer(answerText);
-        } catch (error) {
-          nextErrors[question.id] = latticeInputFailureMessage(error, true);
-        }
-        return {
-          questionId: question.id,
-          questionFingerprint: question.fingerprint,
-          sourceFingerprint: question.sourceFingerprint,
-          analysisRevisionId: question.analysisRevisionId,
-          questionStage: question.questionStage,
-          ...(question.candidateFingerprint
-            ? { candidateFingerprint: question.candidateFingerprint }
-            : {}),
-          passageId: question.passageId,
-          answer: option?.label ?? answer,
-        };
-      });
-      if (Object.keys(nextErrors).length) {
-        setClarificationErrors(nextErrors);
-        return;
-      }
-    } catch {
-      setClarificationErrors(Object.fromEntries(latticeResult.questions.map((question) => [question.id, "That answer cannot be processed safely."])));
-      return;
-    }
-    setClarificationErrors({});
-    const cumulativeAnswers = [...clarificationHistory, ...answers];
-    setClarificationHistory(cumulativeAnswers);
-    setClarificationAnswers({});
-    void executeLattice(cumulativeAnswers);
-  };
-
   const blockLatticeOutputTransfer = (event: SyntheticEvent<HTMLElement>) => {
-    if (isLatticeClarificationTarget(event.target)) return;
     event.preventDefault();
     const nativeEvent = event.nativeEvent as Event & {
       clipboardData?: DataTransfer | null;
@@ -1380,7 +877,7 @@ export default function ResumeProjects() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="lattice-demo-title"
-          aria-describedby="lattice-demo-description lattice-local-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"
+          aria-describedby="lattice-demo-description lattice-external-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"
           aria-keyshortcuts="Escape"
           tabIndex={-1}
         >
@@ -1390,27 +887,20 @@ export default function ResumeProjects() {
             <p id="lattice-demo-description" className="lattice-modal-description">
               Enter up to {LATTICE_WORD_LIMIT} words. Meaning remains binding; register may change.
             </p>
-            <p id="lattice-local-privacy" className="lattice-local-note">
-              Your text stays in this tab. Use only text you are authorized to process, and avoid sensitive text. <a href="/projects/lattice/text-to-lattice/#text-to-lattice-privacy">Privacy details</a>.
+            <p id="lattice-external-privacy" className="lattice-local-note">
+              This text leaves hah.dev for processing by the configured external Hugging Face inference service only when you choose <strong>Process with external service</strong>. hah.dev does not retain your sample or result. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. <a href="/projects/lattice/text-to-lattice/#text-to-lattice-privacy">Privacy details</a>.
             </p>
             <p id="lattice-model-disclosure" className="lattice-local-note">
-              Model-assisted result: Qwen drafts locally and Llama 3.2 checks locally. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_2_TERMS_PROVENANCE.licenseUrl}>Built with Llama</a>.
+              Model-assisted result: Qwen drafts and Llama 3.2 checks through the configured external service. The service may apply its own processing terms. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_2_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
             </p>
             <p className="lattice-usage-note" id="lattice-demonstration-profile">
-              Demonstrable release: the admission check exercises the capacity path but does not
-              distinguish people from automated clients. Its reusable public pass can occupy all
-              eight slots, so availability is not assured. Requests remain textless and site-bound;
-              short-lived signed grants, capacity limits, expiry, and browser-local processing remain
-              enforced.
+              Demonstration profile: one user-initiated, same-origin request is sent to
+              <code> /api/lattice</code>. The browser does not contact model providers directly,
+              and a failed request is not retried automatically.
             </p>
             <p className="lattice-usage-note" id="lattice-usage-policy">
-              Demonstration only. Up to {LATTICE_USAGE_POLICY.visitor.limit} conversions per browser in any 24 hours.
+              Demonstration only. Availability depends on bounded server and provider capacity.
             </p>
-            {latticeSupported === false ? (
-              <aside className="lattice-availability" aria-label="Availability">
-                <p>{latticeError || "This device cannot run the tool."} <a href="/projects/lattice/text-to-lattice/#text-to-lattice-availability">View requirements</a>.</p>
-              </aside>
-            ) : null}
           </div>
 
           <form className="lattice-form" onSubmit={runLattice} noValidate>
@@ -1429,7 +919,7 @@ export default function ResumeProjects() {
                 autoCorrect="off"
                 autoCapitalize="off"
                 autoComplete="off"
-                disabled={busy || latticeSupported === false}
+                disabled={busy}
                 aria-describedby={`lattice-word-count${latticeInputInvalid && latticeError ? " lattice-input-error" : ""}`}
                 aria-errormessage={latticeInputInvalid ? "lattice-input-error" : undefined}
                 aria-invalid={latticeInputInvalid ? "true" : undefined}
@@ -1439,16 +929,13 @@ export default function ResumeProjects() {
                 <small id="lattice-word-count" className={overLimit ? "text-red" : undefined}>{wordCount} of {LATTICE_WORD_LIMIT} words</small>
               </div>
             </div>
-            {latticeSupported !== false && latticeModelCached === false ? (
-              <p className="lattice-output-note lattice-form-note">First use downloads about 4.10 GB of public model assets and can use up to about 3.5 GB of working memory.</p>
-            ) : null}
             <div className="lattice-use-confirmation">
               <input
                 id="lattice-use-confirmation"
                 type="checkbox"
                 checked={latticeUseConfirmed}
                 required
-                disabled={busy || latticeSupported === false || wordCount === 0 || overLimit || latticeInputInvalid}
+                disabled={busy || wordCount === 0 || overLimit || latticeInputInvalid}
                 aria-describedby="lattice-use-confirmation-detail"
                 onChange={(event) => {
                   const confirmed = event.currentTarget.checked;
@@ -1457,47 +944,26 @@ export default function ResumeProjects() {
                 }}
               />
               <label className="lattice-use-confirmation-label" htmlFor="lattice-use-confirmation">
-                I confirm that this source is in one of the supported languages, I am authorized to process it, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.2 Acceptable Use Policy.
+                I confirm that this source is in one of the supported languages, I am authorized to send it to the configured external service, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.2 Acceptable Use Policy.
               </label>
               <small id="lattice-use-confirmation-detail" className="lattice-use-confirmation-detail">
-                Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_2_TERMS_PROVENANCE.acceptableUseUrl}>Llama 3.2 Acceptable Use Policy</a>.
+                Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_2_PUBLIC_TERMS.acceptableUseUrl}>Llama 3.2 Acceptable Use Policy</a>.
               </small>
             </div>
-            {latticeStorageWarning ? <p className="lattice-output-note lattice-form-note">{latticeStorageWarning}</p> : null}
-            {latticeError && latticeSupported !== false ? (
+            {latticeError ? (
               <p className="lattice-input-error" id="lattice-input-error" role="alert">
-                {latticeError}{!latticeInputInvalid ? <> <a href="/projects/lattice/text-to-lattice/#text-to-lattice-availability">Tool details</a>.</> : null}
+                {latticeError}{!latticeInputInvalid ? <> <a href="/projects/lattice/text-to-lattice/">Tool details</a>.</> : null}
               </p>
             ) : null}
-            {latticeQuotaError ? (
-              <p className="lattice-input-error" role="alert">{latticeQuotaError}</p>
-            ) : null}
-            {latticeRetryAt !== null ? (
-              <p className="lattice-retry-eta" aria-hidden="true">
-                <time dateTime={new Date(latticeRetryAt).toISOString()}>{latticeRetryEta(latticeRetryAt, latticeRetryClock, undefined, latticeRetryMode)}</time>
-              </p>
-            ) : null}
-            <p className="lattice-retry-announcement" role="status" aria-live="polite">
-              {latticeRetryAnnouncement}
-            </p>
             {progressText ? (
               <div className="lattice-progress">
                 <span aria-live="polite" role="status">{progressText}</span>
-                {typeof latticeProgress?.progress === "number" ? (
-                  <progress max={1} value={latticeProgress.progress} aria-label={progressText} />
-                ) : null}
               </div>
             ) : null}
             <div className="lattice-actions">
-              {latticeSupported === false || latticeSupported === null && latticePhase === "error" ? (
-                <button className="lattice-run-button" type="button" onClick={() => void checkEnvironment()} disabled={latticePhase === "checking"}>
-                  {latticePhase === "checking" ? "Checking again…" : "Check again"}
-                </button>
-              ) : (
-                <button className="lattice-run-button" type="submit" disabled={primaryUnavailable}>
-                  {latticePhase === "checking" ? "Checking availability…" : primaryLabel}
-                </button>
-              )}
+              <button className="lattice-run-button" type="submit" disabled={primaryUnavailable}>
+                Process with external service
+              </button>
               {latticeResult ? (
                 <button className="lattice-cancel-button" type="button" onClick={startLatticeOver} disabled={busy}>
                   Start over
@@ -1508,11 +974,10 @@ export default function ResumeProjects() {
                   {latticePhase === "canceling" ? "Canceling…" : "Cancel"}
                 </button>
               ) : null}
-              <button className="lattice-cancel-button" type="button" onClick={closeLattice} aria-label={taskContinuesWhileClosed ? "Close; current task continues" : "Close"}>
-                Close
+              <button className="lattice-cancel-button" type="button" onClick={closeLattice} aria-label={taskContinuesWhileClosed ? "Close; current task continues" : latticeResult ? "Close" : "Cancel"}>
+                {taskContinuesWhileClosed || latticeResult ? "Close" : "Cancel"}
               </button>
             </div>
-            <div ref={latticeAttestationRef} className="lattice-attestation" aria-live="polite" />
           </form>
 
           <section
@@ -1555,46 +1020,6 @@ export default function ResumeProjects() {
                       draggable={false}
                     >{latticeResult.text}</pre>
                     <span className="lattice-output-veil" aria-hidden="true" />
-                  </div>
-                ) : null}
-                {latticeResult.status === "needs-clarification" && latticeResult.questions.length ? (
-                  <div className="lattice-clarifications">
-                    {latticeResult.questions.map((question) => (
-                      <fieldset key={question.id} aria-describedby={clarificationErrors[question.id] ? `lattice-question-error-${question.id}` : undefined}>
-                        <legend>{question.prompt}</legend>
-                        {question.options.length ? question.options.map((option: { id: string; label: string }) => (
-                          <label key={option.id}>
-                            <input
-                              type="radio"
-                              name={`lattice-question-${question.id}`}
-                              value={option.id}
-                              checked={clarificationAnswers[question.id] === option.id}
-                              onChange={(event) => {
-                                setClarificationAnswers((current) => ({ ...current, [question.id]: event.currentTarget.value }));
-                                setClarificationErrors((current) => ({ ...current, [question.id]: "" }));
-                              }}
-                            />{" "}{option.label}
-                          </label>
-                        )) : null}
-                        <label className="lattice-clarification-input-label" htmlFor={`lattice-question-custom-${question.id}`}>Something else</label>
-                        <input
-                          id={`lattice-question-custom-${question.id}`}
-                          className="form-control lattice-clarification-input"
-                          value={question.options.some(({ id }: { id: string }) => id === clarificationAnswers[question.id]) ? "" : (clarificationAnswers[question.id] ?? "")}
-                          spellCheck={false}
-                          autoCorrect="off"
-                          autoCapitalize="off"
-                          autoComplete="off"
-                          aria-invalid={clarificationErrors[question.id] ? "true" : undefined}
-                          aria-errormessage={clarificationErrors[question.id] ? `lattice-question-error-${question.id}` : undefined}
-                          onChange={(event) => updateLatticeClarificationInput(question.id, event.currentTarget.value)}
-                        />
-                        {clarificationErrors[question.id] ? (
-                          <p className="lattice-input-error" id={`lattice-question-error-${question.id}`} role="alert">{clarificationErrors[question.id]}</p>
-                        ) : null}
-                      </fieldset>
-                    ))}
-                    <button className="lattice-run-button" type="button" onClick={continueLattice} disabled={busy}>Continue</button>
                   </div>
                 ) : null}
                 {latticeVisibleFindings(latticeResult).length ? (

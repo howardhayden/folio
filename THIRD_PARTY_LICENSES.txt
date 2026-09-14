@@ -16,6 +16,9 @@ MIT License (Vinext)
 MIT License (Bootstrap)
   LICENSES/MIT-Bootstrap.txt
 
+SIL Open Font License 1.1 (Jost)
+  LICENSES/OFL-1.1-Jost.txt
+
 Llama 3.2 Community License Agreement
   LICENSES/Llama-3.2-Community-License.txt
 

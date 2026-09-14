@@ -224,14 +224,14 @@ test("output transfer and capture shields clear payloads and clean up every list
   const handlerEnd = source.indexOf("\n\n  return (", handlerStart);
   assert.ok(handlerStart >= 0 && handlerEnd > handlerStart, "output transfer handler is present");
   const handler = source.slice(handlerStart, handlerEnd);
-  const clarificationAt = handler.indexOf("isLatticeClarificationTarget(event.target)");
   const preventAt = handler.indexOf("event.preventDefault()");
   const clipboardAt = handler.indexOf("nativeEvent.clipboardData?.clearData()");
   const dragAt = handler.indexOf("nativeEvent.dataTransfer?.clearData()");
   assert.ok(
-    clarificationAt >= 0 && preventAt > clarificationAt && clipboardAt > preventAt && dragAt > clipboardAt,
-    "non-clarification transfers are canceled and their payload stores are cleared",
+    preventAt >= 0 && clipboardAt > preventAt && dragAt > clipboardAt,
+    "all result transfers are canceled and their payload stores are cleared",
   );
+  assert.doesNotMatch(handler, /clarification/iu, "the retired clarification controls cannot bypass result protection");
   for (const eventName of ["onCopy", "onCut", "onDragStart", "onContextMenu"]) {
     assert.match(source, new RegExp(`${eventName}=\\{blockLatticeOutputTransfer\\}`, "u"));
   }

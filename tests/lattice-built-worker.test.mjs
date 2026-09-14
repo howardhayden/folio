@@ -1,164 +1,82 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
-import { basename } from "node:path";
+import { readFile, readdir } from "node:fs/promises";
+import { extname, relative, resolve } from "node:path";
 import test from "node:test";
-import vm from "node:vm";
+import { fileURLToPath } from "node:url";
 
-import { LATTICE_MODEL_ROLES } from "../app/resume/lattice/modelContract.js";
-import { createLatticeModelRpcRequest } from "../app/resume/lattice/modelRpc.js";
+const root = fileURLToPath(new URL("../", import.meta.url));
+const staticDirectory = resolve(root, "site/_next/static");
+const textualArtifactExtensions = new Set([".css", ".html", ".js", ".json", ".mjs", ".txt"]);
 
-const workerDirectory = new URL("../site/_next/static/workers/", import.meta.url);
-const workerFilenamePattern = /^latticeWebllm\.worker-[A-Za-z0-9_-]+\.js$/u;
-const responseTimeoutMs = 10_000;
+const retiredBrowserRuntimeBindings = Object.freeze([
+  Object.freeze({
+    label: "the retired Text-to-Lattice WebLLM worker",
+    pattern: /latticeWebllm\.worker/iu,
+  }),
+  Object.freeze({
+    label: "a browser WebLLM package",
+    pattern: /@mlc-ai\/web-(?:llm|tokenizers)/iu,
+  }),
+  Object.freeze({
+    label: "the browser WebLLM engine factory",
+    pattern: /\bCreateMLCEngine\b/u,
+  }),
+  Object.freeze({
+    label: "a retired MLC model repository",
+    pattern: /https:\/\/huggingface\.co\/mlc-ai\//iu,
+  }),
+  Object.freeze({
+    label: "a retired browser WASM repository",
+    pattern: /https:\/\/raw\.githubusercontent\.com\/mlc-ai\/binary-mlc-llm-libs\//iu,
+  }),
+  Object.freeze({
+    label: "a retired browser-quantized model identifier",
+    pattern: /(?:Qwen3-4B|Llama-3\.2-3B-Instruct)-q4f(?:16|32)_1-MLC/iu,
+  }),
+  Object.freeze({
+    label: "a retired browser WebGPU module",
+    pattern: /(?:Qwen3-4B|Llama-3\.2-3B-Instruct)-q4f(?:16|32)_1-ctx4k_cs1k-webgpu\.wasm/iu,
+  }),
+  Object.freeze({
+    label: "a retired browser model configuration request",
+    pattern: /\bmlc-chat-config\.json\b/iu,
+  }),
+]);
 
-function jsonClone(value) {
-  return JSON.parse(JSON.stringify(value));
+async function filesBelow(directory) {
+  const files = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const pathname = resolve(directory, entry.name);
+    if (entry.isDirectory()) files.push(...await filesBelow(pathname));
+    else files.push(pathname);
+  }
+  return files;
 }
 
-test("the emitted model Worker boots in a Worker realm and reaches its first guarded model request", { timeout: 20_000 }, async () => {
-  const workerFilenames = (await readdir(workerDirectory)).filter((filename) => workerFilenamePattern.test(filename));
-  assert.equal(workerFilenames.length, 1, "the Pages artifact must contain exactly one emitted model Worker");
+test("the production build excludes the retired browser-local model worker and provider assets", async () => {
+  const files = await filesBelow(staticDirectory);
+  assert.ok(files.length > 0, "build the production site before checking its browser artifacts");
 
-  const workerUrl = new URL(workerFilenames[0], workerDirectory);
-  const workerSource = await readFile(workerUrl, "utf8");
-  const cacheAdds = [];
-  const networkRequests = [];
-  const responseWaiters = new Map();
-
-  class WorkerHarnessStop extends Error {
-    constructor() {
-      super("intentional emitted-worker smoke stop");
-      this.name = "WorkerHarnessStop";
-    }
-  }
-
-  class MockCache {
-    async keys() {
-      return [];
-    }
-
-    async match() {
-      return undefined;
-    }
-
-    async delete() {
-      return true;
-    }
-
-    async add(request) {
-      cacheAdds.push(new Request(request).url);
-      throw new WorkerHarnessStop();
-    }
-
-    async addAll(requests) {
-      cacheAdds.push(...Array.from(requests, (request) => new Request(request).url));
-      throw new WorkerHarnessStop();
-    }
-  }
-
-  const sandbox = {
-    AbortController,
-    AbortSignal,
-    Blob,
-    Cache: MockCache,
-    DOMException,
-    File,
-    FormData,
-    Headers,
-    Request,
-    Response,
-    TextDecoder,
-    TextEncoder,
-    URL,
-    URLSearchParams,
-    WebAssembly,
-    atob,
-    btoa,
-    caches: {
-      async open() {
-        return new MockCache();
-      },
-    },
-    clearInterval,
-    clearTimeout,
-    console,
-    crypto,
-    fetch: async (input, init) => {
-      networkRequests.push(new Request(input, init).url);
-      throw new WorkerHarnessStop();
-    },
-    importScripts() {
-      throw new WorkerHarnessStop();
-    },
-    location: { href: `https://hah.dev/_next/static/workers/${basename(workerUrl.pathname)}` },
-    navigator: { language: "en-US", languages: ["en-US"] },
-    performance,
-    postMessage(message) {
-      const response = jsonClone(message);
-      if (response.kind !== "response") return;
-      const waiter = responseWaiters.get(response.id);
-      if (!waiter) return;
-      responseWaiters.delete(response.id);
-      clearTimeout(waiter.timeout);
-      waiter.resolve(response);
-    },
-    queueMicrotask,
-    setInterval,
-    setTimeout,
-    structuredClone,
-  };
-  const context = vm.createContext(sandbox);
-  vm.runInContext("globalThis.self = globalThis", context);
-  assert.equal(vm.runInContext("self === globalThis", context), true);
-  for (const windowOnlyGlobal of ["window", "document", "process"]) {
-    assert.equal(vm.runInContext(`typeof ${windowOnlyGlobal}`, context), "undefined");
-  }
-
-  new vm.Script(workerSource, { filename: workerUrl.pathname }).runInContext(context, { timeout: 10_000 });
-
-  function send(request) {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        responseWaiters.delete(request.id);
-        reject(new Error(`The emitted model Worker did not answer ${request.operation}.`));
-      }, responseTimeoutMs);
-      responseWaiters.set(request.id, { resolve, timeout });
-      try {
-        vm.runInContext(`self.onmessage({ data: ${JSON.stringify(request)} })`, context);
-      } catch (error) {
-        responseWaiters.delete(request.id);
-        clearTimeout(timeout);
-        reject(error);
-      }
-    });
-  }
-
-  assert.deepEqual(
-    await send(createLatticeModelRpcRequest(1, "cached", {})),
-    {
-      channel: "text-to-lattice:model:v1",
-      kind: "response",
-      id: 1,
-      operation: "cached",
-      ok: true,
-      value: false,
-    },
+  const emittedPaths = files.map((pathname) => relative(staticDirectory, pathname).split("\\").join("/"));
+  assert.equal(
+    emittedPaths.some((pathname) => /(?:^|\/)workers\/latticeWebllm\.worker-[A-Za-z0-9_-]+\.js$/u.test(pathname)),
+    false,
+    "the production build must not emit the retired Text-to-Lattice model Worker",
   );
 
-  assert.deepEqual(
-    await send(createLatticeModelRpcRequest(2, "prepare", { role: "generator" })),
-    {
-      channel: "text-to-lattice:model:v1",
-      kind: "response",
-      id: 2,
-      operation: "prepare",
-      ok: false,
-      error: {
-        name: "WorkerHarnessStop",
-        message: "intentional emitted-worker smoke stop",
-      },
-    },
-  );
-  assert.deepEqual(cacheAdds, [new URL("mlc-chat-config.json", LATTICE_MODEL_ROLES.generator.model).href]);
-  assert.deepEqual(networkRequests, []);
+  for (const artifact of emittedPaths) {
+    for (const { label, pattern } of retiredBrowserRuntimeBindings) {
+      assert.doesNotMatch(artifact, pattern, `${artifact} is ${label}`);
+    }
+  }
+
+  // Historical implementation modules and unit suites remain in source for
+  // provenance. Only browser-shipped production artifacts belong here.
+  for (const pathname of files.filter((candidate) => textualArtifactExtensions.has(extname(candidate).toLowerCase()))) {
+    const source = await readFile(pathname, "utf8");
+    const artifact = relative(staticDirectory, pathname).split("\\").join("/");
+    for (const { label, pattern } of retiredBrowserRuntimeBindings) {
+      assert.doesNotMatch(source, pattern, `${artifact} references ${label}`);
+    }
+  }
 });

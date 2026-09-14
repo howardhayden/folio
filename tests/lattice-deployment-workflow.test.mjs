@@ -190,7 +190,7 @@ function fixtureFetch({
   };
 }
 
-test("the Pages graph bootstraps held infrastructure only when requested and requires it when enabled", async () => {
+test("the Pages graph keeps the client held while allowing an explicit remote-service qualification run", async () => {
   const workflow = await readFile(workflowPath, "utf8");
   assert.match(workflow, /workflow_dispatch:[\s\S]*?deploy_text_to_lattice_services:[\s\S]*?type: boolean/u);
   assert.match(
@@ -201,8 +201,10 @@ test("the Pages graph bootstraps held infrastructure only when requested and req
     [...workflow.matchAll(/github\.event_name == 'push'/gu)].length,
     1,
   );
-  assert.match(workflow, /--require-official-test-profile/u);
-  assert.doesNotMatch(workflow, /--allow-official-test-keys/u);
+  assert.match(workflow, /workers\/text-to-lattice-api\/wrangler\.jsonc/u);
+  assert.match(workflow, /HF_TOKEN.*encrypted Text to Lattice API Worker binding/su);
+  assert.doesNotMatch(workflow, /--require-official-test-profile|--allow-official-test-keys/u);
+  assert.doesNotMatch(workflow, /Deploy isolated verification frame|Deploy lease Worker|bootstrap-text-to-lattice-secrets|verify-text-to-lattice-secret-bindings|verify-text-to-lattice-services/u);
   assert.match(
     workflow,
     /public_client_status == 'held' &&[\s\S]*?\["skipped", "success"\][\s\S]*?deploy_text_to_lattice_services\.result/u,
@@ -268,29 +270,22 @@ test("the pinned Wrangler secret inventory uses its supported JSON flag", async 
   assert.doesNotMatch(workflow, /wrangler secret list --json/u);
 });
 
-test("the service job deploys and proves the frame before the lease and Pages", async () => {
+test("the service job deploys only the API and response policy before its bounded probe and Pages", async () => {
   const workflow = await readFile(workflowPath, "utf8");
+  const bindingInspect = workflow.indexOf("Inspect Text to Lattice API encrypted binding names");
+  const bindingRequire = workflow.indexOf("Require the server-only provider credential binding");
+  const apiDeploy = workflow.indexOf("Deploy bounded Text to Lattice API");
   const policyDeploy = workflow.indexOf("Deploy résumé response policy");
-  const frameDeploy = workflow.indexOf("Deploy isolated verification frame");
-  const frameProbe = workflow.indexOf("Verify deployed frame bytes and isolation headers");
-  const leaseDeploy = workflow.indexOf("Deploy lease Worker");
-  const bindingBootstrap = workflow.indexOf("Preserve complete bindings or bootstrap the bounded demonstration profile");
-  const bindingProbe = workflow.indexOf("Verify encrypted Worker binding names");
-  const routeProbe = workflow.indexOf("Verify exact Worker route inventory");
-  const liveProbe = workflow.indexOf("Verify live Text to Lattice boundaries");
+  const liveProbe = workflow.indexOf("Verify deployed Text to Lattice API boundary");
   const pagesDeploy = workflow.lastIndexOf("uses: actions/deploy-pages@");
+  assert.ok(bindingInspect > 0);
+  assert.ok(bindingInspect < bindingRequire);
+  assert.ok(bindingRequire < apiDeploy);
+  assert.ok(apiDeploy < liveProbe);
+  assert.ok(liveProbe < policyDeploy);
   assert.ok(policyDeploy > 0);
-  assert.ok(policyDeploy < frameDeploy);
-  assert.ok(frameDeploy > 0);
-  assert.ok(frameDeploy < frameProbe);
-  assert.ok(frameProbe < leaseDeploy);
-  assert.ok(leaseDeploy < bindingBootstrap);
-  assert.ok(bindingBootstrap < bindingProbe);
-  assert.ok(leaseDeploy < bindingProbe);
-  assert.ok(bindingProbe < routeProbe);
-  assert.ok(routeProbe < liveProbe);
-  assert.ok(bindingProbe < liveProbe);
-  assert.ok(liveProbe < pagesDeploy);
+  assert.ok(policyDeploy < pagesDeploy);
+  assert.doesNotMatch(workflow, /text-to-lattice-attestation-frame\/wrangler\.jsonc|text-to-lattice-lease\/wrangler\.jsonc/u);
 });
 
 test("the exact-route edge policy and in-document fallback avoid a portfolio-wide Worker route", async () => {
