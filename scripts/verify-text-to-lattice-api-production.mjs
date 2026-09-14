@@ -135,8 +135,8 @@ const NEGATIVE_PROBES = Object.freeze([
     id: "wrong-query",
     pathname: `${LATTICE_API_PATH}?undeclared=1`,
     init: apiPost(exactPayload()),
-    status: 404,
-    error: "invalid_request",
+    status: 405,
+    apiJson: false,
   }),
   Object.freeze({
     id: "wrong-method",

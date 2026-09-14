@@ -250,6 +250,58 @@ test("the production verifier establishes one bodyless visitor session before ex
   assert.deepEqual(JSON.parse(serialized.serialized), evidence);
 });
 
+test("the wrong-query probe verifies exact route exclusion as a non-API 405", async () => {
+  const fixture = successfulFixture();
+  let wrongQueryResponseBody = null;
+  const evidence = await verifyTextToLatticeApiProduction({
+    async fetchImpl(url, init) {
+      const response = await fixture.fetchImpl(url, init);
+      if (`${url}` === "https://hah.dev/api/lattice?undeclared=1") {
+        assert.equal(response.status, 405);
+        wrongQueryResponseBody = await response.clone().text();
+      }
+      return response;
+    },
+    context,
+    now: fixedNow,
+  });
+  const probeIndex = LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.indexOf("wrong-query");
+  assert.notEqual(probeIndex, -1);
+  assert.deepEqual(LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT[probeIndex], {
+    id: "wrong-query",
+    status: 405,
+    error: null,
+    apiJson: false,
+    allow: null,
+  });
+
+  const call = fixture.calls[5 + probeIndex];
+  assert.equal(call.url, "https://hah.dev/api/lattice?undeclared=1");
+  assert.equal(call.init.method, "POST");
+  assert.deepEqual(JSON.parse(call.init.body), {
+    text: "lattice-live-negative-canary-2026-09-14",
+    requested_mode: "operative",
+    schema_version: 1,
+  });
+
+  const outcome = evidence.negative_probes.outcomes[probeIndex];
+  const { elapsed_ms: elapsed, response_bytes: responseBytes, ...stableOutcome } = outcome;
+  assert.deepEqual(stableOutcome, {
+    id: "wrong-query",
+    status: 405,
+    api_json: false,
+  });
+  assert.ok(Number.isSafeInteger(elapsed) && elapsed >= 0);
+  assert.ok(responseBytes > 0);
+  assert.equal(typeof wrongQueryResponseBody, "string");
+  assert.doesNotMatch(
+    wrongQueryResponseBody,
+    /lattice-live-negative-canary-2026-09-14/u,
+  );
+  assert.equal(fixture.setupRequests, 1);
+  assert.equal(fixture.canaryRequests, 1);
+});
+
 test("a failed transformation canary is attempted once without retry or retained content", async () => {
   const fixture = successfulFixture({
     canaryResponse: apiJson(
