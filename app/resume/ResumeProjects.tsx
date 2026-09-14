@@ -495,6 +495,7 @@ export default function ResumeProjects() {
   const latticeDialogRef = useRef<HTMLDivElement>(null);
   const latticeInputRef = useRef<HTMLTextAreaElement>(null);
   const latticeOutputRef = useRef<HTMLElement>(null);
+  const latticeOutputRefreshRef = useRef<(() => void) | null>(null);
   const latticeTriggerRef = useRef<HTMLAnchorElement | null>(null);
   const latticeDirectLaunchRef = useRef<HTMLAnchorElement | null>(null);
   const latticeAttestationRef = useRef<HTMLDivElement>(null);
@@ -994,8 +995,10 @@ export default function ResumeProjects() {
     document.addEventListener("visibilitychange", handleVisibility);
     document.addEventListener("keydown", handlePrintScreen, true);
     document.addEventListener("keyup", handlePrintScreen, true);
+    latticeOutputRefreshRef.current = reveal;
     handleVisibility();
     return () => {
+      latticeOutputRefreshRef.current = null;
       window.cancelAnimationFrame(revealFrame);
       window.clearTimeout(printScreenTimer);
       window.removeEventListener("blur", shield);
@@ -1010,6 +1013,12 @@ export default function ResumeProjects() {
       output?.setAttribute("data-shielded", "true");
     };
   }, [latticeOpen]);
+
+  useEffect(() => {
+    // Refresh on result arrival without recreating the protection controller
+    // or resetting its active print/capture deadline.
+    if (latticeOpen && latticeResult) latticeOutputRefreshRef.current?.();
+  }, [latticeOpen, latticeResult]);
 
   const openLattice = useCallback((trigger: HTMLAnchorElement) => {
     latticeTriggerRef.current = trigger;
