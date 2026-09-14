@@ -356,6 +356,9 @@ function latticeInputFailureMessage(error: unknown) {
 function latticeFailureMessage(error: unknown) {
   if (isLatticeInputFailure(error)) return latticeInputFailureMessage(error);
   if (error instanceof LatticeRemoteError) {
+    if (error.code === "visitor_session_required") {
+      return "The external provider did not receive your text because hah.dev could not establish its private daily-limit cookie. Allow site cookies for hah.dev, then submit again only if you choose.";
+    }
     if (error.code === "invalid_request" || error.code === "input_too_large") {
       return "The service rejected this source. Review the limits and submit again only if you choose.";
     }
@@ -894,12 +897,19 @@ export default function ResumeProjects() {
               Model-assisted result: Qwen drafts and Llama 3.2 checks through the configured external service. The service may apply its own processing terms. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_2_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
             </p>
             <p className="lattice-usage-note" id="lattice-demonstration-profile">
-              Demonstration profile: one user-initiated, same-origin request is sent to
-              <code> /api/lattice</code>. The browser does not contact model providers directly,
+              Demonstration profile: after explicit confirmation, the browser sends one
+              content-free cookie setup POST and then exactly one content-bearing POST to
+              <code> /api/lattice</code>. Only the second includes your text or can initiate
+              external-provider processing. The browser does not contact model providers directly,
               and a failed request is not retried automatically.
             </p>
             <p className="lattice-usage-note" id="lattice-usage-policy">
-              Demonstration only. Availability depends on bounded server and provider capacity.
+              Demonstration only: 30 content-bearing transformation requests are accepted globally
+              per UTC day and 3 from one ordinary persistent browser cookie jar. hah.dev uses one
+              opaque, HttpOnly quota cookie scoped only to <code>/api/lattice</code> until the next UTC
+              day; it contains no submitted text or result. Blocking or clearing cookies can reset the
+              per-cookie-jar count, but not the global limit. Availability also depends on bounded
+              provider capacity.
             </p>
           </div>
 

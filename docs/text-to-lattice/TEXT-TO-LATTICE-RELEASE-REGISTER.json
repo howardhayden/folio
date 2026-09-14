@@ -17,7 +17,34 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "0dc6012e549554f86aad88ac0ddd146b1b67a36923a75c0d25035f0af082c0a7",
+    "qualificationDossierSha256": "e35ee96744656d0f3977e25fd0badbc1a67ceb9496ad193ce8946f25f97e6d1b",
+    "browserEvidence": {
+      "status": "not-collected",
+      "path": null,
+      "sha256": null,
+      "evidenceId": null,
+      "recordedAt": null,
+      "deployedCommit": null,
+      "workflowRunId": null,
+      "workflowRunAttempt": null,
+      "workflowRunUrl": null,
+      "serviceJobId": null,
+      "canonicalUrl": null,
+      "apiWorkerDeploymentId": null,
+      "apiWorkerVersion": null,
+      "responsePolicyWorkerDeploymentId": null,
+      "responsePolicyWorkerVersion": null,
+      "deploymentEvidenceIndexSha256": null,
+      "deploymentEvidenceBeforeCapturesSha256": null,
+      "deploymentEvidenceAfterCapturesSha256": null,
+      "siteArtifactSha256": null,
+      "qualifiedSourceSetSha256": null,
+      "deployedAt": null,
+      "qualificationExpiresAt": null,
+      "deploymentEvidenceCheckedBeforeCapturesAt": null,
+      "deploymentEvidenceCheckedAfterCapturesAt": null,
+      "deploymentEvidenceUnchangedAcrossCaptures": null
+    },
     "qualifiedSourceSet": {
       "algorithm": "sha256-path-and-bytes-v1",
       "files": [
@@ -28,6 +55,8 @@
         "THIRD_PARTY_LICENSES.txt",
         "THIRD_PARTY_NOTICES.md",
         "docs/lattice-resume-demo-requirements.md",
+        "docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.schema.json",
+        "docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.template.json",
         "eslint.config.mjs",
         "next-env.d.ts",
         "next.config.ts",
@@ -49,7 +78,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "23dedeb48c4f5eb2cbf8dfb5da39ff49fc3e9af5920aee50caabcf036a610165",
+      "sha256": "87b5d4af77b027387e4b2f4276271e9160f7467a171915c7f5da908edc597e1b",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, license-routing map, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -59,7 +88,7 @@
   "publicClient": {
     "status": "held",
     "publicationMode": "documentation-only",
-    "reason": "The remote Text to Lattice source candidate has not supplied production evidence for its exact /api/lattice route, encrypted HF_TOKEN binding name, fixed provider and model targets, response-policy boundary, capacity behavior, or canonical-browser lifecycle and privacy trace. Historical browser-local WebLLM, Turnstile, and lease evidence applies only to superseded deployed revisions and cannot qualify this architecture.",
+    "reason": "The remote Text to Lattice source candidate has not supplied production evidence for its exact /api/lattice route, encrypted HF_TOKEN and VISITOR_COOKIE_SECRET binding names, API-scoped quota cookie, exact 30-global and scoped 3-cooperating-cookie-jar UTC-day request admission, fixed provider and model targets, response-policy boundary, or canonical-browser lifecycle and privacy trace. Historical browser-local WebLLM, Turnstile, and lease evidence applies only to superseded deployed revisions and cannot qualify this architecture.",
     "heldBoundary": {
       "allow": [
         "public documentation and release status",
@@ -76,10 +105,10 @@
   "ownerDisposition": {
     "status": "hold-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "23dedeb48c4f5eb2cbf8dfb5da39ff49fc3e9af5920aee50caabcf036a610165",
+    "qualifiedSourceSetSha256": "87b5d4af77b027387e4b2f4276271e9160f7467a171915c7f5da908edc597e1b",
     "decidedOn": "2026-09-14",
     "record": "The site owner directs the remote Text to Lattice source candidate to remain held and documentation-only until the active production and canonical-browser release blockers close. Source review, Worker deployment preparation, and explicit historical evidence do not activate the public client.",
-    "note": "The earlier GATE-02 deployment record and GATE-06 canonical-browser lifecycle and privacy captures remain verbatim historical evidence for their browser-local revisions. They do not establish the /api/lattice route, HF_TOKEN binding, fixed Hugging Face and Featherless provider targets, remote retention boundary, successful remote conversion, or current privacy trace."
+    "note": "The earlier GATE-02 deployment record and GATE-06 canonical-browser lifecycle and privacy captures remain verbatim historical evidence for their browser-local revisions. They do not establish the /api/lattice route, HF_TOKEN and VISITOR_COOKIE_SECRET bindings, exact quota-cookie boundary, exact 30-global and scoped 3-cooperating-cookie-jar UTC-day admission, fixed Hugging Face and Featherless provider targets, remote retention boundary, successful remote conversion, or current privacy trace."
   },
   "artifactSet": {
     "activeCapability": {
@@ -98,7 +127,73 @@
         "experiential"
       ],
       "trigger": "explicit-user-submit",
-      "secretBindingName": "HF_TOKEN",
+      "secretBindingNames": [
+        "HF_TOKEN",
+        "VISITOR_COOKIE_SECRET"
+      ],
+      "visitorSessionSetup": {
+        "route": "/api/lattice",
+        "method": "POST",
+        "accept": "application/vnd.hah.text-to-lattice-visitor-session.v1+json",
+        "bodyless": true,
+        "contentTypeHeader": false,
+        "credentialsMode": "same-origin",
+        "sharedBrowserWebLock": true,
+        "acceptedStatus": 204,
+        "transportOrNon204FailureStopsContentRequest": true,
+        "establishesOrPreservesSignedCookie": true,
+        "consumesTransformationQuota": false,
+        "contactsProvider": false
+      },
+      "contentRequest": {
+        "route": "/api/lattice",
+        "method": "POST",
+        "accept": "application/json",
+        "contentTypeHeader": "application/json",
+        "credentialsMode": "same-origin",
+        "contentBearingRequestsPerAttempt": 1,
+        "httpOnlyCookieStorageObservableByClient": false,
+        "attemptedAfterAcceptedSetupWhenCookieBlockedOrDropped": true,
+        "requiresValidSignedVisitorCookie": true,
+        "missingCookieStatus": 428,
+        "missingCookieCode": "visitor_session_required",
+        "missingCookieBeforeAdmission": true,
+        "missingCookieBeforeProvider": true,
+        "invalidOrUndeclaredCookieStatus": 403,
+        "invalidOrUndeclaredCookieCode": "invalid_request",
+        "invalidOrUndeclaredCookieBeforeAdmission": true,
+        "invalidOrUndeclaredCookieBeforeProvider": true,
+        "sameBrowserWebLockAsSetup": true
+      },
+      "browserQuotaCookie": {
+        "name": "__Secure-hah-lattice-api-visitor",
+        "path": "/api/lattice",
+        "secure": true,
+        "httpOnly": true,
+        "sameSite": "Strict",
+        "domain": null,
+        "expiresAtNextUtcDay": true,
+        "containsUserContent": false,
+        "containsAccountIdentity": false,
+        "containsBrowserFingerprint": false,
+        "containsProviderCredential": false
+      },
+      "admission": {
+        "globalPerUtcDay": 30,
+        "perOrdinaryPersistentBrowserCookieJarPerUtcDay": 3,
+        "perBrowserLimitClaimScope": "cooperating canonical client with an ordinary persistent browser cookie jar",
+        "intentionalCookieClearingOrUncooperativeCallerCovered": false,
+        "globalLimitExactAndAuthoritative": true,
+        "atomicClaimsPerRequest": 1,
+        "countsAdmittedFailures": true,
+        "refundsAdmittedRequests": false,
+        "rechecksSharedQuotaWithinPipeline": false,
+        "usesIpAddress": false,
+        "usesBrowserFingerprint": false,
+        "storesSubmittedContentOrResult": false,
+        "maximumProviderCallsPerAdmittedRequest": 32,
+        "maximumProviderCallsFromAdmittedRequestsPerUtcDay": 960
+      },
       "provider": {
         "endpoint": "https://router.huggingface.co/v1/chat/completions",
         "generatorModel": "Qwen/Qwen3-4B:featherless-ai",
@@ -313,7 +408,7 @@
       "label": "Remote API origin, secret, and privacy boundary",
       "status": "open-release-blocker",
       "marginalValue": "high",
-      "requirement": "Before public activation, the deployed hah.dev origin must expose exactly one same-origin POST /api/lattice capability with schema version 1 and only text, requested_mode, and schema_version; the API Worker must use the encrypted HF_TOKEN binding by name, the fixed Hugging Face router and Featherless-qualified Qwen and Llama targets, bounded non-reflective errors, Cache-Control: no-store, no application content storage or logging, no automatic retry, no alternate provider or model fallback, and a Content-Security-Policy whose connect-src is 'self'.",
+      "requirement": "Before public activation, the deployed hah.dev origin must expose exactly one named same-origin POST /api/lattice capability. After explicit confirmation and under one origin-wide browser Web Lock, the canonical client must first send a bodyless visitor-session setup with Accept application/vnd.hah.text-to-lattice-visitor-session.v1+json and no Content-Type, then after an accepted 204 setup send exactly one content-bearing request with schema version 1 and only text, requested_mode, and schema_version in its body. A transport or non-204 setup failure must stop before the content request. Client script cannot observe storage of the HttpOnly cookie, so an accepted 204 whose cookie is blocked or dropped may still be followed by that one content request; the Worker must reject a missing cookie as 428 visitor_session_required before Durable Object admission or provider work, while invalid or undeclared cookies fail closed as 403 invalid_request at the same boundary. The setup must establish or preserve the signed cookie without a quota claim or provider call. The API Worker must use exactly the encrypted HF_TOKEN and VISITOR_COOKIE_SECRET bindings; a first isolated setup has no Cookie header, the following content request may carry only the signed opaque __Secure-hah-lattice-api-visitor cookie, and the setup response sets only that cookie with Path=/api/lattice, Secure, HttpOnly, SameSite=Strict, no Domain, and expiry at the next UTC-day boundary. No cookie value may enter retained evidence. The Worker must also use the fixed Hugging Face router and Featherless-qualified Qwen and Llama targets, bounded non-reflective errors, Cache-Control: no-store, no application content storage or logging, no automatic retry, no alternate provider or model fallback, and a Content-Security-Policy whose connect-src is 'self'.",
       "currentEvidence": "The canonical run URL is https://github.com/howardhayden/folio/actions/runs/34320931448; service job 102367490246; commit a9b1db818dc7bb87b5bee16d0e168bf17d130185; live verification at 2026-09-09T06:52:40.6740509Z; and current-main postcheck at 2026-09-09T06:52:41.0031258Z. The successful job deployed response-policy Worker version 06e29e21-bbba-48d7-9fe3-28e8a960a88f, verification-frame Worker version 8c7d9e11-f6b8-40b2-9b5d-b9e2af082271, and lease Worker version 1a18b449-2341-449b-96e1-f27451efd483. The exact route inventory covered hah.dev/, hah.dev/index.html, hah.dev/resume/, hah.dev/resume/index.html, verify.hah.dev, and hah.dev/api/text-to-lattice/lease, with no missing, extra, or stale owned routes; the job verified frame bytes and isolation headers, main-page response policies, and the four encrypted binding-name inventory without reading values. Its fail-closed probes covered method, cross-origin, cookie, missing-attestation, and invalid-attestation behavior, including first-visitor and returning-visitor flows. The exact official dummy-token lifecycle returned HTTP 200 acquisition and authenticated bodyless HTTP 204 release. The direct dummy-token lifecycle establishes only the deployed Siteverify, lease, and release path; it is not evidence that the frame or widget participated or that canonical-browser GATE-06 passed, and it does not establish human verification or production anti-bot assurance. This retained production record predates the replacement source candidate's negotiated typed HTTP 200 challenge and does not establish that new protocol; the checked-in workflow must deploy and live-verify its typed HTTP 200 path plus legacy HTTP 428 overlap compatibility before publishing the new Pages client.",
       "historicalInactiveRecord": {
         "status": "historical-inactive",
@@ -325,20 +420,24 @@
         "verbatimSha256": "f3d468f06b104cbc4435e4902ca519aecb54bfd62da2d2ddf1001cf551c88b24",
         "claimBoundary": "The two named fields are retained verbatim for their deployed revisions and do not satisfy the active remote API requirement."
       },
-      "activeCurrentEvidence": "Source and tests define the exact remote capability, API Worker, fixed provider adapter, secret-binding name, bounded request and response policies, no-store behavior, and restrictive browser connection boundary. No retained production run, deployed API Worker version, live route inventory, or encrypted-binding inventory proves those controls at hah.dev.",
+      "activeCurrentEvidence": "Source and tests define the exact named remote capability, bodyless custom-Accept visitor-session setup, one content-bearing request under the same origin-wide browser Web Lock, API Worker, fixed provider adapter, HF_TOKEN and VISITOR_COOKIE_SECRET binding names, same-origin credential mode, signed API-scoped quota cookie, 428 visitor_session_required rejection before admission or provider work, bounded request and response policies, no-store behavior, and restrictive browser connection boundary. The client stops before content on a transport or non-204 setup failure. After an accepted 204 it sends the one content request even though script cannot observe HttpOnly-cookie storage; when that cookie was blocked or dropped, the Worker rejects the missing cookie before admission or provider work. The setup accepts no Cookie header or only the exact signed quota cookie, preserves an existing valid cookie without a quota claim or provider call, and rejects invalid or undeclared cookies and account or provider credentials. No retained production run, deployed API Worker version, live route inventory, encrypted-binding inventory, or value-free Set-Cookie capture proves those controls at hah.dev.",
       "activeEvidence": [
         "app/privacy/networkCapabilities.js",
         "app/resume/lattice/remoteProtocol.js",
         "app/resume/lattice/remoteRequest.js",
         "workers/text-to-lattice-api/worker.js",
         "workers/text-to-lattice-api/huggingFaceAdapter.js",
+        "workers/text-to-lattice-api/visitorCookie.js",
         "workers/text-to-lattice-api/wrangler.jsonc",
         "workers/text-to-lattice-response-policy/worker.js",
+        "scripts/bootstrap-text-to-lattice-api-secrets.mjs",
+        "scripts/build-text-to-lattice-deployment-evidence.mjs",
+        "scripts/verify-text-to-lattice-api-production.mjs",
         "tests/lattice-network-capability.test.mjs",
         "tests/lattice-network-governance.test.mjs",
         "tests/lattice-api-worker.test.mjs"
       ],
-      "evidenceNeeded": "Deploy the API and response-policy Workers from one reviewed commit; retain the workflow run, deployed commit, API and response-policy Worker versions, exact hah.dev/api/lattice and document-route inventory, and an encrypted binding-name inventory that proves HF_TOKEN exists without reading its value. Live probes must reject the wrong path, method, origin, media type, additional or missing fields, invalid mode, invalid schema version, cookies, credentials, and oversized input; prove bounded non-reflective JSON errors and no-store responses; prove connect-src 'self'; and confirm the Worker uses only the fixed router and model targets. This server evidence does not substitute for the canonical-browser lifecycle and content trace in GATE-06.",
+      "evidenceNeeded": "Deploy the API and response-policy Workers from one reviewed commit; retain the workflow run, deployed commit, API and response-policy Worker versions, exact hah.dev/api/lattice and document-route inventory, and an encrypted binding-name inventory that proves both HF_TOKEN and VISITOR_COOKIE_SECRET exist without reading either value. Live probes must reject the wrong path, method, origin, media type, additional or missing fields, invalid mode, invalid schema version, oversized input, an invalid or undeclared cookie, and any account or provider credential. Prove that a first isolated bodyless setup has Accept application/vnd.hah.text-to-lattice-visitor-session.v1+json, no Cookie, body, or Content-Type, makes no quota claim or provider call, and sets or preserves only the exact signed quota cookie. Prove separately that a transport or non-204 setup failure causes no content request, while an accepted 204 with the HttpOnly cookie blocked or dropped may be followed by the one content request and receives 428 visitor_session_required for the missing cookie before admission and provider work. Prove that the successful following content request carries only that cookie and that invalid or undeclared cookies receive 403 invalid_request at the same pre-admission boundary. Record only value-free Set-Cookie metadata proving the exact name, Path=/api/lattice, Secure, HttpOnly, SameSite=Strict, no Domain, and a Max-Age within the next UTC-day boundary; prove bounded non-reflective JSON errors and no-store responses; prove connect-src 'self'; and confirm the Worker uses only the fixed router and model targets. Never retain a cookie value. This server evidence does not substitute for the canonical-browser lifecycle and content trace in GATE-06.",
       "rationale": "Raw visitor text leaves the browser at this boundary and a server credential authorizes external model calls. Route, schema, destination, logging, caching, and error-policy drift therefore have high privacy and cost consequences. Source controls are necessary but cannot establish the deployed route, binding, edge response, or provider behavior.",
       "evidence": [
         "https://github.com/howardhayden/folio/actions/runs/34320931448",
@@ -360,14 +459,15 @@
       ],
       "safeguards": [
         "the public client and submission code remain absent from the held Pages artifact",
-        "the browser declares one same-origin content-bearing capability and connect-src 'self'",
-        "the API Worker accepts one exact path, method, media type, field set, mode vocabulary, and schema version",
-        "only the server reads the HF_TOKEN encrypted binding and provider origins never enter the browser executable graph",
+        "the browser declares one named same-origin capability, same-origin credential mode for the browser-owned quota cookie, one bodyless setup followed after an accepted 204 by exactly one content-bearing request under the same origin-wide browser Web Lock, and connect-src 'self'; transport or non-204 setup failure stops before content, while an accepted 204 with blocked or dropped HttpOnly-cookie storage may reach the one content request and is rejected 428 before admission or provider work",
+        "the API Worker accepts one exact path and method with only the bodyless custom-Accept setup envelope or the exact JSON field set, mode vocabulary, and schema version",
+        "only the server reads the HF_TOKEN and VISITOR_COOKIE_SECRET encrypted bindings; the first isolated setup has no Cookie header, the following content request may carry only the signed API-scoped quota cookie, missing-cookie content fails 428 before admission or provider work, and provider origins and credentials never enter the browser executable graph",
+        "retained deployment and browser evidence records only the quota cookie's exact non-secret attributes and never its value",
         "provider and public responses are bounded, non-reflective, and no-store, with no application content logs or persistence",
         "automatic retry and alternate provider or model fallback remain disabled"
       ],
-      "followUp": "Keep the client held until one exact production deployment closes this gate. Repeat the route, header, binding-name, fixed-destination, failure-policy, CSP, no-store, and non-retention review after any consequential API, provider, model, response-policy, logging, cache, schema, or workflow change.",
-      "rollbackCondition": "Keep or return the public client to held documentation-only publication if the route, encrypted HF_TOKEN binding name, fixed provider or model target, exact request schema, no-store response, non-reflective error, no-retention boundary, restrictive CSP, or live fail-closed probe is absent or materially drifts.",
+      "followUp": "Keep the client held until one exact production deployment closes this gate. Repeat the route, setup and content envelopes, shared Web Lock, header, HF_TOKEN and VISITOR_COOKIE_SECRET binding-name, quota-cookie, missing-cookie pre-admission rejection, fixed-destination, failure-policy, CSP, no-store, and non-retention review after any consequential API, provider, model, response-policy, cookie, logging, cache, schema, or workflow change.",
+      "rollbackCondition": "Keep or return the public client to held documentation-only publication if the route, bodyless setup, transport-or-non-204 stop-before-content branch, exactly-one content request after accepted 204, shared Web Lock, encrypted HF_TOKEN or VISITOR_COOKIE_SECRET binding name, exact quota-cookie boundary, accepted-204 missing-cookie 428 visitor_session_required or invalid-cookie 403 invalid_request rejection before admission and provider work, fixed provider or model target, exact request schema, no-store response, non-reflective error, no-retention boundary, restrictive CSP, or live fail-closed probe is absent or materially drifts.",
       "acceptanceBasis": null
     },
     {
@@ -375,7 +475,7 @@
       "label": "Remote provider capacity and cost boundary",
       "status": "open-release-blocker",
       "marginalValue": "high",
-      "requirement": "The deployed API must fail closed within its request and provider-call limits, apply the configured path-scoped rate limiter before model work, bound per-call time and response size, expose no paid or generic proxy path, and document provider rate, retention, availability, and cost boundaries without promising availability.",
+      "requirement": "The bodyless visitor-session setup must make no quota claim and no provider call. A content request with no cookie must fail 428 visitor_session_required, while one with an invalid, tampered, or undeclared cookie must fail 403 invalid_request, before Durable Object admission or provider work in either case. After exact content-request validation and before provider work, the deployed API must make exactly one atomic admission claim and accept at most 30 transformations globally per UTC day and 3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day. Intentional cookie clearing and uncooperative callers remain outside the per-browser identity claim; the global 30-per-day counter remains exact and authoritative. An admitted attempt counts even if its caller disconnects or provider work later fails; it is never refunded and encounters no second shared quota claim within its pipeline. Quota identity and state use no IP address, browser fingerprint, submitted content, or result. Each admitted request permits at most 32 provider calls, so admitted requests expose at most 960 provider calls per UTC day. The path-scoped Worker rate limiter remains a 30-per-60-second edge shaper; per-call time and response size remain bounded, with no paid or generic proxy path and no promise of provider rate, retention, availability, or cost behavior.",
       "currentEvidence": "Deterministic source contracts bound per-visitor and global admission, lease lifetime, retry behavior, row lifecycle, and fail-closed provider errors. Under the public reusable testing token, however, one client can use the permitted 16-request acquisition sequence to fill all eight slots and renew them; the 48-per-10-second per-IP rule does not stop that sequence. The controls bound cost, state, and privacy consequence, not tool availability, and source cannot establish live provider capacity.",
       "historicalInactiveRecord": {
         "status": "historical-inactive",
@@ -387,16 +487,22 @@
         "verbatimSha256": "df0907c36021a720319c12fd81b3a55ee22c3aafed3e82f720f5e9c14fb0d1f7",
         "claimBoundary": "The two named fields are retained verbatim as historical capacity analysis and do not establish the remote provider boundary."
       },
-      "activeCurrentEvidence": "Source bounds each provider call to 60 seconds, caps a transformation at 32 provider calls, bounds provider response bytes and characters, configures a path-scoped Worker rate limiter, disables observability, and exposes no provider-selection parameter. The provider quota, effective production limiter, latency, cost, and abuse behavior have not been observed for a deployed remote candidate.",
+      "activeCurrentEvidence": "Source establishes or preserves the signed visitor cookie through a content-free setup that performs no quota claim or provider call, rejects missing-cookie content as 428 visitor_session_required and invalid, tampered, or undeclared-cookie content as 403 invalid_request before admission or provider work, then atomically admits each exactly validated content request once before provider work. It caps admission at 30 transformations globally per UTC day and 3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day and stores only the current-day aggregate plus bounded opaque visitor counts. Intentional cookie clearing and uncooperative callers remain outside the per-browser identity claim; the global 30-per-day counter is exact and authoritative. It uses no IP address, browser fingerprint, submitted content, or result for quota identity or state; counts admitted disconnects and provider failures without refund; and performs no shared quota recheck within the admitted pipeline. Source also bounds each provider call to 60 seconds, caps an admitted request at 32 provider calls and therefore 960 provider calls from admitted requests per UTC day, bounds provider response bytes and characters, configures a 30-per-60-second path-scoped Worker rate limiter, disables observability, and exposes no provider-selection parameter. The atomic production admission, effective edge shaper, provider latency, cost, and abuse behavior have not been observed for a deployed remote candidate.",
       "activeEvidence": [
         "workers/text-to-lattice-api/huggingFaceAdapter.js",
         "workers/text-to-lattice-api/worker.js",
+        "workers/text-to-lattice-api/capacityPolicy.js",
+        "workers/text-to-lattice-api/capacityClient.js",
+        "workers/text-to-lattice-api/capacityGate.js",
+        "workers/text-to-lattice-api/visitorCookie.js",
         "workers/text-to-lattice-api/wrangler.jsonc",
+        "scripts/build-text-to-lattice-deployment-evidence.mjs",
+        "scripts/verify-text-to-lattice-api-production.mjs",
         "tests/lattice-api-worker.test.mjs",
         "tests/lattice-network-governance.test.mjs"
       ],
-      "evidenceNeeded": "After a reviewed deployment, verify the configured limiter is bound and fail-closed before model work; record bounded production-representative request, provider-call, timeout, rate-limit, malformed-response, latency, and cost behavior; confirm no generic proxy or paid fallback path; and record external provider retention and availability as unguaranteed. Retain observed abuse or cost drift as a requalification trigger.",
-      "rationale": "A public content-bearing endpoint can multiply model calls and cost even when application storage is absent. The source limits are strong but a missing production binding, provider quota mismatch, or generic escape path would be consequential. This gate stays open until the deployed boundary is observed.",
+      "evidenceNeeded": "After a reviewed deployment, verify the atomic Durable Object admission binding and the 30-per-60-second edge shaper are both present and fail closed before provider work. Prove that visitor-session setup and preservation make no quota claim or provider call, missing-cookie content fails 428 visitor_session_required, invalid, tampered, or undeclared-cookie content fails 403 invalid_request before admission or provider work, and one claim occurs per exactly validated content request. Prove 30 accepted transformations globally per UTC day, 3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day, UTC-day rollover, count-on-admission without refund after disconnect or provider failure, and no second shared quota claim within an admitted pipeline. Record intentional cookie clearing and uncooperative callers outside the per-browser identity claim while proving the exact global counter remains authoritative. Confirm quota identity and state contain no IP address, browser fingerprint, submitted content, or result; record the 32-provider-call per-admission ceiling and resulting 960-call maximum daily provider exposure; record bounded production-representative timeout, rate-limit, malformed-response, latency, and cost behavior; confirm no generic proxy or paid fallback path; and record external provider retention and availability as unguaranteed. Retain observed abuse or cost drift as a requalification trigger.",
+      "rationale": "A public content-bearing endpoint can multiply model calls and cost even when application storage is absent. The exact global admission cap authoritatively bounds accepted work even when a caller clears or partitions the ordinary-browser quota cookie, while the browser limit still reduces ordinary repeated use. A missing or non-atomic production binding, quota or UTC-rollover drift, refund or in-pipeline recheck, identity expansion, provider-bound mismatch, or generic escape path would be consequential. This gate stays open until the deployed boundary is observed.",
       "evidence": [
         "workers/text-to-lattice-lease/policy.js",
         "workers/text-to-lattice-lease/usageStorage.js",
@@ -404,14 +510,18 @@
         "tests/lattice-protocol-capacity.test.mjs"
       ],
       "safeguards": [
-        "the API route has a path-scoped rate-limiter binding",
-        "provider calls, response bytes, response characters, and total stage count are bounded",
+        "content-free visitor-session setup and preservation make no quota claim or provider call; missing-cookie content fails 428 and invalid, tampered, or undeclared-cookie content fails 403 before admission or provider work",
+        "one atomic Durable Object claim after exact content validation and before provider work enforces 30 accepted transformations globally per UTC day and 3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day; intentional cookie clearing and uncooperative callers remain outside the per-browser identity claim while the global counter stays exact",
+        "the API route also has a 30-per-60-second path-scoped rate-limiter binding as an edge shaper",
+        "admitted attempts count on disconnect or provider failure without refund, and their pipelines perform no second shared quota claim",
+        "quota identity and state contain no IP address, browser fingerprint, submitted content, or result",
+        "provider calls are bounded to 32 per admitted request and 960 from admitted requests per UTC day; response bytes, response characters, and total stage count are also bounded",
         "provider timeouts and malformed responses fail closed without reflection",
         "there is no browser retry, alternate provider fallback, model fallback, or generic proxy parameter",
         "the public copy promises no availability and identifies provider retention as external"
       ],
-      "followUp": "Keep the public client held until the production limiter and provider behavior are observed. Re-run bounded capacity and cost checks after provider, model, quota, limiter, timeout, stage-count, or response-size changes.",
-      "rollbackCondition": "Keep or return the public client to held documentation-only publication if the production limiter is absent or fails open, provider work exceeds the recorded bounds, an alternate or generic proxy path appears, or observed latency, abuse, or cost behavior makes the published boundary materially false.",
+      "followUp": "Keep the public client held until the production setup/no-admission boundary, missing-cookie 428 and invalid-cookie 403 pre-admission failures, atomic content admission, edge shaper, and provider behavior are observed. Re-run the 30-global/3-cooperating-cookie-jar UTC-day admission, exact-global and scoped-per-browser claims, identity-minimization, no-refund, single-claim, 32-per-request and 960-per-day provider exposure, and cost checks after any provider, model, quota, cookie, limiter, timeout, stage-count, or response-size change.",
+      "rollbackCondition": "Keep or return the public client to held documentation-only publication if setup consumes quota or contacts the provider; missing-cookie content fails to return 428, invalid, tampered, or undeclared-cookie content fails to return 403, or either reaches admission or provider work; atomic production admission or the edge shaper is absent or fails open; the exact global 30-per-day counter, scoped 3-per-cooperating-cookie-jar claim, no-IP/fingerprint/content identity, count-on-failure, no-refund, or single-claim semantics drift; provider work exceeds 32 calls per admitted request or 960 calls from admitted requests per UTC day; an alternate or generic proxy path appears; or observed latency, abuse, or cost behavior makes the published boundary materially false.",
       "acceptanceBasis": null
     },
     {
@@ -516,7 +626,7 @@
       "label": "Remote production lifecycle and privacy trace",
       "status": "open-release-blocker",
       "marginalValue": "high",
-      "requirement": "From the activated canonical page in each supported browser engine, one explicit confirmed submission must produce exactly one same-origin POST /api/lattice request with only text, requested_mode, and schema_version 1, reach one non-error terminal result (translated, conformant-for-context, or review-required), and expose no provider origin, credential, automatic retry, service-worker replay, or additional content-bearing browser request. A sanitized trace must distinguish the intentionally transmitted request body from prohibited source or result reflection in URLs, headers, errors, logs, caches, analytics, and unrelated traffic.",
+      "requirement": "From the activated canonical page in each supported browser engine, one explicit confirmed submission in a first isolated persistent session must acquire one origin-wide browser Web Lock and produce one bodyless content-free same-origin POST /api/lattice setup with Accept application/vnd.hah.text-to-lattice-visitor-session.v1+json, no body or Content-Type, credentials mode same-origin, and no Cookie header. That response must set exactly the __Secure-hah-lattice-api-visitor cookie with Path=/api/lattice, Secure, HttpOnly, SameSite=Strict, no Domain, and a Max-Age within the next UTC-day boundary. Under the same lock, after an accepted 204 the client must then produce exactly one content-bearing same-origin POST /api/lattice with only text, requested_mode, and schema_version 1 in its body and only that browser-owned cookie, then reach one non-error terminal result (translated, conformant-for-context, or review-required). A transport or non-204 setup failure must stop before the content request. Because script cannot observe HttpOnly-cookie storage, an accepted 204 whose cookie is blocked or dropped may still be followed by that one content request; the missing-cookie request must fail 428 visitor_session_required before admission and provider work. Setup must consume no transformation quota and make no provider call. Neither request carries an account, authorization, or provider credential. The trace must show no provider origin contacted by the browser, no automatic retry, no service-worker replay or cache replay, and no additional content-bearing browser request, and must distinguish the intentionally transmitted request body from prohibited source or result reflection in URLs, headers, errors, logs, caches, analytics, and unrelated traffic. Retained evidence records only value-free cookie metadata and never a cookie value.",
       "currentEvidence": "The owner supplied sanitized captures from the activated canonical client at https://hah.dev/resume/#text-to-lattice after workflow run https://github.com/howardhayden/folio/actions/runs/34325228788 deployed commit 9ab26b95cc1f9a94697118c0fc20a849db8f6ad2. Safari Version 26.5 (21624.2.5.11.4), WebKit, on macOS 26.5.1 (25F80), M5 iMac, with an operator-normalized capture time of 2026-09-09T08:05:50Z, directly records the first-session sequence POST /api/text-to-lattice/lease 428, the isolated https://verify.hah.dev/turnstile/ frame and Cloudflare challenge resources, POST /api/text-to-lattice/lease 200, and DELETE /api/text-to-lattice/lease 204 with a zero-byte response. Brave 1.94.121 (Chromium 152.0.7977.83, arm64) on the same platform, with operator-normalized capture times from 2026-09-09T08:15:12Z through 2026-09-09T08:22:30Z, independently records the second-engine lease statuses 428, 200, and 204, the isolated verification origin and challenge flow, and pinned Qwen tokenizer and model-asset loading. The deployed canonical-client source correlates those ordered Brave rows to POST 428, POST 200, and DELETE 204; the screenshot itself does not independently prove the later request methods. The owner reports that a capture-wide search for the unique submitted source marker returned 0 matches across the Brave network record. That search establishes the source-specific negative check. The deployed source contract and tests keep source, clarification, candidate, verifier finding, and output browser-local and exclude them from lease, attestation, model-asset, error, or telemetry traffic; the captured request inventory shows no undocumented content-bearing route. The canonical URL, bodyless lease request and release source contracts, and exact Cloudflare official testing profile are additionally bound by the deployed source and operator record rather than inferred from screenshot pixels. Payload-pane inspection was not claimed. The UTC times are operator normalizations of the local capture filenames, not server-signed timestamps. Cloudflare automatically injected a Web Analytics tag for https://static.cloudflareinsights.com/beacon.min.js into both document responses, but each CSP blocked the external beacon resource before transfer or execution (blocked:csp, 0.0 kB), and no /cdn-cgi/rum or other RUM transmission appeared. This composite evidence establishes canonical official-page integration and the observed privacy boundary under the declared testing profile; it does not establish human verification, bot resistance, token freshness or single use, hostname or action assurance, universal browser behavior, or production anti-bot assurance, and it does not establish that Cloudflare Web Analytics is disabled or that ordinary provider transport metadata is absent. Those captures remain historical evidence for the lease lifecycle and observed privacy boundary of their deployed revision; subsequent diagnosis established that the rapid DELETE followed a model-worker import failure and did not demonstrate a terminal conversion. The repair candidate adds a worker-only Vite pre-transform that preserves fourteen bare realm checks across the pinned WebLLM and web-tokenizers modules with fail-closed twelve/two count assertions, plus a final-artifact Worker-realm smoke that boots without window, completes the cached RPC, and reaches the first approved model-configuration cache request without network access. Because this changes emitted runtime behavior, GATE-06 is post-deployment verification: after deployment, repeat the supported-engine lifecycle and sanitized two-origin privacy trace and record one non-error terminal conversion. On 2026-09-11, the site owner reported that the deployed repaired runtime reached a full green progress bar after about one minute but remained at \"Preparing on this device\" with \"Your result will appear here\" and produced no terminal result. This owner report establishes the failed observable outcome; it is not a timestamped network capture, does not identify a newly verified deployment revision, and does not replace the historical evidence above. The replacement source candidate requires the exact https://hah.dev browser origin before any lease fetch, so local and Vite previews fail with a canonical-origin explanation instead of requesting a missing local API route. It adds a worker-realm capability probe before lease acquisition or model download; phase-aware WebLLM download, GPU-loading, and shader-compilation progress that becomes nondeterminate after the first completed phase; a closed worker-start acknowledgement so execution deadlines do not run while requests wait in the serialized queue; 30-second worker-start, 120-second preparation-inactivity, 720-second completion-inactivity, and 45-minute hard execution bounds; 15-second adapter and 10-second storage checks; a 30-second lease fetch-and-body deadline; a 10-second browser provenance-digest deadline; and explicit terminal errors. While the resume component remains mounted, Close, backdrop, and Escape are visibility-only in every phase and preserve input, availability or attestation request, lease-bound work, post-request processing, clarification, error, terminal state, and result for reopening; Cancel and Start over terminate or reset the current request, and component unmount tears it down; completion and error may release runtime resources, but their terminal state remains reopenable. The response-policy candidate preserves or adds Cache-Control: no-transform, and the live verifier now uses browser-shaped navigation requests and rejects conditionally injected Cloudflare beacon or RUM markers. These are source controls awaiting deployment verification; they do not establish that Cloudflare Web Analytics or RUM is disabled and do not establish a successful production conversion.",
       "historicalInactiveRecord": {
         "status": "historical-inactive",
@@ -528,17 +638,21 @@
         "verbatimSha256": "5e46d2ba74a423dfb21b40dc1fe689d865d612eda66d703e077dff6217732dd7",
         "claimBoundary": "The two named fields are retained verbatim for the captured deployed revisions. They do not establish a remote conversion, /api/lattice request, provider destination, or current privacy boundary."
       },
-      "activeCurrentEvidence": "Source and adversarial tests prove the explicit-submit call path, exact same-origin request, fixed server targets, bounded cancellation and response parsing, held import boundary, and application no-retention policy. No canonical production browser capture or non-error remote transformation is recorded for the candidate.",
+      "activeCurrentEvidence": "Source and adversarial tests prove the explicit-submit call path; origin-wide Web Lock spanning the bodyless content-free setup and exactly one content-bearing request after accepted 204; transport or non-204 setup failure stopping before content; accepted-204 execution of the one content request despite script being unable to observe blocked or dropped HttpOnly-cookie storage; exact custom-Accept setup without body or Content-Type; exact same-origin content request body; same-origin credential mode; first-session setup with no Cookie; exact value-free quota-cookie response metadata; content-request restriction to the one browser-owned quota cookie; setup without quota or provider work; 428 visitor_session_required before admission or provider work for missing-cookie content; fixed server targets; bounded cancellation and response parsing; held import boundary; and application no-retention policy. The strict browser-evidence contract prohibits cookie values, account credentials, provider credentials, raw bodies, and raw HAR retention. No canonical production browser capture or non-error remote transformation is recorded for the candidate.",
       "activeEvidence": [
         "app/resume/ResumeProjects.tsx",
         "app/privacy/networkCapabilities.js",
         "app/resume/lattice/remoteProtocol.js",
         "app/resume/lattice/remoteRequest.js",
+        "docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.schema.json",
+        "docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.template.json",
+        "scripts/verify-text-to-lattice-browser-evidence.mjs",
         "tests/lattice-network-capability.test.mjs",
         "tests/lattice-network-governance.test.mjs",
-        "tests/lattice-api-worker.test.mjs"
+        "tests/lattice-api-worker.test.mjs",
+        "tests/lattice-browser-evidence.test.mjs"
       ],
-      "evidenceNeeded": "After GATE-02 and GATE-03 close and the public client is deliberately activated, retain timestamped sanitized captures from the canonical page in the supported browser engines and bind them to one deployed commit and workflow run. Each trace must show one explicit confirmation, exactly one content-bearing same-origin POST /api/lattice with the exact three-field versioned JSON body, a non-error terminal conversion, no provider-origin browser request, no credential, no automatic retry or fallback, no service-worker or cache replay, and no source or result in URLs, headers, bounded error bodies, analytics, unrelated requests, or retained application state. Provider processing of the submitted body must be acknowledged rather than misreported as browser-local privacy.",
+      "evidenceNeeded": "After GATE-02 and GATE-03 close and the public client is deliberately activated, retain timestamped sanitized captures from the canonical page in the supported browser engines and bind them to one deployed commit, workflow run, qualification expiry, and exact qualified source-set SHA-256. Each successful trace must come from a first isolated persistent session and show one explicit confirmation; one origin-wide Web Lock spanning one bodyless content-free same-origin POST /api/lattice setup and, after accepted 204, exactly one content-bearing same-origin POST /api/lattice; the setup's exact custom Accept, absence of body, Content-Type, and Cookie, and same-origin credential mode; exactly one setup Set-Cookie response whose value-free metadata proves __Secure-hah-lattice-api-visitor, Path=/api/lattice, Secure, HttpOnly, SameSite=Strict, no Domain, and a Max-Age within the next UTC-day boundary; the content request's exact three-field versioned JSON body and only that browser-owned cookie; no account, authorization, or provider credential; setup without quota or provider work; and a non-error terminal conversion. Separately prove that transport or non-204 setup failure emits no content request and that accepted 204 with the HttpOnly cookie blocked or dropped may emit the one content request but receives 428 visitor_session_required for the missing cookie before admission or provider work. Show no provider-origin browser request, no automatic retry or fallback, no service-worker or cache replay, or source or result in URLs, headers, bounded error bodies, analytics, unrelated requests, or retained application state. Never retain a cookie value, bearer value, raw body, sensitive header, or raw HAR. Provider processing of the submitted body must be acknowledged rather than misreported as browser-local privacy.",
       "rationale": "The migration intentionally moves source text across a new browser/server/provider boundary. A source-correct UI can still fail in deployment, retry unexpectedly, contact a wrong destination, leak content through errors or instrumentation, or produce no terminal result. Canonical-browser evidence is therefore a high-value release prerequisite rather than post-release follow-up.",
       "evidence": [
         "canonical production client https://hah.dev/resume/#text-to-lattice",
@@ -571,13 +685,15 @@
       "safeguards": [
         "GATE-02 and GATE-03 must close before activation",
         "the trace must originate from the canonical public client and bind one deployed revision",
-        "the request is explicit, same-origin, exact-schema, credentialless, no-store, and never automatically retried",
-        "provider origin and credentials remain server-only and there is no alternate provider or model fallback",
+        "the request sequence is explicit, same-origin, no-store, and never automatically retried; one origin-wide Web Lock spans the bodyless setup and, after accepted 204, exactly one exact-schema content request; transport or non-204 failure stops before content, while blocked or dropped HttpOnly-cookie storage after accepted 204 is observable only through the Worker's 428 pre-admission rejection",
+        "the first isolated setup has no body, Content-Type, or Cookie header, exposes only the exact non-secret Set-Cookie attributes in retained evidence, and the following content request may carry only that signed API-scoped cookie",
+        "setup consumes no transformation quota and contacts no provider; missing-cookie content fails 428 before admission or provider work",
+        "account, authorization, and provider credentials are absent; provider origin and credentials remain server-only and there is no alternate provider or model fallback",
         "bounded non-reflective failures cannot echo source, prompt, provider body, or result",
-        "the retained trace summary excludes raw HAR data, cookies, bearer values, provider credentials, submitted source, generated output, and sensitive headers"
+        "the retained trace summary excludes raw HAR data, cookie values, bearer values, provider credentials, submitted source, generated output, raw bodies, and sensitive headers"
       ],
-      "followUp": "Keep the public client held until the required canonical-browser records exist. Repeat the functional and privacy trace after any consequential route, schema, provider, model, response, CSP, cache, retention, telemetry, interaction, timeout, or retry-policy change.",
-      "rollbackCondition": "Keep GATE-06 open and the public client held, or return it immediately to held documentation-only publication, if a canonical trace lacks one non-error terminal result, emits more or fewer than one intended content-bearing POST /api/lattice, contacts a provider from the browser, retries automatically, uses a cache or service worker, exposes a credential, or reflects source, prompts, provider bodies, findings, or output outside the acknowledged request and bounded result.",
+      "followUp": "Keep the public client held until the required qualification-expiry-bound canonical-browser records exist. Repeat the functional and privacy trace after any consequential route, setup envelope, Web Lock, schema, cookie, provider, model, response, CSP, cache, retention, telemetry, interaction, timeout, or retry-policy change.",
+      "rollbackCondition": "Keep GATE-06 open and the public client held, or return it immediately to held documentation-only publication, if a canonical trace lacks one non-error terminal result; lacks the bodyless custom-Accept setup; emits a content request after transport or non-204 setup failure; emits more or fewer than one intended content-bearing POST /api/lattice after accepted 204; does not hold one browser Web Lock across setup and the full content response; sends a body, Content-Type, or Cookie on the first isolated setup; omits or drifts the exact value-free Set-Cookie metadata; sends an undeclared cookie or any account, authorization, or provider credential; lets setup consume quota or contact the provider; lets accepted-204 content with a blocked, dropped, or missing cookie reach admission or provider work instead of returning 428 visitor_session_required; retains a cookie value; contacts a provider from the browser; retries automatically; uses a cache or service worker; outlives the bound qualification expiry; or reflects source, prompts, provider bodies, findings, or output outside the acknowledged request and bounded result.",
       "acceptanceBasis": null
     }
   ],

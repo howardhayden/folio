@@ -1622,8 +1622,11 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   const preFormSource = source.slice(dialogAt, formAt);
   assert.match(preFormSource, /href="\/projects\/lattice\/text-to-lattice\/#text-to-lattice-privacy"/u);
   assert.match(preFormSource, /This text leaves hah\.dev[\s\S]*?Process with external service/u);
-  assert.match(preFormSource, /one user-initiated, same-origin request[\s\S]*?<code> \/api\/lattice<\/code>/u);
-  assert.doesNotMatch(preFormSource, /\b(?:HMAC|HttpOnly|lease|rolling|Cloudflare)\b/iu);
+  assert.match(
+    preFormSource,
+    /content-free cookie setup POST[\s\S]*?exactly one content-bearing POST[\s\S]*?<code> \/api\/lattice<\/code>[\s\S]*?Only the second includes your text or can initiate[\s\S]*?external-provider processing/u,
+  );
+  assert.doesNotMatch(preFormSource, /\b(?:HMAC|lease|rolling|Cloudflare)\b/iu);
   assert.doesNotMatch(source, /setTimeout\s*\(\s*\(\) =>\s*setLatticeResult/);
   assert.doesNotMatch(source, /aria-atomic/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);

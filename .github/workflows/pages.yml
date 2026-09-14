@@ -3,10 +3,17 @@ name: Deploy GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       deploy_text_to_lattice_services:
         description: Deploy and smoke-test held services for qualification
+        required: false
+        default: false
+        type: boolean
+      activate_text_to_lattice_qualification:
+        description: Manually activate the evidence-bound qualification client
         required: false
         default: false
         type: boolean
@@ -15,6 +22,33 @@ permissions:
   contents: read
 
 jobs:
+  pull-request-validation:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Enforce Text to Lattice network privacy boundary
+        run: >-
+          node --test
+          tests/lattice-network-capability.test.mjs
+          tests/lattice-network-governance.test.mjs
+          tests/lattice-api-worker.test.mjs
+          tests/lattice-production-api-verifier.test.mjs
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - name: Verify Text to Lattice release boundary
+        run: npm run release:lattice:verify:site
+
   publication-boundary:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -22,6 +56,8 @@ jobs:
       contents: read
     outputs:
       public_client_status: ${{ steps.release-state.outputs.public_client_status }}
+      release_phase: ${{ steps.release-state.outputs.release_phase }}
+      qualified_source_set_sha256: ${{ steps.release-state.outputs.qualified_source_set_sha256 }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -37,6 +73,10 @@ jobs:
     if: github.ref == 'refs/heads/main'
     needs: publication-boundary
     runs-on: ubuntu-latest
+    outputs:
+      pages_artifact_id: ${{ steps.pages-artifact.outputs.artifact_id }}
+      site_artifact_sha256: ${{ steps.site-artifact.outputs.sha256 }}
+      qualified_source_set_sha256: ${{ steps.verified-source-state.outputs.qualified_source_set_sha256 }}
     permissions:
       contents: read
       pages: read
@@ -59,32 +99,176 @@ jobs:
           tests/lattice-network-capability.test.mjs
           tests/lattice-network-governance.test.mjs
           tests/lattice-api-worker.test.mjs
+          tests/lattice-production-api-verifier.test.mjs
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - name: Verify Text to Lattice release boundary
         run: npm run release:lattice:verify:site
+      - id: verified-source-state
+        name: Export the source identity proven by full release verification
+        run: node scripts/read-text-to-lattice-release-state.mjs
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - name: Require current main before artifact upload
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-current-main-sha.mjs
-      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      - name: Upload Pages artifact
+        id: pages-artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
           include-hidden-files: true
+      - name: Bind the exact uploaded Pages archive digest
+        id: site-artifact
+        run: >-
+          node scripts/hash-regular-file-sha256.mjs
+          "$RUNNER_TEMP/artifact.tar"
+          --github-output
+          "$GITHUB_OUTPUT"
+
+  build_qualification_rollback:
+    name: Build verified held Pages rollback artifact
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      needs.publication-boundary.result == 'success' &&
+      needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.activate_text_to_lattice_qualification == true
+    needs: publication-boundary
+    runs-on: ubuntu-latest
+    outputs:
+      held_pages_artifact_id: ${{ steps.held-pages-artifact.outputs.artifact_id }}
+      held_pages_artifact_sha256: ${{ steps.held-pages-artifact-digest.outputs.sha256 }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Materialize the immediate parent without changing the candidate checkout
+        run: >-
+          git worktree add --detach
+          "$RUNNER_TEMP/text-to-lattice-held-rollback-source"
+          "$GITHUB_SHA^"
+      - id: held-rollback-release-state
+        name: Prove the rollback source is a held release
+        working-directory: ${{ runner.temp }}/text-to-lattice-held-rollback-source
+        run: node scripts/read-text-to-lattice-release-state.mjs
+      - name: Require the exact held parent disposition
+        env:
+          ROLLBACK_PUBLIC_CLIENT_STATUS: ${{ steps.held-rollback-release-state.outputs.public_client_status }}
+          ROLLBACK_RELEASE_PHASE: ${{ steps.held-rollback-release-state.outputs.release_phase }}
+        run: >-
+          node -e 'if (process.env.ROLLBACK_RELEASE_PHASE !== "held" ||
+          process.env.ROLLBACK_PUBLIC_CLIENT_STATUS !== "held")
+          throw new Error("Qualification activation requires its immediate parent to be the verified held release.")'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Install held rollback source dependencies
+        working-directory: ${{ runner.temp }}/text-to-lattice-held-rollback-source
+        run: npm ci --ignore-scripts
+      - name: Build and verify the held rollback site
+        working-directory: ${{ runner.temp }}/text-to-lattice-held-rollback-source
+        run: npm run build:pages
+      - name: Require current main before held rollback artifact upload
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Upload verified held Pages rollback artifact
+        id: held-pages-artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          name: text-to-lattice-held-rollback-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/text-to-lattice-held-rollback-source/site
+          retention-days: 1
+          include-hidden-files: true
+      - name: Bind the exact held rollback archive digest
+        id: held-pages-artifact-digest
+        run: >-
+          node scripts/hash-regular-file-sha256.mjs
+          "$RUNNER_TEMP/artifact.tar"
+          --github-output
+          "$GITHUB_OUTPUT"
+
+  deploy_held:
+    name: Publish and verify held hah.dev
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      needs.publication-boundary.result == 'success' &&
+      needs.build.result == 'success' &&
+      needs.publication-boundary.outputs.release_phase == 'held'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    needs: [publication-boundary, build]
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Require current main before held Pages deployment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Deploy held Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+      - name: Verify the live public Pages artifact is held
+        run: >-
+          node scripts/verify-text-to-lattice-held-pages.mjs
+          --output
+          "$RUNNER_TEMP/text-to-lattice-held-pages.json"
 
   deploy_text_to_lattice_services:
-    name: Deploy Text to Lattice services
+    name: Qualify or verify Text to Lattice services
     if: >-
+      always() &&
       github.ref == 'refs/heads/main' &&
+      needs.publication-boundary.result == 'success' &&
+      needs.build.result == 'success' &&
       (
-        needs.publication-boundary.outputs.public_client_status == 'enabled' ||
         (
-          github.event_name == 'push' &&
-          contains(github.event.head_commit.message, '[deploy-text-to-lattice-services]')
+          needs.publication-boundary.outputs.release_phase == 'held' &&
+          needs.deploy_held.result == 'success' &&
+          (
+            (
+              github.event_name == 'push' &&
+              contains(github.event.head_commit.message, '[deploy-text-to-lattice-services]')
+            ) ||
+            (
+              github.event_name == 'workflow_dispatch' &&
+              inputs.deploy_text_to_lattice_services == true
+            )
+          )
         ) ||
-        (github.event_name == 'workflow_dispatch' && inputs.deploy_text_to_lattice_services == true)
+        (
+          needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
+          needs.deploy_held.result == 'skipped' &&
+          needs.build_qualification_rollback.result == 'success' &&
+          needs.build_qualification_rollback.outputs.held_pages_artifact_id != '' &&
+          needs.build_qualification_rollback.outputs.held_pages_artifact_sha256 != '' &&
+          github.event_name == 'workflow_dispatch' &&
+          inputs.activate_text_to_lattice_qualification == true
+        ) ||
+        (
+          needs.publication-boundary.outputs.release_phase == 'qualified' &&
+          needs.deploy_held.result == 'skipped'
+        )
       )
     environment:
       name: text-to-lattice-production
@@ -92,8 +276,12 @@ jobs:
     concurrency:
       group: text-to-lattice-services
       cancel-in-progress: false
-    needs: [publication-boundary, build]
+    needs: [publication-boundary, build, build_qualification_rollback, deploy_held]
+    outputs:
+      qualification_cleanup_at: ${{ steps.qualification-window.outputs.qualification_cleanup_at }}
+      qualification_expires_at: ${{ steps.qualification-window.outputs.qualification_expires_at }}
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -108,6 +296,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-current-main-sha.mjs
+      - name: Require one fully verified candidate source identity
+        env:
+          BUILD_SOURCE_SHA256: ${{ needs.build.outputs.qualified_source_set_sha256 }}
+          PUBLICATION_SOURCE_SHA256: ${{ needs.publication-boundary.outputs.qualified_source_set_sha256 }}
+        run: >-
+          node -e 'const pattern = /^[a-f0-9]{64}$/u;
+          if (!pattern.test(process.env.BUILD_SOURCE_SHA256 ?? "") ||
+          process.env.BUILD_SOURCE_SHA256 !== process.env.PUBLICATION_SOURCE_SHA256)
+          throw new Error("Build and publication boundaries did not prove one exact qualified source-set digest.")'
       - name: Install pinned Worker deployment tooling
         run: npm ci --ignore-scripts --prefix workers
       - name: Require protected Cloudflare deployment configuration
@@ -117,47 +314,267 @@ jobs:
         run: >-
           node -e 'for (const name of ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"])
           if (!process.env[name]) throw new Error(`${name} is not configured in the protected environment.`)'
-      - name: Inspect Text to Lattice API encrypted binding names
+      - name: Verify live Pages is held before preactivation service mutation
+        if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
+        run: >-
+          node scripts/verify-text-to-lattice-held-pages.mjs
+          --output
+          "$RUNNER_TEMP/text-to-lattice-deployment-evidence/held-pages-preflight.json"
+      - name: Require current main before held API bootstrap
+        if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Bootstrap held Text to Lattice API surface and Durable Object lifecycle
+        id: bootstrap-held-api
+        if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler deploy
+          workers/text-to-lattice-api/held.js
+          --config workers/text-to-lattice-api/wrangler.jsonc
+      - name: Inspect Text to Lattice API encrypted binding names before bootstrap
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
         run: >-
           ./workers/node_modules/.bin/wrangler secret list --format json
           --config workers/text-to-lattice-api/wrangler.jsonc
-          > "$RUNNER_TEMP/text-to-lattice-api-secret-bindings.json"
-      - name: Require the server-only provider credential binding
-        run: >-
-          node -e 'const fs = require("node:fs");
-          const bindings = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-          if (!Array.isArray(bindings) ||
-          !bindings.some((binding) => binding?.name === "HF_TOKEN" && binding?.type === "secret_text"))
-          throw new Error("HF_TOKEN is not provisioned as an encrypted Text to Lattice API Worker binding.")'
-          "$RUNNER_TEMP/text-to-lattice-api-secret-bindings.json"
-      - name: Deploy bounded Text to Lattice API
+          > "$RUNNER_TEMP/text-to-lattice-api-secret-bindings-before.raw.json"
+      - name: Require current main before visitor-cookie secret bootstrap
+        if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Preserve provider credential and bootstrap only a missing visitor-cookie secret
+        if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
         run: >-
-          ./workers/node_modules/.bin/wrangler deploy
-          --config workers/text-to-lattice-api/wrangler.jsonc
-      - name: Verify deployed Text to Lattice API boundary
+          node scripts/bootstrap-text-to-lattice-api-secrets.mjs
+          --inventory
+          "$RUNNER_TEMP/text-to-lattice-api-secret-bindings-before.raw.json"
+          --wrangler
+          ./workers/node_modules/.bin/wrangler
+          --config
+          workers/text-to-lattice-api/wrangler.jsonc
+      - name: Inspect final Text to Lattice API encrypted binding names
         env:
-          LATTICE_API_BASE_URL: https://hah.dev
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
         run: >-
-          node --test
-          --test-name-pattern="the optional deployed boundary rejects ambient methods without a sample"
-          tests/lattice-network-governance.test.mjs
+          ./workers/node_modules/.bin/wrangler secret list --format json
+          --config workers/text-to-lattice-api/wrangler.jsonc
+          > "$RUNNER_TEMP/text-to-lattice-api-secret-bindings.raw.json"
+      - name: Require the exact provider and visitor-cookie encrypted bindings
+        run: >-
+          node scripts/verify-text-to-lattice-secret-bindings.mjs
+          "$RUNNER_TEMP/text-to-lattice-api-secret-bindings.raw.json"
+          --output
+          "$RUNNER_TEMP/text-to-lattice-deployment-evidence/secret-bindings.json"
+      - name: Establish the absolute bounded active-service expiry
+        id: qualification-window
+        if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
+        run: >-
+          node scripts/plan-text-to-lattice-qualification-window.mjs
+          --github-output
+          "$GITHUB_OUTPUT"
+      - name: Require current main before active API deployment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Deploy bounded Text to Lattice API
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+          RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
+          QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
+        run: |
+          if [[ "$RELEASE_PHASE" != "qualified" ]]; then
+            ./workers/node_modules/.bin/wrangler deploy \
+              --config workers/text-to-lattice-api/wrangler.jsonc \
+              --var "LATTICE_QUALIFICATION_EXPIRES_AT:$QUALIFICATION_EXPIRES_AT"
+          else
+            ./workers/node_modules/.bin/wrangler deploy \
+              --config workers/text-to-lattice-api/wrangler.jsonc
+          fi
+      - name: Require current main before response-policy deployment
+        if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
       - name: Deploy résumé response policy
+        if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
         run: >-
           ./workers/node_modules/.bin/wrangler deploy
           --config workers/text-to-lattice-response-policy/wrangler.jsonc
+      - name: Inspect deployed Worker versions
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: |
+          ./workers/node_modules/.bin/wrangler deployments status --json \
+            --config workers/text-to-lattice-api/wrangler.jsonc \
+            > "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json"
+          API_VERSION_ID="$(node scripts/read-text-to-lattice-active-version.mjs \
+            "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json")"
+          ./workers/node_modules/.bin/wrangler versions view "$API_VERSION_ID" --json \
+            --config workers/text-to-lattice-api/wrangler.jsonc \
+            > "$RUNNER_TEMP/text-to-lattice-api-version.raw.json"
+          ./workers/node_modules/.bin/wrangler deployments status --json \
+            --config workers/text-to-lattice-response-policy/wrangler.jsonc \
+            > "$RUNNER_TEMP/text-to-lattice-policy-deployment.raw.json"
+      - name: Verify reversible preactivation route ownership
+        if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          node scripts/verify-text-to-lattice-route-inventory.mjs
+          --release-phase
+          "${{ needs.publication-boundary.outputs.release_phase }}"
+          --output
+          "$RUNNER_TEMP/text-to-lattice-deployment-evidence/preactivation-route-inventory.json"
+      - name: Verify deployed Text to Lattice API boundary and response policy
+        env:
+          LATTICE_API_BASE_URL: https://hah.dev
+          LATTICE_API_EVIDENCE_PATH: ${{ runner.temp }}/text-to-lattice-deployment-evidence/live-boundary.json
+        run: node scripts/verify-text-to-lattice-api-production.mjs
+      - name: Require current main before legacy surface retirement
+        if: ${{ needs.publication-boundary.outputs.release_phase == 'qualified' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Retire exact legacy entry surfaces only after qualification
+        if: ${{ needs.publication-boundary.outputs.release_phase == 'qualified' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          node scripts/retire-text-to-lattice-legacy-surfaces.mjs
+          --apply
+          --output
+          "$RUNNER_TEMP/text-to-lattice-deployment-evidence/retirement.json"
+      - name: Verify exact active and retired Text to Lattice routes
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          node scripts/verify-text-to-lattice-route-inventory.mjs
+          --release-phase
+          "${{ needs.publication-boundary.outputs.release_phase }}"
+          --output
+          "$RUNNER_TEMP/text-to-lattice-deployment-evidence/route-inventory.json"
+      - name: Resolve the exact Text to Lattice service job identity
+        id: service-job
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          node scripts/resolve-github-actions-job-id.mjs
+          --job-name
+          "Qualify or verify Text to Lattice services"
+          --github-output
+          "$GITHUB_OUTPUT"
+      - name: Assemble sanitized Text to Lattice deployment evidence
+        env:
+          QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
+          RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
+        run: |
+          EXPIRY_ARGUMENTS=()
+          if [[ "$RELEASE_PHASE" != "qualified" ]]; then
+            EXPIRY_ARGUMENTS=(--qualification-expires-at "$QUALIFICATION_EXPIRES_AT")
+          fi
+          node scripts/build-text-to-lattice-deployment-evidence.mjs \
+            --api-deployment "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json" \
+            --api-version "$RUNNER_TEMP/text-to-lattice-api-version.raw.json" \
+            --policy-deployment "$RUNNER_TEMP/text-to-lattice-policy-deployment.raw.json" \
+            --secret-evidence "$RUNNER_TEMP/text-to-lattice-deployment-evidence/secret-bindings.json" \
+            --route-evidence "$RUNNER_TEMP/text-to-lattice-deployment-evidence/route-inventory.json" \
+            --live-evidence "$RUNNER_TEMP/text-to-lattice-deployment-evidence/live-boundary.json" \
+            --service-job-id "${{ steps.service-job.outputs.service_job_id }}" \
+            --pages-artifact-id "${{ needs.build.outputs.pages_artifact_id }}" \
+            --site-artifact-sha256 "${{ needs.build.outputs.site_artifact_sha256 }}" \
+            --qualified-source-set-sha256 "${{ needs.build.outputs.qualified_source_set_sha256 }}" \
+            "${EXPIRY_ARGUMENTS[@]}" \
+            --output "$RUNNER_TEMP/text-to-lattice-deployment-evidence/deployment-index.json"
       - name: Require current main after service verification
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-current-main-sha.mjs
+      - name: Require current main before successful held disposition
+        if: ${{ success() && needs.publication-boundary.outputs.release_phase == 'held' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Return successfully qualified held API to held mode
+        id: successful-held-api-restoration
+        if: ${{ success() && needs.publication-boundary.outputs.release_phase == 'held' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler deploy
+          workers/text-to-lattice-api/held.js
+          --config workers/text-to-lattice-api/wrangler.jsonc
+      - name: Verify and retain successful held disposition
+        if: ${{ success() && steps.successful-held-api-restoration.outcome == 'success' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: |
+          ./workers/node_modules/.bin/wrangler deployments status --json \
+            --config workers/text-to-lattice-api/wrangler.jsonc \
+            > "$RUNNER_TEMP/text-to-lattice-held-deployment.raw.json"
+          node scripts/verify-text-to-lattice-held-api.mjs \
+            --deployment "$RUNNER_TEMP/text-to-lattice-held-deployment.raw.json" \
+            --output "$RUNNER_TEMP/text-to-lattice-deployment-evidence/held-restoration.json"
+      - name: Require current main before failure rollback
+        id: current-main-before-failure-rollback
+        if: ${{ failure() || cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Roll back Text to Lattice API to held mode after qualification failure
+        id: held-api-rollback
+        if: >-
+          ${{
+            (failure() || cancelled()) &&
+            steps.current-main-before-failure-rollback.outcome == 'success'
+          }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler deploy
+          workers/text-to-lattice-api/held.js
+          --config workers/text-to-lattice-api/wrangler.jsonc
+      - name: Verify and retain held failure disposition
+        if: ${{ (failure() || cancelled()) && steps.held-api-rollback.outcome == 'success' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: |
+          ./workers/node_modules/.bin/wrangler deployments status --json \
+            --config workers/text-to-lattice-api/wrangler.jsonc \
+            > "$RUNNER_TEMP/text-to-lattice-held-deployment.raw.json"
+          node scripts/verify-text-to-lattice-held-api.mjs \
+            --deployment "$RUNNER_TEMP/text-to-lattice-held-deployment.raw.json" \
+            --output "$RUNNER_TEMP/text-to-lattice-deployment-evidence/held-rollback.json"
+      - name: Retain sanitized Text to Lattice deployment evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: text-to-lattice-deployment-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/text-to-lattice-deployment-evidence
+          if-no-files-found: warn
+          include-hidden-files: false
+          retention-days: 7
 
   deploy:
     if: >-
@@ -165,14 +582,19 @@ jobs:
       github.ref == 'refs/heads/main' &&
       needs.publication-boundary.result == 'success' &&
       needs.build.result == 'success' &&
+      needs.deploy_text_to_lattice_services.result == 'success' &&
       (
         (
-          needs.publication-boundary.outputs.public_client_status == 'held' &&
-          contains(fromJSON('["skipped", "success"]'), needs.deploy_text_to_lattice_services.result)
+          needs.publication-boundary.outputs.release_phase == 'qualified' &&
+          needs.build_qualification_rollback.result == 'skipped'
         ) ||
         (
-          needs.publication-boundary.outputs.public_client_status == 'enabled' &&
-          needs.deploy_text_to_lattice_services.result == 'success'
+          needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
+          needs.build_qualification_rollback.result == 'success' &&
+          needs.build_qualification_rollback.outputs.held_pages_artifact_id != '' &&
+          needs.build_qualification_rollback.outputs.held_pages_artifact_sha256 != '' &&
+          github.event_name == 'workflow_dispatch' &&
+          inputs.activate_text_to_lattice_qualification == true
         )
       )
     environment:
@@ -182,7 +604,7 @@ jobs:
     concurrency:
       group: pages
       cancel-in-progress: false
-    needs: [publication-boundary, build, deploy_text_to_lattice_services]
+    needs: [publication-boundary, build, build_qualification_rollback, deploy_text_to_lattice_services]
     permissions:
       contents: read
       pages: write
@@ -195,6 +617,267 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-current-main-sha.mjs
-      - name: Deploy
+      - name: Deploy interactive Pages
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+  wait_for_text_to_lattice_qualification_expiry:
+    name: Wait for bounded Text to Lattice qualification cleanup
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      needs.publication-boundary.result == 'success' &&
+      needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
+      needs.deploy_text_to_lattice_services.result == 'success' &&
+      needs.deploy.result == 'success' &&
+      needs.deploy_text_to_lattice_services.outputs.qualification_cleanup_at != ''
+    needs: [publication-boundary, deploy_text_to_lattice_services, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 31
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Wait without holding a deployment environment or concurrency lock
+        run: >-
+          node scripts/plan-text-to-lattice-qualification-window.mjs
+          --wait-until
+          "${{ needs.deploy_text_to_lattice_services.outputs.qualification_cleanup_at }}"
+
+  expire_text_to_lattice_qualification_api:
+    name: Fail closed the bounded Text to Lattice qualification API
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      needs.publication-boundary.result == 'success' &&
+      needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
+      needs.wait_for_text_to_lattice_qualification_expiry.result == 'success'
+    needs:
+      - publication-boundary
+      - deploy_text_to_lattice_services
+      - wait_for_text_to_lattice_qualification_expiry
+    environment:
+      name: text-to-lattice-production
+    runs-on: ubuntu-latest
+    concurrency:
+      group: text-to-lattice-services
+      cancel-in-progress: false
+    outputs:
+      held_api_verified: ${{ steps.expired-held-api-verification.outcome == 'success' }}
+      rollback_authorized: ${{ steps.current-main-before-expired-api.outcome == 'success' }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: workers/package-lock.json
+      - name: Install pinned Worker deployment tooling for qualification expiry
+        run: npm ci --ignore-scripts --prefix workers
+      - name: Require protected Cloudflare qualification-expiry configuration
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          node -e 'for (const name of ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"])
+          if (!process.env[name]) throw new Error(`${name} is not configured in the protected environment.`)'
+      - name: Require current main before bounded qualification API shutdown
+        id: current-main-before-expired-api
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Deploy held API at the bounded qualification cleanup point
+        id: expired-held-api-deployment
+        if: ${{ steps.current-main-before-expired-api.outcome == 'success' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler deploy
+          workers/text-to-lattice-api/held.js
+          --config workers/text-to-lattice-api/wrangler.jsonc
+      - name: Verify bounded qualification API is held
+        id: expired-held-api-verification
+        if: ${{ steps.expired-held-api-deployment.outcome == 'success' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: |
+          ./workers/node_modules/.bin/wrangler deployments status --json \
+            --config workers/text-to-lattice-api/wrangler.jsonc \
+            > "$RUNNER_TEMP/text-to-lattice-held-deployment.raw.json"
+          node scripts/verify-text-to-lattice-held-api.mjs \
+            --deployment "$RUNNER_TEMP/text-to-lattice-held-deployment.raw.json" \
+            --output "$RUNNER_TEMP/text-to-lattice-qualification-expiry/held-api.json"
+      - name: Retain qualification-expiry API evidence
+        if: ${{ always() && steps.current-main-before-expired-api.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: text-to-lattice-qualification-expiry-api-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/text-to-lattice-qualification-expiry
+          if-no-files-found: warn
+          include-hidden-files: false
+          retention-days: 7
+
+  expire_text_to_lattice_qualification_pages:
+    name: Restore held Pages at the bounded qualification cleanup point
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      needs.publication-boundary.result == 'success' &&
+      needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
+      needs.build_qualification_rollback.result == 'success' &&
+      needs.build_qualification_rollback.outputs.held_pages_artifact_id != '' &&
+      needs.build_qualification_rollback.outputs.held_pages_artifact_sha256 != '' &&
+      needs.expire_text_to_lattice_qualification_api.outputs.rollback_authorized == 'true' &&
+      needs.expire_text_to_lattice_qualification_api.outputs.held_api_verified == 'true'
+    needs:
+      - publication-boundary
+      - build_qualification_rollback
+      - expire_text_to_lattice_qualification_api
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Require current main before bounded qualification Pages rollback
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Restore the verified held Pages rollback artifact
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+        with:
+          artifact_name: text-to-lattice-held-rollback-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Verify bounded qualification Pages is held
+        run: >-
+          node scripts/verify-text-to-lattice-held-pages.mjs
+          --output
+          "$RUNNER_TEMP/text-to-lattice-qualification-expiry/held-pages.json"
+
+  enforce_text_to_lattice_held_api:
+    name: Enforce held API after held or failed publication
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      (
+        (
+          needs.publication-boundary.result != 'success'
+        ) ||
+        (
+          needs.publication-boundary.result == 'success' &&
+          (
+            (
+              needs.publication-boundary.outputs.release_phase == 'held' &&
+              needs.deploy_text_to_lattice_services.result != 'success'
+            ) ||
+            (
+              contains(fromJSON('["qualification-pending", "qualified"]'), needs.publication-boundary.outputs.release_phase) &&
+              (
+                needs.deploy_text_to_lattice_services.result != 'success' ||
+                needs.deploy.result != 'success'
+              )
+            )
+          )
+        )
+      )
+    environment:
+      name: text-to-lattice-production
+    runs-on: ubuntu-latest
+    concurrency:
+      group: text-to-lattice-services
+      cancel-in-progress: false
+    needs: [publication-boundary, build, deploy_held, deploy_text_to_lattice_services, deploy]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: workers/package-lock.json
+      # Routine enforcement is authorized only after the public held artifact is
+      # proven live. If publication failed and that proof is unavailable, the
+      # sole Cloudflare mutation below is the emergency fail-closed API shutdown.
+      - name: Verify live held Pages before routine API enforcement
+        id: routine-held-pages-preflight
+        continue-on-error: true
+        if: >-
+          ${{
+            needs.deploy_held.result == 'success' ||
+            (
+              needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
+              needs.deploy_text_to_lattice_services.result == 'skipped'
+            )
+          }}
+        run: >-
+          node scripts/verify-text-to-lattice-held-pages.mjs
+          --output
+          "$RUNNER_TEMP/text-to-lattice-held-enforcement/held-pages.json"
+      - name: Install pinned Worker deployment tooling for held enforcement
+        run: npm ci --ignore-scripts --prefix workers
+      - name: Require protected Cloudflare held-enforcement configuration
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          node -e 'for (const name of ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"])
+          if (!process.env[name]) throw new Error(`${name} is not configured in the protected environment.`)'
+      - name: Require current main immediately before held API enforcement
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Deploy held Text to Lattice API disposition
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler deploy
+          workers/text-to-lattice-api/held.js
+          --config workers/text-to-lattice-api/wrangler.jsonc
+      - name: Verify and retain enforced held API disposition
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: |
+          ./workers/node_modules/.bin/wrangler deployments status --json \
+            --config workers/text-to-lattice-api/wrangler.jsonc \
+            > "$RUNNER_TEMP/text-to-lattice-held-deployment.raw.json"
+          node scripts/verify-text-to-lattice-held-api.mjs \
+            --deployment "$RUNNER_TEMP/text-to-lattice-held-deployment.raw.json" \
+            --output "$RUNNER_TEMP/text-to-lattice-held-enforcement/held-api.json"
+      - name: Retain held-enforcement evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: text-to-lattice-held-enforcement-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/text-to-lattice-held-enforcement
+          if-no-files-found: warn
+          include-hidden-files: false
+          retention-days: 7

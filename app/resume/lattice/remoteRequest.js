@@ -4,14 +4,21 @@ import {
   LATTICE_API_PATH,
   LATTICE_API_SCHEMA_VERSION,
   LATTICE_REQUEST_MODES,
+  LATTICE_VISITOR_SESSION_ACCEPT,
   isLatticeApiError,
   isLatticeApiResult,
 } from "./remoteProtocol.js";
 
 export const LATTICE_REMOTE_CAPABILITY = "text-to-lattice";
-export { LATTICE_API_PATH, LATTICE_API_SCHEMA_VERSION, LATTICE_REQUEST_MODES };
+export {
+  LATTICE_API_PATH,
+  LATTICE_API_SCHEMA_VERSION,
+  LATTICE_REQUEST_MODES,
+  LATTICE_VISITOR_SESSION_ACCEPT,
+};
 export const LATTICE_CLIENT_TIMEOUT_MS = 240_000;
 export const LATTICE_RESPONSE_BYTE_LIMIT = 262_144;
+export const LATTICE_BROWSER_QUOTA_LOCK_NAME = "text-to-lattice-browser-quota-cookie-v1";
 
 /** @typedef {"auto" | "operative" | "experiential"} LatticeRequestedMode */
 /** @typedef {"validating" | "submitting" | "processing" | "success"} LatticeRemoteState */
@@ -37,6 +44,7 @@ const ERROR_POLICY = Object.freeze({
   invalid_response: Object.freeze({ retryable: false }),
   network_failure: Object.freeze({ retryable: true }),
   unsupported_media_type: Object.freeze({ retryable: false }),
+  visitor_session_required: Object.freeze({ retryable: false }),
 });
 
 const ERROR_STATUSES = Object.freeze({
@@ -44,10 +52,11 @@ const ERROR_STATUSES = Object.freeze({
   input_too_large: Object.freeze([413]),
   rate_limited: Object.freeze([429]),
   upstream_timeout: Object.freeze([504]),
-  upstream_unavailable: Object.freeze([502]),
+  upstream_unavailable: Object.freeze([502, 503]),
   malformed_upstream_response: Object.freeze([502]),
   internal_error: Object.freeze([500]),
   unsupported_media_type: Object.freeze([415]),
+  visitor_session_required: Object.freeze([428]),
 });
 
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset=utf-8)?$/iu;
@@ -92,6 +101,69 @@ export function makeLatticeRequest(text, mode = "auto") {
 function abortReason(signal) {
   if (signal?.reason instanceof Error) return signal.reason;
   return new DOMException("Text to Lattice was canceled.", "AbortError");
+}
+
+function browserQuotaLockManager() {
+  if (typeof window === "undefined") return null;
+  const lockManager = window.navigator?.locks;
+  if (typeof lockManager?.request !== "function" || typeof lockManager?.query !== "function") {
+    throw new LatticeRemoteError("network_failure");
+  }
+  return lockManager;
+}
+
+async function withBrowserQuotaLock(operation, signal) {
+  const lockManager = browserQuotaLockManager();
+  if (lockManager === null) return operation();
+  if (signal.aborted) throw abortReason(signal);
+  // The quota cookie is HttpOnly. Setup and the one content request therefore
+  // remain in one origin-wide critical section through the full response.
+  return lockManager.request(
+    LATTICE_BROWSER_QUOTA_LOCK_NAME,
+    { mode: "exclusive", signal },
+    async () => {
+      if (signal.aborted) throw abortReason(signal);
+      return operation();
+    },
+  );
+}
+
+function visitorSessionFailure(status = 0, cause) {
+  return new LatticeRemoteError("visitor_session_required", { status, cause });
+}
+
+async function establishVisitorSession({ baseOrigin, fetchImpl, signal }) {
+  try {
+    const responsePromise = capabilityFetch(LATTICE_REMOTE_CAPABILITY, LATTICE_API_PATH, {
+      method: "POST",
+      headers: Object.freeze({ Accept: LATTICE_VISITOR_SESSION_ACCEPT }),
+      signal,
+      credentials: "same-origin",
+      redirect: "error",
+      cache: "no-store",
+      keepalive: false,
+      mode: "same-origin",
+      referrer: "",
+      referrerPolicy: "same-origin",
+    }, { fetchImpl, baseOrigin });
+    void responsePromise.then((lateResponse) => {
+      if (signal.aborted) cancelReadable(lateResponse?.body, signal.reason);
+    }, () => {});
+    const response = await raceAbort(responsePromise, signal);
+    const status = validateResponseShape(response);
+    if (status !== 204 || response.body !== null) {
+      cancelReadable(response.body);
+      throw visitorSessionFailure(status);
+    }
+  } catch (cause) {
+    if (cause instanceof LatticeRemoteError && cause.code === "visitor_session_required") {
+      throw cause;
+    }
+    if (signal.aborted && signal.reason?.name === "AbortError") {
+      throw abortReason(signal);
+    }
+    throw visitorSessionFailure(0, cause);
+  }
 }
 
 function combineAbort(parentSignal, timeoutMs) {
@@ -298,52 +370,60 @@ export async function requestRemoteLattice(text, options = {}) {
   const lifecycle = combineAbort(signal, timeoutMs);
   try {
     try {
-      onState?.("submitting");
-      if (lifecycle.signal.aborted) throw abortReason(lifecycle.signal);
-      const responsePromise = capabilityFetch(LATTICE_REMOTE_CAPABILITY, LATTICE_API_PATH, {
-        method: "POST",
-        headers: Object.freeze({
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify(payload),
-        signal: lifecycle.signal,
-      }, { fetchImpl, baseOrigin });
-      void responsePromise.then((lateResponse) => {
-        if (lifecycle.signal.aborted) cancelReadable(lateResponse?.body, lifecycle.signal.reason);
-      }, () => {});
-      onState?.("processing");
-      const response = await raceAbort(responsePromise, lifecycle.signal);
-      const status = validateResponseShape(response);
-      const contentType = response.headers.get("content-type") ?? "";
-      if (!JSON_CONTENT_TYPE.test(contentType)) {
-        cancelReadable(response.body);
-        throw invalidResponse(status);
-      }
-      const bodyText = await boundedResponseText(response, lifecycle.signal);
-      if (lifecycle.signal.aborted) throw abortReason(lifecycle.signal);
-      const body = parseJson(bodyText, status);
-      if (status !== 200) {
-        if (!isLatticeApiError(body) || !validErrorStatus(body.error, status)) {
+      return await withBrowserQuotaLock(async () => {
+        onState?.("submitting");
+        if (lifecycle.signal.aborted) throw abortReason(lifecycle.signal);
+        await establishVisitorSession({ baseOrigin, fetchImpl, signal: lifecycle.signal });
+        if (lifecycle.signal.aborted) throw abortReason(lifecycle.signal);
+        const responsePromise = capabilityFetch(LATTICE_REMOTE_CAPABILITY, LATTICE_API_PATH, {
+          method: "POST",
+          headers: Object.freeze({
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          }),
+          body: JSON.stringify(payload),
+          signal: lifecycle.signal,
+          credentials: "same-origin",
+        }, { fetchImpl, baseOrigin });
+        void responsePromise.then((lateResponse) => {
+          if (lifecycle.signal.aborted) cancelReadable(lateResponse?.body, lifecycle.signal.reason);
+        }, () => {});
+        onState?.("processing");
+        const response = await raceAbort(responsePromise, lifecycle.signal);
+        const status = validateResponseShape(response);
+        const contentType = response.headers.get("content-type") ?? "";
+        if (!JSON_CONTENT_TYPE.test(contentType)) {
+          cancelReadable(response.body);
           throw invalidResponse(status);
         }
-        throw new LatticeRemoteError(body.error, {
-          status,
-          retryAfterSeconds: body.error === "rate_limited"
-            ? parseRetryAfter(response, body)
-            : null,
-        });
-      }
-      if (!exactKeys(body, ["result", "schema_version"])
-        || body.schema_version !== LATTICE_API_SCHEMA_VERSION
-        || !isLatticeApiResult(body.result)) {
-        throw invalidResponse(status);
-      }
-      if (lifecycle.signal.aborted) throw abortReason(lifecycle.signal);
-      onState?.("success");
-      return Object.freeze(body.result);
+        const bodyText = await boundedResponseText(response, lifecycle.signal);
+        if (lifecycle.signal.aborted) throw abortReason(lifecycle.signal);
+        const body = parseJson(bodyText, status);
+        if (status !== 200) {
+          if (!isLatticeApiError(body) || !validErrorStatus(body.error, status)) {
+            throw invalidResponse(status);
+          }
+          throw new LatticeRemoteError(body.error, {
+            status,
+            retryAfterSeconds: body.error === "rate_limited"
+              ? parseRetryAfter(response, body)
+              : null,
+          });
+        }
+        if (!exactKeys(body, ["result", "schema_version"])
+          || body.schema_version !== LATTICE_API_SCHEMA_VERSION
+          || !isLatticeApiResult(body.result)) {
+          throw invalidResponse(status);
+        }
+        if (lifecycle.signal.aborted) throw abortReason(lifecycle.signal);
+        onState?.("success");
+        return Object.freeze(body.result);
+      }, lifecycle.signal);
     } catch (cause) {
       if (signal?.aborted) throw abortReason(signal);
+      if (cause instanceof LatticeRemoteError && cause.code === "visitor_session_required") {
+        throw cause;
+      }
       if (lifecycle.timedOut()) {
         throw new LatticeRemoteError("client_timeout", { cause });
       }

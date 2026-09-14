@@ -1,3 +1,5 @@
+import { LATTICE_VISITOR_SESSION_ACCEPT } from "../resume/lattice/remoteProtocol.js";
+
 const TEXT_TO_LATTICE_CAPABILITY = Object.freeze({
   id: "text-to-lattice",
   allowedOrigin: "https://hah.dev",
@@ -8,6 +10,22 @@ const TEXT_TO_LATTICE_CAPABILITY = Object.freeze({
   transmitsUserContent: true,
   transmittedFields: Object.freeze(["text", "requested_mode", "schema_version"]),
   retainedByApplication: false,
+  credentialMode: "same-origin",
+  browserOwnedCookie: Object.freeze({
+    name: "__Secure-hah-lattice-api-visitor",
+    path: "/api/lattice",
+    purpose: "per-browser-utc-day-request-limit",
+    httpOnly: true,
+    containsUserContent: false,
+    expiresAtNextUtcDay: true,
+  }),
+  visitorSessionSetup: Object.freeze({
+    accept: LATTICE_VISITOR_SESSION_ACCEPT,
+    sameRoute: true,
+    transmitsUserContent: false,
+    hasBody: false,
+    hasContentType: false,
+  }),
   automaticRetry: false,
   alternateProviderFallback: false,
 });
@@ -73,10 +91,17 @@ function validateTextToLatticeRequest(policy, headerInit, body) {
   } catch {
     throw new NetworkPolicyError("invalid headers");
   }
-  const allowedHeaders = new Set(["accept", "content-type"]);
   const headerNames = [...headers.keys()];
-  if (headerNames.length !== allowedHeaders.size
-    || headerNames.some((name) => !allowedHeaders.has(name))) {
+  if (headerNames.length === 1
+    && headerNames[0] === "accept"
+    && headers.get("accept")?.toLowerCase() === policy.visitorSessionSetup.accept
+    && body === undefined) {
+    return "visitor-session-setup";
+  }
+
+  const allowedContentHeaders = new Set(["accept", "content-type"]);
+  if (headerNames.length !== allowedContentHeaders.size
+    || headerNames.some((name) => !allowedContentHeaders.has(name))) {
     throw new NetworkPolicyError("undeclared header");
   }
   if (headers.get("content-type")?.toLowerCase() !== "application/json") {
@@ -102,6 +127,7 @@ function validateTextToLatticeRequest(policy, headerInit, body) {
     || payload.schema_version !== 1) {
     throw new NetworkPolicyError("undeclared payload");
   }
+  return "content";
 }
 
 export async function capabilityFetch(
@@ -162,8 +188,8 @@ export async function capabilityFetch(
   if (method !== policy.method) {
     throw new NetworkPolicyError(`method ${method}`);
   }
-  if (credentials !== undefined && credentials !== "omit") {
-    throw new NetworkPolicyError("credentials are not permitted");
+  if (credentials !== undefined && credentials !== policy.credentialMode) {
+    throw new NetworkPolicyError("undeclared credentials mode");
   }
   if (redirect !== undefined && redirect !== "error") {
     throw new NetworkPolicyError("redirect following is not permitted");
@@ -184,17 +210,22 @@ export async function capabilityFetch(
     throw new NetworkPolicyError("cross-origin request mode is not permitted");
   }
 
-  validateTextToLatticeRequest(policy, headers, body);
+  const operation = validateTextToLatticeRequest(policy, headers, body);
 
   return fetchImpl(url, {
     method: policy.method,
-    headers: Object.freeze({
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    }),
-    body,
+    headers: operation === "visitor-session-setup"
+      ? Object.freeze({ Accept: policy.visitorSessionSetup.accept })
+      : Object.freeze({
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        }),
+    ...(operation === "content" ? { body } : {}),
     signal,
-    credentials: "omit",
+    // The browser may attach only cookies whose own scope includes this exact
+    // same-origin API path. The Worker rejects every cookie except the one
+    // opaque, HttpOnly daily-limit cookie declared by this capability.
+    credentials: policy.credentialMode,
     redirect: "error",
     cache: "no-store",
     keepalive: false,

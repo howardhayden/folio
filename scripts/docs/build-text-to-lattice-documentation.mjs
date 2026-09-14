@@ -10,6 +10,8 @@ import {
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { verifyReleaseStatusState } from "../verify-text-to-lattice-release.mjs";
+
 const scriptPath = fileURLToPath(import.meta.url);
 const projectRoot = resolve(dirname(scriptPath), "../..");
 const canonicalPath = join(
@@ -102,10 +104,26 @@ function validateHistoricalEvidenceBoundary(gate) {
 
 function validateLifecycleGateContract(productionBoundaryGate, providerCapacityGate, productionLifecycleGate) {
   for (const gate of [productionBoundaryGate, providerCapacityGate, productionLifecycleGate]) {
-    if (!gate || !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
-      fail(`release gate ${gate?.id ?? "missing"} must remain open until satisfied by current production evidence.`);
-    }
+    if (!gate) fail("release lifecycle gate projection is incomplete.");
     validateHistoricalEvidenceBoundary(gate);
+  }
+  for (const gate of [productionBoundaryGate, providerCapacityGate]) {
+    if (!["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
+      fail(`release gate ${gate.id} must remain open until satisfied by current production evidence.`);
+    }
+  }
+  if (!["open-release-blocker", "post-deployment-verification", "satisfied-in-production"].includes(productionLifecycleGate.status)) {
+    fail("release gate GATE-06 must remain open, enter post-deployment verification, or be satisfied by current production evidence.");
+  }
+  if (productionLifecycleGate.status === "post-deployment-verification"
+    && (productionBoundaryGate.status !== "satisfied-in-production"
+      || providerCapacityGate.status !== "satisfied-in-production")) {
+    fail("release gate GATE-06 can enter post-deployment verification only after GATE-02 and GATE-03 are satisfied in production.");
+  }
+  if (productionLifecycleGate.status === "satisfied-in-production"
+    && (productionBoundaryGate.status !== "satisfied-in-production"
+      || providerCapacityGate.status !== "satisfied-in-production")) {
+    fail("release gate GATE-06 cannot remain satisfied unless GATE-02 and GATE-03 are satisfied in production.");
   }
 
   const gate02ActiveBoundary = [
@@ -121,7 +139,14 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     /same-origin POST \/api\/lattice/iu,
     /schema version 1/iu,
     /text, requested_mode, and schema_version/iu,
+    /application\/vnd\.hah\.text-to-lattice-visitor-session\.v1\+json/u,
+    /bodyless/iu,
+    /same origin-wide browser Web Lock/iu,
+    /428 visitor_session_required/u,
+    /without a quota claim or provider call/iu,
     /HF_TOKEN/u,
+    /VISITOR_COOKIE_SECRET/u,
+    /__Secure-hah-lattice-api-visitor/u,
     /fixed Hugging Face router/iu,
     /Featherless-qualified Qwen and Llama targets/iu,
     /Cache-Control: no-store/iu,
@@ -146,8 +171,20 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     providerCapacityGate.rollbackCondition,
   ].join(" ");
   const gate03Required = [
+    /30 transformations globally per UTC day/iu,
+    /3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day/iu,
+    /Intentional cookie clearing and uncooperative callers remain outside the per-browser identity claim/iu,
+    /global 30-per-day counter remains exact and authoritative/iu,
+    /setup must make no quota claim and no provider call/iu,
+    /before Durable Object admission or provider work/iu,
+    /one atomic admission/iu,
+    /provider failure/iu,
+    /(?:without refund|never refunded)/iu,
+    /no IP address/iu,
+    /browser fingerprint/iu,
     /60 seconds/iu,
     /32 provider calls/iu,
+    /960/iu,
     /path-scoped (?:Worker )?rate limiter/iu,
     /response (?:bytes|size)/iu,
     /provider (?:quota|rate|retention|availability|cost)/iu,
@@ -173,20 +210,30 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
   const gate06Required = [
     /activated canonical page/iu,
     /explicit confirm/iu,
-    /exactly one same-origin POST \/api\/lattice/iu,
+    /origin-wide browser Web Lock/iu,
+    /bodyless content-free same-origin POST \/api\/lattice/iu,
+    /application\/vnd\.hah\.text-to-lattice-visitor-session\.v1\+json/u,
+    /no body or Content-Type/iu,
+    /exactly one content-bearing same-origin POST \/api\/lattice/iu,
     /text, requested_mode, and schema_version 1/iu,
     /non-error terminal result/iu,
     /no provider origin/iu,
     /no automatic retry/iu,
     /no .*fallback/iu,
     /no service-worker (?:replay|or cache replay)/iu,
+    /Set-Cookie/iu,
+    /cookie value/iu,
+    /no transformation quota and make no provider call/iu,
+    /428 visitor_session_required before admission and provider work/iu,
+    /qualification expiry/iu,
+    /qualified source-set SHA-256/iu,
     /application (?:storage|state)/iu,
     /provider processing/iu,
     /held documentation-only/iu,
   ];
   if (productionLifecycleGate.label !== "Remote production lifecycle and privacy trace"
     || gate06Required.some((pattern) => !pattern.test(gate06ActiveBoundary))) {
-    fail("release gate GATE-06 must require one explicit canonical-browser remote lifecycle, a non-error result, a sanitized application privacy trace, no browser provider contact, retry, fallback, or cache replay, and held rollback.");
+    fail("release gate GATE-06 must require one explicit canonical-browser setup-plus-content lifecycle, a non-error result, a sanitized application privacy trace, no browser provider contact, retry, fallback, or cache replay, and held rollback.");
   }
 
   for (const gate of [productionBoundaryGate, providerCapacityGate, productionLifecycleGate]) {
@@ -238,7 +285,7 @@ function validateAtlas(data) {
   }
   if (data.historicalBoundary?.status !== "inactive"
     || !/WebLLM/iu.test(data.historicalBoundary?.supersededArchitecture ?? "")
-    || !/POST to \/api\/lattice/iu.test(data.historicalBoundary?.currentArchitecture ?? "")
+    || !/same-origin \/api\/lattice[\s\S]*bodyless visitor-session setup[\s\S]*exactly one content-bearing POST/iu.test(data.historicalBoundary?.currentArchitecture ?? "")
     || !/do not satisfy the current remote-service release gates/iu.test(data.historicalBoundary?.evidencePolicy ?? "")) {
     fail("historicalBoundary must keep the WebLLM, Turnstile, and lease architecture explicit, inactive, and non-authorizing beside the current remote capability.");
   }
@@ -390,6 +437,13 @@ function validateAtlas(data) {
     "Qwen/Qwen3-4B:featherless-ai",
     "meta-llama/Llama-3.2-3B-Instruct:featherless-ai",
     "HF_TOKEN",
+    "VISITOR_COOKIE_SECRET",
+    "__Secure-hah-lattice-api-visitor",
+    "30 accepted transformations globally per UTC day",
+    "3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day",
+    "application/vnd.hah.text-to-lattice-visitor-session.v1+json",
+    "428 visitor_session_required",
+    "intentional cookie clearing",
     "no automatic retry",
     "provider or model fallback",
     "questions required to be empty",
@@ -447,9 +501,13 @@ function validateAtlas(data) {
     if (gate.status === "satisfied-in-production" && !productionSatisfiedGateIds.has(gate.id)) {
       fail(`release gate ${gate.id} cannot use satisfied-in-production status.`);
     }
-    if (["GATE-02", "GATE-03", "GATE-06"].includes(gate.id)
+    if (["GATE-02", "GATE-03"].includes(gate.id)
       && !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
       fail(`release gate ${gate.id} must remain an open release blocker until it is satisfied in production.`);
+    }
+    if (gate.id === "GATE-06"
+      && !["open-release-blocker", "post-deployment-verification", "satisfied-in-production"].includes(gate.status)) {
+      fail("release gate GATE-06 must remain open, enter post-deployment verification, or be satisfied in production.");
     }
     if (!marginalValues.has(gate.marginalValue)) {
       fail(`release gate ${gate.id} has unknown marginal value.`);
@@ -490,18 +548,80 @@ function validateReleaseGateProjection(data, releaseRegister) {
   if (releaseRegister?.format !== "TEXT_TO_LATTICE_RELEASE_REGISTER" || releaseRegister?.schemaVersion !== 1) {
     fail("release register format is unsupported.");
   }
+  const releaseState = verifyReleaseStatusState(releaseRegister);
   if (releaseRegister.revision !== data.revision) {
     fail("documentation atlas and release register revisions must match.");
   }
   const activeCapability = releaseRegister.artifactSet?.activeCapability;
   const activeProvider = activeCapability?.provider;
-  if (activeCapability?.status !== "held-pending-production-evidence"
+  const expectedCapabilityStatus = {
+    held: "held-pending-production-evidence",
+    "qualification-pending": "deployed-for-qualification",
+    qualified: "qualified",
+  }[releaseState.releasePhase];
+  if (activeCapability?.status !== expectedCapabilityStatus
     || activeCapability?.route !== "/api/lattice"
     || activeCapability?.method !== "POST"
     || activeCapability?.schemaVersion !== 1
     || JSON.stringify(activeCapability?.requestFields) !== JSON.stringify(["text", "requested_mode", "schema_version"])
     || activeCapability?.trigger !== "explicit-user-submit"
-    || activeCapability?.secretBindingName !== "HF_TOKEN"
+    || JSON.stringify(activeCapability?.secretBindingNames) !== JSON.stringify(["HF_TOKEN", "VISITOR_COOKIE_SECRET"])
+    || activeCapability?.visitorSessionSetup?.route !== "/api/lattice"
+    || activeCapability?.visitorSessionSetup?.method !== "POST"
+    || activeCapability?.visitorSessionSetup?.accept !== "application/vnd.hah.text-to-lattice-visitor-session.v1+json"
+    || activeCapability?.visitorSessionSetup?.bodyless !== true
+    || activeCapability?.visitorSessionSetup?.contentTypeHeader !== false
+    || activeCapability?.visitorSessionSetup?.credentialsMode !== "same-origin"
+    || activeCapability?.visitorSessionSetup?.sharedBrowserWebLock !== true
+    || activeCapability?.visitorSessionSetup?.acceptedStatus !== 204
+    || activeCapability?.visitorSessionSetup?.transportOrNon204FailureStopsContentRequest !== true
+    || activeCapability?.visitorSessionSetup?.establishesOrPreservesSignedCookie !== true
+    || activeCapability?.visitorSessionSetup?.consumesTransformationQuota !== false
+    || activeCapability?.visitorSessionSetup?.contactsProvider !== false
+    || activeCapability?.contentRequest?.route !== "/api/lattice"
+    || activeCapability?.contentRequest?.method !== "POST"
+    || activeCapability?.contentRequest?.accept !== "application/json"
+    || activeCapability?.contentRequest?.contentTypeHeader !== "application/json"
+    || activeCapability?.contentRequest?.credentialsMode !== "same-origin"
+    || activeCapability?.contentRequest?.contentBearingRequestsPerAttempt !== 1
+    || activeCapability?.contentRequest?.httpOnlyCookieStorageObservableByClient !== false
+    || activeCapability?.contentRequest?.attemptedAfterAcceptedSetupWhenCookieBlockedOrDropped !== true
+    || activeCapability?.contentRequest?.requiresValidSignedVisitorCookie !== true
+    || activeCapability?.contentRequest?.missingCookieStatus !== 428
+    || activeCapability?.contentRequest?.missingCookieCode !== "visitor_session_required"
+    || activeCapability?.contentRequest?.missingCookieBeforeAdmission !== true
+    || activeCapability?.contentRequest?.missingCookieBeforeProvider !== true
+    || activeCapability?.contentRequest?.invalidOrUndeclaredCookieStatus !== 403
+    || activeCapability?.contentRequest?.invalidOrUndeclaredCookieCode !== "invalid_request"
+    || activeCapability?.contentRequest?.invalidOrUndeclaredCookieBeforeAdmission !== true
+    || activeCapability?.contentRequest?.invalidOrUndeclaredCookieBeforeProvider !== true
+    || activeCapability?.contentRequest?.sameBrowserWebLockAsSetup !== true
+    || activeCapability?.browserQuotaCookie?.name !== "__Secure-hah-lattice-api-visitor"
+    || activeCapability?.browserQuotaCookie?.path !== "/api/lattice"
+    || activeCapability?.browserQuotaCookie?.secure !== true
+    || activeCapability?.browserQuotaCookie?.httpOnly !== true
+    || activeCapability?.browserQuotaCookie?.sameSite !== "Strict"
+    || activeCapability?.browserQuotaCookie?.domain !== null
+    || activeCapability?.browserQuotaCookie?.expiresAtNextUtcDay !== true
+    || activeCapability?.browserQuotaCookie?.containsUserContent !== false
+    || activeCapability?.browserQuotaCookie?.containsAccountIdentity !== false
+    || activeCapability?.browserQuotaCookie?.containsBrowserFingerprint !== false
+    || activeCapability?.browserQuotaCookie?.containsProviderCredential !== false
+    || activeCapability?.admission?.globalPerUtcDay !== 30
+    || activeCapability?.admission?.perOrdinaryPersistentBrowserCookieJarPerUtcDay !== 3
+    || activeCapability?.admission?.perBrowserLimitClaimScope
+      !== "cooperating canonical client with an ordinary persistent browser cookie jar"
+    || activeCapability?.admission?.intentionalCookieClearingOrUncooperativeCallerCovered !== false
+    || activeCapability?.admission?.globalLimitExactAndAuthoritative !== true
+    || activeCapability?.admission?.atomicClaimsPerRequest !== 1
+    || activeCapability?.admission?.countsAdmittedFailures !== true
+    || activeCapability?.admission?.refundsAdmittedRequests !== false
+    || activeCapability?.admission?.rechecksSharedQuotaWithinPipeline !== false
+    || activeCapability?.admission?.usesIpAddress !== false
+    || activeCapability?.admission?.usesBrowserFingerprint !== false
+    || activeCapability?.admission?.storesSubmittedContentOrResult !== false
+    || activeCapability?.admission?.maximumProviderCallsPerAdmittedRequest !== 32
+    || activeCapability?.admission?.maximumProviderCallsFromAdmittedRequestsPerUtcDay !== 960
     || activeProvider?.endpoint !== "https://router.huggingface.co/v1/chat/completions"
     || activeProvider?.generatorModel !== "Qwen/Qwen3-4B:featherless-ai"
     || activeProvider?.verifierModel !== "meta-llama/Llama-3.2-3B-Instruct:featherless-ai"
@@ -512,15 +632,18 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || activeCapability?.responseCachePolicy !== "no-store"
     || !/no application storage, raw-content logs, cache, queue, or analytics/iu.test(activeCapability?.applicationRetention ?? "")
     || !/not guaranteed by hah\.dev/iu.test(activeCapability?.providerRetentionBoundary ?? "")) {
-    fail("release artifactSet.activeCapability must encode the exact held same-origin remote request, fixed provider and models, server-only secret name, application nonretention, provider limitation, no retry or fallback, and no-store response policy.");
+    fail("release artifactSet.activeCapability must encode the phase-matched same-origin remote request, exact server-only secrets, quota cookie and admission policy, fixed provider and models, application nonretention, provider limitation, no retry or fallback, and no-store response policy.");
   }
   const historicalArtifacts = releaseRegister.artifactSet?.historicalBrowserLocalArtifacts;
+  const historicalClaimPattern = releaseState.held
+    ? /not loaded by the held public artifact/iu
+    : /not loaded by the (?:qualification-pending|qualified|active remote) public artifact/iu;
   if (historicalArtifacts?.status !== "historical-inactive"
     || !/WebLLM\/MLC\/WebGPU/iu.test(historicalArtifacts?.architecture ?? "")
     || !/Turnstile attestation and bodyless lease lifecycle/iu.test(historicalArtifacts?.architecture ?? "")
     || JSON.stringify(historicalArtifacts?.recordFields) !== JSON.stringify(["runtime", "tokenizerRuntime", "structuredOutputRuntime", "models", "tokenizers", "wasm"])
     || !/^[a-f0-9]{64}$/u.test(historicalArtifacts?.verbatimSha256 ?? "")
-    || !/not loaded by the held public artifact/iu.test(historicalArtifacts?.claimBoundary ?? "")
+    || !historicalClaimPattern.test(historicalArtifacts?.claimBoundary ?? "")
     || !/do not identify provider-served runtime bytes/iu.test(historicalArtifacts?.claimBoundary ?? "")) {
     fail("release artifactSet must preserve and explicitly deactivate the browser-local WebLLM, Turnstile, lease, and byte-identity records.");
   }
@@ -576,16 +699,11 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || !/silently expand recipients and model behavior/iu.test(fallbackDecision.rationale)) {
     fail("automatic retry and alternate provider or model fallback must remain negative-value non-solutions.");
   }
-  const hasOpenBlocker = releaseRegister.gates.some(({ status }) => status === "open-release-blocker");
-  const enabled = releaseRegister.overallStatus === "qualified"
-    && releaseRegister.publicClient?.status === "enabled"
-    && releaseRegister.publicClient?.publicationMode === "interactive-client";
-  const held = releaseRegister.overallStatus === "held"
-    && releaseRegister.publicClient?.status === "held"
-    && releaseRegister.publicClient?.publicationMode === "documentation-only";
-  if ((hasOpenBlocker && !held) || (!hasOpenBlocker && !enabled)) {
-    fail("release register must be held exactly while an open release blocker remains.");
-  }
+  validateLifecycleGateContract(
+    releaseRegister.gates.find(({ id }) => id === "GATE-02"),
+    releaseRegister.gates.find(({ id }) => id === "GATE-03"),
+    releaseRegister.gates.find(({ id }) => id === "GATE-06"),
+  );
 }
 
 async function validateProjectDocumentRegistry(data) {
@@ -630,9 +748,12 @@ function humanLabel(value) {
 
 function lifecycleGateNarrative(productionLifecycleGate) {
   if (productionLifecycleGate.status === "satisfied-in-production") {
-    return "GATE-06 records current canonical-browser evidence for one deliberately confirmed same-origin POST /api/lattice, a non-error remote result through the fixed Qwen generator and Llama verifier, bounded no-store handling, no automatic retry or alternate provider or model fallback, and a sanitized hah.dev application privacy trace. That evidence acknowledges the submitted body as an intentional transmission and does not claim control over Hugging Face, Featherless AI, or their infrastructure retention. A later route, model, provider, response, cache, persistence, telemetry, or lifecycle drift reopens the blocker and restores held documentation-only publication.";
+    return "GATE-06 records current canonical-browser evidence for one deliberately confirmed bodyless content-free same-origin POST /api/lattice setup followed after its accepted 204 under the same origin-wide Web Lock by exactly one content-bearing POST /api/lattice, a non-error remote result through the fixed Qwen generator and Llama verifier, bounded no-store handling, no automatic retry or alternate provider or model fallback, and a sanitized hah.dev application privacy trace. That evidence acknowledges the submitted body as an intentional transmission and does not claim control over Hugging Face, Featherless AI, or their infrastructure retention. A later route, setup, cookie, Web Lock, model, provider, response, cache, persistence, telemetry, or lifecycle drift reopens the blocker and restores held documentation-only publication.";
   }
-  return "The public client remains held and documentation-only. GATE-06 has source and test evidence for the explicit-submit, exact same-origin POST /api/lattice, fixed server targets, bounded response, cancellation, no-retry, no-fallback, and application nonretention contracts, but no remote production evidence or successful canonical-browser remote transformation. Historical WebLLM, Turnstile, lease, and two-origin traces remain preserved as inactive evidence for their own deployed revisions and cannot satisfy the current gate.";
+  if (productionLifecycleGate.status === "post-deployment-verification") {
+    return "The interactive client is deployed only for immediate canonical-browser qualification and is not qualified. GATE-02 and GATE-03 carry current production evidence; GATE-06 remains in post-deployment verification until the required structured browser evidence passes. Any failed, incomplete, or delayed qualification requires immediate rollback to the held documentation-only artifact.";
+  }
+  return "The public client remains held and documentation-only. GATE-06 has source and test evidence for the explicit-submit bodyless content-free same-origin POST /api/lattice setup followed after its accepted 204 under the same origin-wide Web Lock by exactly one content-bearing POST /api/lattice, fixed server targets, bounded response, cancellation, no-retry, no-fallback, and application nonretention contracts, but no remote production evidence or successful canonical-browser remote transformation. Historical WebLLM, Turnstile, lease, and two-origin traces remain preserved as inactive evidence for their own deployed revisions and cannot satisfy the current gate.";
 }
 
 function sourceMapFor(data) {
@@ -1290,7 +1411,7 @@ function blueprintMarkdown(data) {
     "",
     "## Binding data-flow rule",
     "",
-    "After explicit confirmation, the browser sends exactly `{text, requested_mode, schema_version: 1}` in one same-origin `POST /api/lattice`. The Worker uses server-created prompts with the fixed Hugging Face and Featherless Qwen generator and Llama verifier, then returns one validated bounded result or machine-readable error. `HF_TOKEN` remains server-only; hah.dev defines no application storage, raw-content log, cache, queue, or analytics sink for content, performs no automatic retry, and has no alternate provider or model fallback. External-provider processing and retention remain governed by provider policies.",
+    "After explicit confirmation, one origin-wide Web Lock spans a bodyless same-origin `POST /api/lattice` visitor-session setup and, after its accepted 204, exactly one content-bearing `POST /api/lattice` with `{text, requested_mode, schema_version: 1}`. Setup carries no content and makes no quota claim or provider call. A transport or non-204 setup response prevents the content request; if the accepted setup's HttpOnly cookie is blocked or dropped, the Worker rejects the single content request as `428 visitor_session_required` before admission or provider work, so setup or cookie-storage failure never sends content to the provider. The Worker uses server-created prompts with the fixed Hugging Face and Featherless Qwen generator and Llama verifier, then returns one validated bounded result or machine-readable error. `HF_TOKEN` remains server-only; hah.dev defines no application storage, raw-content log, cache, queue, or analytics sink for content, performs no automatic retry, and has no alternate provider or model fallback. External-provider processing and retention remain governed by provider policies.",
     "",
     "Repository tests support the as-built rows. They do not establish that the remote API, encrypted secret binding, provider behavior, response policy, application nonretention boundary, or canonical-browser lifecycle is deployed or observed in production.",
     "",
@@ -1338,7 +1459,7 @@ function blueprintHtml(data) {
   ${toolbar}<div class="record-grid">${cards}</div></section>
   <section class="panel" aria-labelledby="blueprint-heading"><h2 id="blueprint-heading">Complete six-layer blueprint</h2><p>This canonical table remains complete when the interactive cards are filtered.</p><div class="table-wrap" tabindex="0" aria-label="Scrollable complete Text to Lattice service blueprint"><table class="blueprint-table"><caption>Eight lifecycle stages across six service layers</caption><thead><tr><th scope="col">Stage</th><th scope="col">Visitor action</th><th scope="col">Frontstage</th><th scope="col">Backstage client/server</th><th scope="col">Support/network</th><th scope="col">Evidence/recovery</th><th scope="col">Data crossing boundary</th></tr></thead><tbody>${stageRows}</tbody></table></div></section>
   <section class="panel" aria-labelledby="owners-heading"><h2 id="owners-heading">Lifecycle ownership</h2><p>External providers are dependencies, not assumed accountable owners. Each handoff names retained accountability and required evidence.</p><div class="table-wrap" tabindex="0" aria-label="Scrollable lifecycle ownership matrix"><table><caption>Accountable owner and handoff evidence</caption><thead><tr><th scope="col">ID</th><th scope="col">Surface</th><th scope="col">Accountable owner</th><th scope="col">Responsibility</th><th scope="col">Handoff evidence</th></tr></thead><tbody>${ownerRows}</tbody></table></div></section>
-  <section class="panel boundary"><h2>Binding data-flow rule</h2><p>After explicit confirmation, the browser sends exactly {text, requested_mode, schema_version: 1} in one same-origin POST /api/lattice. The Worker uses server-created prompts with the fixed Hugging Face and Featherless Qwen generator and Llama verifier, then returns one validated bounded result or machine-readable error. HF_TOKEN remains server-only; hah.dev defines no application storage, raw-content log, cache, queue, or analytics sink for content, performs no automatic retry, and has no alternate provider or model fallback. External-provider processing and retention remain governed by provider policies.</p></section>
+  <section class="panel boundary"><h2>Binding data-flow rule</h2><p>After explicit confirmation, one origin-wide Web Lock spans a bodyless same-origin POST /api/lattice visitor-session setup and, after an accepted 204, exactly one content-bearing POST /api/lattice with {text, requested_mode, schema_version: 1}. Setup carries no content and makes no quota claim or provider call. A transport or non-204 setup response prevents the content request; if the accepted setup's HttpOnly cookie is blocked or dropped, the Worker rejects the single content request as 428 visitor_session_required before admission or provider work, so setup or cookie-storage failure never sends content to the provider. The Worker uses server-created prompts with the fixed Hugging Face and Featherless Qwen generator and Llama verifier, then returns one validated bounded result or machine-readable error. HF_TOKEN remains server-only; hah.dev defines no application storage, raw-content log, cache, queue, or analytics sink for content, performs no automatic retry, and has no alternate provider or model fallback. External-provider processing and retention remain governed by provider policies.</p></section>
   <section class="panel"><h2>Sources and exports</h2><p><a class="button-link" href="TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md" download>Download complete Markdown</a> <a class="button-link" href="documentation-atlas.json" download>Download authoritative JSON</a> <a class="button-link" href="artifact-manifest.json">Inspect integrity manifest</a></p></section>
   ${htmlSources(data)}${htmlTerms()}`;
   return htmlPage(data, {
@@ -1566,8 +1687,10 @@ function indexHtml(data, releaseRegister) {
   const cards = data.artifacts.map((artifact) => `<article class="index-card"><p class="eyebrow">${escapeHtml(artifact.scope)}</p><h2>${escapeHtml(artifact.title)}</h2><p>${escapeHtml(summaries.get(artifact.id))}</p><div class="link-row"><a href="${escapeHtml(artifact.html)}">Open interactive edition</a><a href="${escapeHtml(artifact.markdown)}" download>Download Markdown</a></div></article>`).join("");
   const productionLifecycleSatisfied = releaseRegister.gates
     .some(({ id, status }) => id === "GATE-06" && status === "satisfied-in-production");
-  const releaseSummary = releaseRegister.publicClient?.status === "held"
+  const releaseSummary = releaseRegister.overallStatus === "held"
     ? "The remote interactive client is held and documentation-only because GATE-02, GATE-03, and GATE-06 remain open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face and Featherless path, but there is no remote production evidence. Historical WebLLM, Turnstile, and lease records remain inactive."
+    : releaseRegister.overallStatus === "qualification-pending"
+      ? "The interactive client is deployed only for immediate canonical-browser qualification and is not qualified. GATE-06 remains in post-deployment verification; failed, incomplete, or delayed structured browser evidence requires immediate rollback to the held documentation-only artifact."
     : productionLifecycleSatisfied
       ? "The remote interactive client is qualified with current canonical-browser lifecycle, same-origin API, fixed-provider, capacity, and application privacy evidence. External-provider retention remains outside hah.dev's guarantee."
       : "The interactive client is qualified. The records preserve accepted residuals, workflow controls, post-deployment checks, and rollback conditions without overstating remote runtime or provider evidence.";
@@ -1586,7 +1709,7 @@ function indexHtml(data, releaseRegister) {
   });
 }
 
-function validateGeneratedMarkdown(filename, markdown, data, expectedIds) {
+function validateGeneratedMarkdown(filename, markdown, data, expectedIds, releasePhase) {
   if (!markdown.startsWith("---\n")) fail(`${filename} lacks deterministic frontmatter.`);
   if (!markdown.includes(`authority: ${data.authority.canonicalSource}`)) fail(`${filename} omits canonical authority.`);
   if (!markdown.includes(`${publicBaseUrl}documentation-atlas.json`)) fail(`${filename} omits the authoritative JSON link.`);
@@ -1602,8 +1725,16 @@ function validateGeneratedMarkdown(filename, markdown, data, expectedIds) {
     if (markdown.includes("Backstage browser-local")) fail(`${filename} renders the historical browser-local architecture as active.`);
   }
   if (filename === "TEXT-TO-LATTICE-SECURITY-MODEL.md") {
-    for (const requirement of ["Current active evidence", "Historical inactive evidence", "no remote production evidence", "same-origin POST /api/lattice", "not byte-pinned"]) {
+    for (const requirement of ["Current active evidence", "Historical inactive evidence", "same-origin POST /api/lattice", "not byte-pinned"]) {
       if (!markdown.includes(requirement)) fail(`${filename} omits the current-versus-historical remote qualification boundary: ${requirement}.`);
+    }
+    const phaseRequirements = {
+      held: ["no remote production evidence"],
+      "qualification-pending": ["post-deployment verification", "not qualified", "immediate rollback"],
+      qualified: ["structured browser evidence"],
+    }[releasePhase];
+    for (const requirement of phaseRequirements) {
+      if (!markdown.toLowerCase().includes(requirement)) fail(`${filename} omits the ${releasePhase} release boundary: ${requirement}.`);
     }
   }
 }
@@ -1616,6 +1747,7 @@ function validateGeneratedHtml(filename, html, {
   interactive,
   markdownFilename = null,
   expectedIds = [],
+  releasePhase = null,
 }) {
   if (!html.startsWith("<!doctype html>\n<html lang=\"en\">")) fail(`${filename} lacks its document shell.`);
   if (countMatches(html, /rel="canonical"/gu) !== 1) fail(`${filename} must contain one canonical link.`);
@@ -1650,8 +1782,16 @@ function validateGeneratedHtml(filename, html, {
     if (html.includes("Backstage browser-local")) fail(`${filename} renders the historical browser-local architecture as active.`);
   }
   if (filename === "text-to-lattice-security-model.html") {
-    for (const requirement of ["Current active evidence", "Historical inactive evidence", "no remote production evidence", "same-origin POST /api/lattice", "not byte-pinned"]) {
+    for (const requirement of ["Current active evidence", "Historical inactive evidence", "same-origin POST /api/lattice", "not byte-pinned"]) {
       if (!html.includes(requirement)) fail(`${filename} omits the current-versus-historical remote qualification boundary: ${requirement}.`);
+    }
+    const phaseRequirements = {
+      held: ["no remote production evidence"],
+      "qualification-pending": ["post-deployment verification", "not qualified", "immediate rollback"],
+      qualified: ["structured browser evidence"],
+    }[releasePhase];
+    for (const requirement of phaseRequirements) {
+      if (!html.toLowerCase().includes(requirement)) fail(`${filename} omits the ${releasePhase} release boundary: ${requirement}.`);
     }
   }
   if (interactive) {
@@ -1664,6 +1804,7 @@ function validateGeneratedHtml(filename, html, {
 }
 
 function buildArtifacts(data, canonicalBytes, releaseRegister) {
+  const { releasePhase } = verifyReleaseStatusState(releaseRegister);
   const conceptMd = conceptMarkdown(data);
   const skillMd = skillMarkdown(data);
   const blueprintMd = blueprintMarkdown(data);
@@ -1677,11 +1818,12 @@ function buildArtifacts(data, canonicalBytes, releaseRegister) {
   const artifacts = new Map();
   for (const descriptor of data.artifacts) {
     const document = documents.get(descriptor.id);
-    validateGeneratedMarkdown(descriptor.markdown, document.markdown, data, document.ids);
+    validateGeneratedMarkdown(descriptor.markdown, document.markdown, data, document.ids, releasePhase);
     validateGeneratedHtml(descriptor.html, document.html, {
       interactive: true,
       markdownFilename: descriptor.markdown,
       expectedIds: document.ids,
+      releasePhase,
     });
     artifacts.set(join(sourceOutputRoot, descriptor.markdown), Buffer.from(document.markdown));
     artifacts.set(join(publicOutputRoot, descriptor.markdown), Buffer.from(document.markdown));
@@ -1689,7 +1831,7 @@ function buildArtifacts(data, canonicalBytes, releaseRegister) {
   }
 
   const index = indexHtml(data, releaseRegister);
-  validateGeneratedHtml("index.html", index, { interactive: false });
+  validateGeneratedHtml("index.html", index, { interactive: false, releasePhase });
   for (const descriptor of data.artifacts) {
     if (!index.includes(`href="${descriptor.html}"`) || !index.includes(`href="${descriptor.markdown}"`)) {
       fail(`index.html omits ${descriptor.id}.`);

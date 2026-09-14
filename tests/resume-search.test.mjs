@@ -22,7 +22,7 @@ test("Resume Search covers every canonical content class and preserves evidence 
     experiences: 8,
     skills: 9,
     education: 5,
-    evidence: 1676,
+    evidence: 1677,
   });
   for (const indexed of resumeSearchIndex.records) {
     assert.ok(indexed.record.evidence.length > 0, indexed.record.id);

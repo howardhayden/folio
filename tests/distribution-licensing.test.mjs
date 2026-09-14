@@ -166,7 +166,7 @@ test("third-party notice release-evidence links resolve from the deployed site r
   );
   assert.match(
     noticePage,
-    /The browser sends one same-origin <code>POST \/api\/lattice<\/code> request whose JSON body contains exactly/u,
+    /The enabled browser flow first sends one content-free cookie setup <code>POST \/api\/lattice<\/code>[\s\S]*?then exactly one content-bearing <code>POST \/api\/lattice<\/code> whose JSON body contains exactly[\s\S]*?Only the second request includes submitted text or can initiate external-provider processing/u,
   );
   assert.match(
     noticePage,

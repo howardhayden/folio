@@ -2344,7 +2344,7 @@ test("the published usage contract matches every enforced quota", () => {
   });
 });
 
-test("the UI makes one consented same-origin API request without legacy model setup", async () => {
+test("the UI makes one consented same-origin content request after bodyless visitor setup", async () => {
   const [source, remoteRequestSource, remoteProtocolSource, capabilitySource] = await Promise.all([
     readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/resume/lattice/remoteRequest.js", import.meta.url), "utf8"),
@@ -2365,7 +2365,12 @@ test("the UI makes one consented same-origin API request without legacy model se
   assert.match(source, /Process with external service/u);
 
   assert.match(remoteProtocolSource, /LATTICE_API_PATH = "\/api\/lattice"/u);
-  assert.equal((remoteRequestSource.match(/capabilityFetch\(/gu) ?? []).length, 1);
+  assert.equal((remoteRequestSource.match(/capabilityFetch\(/gu) ?? []).length, 2);
+  assert.match(
+    remoteRequestSource,
+    /headers: Object\.freeze\(\{ Accept: LATTICE_VISITOR_SESSION_ACCEPT \}\)[\s\S]*?credentials: "same-origin"/u,
+  );
+  assert.equal((remoteRequestSource.match(/body: JSON\.stringify\(payload\)/gu) ?? []).length, 1);
   assert.match(
     remoteRequestSource,
     /capabilityFetch\(LATTICE_REMOTE_CAPABILITY, LATTICE_API_PATH,[\s\S]*?method: "POST"/u,
@@ -2395,7 +2400,7 @@ test("the canonical no-JavaScript contract exposes remote capability and privacy
   assert.match(source, /security\.huggingFace\.residualDisclosure/u);
   assert.match(source, /security\.huggingFace\.sources\.map/u);
   assert.match(source, /id="text-to-lattice-usage"/u);
-  assert.match(source, /Same-origin <code>POST \/api\/lattice<\/code>; no query string, redirect, cookie, or provider origin/u);
+  assert.match(source, /Same-origin <code>POST \/api\/lattice<\/code>; no query string, redirect, or provider origin; one browser-owned API-scoped quota cookie/u);
   assert.match(source, /\{"\{text, requested_mode, schema_version: 1\}"\}/u);
   assert.match(source, /Qwen3-4B generates; Llama 3\.2 3B Instruct verifies through Hugging Face Inference Providers and Featherless AI/u);
   assert.match(source, /No hah\.dev application storage, raw-content logging, caching, queueing, or analytics/u);

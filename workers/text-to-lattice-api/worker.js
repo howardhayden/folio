@@ -8,6 +8,7 @@ import {
 import {
   LATTICE_API_PATH,
   LATTICE_API_SCHEMA_VERSION,
+  LATTICE_VISITOR_SESSION_ACCEPT,
   isLatticeApiRequest,
   isLatticeApiResult,
 } from "../../app/resume/lattice/remoteProtocol.js";
@@ -19,6 +20,15 @@ import {
   LatticeProviderError,
   createHuggingFaceLatticeAdapter,
 } from "./huggingFaceAdapter.js";
+import {
+  claimGlobalLatticeTransformation,
+} from "./capacityClient.js";
+import {
+  LatticeApiVisitorCookieError,
+  establishLatticeApiVisitor,
+  resolveLatticeApiVisitor,
+  withLatticeApiVisitorCookie,
+} from "./visitorCookie.js";
 
 export const LATTICE_API_ORIGIN = "https://hah.dev";
 export { LATTICE_API_PATH, LATTICE_API_SCHEMA_VERSION };
@@ -27,14 +37,46 @@ export const LATTICE_API_REQUEST_BYTE_LIMIT = 65_536;
 export const LATTICE_API_RESPONSE_BYTE_LIMIT = 262_144;
 export const LATTICE_API_RATE_LIMIT_KEY = "text-to-lattice:transform";
 export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
+export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset=utf-8)?$/iu;
+const EXPLICIT_CALLER_CREDENTIAL_HEADERS = new Set([
+  "apikey",
+  "authorization",
+  "cf-access-client-id",
+  "cf-access-client-secret",
+  "cf-access-jwt-assertion",
+  "cookie2",
+  "dpop",
+  "proxy-authorization",
+  "signature",
+  "signature-input",
+  "ssl-client-cert",
+  "x-amz-security-token",
+  "x-api-key",
+  "x-auth-token",
+  "x-client-cert",
+  "x-forwarded-client-cert",
+  "x-goog-api-key",
+]);
+const EXPLICIT_CALLER_CREDENTIAL_HEADER_PATTERN =
+  /(?:^|-)(?:auth(?:entication|orization)?|cookies?|credentials?|password|private-key|secret|signature|tokens?)(?:-|$)|(?:^|-)api-?key(?:-|$)/u;
 const RESPONSE_HEADERS = Object.freeze({
   "Cache-Control": "no-store",
   "Content-Type": "application/json; charset=utf-8",
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
 });
+const CONTENT_FREE_RESPONSE_HEADERS = Object.freeze({
+  "Cache-Control": "no-store",
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+});
+const HELD_RESPONSE_HEADERS = Object.freeze({
+  ...RESPONSE_HEADERS,
+  "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+});
+const CANONICAL_UTC_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 class LatticeApiError extends Error {
   constructor(status, code, retryAfterSeconds = null) {
@@ -43,6 +85,13 @@ class LatticeApiError extends Error {
     this.status = status;
     this.code = code;
     this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+class LatticeQualificationExpiredError extends Error {
+  constructor() {
+    super("The Lattice qualification window expired.");
+    this.name = "LatticeQualificationExpiredError";
   }
 }
 
@@ -83,21 +132,39 @@ function cancelReader(reader, reason) {
   }
 }
 
-function requestDeadline(request, milliseconds) {
+function requestDeadline(
+  request,
+  milliseconds,
+  qualificationWindow,
+  scheduleTimeout,
+  cancelTimeout,
+) {
   const controller = new AbortController();
-  let timedOut = false;
+  const qualificationMilliseconds = qualificationWindow.expiresAt === null
+    ? null
+    : qualificationWindow.expiresAt - qualificationWindow.requestStartedAt;
+  const endsAtQualificationExpiry = qualificationMilliseconds !== null
+    && qualificationMilliseconds <= milliseconds;
+  const deadlineMilliseconds = endsAtQualificationExpiry
+    ? qualificationMilliseconds
+    : milliseconds;
+  let deadlineCause = null;
   const abortFromClient = () => controller.abort(request.signal.reason ?? abortError());
   if (request.signal.aborted) abortFromClient();
   else request.signal.addEventListener("abort", abortFromClient, { once: true });
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    controller.abort(abortError("The Lattice request timed out."));
-  }, milliseconds);
+  const timeout = scheduleTimeout(() => {
+    deadlineCause = endsAtQualificationExpiry ? "qualification-expiry" : "request-timeout";
+    const message = endsAtQualificationExpiry
+      ? "The Lattice qualification window expired."
+      : "The Lattice request timed out.";
+    controller.abort(abortError(message));
+  }, deadlineMilliseconds);
   return Object.freeze({
     signal: controller.signal,
-    didTimeOut: () => timedOut,
+    didQualificationExpire: () => deadlineCause === "qualification-expiry",
+    didTimeOut: () => deadlineCause === "request-timeout",
     dispose() {
-      clearTimeout(timeout);
+      cancelTimeout(timeout);
       request.signal.removeEventListener("abort", abortFromClient);
     },
   });
@@ -116,6 +183,63 @@ function errorResponse(status, code, retryAfterSeconds = null) {
     body.retry_after_seconds = retryAfterSeconds;
   }
   return jsonResponse(body, status);
+}
+
+function qualificationHeldResponse() {
+  return new Response(JSON.stringify({ error: "upstream_unavailable" }), {
+    status: 503,
+    headers: HELD_RESPONSE_HEADERS,
+  });
+}
+
+function visitorSessionResponse() {
+  return new Response(null, { status: 204, headers: CONTENT_FREE_RESPONSE_HEADERS });
+}
+
+export function qualificationWindowAllowsRequests(value, now = Date.now()) {
+  return captureQualificationWindow(value, now).allowsRequests;
+}
+
+function captureQualificationWindow(value, requestStartedAt) {
+  if (value === undefined) {
+    return Object.freeze({ allowsRequests: true, expiresAt: null, requestStartedAt });
+  }
+  if (typeof value !== "string" || !CANONICAL_UTC_TIMESTAMP.test(value)
+    || !Number.isFinite(requestStartedAt)) {
+    return Object.freeze({ allowsRequests: false, expiresAt: null, requestStartedAt });
+  }
+  const expiresAt = new Date(value).valueOf();
+  const isCanonical = Number.isFinite(expiresAt) && new Date(expiresAt).toISOString() === value;
+  return Object.freeze({
+    allowsRequests: isCanonical && requestStartedAt < expiresAt,
+    expiresAt: isCanonical ? expiresAt : null,
+    requestStartedAt,
+  });
+}
+
+function qualificationWindowAllowsOutput(qualificationWindow, responseTime) {
+  return qualificationWindow.expiresAt === null
+    || (Number.isFinite(responseTime) && responseTime < qualificationWindow.expiresAt);
+}
+
+function assertRequestPhaseOpen(deadline, qualificationWindow, currentTime) {
+  if (deadline.signal.aborted) {
+    throw deadline.signal.reason ?? abortError();
+  }
+  if (!qualificationWindowAllowsOutput(qualificationWindow, currentTime)) {
+    throw new LatticeQualificationExpiredError();
+  }
+}
+
+function hasExplicitCallerCredentialHeader(headers) {
+  for (const name of headers.keys()) {
+    if (name === "cookie") continue;
+    if (EXPLICIT_CALLER_CREDENTIAL_HEADERS.has(name)
+      || EXPLICIT_CALLER_CREDENTIAL_HEADER_PATTERN.test(name)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 async function boundedRequestText(request, maximumBytes, signal) {
@@ -180,6 +304,7 @@ function safeProviderResponse(error) {
         : errorResponse(502, "upstream_unavailable");
     case "provider_unavailable":
     case "provider_call_limit":
+    case "provider_request_too_large":
     case "provider_redirect":
       return errorResponse(502, "upstream_unavailable");
     case "provider_response_too_large":
@@ -220,18 +345,36 @@ export function createLatticeApiWorker({
   providerCallTimeoutMs,
   providerResponseByteLimit,
   enforceRateLimit = enforceLatticeApiRateLimit,
+  admitTransformation = claimGlobalLatticeTransformation,
+  establishVisitor = establishLatticeApiVisitor,
+  resolveVisitor = resolveLatticeApiVisitor,
+  now = Date.now,
+  scheduleTimeout = setTimeout,
+  cancelTimeout = clearTimeout,
 } = {}) {
   if (typeof runTextToLatticeImpl !== "function" || typeof preflightLatticeInputImpl !== "function"
     || typeof createAdapter !== "function" || typeof fetchImpl !== "function"
     || !Number.isSafeInteger(requestTimeoutMs) || requestTimeoutMs <= 0
     || !Number.isSafeInteger(requestByteLimit) || requestByteLimit <= 0
     || !Number.isSafeInteger(responseByteLimit) || responseByteLimit <= 0
-    || typeof enforceRateLimit !== "function") {
+    || typeof enforceRateLimit !== "function"
+    || typeof admitTransformation !== "function"
+    || typeof establishVisitor !== "function"
+    || typeof resolveVisitor !== "function"
+    || typeof now !== "function"
+    || typeof scheduleTimeout !== "function"
+    || typeof cancelTimeout !== "function") {
     throw new TypeError("The Lattice API worker received an invalid server configuration.");
   }
 
   return Object.freeze({
     async fetch(request, env = {}) {
+      const qualificationWindow = captureQualificationWindow(
+        env[LATTICE_QUALIFICATION_EXPIRES_AT_BINDING],
+        now(),
+      );
+      if (!qualificationWindow.allowsRequests) return qualificationHeldResponse();
+
       let url;
       try {
         url = new URL(request.url);
@@ -241,6 +384,9 @@ export function createLatticeApiWorker({
       if (url.href !== `${LATTICE_API_ORIGIN}${LATTICE_API_PATH}`) {
         return errorResponse(404, "invalid_request");
       }
+      if (hasExplicitCallerCredentialHeader(request.headers)) {
+        return errorResponse(403, "invalid_request");
+      }
       if (request.method !== "POST") {
         const response = errorResponse(405, "invalid_request");
         response.headers.set("Allow", "POST");
@@ -249,12 +395,85 @@ export function createLatticeApiWorker({
       if (request.headers.get("origin") !== LATTICE_API_ORIGIN) {
         return errorResponse(403, "invalid_request");
       }
-      if (!JSON_CONTENT_TYPE.test(request.headers.get("content-type") ?? "")) {
+      const isVisitorSessionSetup = request.headers.get("accept") === LATTICE_VISITOR_SESSION_ACCEPT;
+      if (isVisitorSessionSetup
+        && (request.headers.has("content-type") || request.body !== null)) {
+        return errorResponse(400, "invalid_request");
+      }
+      if (!isVisitorSessionSetup && request.headers.get("accept") !== "application/json") {
+        return errorResponse(400, "invalid_request");
+      }
+      if (!isVisitorSessionSetup
+        && !JSON_CONTENT_TYPE.test(request.headers.get("content-type") ?? "")) {
         return errorResponse(415, "unsupported_media_type");
       }
 
-      const deadline = requestDeadline(request, requestTimeoutMs);
+      const deadline = requestDeadline(
+        request,
+        requestTimeoutMs,
+        qualificationWindow,
+        scheduleTimeout,
+        cancelTimeout,
+      );
+      let visitorCookieValue = null;
+      let response;
       try {
+        if (isVisitorSessionSetup) {
+          let visitor;
+          try {
+            assertRequestPhaseOpen(deadline, qualificationWindow, now());
+            visitor = await raceAbort(
+              establishVisitor(request.headers, env.VISITOR_COOKIE_SECRET),
+              deadline.signal,
+            );
+          } catch (error) {
+            if (error instanceof LatticeApiVisitorCookieError) {
+              throw apiError(403, "invalid_request");
+            }
+            throw error;
+          }
+          if (visitor === null
+            || typeof visitor !== "object"
+            || Array.isArray(visitor)
+            || Object.keys(visitor).length !== 2
+            || typeof visitor.visitorId !== "string"
+            || typeof visitor.cookieValue !== "string") {
+            throw apiError(500, "internal_error");
+          }
+          visitorCookieValue = visitor.cookieValue;
+          response = visitorSessionResponse();
+          const responseTime = now();
+          assertRequestPhaseOpen(deadline, qualificationWindow, responseTime);
+          return withLatticeApiVisitorCookie(response, visitorCookieValue, responseTime);
+        }
+
+        if (!request.headers.has("cookie")) {
+          throw apiError(428, "visitor_session_required");
+        }
+        let visitor;
+        try {
+          assertRequestPhaseOpen(deadline, qualificationWindow, now());
+          visitor = await raceAbort(
+            resolveVisitor(request.headers, env.VISITOR_COOKIE_SECRET),
+            deadline.signal,
+          );
+        } catch (error) {
+          if (error instanceof LatticeApiVisitorCookieError) {
+            throw apiError(403, "invalid_request");
+          }
+          throw error;
+        }
+        if (visitor === null) {
+          throw apiError(428, "visitor_session_required");
+        }
+        if (typeof visitor !== "object"
+          || Array.isArray(visitor)
+          || Object.keys(visitor).length !== 2
+          || typeof visitor.visitorId !== "string"
+          || typeof visitor.cookieValue !== "string") {
+          throw apiError(500, "internal_error");
+        }
+
         let body;
         try {
           body = JSON.parse(await boundedRequestText(request, requestByteLimit, deadline.signal));
@@ -273,8 +492,43 @@ export function createLatticeApiWorker({
           throw apiError(inputTooLarge ? 413 : 400, inputTooLarge ? "input_too_large" : "invalid_request");
         }
 
+        assertRequestPhaseOpen(deadline, qualificationWindow, now());
         await raceAbort(enforceRateLimit(env.LATTICE_API_RATE_LIMITER), deadline.signal);
 
+        assertRequestPhaseOpen(deadline, qualificationWindow, now());
+        if (typeof env.HF_TOKEN !== "string" || !env.HF_TOKEN.trim()) {
+          throw apiError(500, "internal_error");
+        }
+        let admission;
+        try {
+          assertRequestPhaseOpen(deadline, qualificationWindow, now());
+          admission = await raceAbort(admitTransformation(
+            env.LATTICE_TRANSFORMATION_BUDGET,
+            visitor.visitorId,
+            deadline.signal,
+          ), deadline.signal);
+        } catch (error) {
+          if (deadline.signal.aborted) throw error;
+          throw apiError(500, "internal_error");
+        }
+        if (admission === null
+          || typeof admission !== "object"
+          || Array.isArray(admission)
+          || Object.keys(admission).length !== 2
+          || typeof admission.allowed !== "boolean"
+          || !Object.prototype.hasOwnProperty.call(admission, "retryAfterSeconds")
+          || (admission.allowed && admission.retryAfterSeconds !== null)
+          || (!admission.allowed && admission.retryAfterSeconds !== null
+            && (!Number.isSafeInteger(admission.retryAfterSeconds)
+              || admission.retryAfterSeconds < 1
+              || admission.retryAfterSeconds > 300))) {
+          throw apiError(500, "internal_error");
+        }
+        if (!admission.allowed) {
+          throw apiError(429, "rate_limited", admission.retryAfterSeconds);
+        }
+
+        assertRequestPhaseOpen(deadline, qualificationWindow, now());
         const adapterOptions = {
           token: env.HF_TOKEN,
           requestedMode: payload.requested_mode,
@@ -285,6 +539,7 @@ export function createLatticeApiWorker({
           adapterOptions.maximumResponseBytes = providerResponseByteLimit;
         }
         const adapter = createAdapter(adapterOptions);
+        assertRequestPhaseOpen(deadline, qualificationWindow, now());
         const result = await raceAbort(runTextToLatticeImpl(payload.text, {
           adapter,
           signal: deadline.signal,
@@ -302,22 +557,27 @@ export function createLatticeApiWorker({
         if (new TextEncoder().encode(responseBody).byteLength > responseByteLimit) {
           throw apiError(500, "internal_error");
         }
-        return new Response(responseBody, { status: 200, headers: RESPONSE_HEADERS });
+        assertRequestPhaseOpen(deadline, qualificationWindow, now());
+        response = new Response(responseBody, { status: 200, headers: RESPONSE_HEADERS });
       } catch (error) {
-        if (deadline.didTimeOut()) {
-          return errorResponse(504, "upstream_timeout");
+        if (deadline.didQualificationExpire()
+          || error instanceof LatticeQualificationExpiredError) {
+          response = qualificationHeldResponse();
+        } else if (deadline.didTimeOut()) {
+          response = errorResponse(504, "upstream_timeout");
+        } else if (error instanceof LatticeApiError) {
+          response = errorResponse(error.status, error.code, error.retryAfterSeconds);
+        } else if (error instanceof LatticeProviderError) {
+          response = safeProviderResponse(error);
+        } else if (deadline.signal.aborted) {
+          response = errorResponse(400, "invalid_request");
+        } else {
+          response = errorResponse(500, "internal_error");
         }
-        if (error instanceof LatticeApiError) {
-          return errorResponse(error.status, error.code, error.retryAfterSeconds);
-        }
-        if (error instanceof LatticeProviderError) return safeProviderResponse(error);
-        if (deadline.signal.aborted) {
-          return errorResponse(400, "invalid_request");
-        }
-        return errorResponse(500, "internal_error");
       } finally {
         deadline.dispose();
       }
+      return response;
     },
   });
 }

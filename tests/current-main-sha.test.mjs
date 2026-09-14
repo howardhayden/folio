@@ -142,33 +142,98 @@ test("Pages checks current main around build, service deployment, and page deplo
     readFile(new URL("../docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md", import.meta.url), "utf8"),
   ]);
   const command = "node scripts/verify-current-main-sha.mjs";
-  const firstGuard = workflow.indexOf(command);
+  const buildStart = workflow.indexOf("\n  build:\n");
+  const rollbackBuildStart = workflow.indexOf("\n  build_qualification_rollback:\n", buildStart);
+  const heldPagesStart = workflow.indexOf("\n  deploy_held:\n", buildStart);
+  const serviceStart = workflow.indexOf("\n  deploy_text_to_lattice_services:\n", buildStart);
+  const serviceEnd = workflow.indexOf("\n  deploy:\n", serviceStart);
+  const pagesStart = serviceEnd;
+  const heldEnforcementStart = workflow.indexOf("\n  enforce_text_to_lattice_held_api:\n", pagesStart);
+  const expiryApiStart = workflow.indexOf("\n  expire_text_to_lattice_qualification_api:\n", pagesStart);
+  const expiryPagesStart = workflow.indexOf("\n  expire_text_to_lattice_qualification_pages:\n", expiryApiStart);
+  const firstGuard = workflow.indexOf(command, buildStart);
   const uploadGuard = workflow.indexOf(command, firstGuard + command.length);
-  const deployGuard = workflow.lastIndexOf(command);
-  const install = workflow.indexOf("npm ci --ignore-scripts");
-  const siteVerification = workflow.indexOf("npm run release:lattice:verify:site");
-  const configurePages = workflow.indexOf("actions/configure-pages@");
-  const serviceDeployGuard = workflow.indexOf("Require current main before service deployment");
-  const installWorkers = workflow.indexOf("npm ci --ignore-scripts --prefix workers");
-  const liveServiceVerification = workflow.indexOf("run: node scripts/verify-text-to-lattice-services.mjs\n");
-  const postServiceGuard = workflow.indexOf("Require current main after service verification");
-  const deploy = workflow.indexOf("name: Deploy", workflow.indexOf("deploy:"));
+  const deployGuard = workflow.indexOf(command, pagesStart);
+  const install = workflow.indexOf("npm ci --ignore-scripts", buildStart);
+  const siteVerification = workflow.indexOf("npm run release:lattice:verify:site", buildStart);
+  const configurePages = workflow.indexOf("actions/configure-pages@", buildStart);
+  const uploadPages = workflow.indexOf("- name: Upload Pages artifact", buildStart);
+  const serviceDeployGuard = workflow.indexOf("Require current main before service deployment", serviceStart);
+  const installWorkers = workflow.indexOf("npm ci --ignore-scripts --prefix workers", serviceStart);
+  const liveServiceVerification = workflow.indexOf(
+    "run: node scripts/verify-text-to-lattice-api-production.mjs\n",
+    serviceStart,
+  );
+  const postServiceGuard = workflow.indexOf("Require current main after service verification", serviceStart);
+  const deploy = workflow.indexOf("- name: Deploy interactive Pages", pagesStart);
 
-  assert.ok(firstGuard >= 0 && firstGuard < install, "the build guard must run before dependency installation and build work");
-  assert.ok(uploadGuard > siteVerification && uploadGuard < configurePages, "the artifact guard must run after site verification and before upload");
-  assert.ok(serviceDeployGuard > configurePages && serviceDeployGuard < installWorkers, "the service guard must run before Worker deployment tooling is installed");
-  assert.ok(postServiceGuard > liveServiceVerification && postServiceGuard < deploy, "the post-service guard must run after live verification and before page deployment");
-  assert.ok(deployGuard > uploadGuard && deployGuard < deploy, "the deployment guard must be the final verification before deploy-pages");
+  function assertImmediatelyGuards(guardName, mutationName, searchFrom = 0) {
+    const guard = workflow.indexOf(`- name: ${guardName}`, searchFrom);
+    const mutation = workflow.indexOf(`- name: ${mutationName}`, guard + 1);
+    assert.ok(guard >= searchFrom && mutation > guard, `${guardName} must precede ${mutationName}`);
+    const boundary = workflow.slice(guard, mutation + `- name: ${mutationName}`.length);
+    assert.match(boundary, new RegExp(
+      `${guardName}[\\s\\S]*?env:\\n\\s+GITHUB_TOKEN: \\$\\{\\{ github\\.token \\}\\}`
+      + `[\\s\\S]*?run: node scripts\\/verify-current-main-sha\\.mjs\\n\\s+- name: ${mutationName}`,
+      "u",
+    ));
+  }
+
+  assert.ok(buildStart >= 0 && rollbackBuildStart > buildStart && heldPagesStart > rollbackBuildStart
+    && serviceStart > heldPagesStart && serviceEnd > serviceStart && expiryApiStart > pagesStart
+    && expiryPagesStart > expiryApiStart && heldEnforcementStart > expiryPagesStart,
+  "the build, rollback artifact, held Pages, service, active Pages, expiry, and held-enforcement jobs must be distinct and ordered");
+  assert.ok(firstGuard >= buildStart && firstGuard < install && uploadGuard < serviceStart,
+    "both build guards must be scoped to the build job");
+  assert.ok(configurePages > siteVerification && uploadGuard > configurePages && uploadGuard < uploadPages,
+    "the artifact guard must run immediately after configuration and before upload");
+  assert.ok(serviceDeployGuard >= serviceStart && serviceDeployGuard < installWorkers,
+    "the service guard must run before Worker deployment tooling is installed");
+  assert.ok(liveServiceVerification >= serviceStart && liveServiceVerification < serviceEnd,
+    "the current live service verifier must be present in the service job");
+  assert.ok(postServiceGuard > liveServiceVerification && postServiceGuard < serviceEnd,
+    "the post-service guard must run after live verification inside the service job");
+  assert.ok(deployGuard >= pagesStart && deployGuard < deploy,
+    "the deployment guard must be the final verification before deploy-pages");
   for (const name of [
     "Require current main before build",
     "Require current main before artifact upload",
+    "Require current main before held rollback artifact upload",
     "Require current main before service deployment",
     "Require current main after service verification",
+    "Require current main before held Pages deployment",
+    "Require current main before held API bootstrap",
+    "Require current main before visitor-cookie secret bootstrap",
+    "Require current main before active API deployment",
+    "Require current main before response-policy deployment",
+    "Require current main before legacy surface retirement",
+    "Require current main before successful held disposition",
+    "Require current main before failure rollback",
     "Require current main before deployment",
+    "Require current main before bounded qualification API shutdown",
+    "Require current main before bounded qualification Pages rollback",
+    "Require current main immediately before held API enforcement",
   ]) assert.match(workflow, new RegExp(`${name}[\\s\\S]*?run: node scripts\\/verify-current-main-sha\\.mjs`, "u"));
-  assert.match(workflow, /Require current main before deployment[\s\S]*?run: node scripts\/verify-current-main-sha\.mjs\n\s+- name: Deploy/u);
-  assert.equal(workflow.match(/node scripts\/verify-current-main-sha\.mjs/gu)?.length, 5);
-  assert.equal(workflow.match(/GITHUB_TOKEN: \$\{\{ github\.token \}\}/gu)?.length, 5);
+  const mutationBoundaries = [
+    ["Require current main before artifact upload", "Upload Pages artifact", buildStart],
+    ["Require current main before held rollback artifact upload", "Upload verified held Pages rollback artifact", rollbackBuildStart],
+    ["Require current main before held Pages deployment", "Deploy held Pages", heldPagesStart],
+    ["Require current main before held API bootstrap", "Bootstrap held Text to Lattice API surface and Durable Object lifecycle", serviceStart],
+    ["Require current main before visitor-cookie secret bootstrap", "Preserve provider credential and bootstrap only a missing visitor-cookie secret", serviceStart],
+    ["Require current main before active API deployment", "Deploy bounded Text to Lattice API", serviceStart],
+    ["Require current main before response-policy deployment", "Deploy résumé response policy", serviceStart],
+    ["Require current main before legacy surface retirement", "Retire exact legacy entry surfaces only after qualification", serviceStart],
+    ["Require current main before successful held disposition", "Return successfully qualified held API to held mode", serviceStart],
+    ["Require current main before failure rollback", "Roll back Text to Lattice API to held mode after qualification failure", serviceStart],
+    ["Require current main before deployment", "Deploy interactive Pages", pagesStart],
+    ["Require current main before bounded qualification API shutdown", "Deploy held API at the bounded qualification cleanup point", expiryApiStart],
+    ["Require current main before bounded qualification Pages rollback", "Restore the verified held Pages rollback artifact", expiryPagesStart],
+    ["Require current main immediately before held API enforcement", "Deploy held Text to Lattice API disposition", heldEnforcementStart],
+  ];
+  assert.equal(mutationBoundaries.length, 14);
+  for (const [guard, mutation, start] of mutationBoundaries) {
+    assertImmediatelyGuards(guard, mutation, start);
+  }
   assert.match(qualification, /requires its exact commit to equal `GITHUB_SHA` at its publication boundaries/u);
   assert.match(qualification, /a stale workflow commit fail closed/u);
   assert.match(qualification, /34320931448/u);

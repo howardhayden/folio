@@ -51,6 +51,7 @@ export const projects = Object.freeze([
     limitations: Object.freeze([
       "The hah.dev Text to Lattice demonstrator accepts at most 700 words and submits text only after explicit confirmation through the same-origin /api/lattice capability.",
       "Its exact request body is {text, requested_mode, schema_version: 1}; hah.dev does not retain or write the source or result to application storage, raw logs, caches, queues, or analytics.",
+      "The demonstrator accepts at most 30 transformations globally per UTC day and 3 from one ordinary persistent browser cookie jar. Its opaque HttpOnly quota cookie is scoped to /api/lattice, expires at the next UTC day, and contains no submitted content; no IP or browser fingerprint is used as a second quota identity.",
       "Qwen3-4B drafts and Llama 3.2 3B Instruct verifies through a fixed server-side Hugging Face/Featherless service. There is no automatic provider or model fallback, and the remote runtime is not asserted to be byte-for-byte equivalent to the historical MLC/WebGPU artifacts.",
       "Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information; external services process submitted content under their own policies.",
       "A review-required draft is not certified as semantically equivalent.",

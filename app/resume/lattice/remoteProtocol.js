@@ -1,10 +1,13 @@
 export const LATTICE_API_PATH = "/api/lattice";
 export const LATTICE_API_SCHEMA_VERSION = 1;
+export const LATTICE_VISITOR_SESSION_ACCEPT =
+  "application/vnd.hah.text-to-lattice-visitor-session.v1+json";
 export const LATTICE_REQUEST_MODES = Object.freeze(["auto", "operative", "experiential"]);
 export const LATTICE_REQUEST_FIELDS = Object.freeze(["text", "requested_mode", "schema_version"]);
 export const LATTICE_RESULT_VERSION = "text-to-lattice.v7";
 export const LATTICE_API_ERROR_CODES = Object.freeze([
   "invalid_request",
+  "visitor_session_required",
   "input_too_large",
   "rate_limited",
   "upstream_timeout",

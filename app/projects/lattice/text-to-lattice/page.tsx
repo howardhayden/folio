@@ -94,7 +94,7 @@ export default function TextToLatticePage() {
             <h2 id="text-to-lattice-usage-heading">Remote capability and limits</h2>
             <p>{security.api.summary}</p>
             <dl className="paper-meta">
-              <div className="paper-meta-item"><dt>Browser destination</dt><dd>Same-origin <code>POST /api/lattice</code>; no query string, redirect, cookie, or provider origin</dd></div>
+              <div className="paper-meta-item"><dt>Browser destination</dt><dd>Same-origin <code>POST /api/lattice</code>; no query string, redirect, or provider origin; one browser-owned API-scoped quota cookie</dd></div>
               <div className="paper-meta-item"><dt>Exact request</dt><dd><code>{"{text, requested_mode, schema_version: 1}"}</code>; requested mode is auto, operative, or experiential</dd></div>
               <div className="paper-meta-item"><dt>Server-side roles</dt><dd>Qwen3-4B generates; Llama 3.2 3B Instruct verifies through Hugging Face Inference Providers and Featherless AI</dd></div>
               <div className="paper-meta-item"><dt>Retention</dt><dd>No hah.dev application storage, raw-content logging, caching, queueing, or analytics for the source, prompts, candidates, or result</dd></div>
@@ -107,6 +107,8 @@ export default function TextToLatticePage() {
                 <ul>{security.api.rules.map((item) => <li key={item}>{item}</li>)}</ul>
                 <dl className="paper-meta">
                   <div className="paper-meta-item"><dt>Request deadline</dt><dd>240 seconds for the complete API request and client wait</dd></div>
+                  <div className="paper-meta-item"><dt>Daily availability</dt><dd>30 accepted transformations globally per UTC day; 3 per ordinary persistent browser cookie jar per UTC day</dd></div>
+                  <div className="paper-meta-item"><dt>Quota identity</dt><dd>One opaque, signed, HttpOnly cookie scoped to <code>/api/lattice</code> until the next UTC day; no submitted content, IP identity, or browser fingerprint</dd></div>
                   <div className="paper-meta-item"><dt>Provider-call deadline</dt><dd>60 seconds for each bounded call to the fixed Hugging Face router</dd></div>
                   <div className="paper-meta-item"><dt>Secret boundary</dt><dd>The Hugging Face token is an encrypted server-side Worker secret and never enters the browser or response</dd></div>
                   <div className="paper-meta-item"><dt>Correction boundary</dt><dd>A schema-correction or repair pass may call the same fixed role model within the pipeline budget; it never switches provider or model</dd></div>

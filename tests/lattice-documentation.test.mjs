@@ -21,21 +21,31 @@ const [atlas, manifest, releaseRegister] = await Promise.all([
 ]);
 
 test("the documentation generator binds current remote evidence and preserves inactive browser-local evidence", async () => {
-  const builder = await readText(rootUrl, "scripts/docs/build-text-to-lattice-documentation.mjs");
+  const [builder, releaseVerifier] = await Promise.all([
+    readText(rootUrl, "scripts/docs/build-text-to-lattice-documentation.mjs"),
+    readText(rootUrl, "scripts/verify-text-to-lattice-release.mjs"),
+  ]);
   assert.match(builder, /productionSatisfiedGateIds = new Set\(\["GATE-02", "GATE-03", "GATE-06"\]\)/u);
   assert.match(builder, /"historical-inactive"/u);
   assert.match(builder, /"historicalInactiveRecord",[\s\S]{0,100}"activeCurrentEvidence",[\s\S]{0,100}"activeEvidence"/u);
   assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face and Featherless targets/u);
   assert.match(builder, /GATE-03 must keep the provider call, stage, response, limiter, cost, generic-proxy, retry, fallback/u);
-  assert.match(builder, /GATE-06 must require one explicit canonical-browser remote lifecycle/u);
+  assert.match(builder, /GATE-06 must require one explicit canonical-browser setup-plus-content lifecycle/u);
+  assert.match(builder, /verifyReleaseStatusState\(releaseRegister\)/u);
+  assert.match(builder, /"qualification-pending": "deployed-for-qualification"/u);
+  assert.match(builder, /post-deployment verification only after GATE-02 and GATE-03 are satisfied in production/u);
+  assert.match(builder, /deployed only for immediate canonical-browser qualification and is not qualified/u);
   assert.match(builder, /Current active evidence:[\s\S]{0,240}Historical inactive classification:/u);
   assert.match(builder, /no remote production evidence/u);
+  assert.match(releaseVerifier, /import \{ verifyBrowserEvidenceBundle \} from "\.\/verify-text-to-lattice-browser-evidence\.mjs"/u);
+  assert.match(releaseVerifier, /await verifyBrowserEvidenceAuthority\(register, releaseState\)/u);
+  assert.match(releaseVerifier, /bundle = await verifyBundle\(resolvedPath\.absolute\)/u);
 });
 
 test("the atlas models the held remote capability without promoting historical evidence", async () => {
   assert.equal(atlas.revision, "2026-09-14");
   assert.equal(atlas.historicalBoundary.status, "inactive");
-  assert.match(atlas.historicalBoundary.currentArchitecture, /same-origin POST to \/api\/lattice/iu);
+  assert.match(atlas.historicalBoundary.currentArchitecture, /same-origin \/api\/lattice[\s\S]*bodyless visitor-session setup[\s\S]*exactly one content-bearing POST/iu);
   assert.match(atlas.historicalBoundary.evidencePolicy, /do not satisfy the current remote-service release gates/iu);
 
   const sources = new Map(atlas.sources.map((source) => [source.id, source]));
@@ -52,6 +62,13 @@ test("the atlas models the held remote capability without promoting historical e
   for (const value of [
     "/api/lattice",
     "HF_TOKEN",
+    "VISITOR_COOKIE_SECRET",
+    "__Secure-hah-lattice-api-visitor",
+    "30 accepted transformations globally per UTC day",
+    "3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day",
+    "application/vnd.hah.text-to-lattice-visitor-session.v1+json",
+    "428 visitor_session_required",
+    "intentional cookie clearing",
     "Qwen/Qwen3-4B:featherless-ai",
     "meta-llama/Llama-3.2-3B-Instruct:featherless-ai",
     "no automatic retry",
@@ -82,6 +99,41 @@ test("the atlas models the held remote capability without promoting historical e
       ["GATE-06", "open-release-blocker"],
     ],
   );
+  assert.deepEqual(Object.keys(releaseRegister.authority.browserEvidence), [
+    "status",
+    "path",
+    "sha256",
+    "evidenceId",
+    "recordedAt",
+    "deployedCommit",
+    "workflowRunId",
+    "workflowRunAttempt",
+    "workflowRunUrl",
+    "serviceJobId",
+    "canonicalUrl",
+    "apiWorkerDeploymentId",
+    "apiWorkerVersion",
+    "responsePolicyWorkerDeploymentId",
+    "responsePolicyWorkerVersion",
+    "deploymentEvidenceIndexSha256",
+    "deploymentEvidenceBeforeCapturesSha256",
+    "deploymentEvidenceAfterCapturesSha256",
+    "siteArtifactSha256",
+    "qualifiedSourceSetSha256",
+    "deployedAt",
+    "qualificationExpiresAt",
+    "deploymentEvidenceCheckedBeforeCapturesAt",
+    "deploymentEvidenceCheckedAfterCapturesAt",
+    "deploymentEvidenceUnchangedAcrossCaptures",
+  ]);
+  assert.equal(releaseRegister.authority.browserEvidence.status, "not-collected");
+  assert.ok(Object.values(releaseRegister.authority.browserEvidence).slice(1).every((value) => value === null));
+  assert.ok(releaseRegister.authority.qualifiedSourceSet.files.includes(
+    "docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.schema.json",
+  ));
+  assert.ok(releaseRegister.authority.qualifiedSourceSet.files.includes(
+    "docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.template.json",
+  ));
   for (const id of ["GATE-02", "GATE-03", "GATE-06"]) {
     const gate = releaseRegister.gates.find((candidate) => candidate.id === id);
     assert.equal(gate.historicalInactiveRecord.status, "historical-inactive");
@@ -100,14 +152,23 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /\*\*Decision:\*\* hold the interactive client; publish the method, implementation record, and documentation only\./u);
   assert.match(dossier, /Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence\./u);
   assert.match(dossier, /no remote production evidence/iu);
-  assert.match(dossier, /same-origin `POST \/api\/lattice`/u);
+  assert.match(dossier, /same-origin `\/api\/lattice`[\s\S]{0,240}bodyless `POST \/api\/lattice`/u);
+  assert.match(dossier, /application\/vnd\.hah\.text-to-lattice-visitor-session\.v1\+json/u);
+  assert.match(dossier, /bodyless/u);
+  assert.match(dossier, /same (?:origin-wide )?(?:browser )?Web Lock/iu);
+  assert.match(dossier, /exactly one content-bearing/u);
+  assert.match(dossier, /428 visitor_session_required[^.]*before (?:Durable Object )?admission or provider work/iu);
   assert.match(dossier, /HF_TOKEN/u);
+  assert.match(dossier, /VISITOR_COOKIE_SECRET/u);
+  assert.match(dossier, /__Secure-hah-lattice-api-visitor/u);
+  assert.match(dossier, /30[^.]*globally per UTC day/iu);
+  assert.match(dossier, /3[^.]*browser cookie jar per UTC day/iu);
   assert.match(dossier, /Hugging Face[\s\S]{0,300}Featherless/iu);
   assert.match(dossier, /no automatic retry/iu);
   assert.match(dossier, /no alternate provider or model fallback/iu);
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
   assert.match(dossier, /Historical inactive WebLLM and lease appendix/u);
-  assert.match(dossier, /cb108f97625050ed64bdaf26767c1c9aaa947c21061c6603a9e6f83fbf97ee5f/u);
+  assert.match(dossier, /c49ca0a8468250e8d221e6f58d8b085a40a21015861e60d2b86d35bf15682cb5/u);
   assert.match(dossier, /workflow run 34325228788[\s\S]{0,300}9ab26b95cc1f9a94697118c0fc20a849db8f6ad2/u);
   assert.match(dossier, /266db6b8264a0aa42ac16916ddf696554c846b239960e7d19fc002917d843950/u);
 });

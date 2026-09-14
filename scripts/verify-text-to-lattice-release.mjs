@@ -24,6 +24,7 @@ import {
   LATTICE_API_SCHEMA_VERSION,
   LATTICE_REQUEST_FIELDS,
   LATTICE_REQUEST_MODES,
+  LATTICE_VISITOR_SESSION_ACCEPT,
 } from "../app/resume/lattice/remoteProtocol.js";
 import { projectBySlug } from "../app/resume/projects.js";
 import {
@@ -34,6 +35,16 @@ import {
   LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
   LATTICE_REMOTE_MODELS,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
+import {
+  LATTICE_TRANSFORMATIONS_PER_UTC_DAY,
+  LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY,
+} from "../workers/text-to-lattice-api/capacityPolicy.js";
+import {
+  LATTICE_API_VISITOR_COOKIE_NAME,
+  LATTICE_API_VISITOR_COOKIE_PATH,
+  LATTICE_API_VISITOR_COOKIE_SECRET_BINDING,
+} from "../workers/text-to-lattice-api/visitorCookie.js";
+import { verifyBrowserEvidenceBundle } from "./verify-text-to-lattice-browser-evidence.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const registerPath = join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json");
@@ -98,6 +109,8 @@ const qualifiedSourceFiles = Object.freeze([
   "THIRD_PARTY_LICENSES.txt",
   "THIRD_PARTY_NOTICES.md",
   "docs/lattice-resume-demo-requirements.md",
+  "docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.schema.json",
+  "docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.template.json",
   "eslint.config.mjs",
   "next-env.d.ts",
   "next.config.ts",
@@ -123,6 +136,34 @@ const qualifiedToolResidueDirectories = new Set([".wrangler"]);
 const sha256Pattern = /^[a-f0-9]{64}$/u;
 const gitRevisionPattern = /^[a-f0-9]{40}$/u;
 const dateRevisionPattern = /^\d{4}-\d{2}-\d{2}$/u;
+const browserEvidenceRepositoryPathPattern = /^(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+\.json$/u;
+const browserEvidenceAuthorityFields = Object.freeze([
+  "status",
+  "path",
+  "sha256",
+  "evidenceId",
+  "recordedAt",
+  "deployedCommit",
+  "workflowRunId",
+  "workflowRunAttempt",
+  "workflowRunUrl",
+  "serviceJobId",
+  "canonicalUrl",
+  "apiWorkerDeploymentId",
+  "apiWorkerVersion",
+  "responsePolicyWorkerDeploymentId",
+  "responsePolicyWorkerVersion",
+  "deploymentEvidenceIndexSha256",
+  "deploymentEvidenceBeforeCapturesSha256",
+  "deploymentEvidenceAfterCapturesSha256",
+  "siteArtifactSha256",
+  "qualifiedSourceSetSha256",
+  "deployedAt",
+  "qualificationExpiresAt",
+  "deploymentEvidenceCheckedBeforeCapturesAt",
+  "deploymentEvidenceCheckedAfterCapturesAt",
+  "deploymentEvidenceUnchangedAcrossCaptures",
+]);
 const heldRuntimeAssetPatterns = Object.freeze([
   /\.wasm$/iu,
   /\.(?:bin|safetensors|params|ndarray|gguf)$/iu,
@@ -200,17 +241,72 @@ function gateRequiresRollbackCondition(gate) {
 }
 
 export function verifyReleaseStatusState(register) {
+  const gateStatus = (id) => register.gates?.find((gate) => gate.id === id)?.status;
+  const productionBoundaryStatus = gateStatus("GATE-02");
+  const capacityStatus = gateStatus("GATE-03");
+  const lifecycleStatus = gateStatus("GATE-06");
   const hasOpenBlocker = register.gates.some(({ status }) => status === "open-release-blocker");
-  const enabled = register.overallStatus === "qualified"
-    && register.publicClient?.status === "enabled"
+  const enabledTuple = register.publicClient?.status === "enabled"
     && register.publicClient?.publicationMode === "interactive-client";
-  const held = register.overallStatus === "held"
+  const heldTuple = register.overallStatus === "held"
     && register.publicClient?.status === "held"
     && register.publicClient?.publicationMode === "documentation-only";
-  if ((hasOpenBlocker && !held) || (!hasOpenBlocker && !enabled)) {
-    fail("the public client must be enabled if and only if no open release blocker remains.");
+  const qualificationPendingTuple = register.overallStatus === "qualification-pending"
+    && enabledTuple;
+  const qualifiedTuple = register.overallStatus === "qualified"
+    && enabledTuple;
+  const productionBoundarySatisfied = productionBoundaryStatus === "satisfied-in-production";
+  const capacitySatisfied = capacityStatus === "satisfied-in-production";
+  const lifecycleSatisfied = lifecycleStatus === "satisfied-in-production";
+  const lifecyclePending = lifecycleStatus === "post-deployment-verification";
+
+  if (!["open-release-blocker", "satisfied-in-production"].includes(productionBoundaryStatus)) {
+    fail("GATE-02 must remain open or be satisfied in production.");
   }
-  return { hasOpenBlocker, enabled, held };
+  if (!["open-release-blocker", "satisfied-in-production"].includes(capacityStatus)) {
+    fail("GATE-03 must remain open or be satisfied in production.");
+  }
+  if (!["open-release-blocker", "post-deployment-verification", "satisfied-in-production"].includes(lifecycleStatus)) {
+    fail("GATE-06 must remain open, enter post-deployment verification, or be satisfied in production.");
+  }
+
+  if (lifecyclePending && (!qualificationPendingTuple
+    || hasOpenBlocker
+    || !productionBoundarySatisfied
+    || !capacitySatisfied)) {
+    fail("GATE-06 post-deployment verification is allowed only in the qualification-pending phase after GATE-02 and GATE-03 are satisfied.");
+  }
+  if (lifecycleSatisfied && (!productionBoundarySatisfied || !capacitySatisfied)) {
+    fail("GATE-06 cannot remain satisfied in production unless GATE-02 and GATE-03 are also satisfied.");
+  }
+
+  let releasePhase;
+  if (heldTuple && hasOpenBlocker && !lifecyclePending) releasePhase = "held";
+  else if (qualificationPendingTuple
+    && !hasOpenBlocker
+    && productionBoundarySatisfied
+    && capacitySatisfied
+    && lifecyclePending) releasePhase = "qualification-pending";
+  else if (qualifiedTuple
+    && !hasOpenBlocker
+    && productionBoundarySatisfied
+    && capacitySatisfied
+    && lifecycleSatisfied) releasePhase = "qualified";
+  else {
+    fail("release state must match exactly one held, qualification-pending, or qualified phase tuple.");
+  }
+
+  const enabled = releasePhase !== "held"
+    && register.publicClient?.status === "enabled"
+    && register.publicClient?.publicationMode === "interactive-client";
+  return {
+    hasOpenBlocker,
+    releasePhase,
+    enabled,
+    qualificationPending: releasePhase === "qualification-pending",
+    qualified: releasePhase === "qualified",
+    held: releasePhase === "held",
+  };
 }
 
 export function verifyHistoricalBrowserLocalLifecycleGateContract(productionBoundaryGate, productionLifecycleGate) {
@@ -484,17 +580,33 @@ function activeGateText(gate) {
   ].join(" ");
 }
 
-export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate, productionLifecycleGate) {
+export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate, productionLifecycleGate, releasePhase) {
   for (const gate of [productionBoundaryGate, capacityGate, productionLifecycleGate]) {
     verifyHistoricalInactiveGateEvidence(gate);
     requireString(gate.activeCurrentEvidence, `${gate.id} activeCurrentEvidence`);
     requireStringArray(gate.activeEvidence, `${gate.id} activeEvidence`);
-    if (!new Set(["open-release-blocker", "satisfied-in-production"]).has(gate.status)) {
-      fail(`${gate.id} must remain open until its active remote production evidence is satisfied.`);
-    }
     if (/Turnstile|Siteverify|verify\.hah\.dev|WebGPU|WebLLM|\/api\/text-to-lattice\/lease|\blease\b|\battestation\b/iu.test(activeGateText(gate))) {
       fail(`${gate.id} active remote requirement contains a browser-local lease assumption.`);
     }
+  }
+  for (const gate of [productionBoundaryGate, capacityGate]) {
+    if (!["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
+      fail(`${gate.id} must remain open until its active remote production evidence is satisfied.`);
+    }
+  }
+  if (!["open-release-blocker", "post-deployment-verification", "satisfied-in-production"].includes(productionLifecycleGate.status)) {
+    fail("GATE-06 must remain open, enter post-deployment verification, or be satisfied by active remote production evidence.");
+  }
+  if (productionLifecycleGate.status === "post-deployment-verification"
+    && (productionBoundaryGate.status !== "satisfied-in-production"
+      || capacityGate.status !== "satisfied-in-production"
+      || releasePhase !== "qualification-pending")) {
+    fail("GATE-06 post-deployment verification requires the qualification-pending phase with GATE-02 and GATE-03 satisfied in production.");
+  }
+  if (productionLifecycleGate.status === "satisfied-in-production"
+    && (productionBoundaryGate.status !== "satisfied-in-production"
+      || capacityGate.status !== "satisfied-in-production")) {
+    fail("GATE-06 cannot remain satisfied unless GATE-02 and GATE-03 are satisfied in production.");
   }
 
   const gate02 = activeGateText(productionBoundaryGate);
@@ -505,7 +617,14 @@ export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate
     "text",
     "requested_mode",
     "schema_version",
+    LATTICE_VISITOR_SESSION_ACCEPT,
+    "bodyless",
+    "same origin-wide browser Web Lock",
+    "428 visitor_session_required",
+    "without a quota claim or provider call",
     "HF_TOKEN",
+    "VISITOR_COOKIE_SECRET",
+    "__Secure-hah-lattice-api-visitor",
     "Hugging Face",
     "Qwen",
     "Llama",
@@ -517,12 +636,32 @@ export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate
   ]) {
     if (!gate02.includes(required)) fail(`GATE-02 omits the active remote boundary atom ${required}.`);
   }
-  for (const failure of ["wrong path", "method", "origin", "media type", "additional or missing fields", "invalid mode", "invalid schema version", "oversized input", "non-reflective JSON errors"]) {
+  for (const failure of ["wrong path", "method", "origin", "media type", "additional or missing fields", "invalid mode", "invalid schema version", "undeclared cookie", "oversized input", "non-reflective JSON errors"]) {
     if (!gate02.includes(failure)) fail(`GATE-02 omits the live failure probe ${failure}.`);
   }
 
   const gate03 = activeGateText(capacityGate);
-  for (const required of ["rate limiter", "provider-call", "timeout", "response size", "cost", "no generic proxy", "no availability"]) {
+  for (const required of [
+    "30 transformations globally per UTC day",
+    "3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day",
+    "Intentional cookie clearing and uncooperative callers remain outside the per-browser identity claim",
+    "global 30-per-day counter remains exact and authoritative",
+    "setup must make no quota claim and no provider call",
+    "before Durable Object admission or provider work",
+    "one atomic admission",
+    "provider failure",
+    "without refund",
+    "no IP address",
+    "browser fingerprint",
+    "32 provider calls",
+    "960",
+    "rate limiter",
+    "timeout",
+    "response size",
+    "cost",
+    "no generic proxy",
+    "no availability",
+  ]) {
     if (!gate03.toLowerCase().includes(required.toLowerCase())) fail(`GATE-03 omits the remote capacity atom ${required}.`);
   }
 
@@ -531,7 +670,11 @@ export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate
     "canonical page",
     "supported browser engines",
     "explicit confirmation",
-    "exactly one",
+    "origin-wide browser Web Lock",
+    "bodyless content-free",
+    LATTICE_VISITOR_SESSION_ACCEPT,
+    "no body or Content-Type",
+    "exactly one content-bearing",
     "POST /api/lattice",
     "text",
     "requested_mode",
@@ -540,6 +683,12 @@ export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate
     "no provider-origin browser request",
     "no automatic retry",
     "no service-worker or cache replay",
+    "Set-Cookie",
+    "cookie value",
+    "no transformation quota and make no provider call",
+    "428 visitor_session_required before admission and provider work",
+    "qualification expiry",
+    "qualified source-set SHA-256",
     "timestamped sanitized captures",
   ]) {
     if (!gate06.includes(required)) fail(`GATE-06 omits the remote lifecycle atom ${required}.`);
@@ -552,14 +701,17 @@ export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate
       /deployed commit [a-f0-9]{40}/u,
       /API Worker version [0-9a-f-]{36}/u,
       /response-policy Worker version [0-9a-f-]{36}/u,
-      /HF_TOKEN binding name/iu,
+      /HF_TOKEN and VISITOR_COOKIE_SECRET binding names/iu,
       /live .*\/api\/lattice/iu,
     ]) {
       if (!pattern.test(evidence)) fail("GATE-02 cannot be satisfied without deployed remote route, version, commit, and binding-name evidence.");
     }
   }
-  if (capacityGate.status === "satisfied-in-production" && !/production[^.]*rate limiter/iu.test(capacityGate.activeCurrentEvidence)) {
-    fail("GATE-03 cannot be satisfied without observed production rate-limiter evidence.");
+  if (capacityGate.status === "satisfied-in-production"
+    && (!/production[^.]*rate limiter/iu.test(capacityGate.activeCurrentEvidence)
+      || !/30[^.]*global[^.]*UTC day/iu.test(capacityGate.activeCurrentEvidence)
+      || !/3[^.]*browser[^.]*UTC day/iu.test(capacityGate.activeCurrentEvidence))) {
+    fail("GATE-03 cannot be satisfied without observed production rate-limiter and exact daily-admission evidence.");
   }
   if (productionLifecycleGate.status === "satisfied-in-production") {
     const evidence = `${productionLifecycleGate.activeCurrentEvidence} ${productionLifecycleGate.activeEvidence.join(" ")}`;
@@ -594,6 +746,112 @@ function pathWithinRoot(path, label) {
   return { absolute, relative: rel.split("\\").join("/") };
 }
 
+function exactObjectFields(value, fields, label) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    fail(`${label} must be an object.`);
+  }
+  if (JSON.stringify(Object.keys(value)) !== JSON.stringify(fields)) {
+    fail(`${label} must contain only the exact typed fields in their canonical order.`);
+  }
+  return value;
+}
+
+function browserEvidenceIdentity(evidence) {
+  const deployment = evidence.deployment;
+  return Object.freeze({
+    evidenceId: evidence.evidence_id,
+    recordedAt: evidence.recorded_at,
+    deployedCommit: deployment.deployed_commit,
+    workflowRunId: deployment.workflow_run_id,
+    workflowRunAttempt: deployment.workflow_run_attempt,
+    workflowRunUrl: deployment.workflow_run_url,
+    serviceJobId: deployment.service_job_id,
+    canonicalUrl: deployment.canonical_url,
+    apiWorkerDeploymentId: deployment.api_worker_deployment_id,
+    apiWorkerVersion: deployment.api_worker_version,
+    responsePolicyWorkerDeploymentId: deployment.response_policy_worker_deployment_id,
+    responsePolicyWorkerVersion: deployment.response_policy_worker_version,
+    deploymentEvidenceIndexSha256: deployment.deployment_evidence_index_sha256,
+    deploymentEvidenceBeforeCapturesSha256: deployment.deployment_evidence_before_captures_sha256,
+    deploymentEvidenceAfterCapturesSha256: deployment.deployment_evidence_after_captures_sha256,
+    siteArtifactSha256: deployment.site_artifact_sha256,
+    qualifiedSourceSetSha256: deployment.qualified_source_set_sha256,
+    deployedAt: deployment.deployed_at,
+    qualificationExpiresAt: deployment.qualification_expires_at,
+    deploymentEvidenceCheckedBeforeCapturesAt: deployment.deployment_evidence_checked_before_captures_at,
+    deploymentEvidenceCheckedAfterCapturesAt: deployment.deployment_evidence_checked_after_captures_at,
+    deploymentEvidenceUnchangedAcrossCaptures: deployment.deployment_evidence_unchanged_across_captures,
+  });
+}
+
+/**
+ * Bind a qualified release to one strict, sanitized browser-evidence bundle.
+ * The verifier argument exists only so unit tests can exercise every comparison;
+ * production source verification always uses verifyBrowserEvidenceBundle.
+ */
+export async function verifyBrowserEvidenceAuthority(
+  register,
+  releaseState = verifyReleaseStatusState(register),
+  verifyBundle = verifyBrowserEvidenceBundle,
+) {
+  const record = exactObjectFields(
+    register.authority?.browserEvidence,
+    browserEvidenceAuthorityFields,
+    "authority.browserEvidence",
+  );
+  if (!releaseState.qualified) {
+    if (record.status !== "not-collected") {
+      fail("held and qualification-pending releases must classify browser evidence as not-collected.");
+    }
+    for (const field of browserEvidenceAuthorityFields.slice(1)) {
+      if (record[field] !== null) {
+        fail(`authority.browserEvidence.${field} must be null until the release is qualified.`);
+      }
+    }
+    return null;
+  }
+
+  if (record.status !== "verified-sanitized-bundle") {
+    fail("a qualified release must bind a verified sanitized browser-evidence bundle.");
+  }
+  if (typeof record.path !== "string") {
+    fail("qualified authority.browserEvidence.path must be a repository-relative bundle path.");
+  }
+  const resolvedPath = pathWithinRoot(record.path, "qualified browser-evidence path");
+  if (!browserEvidenceRepositoryPathPattern.test(record.path) || resolvedPath.relative !== record.path) {
+    fail("qualified authority.browserEvidence.path must name a canonical repository-relative JSON bundle path.");
+  }
+  if (!sha256Pattern.test(record.sha256 ?? "") || /^0{64}$/u.test(record.sha256)) {
+    fail("qualified authority.browserEvidence.sha256 must be a nonzero lowercase SHA-256 digest.");
+  }
+
+  let bundle;
+  try {
+    bundle = await verifyBundle(resolvedPath.absolute);
+  } catch (error) {
+    fail(`qualified browser-evidence bundle failed strict validation: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (bundle === null || typeof bundle !== "object" || Array.isArray(bundle)
+    || bundle.evidence === null || typeof bundle.evidence !== "object" || Array.isArray(bundle.evidence)
+    || bundle.evidence.deployment === null || typeof bundle.evidence.deployment !== "object"
+    || Array.isArray(bundle.evidence.deployment)) {
+    fail("qualified browser-evidence verifier returned an invalid result.");
+  }
+  if (bundle?.sha256 !== record.sha256) {
+    fail("qualified authority.browserEvidence.sha256 does not match the strict browser-evidence bundle bytes.");
+  }
+  const expectedIdentity = browserEvidenceIdentity(bundle.evidence);
+  for (const [field, expected] of Object.entries(expectedIdentity)) {
+    if (record[field] !== expected) {
+      fail(`qualified authority.browserEvidence.${field} does not match the strict browser-evidence bundle.`);
+    }
+  }
+  if (record.qualifiedSourceSetSha256 !== register.authority?.qualifiedSourceSet?.sha256) {
+    fail("qualified authority.browserEvidence.qualifiedSourceSetSha256 must match authority.qualifiedSourceSet.sha256.");
+  }
+  return Object.freeze({ path: record.path, sha256: record.sha256, ...expectedIdentity });
+}
+
 export async function qualifiedFilesBelow(directory, directoryLabel) {
   const entries = await readdir(directory, { withFileTypes: true });
   const nested = [];
@@ -608,7 +866,7 @@ export async function qualifiedFilesBelow(directory, directoryLabel) {
   return nested;
 }
 
-async function verifyQualifiedSourceSet(register) {
+export async function verifyQualifiedSourceSet(register) {
   const sourceSet = register.authority?.qualifiedSourceSet;
   if (sourceSet?.algorithm !== qualifiedSourceSetAlgorithm) fail("qualified source set uses an unsupported digest algorithm.");
   if (!sha256Pattern.test(sourceSet.sha256 ?? "")) fail("qualified source set must carry a lowercase SHA-256 digest.");
@@ -731,6 +989,7 @@ async function verifyLlamaUseEvaluation(register) {
 }
 
 async function verifyQualificationDossier(register) {
+  const releaseState = verifyReleaseStatusState(register);
   const bytes = await readFile(qualificationPath);
   if (!sha256Pattern.test(register.authority.qualificationDossierSha256)
     || digest(bytes) !== register.authority.qualificationDossierSha256) {
@@ -740,12 +999,18 @@ async function verifyQualificationDossier(register) {
   const artifactSetDigest = digest(Buffer.from(JSON.stringify(canonicalJson(register.artifactSet))));
   const artifacts = register.artifactSet;
   const artifactClaims = [
+    artifacts.activeCapability.status,
     artifacts.activeCapability.route,
     artifacts.activeCapability.method,
     String(artifacts.activeCapability.schemaVersion),
     ...artifacts.activeCapability.requestFields,
     ...artifacts.activeCapability.requestedModes,
-    artifacts.activeCapability.secretBindingName,
+    ...artifacts.activeCapability.secretBindingNames,
+    artifacts.activeCapability.browserQuotaCookie.name,
+    artifacts.activeCapability.browserQuotaCookie.path,
+    String(artifacts.activeCapability.admission.globalPerUtcDay),
+    String(artifacts.activeCapability.admission.perOrdinaryPersistentBrowserCookieJarPerUtcDay),
+    String(artifacts.activeCapability.admission.maximumProviderCallsFromAdmittedRequestsPerUtcDay),
     artifacts.activeCapability.provider.endpoint,
     artifacts.activeCapability.provider.generatorModel,
     artifacts.activeCapability.provider.verifierModel,
@@ -789,6 +1054,7 @@ async function verifyQualificationDossier(register) {
     artifacts.llamaBehaviorEvaluation.sha256,
   ];
   const gateRows = register.gates.map((gate) => `| ${gate.id} · ${gate.label} | ${machineValueLabel(gate.status)} | ${machineValueLabel(gate.marginalValue)} |`);
+  const productionLifecycleGate = register.gates.find(({ id }) => id === "GATE-06");
   for (const required of [
     register.implementationBaselineRevision,
     artifactSetDigest,
@@ -808,14 +1074,45 @@ async function verifyQualificationDossier(register) {
     if (!source.includes(required)) fail(`release qualification dossier omits ${required}.`);
   }
   if (!/same-origin `?POST \/api\/lattice`?/iu.test(source)
+    || !/application\/vnd\.hah\.text-to-lattice-visitor-session\.v1\+json/u.test(source)
+    || !/bodyless/iu.test(source)
+    || !/same (?:origin-wide )?(?:browser )?Web Lock/iu.test(source)
+    || !/exactly one (?:intended )?content-bearing/iu.test(source)
+    || !/setup[^.]*no quota claim or provider call/iu.test(source)
+    || !/428 visitor_session_required[^.]*before (?:Durable Object )?admission or provider work/iu.test(source)
     || !/HF_TOKEN/iu.test(source)
+    || !/VISITOR_COOKIE_SECRET/iu.test(source)
+    || !/__Secure-hah-lattice-api-visitor/u.test(source)
+    || !/30[^.]*globally per UTC day/iu.test(source)
+    || !/3[^.]*browser cookie jar per UTC day/iu.test(source)
     || !/Hugging Face[\s\S]{0,300}Featherless/iu.test(source)
     || !/no automatic retry/iu.test(source)
     || !/no (?:alternate )?provider or model fallback/iu.test(source)
     || !/provider-managed[\s\S]{0,240}not byte/iu.test(source)
-    || !/historical inactive[\s\S]{0,300}(?:WebLLM|lease)/iu.test(source)
-    || !/no remote production evidence/iu.test(source)) {
-    fail("release qualification must disclose the held remote capability, fixed provider, finite failure policy, provider-managed provenance, and historical inactive browser-local record.");
+    || !/qualification expiry/iu.test(source)
+    || !/historical inactive[\s\S]{0,300}(?:WebLLM|lease)/iu.test(source)) {
+    fail("release qualification must disclose the remote capability, fixed provider, finite failure policy, provider-managed provenance, and historical inactive browser-local record.");
+  }
+  if (releaseState.held && !/no remote production evidence/iu.test(source)) {
+    fail("held release qualification must disclose that no remote production evidence is claimed.");
+  }
+  if (releaseState.qualificationPending
+    && (!/qualification[- ]pending/iu.test(source)
+      || !/(?:not (?:yet )?qualified|non-qualified)/iu.test(source)
+      || !/canonical-browser qualification/iu.test(source)
+      || !/(?:immediate(?:ly)?[\s\S]{0,180}(?:held|documentation-only)[\s\S]{0,100}rollback|rollback[\s\S]{0,180}immediate(?:ly)?[\s\S]{0,100}(?:held|documentation-only))/iu.test(source))) {
+    fail("qualification-pending dossier must call the deployment non-qualified, limit it to canonical-browser qualification, and require immediate held rollback.");
+  }
+  if (releaseState.qualified) {
+    const browserEvidence = register.authority.browserEvidence;
+    const structuredEvidence = productionLifecycleGate.activeEvidence.find((entry) => (
+      /structured browser evidence/iu.test(entry)
+      && entry.includes(browserEvidence.path)
+      && entry.includes(`SHA-256 ${browserEvidence.sha256}`)
+    ));
+    if (!structuredEvidence || !source.includes(structuredEvidence)) {
+      fail("qualified dossier must reproduce the exact GATE-06 browser-evidence bundle path and SHA-256 digest.");
+    }
   }
 }
 
@@ -823,7 +1120,12 @@ function verifyArtifactSet(register) {
   const artifacts = register.artifactSet;
   const capability = artifacts.activeCapability;
   const manifest = REMOTE_CAPABILITIES.textToLattice;
-  if (capability.status !== "held-pending-production-evidence"
+  const expectedCapabilityStatus = {
+    held: "held-pending-production-evidence",
+    "qualification-pending": "deployed-for-qualification",
+    qualified: "qualified",
+  }[register.overallStatus];
+  if (capability.status !== expectedCapabilityStatus
     || capability.route !== LATTICE_API_PATH
     || capability.route !== manifest.route
     || capability.method !== manifest.method
@@ -832,7 +1134,68 @@ function verifyArtifactSet(register) {
     || JSON.stringify(capability.requestFields) !== JSON.stringify(manifest.transmittedFields)
     || JSON.stringify(capability.requestedModes) !== JSON.stringify(LATTICE_REQUEST_MODES)
     || capability.trigger !== manifest.trigger
-    || capability.secretBindingName !== "HF_TOKEN"
+    || JSON.stringify(capability.secretBindingNames) !== JSON.stringify([
+      "HF_TOKEN",
+      LATTICE_API_VISITOR_COOKIE_SECRET_BINDING,
+    ])
+    || capability.visitorSessionSetup?.route !== LATTICE_API_PATH
+    || capability.visitorSessionSetup?.method !== "POST"
+    || capability.visitorSessionSetup?.accept !== LATTICE_VISITOR_SESSION_ACCEPT
+    || capability.visitorSessionSetup?.bodyless !== true
+    || capability.visitorSessionSetup?.contentTypeHeader !== false
+    || capability.visitorSessionSetup?.credentialsMode !== "same-origin"
+    || capability.visitorSessionSetup?.sharedBrowserWebLock !== true
+    || capability.visitorSessionSetup?.acceptedStatus !== 204
+    || capability.visitorSessionSetup?.transportOrNon204FailureStopsContentRequest !== true
+    || capability.visitorSessionSetup?.establishesOrPreservesSignedCookie !== true
+    || capability.visitorSessionSetup?.consumesTransformationQuota !== false
+    || capability.visitorSessionSetup?.contactsProvider !== false
+    || capability.contentRequest?.route !== LATTICE_API_PATH
+    || capability.contentRequest?.method !== "POST"
+    || capability.contentRequest?.accept !== "application/json"
+    || capability.contentRequest?.contentTypeHeader !== "application/json"
+    || capability.contentRequest?.credentialsMode !== "same-origin"
+    || capability.contentRequest?.contentBearingRequestsPerAttempt !== 1
+    || capability.contentRequest?.httpOnlyCookieStorageObservableByClient !== false
+    || capability.contentRequest?.attemptedAfterAcceptedSetupWhenCookieBlockedOrDropped !== true
+    || capability.contentRequest?.requiresValidSignedVisitorCookie !== true
+    || capability.contentRequest?.missingCookieStatus !== 428
+    || capability.contentRequest?.missingCookieCode !== "visitor_session_required"
+    || capability.contentRequest?.missingCookieBeforeAdmission !== true
+    || capability.contentRequest?.missingCookieBeforeProvider !== true
+    || capability.contentRequest?.invalidOrUndeclaredCookieStatus !== 403
+    || capability.contentRequest?.invalidOrUndeclaredCookieCode !== "invalid_request"
+    || capability.contentRequest?.invalidOrUndeclaredCookieBeforeAdmission !== true
+    || capability.contentRequest?.invalidOrUndeclaredCookieBeforeProvider !== true
+    || capability.contentRequest?.sameBrowserWebLockAsSetup !== true
+    || capability.browserQuotaCookie?.name !== LATTICE_API_VISITOR_COOKIE_NAME
+    || capability.browserQuotaCookie?.path !== LATTICE_API_VISITOR_COOKIE_PATH
+    || capability.browserQuotaCookie?.secure !== true
+    || capability.browserQuotaCookie?.httpOnly !== true
+    || capability.browserQuotaCookie?.sameSite !== "Strict"
+    || capability.browserQuotaCookie?.domain !== null
+    || capability.browserQuotaCookie?.expiresAtNextUtcDay !== true
+    || capability.browserQuotaCookie?.containsUserContent !== false
+    || capability.browserQuotaCookie?.containsAccountIdentity !== false
+    || capability.browserQuotaCookie?.containsBrowserFingerprint !== false
+    || capability.browserQuotaCookie?.containsProviderCredential !== false
+    || capability.admission?.globalPerUtcDay !== LATTICE_TRANSFORMATIONS_PER_UTC_DAY
+    || capability.admission?.perOrdinaryPersistentBrowserCookieJarPerUtcDay
+      !== LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY
+    || capability.admission?.perBrowserLimitClaimScope
+      !== "cooperating canonical client with an ordinary persistent browser cookie jar"
+    || capability.admission?.intentionalCookieClearingOrUncooperativeCallerCovered !== false
+    || capability.admission?.globalLimitExactAndAuthoritative !== true
+    || capability.admission?.atomicClaimsPerRequest !== 1
+    || capability.admission?.countsAdmittedFailures !== true
+    || capability.admission?.refundsAdmittedRequests !== false
+    || capability.admission?.rechecksSharedQuotaWithinPipeline !== false
+    || capability.admission?.usesIpAddress !== false
+    || capability.admission?.usesBrowserFingerprint !== false
+    || capability.admission?.storesSubmittedContentOrResult !== false
+    || capability.admission?.maximumProviderCallsPerAdmittedRequest !== LATTICE_PROVIDER_CALL_LIMIT
+    || capability.admission?.maximumProviderCallsFromAdmittedRequestsPerUtcDay
+      !== LATTICE_TRANSFORMATIONS_PER_UTC_DAY * LATTICE_PROVIDER_CALL_LIMIT
     || capability.provider.endpoint !== HUGGING_FACE_CHAT_COMPLETIONS_URL
     || capability.provider.generatorModel !== LATTICE_REMOTE_MODELS.generator
     || capability.provider.verifierModel !== LATTICE_REMOTE_MODELS.verifier
@@ -860,9 +1223,12 @@ function verifyArtifactSet(register) {
     "tokenizers",
     "wasm",
   ];
+  const historicalClaimPattern = register.overallStatus === "held"
+    ? /not loaded by the held public artifact/iu
+    : /not loaded by the (?:qualification-pending|qualified|active remote) public artifact/iu;
   if (historical?.status !== "historical-inactive"
     || JSON.stringify(historical.recordFields) !== JSON.stringify(historicalRecordFields)
-    || !/not loaded by the held public artifact/iu.test(historical.claimBoundary)
+    || !historicalClaimPattern.test(historical.claimBoundary)
     || !sha256Pattern.test(historical.verbatimSha256 ?? "")) {
     fail("browser-local artifact records must be explicitly historical inactive.");
   }
@@ -956,6 +1322,7 @@ function verifyArtifactSet(register) {
 
 async function verifySourceBoundary(register) {
   if (register.format !== "TEXT_TO_LATTICE_RELEASE_REGISTER" || register.schemaVersion !== 1) fail("release-register format is unsupported.");
+  const releaseState = verifyReleaseStatusState(register);
   const revisionDate = new Date(`${register.revision}T00:00:00Z`);
   if (!dateRevisionPattern.test(register.revision)
     || Number.isNaN(revisionDate.valueOf())
@@ -965,11 +1332,28 @@ async function verifySourceBoundary(register) {
   if (register.authority?.canonicalSource !== canonicalRegisterSource) fail("release-register canonical source declaration drifted.");
   if (register.authority?.qualificationDossier !== canonicalQualificationSource) fail("release qualification dossier declaration drifted.");
   if (!gitRevisionPattern.test(register.implementationBaselineRevision)) fail("implementationBaselineRevision must identify the reviewed baseline commit.");
-  if (!/last pulled hah\.dev deployment and ancestry baseline/iu.test(register.qualificationScope)
-    || !/held remote-capability candidate/iu.test(register.qualificationScope)
-    || !/without claiming.*deployed or observed in production/iu.test(register.qualificationScope)
-    || !/historical and inactive/iu.test(register.qualificationScope)) {
-    fail("qualificationScope must distinguish the held remote source candidate from the last deployed browser-local baseline.");
+  const qualificationScope = register.qualificationScope ?? "";
+  if (!/last pulled hah\.dev deployment and ancestry baseline/iu.test(qualificationScope)
+    || !/historical and inactive/iu.test(qualificationScope)) {
+    fail("qualificationScope must retain the deployed ancestry baseline and historical-inactive boundary.");
+  }
+  if (releaseState.held
+    && (!/held remote-capability candidate/iu.test(qualificationScope)
+      || !/without claiming.*deployed or observed in production/iu.test(qualificationScope))) {
+    fail("held qualificationScope must distinguish the undeployed remote candidate from the last deployed browser-local baseline.");
+  }
+  if (releaseState.qualificationPending
+    && (!/qualification-pending/iu.test(qualificationScope)
+      || !/(?:not (?:yet )?qualified|non-qualified)/iu.test(qualificationScope)
+      || !/canonical-browser qualification/iu.test(qualificationScope)
+      || !/(?:immediate(?:ly)?[\s\S]{0,180}(?:held|documentation-only)[\s\S]{0,100}rollback|rollback[\s\S]{0,180}immediate(?:ly)?[\s\S]{0,100}(?:held|documentation-only))/iu.test(qualificationScope))) {
+    fail("qualification-pending qualificationScope must say the deployment is not qualified, bind canonical-browser qualification, and require immediate held rollback.");
+  }
+  if (releaseState.qualified
+    && (!/qualified remote capability/iu.test(qualificationScope)
+      || !/canonical-browser/iu.test(qualificationScope)
+      || !/current production evidence/iu.test(qualificationScope))) {
+    fail("qualified qualificationScope must bind the qualified remote capability to current canonical-browser production evidence.");
   }
   if (!Array.isArray(register.statusVocabulary) || register.statusVocabulary.length !== gateStatuses.size
     || [...gateStatuses].some((status) => !register.statusVocabulary.includes(status))) {
@@ -977,6 +1361,7 @@ async function verifySourceBoundary(register) {
   }
   requireString(register.authority?.decisionRule, "release decision rule");
   requireString(register.authority?.marginalValueRule, "marginal-value rule");
+  await verifyBrowserEvidenceAuthority(register, releaseState);
   const qualifiedSourceSetDigest = await verifyQualifiedSourceSet(register);
   const expectedOwnerStatus = register.overallStatus === "held" ? "hold-directed" : "release-directed";
   if (register.ownerDisposition?.status !== expectedOwnerStatus) fail("owner disposition must match the current release direction.");
@@ -999,8 +1384,8 @@ async function verifySourceBoundary(register) {
     if (gate.id === "GATE-03" && !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
       fail("GATE-03 must remain an open release blocker until remote capacity is satisfied in production.");
     }
-    if (gate.id === "GATE-06" && !["open-release-blocker", "satisfied-in-production"].includes(gate.status)) {
-      fail("GATE-06 must remain an open release blocker until the canonical remote lifecycle is satisfied in production.");
+    if (gate.id === "GATE-06" && !["open-release-blocker", "post-deployment-verification", "satisfied-in-production"].includes(gate.status)) {
+      fail("GATE-06 must remain open, enter post-deployment verification, or be satisfied by the canonical remote lifecycle.");
     }
     if (!marginalValues.has(gate.marginalValue)) fail(`${gate.id} has an unsupported marginal-value classification.`);
     for (const field of ["label", "requirement", "currentEvidence", "evidenceNeeded", "rationale", "followUp"]) {
@@ -1017,7 +1402,7 @@ async function verifySourceBoundary(register) {
   const productionBoundaryGate = register.gates.find(({ id }) => id === "GATE-02");
   const capacityGate = register.gates.find(({ id }) => id === "GATE-03");
   const productionLifecycleGate = register.gates.find(({ id }) => id === "GATE-06");
-  verifyLifecycleGateContract(productionBoundaryGate, capacityGate, productionLifecycleGate);
+  verifyLifecycleGateContract(productionBoundaryGate, capacityGate, productionLifecycleGate, releaseState.releasePhase);
 
   if (!Array.isArray(register.marginalValueDecisions) || register.marginalValueDecisions.length === 0) {
     fail("marginal-value decisions must be a nonempty array.");
@@ -1153,7 +1538,7 @@ async function verifySourceBoundary(register) {
   const lattice = projectBySlug("lattice");
   if (!lattice) fail("Lattice project record is absent.");
 
-  const { enabled } = verifyReleaseStatusState(register);
+  const { enabled } = releaseState;
   if (enabled) {
     if (register.publicClient.publicationMode !== "interactive-client") fail("enabled publication must declare interactive-client mode.");
     if (register.publicClient.heldBoundary != null) fail("enabled publication must remove its held-only allow and deny boundary.");

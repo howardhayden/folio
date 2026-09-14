@@ -198,7 +198,14 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-API-WORKER — Same-origin Text to Lattice API Worker:** `workers/text-to-lattice-api/worker.js`
 - **SRC-HF-ADAPTER — Fixed Hugging Face and Featherless provider adapter:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
 - **SRC-API-CONFIG — Text to Lattice API Worker configuration:** `workers/text-to-lattice-api/wrangler.jsonc`
-- **SRC-SECRET-BOOTSTRAP — Fail-closed secret bootstrap:** `scripts/bootstrap-text-to-lattice-secrets.mjs`
+- **SRC-CAPACITY-POLICY — Atomic Text to Lattice request-admission policy:** `workers/text-to-lattice-api/capacityPolicy.js`
+- **SRC-CAPACITY-CLIENT — Text to Lattice request-admission client:** `workers/text-to-lattice-api/capacityClient.js`
+- **SRC-CAPACITY-GATE — Text to Lattice Durable Object admission authority:** `workers/text-to-lattice-api/capacityGate.js`
+- **SRC-VISITOR-COOKIE — API-scoped signed browser quota cookie:** `workers/text-to-lattice-api/visitorCookie.js`
+- **SRC-API-SECRET-BOOTSTRAP — Fail-closed API secret bootstrap:** `scripts/bootstrap-text-to-lattice-api-secrets.mjs`
+- **SRC-API-DEPLOYMENT-EVIDENCE — Text to Lattice API deployment-evidence builder:** `scripts/build-text-to-lattice-deployment-evidence.mjs`
+- **SRC-API-PRODUCTION-VERIFY — Text to Lattice production API verifier:** `scripts/verify-text-to-lattice-api-production.mjs`
+- **SRC-SECRET-BOOTSTRAP — Historical inactive lease secret bootstrap:** `scripts/bootstrap-text-to-lattice-secrets.mjs`
 - **SRC-ROUTE-INVENTORY — Authenticated Worker route inventory verifier:** `scripts/verify-text-to-lattice-route-inventory.mjs`
 - **SRC-TEST-ENGINE — Engine executable contracts:** `tests/lattice-demo.test.mjs`
 - **SRC-TEST-SECURITY — Security executable contracts:** `tests/lattice-security.test.mjs`

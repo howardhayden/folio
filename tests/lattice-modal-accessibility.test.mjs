@@ -38,6 +38,10 @@ test("the modal discloses the external boundary before the user can submit", () 
 
   assert.match(resumeProjectsSource, /id="lattice-external-privacy"/u);
   assert.match(resumeProjectsSource, /aria-describedby="[^"]*lattice-external-privacy[^"]*"/u);
+  assert.match(
+    resumeProjectsSource,
+    /content-free cookie setup POST[\s\S]*?exactly one content-bearing POST[\s\S]*?Only the second includes your text or can initiate[\s\S]*?external-provider processing/u,
+  );
   assert.match(resumeProjectsSource, /<button className="lattice-run-button" type="submit"[^>]*>[\s\S]*?Process with external service[\s\S]*?<\/button>/u);
   assert.match(resumeProjectsSource, /id="lattice-use-confirmation"[\s\S]*?type="checkbox"[\s\S]*?required/u);
   assert.match(resumeProjectsSource, /authorized to send it to the configured external service/u);
@@ -157,9 +161,13 @@ test("remote failures use bounded interface copy and never expose raw diagnostic
   const failureSource = resumeProjectsSource.slice(failureStart, failureEnd);
   assert.ok(failureStart >= 0 && failureEnd > failureStart);
   assert.doesNotMatch(failureSource, /return error\.message|return message \|\|/u);
-  for (const code of ["rate_limited", "client_timeout", "upstream_timeout", "network_failure", "invalid_response"]) {
+  for (const code of ["visitor_session_required", "rate_limited", "client_timeout", "upstream_timeout", "network_failure", "invalid_response"]) {
     assert.ok(failureSource.includes(`"${code}"`), `missing fixed copy for ${code}`);
   }
+  assert.match(
+    failureSource,
+    /The external provider did not receive your text because hah\.dev could not establish its private daily-limit cookie\. Allow site cookies for hah\.dev, then submit again only if you choose\./u,
+  );
   assert.match(failureSource, /hah\.dev does not retain your sample or result/u);
   assert.match(resumeProjectsSource, /setLatticeInputInvalid\(isLatticeInputFailure\(error\)\)/u);
 });

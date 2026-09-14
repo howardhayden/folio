@@ -1,0 +1,1161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:hah-dev:text-to-lattice-browser-evidence:1",
+  "title": "Text to Lattice sanitized production browser evidence",
+  "description": "A metadata-and-digests-only GATE-06 record plus two manually reviewed flattened PNG captures and the fixed sibling files TEXT-TO-LATTICE-DEPLOYMENT-EVIDENCE.before.json and TEXT-TO-LATTICE-DEPLOYMENT-EVIDENCE.after.json. The two deployment-index copies must be byte-identical, must hash to every recorded deployment-evidence digest, and must supply the recorded workflow, service-job, Worker, site-artifact, canonical-URL, and service-deployment evidence identities. Each browser record proves one bodyless same-origin visitor-session POST establishes the exact non-secret attributes of the API-scoped quota cookie before one content-bearing POST carries it, and that the transformation response does not rotate it. Raw HAR data, source, output, bodies, cookie values, authorization values, provider credentials, and sensitive header values are prohibited.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schema_version",
+    "evidence_id",
+    "recorded_at",
+    "deployment",
+    "redaction",
+    "engines"
+  ],
+  "properties": {
+    "format": {
+      "const": "TEXT_TO_LATTICE_BROWSER_EVIDENCE"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "evidence_id": {
+      "type": "string",
+      "pattern": "^ttl-browser-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8}$"
+    },
+    "recorded_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "deployment": {
+      "$ref": "#/$defs/deployment"
+    },
+    "redaction": {
+      "$ref": "#/$defs/redaction"
+    },
+    "engines": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/engine"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "engine_id": {
+                  "const": "safari-webkit"
+                },
+                "browser_name": {
+                  "const": "Safari"
+                },
+                "engine_name": {
+                  "const": "WebKit"
+                },
+                "sanitized_capture": {
+                  "type": "object",
+                  "properties": {
+                    "basename": {
+                      "const": "TEXT-TO-LATTICE-BROWSER-EVIDENCE.safari-webkit.png"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/engine"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "engine_id": {
+                  "const": "brave-chromium"
+                },
+                "browser_name": {
+                  "const": "Brave"
+                },
+                "engine_name": {
+                  "const": "Chromium"
+                },
+                "sanitized_capture": {
+                  "type": "object",
+                  "properties": {
+                    "basename": {
+                      "const": "TEXT-TO-LATTICE-BROWSER-EVIDENCE.brave-chromium.png"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^(?!0{64}$)[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "deployment": {
+      "type": "object",
+      "description": "Workflow-emitted deployment identifiers plus the SHA-256 digest of one static deployment-evidence index copied to the two fixed sibling filenames immediately before and after the captures. The service-deployment evidence time is the post-live-verification deployment-index generation time. Bundle verification rehashes both copies and compares their closed identity fields; these fields do not claim an independent live identity probe.",
+      "additionalProperties": false,
+      "required": [
+        "deployed_commit",
+        "workflow_run_id",
+        "workflow_run_attempt",
+        "workflow_run_url",
+        "service_job_id",
+        "canonical_url",
+        "api_worker_deployment_id",
+        "api_worker_version",
+        "response_policy_worker_deployment_id",
+        "response_policy_worker_version",
+        "deployment_evidence_index_sha256",
+        "deployment_evidence_before_captures_sha256",
+        "deployment_evidence_after_captures_sha256",
+        "site_artifact_sha256",
+        "qualified_source_set_sha256",
+        "deployed_at",
+        "qualification_expires_at",
+        "deployment_evidence_checked_before_captures_at",
+        "deployment_evidence_checked_after_captures_at",
+        "deployment_evidence_unchanged_across_captures"
+      ],
+      "properties": {
+        "deployed_commit": {
+          "type": "string",
+          "pattern": "^(?!0{40}$)[a-f0-9]{40}$"
+        },
+        "workflow_run_id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "workflow_run_attempt": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,5}$"
+        },
+        "workflow_run_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/howardhayden/folio/actions/runs/[1-9][0-9]{0,19}$"
+        },
+        "service_job_id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "canonical_url": {
+          "const": "https://hah.dev/resume/#text-to-lattice"
+        },
+        "api_worker_deployment_id": {
+          "type": "string",
+          "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+        },
+        "api_worker_version": {
+          "type": "string",
+          "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+        },
+        "response_policy_worker_deployment_id": {
+          "type": "string",
+          "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+        },
+        "response_policy_worker_version": {
+          "type": "string",
+          "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+        },
+        "deployment_evidence_index_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "deployment_evidence_before_captures_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "deployment_evidence_after_captures_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "site_artifact_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "qualified_source_set_sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "Digest of the exact qualified source set recomputed before the guarded qualification-pending deployment and retained in both deployment-evidence snapshots."
+        },
+        "deployed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "qualification_expires_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "The workflow-generated absolute end of the guarded qualification-pending exposure. Both captures and the post-capture deployment-index check must complete no later than this instant."
+        },
+        "deployment_evidence_checked_before_captures_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "deployment_evidence_checked_after_captures_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "deployment_evidence_unchanged_across_captures": {
+          "const": true
+        }
+      }
+    },
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "raw_har_retained",
+        "raw_request_body_retained",
+        "raw_response_body_retained",
+        "raw_source_retained",
+        "raw_output_retained",
+        "cookie_values_retained",
+        "authorization_values_retained",
+        "provider_credentials_retained",
+        "sensitive_header_values_retained"
+      ],
+      "properties": {
+        "profile": {
+          "const": "metadata-digests-only-v1"
+        },
+        "raw_har_retained": {
+          "const": false
+        },
+        "raw_request_body_retained": {
+          "const": false
+        },
+        "raw_response_body_retained": {
+          "const": false
+        },
+        "raw_source_retained": {
+          "const": false
+        },
+        "raw_output_retained": {
+          "const": false
+        },
+        "cookie_values_retained": {
+          "const": false
+        },
+        "authorization_values_retained": {
+          "const": false
+        },
+        "provider_credentials_retained": {
+          "const": false
+        },
+        "sensitive_header_values_retained": {
+          "const": false
+        }
+      }
+    },
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "disclosure_prefix",
+        "authorization_checked",
+        "submit_button_label",
+        "submit_activation_count",
+        "source_marker_requests_before_submit"
+      ],
+      "properties": {
+        "disclosure_prefix": {
+          "const": "This text leaves hah.dev"
+        },
+        "authorization_checked": {
+          "const": true
+        },
+        "submit_button_label": {
+          "const": "Process with external service"
+        },
+        "submit_activation_count": {
+          "const": 1
+        },
+        "source_marker_requests_before_submit": {
+          "const": 0
+        }
+      }
+    },
+    "visitorSessionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_count",
+        "url",
+        "origin_header",
+        "method",
+        "application_set_header_names",
+        "content_type_header_present",
+        "accept",
+        "request_body_present",
+        "request_body_utf8_bytes",
+        "credentials_mode",
+        "cookie_header_present",
+        "authorization_header_present",
+        "provider_credential_present",
+        "referer_header_present",
+        "query_present",
+        "redirect_count",
+        "transfer_source"
+      ],
+      "properties": {
+        "request_count": { "const": 1 },
+        "url": { "const": "https://hah.dev/api/lattice" },
+        "origin_header": { "const": "https://hah.dev" },
+        "method": { "const": "POST" },
+        "application_set_header_names": { "const": ["accept"] },
+        "content_type_header_present": { "const": false },
+        "accept": { "const": "application/vnd.hah.text-to-lattice-visitor-session.v1+json" },
+        "request_body_present": { "const": false },
+        "request_body_utf8_bytes": { "const": 0 },
+        "credentials_mode": { "const": "same-origin" },
+        "cookie_header_present": { "const": false },
+        "authorization_header_present": { "const": false },
+        "provider_credential_present": { "const": false },
+        "referer_header_present": { "const": false },
+        "query_present": { "const": false },
+        "redirect_count": { "const": 0 },
+        "transfer_source": { "const": "network" }
+      }
+    },
+    "visitorSessionResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "content_type_header_present",
+        "cache_control",
+        "response_body_present",
+        "response_body_utf8_bytes",
+        "set_cookie_header_present",
+        "set_cookie_header_count",
+        "set_cookie_name",
+        "set_cookie_attribute_names",
+        "set_cookie_max_age_seconds",
+        "set_cookie_path",
+        "set_cookie_secure",
+        "set_cookie_http_only",
+        "set_cookie_same_site",
+        "set_cookie_domain_present",
+        "access_control_allow_origin_header_present"
+      ],
+      "properties": {
+        "status": { "const": 204 },
+        "content_type_header_present": { "const": false },
+        "cache_control": { "const": "no-store" },
+        "response_body_present": { "const": false },
+        "response_body_utf8_bytes": { "const": 0 },
+        "set_cookie_header_present": { "const": true },
+        "set_cookie_header_count": { "const": 1 },
+        "set_cookie_name": { "const": "__Secure-hah-lattice-api-visitor" },
+        "set_cookie_attribute_names": {
+          "const": ["max-age", "path", "secure", "httponly", "samesite"]
+        },
+        "set_cookie_max_age_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400,
+          "description": "Must equal the seconds remaining until the next UTC-day boundary, within the verifier's five-second response-latency and capture-rounding tolerance."
+        },
+        "set_cookie_path": { "const": "/api/lattice" },
+        "set_cookie_secure": { "const": true },
+        "set_cookie_http_only": { "const": true },
+        "set_cookie_same_site": { "const": "Strict" },
+        "set_cookie_domain_present": { "const": false },
+        "access_control_allow_origin_header_present": { "const": false }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_count",
+        "url",
+        "origin_header",
+        "method",
+        "application_set_header_names",
+        "content_type",
+        "accept",
+        "request_body_key_order",
+        "request_body_member_count",
+        "request_body_duplicate_member_count",
+        "request_body_exact_contract",
+        "text_value_type",
+        "requested_mode",
+        "schema_version",
+        "request_body_utf8_bytes",
+        "request_body_sha256",
+        "credentials_mode",
+        "cookie_header_present",
+        "authorization_header_present",
+        "provider_credential_present",
+        "referer_header_present",
+        "query_present",
+        "redirect_count",
+        "transfer_source"
+      ],
+      "properties": {
+        "request_count": {
+          "const": 1
+        },
+        "url": {
+          "const": "https://hah.dev/api/lattice"
+        },
+        "origin_header": {
+          "const": "https://hah.dev"
+        },
+        "method": {
+          "const": "POST"
+        },
+        "application_set_header_names": {
+          "const": [
+            "accept",
+            "content-type"
+          ]
+        },
+        "content_type": {
+          "const": "application/json"
+        },
+        "accept": {
+          "const": "application/json"
+        },
+        "request_body_key_order": {
+          "const": [
+            "text",
+            "requested_mode",
+            "schema_version"
+          ]
+        },
+        "request_body_member_count": {
+          "const": 3
+        },
+        "request_body_duplicate_member_count": {
+          "const": 0
+        },
+        "request_body_exact_contract": {
+          "const": true
+        },
+        "text_value_type": {
+          "const": "string"
+        },
+        "requested_mode": {
+          "const": "auto"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "request_body_utf8_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "request_body_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "credentials_mode": {
+          "const": "same-origin"
+        },
+        "cookie_header_present": {
+          "const": true
+        },
+        "authorization_header_present": {
+          "const": false
+        },
+        "provider_credential_present": {
+          "const": false
+        },
+        "referer_header_present": {
+          "const": false
+        },
+        "query_present": {
+          "const": false
+        },
+        "redirect_count": {
+          "const": 0
+        },
+        "transfer_source": {
+          "const": "network"
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "content_type",
+        "cache_control",
+        "response_body_key_order",
+        "response_body_member_count",
+        "response_body_duplicate_member_count",
+        "response_body_exact_contract",
+        "schema_version",
+        "result_version",
+        "strict_result_contract_valid",
+        "result_status",
+        "set_cookie_header_present",
+        "set_cookie_header_count",
+        "access_control_allow_origin_header_present",
+        "response_body_utf8_bytes",
+        "response_body_sha256"
+      ],
+      "properties": {
+        "status": {
+          "const": 200
+        },
+        "content_type": {
+          "const": "application/json; charset=utf-8"
+        },
+        "cache_control": {
+          "const": "no-store"
+        },
+        "response_body_key_order": {
+          "const": [
+            "result",
+            "schema_version"
+          ]
+        },
+        "response_body_member_count": {
+          "const": 2
+        },
+        "response_body_duplicate_member_count": {
+          "const": 0
+        },
+        "response_body_exact_contract": {
+          "const": true
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "result_version": {
+          "const": "text-to-lattice.v7"
+        },
+        "strict_result_contract_valid": {
+          "const": true
+        },
+        "result_status": {
+          "enum": [
+            "translated",
+            "conformant-for-context",
+            "review-required"
+          ]
+        },
+        "set_cookie_header_present": {
+          "const": false
+        },
+        "set_cookie_header_count": {
+          "const": 0
+        },
+        "access_control_allow_origin_header_present": {
+          "const": false
+        },
+        "response_body_utf8_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 262144
+        },
+        "response_body_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "announcement_prefix",
+        "result_visible",
+        "result_region_focused",
+        "hard_reload_performed",
+        "bfcache_restore",
+        "source_persisted_after_reload",
+        "result_persisted_after_reload"
+      ],
+      "properties": {
+        "announcement_prefix": {
+          "const": "Result ready."
+        },
+        "result_visible": {
+          "const": true
+        },
+        "result_region_focused": {
+          "const": true
+        },
+        "hard_reload_performed": {
+          "const": true
+        },
+        "bfcache_restore": {
+          "const": false
+        },
+        "source_persisted_after_reload": {
+          "const": false
+        },
+        "result_persisted_after_reload": {
+          "const": false
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observed_request_count",
+        "visitor_session_request_count",
+        "content_bearing_request_count",
+        "unexpected_content_bearing_request_count",
+        "provider_origin_request_count",
+        "non_hah_transferred_request_count",
+        "account_authorization_or_provider_credential_request_count",
+        "browser_quota_cookie_request_count",
+        "automatic_retry_count",
+        "browser_fallback_request_count",
+        "alternate_content_route_count",
+        "service_worker_registration_count",
+        "service_worker_interception_count",
+        "cache_storage_entry_count",
+        "api_cache_replay_count",
+        "rum_request_count",
+        "blocked_cloudflare_beacon_count",
+        "cloudflare_beacon_transferred_bytes",
+        "source_marker_request_body_matches",
+        "source_marker_response_body_matches",
+        "source_marker_prohibited_matches",
+        "output_marker_response_body_matches",
+        "output_marker_prohibited_matches",
+        "persistent_storage_marker_matches",
+        "url_marker_matches",
+        "header_marker_matches",
+        "error_marker_matches",
+        "console_marker_matches",
+        "analytics_marker_matches",
+        "unrelated_request_marker_matches",
+        "provider_origins_observed",
+        "content_bearing_urls",
+        "scan_profile",
+        "scanned_resource_types",
+        "provider_host_patterns_scanned",
+        "provider_host_match_case_insensitive",
+        "marker_encodings_scanned",
+        "csp_connect_src",
+        "provider_connect_allowed",
+        "network_payload_inspection_supported",
+        "persistent_storage_inspection_supported",
+        "service_worker_registry_checked",
+        "cache_storage_checked",
+        "persistent_storage_checked_after_reload",
+        "server_side_provider_retry_proven",
+        "server_side_provider_retention_proven",
+        "post_terminal_observation_ms"
+      ],
+      "properties": {
+        "observed_request_count": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 10000
+        },
+        "visitor_session_request_count": {
+          "const": 1
+        },
+        "content_bearing_request_count": {
+          "const": 1
+        },
+        "unexpected_content_bearing_request_count": {
+          "const": 0
+        },
+        "provider_origin_request_count": {
+          "const": 0
+        },
+        "non_hah_transferred_request_count": {
+          "const": 0
+        },
+        "account_authorization_or_provider_credential_request_count": {
+          "const": 0,
+          "description": "Requests carrying an account credential, Authorization value, or provider credential. This excludes the separately declared opaque quota cookie."
+        },
+        "browser_quota_cookie_request_count": {
+          "const": 1,
+          "description": "The one content-bearing API request that carries the opaque API-scoped quota cookie established by the bodyless setup request."
+        },
+        "automatic_retry_count": {
+          "const": 0
+        },
+        "browser_fallback_request_count": {
+          "const": 0
+        },
+        "alternate_content_route_count": {
+          "const": 0
+        },
+        "service_worker_registration_count": {
+          "const": 0
+        },
+        "service_worker_interception_count": {
+          "const": 0
+        },
+        "cache_storage_entry_count": {
+          "const": 0
+        },
+        "api_cache_replay_count": {
+          "const": 0
+        },
+        "rum_request_count": {
+          "const": 0
+        },
+        "blocked_cloudflare_beacon_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "cloudflare_beacon_transferred_bytes": {
+          "const": 0
+        },
+        "source_marker_request_body_matches": {
+          "const": 1
+        },
+        "source_marker_response_body_matches": {
+          "const": 0
+        },
+        "source_marker_prohibited_matches": {
+          "const": 0
+        },
+        "output_marker_response_body_matches": {
+          "const": 1
+        },
+        "output_marker_prohibited_matches": {
+          "const": 0
+        },
+        "persistent_storage_marker_matches": {
+          "const": 0
+        },
+        "url_marker_matches": {
+          "const": 0
+        },
+        "header_marker_matches": {
+          "const": 0
+        },
+        "error_marker_matches": {
+          "const": 0
+        },
+        "console_marker_matches": {
+          "const": 0
+        },
+        "analytics_marker_matches": {
+          "const": 0
+        },
+        "unrelated_request_marker_matches": {
+          "const": 0
+        },
+        "provider_origins_observed": {
+          "const": []
+        },
+        "content_bearing_urls": {
+          "const": [
+            "https://hah.dev/api/lattice"
+          ]
+        },
+        "scan_profile": {
+          "const": "ttl-browser-egress-scan-v1"
+        },
+        "scanned_resource_types": {
+          "const": [
+            "document",
+            "fetch",
+            "xmlhttprequest",
+            "beacon",
+            "websocket",
+            "eventsource",
+            "image",
+            "frame",
+            "form",
+            "navigation",
+            "prefetch",
+            "script",
+            "style",
+            "font",
+            "media",
+            "manifest",
+            "other"
+          ]
+        },
+        "provider_host_patterns_scanned": {
+          "const": [
+            "huggingface.co",
+            "*.huggingface.co",
+            "huggingface.co.",
+            "*.huggingface.co.",
+            "hf.co",
+            "*.hf.co",
+            "hf.co.",
+            "*.hf.co.",
+            "featherless.ai",
+            "*.featherless.ai",
+            "featherless.ai.",
+            "*.featherless.ai."
+          ]
+        },
+        "provider_host_match_case_insensitive": {
+          "const": true
+        },
+        "marker_encodings_scanned": {
+          "const": [
+            "literal",
+            "json-escaped",
+            "percent-encoded",
+            "base64",
+            "base64url",
+            "sha256"
+          ]
+        },
+        "csp_connect_src": {
+          "const": [
+            "'self'"
+          ]
+        },
+        "provider_connect_allowed": {
+          "const": false
+        },
+        "network_payload_inspection_supported": {
+          "const": true
+        },
+        "persistent_storage_inspection_supported": {
+          "const": true
+        },
+        "service_worker_registry_checked": {
+          "const": true
+        },
+        "cache_storage_checked": {
+          "const": true
+        },
+        "persistent_storage_checked_after_reload": {
+          "const": true
+        },
+        "server_side_provider_retry_proven": {
+          "const": false
+        },
+        "server_side_provider_retention_proven": {
+          "const": false
+        },
+        "post_terminal_observation_ms": {
+          "type": "integer",
+          "minimum": 10000,
+          "maximum": 60000
+        }
+      }
+    },
+    "fingerprints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_utf8_bytes",
+        "sample_classification",
+        "source_sha256",
+        "source_marker_utf8_bytes",
+        "source_marker_sha256",
+        "output_utf8_bytes",
+        "output_sha256",
+        "output_marker_utf8_bytes",
+        "output_marker_sha256"
+      ],
+      "properties": {
+        "source_utf8_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12000
+        },
+        "sample_classification": {
+          "const": "public-synthetic-nonsensitive"
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_marker_utf8_bytes": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 128
+        },
+        "source_marker_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "output_utf8_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 48000
+        },
+        "output_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "output_marker_utf8_bytes": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 256
+        },
+        "output_marker_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "sanitizedCapture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "basename",
+        "media_type",
+        "byte_count",
+        "pixel_width",
+        "pixel_height",
+        "sha256",
+        "flattened_raster_png",
+        "png_ancillary_chunks_stripped",
+        "pixel_redaction_manually_reviewed",
+        "contains_raw_har",
+        "contains_raw_request_body",
+        "contains_raw_response_body",
+        "contains_raw_source",
+        "contains_raw_output",
+        "contains_cookie_values",
+        "contains_authorization_values",
+        "contains_provider_credentials",
+        "contains_sensitive_header_values"
+      ],
+      "properties": {
+        "format": {
+          "const": "flattened-redacted-raster-png-v1"
+        },
+        "basename": {
+          "enum": [
+            "TEXT-TO-LATTICE-BROWSER-EVIDENCE.safari-webkit.png",
+            "TEXT-TO-LATTICE-BROWSER-EVIDENCE.brave-chromium.png"
+          ]
+        },
+        "media_type": {
+          "const": "image/png"
+        },
+        "byte_count": {
+          "type": "integer",
+          "minimum": 67,
+          "maximum": 10485760
+        },
+        "pixel_width": {
+          "type": "integer",
+          "minimum": 640,
+          "maximum": 8192
+        },
+        "pixel_height": {
+          "type": "integer",
+          "minimum": 480,
+          "maximum": 8192
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "flattened_raster_png": {
+          "const": true
+        },
+        "png_ancillary_chunks_stripped": {
+          "const": true
+        },
+        "pixel_redaction_manually_reviewed": {
+          "const": true
+        },
+        "contains_raw_har": {
+          "const": false
+        },
+        "contains_raw_request_body": {
+          "const": false
+        },
+        "contains_raw_response_body": {
+          "const": false
+        },
+        "contains_raw_source": {
+          "const": false
+        },
+        "contains_raw_output": {
+          "const": false
+        },
+        "contains_cookie_values": {
+          "const": false
+        },
+        "contains_authorization_values": {
+          "const": false
+        },
+        "contains_provider_credentials": {
+          "const": false
+        },
+        "contains_sensitive_header_values": {
+          "const": false
+        }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engine_id",
+        "browser_name",
+        "browser_version",
+        "engine_name",
+        "engine_version",
+        "operating_system_name",
+        "operating_system_version",
+        "operating_system_build",
+        "capture_started_at",
+        "text_entry_started_at",
+        "confirmation_at",
+        "visitor_session_requested_at",
+        "visitor_session_established_at",
+        "submitted_at",
+        "response_received_at",
+        "terminal_at",
+        "result_visible_at",
+        "result_focused_at",
+        "observation_ended_at",
+        "hard_reload_at",
+        "post_reload_checked_at",
+        "capture_ended_at",
+        "canonical_url",
+        "isolated_session",
+        "browser_cache_disabled",
+        "network_capture_started_before_text_entry",
+        "explicit_confirmation",
+        "visitor_session_request",
+        "visitor_session_response",
+        "request",
+        "response",
+        "terminal",
+        "privacy",
+        "content_fingerprints",
+        "sanitized_capture"
+      ],
+      "properties": {
+        "engine_id": {
+          "enum": [
+            "safari-webkit",
+            "brave-chromium"
+          ]
+        },
+        "browser_name": {
+          "enum": [
+            "Safari",
+            "Brave"
+          ]
+        },
+        "browser_version": {
+          "type": "string",
+          "pattern": "^[0-9]+(?:\\.[0-9]+){0,5}$"
+        },
+        "engine_name": {
+          "enum": [
+            "WebKit",
+            "Chromium"
+          ]
+        },
+        "engine_version": {
+          "type": "string",
+          "pattern": "^[0-9]+(?:\\.[0-9]+){0,5}$"
+        },
+        "operating_system_name": {
+          "const": "macOS"
+        },
+        "operating_system_version": {
+          "type": "string",
+          "pattern": "^[0-9]+(?:\\.[0-9]+){0,3}$"
+        },
+        "operating_system_build": {
+          "type": "string",
+          "pattern": "^[0-9]{2}[A-Z][0-9A-Za-z]{1,5}$"
+        },
+        "capture_started_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "text_entry_started_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "confirmation_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "visitor_session_requested_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "visitor_session_established_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "submitted_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "response_received_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "terminal_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "result_visible_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "result_focused_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "observation_ended_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "hard_reload_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "post_reload_checked_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "capture_ended_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "canonical_url": {
+          "const": "https://hah.dev/resume/#text-to-lattice"
+        },
+        "isolated_session": {
+          "const": true
+        },
+        "browser_cache_disabled": {
+          "const": false
+        },
+        "network_capture_started_before_text_entry": {
+          "const": true
+        },
+        "explicit_confirmation": {
+          "$ref": "#/$defs/confirmation"
+        },
+        "visitor_session_request": {
+          "$ref": "#/$defs/visitorSessionRequest"
+        },
+        "visitor_session_response": {
+          "$ref": "#/$defs/visitorSessionResponse"
+        },
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "response": {
+          "$ref": "#/$defs/response"
+        },
+        "terminal": {
+          "$ref": "#/$defs/terminal"
+        },
+        "privacy": {
+          "$ref": "#/$defs/privacy"
+        },
+        "content_fingerprints": {
+          "$ref": "#/$defs/fingerprints"
+        },
+        "sanitized_capture": {
+          "$ref": "#/$defs/sanitizedCapture"
+        }
+      }
+    }
+  }
+}

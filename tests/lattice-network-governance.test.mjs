@@ -105,6 +105,15 @@ test("NET-GOV-001: the browser has one explicit remote capability", () => {
   assert.equal(capability.transmitsUserContent, true);
   assert.deepEqual(capability.transmittedFields, ["text", "requested_mode", "schema_version"]);
   assert.equal(capability.retainedByApplication, false);
+  assert.equal(capability.credentialMode, "same-origin");
+  assert.deepEqual(capability.browserOwnedCookie, {
+    name: "__Secure-hah-lattice-api-visitor",
+    path: "/api/lattice",
+    purpose: "per-browser-utc-day-request-limit",
+    httpOnly: true,
+    containsUserContent: false,
+    expiresAtNextUtcDay: true,
+  });
   assert.equal(capability.automaticRetry, false);
   assert.equal(capability.alternateProviderFallback, false);
 });
@@ -145,10 +154,11 @@ test("NET-GOV-002: the production Text-to-Lattice graph reaches only the capabil
   const remoteRequest = graph.get(resolve(root, "app/resume/lattice/remoteRequest.js"));
   const remoteProtocol = graph.get(resolve(root, "app/resume/lattice/remoteProtocol.js"));
   assert.match(remoteProtocol, /LATTICE_API_PATH\s*=\s*"\/api\/lattice"/u);
+  assert.equal((remoteRequest.match(/capabilityFetch\(/gu) ?? []).length, 2);
   assert.match(
     remoteRequest,
     /capabilityFetch\(LATTICE_REMOTE_CAPABILITY,\s*LATTICE_API_PATH,/u,
-    "the only browser request uses the named capability and its fixed same-origin path",
+    "both browser operations use the named capability and its fixed same-origin path",
   );
 });
 
@@ -225,19 +235,46 @@ test("TEST-PRIV-014: the document policy permits only same-origin connections", 
 });
 
 test("TEST-PRIV-013 and 015: the API Worker owns the provider and no content sink", async () => {
-  const [workerSource, adapterSource, configSource] = await Promise.all([
+  const [workerSource, adapterSource, capacityClientSource, capacityGateSource,
+    capacityPolicySource, visitorCookieSource, entrySource, configSource] = await Promise.all([
     readFile(resolve(apiWorkerDirectory, "worker.js"), "utf8"),
     readFile(resolve(apiWorkerDirectory, "huggingFaceAdapter.js"), "utf8"),
+    readFile(resolve(apiWorkerDirectory, "capacityClient.js"), "utf8"),
+    readFile(resolve(apiWorkerDirectory, "capacityGate.js"), "utf8"),
+    readFile(resolve(apiWorkerDirectory, "capacityPolicy.js"), "utf8"),
+    readFile(resolve(apiWorkerDirectory, "visitorCookie.js"), "utf8"),
+    readFile(resolve(apiWorkerDirectory, "entry.js"), "utf8"),
     readFile(resolve(apiWorkerDirectory, "wrangler.jsonc"), "utf8"),
   ]);
-  const serverSource = `${workerSource}\n${adapterSource}`;
+  const serverSource = [workerSource, adapterSource, capacityClientSource,
+    capacityGateSource, capacityPolicySource, visitorCookieSource, entrySource].join("\n");
+  const config = JSON.parse(configSource);
 
   assert.equal((serverSource.match(/https:\/\/router\.huggingface\.co\/v1\/chat\/completions/gu) ?? []).length, 1);
   assert.match(serverSource, /env\.HF_TOKEN/u);
   assert.doesNotMatch(serverSource, /env\.(?:PROVIDER|UPSTREAM|TARGET)_(?:URL|ORIGIN)|(?:payload|body|requestBody)\.(?:url|origin|endpoint|provider|target)/iu);
   assert.doesNotMatch(serverSource, /\bconsole\s*\./u);
   assert.doesNotMatch(serverSource, /\bcaches\s*\.|\.executionCtx\.waitUntil\s*\(|\b(?:KV|R2|D1)\b/iu);
-  assert.doesNotMatch(configSource, /\[\[?(?:kv_namespaces|r2_buckets|d1_databases|durable_objects)|HF_TOKEN\s*=/iu);
+  assert.doesNotMatch(configSource, /(?:kv_namespaces|r2_buckets|d1_databases|queues|analytics_engine)|HF_TOKEN\s*=/iu);
+  assert.deepEqual(config.durable_objects, { bindings: [{
+    name: "LATTICE_TRANSFORMATION_BUDGET",
+    class_name: "LatticeTransformationBudget",
+  }] });
+  assert.deepEqual(config.migrations, [{
+    tag: "v1",
+    new_sqlite_classes: ["LatticeTransformationBudget"],
+  }]);
+  assert.match(entrySource, /export \{ LatticeTransformationBudget \} from "\.\/capacityGate\.js";/u);
+  assert.match(capacityGateSource, /storage\.transaction\(/u);
+  assert.match(capacityGateSource, /transaction\.put\(CAPACITY_STATE_KEY, outcome\.state\)/u);
+  assert.doesNotMatch(capacityGateSource, /\b(?:text|prompt|message|source|candidate|output|user|ip)\b/iu);
+  assert.doesNotMatch(capacityClientSource, /CF-Connecting-IP|\bCookie\b|Authorization/u);
+  assert.match(workerSource, /admitTransformation\([\s\S]*?env\.LATTICE_TRANSFORMATION_BUDGET/u);
+  assert.doesNotMatch(adapterSource, /claimProviderCall|capacityGate|capacityClient/u);
+  assert.match(capacityPolicySource, /LATTICE_TRANSFORMATIONS_PER_UTC_DAY\s*=\s*30/u);
+  assert.match(capacityPolicySource, /LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY\s*=\s*3/u);
+  assert.match(visitorCookieSource, /__Secure-hah-lattice-api-visitor/u);
+  assert.match(visitorCookieSource, /Secure; HttpOnly; SameSite=Strict/u);
   assert.match(configSource, /"pattern"\s*:\s*"hah\.dev\/api\/lattice"/u);
   assert.doesNotMatch(configSource, /hah\.dev\/api\/lattice\*/u);
 
@@ -252,11 +289,16 @@ test("TEST-PRIV-013 and 015: the API Worker owns the provider and no content sin
 test("CI gates publication on privacy tests and a pre-provisioned server secret", async () => {
   const workflow = await readFile(workflowPath, "utf8");
   const privacyGate = workflow.indexOf("Enforce Text to Lattice network privacy boundary");
-  const secretInventory = workflow.indexOf("Inspect Text to Lattice API encrypted binding names");
-  const secretCheck = workflow.indexOf("Require the server-only provider credential binding");
+  const initialSecretInventory = workflow.indexOf("Inspect Text to Lattice API encrypted binding names before bootstrap");
+  const secretBootstrap = workflow.indexOf("Preserve provider credential and bootstrap only a missing visitor-cookie secret");
+  const finalSecretInventory = workflow.indexOf("Inspect final Text to Lattice API encrypted binding names");
+  const secretCheck = workflow.indexOf("Require the exact provider and visitor-cookie encrypted bindings");
   const apiDeploy = workflow.indexOf("Deploy bounded Text to Lattice API");
   const apiProbe = workflow.indexOf("Verify deployed Text to Lattice API boundary");
   const policyDeploy = workflow.indexOf("Deploy résumé response policy");
+  const evidenceAssembly = workflow.indexOf("Assemble sanitized Text to Lattice deployment evidence");
+  const rollback = workflow.indexOf("Roll back Text to Lattice API to held mode");
+  const retainedEvidence = workflow.indexOf("Retain sanitized Text to Lattice deployment evidence");
   const pagesDeploy = workflow.lastIndexOf("uses: actions/deploy-pages@");
 
   assert.ok(privacyGate > 0, "the build has a named privacy gate");
@@ -264,83 +306,25 @@ test("CI gates publication on privacy tests and a pre-provisioned server secret"
     workflow.slice(privacyGate),
     /node --test[\s\S]*?tests\/lattice-network-capability\.test\.mjs[\s\S]*?tests\/lattice-network-governance\.test\.mjs[\s\S]*?tests\/lattice-api-worker\.test\.mjs/u,
   );
-  assert.ok(secretInventory > 0 && secretInventory < secretCheck);
+  assert.ok(initialSecretInventory > 0 && initialSecretInventory < secretBootstrap);
+  assert.ok(secretBootstrap < finalSecretInventory && finalSecretInventory < secretCheck);
   assert.ok(secretCheck < apiDeploy, "deployment fails closed before installing code without its provider secret");
-  assert.ok(apiDeploy < apiProbe, "the deployed API receives a bodyless boundary probe");
-  assert.ok(apiProbe < policyDeploy, "the same-origin API is proven before the restrictive browser policy activates");
+  assert.ok(apiDeploy < policyDeploy, "the API deploys before the response policy that is verified with it");
+  assert.ok(policyDeploy < apiProbe, "the live verifier observes both deployed Workers");
+  assert.ok(apiProbe < evidenceAssembly, "the sanitized live receipt precedes evidence assembly");
+  assert.ok(evidenceAssembly < rollback && rollback < retainedEvidence);
   assert.ok(policyDeploy < pagesDeploy, "the API and policy are ready before Pages publication");
   assert.match(workflow, /wrangler secret list --format json[\s\S]*?workers\/text-to-lattice-api\/wrangler\.jsonc/u);
+  assert.match(workflow, /verify-text-to-lattice-secret-bindings\.mjs[\s\S]*?secret-bindings\.json/u);
   assert.match(workflow, /wrangler deploy[\s\S]*?workers\/text-to-lattice-api\/wrangler\.jsonc/u);
+  assert.match(workflow, /node scripts\/verify-text-to-lattice-api-production\.mjs/u);
+  assert.match(workflow, /node scripts\/build-text-to-lattice-deployment-evidence\.mjs/u);
+  assert.match(workflow, /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/u);
+  assert.match(workflow, /Require current main before successful held disposition[\s\S]*?if: \$\{\{ success\(\) && needs\.publication-boundary\.outputs\.release_phase == 'held' \}\}[\s\S]*?Return successfully qualified held API to held mode/u);
+  assert.match(workflow, /Require current main before failure rollback[\s\S]*?id: current-main-before-failure-rollback[\s\S]*?if: \$\{\{ failure\(\) \|\| cancelled\(\) \}\}[\s\S]*?Roll back Text to Lattice API to held mode after qualification failure[\s\S]*?\(failure\(\) \|\| cancelled\(\)\) &&[\s\S]*?steps\.current-main-before-failure-rollback\.outcome == 'success'/u);
+  assert.doesNotMatch(workflow, /steps\.deploy-lattice-api\.outputs\.attempted/u,
+    "rollback must also cover failures while verifying an already-active qualified API");
+  assert.match(workflow, /workers\/text-to-lattice-api\/held\.js/u);
   assert.match(workflow, /LATTICE_API_BASE_URL: https:\/\/hah\.dev/u);
   assert.doesNotMatch(workflow, /(?:NEXT_PUBLIC|PUBLIC|VITE)[A-Z0-9_]*HF_TOKEN|secrets\.HF_TOKEN/u);
-});
-
-test("the optional deployed boundary rejects ambient methods without a sample", {
-  skip: process.env.LATTICE_API_BASE_URL ? false : "set LATTICE_API_BASE_URL for a post-deploy probe",
-}, async () => {
-  const origin = new URL(process.env.LATTICE_API_BASE_URL).origin;
-  let response = null;
-  for (let attempt = 1; attempt <= 4; attempt += 1) {
-    try {
-      response = await fetch(`${origin}/api/lattice`, {
-        method: "GET",
-        cache: "no-store",
-        credentials: "omit",
-        redirect: "error",
-        signal: AbortSignal.timeout(10_000),
-      });
-    } catch {
-      response = null;
-    }
-    if (response?.status === 405) break;
-    await response?.body?.cancel().catch(() => {});
-    if (attempt < 4) await new Promise((resolveDelay) => setTimeout(resolveDelay, attempt * 1_000));
-  }
-  assert.ok(response instanceof Response, "the API boundary is reachable after deployment");
-  assert.equal(response.status, 405);
-  assert.equal(response.headers.get("allow"), "POST");
-  assert.match(response.headers.get("cache-control") ?? "", /\bno-store\b/iu);
-  const bodyText = await response.text();
-  assert.ok(new TextEncoder().encode(bodyText).byteLength <= 1_024);
-  const body = JSON.parse(bodyText);
-  assert.deepEqual(Object.keys(body), ["error"]);
-  assert.equal(typeof body.error, "string");
-
-  const mediaResponse = await fetch(`${origin}/api/lattice`, {
-    method: "POST",
-    headers: { Origin: origin, "Content-Type": "text/plain" },
-    body: "privacy-canary",
-    cache: "no-store",
-    credentials: "omit",
-    redirect: "error",
-    signal: AbortSignal.timeout(10_000),
-  });
-  assert.equal(mediaResponse.status, 415);
-  const mediaText = await mediaResponse.text();
-  assert.doesNotMatch(mediaText, /privacy-canary/u);
-  assert.deepEqual(JSON.parse(mediaText), { error: "unsupported_media_type" });
-
-  const schemaResponse = await fetch(`${origin}/api/lattice`, {
-    method: "POST",
-    headers: { Origin: origin, "Content-Type": "application/json" },
-    body: JSON.stringify({ probe: "privacy-canary" }),
-    cache: "no-store",
-    credentials: "omit",
-    redirect: "error",
-    signal: AbortSignal.timeout(10_000),
-  });
-  assert.equal(schemaResponse.status, 400);
-  const schemaText = await schemaResponse.text();
-  assert.doesNotMatch(schemaText, /privacy-canary/u);
-  assert.deepEqual(JSON.parse(schemaText), { error: "invalid_request" });
-
-  const wrongPath = await fetch(`${origin}/api/lattice/undeclared`, {
-    method: "GET",
-    cache: "no-store",
-    credentials: "omit",
-    redirect: "error",
-    signal: AbortSignal.timeout(10_000),
-  });
-  assert.equal(wrongPath.status, 404);
-  await wrongPath.body?.cancel().catch(() => {});
 });

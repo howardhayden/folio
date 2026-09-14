@@ -20,10 +20,10 @@ const REMOTE_VERIFIER_ID = "meta-llama/Llama-3.2-3B-Instruct:featherless-ai";
 const historicalUsagePolicy = Object.freeze({
   ...HISTORICAL_LATTICE_USAGE_POLICY,
   status: "historical-inactive",
-  purpose: "Historical, inactive browser-local lease profile retained for provenance only. The current Text to Lattice capability is one explicit same-origin POST to /api/lattice and is not governed by these former lease counters.",
+  purpose: "Historical, inactive browser-local lease profile retained for provenance only. After explicit confirmation, the current Text to Lattice capability sends one content-free cookie setup POST and then exactly one content-bearing transformation POST to the same-origin /api/lattice path, with a separate 30-transformation global UTC-day limit and 3-transformation ordinary-browser-cookie-jar UTC-day limit; it is not governed by these former lease counters.",
   endpoint: "/api/lattice",
-  requestBody: "The active request body is exactly {text, requested_mode, schema_version: 1}. Former bodyless lease fields and lifecycle values below are historical and inactive.",
-  sourceTransmission: "The active request transmits the submitted text for external processing only after explicit confirmation.",
+  requestBody: "The cookie setup POST has no body or Content-Type. The only content-bearing request body is exactly {text, requested_mode, schema_version: 1}. Former bodyless lease fields and lifecycle values below are historical and inactive.",
+  sourceTransmission: "Both POSTs occur only after explicit confirmation. Only the second contains submitted text or can initiate external-provider processing.",
   failureMode: "The active capability returns a bounded success or machine-readable error and does not automatically retry or fall back to another provider or model. Former lease limits below are historical and inactive.",
 });
 
@@ -37,7 +37,7 @@ export const textToLatticeContract = Object.freeze({
   usagePolicy: historicalUsagePolicy,
   process: Object.freeze([
     "Validate and segment the source without losing separators before any network submission.",
-    "After explicit confirmation, POST exactly text, requested_mode, and schema_version 1 to the same-origin /api/lattice capability.",
+    "After explicit confirmation, send one content-free cookie setup POST with no body or Content-Type to the same-origin /api/lattice capability; after its 204 response, send exactly one content-bearing POST with text, requested_mode, and schema_version 1.",
     "On the server, atomize actors, events, states, relationships, causality, chronology, modality, polarity, uncertainty, quantities, knowledge, instructions, institutional conditions, and ethical stakes.",
     "Select operative, experiential, interpretive, mixed, or accessibility treatment passage by passage under the Relational Systems Register; an operative or experiential request remains a preference subordinate to evidence, semantic fidelity, and safety.",
     "Use the fixed Qwen generator to draft and the fixed Llama 3.2 verifier to check source coverage, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament through the configured Hugging Face/Featherless service.",
@@ -121,6 +121,7 @@ export const textToLatticeContract = Object.freeze({
         `${LATTICE_GRAPHEME_CODE_POINT_LIMIT} Unicode code points in any grapheme, ${LATTICE_TOKEN_CODE_POINT_LIMIT} in any word-like token, and ${LATTICE_FORMAT_CONTROL_LIMIT} format controls in an entry`,
         `${LATTICE_COMPLETION_CALL_LIMIT} protocol-level model completions across initial, correction, repair, re-atomization, and certification work, additionally bounded by the shorter request and provider deadlines`,
         "65,536 request bytes, 60 seconds per provider call, 240 seconds for the complete API request, 262,144 provider-response bytes, and a bounded client response envelope",
+        "30 accepted transformation requests globally per UTC day and 3 from one ordinary persistent browser cookie jar per UTC day",
       ]),
       isolation: Object.freeze([
         "Unpaired surrogates, unsupported control characters, pathological grapheme sequences, excess invisible format controls, excess passages, and excess work groups fail closed.",
@@ -151,16 +152,18 @@ export const textToLatticeContract = Object.freeze({
       ]),
     }),
     api: Object.freeze({
-      summary: "Text to Lattice has one named remote capability: an explicit same-origin POST to /api/lattice. Its JSON body has exactly three fields: text, requested_mode, and schema_version with the fixed value 1.",
+      summary: "Text to Lattice has one named remote capability at the same-origin /api/lattice path. After explicit confirmation, the browser sends one content-free cookie setup POST and then exactly one content-bearing transformation POST. Only the latter has a JSON body: exactly text, requested_mode, and schema_version with the fixed value 1.",
       rules: Object.freeze([
         "Only https://hah.dev/api/lattice with no query or fragment accepts the transformation request. Other paths return 404; other methods return 405 with Allow: POST; unsupported media types, origins, JSON, fields, modes, and versions are rejected before provider work.",
         "requested_mode accepts only auto, operative, or experiential. It guides classification but cannot override safety, semantic fidelity, accessibility, or better-supported evidence.",
-        "The client submits only after the user chooses Process with external service. Input edits, validation failures, modal opening, dismissal, and cancellation before submission cause no transformation request.",
-        "The browser sends no cookies or credentials, does not follow redirects, requests no storage cache, and has no provider origin in its connect-src policy.",
+        "The client submits only after the user chooses Process with external service. Input edits, validation failures, modal opening, dismissal, and cancellation before submission cause neither the cookie setup nor the transformation request.",
+        "Under one browser-wide lock, the browser first sends a content-free setup POST with same-origin credentials, no body, and no Content-Type to create or preserve one browser-owned opaque quota cookie. Only after a 204 response does it send exactly one content-bearing transformation POST. The cookie is named __Secure-hah-lattice-api-visitor, is HttpOnly, Secure, SameSite=Strict, scoped only to /api/lattice, expires at the next UTC-day boundary, and contains no source, result, account, fingerprint, or provider credential.",
+        "The service accepts at most 30 transformation requests globally per UTC day and 3 from one ordinary persistent cookie jar per UTC day. It does not use an IP address or browser fingerprint as a second identity. Blocking or clearing cookies, using private browsing, or changing profiles can reset the per-cookie-jar count, but not the global count.",
+        "The browser does not follow redirects, requests no storage cache, and has no provider origin in its connect-src policy. The setup POST has only its declared Accept header; the content-bearing POST has only Accept and Content-Type. The browser, not application JavaScript, manages the quota cookie.",
         "The Worker holds request data only for the bounded computation. Application code defines no database, object-store, cache, raw-content logger, analytics event, or background queue for source or result content.",
         "Success and error envelopes are closed and size-bounded. Timeouts, rate limits, upstream unavailability, malformed responses, and internal failures terminate with machine-readable errors; the browser does not retry automatically or route content elsewhere.",
       ]),
-      limitation: "The finite boundary limits what hah.dev sends and retains, but it cannot guarantee external-provider availability, processing behavior, or retention. A 429 or transient provider failure requires a new deliberate user submission. Ordinary infrastructure security metadata may still be processed without including application-authored raw content logs.",
+      limitation: "The finite boundary limits what hah.dev sends and retains, but it cannot guarantee external-provider availability, processing behavior, or retention. A 429 or transient provider failure requires a new deliberate user submission. The per-cookie-jar limit is an ordinary-browser control, not a claim that one person cannot clear or partition cookies; the exact global UTC-day limit remains authoritative. Ordinary infrastructure security metadata may still be processed without including application-authored raw content logs.",
       sources: Object.freeze([
         Object.freeze({ label: "Cloudflare Workers secrets", url: "https://developers.cloudflare.com/workers/configuration/secrets/" }),
         Object.freeze({ label: "Cloudflare Workers Request API", url: "https://developers.cloudflare.com/workers/runtime-apis/request/" }),
@@ -179,11 +182,12 @@ export const textToLatticeContract = Object.freeze({
     }),
   }),
   constraints: Object.freeze([
-    "This text leaves hah.dev only after the user explicitly chooses Process with external service; the browser sends one same-origin POST to /api/lattice with exactly {text, requested_mode, schema_version: 1}.",
+    "After the user explicitly chooses Process with external service, the browser sends one content-free cookie setup POST and then exactly one content-bearing POST to the same-origin /api/lattice path. Only the second contains this text or can initiate external-provider processing, and its body is exactly {text, requested_mode, schema_version: 1}.",
     "Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information.",
     "hah.dev application code does not retain source text, prompts, candidates, results, or raw provider responses in storage, logs, caches, queues, or analytics. The bounded Worker and browser keep only transient in-memory state needed for the request and display.",
     "Hugging Face, Featherless AI, and their infrastructure process the submitted content under their own policies; hah.dev does not claim that its application-level no-retention rule governs those external systems.",
     "The provider endpoint, provider, generator, and verifier are fixed server-side. There is no automatic provider or model fallback, and a terminal failure requires another deliberate submission.",
+    "The service admits at most 30 transformations globally per UTC day and 3 from one ordinary persistent cookie jar per UTC day. Its API-scoped opaque HttpOnly cookie contains no submitted content and expires at the next UTC-day boundary; no IP or browser fingerprint is used as a second quota identity.",
     "The active remote runtime may differ in weights, tokenizer behavior, kernels, numerical behavior, and serving configuration from the historical pinned MLC/WebGPU artifacts; byte-for-byte equivalence is not claimed.",
     "Canonical hah.dev pages, manifests, Markdown, JSON-LD, the sitemap, and the tool contract remain readable without JavaScript or conversion availability.",
     "Independent verification is limited to languages supported by both configured model families; unsupported text fails closed or is withheld for review.",

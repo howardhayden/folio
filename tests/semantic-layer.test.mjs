@@ -939,7 +939,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     assert.match(body, /same-origin (?:POST to |\/api\/lattice capability)|same-origin \/api\/lattice/iu);
     assert.match(body, /text leaves hah\.dev|sends server-created prompts containing the submitted text/iu);
     assert.match(body, /ordinary connection metadata/iu);
-    assert.match(body, /no cookies or credentials/iu);
+    assert.match(body, /opaque.*HttpOnly.*quota cookie|browser-owned API-scoped quota cookie/iu);
     assert.match(body, /inert data/iu);
     assert.match(body, /server-side encrypted Worker secret/iu);
     assert.match(body, /no automatic (?:browser )?retry|does not retry automatically/iu);

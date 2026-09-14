@@ -23,6 +23,7 @@ export const LATTICE_REMOTE_MODELS = Object.freeze({
 
 export const LATTICE_PROVIDER_CALL_TIMEOUT_MS = 60_000;
 export const LATTICE_PROVIDER_CALL_LIMIT = 32;
+export const LATTICE_PROVIDER_REQUEST_BYTE_LIMIT = 1_048_576;
 export const LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT = 262_144;
 export const LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT = 128_000;
 
@@ -263,6 +264,7 @@ export async function requestHuggingFaceJson({
   signal,
   fetchImpl = globalThis.fetch,
   callTimeoutMs = LATTICE_PROVIDER_CALL_TIMEOUT_MS,
+  maximumRequestBytes = LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   maximumResponseBytes = LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
 }) {
   if (typeof token !== "string" || !token.trim()) {
@@ -271,10 +273,35 @@ export async function requestHuggingFaceJson({
   if (!REMOTE_ROLES.has(role) || !Array.isArray(messages) || !record(schema)
     || typeof schemaName !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(schemaName)
     || !validPositiveInteger(maxTokens) || !validPositiveInteger(callTimeoutMs)
+    || !validPositiveInteger(maximumRequestBytes)
     || !validPositiveInteger(maximumResponseBytes) || typeof fetchImpl !== "function"
     || !Number.isFinite(temperature) || temperature < 0 || temperature > 2
     || !Number.isFinite(topP) || topP <= 0 || topP > 1) {
     throw new TypeError("The Lattice provider received an invalid server configuration.");
+  }
+
+  const providerRequestBody = JSON.stringify({
+    model: LATTICE_REMOTE_MODELS[role],
+    messages,
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: schemaName,
+        strict: true,
+        schema,
+      },
+    },
+    max_tokens: maxTokens,
+    temperature,
+    top_p: topP,
+    seed: 71_903,
+    stream: false,
+  });
+  if (new TextEncoder().encode(providerRequestBody).byteLength > maximumRequestBytes) {
+    throw providerError(
+      "provider_request_too_large",
+      "The Lattice provider request exceeded its byte limit.",
+    );
   }
 
   const deadline = linkedDeadline(signal, callTimeoutMs);
@@ -287,26 +314,12 @@ export async function requestHuggingFaceJson({
           ...JSON_HEADERS,
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          model: LATTICE_REMOTE_MODELS[role],
-          messages,
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: schemaName,
-              strict: true,
-              schema,
-            },
-          },
-          max_tokens: maxTokens,
-          temperature,
-          top_p: topP,
-          seed: 71_903,
-          stream: false,
-        }),
+        body: providerRequestBody,
         cache: "no-store",
         credentials: "omit",
-        redirect: "error",
+        // Workerd does not implement Fetch's `error` redirect mode. Manual
+        // mode exposes a 3xx response for the explicit rejection below.
+        redirect: "manual",
         referrerPolicy: "no-referrer",
         signal: deadline.signal,
       }));
@@ -328,6 +341,7 @@ export async function requestHuggingFaceJson({
       }
       if (response.redirected
         || response.type === "opaqueredirect"
+        || (response.status >= 300 && response.status < 400)
         || response.url && response.url !== HUGGING_FACE_CHAT_COMPLETIONS_URL) {
         discardResponseBody(response);
         throw providerError("provider_redirect", "The Lattice provider attempted an unexpected redirect.");
@@ -389,6 +403,7 @@ export function createHuggingFaceLatticeAdapter({
   requestedMode = "auto",
   fetchImpl = globalThis.fetch,
   callTimeoutMs = LATTICE_PROVIDER_CALL_TIMEOUT_MS,
+  maximumRequestBytes = LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   maximumResponseBytes = LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
 } = {}) {
   if (!REQUESTED_MODES.has(requestedMode)) {
@@ -415,6 +430,7 @@ export function createHuggingFaceLatticeAdapter({
       signal: request.signal,
       fetchImpl,
       callTimeoutMs,
+      maximumRequestBytes,
       maximumResponseBytes,
     });
     if (stageName === "analysis") {

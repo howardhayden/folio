@@ -30,7 +30,8 @@ test("fallback and explicit external submission are part of the semantic tool co
     constraint.includes("remain readable without JavaScript or conversion availability")
   ));
   const submissionConstraint = textToLatticeContract.constraints.find((constraint) => (
-    constraint.includes("one same-origin POST to /api/lattice")
+    constraint.includes("one content-free cookie setup POST and then exactly one content-bearing POST")
+      && constraint.includes("Only the second contains this text or can initiate external-provider processing")
   ));
   assert.ok(fallbackConstraint);
   assert.ok(submissionConstraint);
@@ -43,7 +44,7 @@ test("fallback and explicit external submission are part of the semantic tool co
   assert.ok(semanticConstraints.includes(submissionConstraint));
 
   assert.ok(textToLatticeContract.securityAndPrivacy.api.rules.some((rule) => (
-    rule.includes("modal opening, dismissal, and cancellation before submission cause no transformation request")
+    rule.includes("modal opening, dismissal, and cancellation before submission cause neither the cookie setup nor the transformation request")
   )));
   assert.ok(textToLatticeContract.securityAndPrivacy.api.rules.some((rule) => (
     rule.includes("browser does not retry automatically")

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { verifyTextToLatticeSecretBindings } from "../scripts/verify-text-to-lattice-secret-bindings.mjs";
 import {
+  RETIRED_TEXT_TO_LATTICE_SURFACES,
   TEXT_TO_LATTICE_ROUTE_INVENTORY,
   verifyTextToLatticeRouteInventory,
 } from "../scripts/verify-text-to-lattice-route-inventory.mjs";
@@ -14,6 +15,19 @@ import {
   installSecretPlan,
   secretBootstrapPlan,
 } from "../scripts/bootstrap-text-to-lattice-secrets.mjs";
+import {
+  installTextToLatticeApiSecretPlan,
+  textToLatticeApiSecretBootstrapPlan,
+} from "../scripts/bootstrap-text-to-lattice-api-secrets.mjs";
+import {
+  verifyTextToLatticeHeldPages,
+} from "../scripts/verify-text-to-lattice-held-pages.mjs";
+import {
+  TEXT_TO_LATTICE_QUALIFICATION_CLEANUP_LEAD_MS,
+  TEXT_TO_LATTICE_QUALIFICATION_WINDOW_MS,
+  planTextToLatticeQualificationWindow,
+  waitForTextToLatticeQualificationCleanup,
+} from "../scripts/plan-text-to-lattice-qualification-window.mjs";
 import {
   TEXT_TO_LATTICE_DOCUMENT_POLICY,
   applyTextToLatticeDocumentPolicy,
@@ -190,34 +204,48 @@ function fixtureFetch({
   };
 }
 
-test("the Pages graph keeps the client held while allowing an explicit remote-service qualification run", async () => {
+test("the Pages graph branches explicitly across held, qualification, and qualified phases", async () => {
   const workflow = await readFile(workflowPath, "utf8");
   assert.match(workflow, /workflow_dispatch:[\s\S]*?deploy_text_to_lattice_services:[\s\S]*?type: boolean/u);
+  assert.match(workflow, /activate_text_to_lattice_qualification:[\s\S]*?type: boolean/u);
   assert.match(
     workflow,
-    /needs\.publication-boundary\.outputs\.public_client_status == 'enabled' \|\|[\s\S]*?github\.event_name == 'push' &&[\s\S]*?contains\(github\.event\.head_commit\.message, '\[deploy-text-to-lattice-services\]'\)[\s\S]*?github\.event_name == 'workflow_dispatch' && inputs\.deploy_text_to_lattice_services == true/u,
+    /release_phase: \$\{\{ steps\.release-state\.outputs\.release_phase \}\}/u,
+  );
+  assert.match(
+    workflow,
+    /qualified_source_set_sha256: \$\{\{ steps\.release-state\.outputs\.qualified_source_set_sha256 \}\}/u,
+  );
+  assert.match(
+    workflow,
+    /release_phase == 'held' &&[\s\S]*?needs\.deploy_held\.result == 'success'[\s\S]*?github\.event_name == 'push' &&[\s\S]*?contains\(github\.event\.head_commit\.message, '\[deploy-text-to-lattice-services\]'\)[\s\S]*?github\.event_name == 'workflow_dispatch' &&[\s\S]*?inputs\.deploy_text_to_lattice_services == true[\s\S]*?release_phase == 'qualification-pending' &&[\s\S]*?github\.event_name == 'workflow_dispatch' &&[\s\S]*?inputs\.activate_text_to_lattice_qualification == true[\s\S]*?release_phase == 'qualified'/u,
   );
   assert.equal(
     [...workflow.matchAll(/github\.event_name == 'push'/gu)].length,
     1,
   );
   assert.match(workflow, /workers\/text-to-lattice-api\/wrangler\.jsonc/u);
-  assert.match(workflow, /HF_TOKEN.*encrypted Text to Lattice API Worker binding/su);
+  assert.match(
+    workflow,
+    /verify-text-to-lattice-secret-bindings\.mjs[\s\S]*?secret-bindings\.json/u,
+  );
   assert.doesNotMatch(workflow, /--require-official-test-profile|--allow-official-test-keys/u);
-  assert.doesNotMatch(workflow, /Deploy isolated verification frame|Deploy lease Worker|bootstrap-text-to-lattice-secrets|verify-text-to-lattice-secret-bindings|verify-text-to-lattice-services/u);
+  assert.doesNotMatch(workflow, /Deploy isolated verification frame|Deploy lease Worker|bootstrap-text-to-lattice-secrets|verify-text-to-lattice-services/u);
+  assert.match(workflow, /\n  deploy_held:\n[\s\S]*?Deploy held Pages[\s\S]*?verify-text-to-lattice-held-pages\.mjs/u);
+  assert.match(workflow, /\n  deploy:\n[\s\S]*?release_phase == 'qualified'[\s\S]*?activate_text_to_lattice_qualification == true/u);
+  assert.match(workflow, /\n  enforce_text_to_lattice_held_api:\n[\s\S]*?Deploy held Text to Lattice API disposition/u);
   assert.match(
     workflow,
-    /public_client_status == 'held' &&[\s\S]*?\["skipped", "success"\][\s\S]*?deploy_text_to_lattice_services\.result/u,
+    /needs: \[publication-boundary, build, build_qualification_rollback, deploy_text_to_lattice_services\]/u,
   );
-  assert.match(
-    workflow,
-    /public_client_status == 'enabled' &&[\s\S]*?deploy_text_to_lattice_services\.result == 'success'/u,
-  );
-  assert.match(workflow, /needs: \[publication-boundary, build, deploy_text_to_lattice_services\]/u);
   assert.doesNotMatch(workflow, /^concurrency:/mu);
   assert.match(
     workflow,
     /deploy_text_to_lattice_services:[\s\S]*?concurrency:\s*\n\s*group: text-to-lattice-services\s*\n\s*cancel-in-progress: false/u,
+  );
+  assert.match(
+    workflow,
+    /deploy_held:[\s\S]*?concurrency:\s*\n\s*group: pages\s*\n\s*cancel-in-progress: false/u,
   );
   assert.match(
     workflow,
@@ -270,22 +298,368 @@ test("the pinned Wrangler secret inventory uses its supported JSON flag", async 
   assert.doesNotMatch(workflow, /wrangler secret list --json/u);
 });
 
-test("the service job deploys only the API and response policy before its bounded probe and Pages", async () => {
+test("the service graph proves held publication, qualifies reversibly, and restores held on every failure boundary", async () => {
   const workflow = await readFile(workflowPath, "utf8");
-  const bindingInspect = workflow.indexOf("Inspect Text to Lattice API encrypted binding names");
-  const bindingRequire = workflow.indexOf("Require the server-only provider credential binding");
+  const heldPagesDeploy = workflow.indexOf("Deploy held Pages");
+  const heldPagesVerify = workflow.indexOf("Verify the live public Pages artifact is held");
+  const heldPreflight = workflow.indexOf("Verify live Pages is held before preactivation service mutation");
+  const heldBootstrap = workflow.indexOf("Bootstrap held Text to Lattice API surface");
+  const bindingInspect = workflow.indexOf("Inspect Text to Lattice API encrypted binding names before bootstrap");
+  const secretBootstrap = workflow.indexOf("Preserve provider credential and bootstrap only a missing visitor-cookie secret");
+  const bindingFinal = workflow.indexOf("Inspect final Text to Lattice API encrypted binding names");
+  const bindingRequire = workflow.indexOf("Require the exact provider and visitor-cookie encrypted bindings");
   const apiDeploy = workflow.indexOf("Deploy bounded Text to Lattice API");
   const policyDeploy = workflow.indexOf("Deploy résumé response policy");
+  const deploymentInspect = workflow.indexOf("Inspect deployed Worker versions");
+  const preactivationRoutes = workflow.indexOf("Verify reversible preactivation route ownership");
+  const activeVersionRead = workflow.indexOf("read-text-to-lattice-active-version.mjs");
+  const activeVersionInspect = workflow.indexOf("wrangler versions view");
   const liveProbe = workflow.indexOf("Verify deployed Text to Lattice API boundary");
-  const pagesDeploy = workflow.lastIndexOf("uses: actions/deploy-pages@");
-  assert.ok(bindingInspect > 0);
-  assert.ok(bindingInspect < bindingRequire);
+  const retirement = workflow.indexOf("Retire exact legacy entry surfaces only after qualification");
+  const finalRoutes = workflow.indexOf("Verify exact active and retired Text to Lattice routes");
+  const evidenceAssembly = workflow.indexOf("Assemble sanitized Text to Lattice deployment evidence");
+  const postServiceGuard = workflow.indexOf("Require current main after service verification");
+  const successfulRestoration = workflow.indexOf("Return successfully qualified held API to held mode");
+  const rollback = workflow.indexOf("Roll back Text to Lattice API to held mode");
+  const artifactUpload = workflow.indexOf("Retain sanitized Text to Lattice deployment evidence");
+  const pagesDeploy = workflow.indexOf("Deploy interactive Pages");
+  const heldEnforcementStart = workflow.indexOf("\n  enforce_text_to_lattice_held_api:\n");
+  const heldEnforcement = workflow.slice(heldEnforcementStart);
+  const apiDeployStep = workflow.slice(apiDeploy, policyDeploy);
+  const policyDeployStep = workflow.slice(policyDeploy, deploymentInspect);
+  const retirementStep = workflow.slice(retirement, finalRoutes);
+  assert.ok(heldPagesDeploy > 0 && heldPagesDeploy < heldPagesVerify);
+  assert.ok(heldPagesVerify < heldPreflight && heldPreflight < heldBootstrap);
+  assert.ok(heldBootstrap < bindingInspect);
+  assert.ok(bindingInspect < secretBootstrap);
+  assert.ok(secretBootstrap < bindingFinal && bindingFinal < bindingRequire);
   assert.ok(bindingRequire < apiDeploy);
-  assert.ok(apiDeploy < liveProbe);
-  assert.ok(liveProbe < policyDeploy);
-  assert.ok(policyDeploy > 0);
+  assert.ok(apiDeploy < policyDeploy);
+  assert.ok(policyDeploy < deploymentInspect);
+  assert.ok(deploymentInspect < activeVersionRead);
+  assert.ok(activeVersionRead < activeVersionInspect);
+  assert.ok(activeVersionInspect < preactivationRoutes);
+  assert.ok(preactivationRoutes < liveProbe);
+  assert.ok(policyDeploy < liveProbe);
+  assert.ok(liveProbe < retirement, "legacy surfaces stay intact through reversible live verification");
+  assert.ok(retirement < finalRoutes && finalRoutes < evidenceAssembly);
+  assert.ok(evidenceAssembly < postServiceGuard);
+  assert.ok(postServiceGuard < successfulRestoration && successfulRestoration < rollback);
+  assert.ok(rollback < artifactUpload);
   assert.ok(policyDeploy < pagesDeploy);
+  assert.match(workflow, /needs\.deploy_held\.result == 'success'/u);
+  assert.match(
+    workflow,
+    /needs: \[publication-boundary, build, build_qualification_rollback, deploy_held\]/u,
+  );
+  assert.match(workflow, /verify-text-to-lattice-held-pages\.mjs/u);
+  assert.match(workflow, /bootstrap-text-to-lattice-api-secrets\.mjs/u);
+  assert.match(workflow, /node scripts\/verify-text-to-lattice-api-production\.mjs/u);
+  assert.match(
+    apiDeployStep,
+    /if \[\[ "\$RELEASE_PHASE" != "qualified" \]\]; then[\s\S]*?--var "LATTICE_QUALIFICATION_EXPIRES_AT:\$QUALIFICATION_EXPIRES_AT"[\s\S]*?else[\s\S]*?wrangler deploy \\\n\s+--config workers\/text-to-lattice-api\/wrangler\.jsonc/u,
+  );
+  assert.equal(
+    (apiDeployStep.match(/LATTICE_QUALIFICATION_EXPIRES_AT:/gu) ?? []).length,
+    1,
+    "qualified deployment must omit the expiring qualification binding",
+  );
+  assert.match(
+    policyDeployStep,
+    /if: \$\{\{ needs\.publication-boundary\.outputs\.release_phase != 'qualified' \}\}[\s\S]*?wrangler deploy/u,
+  );
+  assert.match(
+    retirementStep,
+    /if: \$\{\{ needs\.publication-boundary\.outputs\.release_phase == 'qualified' \}\}[\s\S]*?retire-text-to-lattice-legacy-surfaces\.mjs[\s\S]*?--apply[\s\S]*?retirement\.json/u,
+  );
+  assert.equal(workflow.match(/--apply/gu)?.length, 1);
+  assert.match(workflow, /wrangler versions view "\$API_VERSION_ID" --json/u);
+  assert.match(workflow, /--api-version[\s\S]*?text-to-lattice-api-version\.raw\.json/u);
+  assert.match(workflow, /node scripts\/build-text-to-lattice-deployment-evidence\.mjs/u);
+  assert.match(workflow, /pages_artifact_id: \$\{\{ steps\.pages-artifact\.outputs\.artifact_id \}\}/u);
+  assert.match(workflow, /site_artifact_sha256: \$\{\{ steps\.site-artifact\.outputs\.sha256 \}\}/u);
+  assert.match(
+    workflow,
+    /qualified_source_set_sha256: \$\{\{ steps\.verified-source-state\.outputs\.qualified_source_set_sha256 \}\}/u,
+  );
+  assert.match(workflow, /hash-regular-file-sha256\.mjs[\s\S]*?"\$RUNNER_TEMP\/artifact\.tar"[\s\S]*?--github-output/u);
+  assert.match(workflow, /actions: read[\s\S]*?resolve-github-actions-job-id\.mjs[\s\S]*?--job-name[\s\S]*?"Qualify or verify Text to Lattice services"/u);
+  assert.match(workflow, /--service-job-id[\s\S]*?"\$\{\{ steps\.service-job\.outputs\.service_job_id \}\}"/u);
+  assert.match(workflow, /--pages-artifact-id[\s\S]*?"\$\{\{ needs\.build\.outputs\.pages_artifact_id \}\}"/u);
+  assert.match(workflow, /--site-artifact-sha256[\s\S]*?"\$\{\{ needs\.build\.outputs\.site_artifact_sha256 \}\}"/u);
+  assert.match(workflow, /--qualified-source-set-sha256[\s\S]*?"\$\{\{ needs\.build\.outputs\.qualified_source_set_sha256 \}\}"/u);
+  assert.match(workflow, /workers\/text-to-lattice-api\/held\.js/u);
+  assert.match(workflow, /node scripts\/verify-text-to-lattice-held-api\.mjs/u);
+  assert.match(
+    workflow,
+    /Return successfully qualified held API to held mode[\s\S]*?if: \$\{\{ success\(\) && needs\.publication-boundary\.outputs\.release_phase == 'held' \}\}[\s\S]*?workers\/text-to-lattice-api\/held\.js/u,
+  );
+  assert.match(
+    workflow,
+    /Require current main before failure rollback[\s\S]*?id: current-main-before-failure-rollback[\s\S]*?if: \$\{\{ failure\(\) \|\| cancelled\(\) \}\}[\s\S]*?run: node scripts\/verify-current-main-sha\.mjs[\s\S]*?Roll back Text to Lattice API to held mode[\s\S]*?\(failure\(\) \|\| cancelled\(\)\) &&[\s\S]*?steps\.current-main-before-failure-rollback\.outcome == 'success'/u,
+  );
+  assert.match(
+    workflow,
+    /if: \$\{\{ \(failure\(\) \|\| cancelled\(\)\) && steps\.held-api-rollback\.outcome == 'success' \}\}/u,
+  );
+  assert.doesNotMatch(workflow, /steps\.deploy-lattice-api\.outputs\.attempted == 'true'/u);
+  assert.match(workflow, /enforce_text_to_lattice_held_api:[\s\S]*?needs\.deploy\.result != 'success'[\s\S]*?Require current main immediately before held API enforcement[\s\S]*?Deploy held Text to Lattice API disposition/u);
+  assert.match(
+    heldEnforcement,
+    /Verify live held Pages before routine API enforcement[\s\S]*?continue-on-error: true[\s\S]*?needs\.deploy_held\.result == 'success'[\s\S]*?release_phase == 'qualification-pending' &&[\s\S]*?needs\.deploy_text_to_lattice_services\.result == 'skipped'[\s\S]*?verify-text-to-lattice-held-pages\.mjs/u,
+  );
+  assert.match(
+    heldEnforcement,
+    /sole Cloudflare mutation below is the emergency fail-closed API shutdown/u,
+  );
+  assert.equal((heldEnforcement.match(/wrangler deploy(?:\s|$)/gmu) ?? []).length, 1,
+    "publication failure cleanup may only shut down the API");
+  assert.match(heldEnforcement, /wrangler deploy[\s\S]*?workers\/text-to-lattice-api\/held\.js/u);
+  assert.doesNotMatch(heldEnforcement, /secret bulk|retire-text-to-lattice-legacy-surfaces\.mjs|--apply/u);
+  assert.match(workflow, /if: \$\{\{ always\(\) \}\}[\s\S]*?actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/u);
   assert.doesNotMatch(workflow, /text-to-lattice-attestation-frame\/wrangler\.jsonc|text-to-lattice-lease\/wrangler\.jsonc/u);
+});
+
+test("deployment evidence receives one source identity recomputed after full release verification", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const publicationStart = workflow.indexOf("\n  publication-boundary:\n");
+  const buildStart = workflow.indexOf("\n  build:\n", publicationStart);
+  const serviceStart = workflow.indexOf("\n  deploy_text_to_lattice_services:\n", buildStart);
+  const deployStart = workflow.indexOf("\n  deploy:\n", serviceStart);
+  const publication = workflow.slice(publicationStart, buildStart);
+  const build = workflow.slice(buildStart, serviceStart);
+  const service = workflow.slice(serviceStart, deployStart);
+
+  assert.match(
+    publication,
+    /qualified_source_set_sha256: \$\{\{ steps\.release-state\.outputs\.qualified_source_set_sha256 \}\}[\s\S]*?id: release-state[\s\S]*?read-text-to-lattice-release-state\.mjs/u,
+  );
+  assert.match(
+    build,
+    /qualified_source_set_sha256: \$\{\{ steps\.verified-source-state\.outputs\.qualified_source_set_sha256 \}\}/u,
+  );
+  const fullReleaseVerification = build.indexOf("run: npm run release:lattice:verify:site");
+  const verifiedSourceExport = build.indexOf("id: verified-source-state");
+  const artifactUpload = build.indexOf("- name: Upload Pages artifact");
+  assert.ok(
+    fullReleaseVerification >= 0
+      && verifiedSourceExport > fullReleaseVerification
+      && artifactUpload > verifiedSourceExport,
+    "the build may export its digest only after full source/site verification and before artifact upload",
+  );
+  assert.match(
+    service,
+    /Require one fully verified candidate source identity[\s\S]*?BUILD_SOURCE_SHA256: \$\{\{ needs\.build\.outputs\.qualified_source_set_sha256 \}\}[\s\S]*?PUBLICATION_SOURCE_SHA256: \$\{\{ needs\.publication-boundary\.outputs\.qualified_source_set_sha256 \}\}[\s\S]*?BUILD_SOURCE_SHA256 !== process\.env\.PUBLICATION_SOURCE_SHA256/u,
+  );
+  assert.ok(
+    service.indexOf("Require one fully verified candidate source identity")
+      < service.indexOf("Install pinned Worker deployment tooling"),
+    "source-identity disagreement must stop before any deployment tooling or Cloudflare mutation",
+  );
+  assert.match(
+    service,
+    /--qualified-source-set-sha256 "\$\{\{ needs\.build\.outputs\.qualified_source_set_sha256 \}\}"/u,
+  );
+});
+
+test("qualification activation is evidence-bound and cleans up API before held Pages", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const rollbackStart = workflow.indexOf("\n  build_qualification_rollback:\n");
+  const serviceStart = workflow.indexOf("\n  deploy_text_to_lattice_services:\n");
+  const activePagesStart = workflow.indexOf("\n  deploy:\n", serviceStart);
+  const waitStart = workflow.indexOf("\n  wait_for_text_to_lattice_qualification_expiry:\n", activePagesStart);
+  const apiCleanupStart = workflow.indexOf("\n  expire_text_to_lattice_qualification_api:\n", waitStart);
+  const pagesCleanupStart = workflow.indexOf("\n  expire_text_to_lattice_qualification_pages:\n", apiCleanupStart);
+  const enforcementStart = workflow.indexOf("\n  enforce_text_to_lattice_held_api:\n", pagesCleanupStart);
+  assert.ok(
+    rollbackStart > 0 && serviceStart > rollbackStart && activePagesStart > serviceStart
+      && waitStart > activePagesStart && apiCleanupStart > waitStart
+      && pagesCleanupStart > apiCleanupStart && enforcementStart > pagesCleanupStart,
+  );
+
+  const rollback = workflow.slice(rollbackStart, serviceStart);
+  const service = workflow.slice(serviceStart, activePagesStart);
+  const activePages = workflow.slice(activePagesStart, waitStart);
+  const waitJob = workflow.slice(waitStart, apiCleanupStart);
+  const apiCleanup = workflow.slice(apiCleanupStart, pagesCleanupStart);
+  const pagesCleanup = workflow.slice(pagesCleanupStart, enforcementStart);
+  const enforcement = workflow.slice(enforcementStart);
+
+  assert.match(rollback, /github\.event_name == 'workflow_dispatch'[\s\S]*?inputs\.activate_text_to_lattice_qualification == true/u);
+  assert.match(rollback, /fetch-depth: 2[\s\S]*?git worktree add --detach[\s\S]*?"\$GITHUB_SHA\^"/u);
+  assert.match(rollback, /ROLLBACK_RELEASE_PHASE !== "held"[\s\S]*?ROLLBACK_PUBLIC_CLIENT_STATUS !== "held"/u);
+  assert.match(rollback, /working-directory: \$\{\{ runner\.temp \}\}\/text-to-lattice-held-rollback-source[\s\S]*?npm run build:pages/u);
+  assert.match(rollback, /Require current main before held rollback artifact upload[\s\S]*?Upload verified held Pages rollback artifact/u);
+  assert.match(rollback, /name: text-to-lattice-held-rollback-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/u);
+
+  assert.match(service, /release_phase == 'qualification-pending'[\s\S]*?needs\.build_qualification_rollback\.result == 'success'[\s\S]*?outputs\.held_pages_artifact_id != ''[\s\S]*?outputs\.held_pages_artifact_sha256 != ''[\s\S]*?inputs\.activate_text_to_lattice_qualification == true/u);
+  assert.match(service, /Establish the absolute bounded active-service expiry[\s\S]*?release_phase != 'qualified'[\s\S]*?Require current main before active API deployment[\s\S]*?Deploy bounded Text to Lattice API/u);
+  assert.match(service, /if \[\[ "\$RELEASE_PHASE" != "qualified" \]\]; then[\s\S]*?--var "LATTICE_QUALIFICATION_EXPIRES_AT:\$QUALIFICATION_EXPIRES_AT"/u);
+  assert.match(service, /if \[\[ "\$RELEASE_PHASE" != "qualified" \]\]; then[\s\S]*?--qualification-expires-at "\$QUALIFICATION_EXPIRES_AT"/u);
+  assert.match(service, /Retire exact legacy entry surfaces only after qualification[\s\S]*?release_phase == 'qualified'/u);
+  assert.match(activePages, /needs\.build_qualification_rollback\.result == 'success'[\s\S]*?outputs\.held_pages_artifact_id != ''[\s\S]*?outputs\.held_pages_artifact_sha256 != ''[\s\S]*?inputs\.activate_text_to_lattice_qualification == true/u);
+
+  assert.doesNotMatch(waitJob, /^\s*environment:|^\s*concurrency:/mu);
+  assert.match(waitJob, /plan-text-to-lattice-qualification-window\.mjs[\s\S]*?--wait-until[\s\S]*?qualification_cleanup_at/u);
+  assert.match(apiCleanup, /needs\.wait_for_text_to_lattice_qualification_expiry\.result == 'success'/u);
+  assert.match(apiCleanup, /Require current main before bounded qualification API shutdown[\s\S]*?Deploy held API at the bounded qualification cleanup point[\s\S]*?workers\/text-to-lattice-api\/held\.js[\s\S]*?verify-text-to-lattice-held-api\.mjs/u);
+  assert.doesNotMatch(apiCleanup, /actions\/deploy-pages@|retire-text-to-lattice-legacy-surfaces\.mjs|--apply/u);
+  assert.match(pagesCleanup, /outputs\.held_pages_artifact_id != ''[\s\S]*?outputs\.held_pages_artifact_sha256 != ''[\s\S]*?needs\.expire_text_to_lattice_qualification_api\.outputs\.held_api_verified == 'true'/u);
+  assert.match(pagesCleanup, /Require current main before bounded qualification Pages rollback[\s\S]*?actions\/deploy-pages@[\s\S]*?artifact_name: text-to-lattice-held-rollback-[\s\S]*?verify-text-to-lattice-held-pages\.mjs/u);
+  assert.doesNotMatch(pagesCleanup, /wrangler deploy|retire-text-to-lattice-legacy-surfaces\.mjs|--apply/u);
+  assert.match(enforcement, /needs\.publication-boundary\.result != 'success'/u);
+  assert.match(enforcement, /needs\.deploy\.result != 'success'/u);
+});
+
+test("the qualification window is absolute, bounded, and schedules cleanup with safety lead", async () => {
+  const origin = new Date("2026-09-14T17:00:00.000Z");
+  const plan = planTextToLatticeQualificationWindow({ now: () => origin });
+  assert.deepEqual(plan, {
+    qualificationPlannedAt: "2026-09-14T17:00:00.000Z",
+    qualificationExpiresAt: "2026-09-14T17:30:00.000Z",
+    qualificationCleanupAt: "2026-09-14T17:24:00.000Z",
+  });
+  assert.equal(
+    new Date(plan.qualificationExpiresAt).valueOf() - origin.valueOf(),
+    TEXT_TO_LATTICE_QUALIFICATION_WINDOW_MS,
+  );
+  assert.equal(
+    new Date(plan.qualificationExpiresAt).valueOf()
+      - new Date(plan.qualificationCleanupAt).valueOf(),
+    TEXT_TO_LATTICE_QUALIFICATION_CLEANUP_LEAD_MS,
+  );
+
+  const waits = [];
+  assert.equal(await waitForTextToLatticeQualificationCleanup(
+    plan.qualificationCleanupAt,
+    {
+      now: () => new Date("2026-09-14T17:20:00.000Z"),
+      wait: async (milliseconds) => { waits.push(milliseconds); },
+    },
+  ), 4 * 60 * 1000);
+  assert.deepEqual(waits, [4 * 60 * 1000]);
+  await assert.rejects(
+    waitForTextToLatticeQualificationCleanup("2026-09-14T18:00:00.000Z", {
+      now: () => origin,
+      wait: async () => {},
+    }),
+    /exceeds the bounded qualification window/u,
+  );
+});
+
+test("pull requests run the full validation boundary without production credentials or deployment", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  assert.match(workflow, /pull_request:\s*\n\s*branches: \[main\]/u);
+  const start = workflow.indexOf("  pull-request-validation:");
+  const end = workflow.indexOf("\n  publication-boundary:", start);
+  assert.ok(start > 0 && end > start);
+  const validation = workflow.slice(start, end);
+  for (const command of [
+    "npm ci --ignore-scripts",
+    "tests/lattice-network-capability.test.mjs",
+    "tests/lattice-network-governance.test.mjs",
+    "tests/lattice-api-worker.test.mjs",
+    "tests/lattice-production-api-verifier.test.mjs",
+    "npm run lint",
+    "npm run typecheck",
+    "npm test",
+    "npm run release:lattice:verify:site",
+  ]) assert.ok(validation.includes(command), command);
+  assert.doesNotMatch(validation, /CLOUDFLARE|secrets\.|environment:|wrangler deploy|deploy-pages|upload-pages-artifact/u);
+  assert.match(validation, /permissions:\s*\n\s*contents: read/u);
+});
+
+test("live held-Pages preflight proves the public held module and excludes the interactive surface", async () => {
+  const requests = [];
+  const evidence = await verifyTextToLatticeHeldPages({
+    attempts: 1,
+    now: () => new Date("2026-09-14T16:30:00.000Z"),
+    async fetchImpl(url, init) {
+      requests.push({ url, init });
+      return new Response([
+        "<!doctype html><html><head>",
+        '<link rel="modulepreload" href="/_next/static/chunks/ResumeProjectsHeld-Abc_123.js">',
+        "</head><body>",
+        "Text to Lattice remains held while deployment and end-to-end privacy evidence for the remote-provider candidate are incomplete.",
+        "</body></html>",
+      ].join(""), {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    },
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, "https://hah.dev/resume/");
+  assert.equal(requests[0].init.credentials, "omit");
+  assert.equal(requests[0].init.redirect, "error");
+  assert.deepEqual(evidence, {
+    format: "TEXT_TO_LATTICE_HELD_PAGES_EVIDENCE",
+    schemaVersion: 1,
+    verifiedAt: "2026-09-14T16:30:00.000Z",
+    url: "https://hah.dev/resume/",
+    httpStatus: 200,
+    responseBytes: evidence.responseBytes,
+    attemptCount: 1,
+    heldCopyPresent: true,
+    heldModulePresent: true,
+    interactiveSurfaceAbsent: true,
+    responseBodyRetained: false,
+  });
+  assert.ok(evidence.responseBytes > 0);
+});
+
+test("live held-Pages preflight settles propagation but never accepts an interactive module", async () => {
+  let attempts = 0;
+  let waits = 0;
+  const heldDocument = [
+    '<link rel="modulepreload" href="/_next/static/chunks/ResumeProjectsHeld-final.js">',
+    "Text to Lattice remains held while deployment and end-to-end privacy evidence for the remote-provider candidate are incomplete.",
+  ].join("");
+  const evidence = await verifyTextToLatticeHeldPages({
+    attempts: 2,
+    intervalMs: 0,
+    wait: async () => { waits += 1; },
+    async fetchImpl() {
+      attempts += 1;
+      return new Response(attempts === 1
+        ? '<link rel="modulepreload" href="/_next/static/chunks/ResumeProjects-active.js"><button aria-label="Use Text to Lattice">Use</button>'
+        : heldDocument, {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    },
+  });
+  assert.equal(evidence.attemptCount, 2);
+  assert.equal(waits, 1);
+
+  await assert.rejects(verifyTextToLatticeHeldPages({
+    attempts: 1,
+    async fetchImpl() {
+      return new Response(`${heldDocument}<div id="lattice-demo-dialog"></div>`, {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    },
+  }), /interactive Text to Lattice surface remains/u);
+});
+
+test("live held-Pages preflight bounds an undeclared streaming response", async () => {
+  const chunk = new Uint8Array(1024 * 1024 + 1);
+  await assert.rejects(verifyTextToLatticeHeldPages({
+    attempts: 1,
+    async fetchImpl() {
+      return new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(chunk);
+          controller.enqueue(chunk);
+          controller.close();
+        },
+      }), {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    },
+  }), /résumé document exceeded its response-size boundary/u);
 });
 
 test("the exact-route edge policy and in-document fallback avoid a portfolio-wide Worker route", async () => {
@@ -449,37 +823,156 @@ test("secret bootstrap refuses an ambiguous bulk plan before invoking Wrangler",
   assert.equal(calls, 0);
 });
 
-test("encrypted binding inspection accepts only the four separated runtime values", () => {
-  const exact = [
-    { name: "VISITOR_COOKIE_SECRET", type: "secret_text" },
-    { name: "LEASE_CREDENTIAL_SECRET", type: "secret_text" },
-    { name: "TURNSTILE_SECRET_KEY", type: "secret_text" },
-    { name: "TURNSTILE_SITE_KEY", type: "secret_text" },
-  ];
-  assert.doesNotThrow(() => verifyTextToLatticeSecretBindings(exact));
+test("API secret bootstrap preserves the provider credential and generates only a missing visitor secret", () => {
+  let randomCalls = 0;
+  const randomBytesImpl = (length) => {
+    randomCalls += 1;
+    assert.equal(length, 48);
+    return new Uint8Array(48).fill(7);
+  };
   assert.throws(
-    () => verifyTextToLatticeSecretBindings(exact.slice(1)),
-    /exactly the four documented encrypted bindings/u,
+    () => textToLatticeApiSecretBootstrapPlan([], { randomBytesImpl }),
+    /HF_TOKEN must be provisioned/u,
+  );
+  assert.equal(randomCalls, 0, "missing provider authority must fail before generating another secret");
+
+  const plan = textToLatticeApiSecretBootstrapPlan([
+    { name: "HF_TOKEN", type: "secret_text" },
+  ], { randomBytesImpl });
+  assert.equal(randomCalls, 1);
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].name, "VISITOR_COOKIE_SECRET");
+  assert.equal(plan[0].source, "generated-private");
+  assert.ok(plan[0].value.length >= 64);
+  assert.deepEqual(textToLatticeApiSecretBootstrapPlan([
+    { name: "HF_TOKEN", type: "secret_text" },
+    { name: "VISITOR_COOKIE_SECRET", type: "secret_text" },
+  ], { randomBytesImpl }), []);
+  assert.equal(randomCalls, 1, "complete bindings must remain byte-opaque and unchanged");
+  assert.throws(
+    () => textToLatticeApiSecretBootstrapPlan([
+      { name: "HF_TOKEN", type: "secret_text" },
+      { name: "UNREVIEWED_SECRET", type: "secret_text" },
+    ], { randomBytesImpl }),
+    /Unexpected encrypted binding/u,
   );
   assert.throws(
-    () => verifyTextToLatticeSecretBindings([...exact, { name: "UNREVIEWED_SECRET" }]),
-    /exactly the four documented encrypted bindings/u,
+    () => textToLatticeApiSecretBootstrapPlan([
+      { name: "HF_TOKEN", type: "plain_text" },
+    ], { randomBytesImpl }),
+    /malformed encrypted-binding inventory/u,
   );
 });
 
-test("protected route inspection accepts only each Text to Lattice Worker's exact inventory", async () => {
+test("API secret bootstrap installs one generated visitor secret without exposing or replacing HF_TOKEN", () => {
+  const calls = [];
+  installTextToLatticeApiSecretPlan([{
+    name: "VISITOR_COOKIE_SECRET",
+    source: "generated-private",
+    value: "v".repeat(64),
+  }], {
+    wranglerPath: "/pinned/wrangler",
+    configPath: "workers/text-to-lattice-api/wrangler.jsonc",
+    env: { CLOUDFLARE_ACCOUNT_ID: "account" },
+    spawn: (...argumentsList) => {
+      calls.push(argumentsList);
+      return { status: 0 };
+    },
+  });
+  assert.equal(calls.length, 1);
+  const [command, argumentsList, options] = calls[0];
+  assert.equal(command, "/pinned/wrangler");
+  assert.deepEqual(argumentsList, [
+    "secret",
+    "put",
+    "VISITOR_COOKIE_SECRET",
+    "--config",
+    "workers/text-to-lattice-api/wrangler.jsonc",
+  ]);
+  assert.equal(options.input, `${"v".repeat(64)}\n`);
+  assert.doesNotMatch(options.input, /HF_TOKEN/u);
+  assert.doesNotMatch(argumentsList.join(" "), /HF_TOKEN|v{8}/u);
+  let refusedCalls = 0;
+  assert.throws(() => installTextToLatticeApiSecretPlan([{
+    name: "HF_TOKEN",
+    source: "generated-private",
+    value: "x".repeat(64),
+  }], {
+    wranglerPath: "/pinned/wrangler",
+    configPath: "workers/text-to-lattice-api/wrangler.jsonc",
+    spawn: () => {
+      refusedCalls += 1;
+      return { status: 0 };
+    },
+  }), /only one generated visitor-cookie signing binding/u);
+  assert.equal(refusedCalls, 0);
+});
+
+test("encrypted binding inspection accepts exactly the provider and visitor-cookie credentials", () => {
+  const exact = [
+    { name: "HF_TOKEN", type: "secret_text" },
+    { name: "VISITOR_COOKIE_SECRET", type: "secret_text" },
+  ];
+  assert.deepEqual(
+    verifyTextToLatticeSecretBindings(exact),
+    {
+      format: "TEXT_TO_LATTICE_SECRET_BINDING_EVIDENCE",
+      schemaVersion: 1,
+      worker: "hahdev-text-to-lattice-api",
+      bindings: exact,
+      valuesRead: false,
+    },
+  );
+  assert.throws(
+    () => verifyTextToLatticeSecretBindings([]),
+    /exactly the HF_TOKEN and VISITOR_COOKIE_SECRET encrypted bindings/u,
+  );
+  assert.throws(
+    () => verifyTextToLatticeSecretBindings([...exact, { name: "UNREVIEWED_SECRET", type: "secret_text" }]),
+    /exactly the HF_TOKEN and VISITOR_COOKIE_SECRET encrypted bindings/u,
+  );
+  assert.throws(
+    () => verifyTextToLatticeSecretBindings([{ name: "HF_TOKEN", type: "plain_text" }]),
+    /exactly the HF_TOKEN and VISITOR_COOKIE_SECRET encrypted bindings/u,
+  );
+  assert.throws(
+    () => verifyTextToLatticeSecretBindings([null]),
+    /malformed secret-name inventory entry/u,
+  );
+});
+
+test("protected route inspection records exact active and held-retirement inventories", async () => {
   const zoneId = "a".repeat(32);
+  const accountId = "d".repeat(32);
   const requested = [];
-  await verifyTextToLatticeRouteInventory({
+  const evidence = await verifyTextToLatticeRouteInventory({
+    accountId,
     apiToken: "protected-route-read-token",
     async fetchImpl(url, init) {
       requested.push({ url, init });
       if (url.includes("/zones?")) {
-        return jsonResponse(200, { success: true, result: [{ id: zoneId, name: "hah.dev" }] });
+        return jsonResponse(200, {
+          success: true,
+          result: [{ id: zoneId, name: "hah.dev", status: "active" }],
+        });
+      }
+      if (url.includes("/workers/domains")) {
+        return jsonResponse(200, {
+          success: true,
+          result: [{
+            hostname: "verify.hah.dev",
+            service: "hahdev-text-to-lattice-attestation-frame",
+            environment: "production",
+          }],
+        });
       }
       const result = Object.entries(TEXT_TO_LATTICE_ROUTE_INVENTORY).flatMap(
         ([script, patterns]) => patterns.map((pattern) => ({ pattern, script })),
       );
+      result.push({
+        pattern: RETIRED_TEXT_TO_LATTICE_SURFACES["hahdev-text-to-lattice-lease"].routes[0],
+        script: "hahdev-text-to-lattice-lease",
+      });
       result.push({ pattern: "hah.dev/unrelated-exclusion*" });
       return jsonResponse(200, {
         success: true,
@@ -487,21 +980,109 @@ test("protected route inspection accepts only each Text to Lattice Worker's exac
       });
     },
   });
-  assert.equal(requested.length, 2);
+  assert.equal(requested.length, 3);
   assert.match(requested[0].url, /\/zones\?name=hah\.dev&status=active&per_page=50$/u);
-  assert.equal(requested[1].url, `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`);
+  assert.ok(requested.some(({ url }) => url === `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`));
+  assert.ok(requested.some(({ url }) => url === `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/domains`));
   assert.ok(requested.every(({ init }) => init.headers.Authorization === "Bearer protected-route-read-token"));
   assert.ok(requested.every(({ init }) => init.credentials === "omit" && init.redirect === "error"));
+  assert.equal(evidence.releasePhase, "held");
+  assert.deepEqual(evidence.active.map(({ script }) => script).sort(), Object.keys(TEXT_TO_LATTICE_ROUTE_INVENTORY).sort());
+  assert.ok(evidence.retired.every(({ requiredDisposition }) => requiredDisposition === "remove-only-after-successful-qualification"));
+  assert.ok(evidence.retired.every(({ status }) => status === "retirement-required"));
+  assert.equal(evidence.unrelatedRouteCount, 1);
+});
+
+test("protected route inspection preserves legacy surfaces for qualification and requires retirement once qualified", async () => {
+  const zoneId = "e".repeat(32);
+  const fixture = async (url) => {
+    if (url.includes("/zones?")) {
+      return jsonResponse(200, {
+        success: true,
+        result: [{ id: zoneId, name: "hah.dev", status: "active" }],
+      });
+    }
+    if (url.includes("/workers/domains")) {
+      return jsonResponse(200, {
+        success: true,
+        result: [{
+          hostname: "verify.hah.dev",
+          service: "hahdev-text-to-lattice-attestation-frame",
+        }],
+      });
+    }
+    return jsonResponse(200, {
+      success: true,
+      result: [
+        ...Object.entries(TEXT_TO_LATTICE_ROUTE_INVENTORY).flatMap(
+          ([script, patterns]) => patterns.map((pattern) => ({ pattern, script })),
+        ),
+        {
+          pattern: RETIRED_TEXT_TO_LATTICE_SURFACES["hahdev-text-to-lattice-lease"].routes[0],
+          script: "hahdev-text-to-lattice-lease",
+        },
+      ],
+    });
+  };
+  const pending = await verifyTextToLatticeRouteInventory({
+    accountId: "f".repeat(32),
+    apiToken: "protected-route-read-token",
+    releasePhase: "qualification-pending",
+    fetchImpl: fixture,
+  });
+  assert.ok(pending.retired.every(({ status }) => status === "retirement-required"));
+
+  await assert.rejects(verifyTextToLatticeRouteInventory({
+    accountId: "f".repeat(32),
+    apiToken: "protected-route-read-token",
+    releasePhase: "qualified",
+    fetchImpl: fixture,
+  }), /must be detached before qualified release/u);
+});
+
+test("protected route inspection rejects a retired target whose owner changed", async () => {
+  const zoneId = "9".repeat(32);
+  await assert.rejects(verifyTextToLatticeRouteInventory({
+    accountId: "8".repeat(32),
+    apiToken: "protected-route-read-token",
+    async fetchImpl(url) {
+      if (url.includes("/zones?")) {
+        return jsonResponse(200, {
+          success: true,
+          result: [{ id: zoneId, name: "hah.dev", status: "active" }],
+        });
+      }
+      if (url.includes("/workers/domains")) {
+        return jsonResponse(200, {
+          success: true,
+          result: [{ hostname: "verify.hah.dev", service: "unreviewed-worker" }],
+        });
+      }
+      return jsonResponse(200, {
+        success: true,
+        result: Object.entries(TEXT_TO_LATTICE_ROUTE_INVENTORY).flatMap(
+          ([script, patterns]) => patterns.map((pattern) => ({ pattern, script })),
+        ),
+      });
+    },
+  }), /not owned by hahdev-text-to-lattice-attestation-frame/u);
 });
 
 test("protected route inspection rejects a stale portfolio-wide response-policy route", async () => {
   const zoneId = "b".repeat(32);
   await assert.rejects(
     verifyTextToLatticeRouteInventory({
+      accountId: "1".repeat(32),
       apiToken: "protected-route-read-token",
       async fetchImpl(url) {
         if (url.includes("/zones?")) {
-          return jsonResponse(200, { success: true, result: [{ id: zoneId, name: "hah.dev" }] });
+          return jsonResponse(200, {
+            success: true,
+            result: [{ id: zoneId, name: "hah.dev", status: "active" }],
+          });
+        }
+        if (url.includes("/workers/domains")) {
+          return jsonResponse(200, { success: true, result: [] });
         }
         const result = Object.entries(TEXT_TO_LATTICE_ROUTE_INVENTORY).flatMap(
           ([script, patterns]) => patterns.map((pattern) => ({ pattern, script })),
@@ -526,10 +1107,17 @@ test("protected route inspection rejects malformed route records", async () => {
     ([script, patterns]) => patterns.map((pattern) => ({ pattern, script })),
   );
   await assert.rejects(verifyTextToLatticeRouteInventory({
+    accountId: "2".repeat(32),
     apiToken: "protected-route-read-token",
     async fetchImpl(url) {
       if (url.includes("/zones?")) {
-        return jsonResponse(200, { success: true, result: [{ id: zoneId, name: "hah.dev" }] });
+        return jsonResponse(200, {
+          success: true,
+          result: [{ id: zoneId, name: "hah.dev", status: "active" }],
+        });
+      }
+      if (url.includes("/workers/domains")) {
+        return jsonResponse(200, { success: true, result: [] });
       }
       return jsonResponse(200, {
         success: true,
