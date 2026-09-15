@@ -8,6 +8,7 @@ import {
   LATTICE_PRODUCTION_EVIDENCE_SCHEMA,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS,
+  LATTICE_PRODUCTION_READINESS_CONTRACT,
   LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
   serializeLatticeProductionEvidence,
   verifyTextToLatticeApiProduction,
@@ -28,6 +29,7 @@ const context = Object.freeze({
   serverUrl: "https://github.com",
 });
 const fixedNow = () => new Date("2026-09-14T12:34:56.000Z");
+const noWait = async () => {};
 const apiHeaders = Object.freeze({
   "Cache-Control": "no-store",
   "Content-Type": "application/json; charset=utf-8",
@@ -40,6 +42,11 @@ const setupApiHeaders = Object.freeze({
   "X-Content-Type-Options": "nosniff",
 });
 const quotaSetCookie = "__Secure-hah-lattice-api-visitor=v1.AAAAAAAAAAAAAAAAAAAAAAAA.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; Max-Age=41104; Path=/api/lattice; Secure; HttpOnly; SameSite=Strict";
+const SUCCESSFUL_PRODUCTION_REQUEST_COUNT = 4
+  + LATTICE_PRODUCTION_READINESS_CONTRACT.requiredConsecutiveActiveSamples
+  + 1
+  + LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.length
+  + 1;
 
 function apiJson(value, status, headers = {}) {
   return new Response(JSON.stringify(value), {
@@ -68,8 +75,40 @@ function validResult() {
   };
 }
 
-function successfulFixture({ canaryResponse, setupResponse } = {}) {
+function unableResult(findings, overrides = {}) {
+  return {
+    ...validResult(),
+    status: "unable-to-attempt",
+    text: null,
+    primaryLayer: null,
+    layerId: null,
+    layerLabel: "Undetermined",
+    layersUsed: [],
+    revisedPassageCount: 0,
+    retainedPassageCount: 0,
+    verificationPasses: 0,
+    findings,
+    ...overrides,
+  };
+}
+
+function activeReadinessResponse() {
+  return apiJson({ error: "invalid_request" }, 405, { Allow: "POST" });
+}
+
+function heldReadinessResponse() {
+  return apiJson({ error: "upstream_unavailable" }, 503, {
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+  });
+}
+
+function successfulFixture({ canaryResponse, readinessResponses, setupResponse } = {}) {
   const calls = [];
+  const readinessSequence = readinessResponses ?? Array.from(
+    { length: LATTICE_PRODUCTION_READINESS_CONTRACT.requiredConsecutiveActiveSamples },
+    activeReadinessResponse,
+  );
+  let readinessIndex = 0;
   let negativeIndex = 0;
   let setupRequests = 0;
   let canaryRequests = 0;
@@ -86,6 +125,15 @@ function successfulFixture({ canaryResponse, setupResponse } = {}) {
           "Permissions-Policy": TEXT_TO_LATTICE_DOCUMENT_POLICY["Permissions-Policy"],
         },
       });
+    }
+
+    if (pathname === "/api/lattice"
+      && init.method === "GET"
+      && readinessIndex < readinessSequence.length) {
+      const response = readinessSequence[readinessIndex];
+      readinessIndex += 1;
+      if (response instanceof Error) throw response;
+      return response;
     }
 
     if (init.headers.Accept === LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT) {
@@ -116,6 +164,8 @@ function successfulFixture({ canaryResponse, setupResponse } = {}) {
   return {
     calls,
     fetchImpl,
+    get readinessRequests() { return readinessIndex; },
+    get negativeRequests() { return negativeIndex; },
     get setupRequests() { return setupRequests; },
     get canaryRequests() { return canaryRequests; },
     get canaryText() { return canaryText; },
@@ -124,10 +174,13 @@ function successfulFixture({ canaryResponse, setupResponse } = {}) {
 
 test("the production verifier establishes one bodyless visitor session before exactly one content canary", async () => {
   const fixture = successfulFixture();
+  const readinessRequestCount =
+    LATTICE_PRODUCTION_READINESS_CONTRACT.requiredConsecutiveActiveSamples;
   const evidence = await verifyTextToLatticeApiProduction({
     fetchImpl: fixture.fetchImpl,
     context,
     now: fixedNow,
+    wait: noWait,
   });
 
   assert.equal(evidence.format, LATTICE_PRODUCTION_EVIDENCE_SCHEMA);
@@ -146,6 +199,27 @@ test("the production verifier establishes one bodyless visitor session before ex
   assert.ok(evidence.document_policy.paths.every(({ connect_src: sources }) => (
     JSON.stringify(sources) === JSON.stringify(["'self'"])
   )));
+  assert.equal(fixture.readinessRequests, readinessRequestCount);
+  assert.deepEqual(evidence.deployment_readiness, {
+    request_count: readinessRequestCount,
+    method: "GET",
+    path: "/api/lattice",
+    required_consecutive_active_samples: readinessRequestCount,
+    observed_consecutive_active_samples: readinessRequestCount,
+    active_response_count: readinessRequestCount,
+    held_response_count: 0,
+    network_error_count: 0,
+    final_http_status: 405,
+    final_error_code: "invalid_request",
+    request_body_present: false,
+    request_body_bytes: 0,
+    origin_header_present: false,
+    cookie_header_present: false,
+    visitor_session_created: false,
+    quota_claimed: false,
+    provider_called: false,
+    response_bodies_retained: false,
+  });
   assert.equal(fixture.setupRequests, 1);
   const { elapsed_ms: setupElapsed, ...visitorSessionSetup } = evidence.visitor_session_setup;
   assert.ok(Number.isSafeInteger(setupElapsed) && setupElapsed >= 0);
@@ -196,9 +270,27 @@ test("the production verifier establishes one bodyless visitor session before ex
     accepted_transformations_per_cooperating_ordinary_persistent_browser_cookie_jar_utc_day: 3,
     maximum_provider_calls_from_accepted_transformations_per_utc_day: 960,
   });
-  assert.equal(fixture.calls.length, 4 + 1 + LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.length + 1);
+  assert.equal(
+    fixture.calls.length,
+    4 + readinessRequestCount + 1 + LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.length + 1,
+  );
 
-  const setupCall = fixture.calls[4];
+  const readinessCalls = fixture.calls.slice(4, 4 + readinessRequestCount);
+  assert.equal(readinessCalls.length, readinessRequestCount);
+  for (const call of readinessCalls) {
+    assert.equal(call.url, "https://hah.dev/api/lattice");
+    assert.equal(call.init.method, "GET");
+    assert.equal(call.init.headers.Accept, "application/json");
+    assert.equal(Object.hasOwn(call.init, "body"), false);
+    assert.equal(Object.keys(call.init.headers).some((name) => name.toLowerCase() === "origin"), false);
+    assert.equal(Object.keys(call.init.headers).some((name) => name.toLowerCase() === "cookie"), false);
+    assert.equal(Object.keys(call.init.headers).some((name) => name.toLowerCase() === "content-type"), false);
+    assert.equal(call.init.credentials, "omit");
+  }
+
+  const setupIndex = 4 + readinessRequestCount;
+  const negativeProbeStartIndex = setupIndex + 1;
+  const setupCall = fixture.calls[setupIndex];
   assert.equal(setupCall.init.method, "POST");
   assert.equal(setupCall.init.headers.Accept, LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT);
   assert.equal(Object.hasOwn(setupCall.init, "body"), false);
@@ -210,7 +302,8 @@ test("the production verifier establishes one bodyless visitor session before ex
   assert.equal(canaryCall.init.headers.Cookie.includes(";"), false);
 
   const missingSessionCall = fixture.calls[
-    5 + LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.indexOf("missing-visitor-session")
+    negativeProbeStartIndex
+      + LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.indexOf("missing-visitor-session")
   ];
   assert.equal(
     Object.keys(missingSessionCall.init.headers).some((name) => name.toLowerCase() === "cookie"),
@@ -228,7 +321,7 @@ test("the production verifier establishes one bodyless visitor session before ex
   assert.equal(serializedEvidence.includes(validResult().text), false);
   assert.doesNotMatch(serializedEvidence, /synthetic-credential|lattice-live-negative-canary/u);
 
-  const credentialCalls = fixture.calls.slice(5)
+  const credentialCalls = fixture.calls.slice(negativeProbeStartIndex)
     .filter((_call, index) => LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS[index]?.startsWith("credential-"));
   assert.equal(credentialCalls.length, 6);
   assert.ok(credentialCalls.every(({ init }) => init.method === "POST"));
@@ -250,6 +343,147 @@ test("the production verifier establishes one bodyless visitor session before ex
   assert.deepEqual(JSON.parse(serialized.serialized), evidence);
 });
 
+test("active-API readiness settles only after consecutive exact content-free samples", async () => {
+  const readinessResponses = [
+    new Error("synthetic edge transport failure"),
+    heldReadinessResponse(),
+    activeReadinessResponse(),
+    heldReadinessResponse(),
+    activeReadinessResponse(),
+    activeReadinessResponse(),
+    activeReadinessResponse(),
+  ];
+  const waits = [];
+  const fixture = successfulFixture({ readinessResponses });
+  const evidence = await verifyTextToLatticeApiProduction({
+    fetchImpl: fixture.fetchImpl,
+    context,
+    now: fixedNow,
+    wait: async (milliseconds) => { waits.push(milliseconds); },
+  });
+
+  assert.equal(fixture.readinessRequests, readinessResponses.length);
+  assert.equal(waits.length, readinessResponses.length - 1);
+  assert.ok(waits.every((milliseconds) => (
+    milliseconds === LATTICE_PRODUCTION_READINESS_CONTRACT.intervalMs
+  )));
+  assert.deepEqual(evidence.deployment_readiness, {
+    request_count: 7,
+    method: "GET",
+    path: "/api/lattice",
+    required_consecutive_active_samples: 3,
+    observed_consecutive_active_samples: 3,
+    active_response_count: 4,
+    held_response_count: 2,
+    network_error_count: 1,
+    final_http_status: 405,
+    final_error_code: "invalid_request",
+    request_body_present: false,
+    request_body_bytes: 0,
+    origin_header_present: false,
+    cookie_header_present: false,
+    visitor_session_created: false,
+    quota_claimed: false,
+    provider_called: false,
+    response_bodies_retained: false,
+  });
+  assert.equal(fixture.setupRequests, 1);
+  assert.equal(fixture.canaryRequests, 1);
+
+  const readinessCalls = fixture.calls.slice(4, 4 + readinessResponses.length);
+  assert.equal(readinessCalls.length, readinessResponses.length);
+  for (const { url, init } of readinessCalls) {
+    assert.equal(url, "https://hah.dev/api/lattice");
+    assert.equal(init.method, "GET");
+    assert.deepEqual(init.headers, { Accept: "application/json" });
+    assert.equal(Object.hasOwn(init, "body"), false);
+    assert.equal(init.credentials, "omit");
+  }
+});
+
+test("active-API readiness exhausts a fixed held window before any cookie, quota, or content request", async () => {
+  const readinessResponses = Array.from(
+    { length: LATTICE_PRODUCTION_READINESS_CONTRACT.attemptLimit },
+    heldReadinessResponse,
+  );
+  let waits = 0;
+  const fixture = successfulFixture({ readinessResponses });
+  await assert.rejects(
+    verifyTextToLatticeApiProduction({
+      fetchImpl: fixture.fetchImpl,
+      context,
+      now: fixedNow,
+      wait: async () => { waits += 1; },
+    }),
+    /content-free active API boundary did not settle within its fixed readiness window/u,
+  );
+  assert.equal(fixture.readinessRequests, LATTICE_PRODUCTION_READINESS_CONTRACT.attemptLimit);
+  assert.equal(waits, LATTICE_PRODUCTION_READINESS_CONTRACT.attemptLimit - 1);
+  assert.equal(fixture.setupRequests, 0);
+  assert.equal(fixture.negativeRequests, 0);
+  assert.equal(fixture.canaryRequests, 0);
+  assert.equal(
+    fixture.calls.length,
+    4 + LATTICE_PRODUCTION_READINESS_CONTRACT.attemptLimit,
+  );
+  assert.ok(fixture.calls.slice(4).every(({ init }) => (
+    init.method === "GET"
+      && !Object.hasOwn(init, "body")
+      && Object.keys(init.headers).every((name) => !["cookie", "origin", "content-type"].includes(
+        name.toLowerCase(),
+      ))
+  )));
+});
+
+test("active-API readiness fails immediately on any non-exact complete response", async (contextTest) => {
+  const cases = [
+    [
+      "unexpected status",
+      apiJson({ error: "invalid_request" }, 200),
+      /returned HTTP 200; expected the active 405 or held 503 boundary/u,
+    ],
+    [
+      "malformed held headers",
+      apiJson({ error: "upstream_unavailable" }, 503),
+      /omitted content-security-policy/u,
+    ],
+    [
+      "malformed active envelope",
+      apiJson({ error: "upstream_unavailable" }, 405, { Allow: "POST" }),
+      /unexpected closed error envelope/u,
+    ],
+    [
+      "oversized active body",
+      new Response("x".repeat(4_097), {
+        status: 405,
+        headers: { ...apiHeaders, Allow: "POST" },
+      }),
+      /exceeded its response-size boundary/u,
+    ],
+  ];
+  for (const [name, readinessResponse, expectedFailure] of cases) {
+    await contextTest.test(name, async () => {
+      let waits = 0;
+      const fixture = successfulFixture({ readinessResponses: [readinessResponse] });
+      await assert.rejects(
+        verifyTextToLatticeApiProduction({
+          fetchImpl: fixture.fetchImpl,
+          context,
+          now: fixedNow,
+          wait: async () => { waits += 1; },
+        }),
+        expectedFailure,
+      );
+      assert.equal(fixture.readinessRequests, 1);
+      assert.equal(waits, 0);
+      assert.equal(fixture.setupRequests, 0);
+      assert.equal(fixture.negativeRequests, 0);
+      assert.equal(fixture.canaryRequests, 0);
+      assert.equal(fixture.calls.length, 5);
+    });
+  }
+});
+
 test("the wrong-query probe verifies exact route exclusion as a non-API 405", async () => {
   const fixture = successfulFixture();
   let wrongQueryResponseBody = null;
@@ -264,6 +498,7 @@ test("the wrong-query probe verifies exact route exclusion as a non-API 405", as
     },
     context,
     now: fixedNow,
+    wait: noWait,
   });
   const probeIndex = LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.indexOf("wrong-query");
   assert.notEqual(probeIndex, -1);
@@ -275,7 +510,11 @@ test("the wrong-query probe verifies exact route exclusion as a non-API 405", as
     allow: null,
   });
 
-  const call = fixture.calls[5 + probeIndex];
+  const call = fixture.calls[
+    5
+      + LATTICE_PRODUCTION_READINESS_CONTRACT.requiredConsecutiveActiveSamples
+      + probeIndex
+  ];
   assert.equal(call.url, "https://hah.dev/api/lattice?undeclared=1");
   assert.equal(call.init.method, "POST");
   assert.deepEqual(JSON.parse(call.init.body), {
@@ -310,12 +549,113 @@ test("a failed transformation canary is attempted once without retry or retained
     ),
   });
   await assert.rejects(
-    verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: fixedNow }),
+    verifyTextToLatticeApiProduction({
+      fetchImpl: fixture.fetchImpl,
+      context,
+      now: fixedNow,
+      wait: noWait,
+    }),
     /synthetic transformation canary returned HTTP 502 \(upstream_unavailable\)/u,
   );
   assert.equal(fixture.canaryRequests, 1);
   assert.equal(fixture.setupRequests, 1);
-  assert.equal(fixture.calls.length, 4 + 1 + LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.length + 1);
+  assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+});
+
+test("an unable canary reports only an allowlisted homogeneous failure class and safe counts", async (contextTest) => {
+  const cases = [
+    ["atomization-unavailable", "pre-candidate-analysis-contract"],
+    ["generation-context-unavailable", "pre-candidate-generation-context"],
+    ["generation-unavailable", "pre-candidate-generation-contract"],
+    ["candidate-withheld", "post-candidate-withheld"],
+  ];
+  for (const [findingId, expectedClass] of cases) {
+    await contextTest.test(findingId, async () => {
+      const privateMarker = `PRIVATE-${findingId}-DETAIL`;
+      const fixture = successfulFixture({
+        canaryResponse: apiJson({
+          result: unableResult([
+            { id: findingId, passageId: "p001", atomIds: [], message: privateMarker },
+            { id: findingId, passageId: "p002", atomIds: [], message: privateMarker },
+          ], { batchCount: 2, passageCount: 2 }),
+          schema_version: 1,
+        }, 200),
+      });
+      let failure;
+      try {
+        await verifyTextToLatticeApiProduction({
+          fetchImpl: fixture.fetchImpl,
+          context,
+          now: fixedNow,
+          wait: noWait,
+        });
+      } catch (error) {
+        failure = error;
+      }
+      assert.ok(failure instanceof Error);
+      assert.match(
+        failure.message,
+        new RegExp(`class=${expectedClass}; batch_count=2; verification_passes=0; finding_count=2`, "u"),
+      );
+      assert.equal(failure.message.includes(privateMarker), false);
+      assert.equal(fixture.canaryRequests, 1);
+      assert.equal(fixture.setupRequests, 1);
+      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+    });
+  }
+});
+
+test("mixed or unknown unable findings remain unclassified without leaking hostile result content", async (contextTest) => {
+  const hostileId = "HOSTILE-RESULT-ID-DO-NOT-RETAIN";
+  const hostileMessage = "HOSTILE-RESULT-MESSAGE-DO-NOT-RETAIN";
+  const cases = [
+    [
+      "mixed",
+      [
+        { id: "atomization-unavailable", passageId: "p001", atomIds: [], message: "fixed" },
+        { id: hostileId, passageId: "p001", atomIds: [], message: hostileMessage },
+      ],
+    ],
+    [
+      "unknown homogeneous",
+      [
+        { id: hostileId, passageId: "p001", atomIds: [], message: hostileMessage },
+        { id: hostileId, passageId: "p002", atomIds: [], message: hostileMessage },
+      ],
+    ],
+    ["empty", []],
+  ];
+  for (const [name, findings] of cases) {
+    await contextTest.test(name, async () => {
+      const fixture = successfulFixture({
+        canaryResponse: apiJson({
+          result: unableResult(findings, { batchCount: 2, passageCount: 2 }),
+          schema_version: 1,
+        }, 200),
+      });
+      let failure;
+      try {
+        await verifyTextToLatticeApiProduction({
+          fetchImpl: fixture.fetchImpl,
+          context,
+          now: fixedNow,
+          wait: noWait,
+        });
+      } catch (error) {
+        failure = error;
+      }
+      assert.ok(failure instanceof Error);
+      assert.match(
+        failure.message,
+        new RegExp(`class=unclassified-unable; batch_count=2; verification_passes=0; finding_count=${findings.length}`, "u"),
+      );
+      assert.equal(failure.message.includes(hostileId), false);
+      assert.equal(failure.message.includes(hostileMessage), false);
+      assert.equal(fixture.canaryRequests, 1);
+      assert.equal(fixture.setupRequests, 1);
+      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+    });
+  }
 });
 
 test("the bodyless setup requires only the exact value-free browser quota cookie metadata", async () => {
@@ -336,7 +676,12 @@ test("the bodyless setup requires only the exact value-free browser quota cookie
       }),
     });
     await assert.rejects(
-      verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: fixedNow }),
+      verifyTextToLatticeApiProduction({
+        fetchImpl: fixture.fetchImpl,
+        context,
+        now: fixedNow,
+        wait: noWait,
+      }),
       /browser quota cookie/u,
     );
     assert.equal(fixture.setupRequests, 1);
@@ -353,7 +698,12 @@ test("the transformation response cannot rotate the setup cookie", async () => {
     ),
   });
   await assert.rejects(
-    verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: fixedNow }),
+    verifyTextToLatticeApiProduction({
+      fetchImpl: fixture.fetchImpl,
+      context,
+      now: fixedNow,
+      wait: noWait,
+    }),
     /set an undeclared cookie/u,
   );
   assert.equal(fixture.setupRequests, 1);

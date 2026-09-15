@@ -49,9 +49,22 @@ const PAGE_RESPONSE_LIMIT = 2 * 1024 * 1024;
 const NEGATIVE_PROBE_TIMEOUT_MS = 15_000;
 const CANARY_TIMEOUT_MS = 255_000;
 export const LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT = LATTICE_VISITOR_SESSION_ACCEPT;
+export const LATTICE_PRODUCTION_READINESS_CONTRACT = Object.freeze({
+  attemptLimit: 18,
+  deadlineMs: 45_000,
+  intervalMs: 2_000,
+  requestTimeoutMs: 7_000,
+  requiredConsecutiveActiveSamples: 3,
+});
 const SYNTHETIC_NEGATIVE_MARKER = "lattice-live-negative-canary-2026-09-14";
 const SYNTHETIC_CANARY_TEXT =
   "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
+const UNABLE_CANARY_CLASSES = new Map([
+  ["atomization-unavailable", "pre-candidate-analysis-contract"],
+  ["generation-context-unavailable", "pre-candidate-generation-context"],
+  ["generation-unavailable", "pre-candidate-generation-contract"],
+  ["candidate-withheld", "post-candidate-withheld"],
+]);
 const DOCUMENT_PATHS = Object.freeze([
   "/",
   "/index.html",
@@ -73,6 +86,10 @@ const BROWSER_NAVIGATION_HEADERS = Object.freeze({
 
 function fail(message) {
   throw new Error(`Text to Lattice live API verification failed: ${message}`);
+}
+
+function waitMilliseconds(milliseconds) {
+  return new Promise((resolveWait) => setTimeout(resolveWait, milliseconds));
 }
 
 function jsonBody(value) {
@@ -430,6 +447,15 @@ function elapsedMilliseconds(startedAt, monotonicNow, label) {
   return Math.round(finishedAt - startedAt);
 }
 
+function unableCanaryClass(result) {
+  const firstId = result.findings[0]?.id;
+  if (typeof firstId !== "string"
+    || !result.findings.every(({ id }) => id === firstId)) {
+    return "unclassified-unable";
+  }
+  return UNABLE_CANARY_CLASSES.get(firstId) ?? "unclassified-unable";
+}
+
 async function fetchOnce(fetchImpl, url, init, timeoutMs, label) {
   let response;
   try {
@@ -446,6 +472,123 @@ async function fetchOnce(fetchImpl, url, init, timeoutMs, label) {
   }
   if (!(response instanceof Response)) fail(`${label} returned an invalid response`);
   return response;
+}
+
+async function readinessResponseBytes(response, label) {
+  try {
+    return await boundedBytes(response, ERROR_RESPONSE_LIMIT, label);
+  } catch (error) {
+    if (error instanceof Error
+      && error.message.startsWith("Text to Lattice live API verification failed:")) {
+      throw error;
+    }
+    return null;
+  }
+}
+
+async function inspectApiReadinessResponse(response, label) {
+  if (!(response instanceof Response)) fail(`${label} returned an invalid response`);
+  if (response.status !== 405 && response.status !== 503) {
+    const bytes = await readinessResponseBytes(response, label);
+    if (bytes === null) return "network-error";
+    fail(`${label} returned HTTP ${response.status}; expected the active 405 or held 503 boundary`);
+  }
+
+  assertApiHeaders(response, label);
+  if (response.status === 405) {
+    if (response.headers.get("allow") !== "POST") fail(`${label} returned an invalid Allow header`);
+  } else {
+    if (response.headers.has("allow")) fail(`${label} returned an undeclared Allow header`);
+    if (responseHeader(response, "content-security-policy", label).toLowerCase()
+      !== "default-src 'none'; frame-ancestors 'none'") {
+      fail(`${label} returned an invalid Content-Security-Policy`);
+    }
+  }
+
+  const bytes = await readinessResponseBytes(response, label);
+  if (bytes === null) return "network-error";
+  const body = parseJson(bytes, label);
+  const expectedError = response.status === 405 ? "invalid_request" : "upstream_unavailable";
+  if (!isLatticeApiError(body)
+    || !exactRecord(body, ["error"])
+    || body.error !== expectedError) {
+    fail(`${label} returned an unexpected closed error envelope`);
+  }
+  return response.status === 405 ? "active" : "held";
+}
+
+async function verifyActiveApiReadiness(origin, fetchImpl, wait) {
+  const {
+    attemptLimit,
+    deadlineMs,
+    intervalMs,
+    requestTimeoutMs,
+    requiredConsecutiveActiveSamples,
+  } = LATTICE_PRODUCTION_READINESS_CONTRACT;
+  const deadline = Date.now() + deadlineMs;
+  let consecutiveActiveSamples = 0;
+  let activeResponseCount = 0;
+  let heldResponseCount = 0;
+  let networkErrorCount = 0;
+
+  for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
+    const remainingMilliseconds = deadline - Date.now();
+    if (remainingMilliseconds <= 0) break;
+    const label = `content-free active-API readiness sample ${attempt}`;
+    let disposition = "network-error";
+    try {
+      const response = await fetchImpl(`${origin}${LATTICE_API_PATH}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        credentials: "omit",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
+        signal: AbortSignal.timeout(Math.min(requestTimeoutMs, remainingMilliseconds)),
+      });
+      disposition = await inspectApiReadinessResponse(response, label);
+    } catch (error) {
+      if (error instanceof Error
+        && error.message.startsWith("Text to Lattice live API verification failed:")) {
+        throw error;
+      }
+    }
+
+    if (disposition === "active") {
+      activeResponseCount += 1;
+      consecutiveActiveSamples += 1;
+      if (consecutiveActiveSamples === requiredConsecutiveActiveSamples) {
+        return Object.freeze({
+          request_count: attempt,
+          method: "GET",
+          path: LATTICE_API_PATH,
+          required_consecutive_active_samples: requiredConsecutiveActiveSamples,
+          observed_consecutive_active_samples: consecutiveActiveSamples,
+          active_response_count: activeResponseCount,
+          held_response_count: heldResponseCount,
+          network_error_count: networkErrorCount,
+          final_http_status: 405,
+          final_error_code: "invalid_request",
+          request_body_present: false,
+          request_body_bytes: 0,
+          origin_header_present: false,
+          cookie_header_present: false,
+          visitor_session_created: false,
+          quota_claimed: false,
+          provider_called: false,
+          response_bodies_retained: false,
+        });
+      }
+    } else {
+      consecutiveActiveSamples = 0;
+      if (disposition === "held") heldResponseCount += 1;
+      else networkErrorCount += 1;
+    }
+
+    if (attempt === attemptLimit || Date.now() >= deadline) break;
+    await wait(Math.min(intervalMs, Math.max(0, deadline - Date.now())));
+  }
+  fail("the content-free active API boundary did not settle within its fixed readiness window");
 }
 
 async function verifyDocumentPolicies(origin, fetchImpl, monotonicNow) {
@@ -631,7 +774,11 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     fail(`${label} returned an invalid strict result envelope`);
   }
   if (envelope.result.status === "unable-to-attempt") {
-    fail(`${label} did not reach a non-error terminal transformation result`);
+    fail(`${label} did not reach a non-error terminal transformation result (`
+      + `class=${unableCanaryClass(envelope.result)}; `
+      + `batch_count=${envelope.result.batchCount}; `
+      + `verification_passes=${envelope.result.verificationPasses}; `
+      + `finding_count=${envelope.result.findings.length})`);
   }
   return Object.freeze({
     request_count: 1,
@@ -674,10 +821,11 @@ export async function verifyTextToLatticeApiProduction({
   fetchImpl = globalThis.fetch,
   now = () => new Date(),
   monotonicNow = () => performance.now(),
+  wait = waitMilliseconds,
   context,
 } = {}) {
   if (typeof fetchImpl !== "function" || typeof now !== "function"
-    || typeof monotonicNow !== "function") {
+    || typeof monotonicNow !== "function" || typeof wait !== "function") {
     throw new TypeError("The live API verifier received an invalid dependency.");
   }
   const exactOrigin = assertOrigin(origin);
@@ -688,6 +836,7 @@ export async function verifyTextToLatticeApiProduction({
   }
 
   const documentPolicies = await verifyDocumentPolicies(exactOrigin, fetchImpl, monotonicNow);
+  const deploymentReadiness = await verifyActiveApiReadiness(exactOrigin, fetchImpl, wait);
   const visitorSession = await verifyVisitorSessionSetup(exactOrigin, fetchImpl, monotonicNow);
   const negativeProbes = await verifyNegativeProbes(
     exactOrigin,
@@ -747,6 +896,7 @@ export async function verifyTextToLatticeApiProduction({
       exact_connect_src: Object.freeze(["'self'"]),
       paths: documentPolicies,
     }),
+    deployment_readiness: deploymentReadiness,
     negative_probes: Object.freeze({
       count: negativeProbes.length,
       all_rejected: true,
