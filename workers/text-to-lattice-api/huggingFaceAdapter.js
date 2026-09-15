@@ -109,6 +109,27 @@ function record(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function jsonObjectMessages(messages, role, schemaName, schema) {
+  const contract = [
+    `Response contract ${schemaName}: Return exactly one minified JSON object matching the following closed JSON Schema.`,
+    "Do not wrap the JSON object in Markdown or add text before or after it.",
+    `<LATTICE_RESPONSE_SCHEMA>${JSON.stringify(schema)}</LATTICE_RESPONSE_SCHEMA>`,
+  ].join("\n");
+  const content = role === "generator" ? `${contract}\n/no_think` : contract;
+  const systemIndex = messages.findIndex((message) => (
+    record(message) && message.role === "system" && typeof message.content === "string"
+  ));
+  if (systemIndex === -1) {
+    return Object.freeze([
+      Object.freeze({ role: "system", content }),
+      ...messages.map((message) => Object.freeze({ ...message })),
+    ]);
+  }
+  return Object.freeze(messages.map((message, index) => Object.freeze(index === systemIndex
+    ? { ...message, content: `${message.content}\n${content}` }
+    : { ...message })));
+}
+
 function raceAbort(operation, signal) {
   if (!signal) return Promise.resolve(operation);
   if (signal.aborted) return Promise.reject(signal.reason ?? abortError());
@@ -282,15 +303,8 @@ export async function requestHuggingFaceJson({
 
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],
-    messages,
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: schemaName,
-        strict: true,
-        schema,
-      },
-    },
+    messages: jsonObjectMessages(messages, role, schemaName, schema),
+    response_format: { type: "json_object" },
     max_tokens: maxTokens,
     temperature,
     top_p: topP,
@@ -383,19 +397,14 @@ function parseRetryAfterSeconds(value) {
   return Math.min(seconds, 300);
 }
 
-function messagesWithMode(factory, request, requestedMode, role) {
+function messagesWithMode(factory, request, requestedMode) {
   const messages = factory(Object.freeze({
     ...request,
     requestedMode,
     allowClarification: false,
     clarificationAnswers: Object.freeze([]),
   }));
-  return Object.freeze(messages.map((message, index) => Object.freeze(index === 0
-    ? {
-      ...message,
-      content: `${message.content}${role === "generator" ? "\n/no_think" : ""}`,
-    }
-    : { ...message })));
+  return Object.freeze(messages.map((message) => Object.freeze({ ...message })));
 }
 
 export function createHuggingFaceLatticeAdapter({
@@ -421,7 +430,7 @@ export function createHuggingFaceLatticeAdapter({
     const result = await requestHuggingFaceJson({
       token,
       role: stage.role,
-      messages: messagesWithMode(stage.messages, request, requestedMode, stage.role),
+      messages: messagesWithMode(stage.messages, request, requestedMode),
       schema: stage.schema,
       schemaName: stage.schemaName,
       maxTokens: stage.maxTokens,

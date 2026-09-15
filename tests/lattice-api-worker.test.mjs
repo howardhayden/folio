@@ -9,6 +9,10 @@ import {
   isLatticeApiError,
 } from "../app/resume/lattice/remoteProtocol.js";
 import {
+  DOCUMENT_CERTIFICATION_SCHEMA,
+  REANALYSIS_SCHEMA,
+} from "../app/resume/lattice/promptContract.js";
+import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
   LATTICE_PROVIDER_CALL_LIMIT,
   LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
@@ -1145,7 +1149,7 @@ test("the request-body byte ceiling fails before JSON allocation or conversion",
   assert.deepEqual(await json(response), { error: "input_too_large" });
 });
 
-test("the adapter uses one fixed provider, strict schemas, closed clarification, fixed roles, and Qwen no-think", async () => {
+test("the adapter uses one fixed provider, Featherless-compatible JSON objects, closed host schemas, fixed roles, and Qwen no-think", async () => {
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, init, body: JSON.parse(init.body) });
@@ -1177,7 +1181,21 @@ test("the adapter uses one fixed provider, strict schemas, closed clarification,
     LATTICE_REMOTE_MODELS.generator,
     LATTICE_REMOTE_MODELS.verifier,
   ]);
+  assert.deepEqual(calls.map(({ body }) => body.max_tokens), [2_000, 520]);
+  assert.deepEqual(calls.map(({ body }) => body.temperature), [0.1, 0]);
+  assert.deepEqual(calls.map(({ body }) => body.top_p), [0.9, 1]);
+  assert.deepEqual(calls.map(({ body }) => body.seed), [71_903, 71_903]);
   for (const { init, body } of calls) {
+    assert.deepEqual(Object.keys(body).sort(), [
+      "max_tokens",
+      "messages",
+      "model",
+      "response_format",
+      "seed",
+      "stream",
+      "temperature",
+      "top_p",
+    ]);
     assert.equal(init.method, "POST");
     assert.equal(init.cache, "no-store");
     assert.equal(init.credentials, "omit");
@@ -1185,14 +1203,41 @@ test("the adapter uses one fixed provider, strict schemas, closed clarification,
     assert.equal(init.referrerPolicy, "no-referrer");
     assert.equal(init.headers.Authorization, "Bearer hf_server_only_token");
     assert.equal(body.stream, false);
-    assert.equal(body.response_format.type, "json_schema");
-    assert.equal(body.response_format.json_schema.strict, true);
-    assert.equal(body.response_format.json_schema.schema.additionalProperties, false);
+    assert.deepEqual(body.response_format, { type: "json_object" });
+    assert.equal(Object.hasOwn(body.response_format, "json_schema"), false);
+    assert.equal(JSON.stringify(body.response_format).includes("strict"), false);
   }
-  assert.equal(calls[0].body.response_format.json_schema.schema.properties.questions.maxItems, 0);
+  assert.match(calls[0].body.messages[0].content, /Return exactly one minified JSON object/u);
+  assert.ok(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)));
+  assert.ok(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)));
+  for (const { body } of calls) {
+    assert.equal(body.messages.slice(1).some(({ content }) => (
+      typeof content === "string" && content.includes("LATTICE_RESPONSE_SCHEMA")
+    )), false);
+  }
+  assert.equal(calls[0].body.messages[0].content.includes(validPayload.text), false);
+  assert.equal(calls[0].body.messages.slice(1).some(({ content }) => (
+    typeof content === "string" && content.includes(validPayload.text)
+  )), true);
   assert.match(calls[0].body.messages[0].content, /Requested mode: experiential/u);
-  assert.match(calls[0].body.messages[0].content, /\/no_think/u);
+  assert.match(calls[0].body.messages[0].content, /\/no_think$/u);
   assert.doesNotMatch(calls[1].body.messages[0].content, /\/no_think/u);
+});
+
+test("a direct JSON-object request prepends the trusted closed schema without changing user data", async () => {
+  let body;
+  const options = providerRequestOptions(async (_url, init) => {
+    body = JSON.parse(init.body);
+    return successfulProviderResponse({ accepted: true });
+  });
+  await requestHuggingFaceJson(options);
+
+  assert.deepEqual(body.response_format, { type: "json_object" });
+  assert.equal(body.messages[0].role, "system");
+  assert.match(body.messages[0].content, /Response contract lattice_test_v1/u);
+  assert.ok(body.messages[0].content.includes(JSON.stringify(options.schema)));
+  assert.match(body.messages[0].content, /\/no_think$/u);
+  assert.deepEqual(body.messages[1], options.messages[0]);
 });
 
 test("the immutable 32-call adapter budget blocks a 33rd provider fetch", async () => {
@@ -1337,6 +1382,17 @@ test("upstream 500, malformed envelopes, empty content, and response overflow fa
       () => new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: "" } }] }), { status: 200 }),
       "provider_malformed_response",
     ],
+    ...[
+      "```json\n{\"accepted\":true}\n```",
+      "{\"accepted\":true} trailing",
+      "[]",
+      "true",
+    ].map((content) => [
+      () => new Response(JSON.stringify({
+        choices: [{ finish_reason: "stop", message: { role: "assistant", content } }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } }),
+      "provider_malformed_response",
+    ]),
     [
       () => successfulProviderResponse({ accepted: true }),
       "provider_response_too_large",
@@ -1362,6 +1418,30 @@ test("upstream 500, malformed envelopes, empty content, and response overflow fa
     );
     assert.equal(calls, 1);
   }
+});
+
+test("a provider HTTP 400 body is discarded without retry, logging, or reflection", async () => {
+  let calls = 0;
+  let bodyCanceled = false;
+  await assert.rejects(
+    requestHuggingFaceJson(providerRequestOptions(async () => {
+      calls += 1;
+      return new Response(new ReadableStream({
+        cancel() {
+          bodyCanceled = true;
+        },
+      }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    })),
+    (error) => error instanceof LatticeProviderError
+      && error.code === "provider_http_error"
+      && error.status === 400
+      && !error.message.includes("private-provider-body"),
+  );
+  assert.equal(calls, 1);
+  assert.equal(bodyCanceled, true);
 });
 
 test("typed provider failures map to exact flat public errors with a bounded 429 hint", async () => {
@@ -1711,11 +1791,25 @@ test("the production request admission fails closed on a missing or exhausted Du
 
 test("the serialized provider request is byte-bounded before external fetch", async () => {
   let fetches = 0;
+  const baseOptions = providerRequestOptions(async () => {
+    fetches += 1;
+    return successfulProviderResponse();
+  });
+  const preContractBody = JSON.stringify({
+    model: LATTICE_REMOTE_MODELS.generator,
+    messages: baseOptions.messages,
+    response_format: { type: "json_object" },
+    max_tokens: baseOptions.maxTokens,
+    temperature: baseOptions.temperature,
+    top_p: baseOptions.topP,
+    seed: 71_903,
+    stream: false,
+  });
   await assert.rejects(
-    requestHuggingFaceJson(providerRequestOptions(async () => {
-      fetches += 1;
-      return successfulProviderResponse();
-    }, { maximumRequestBytes: 1 })),
+    requestHuggingFaceJson({
+      ...baseOptions,
+      maximumRequestBytes: new TextEncoder().encode(preContractBody).byteLength,
+    }),
     (error) => error instanceof LatticeProviderError
       && error.code === "provider_request_too_large",
   );
