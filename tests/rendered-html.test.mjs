@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { inflateSync } from "node:zlib";
 import {
   ASCII_ANATOMY,
   ASCII_CHARACTER_DESCRIPTION,
@@ -43,69 +42,6 @@ const TAIL_PHASES = [
   "right-mid",
 ];
 const TAIL_DURATIONS = [1100, 500, 800, 520, 900, 540, 860, 560];
-
-function paethPredictor(left, above, upperLeft) {
-  const estimate = left + above - upperLeft;
-  const leftDistance = Math.abs(estimate - left);
-  const aboveDistance = Math.abs(estimate - above);
-  const upperLeftDistance = Math.abs(estimate - upperLeft);
-  if (leftDistance <= aboveDistance && leftDistance <= upperLeftDistance) return left;
-  if (aboveDistance <= upperLeftDistance) return above;
-  return upperLeft;
-}
-
-function decodeRgbaPng(dataUrl) {
-  const source = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
-  assert.equal(source.subarray(1, 4).toString("ascii"), "PNG");
-  let offset = 8;
-  let width = 0;
-  let height = 0;
-  const compressed = [];
-
-  while (offset < source.length) {
-    const length = source.readUInt32BE(offset);
-    const type = source.subarray(offset + 4, offset + 8).toString("ascii");
-    const data = source.subarray(offset + 8, offset + 8 + length);
-    if (type === "IHDR") {
-      width = data.readUInt32BE(0);
-      height = data.readUInt32BE(4);
-      assert.equal(data[8], 8, "grain PNG uses eight-bit channels");
-      assert.equal(data[9], 6, "grain PNG uses RGBA channels");
-    } else if (type === "IDAT") {
-      compressed.push(data);
-    }
-    offset += length + 12;
-  }
-
-  const encoded = inflateSync(Buffer.concat(compressed));
-  const stride = width * 4;
-  const pixels = Buffer.alloc(stride * height);
-  let encodedOffset = 0;
-  for (let row = 0; row < height; row += 1) {
-    const filter = encoded[encodedOffset];
-    encodedOffset += 1;
-    for (let column = 0; column < stride; column += 1) {
-      const raw = encoded[encodedOffset + column];
-      const left = column >= 4 ? pixels[row * stride + column - 4] : 0;
-      const above = row > 0 ? pixels[(row - 1) * stride + column] : 0;
-      const upperLeft = row > 0 && column >= 4
-        ? pixels[(row - 1) * stride + column - 4]
-        : 0;
-      const prediction = filter === 0
-        ? 0
-        : filter === 1
-          ? left
-          : filter === 2
-            ? above
-            : filter === 3
-              ? Math.floor((left + above) / 2)
-              : paethPredictor(left, above, upperLeft);
-      pixels[row * stride + column] = (raw + prediction) & 0xff;
-    }
-    encodedOffset += stride;
-  }
-  return { width, height, pixels };
-}
 
 function occupiedBounds(frame, maximumColumn = ASCII_COLUMNS - 1) {
   const occupied = [];
@@ -1089,7 +1025,7 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
   assert.doesNotMatch(css, /:has\([^)]*skill-stack[^)]*open/iu, "no-JavaScript disclosure use does not trigger the JavaScript focus blur");
 });
 
-test("applies equal subtle film grain and weave inside red, green, blue, gray, and cat glyphs and vectors", async () => {
+test("uses foreground background-gradient static for SVGs, colored text, ASCII text, and Teaching Assistant bars", async () => {
   const [{ html: home }, { html: resume }, { html: tools }] = await Promise.all([
     render("/"),
     render("/?view=resume"),
@@ -1112,12 +1048,12 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
   assert.equal(
     (resumeDocument.match(/class="row justify-content-center stack-icon signal-fuzz"/gu) ?? []).length,
     9,
-    "every Skill Stack icon receives the shared film effect",
+    "every Skill Stack icon receives the shared foreground static",
   );
   assert.equal(
     (resumeDocument.match(/class="tool-icon(?: project-modal-trigger)? signal-fuzz"/gu) ?? []).length,
     projects.length,
-    "every primary Project icon receives the shared film effect",
+    "every primary Project icon receives the shared foreground static",
   );
 
   const resumeExperience = await readFile(new URL("../app/resume/ResumeExperience.tsx", import.meta.url), "utf8");
@@ -1137,87 +1073,56 @@ test("applies equal subtle film grain and weave inside red, green, blue, gray, a
   assert.doesNotMatch(resumeExperience, /circular-chart|circle-[123]|ChorusFilm/u);
 
   for (const html of [home, resume, tools]) {
-    assert.match(html, /class="signal-fuzz-defs"/);
+    assert.match(html, /class="background-static-defs"/);
+    assert.doesNotMatch(html, /signal-fuzz-defs/);
     assert.match(html, /<feTurbulence/);
     assert.match(html, /<feComposite[^>]*in2="SourceAlpha"[^>]*operator="in"/);
     assert.doesNotMatch(html, /chorus-film/);
   }
 
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.teaching-manifest-fill::before \{[\s\S]*?signal-film-grain-frame[\s\S]*?signal-film-weave/u);
+  assert.match(css, /\.university-progress-span\.background-gradient-green-blue::before,\s*\.teaching-manifest-fill::before \{[\s\S]*?background-size: 3px 3px, 3px 3px, 6px 6px, 6px 6px, 12px 12px, 12px 12px;[\s\S]*?opacity: \.2;/u);
+  assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\.university-progress-span\.background-gradient-green-blue::before,\s*\.teaching-manifest-fill::before \{\s*animation: static \.1s steps\(20\) infinite;/u);
   assert.match(css, /\.teaching-manifest-caret \{[\s\S]*?teaching-manifest-caret 1s steps\(1, end\) infinite/u);
   assert.match(css, /\.teaching-manifest-entry--red-orange \{[\s\S]*?--teaching-caret-fill: #f4c7b8;[\s\S]*?--teaching-caret-outline: #c74b28;/u);
   assert.match(css, /\.teaching-manifest-entry--blue-green \{[\s\S]*?--teaching-caret-fill: #d9f0e5;[\s\S]*?--teaching-caret-outline: #056b83;/u);
   assert.match(css, /\.teaching-manifest-entry--storm-gray \{[\s\S]*?--teaching-caret-fill: #f4f2ed;[\s\S]*?--teaching-caret-outline: #777c82;/u);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.teaching-manifest-caret \{ animation: none;/u);
   const filterSource = await readFile(new URL("../app/components/SignalFuzz.tsx", import.meta.url), "utf8");
-  assert.match(filterSource, /id="signal-film-grain-static"/);
-  assert.match(filterSource, /id="signal-film-grain" animated/);
+  assert.match(filterSource, /id="background-gradient-green-blue-static"/);
+  assert.match(filterSource, /id="background-gradient-green-blue-static-animated" animated/);
   assert.match(filterSource, /x="-10%"[\s\S]*?y="-10%"[\s\S]*?width="120%"[\s\S]*?height="120%"/);
-  assert.doesNotMatch(filterSource, /x="0%"[\s\S]*?y="0%"[\s\S]*?width="100%"[\s\S]*?height="100%"/);
+  assert.doesNotMatch(filterSource, /signal-fuzz-defs|signal-film-grain/);
   assert.match(filterSource, /type="fractalNoise"/);
-  assert.match(filterSource, /baseFrequency="0\.38 0\.54"/);
-  assert.match(filterSource, /numOctaves="2"/);
+  assert.match(filterSource, /baseFrequency="0\.52 0\.66"/);
+  assert.match(filterSource, /numOctaves="1"/);
   assert.match(filterSource, /stitchTiles="stitch"/);
-  assert.match(filterSource, /attributeName="seed"[\s\S]*?values="11;23;37;53;11"[\s\S]*?dur="\.48s"/);
-  assert.match(filterSource, /<feOffset in="grain" dx="0" dy="0" result="woven-grain">/);
-  assert.match(filterSource, /attributeName="dx"[\s\S]*?values="0;\.32;-\.26;\.18;0"/);
-  assert.match(filterSource, /attributeName="dy"[\s\S]*?values="0;-\.36;\.44;-\.28;0"/);
-  assert.match(filterSource, /dur="7\.6s"[\s\S]*?calcMode="spline"/);
-  assert.match(filterSource, /\.2126 \.7152 \.0722 0 0/);
-  assert.match(filterSource, /<feComponentTransfer in="grain-luminance" result="subtle-grain">/);
-  assert.match(filterSource, /<feFuncA type="linear" slope="\.08" intercept="\.008"/);
-  assert.doesNotMatch(filterSource, /type="discrete"|tableValues|snow|crisp|feDisplacementMap|feGaussianBlur/i);
-  assert.match(filterSource, /in2="SourceAlpha"/);
-  assert.match(filterSource, /result="clipped-grain"/);
-  assert.match(filterSource, /<feBlend[\s\S]*?in="SourceGraphic"[\s\S]*?in2="clipped-grain"[\s\S]*?mode="soft-light"/);
-
-  const grainUrls = [...css.matchAll(
-    /--signal-grain-[1-4]: url\("(data:image\/png;base64,[^"]+)"\)/g,
-  )].map((match) => match[1]);
-  assert.equal(grainUrls.length, 4, "four dense film-grain frames are embedded");
-  assert.equal(
-    new Set(grainUrls.map((url) => createHash("sha256").update(url).digest("hex"))).size,
-    4,
-    "grain frames are distinct",
-  );
-  for (const grainUrl of grainUrls) {
-    const { width, height, pixels } = decodeRgbaPng(grainUrl);
-    assert.deepEqual([width, height], [64, 64]);
-    const luminance = [];
-    const alpha = [];
-    for (let index = 0; index < pixels.length; index += 4) {
-      luminance.push(pixels[index]);
-      alpha.push(pixels[index + 3]);
-      assert.equal(pixels[index], pixels[index + 1], "grain remains neutral");
-      assert.equal(pixels[index], pixels[index + 2], "grain remains neutral");
-    }
-    assert.ok(new Set(luminance).size >= 12, "grain has continuous tonal variation");
-    assert.ok(new Set(alpha).size >= 8, "grain has graduated low alpha");
-    assert.ok(alpha.every((value) => value > 0), "grain is dense rather than isolated snow");
-    assert.ok(Math.max(...alpha) <= 22, "grain never becomes high contrast");
-    assert.ok(Math.max(...luminance) < 255, "grain contains no pure-white flecks");
-  }
+  assert.match(filterSource, /attributeName="seed"[\s\S]*?values="11;23;37;53;71;89;107;11"[\s\S]*?dur="\.1s"[\s\S]*?calcMode="discrete"/);
+  assert.match(filterSource, /0 0 0 0 1[\s\S]*?0 0 0 0 1[\s\S]*?0 0 0 0 1[\s\S]*?\.2126 \.7152 \.0722 0 0/);
+  assert.match(filterSource, /<feComponentTransfer in="static-luminance" result="front-static">/);
+  assert.match(filterSource, /<feFuncA type="discrete" tableValues="\.02 \.06 \.11 \.18"/);
+  assert.doesNotMatch(filterSource, /snow|crisp|feDisplacementMap|feGaussianBlur/i);
+  assert.match(filterSource, /in="front-static"[\s\S]*?in2="SourceAlpha"/);
+  assert.match(filterSource, /result="clipped-static"/);
+  assert.match(filterSource, /<feComposite in="clipped-static" in2="SourceGraphic" operator="over"/);
+  assert.doesNotMatch(filterSource, /<feBlend|soft-light/);
 
   assert.match(css, /@supports \(\(-webkit-background-clip: text\) or \(background-clip: text\)\)/);
-  assert.match(css, /\.signal-fuzz:not\(svg\) \{[\s\S]*?background-clip: text;[\s\S]*?background-color: currentColor;[\s\S]*?background-size: 64px 64px/);
+  assert.match(css, /\.signal-fuzz:not\(svg\) \{[\s\S]*?background-clip: text;[\s\S]*?background-color: currentColor;[\s\S]*?rgb\(255 255 255 \/ 6%\)[\s\S]*?rgb\(255 255 255 \/ 4%\)[\s\S]*?rgb\(255 255 255 \/ 2%\)[\s\S]*?background-size: 3px 3px, 3px 3px, 6px 6px, 6px 6px, 12px 12px, 12px 12px/);
+  assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\.signal-fuzz:not\(svg\) \{\s*animation: static \.1s steps\(20\) infinite;/u);
   assert.doesNotMatch(css, /image-rendering:\s*(?:crisp-edges|pixelated)/);
-  assert.match(css, /svg\.signal-fuzz,[\s\S]*?\.signal-fuzz svg \{\s*filter: url\("#signal-film-grain-static"\)/);
-  assert.match(css, /signal-film-grain-frame \.48s steps\(1, end\) infinite/);
-  assert.match(css, /signal-film-weave 7\.6s cubic-bezier\(\.37, 0, \.63, 1\) infinite/);
-  assert.match(css, /svg\.signal-fuzz,[\s\S]*?\.signal-fuzz svg \{\s*filter: url\("#signal-film-grain"\)/);
+  assert.match(css, /svg:not\(\.background-static-defs\) \{\s*filter: url\("#background-gradient-green-blue-static"\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?svg:not\(\.background-static-defs\) \{\s*filter: url\("#background-gradient-green-blue-static-animated"\)/u);
+  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?svg:not\(\.background-static-defs\) \{[\s\S]*?filter: none !important;/u);
+  assert.match(css, /@media print \{[\s\S]*?svg:not\(\.background-static-defs\) \{[\s\S]*?filter: none !important;/u);
+  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.background-gradient-green-blue::before,\s*\.teaching-manifest-fill::before \{[\s\S]*?background-image: none !important;/u);
+  assert.match(css, /@media print \{[\s\S]*?\.background-gradient-green-blue::before,\s*\.teaching-manifest-fill::before \{[\s\S]*?background-image: none !important;/u);
+  assert.doesNotMatch(css, /signal-fuzz-defs|signal-film-grain|signal-grain-[1-4]|64px 64px|url\("#signal-film-grain"\)/);
   assert.doesNotMatch(css, /\.circle-[123][^{]*\{[^}]*filter:/);
   assert.doesNotMatch(css, /\.circle-background,[\s\S]{0,120}filter: url\("#signal-film-grain/);
   assert.doesNotMatch(css, /\.signal-fuzz\.signal-fuzz--nav \{\s*background-image: none/);
   assert.doesNotMatch(css, /signal-snow|signal-fuzz-text-shift|signal-fuzz-vector-shift|chorus-film|radial-gradient\(circle at \.8px \.7px|repeating-radial-gradient\(circle at 23% 34%/);
   assert.doesNotMatch(css, /\.signal-fuzz(?:::before|::after)/);
-  const weave = css.match(/@keyframes signal-film-weave \{([\s\S]*?)\n\}/)?.[1] ?? "";
-  const weaveOffsets = [...weave.matchAll(/(-?\d*\.?\d+)px\s+(-?\d*\.?\d+)px/g)];
-  assert.ok(weaveOffsets.length >= 3, "film weave authors several irregular subpixel positions");
-  for (const [, horizontal, vertical] of weaveOffsets) {
-    assert.ok(Math.abs(Number(horizontal)) <= 0.5);
-    assert.ok(Math.abs(Number(vertical)) <= 0.5);
-  }
   const textFuzzBlocks = [...css.matchAll(/\.signal-fuzz:not\(svg\) \{([\s\S]*?)\n\s*\}/g)];
   for (const [, textFuzzBlock] of textFuzzBlocks) {
     assert.doesNotMatch(

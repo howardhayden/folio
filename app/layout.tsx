@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { TEXT_TO_LATTICE_DOCUMENT_POLICY } from "../workers/text-to-lattice-response-policy/worker.js";
-import { SignalFuzzDefs } from "./components/SignalFuzz";
+import { BackgroundStaticDefs } from "./components/SignalFuzz";
 import { projects } from "./resume/projects.js";
 import "./globals.css";
 
@@ -41,7 +41,7 @@ export default function RootLayout({
           />
         ) : null}
       </head>
-      <body><SignalFuzzDefs />{children}</body>
+      <body><BackgroundStaticDefs />{children}</body>
     </html>
   );
 }

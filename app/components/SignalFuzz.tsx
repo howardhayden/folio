@@ -1,9 +1,9 @@
-type FilmGrainFilterProps = {
+type BackgroundStaticFilterProps = {
   animated?: boolean;
   id: string;
 };
 
-function FilmGrainFilter({ animated = false, id }: FilmGrainFilterProps) {
+function BackgroundStaticFilter({ animated = false, id }: BackgroundStaticFilterProps) {
   return (
     <filter
       id={id}
@@ -15,85 +15,57 @@ function FilmGrainFilter({ animated = false, id }: FilmGrainFilterProps) {
     >
       <feTurbulence
         type="fractalNoise"
-        baseFrequency="0.38 0.54"
-        numOctaves="2"
+        baseFrequency="0.52 0.66"
+        numOctaves="1"
         seed="11"
         stitchTiles="stitch"
-        result="grain"
+        result="static-noise"
       >
         {animated ? (
           <animate
             attributeName="seed"
-            values="11;23;37;53;11"
-            dur=".48s"
+            values="11;23;37;53;71;89;107;11"
+            dur=".1s"
             calcMode="discrete"
             repeatCount="indefinite"
           />
         ) : null}
       </feTurbulence>
-      <feOffset in="grain" dx="0" dy="0" result="woven-grain">
-        {animated ? (
-          <>
-            <animate
-              attributeName="dx"
-              values="0;.32;-.26;.18;0"
-              keyTimes="0;.25;.5;.75;1"
-              keySplines=".37 0 .63 1;.37 0 .63 1;.37 0 .63 1;.37 0 .63 1"
-              dur="7.6s"
-              calcMode="spline"
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="dy"
-              values="0;-.36;.44;-.28;0"
-              keyTimes="0;.25;.5;.75;1"
-              keySplines=".37 0 .63 1;.37 0 .63 1;.37 0 .63 1;.37 0 .63 1"
-              dur="7.6s"
-              calcMode="spline"
-              repeatCount="indefinite"
-            />
-          </>
-        ) : null}
-      </feOffset>
       <feColorMatrix
-        in="woven-grain"
+        in="static-noise"
         type="matrix"
-        values={`.2126 .7152 .0722 0 0
-                 .2126 .7152 .0722 0 0
-                 .2126 .7152 .0722 0 0
+        values={`0 0 0 0 1
+                 0 0 0 0 1
+                 0 0 0 0 1
                  .2126 .7152 .0722 0 0`}
-        result="grain-luminance"
+        result="static-luminance"
       />
-      <feComponentTransfer in="grain-luminance" result="subtle-grain">
-        <feFuncA type="linear" slope=".08" intercept=".008" />
+      <feComponentTransfer in="static-luminance" result="front-static">
+        <feFuncA type="discrete" tableValues=".02 .06 .11 .18" />
       </feComponentTransfer>
       <feComposite
-        in="subtle-grain"
+        in="front-static"
         in2="SourceAlpha"
         operator="in"
-        result="clipped-grain"
+        result="clipped-static"
       />
-      <feBlend
-        in="SourceGraphic"
-        in2="clipped-grain"
-        mode="soft-light"
-      />
+      <feComposite in="clipped-static" in2="SourceGraphic" operator="over" />
     </filter>
   );
 }
 
-export function SignalFuzzDefs() {
+export function BackgroundStaticDefs() {
   return (
     <svg
-      className="signal-fuzz-defs"
+      className="background-static-defs"
       width="0"
       height="0"
       aria-hidden="true"
       focusable="false"
     >
       <defs>
-        <FilmGrainFilter id="signal-film-grain-static" />
-        <FilmGrainFilter id="signal-film-grain" animated />
+        <BackgroundStaticFilter id="background-gradient-green-blue-static" />
+        <BackgroundStaticFilter id="background-gradient-green-blue-static-animated" animated />
       </defs>
     </svg>
   );
