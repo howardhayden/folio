@@ -191,11 +191,11 @@ test("resume detail links preserve native modified and nonprimary navigation", a
   assert.match(css, /\.university-chronology-entry--interactive \.university-progress-span::after \{[\s\S]*?background: whitesmoke;[\s\S]*?opacity: 0;[\s\S]*?transition: opacity \.42s cubic-bezier\(\.22, 1, \.36, 1\);/u);
   assert.doesNotMatch(css, /\.university-progress-span[^}]*background-image: none;/u,
     "the University disclosure flash cross-fades over the existing fill instead of replacing it");
-  assert.match(css, /\.background-gradient-green-blue::before \{[\s\S]*?background-image: var\(--signal-grain-1\);[\s\S]*?opacity: 0\.12;[\s\S]*?pointer-events: none;/u);
-  assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?signal-film-grain-frame \.48s steps\(1, end\) infinite,[\s\S]*?signal-film-weave 7\.6s/u);
+  assert.match(css, /\.background-gradient-green-blue::before \{[\s\S]*?rgb\(255 255 255 \/ 30%\)[\s\S]*?rgb\(255 255 255 \/ 20%\)[\s\S]*?rgb\(255 255 255 \/ 10%\)[\s\S]*?background-size: 3px 3px, 3px 3px, 6px 6px, 6px 6px, 12px 12px, 12px 12px;[\s\S]*?opacity: 0\.12;[\s\S]*?pointer-events: none;/u);
+  assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\.background-gradient-green-blue::before \{\s*animation: static \.1s steps\(20\) infinite;/u);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.university-progress-span \.progress-value \{[\s\S]*?transition: none;[\s\S]*?\.university-chronology-entry--interactive \.university-progress-span::after,[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none;[\s\S]*?transition: none;/u);
-  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.background-gradient-green-blue \{[\s\S]*?background: CanvasText !important;[\s\S]*?color: Canvas !important;[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none !important;[\s\S]*?background-image: none !important;[\s\S]*?\.university-chronology-entry \.progress-label a:focus-visible \{[\s\S]*?outline-color: Highlight !important;/u);
-  assert.match(css, /@media print \{[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none !important;[\s\S]*?background-image: none !important;/u);
+  assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.background-gradient-green-blue \{[\s\S]*?background: CanvasText !important;[\s\S]*?color: Canvas !important;[\s\S]*?\.background-gradient-green-blue::before,\s*\.teaching-manifest-fill::before \{[\s\S]*?animation: none !important;[\s\S]*?background-image: none !important;[\s\S]*?\.university-chronology-entry \.progress-label a:focus-visible \{[\s\S]*?outline-color: Highlight !important;/u);
+  assert.match(css, /@media print \{[\s\S]*?\.background-gradient-green-blue::before,\s*\.teaching-manifest-fill::before \{[\s\S]*?animation: none !important;[\s\S]*?background-image: none !important;/u);
   assert.match(css, /\.project-modal-trigger,\s*\.timeline-icon-trigger \{[\s\S]*?min-height: 24px;[\s\S]*?min-width: 24px;/u);
 });
 
