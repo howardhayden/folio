@@ -254,7 +254,7 @@ export function ResumeProjectCard({
           )}
         </div>
 
-        <h3 className="card-title tools-card-title row justify-content-center" id={headingId}>
+        <h3 className="card-title tools-card-title" id={headingId}>
           <a
             className="signal-fuzz"
             href={project.canonicalPath}

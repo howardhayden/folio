@@ -398,24 +398,40 @@ export default function ResumeSearch({ children }: { children: ReactNode }) {
       <section className="container resume-search" aria-label="Search Resume">
         <div className="resume-search-controls">
           <label className="resume-search-label" htmlFor="resume-search-input">Search Resume</label>
-          <input
-            ref={inputRef}
-            type="search"
-            className="form-control shelf-search-entry resume-search-input px-2"
-            id="resume-search-input"
-            placeholder="Search"
-            value={query}
-            aria-controls="resume-search-results"
-            aria-busy={searching}
-            autoComplete="off"
-            spellCheck="false"
-            onPointerDown={activate}
-            onFocus={activate}
-            onChange={(event) => {
-              updateQuery(event.target.value);
-              activate();
-            }}
-          />
+          <div className="resume-search-entry">
+            <input
+              ref={inputRef}
+              type="search"
+              className="form-control shelf-search-entry resume-search-input"
+              id="resume-search-input"
+              placeholder="Search"
+              value={query}
+              aria-controls="resume-search-results"
+              aria-busy={searching}
+              autoComplete="off"
+              spellCheck="false"
+              onPointerDown={activate}
+              onFocus={activate}
+              onChange={(event) => {
+                updateQuery(event.target.value);
+                activate();
+              }}
+            />
+            <button
+              type="button"
+              className="button-reset resume-search-clear signal-fuzz"
+              aria-label="Clear Resume search"
+              aria-hidden={query ? undefined : "true"}
+              disabled={!query}
+              tabIndex={query ? 0 : -1}
+              onClick={() => {
+                updateQuery("");
+                inputRef.current?.focus({ preventScroll: true });
+              }}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
           <button
             type="button"
             className={`button-reset resume-search-close signal-fuzz${closeVisible ? "" : " resume-search-close--hidden"}`}

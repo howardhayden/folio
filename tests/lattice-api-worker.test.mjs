@@ -15,8 +15,10 @@ import {
 import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
   LATTICE_PROVIDER_CALL_LIMIT,
+  LATTICE_PROVIDER_FAILURE_CLASSES,
   LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   LATTICE_REMOTE_MODELS,
+  LATTICE_PROVIDER_STAGES,
   LatticeProviderError,
   createHuggingFaceLatticeAdapter,
   requestHuggingFaceJson,
@@ -37,6 +39,9 @@ import {
   LATTICE_API_ORIGIN,
   LATTICE_API_PATH,
   LATTICE_API_RATE_LIMIT_KEY,
+  LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
+  LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_EXPIRES_AT_BINDING,
   createLatticeApiWorker as createProductionLatticeApiWorker,
   qualificationWindowAllowsRequests,
@@ -1224,6 +1229,77 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
   assert.doesNotMatch(calls[1].body.messages[0].content, /\/no_think/u);
 });
 
+test("provider failures carry only an immutable allowlisted stage and bounded call ordinal", async () => {
+  const privateBody = "PRIVATE-PROVIDER-BODY-MUST-NOT-CROSS";
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => new Response(privateBody, {
+      status: 503,
+      headers: { "Content-Type": "text/plain" },
+    }),
+  });
+  await assert.rejects(
+    adapter.analyze(minimalAnalysisRequest()),
+    (error) => {
+      assert.ok(error instanceof LatticeProviderError);
+      assert.equal(error.code, "provider_http_error");
+      assert.equal(error.status, 503);
+      assert.equal(error.qualificationStage, "analysis");
+      assert.equal(error.qualificationCallOrdinal, 1);
+      assert.equal(LATTICE_PROVIDER_FAILURE_CLASSES.includes(error.code), true);
+      assert.equal(LATTICE_PROVIDER_STAGES.includes(error.qualificationStage), true);
+      assert.equal(Object.keys(error).includes("qualificationStage"), false);
+      assert.equal(Object.keys(error).includes("qualificationCallOrdinal"), false);
+      assert.equal(error.message.includes(privateBody), false);
+      return true;
+    },
+  );
+});
+
+test("provider diagnostics attribute a later verifier-stage failure to its exact call ordinal", async () => {
+  const calls = [];
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async (_url, init) => {
+      calls.push(JSON.parse(init.body));
+      if (calls.length === 1) {
+        return successfulProviderResponse({
+          documentKind: "instruction",
+          passages: [],
+          questions: [],
+        });
+      }
+      return new Response("PRIVATE-LATER-STAGE-BODY", {
+        status: 503,
+        headers: { "Content-Type": "text/plain" },
+      });
+    },
+  });
+  await adapter.analyze(minimalAnalysisRequest());
+  await assert.rejects(
+    adapter.certify({
+      certificateId: "certificate:diagnostic-stage",
+      obligationIds: Object.freeze(["document:whole"]),
+      source: "Original source.",
+      candidate: "Candidate source.",
+      analysis: null,
+      signal: new AbortController().signal,
+    }),
+    (error) => {
+      assert.ok(error instanceof LatticeProviderError);
+      assert.equal(error.code, "provider_http_error");
+      assert.equal(error.status, 503);
+      assert.equal(error.qualificationStage, "certification");
+      assert.equal(error.qualificationCallOrdinal, 2);
+      return true;
+    },
+  );
+  assert.deepEqual(calls.map(({ model }) => model), [
+    LATTICE_REMOTE_MODELS.generator,
+    LATTICE_REMOTE_MODELS.verifier,
+  ]);
+});
+
 test("a direct JSON-object request prepends the trusted closed schema without changing user data", async () => {
   let body;
   const options = providerRequestOptions(async (_url, init) => {
@@ -1272,7 +1348,14 @@ test("the immutable 32-call adapter budget blocks a 33rd provider fetch", async 
   });
   await assert.rejects(
     adapter.analyze(request),
-    (error) => error instanceof LatticeProviderError && error.code === "provider_call_limit",
+    (error) => {
+      assert.ok(error instanceof LatticeProviderError);
+      assert.equal(error.code, "provider_call_limit");
+      assert.equal(error.qualificationStage, undefined);
+      assert.equal(error.qualificationCallOrdinal, undefined);
+      assert.equal(LATTICE_PROVIDER_FAILURE_CLASSES.includes(error.code), false);
+      return true;
+    },
   );
   assert.equal(fetches, LATTICE_PROVIDER_CALL_LIMIT);
 });
@@ -1472,6 +1555,141 @@ test("typed provider failures map to exact flat public errors with a bounded 429
       response.headers.has("set-cookie"),
       false,
     );
+    for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) {
+      assert.equal(response.headers.has(header), false);
+    }
+  }
+});
+
+test("the four-field provider diagnostic is opt-in and confined to an active qualification window", async () => {
+  const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
+  const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
+    fetchImpl: async () => new Response(privateBody, {
+      status: 503,
+      headers: { "Content-Type": "text/plain" },
+    }),
+    runTextToLatticeImpl: async (_text, { adapter }) => {
+      await adapter.analyze(minimalAnalysisRequest());
+      return validLatticeResult();
+    },
+    ...overrides,
+  });
+  const diagnosticHeaders = {
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
+      LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  };
+  const activeQualification = {
+    HF_TOKEN: "server_only_token",
+    [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z",
+  };
+  const cases = [
+    ["qualified runtime", createFailureWorker(), { HF_TOKEN: "server_only_token" }, diagnosticHeaders],
+    ["unmarked qualification request", createFailureWorker(), activeQualification, {}],
+    [
+      "wrong diagnostic version",
+      createFailureWorker(),
+      activeQualification,
+      { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v2" },
+    ],
+  ];
+  for (const [name, worker, env, headers] of cases) {
+    const response = await worker.fetch(apiRequest(validPayload, { headers }), env);
+    assert.equal(response.status, 502, name);
+    assert.deepEqual(await json(response), { error: "upstream_unavailable" }, name);
+    for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) {
+      assert.equal(response.headers.has(header), false, `${name}: ${header}`);
+    }
+  }
+
+  const response = await createFailureWorker().fetch(
+    apiRequest(validPayload, { headers: diagnosticHeaders }),
+    activeQualification,
+  );
+  assert.equal(response.status, 502);
+  assert.deepEqual(await json(response), { error: "upstream_unavailable" });
+  assert.equal(
+    response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass),
+    "provider_http_error",
+  );
+  assert.equal(
+    response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus),
+    "503",
+  );
+  assert.equal(
+    response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage),
+    "analysis",
+  );
+  assert.equal(
+    response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal),
+    "1",
+  );
+  assert.equal(JSON.stringify([...response.headers]).includes(privateBody), false);
+
+  const successfulQualification = await createLatticeApiWorker({
+    runTextToLatticeImpl: async () => validLatticeResult(),
+  }).fetch(
+    apiRequest(validPayload, { headers: diagnosticHeaders }),
+    activeQualification,
+  );
+  assert.equal(successfulQualification.status, 200);
+  for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) {
+    assert.equal(successfulQualification.headers.has(header), false);
+  }
+
+  const qualificationCutoff = Date.parse(activeQualification[LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]);
+  let diagnosticClock = qualificationCutoff - 1;
+  let cutoffDeadline;
+  const cutoffWorker = createFailureWorker({
+    fetchImpl: async () => {
+      diagnosticClock = qualificationCutoff;
+      return new Response(null, { status: 503 });
+    },
+    now: () => diagnosticClock,
+    scheduleTimeout(callback, milliseconds) {
+      assert.equal(cutoffDeadline, undefined);
+      const deadline = { milliseconds, canceled: false, fired: false };
+      deadline.callback = () => {
+        deadline.fired = true;
+        callback();
+      };
+      cutoffDeadline = deadline;
+      return cutoffDeadline;
+    },
+    cancelTimeout(deadline) {
+      assert.equal(deadline, cutoffDeadline);
+      deadline.canceled = true;
+    },
+  });
+  const cutoff = await cutoffWorker.fetch(
+    apiRequest(validPayload, { headers: diagnosticHeaders }),
+    activeQualification,
+  );
+  assert.equal(cutoff.status, 502);
+  assert.deepEqual(await json(cutoff), { error: "upstream_unavailable" });
+  assert.equal(cutoffDeadline.milliseconds, 1);
+  assert.equal(cutoffDeadline.fired, false);
+  assert.equal(cutoffDeadline.canceled, true);
+  for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) {
+    assert.equal(cutoff.headers.has(header), false);
+  }
+
+  let expiredProviderCalls = 0;
+  const expiredWorker = createFailureWorker({
+    fetchImpl: async () => {
+      expiredProviderCalls += 1;
+      return new Response(null, { status: 503 });
+    },
+    now: () => Date.parse("2100-01-01T00:00:00.000Z"),
+  });
+  const expired = await expiredWorker.fetch(
+    apiRequest(validPayload, { headers: diagnosticHeaders }),
+    activeQualification,
+  );
+  assert.equal(expired.status, 503);
+  assert.deepEqual(await json(expired), { error: "upstream_unavailable" });
+  assert.equal(expiredProviderCalls, 0);
+  for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) {
+    assert.equal(expired.headers.has(header), false);
   }
 });
 

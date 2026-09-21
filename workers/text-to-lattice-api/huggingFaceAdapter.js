@@ -21,6 +21,18 @@ export const LATTICE_REMOTE_MODELS = Object.freeze({
   verifier: "meta-llama/Llama-3.2-3B-Instruct:featherless-ai",
 });
 
+export const LATTICE_PROVIDER_FAILURE_CLASSES = Object.freeze([
+  "provider_not_configured",
+  "provider_timeout",
+  "provider_unavailable",
+  "provider_request_too_large",
+  "provider_redirect",
+  "provider_http_error",
+  "provider_response_too_large",
+  "provider_output_limit",
+  "provider_malformed_response",
+]);
+
 export const LATTICE_PROVIDER_CALL_TIMEOUT_MS = 60_000;
 export const LATTICE_PROVIDER_CALL_LIMIT = 32;
 export const LATTICE_PROVIDER_REQUEST_BYTE_LIMIT = 1_048_576;
@@ -83,6 +95,8 @@ const STAGES = Object.freeze({
   }),
 });
 
+export const LATTICE_PROVIDER_STAGES = Object.freeze(Object.keys(STAGES));
+
 export class LatticeProviderError extends Error {
   constructor(code, message, { status = null, retryAfterSeconds = null, cause } = {}) {
     super(message, cause === undefined ? undefined : { cause });
@@ -95,6 +109,31 @@ export class LatticeProviderError extends Error {
 
 function providerError(code, message, options) {
   return new LatticeProviderError(code, message, options);
+}
+
+function withQualificationDiagnostic(error, stage, callOrdinal) {
+  if (!(error instanceof LatticeProviderError)
+    || !LATTICE_PROVIDER_STAGES.includes(stage)
+    || !Number.isSafeInteger(callOrdinal)
+    || callOrdinal < 1
+    || callOrdinal > LATTICE_PROVIDER_CALL_LIMIT) {
+    return error;
+  }
+  Object.defineProperties(error, {
+    qualificationStage: {
+      configurable: false,
+      enumerable: false,
+      value: stage,
+      writable: false,
+    },
+    qualificationCallOrdinal: {
+      configurable: false,
+      enumerable: false,
+      value: callOrdinal,
+      writable: false,
+    },
+  });
+  return error;
 }
 
 function abortError(message = "The Lattice provider request was canceled.") {
@@ -426,22 +465,28 @@ export function createHuggingFaceLatticeAdapter({
       throw providerError("provider_call_limit", "The Lattice provider call budget was exhausted.");
     }
     budget.used += 1;
+    const callOrdinal = budget.used;
     const stage = STAGES[stageName];
-    const result = await requestHuggingFaceJson({
-      token,
-      role: stage.role,
-      messages: messagesWithMode(stage.messages, request, requestedMode),
-      schema: stage.schema,
-      schemaName: stage.schemaName,
-      maxTokens: stage.maxTokens,
-      temperature: stage.temperature,
-      topP: stage.topP,
-      signal: request.signal,
-      fetchImpl,
-      callTimeoutMs,
-      maximumRequestBytes,
-      maximumResponseBytes,
-    });
+    let result;
+    try {
+      result = await requestHuggingFaceJson({
+        token,
+        role: stage.role,
+        messages: messagesWithMode(stage.messages, request, requestedMode),
+        schema: stage.schema,
+        schemaName: stage.schemaName,
+        maxTokens: stage.maxTokens,
+        temperature: stage.temperature,
+        topP: stage.topP,
+        signal: request.signal,
+        fetchImpl,
+        callTimeoutMs,
+        maximumRequestBytes,
+        maximumResponseBytes,
+      });
+    } catch (error) {
+      throw withQualificationDiagnostic(error, stageName, callOrdinal);
+    }
     if (stageName === "analysis") {
       Object.defineProperty(result, LATTICE_FITTED_ANALYSIS_CONTEXT, {
         configurable: false,

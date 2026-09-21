@@ -22,7 +22,7 @@ test("Resume Search covers every canonical content class and preserves evidence 
     experiences: 8,
     skills: 9,
     education: 5,
-    evidence: 1677,
+    evidence: 1673,
   });
   for (const indexed of resumeSearchIndex.records) {
     assert.ok(indexed.record.evidence.length > 0, indexed.record.id);
@@ -521,6 +521,13 @@ test("Resume Search tracks project evidence for languages, frameworks, runtimes,
 
 test("historical project records preserve supplied dates, collaborators, qualifications, and technical metadata", () => {
   const byId = new Map(projects.map((project) => [project.id, project]));
+  const revisedProjectIds = [
+    "chromebook-management",
+    "finding-freedom-summer-traveling-exhibit",
+    "information-studies-and-digital-citizenship",
+    "comparative-database-design-and-data-analytics",
+    "ux-optimization-case-study",
+  ];
   const expectedPublications = {
     "lms-reimplementation-proposal": ["February 2023", "2023-02", undefined],
     "chromebook-management": ["August 2022 – November 2022", "2022-08", "2022-11"],
@@ -547,6 +554,17 @@ test("historical project records preserve supplied dates, collaborators, qualifi
     "Finding Freedom Summer Traveling Exhibit contributor: Meng Qu",
     "Finding Freedom Summer Traveling Exhibit contributor: Jerry Yarnetsky",
   ]);
+  for (const id of revisedProjectIds) {
+    assert.doesNotMatch(byId.get(id).summary.join(" "), /\bI\b/u, `${id} uses artifact-centered description copy`);
+  }
+  for (const id of [
+    "chromebook-management",
+    "information-studies-and-digital-citizenship",
+    "comparative-database-design-and-data-analytics",
+    "ux-optimization-case-study",
+  ]) {
+    assert.deepEqual(byId.get(id).resources, [], `${id} relies on its canonical title link`);
+  }
   assert.match(byId.get("information-studies-and-digital-citizenship").summary.join(" "), /Jaclynn Spraetz/u);
   for (const id of ["comparative-database-design-and-data-analytics", "ux-optimization-case-study"]) {
     assert.match(byId.get(id).limitations.join(" "), /non-concurrent, non-sequential, interdepartmental undergraduate courses/u);
@@ -561,6 +579,9 @@ test("historical project records preserve supplied dates, collaborators, qualifi
   ]);
   assert.equal(projectIds("BigQuery")[0], "resume-project-comparative-database-design-and-data-analytics");
   assert.equal(projectIds("Wireshark")[0], "resume-project-ux-optimization-case-study");
+  for (const query of ["Education", "Teaching", "Learning", "Educational"]) {
+    assert.ok(projectIds(query).includes("resume-project-fog-of-sea"), query);
+  }
 });
 
 test("Resume result ordering never lets a lower class leapfrog an upper class", () => {
@@ -579,8 +600,14 @@ test("Resume Search keeps one compact control row and reverses Shelf's five-pixe
     readFile(new URL("../app/resume/ResumeView.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(view, /<ResumeSearch>[\s\S]*?<ResumeProjectsHeld \/>[\s\S]*?<SkillStacks \/>[\s\S]*?<ResumeExperience \/>/u);
-  assert.match(source, /className="form-control shelf-search-entry resume-search-input px-2"/u);
+  assert.match(source, /className="resume-search-entry"[\s\S]*?className="form-control shelf-search-entry resume-search-input"/u);
   assert.match(source, /placeholder="Search"/u);
+  assert.match(
+    source,
+    /className="button-reset resume-search-clear signal-fuzz"[\s\S]*?aria-label="Clear Resume search"[\s\S]*?aria-hidden=\{query \? undefined : "true"\}[\s\S]*?disabled=\{!query\}[\s\S]*?tabIndex=\{query \? 0 : -1\}/u,
+  );
+  assert.match(source, /onClick=\{\(\) => \{\s*updateQuery\(""\);\s*inputRef\.current\?\.focus\(\{ preventScroll: true \}\);/u);
+  assert.doesNotMatch(source, /\{query \? \(\s*<button[^>]+resume-search-clear/u, "the clear control stays mounted and cannot shift the input");
   assert.match(source, /inert=\{canonicalInert \? true : undefined\}/u);
   assert.match(source, /inert=\{resultsInert \? true : undefined\}/u);
   assert.match(source, /aria-label="Close Resume search"[\s\S]*?aria-hidden=\{closeVisible \? undefined : "true"\}[\s\S]*?disabled=\{!closeInteractive\}[\s\S]*?>\s*Close\s*</u);
@@ -615,6 +642,15 @@ test("Resume Search keeps one compact control row and reverses Shelf's five-pixe
   assert.match(source, /className=\{`resume-search-stage\$\{canonicalOverlay \? " resume-search-stage--clip-canonical" : ""\}`\}/u);
   assert.match(source, /resume-search-results--replacing/u);
   assert.match(css, /\.resume-search-controls \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: minmax\(0, 1fr\) clamp\(11rem, 16\.666vw, 18rem\) minmax\(0, 1fr\)/u);
+  assert.match(css, /\.resume-search-entry \{[\s\S]*?grid-column: 2;[\s\S]*?position: relative;[\s\S]*?width: 100%;/u);
+  assert.match(css, /\.form-control\.resume-search-input,[\s\S]*?\.form-control\.resume-search-input:focus \{[\s\S]*?appearance: none;[\s\S]*?-webkit-appearance: none;[\s\S]*?padding-inline: 2\.25rem;/u);
+  assert.match(css, /\.resume-search-input::-webkit-search-cancel-button,[\s\S]*?\.resume-search-input::-webkit-search-decoration \{[\s\S]*?display: none;/u);
+  assert.match(css, /\.resume-search-input::-ms-clear,[\s\S]*?\.resume-search-input::-ms-reveal \{[\s\S]*?display: none;/u);
+  assert.match(css, /\.resume-search-clear \{[\s\S]*?color: var\(--color-2\);[\s\S]*?inset-inline-end: \.25rem;[\s\S]*?position: absolute;[\s\S]*?top: 50%;/u);
+  assert.match(css, /\.resume-search-clear:disabled \{[\s\S]*?opacity: 0;[\s\S]*?pointer-events: none;/u);
+  assert.match(css, /\.resume-search-clear:focus-visible \{[\s\S]*?outline: 2px solid #0b4705;/u);
+  const clearRule = css.match(/\.resume-search-clear \{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  assert.doesNotMatch(clearRule, /\bbackground\s*:/u, "the clear control preserves signal-fuzz's static layers");
   assert.match(css, /\.resume-search-close \{[\s\S]*?grid-column: 3;[\s\S]*?transition: filter \.5s ease, opacity \.5s ease/u);
   assert.match(css, /\.resume-search-close--hidden \{[\s\S]*?filter: blur\(5px\);[\s\S]*?opacity: 0;[\s\S]*?pointer-events: none/u);
   const baseStageRule = css.match(/\.resume-search-stage \{([\s\S]*?)\n\}/u)?.[1] ?? "";
@@ -631,4 +667,5 @@ test("Resume Search keeps one compact control row and reverses Shelf's five-pixe
   assert.match(css, /@media \(prefers-reduced-transparency: reduce\)[\s\S]*?\.resume-search-surface--frosted \{[\s\S]*?filter: none/u);
   assert.match(css, /@media \(prefers-reduced-transparency: reduce\)[\s\S]*?\.resume-search-close--hidden \{[\s\S]*?opacity: 0/u);
   assert.match(css, /@media \(forced-colors: active\)[\s\S]*?\.resume-search-surface--frosted \{[\s\S]*?filter: none/u);
+  assert.match(css, /@media \(forced-colors: active\)[\s\S]*?\.resume-search-clear \{[\s\S]*?color: ButtonText;[\s\S]*?\.resume-search-clear:focus-visible \{[\s\S]*?outline-color: Highlight;/u);
 });
