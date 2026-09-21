@@ -6,6 +6,8 @@
 
 **Qualification date:** 2026-09-14
 
+**Evidence updated:** 2026-09-21
+
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
 **Qualified source-set SHA-256:** `3a40366c339d5fb9a12bf48a139894678b15dcdc435617217fb89f96f875e229`
@@ -14,7 +16,9 @@
 
 Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence.
 
-This is a held, documentation-only qualification record. There is **no remote production evidence** for the active capability: the reviewed baseline is the most recent pulled hah.dev deployment and ancestry baseline, not a deployment of the remote Text to Lattice candidate. Source and tests establish candidate contracts; they do not establish the production route, encrypted secret bindings, quota-cookie behavior, atomic request admission, provider behavior, capacity, application data lifecycle, or a successful canonical-browser result.
+This remains a held, documentation-only qualification record. There is **no remote production evidence sufficient to qualify or activate** the active capability. Bounded qualification [run #65](https://github.com/howardhayden/folio/actions/runs/35658344879) temporarily deployed the qualified source set from merge commit `635751d66d5d8791d46589250a2251b98646db46` and produced non-authorizing remote failure evidence. In service job `106527966945`, the synthetic canary returned outer `HTTP 502` with public code `upstream_unavailable`; the qualification-only sanitized diagnostic was `failure_class=provider_http_error`, `upstream_status=402`, `stage=analysis`, and `call_ordinal=8`. The run produced no successful transformation and closed none of GATE-02, GATE-03, or GATE-06. Qualification-job rollback steps 33–36 succeeded, independent held-enforcement job `106528504567` succeeded, and public activation remained off.
+
+Run #65 retained the held Pages artifact `github-pages` (SHA-256 `39bd9c1e5bc5709947de9723c2383395c2d53fb7bce8831efde3da0c931e0144`), `text-to-lattice-deployment-evidence-35658344879-1` (SHA-256 `77ff79f57f13f44d75faa11e5b06401f09791e27c702b3b4a80f1062f0b15764`), and `text-to-lattice-held-enforcement-35658344879-1` (SHA-256 `f968addd7aeee7c7f17606ec95755fb3a60fad5d4cc4c2d8c8e50fd57b749f27`). The service-job log and artifacts are partial failure and fail-closed disposition evidence, not a successful live-boundary receipt, deployment index, canonical-browser record, or gate-closing result. Source and tests continue to establish the remaining candidate contracts; run #65 does not establish successful provider behavior, production capacity, the complete application data-lifecycle boundary, or a successful canonical-browser result.
 
 ## Active remote capability
 
