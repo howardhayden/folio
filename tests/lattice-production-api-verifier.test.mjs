@@ -17,6 +17,11 @@ import {
   verifyTextToLatticeHeldApi,
 } from "../scripts/verify-text-to-lattice-held-api.mjs";
 import {
+  LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
+  LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+} from "../workers/text-to-lattice-api/worker.js";
+import {
   TEXT_TO_LATTICE_DOCUMENT_POLICY,
 } from "../workers/text-to-lattice-response-policy/worker.js";
 
@@ -300,6 +305,10 @@ test("the production verifier establishes one bodyless visitor session before ex
   const canaryCall = fixture.calls.at(-1);
   assert.match(canaryCall.init.headers.Cookie, /^__Secure-hah-lattice-api-visitor=v1\./u);
   assert.equal(canaryCall.init.headers.Cookie.includes(";"), false);
+  assert.equal(
+    canaryCall.init.headers[LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER],
+    LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  );
 
   const missingSessionCall = fixture.calls[
     negativeProbeStartIndex
@@ -546,6 +555,13 @@ test("a failed transformation canary is attempted once without retry or retained
     canaryResponse: apiJson(
       { error: "upstream_unavailable" },
       502,
+      {
+        [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass]:
+          "provider_http_error",
+        [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus]: "503",
+        [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage]: "analysis",
+        [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal]: "1",
+      },
     ),
   });
   await assert.rejects(
@@ -555,11 +571,81 @@ test("a failed transformation canary is attempted once without retry or retained
       now: fixedNow,
       wait: noWait,
     }),
-    /synthetic transformation canary returned HTTP 502 \(upstream_unavailable\)/u,
+    /synthetic transformation canary returned HTTP 502 \(upstream_unavailable\); failure_class=provider_http_error; upstream_status=503; stage=analysis; call_ordinal=1/u,
   );
   assert.equal(fixture.canaryRequests, 1);
   assert.equal(fixture.setupRequests, 1);
   assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+});
+
+test("the canary rejects absent, partial, malformed, or success diagnostics without reflecting values", async (contextTest) => {
+  const privateMarker = "PRIVATE-DIAGNOSTIC-MARKER-MUST-NOT-CROSS";
+  const exactDiagnostic = {
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass]:
+      "provider_http_error",
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus]: "503",
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage]: "analysis",
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal]: "1",
+  };
+  const cases = [
+    ["absent", {}, /without a qualification diagnostic/u, 502],
+    [
+      "partial",
+      { [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass]: "provider_http_error" },
+      /incomplete qualification diagnostic/u,
+      502,
+    ],
+    [
+      "failure class",
+      { ...exactDiagnostic, [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass]: privateMarker },
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
+      "upstream status",
+      { ...exactDiagnostic, [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus]: "399" },
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
+      "stage",
+      { ...exactDiagnostic, [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage]: privateMarker },
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
+      "ordinal",
+      { ...exactDiagnostic, [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal]: "33" },
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    ["success", exactDiagnostic, /qualification diagnostic on success/u, 200],
+  ];
+  for (const [name, headers, expected, status] of cases) {
+    await contextTest.test(name, async () => {
+      const body = status === 200
+        ? { result: validResult(), schema_version: 1 }
+        : { error: "upstream_unavailable" };
+      const fixture = successfulFixture({ canaryResponse: apiJson(body, status, headers) });
+      let failure;
+      try {
+        await verifyTextToLatticeApiProduction({
+          fetchImpl: fixture.fetchImpl,
+          context,
+          now: fixedNow,
+          wait: noWait,
+        });
+      } catch (error) {
+        failure = error;
+      }
+      assert.ok(failure instanceof Error);
+      assert.match(failure.message, expected);
+      assert.equal(failure.message.includes(privateMarker), false);
+      assert.equal(fixture.canaryRequests, 1);
+      assert.equal(fixture.setupRequests, 1);
+      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+    });
+  }
 });
 
 test("an unable canary reports only an allowlisted homogeneous failure class and safe counts", async (contextTest) => {

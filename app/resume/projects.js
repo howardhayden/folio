@@ -1,7 +1,7 @@
 import { documentsForProject } from "../content/projectDocuments.js";
 
-export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v8";
-export const PROJECT_CONTENT_UPDATED = "2026-09-14";
+export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v9";
+export const PROJECT_CONTENT_UPDATED = "2026-09-21";
 
 export const LATTICE_DOCUMENTATION_RESOURCES = Object.freeze(
   documentsForProject("lattice").map((document) => Object.freeze({
@@ -243,10 +243,10 @@ export const projects = Object.freeze([
     canonicalPath: "/projects/chromebook-management/",
     url: "https://www.linkedin.com/in/howardhayden/details/projects/",
     icon: "bricks",
-    thesis: "Chromebook Management translated Sierra ILS device states into an internal workflow people could interpret and act on.",
+    thesis: "Chromebook Management translated Sierra ILS device states into a workflow in which status, interpretation, and action remained connected.",
     summary: Object.freeze([
-      "Chromebook Management translated Sierra ILS device states into an internal workflow people could interpret and act on.",
-      "I developed an internal web application that contextualized, activated, and deactivated Chromebooks while presenting differing Sierra ILS statuses in user-interpretable terms.",
+      "Chromebook Management translated Sierra ILS device states into a workflow in which status, interpretation, and action remained connected.",
+      "This internal web application contextualized differing Sierra ILS statuses in user-interpretable terms while supporting Chromebook activation and deactivation.",
     ]),
     capabilities: Object.freeze(["Device-status contextualization", "Chromebook activation", "Chromebook deactivation", "User-interpretable status presentation"]),
     technologies: Object.freeze(["Jekyll", "Ruby on Rails", "Google Cloud Platform", "Node.js", "Sierra ILS"]),
@@ -254,9 +254,7 @@ export const projects = Object.freeze([
     limitations: Object.freeze(["This portfolio record describes an internal application and does not expose the application or institutional data."]),
     emphasis: Object.freeze(["library systems", "device management", "status interpretation"]),
     relationships: Object.freeze([]),
-    resources: Object.freeze([
-      Object.freeze({ label: "Chromebook Management record", url: "https://www.linkedin.com/in/howardhayden/details/projects/", icon: "backpack4", opensInNewTab: true }),
-    ]),
+    resources: Object.freeze([]),
     publication: Object.freeze({ label: "August 2022 – November 2022", value: "2022-08", start: "2022-08", end: "2022-11", precision: "month-range" }),
     status: "completed",
     readmeAfterFirstParagraph: true,
@@ -269,10 +267,10 @@ export const projects = Object.freeze([
     canonicalPath: "/projects/finding-freedom-summer-traveling-exhibit/",
     url: "https://www.linkedin.com/in/howardhayden/details/projects/",
     icon: "archive",
-    thesis: "The Finding Freedom Summer Traveling Exhibit was an OhioLINK-associated collaborative project supported through Miami University Libraries.",
+    thesis: "The Finding Freedom Summer Traveling Exhibit connected an OhioLINK-associated collaboration to the library systems and web-services relationships that supported it.",
     summary: Object.freeze([
-      "The Finding Freedom Summer Traveling Exhibit was an OhioLINK-associated collaborative project supported through Miami University Libraries.",
-      "The project involved Sierra ILS and Ruby on Rails and was completed with Miami University Libraries web-services contributors Ken Irwin, Meng Qu, and Jerry Yarnetsky.",
+      "The Finding Freedom Summer Traveling Exhibit connected an OhioLINK-associated collaboration to the library systems and web-services relationships that supported it.",
+      "Supported through Miami University Libraries, the collaboration involved Sierra ILS and Ruby on Rails and included web-services contributors Ken Irwin, Meng Qu, and Jerry Yarnetsky.",
     ]),
     capabilities: Object.freeze(["Collaborative exhibit support", "Library web-services collaboration"]),
     technologies: Object.freeze(["Sierra ILS", "Ruby on Rails"]),
@@ -297,10 +295,10 @@ export const projects = Object.freeze([
     canonicalPath: "/projects/information-studies-and-digital-citizenship/",
     url: "https://www.linkedin.com/in/howardhayden/details/projects/",
     icon: "backpack4",
-    thesis: "Information Studies and Digital Citizenship framed emerging technology as a subject of business, design, and responsible participation.",
+    thesis: "Information Studies and Digital Citizenship framed emerging technology through the relationships among business, design, and responsible participation.",
     summary: Object.freeze([
-      "Information Studies and Digital Citizenship framed emerging technology as a subject of business, design, and responsible participation.",
-      "I designed an Emerging Technology in Business and Design course at Miami University with instructional librarians, including contributor Jaclynn Spraetz of Miami University Libraries.",
+      "Information Studies and Digital Citizenship framed emerging technology through the relationships among business, design, and responsible participation.",
+      "This Miami University course-design project brought emerging technology into relation with business, design, and responsible digital participation through collaboration with instructional librarians, including Jaclynn Spraetz of Miami University Libraries.",
     ]),
     capabilities: Object.freeze(["Course design", "Emerging-technology instruction design", "Instructional-librarian collaboration"]),
     technologies: Object.freeze([]),
@@ -308,9 +306,7 @@ export const projects = Object.freeze([
     limitations: Object.freeze(["This record documents course design; it does not claim that the course was delivered or independently taught by the author."]),
     emphasis: Object.freeze(["digital citizenship", "emerging technology", "business and design"]),
     relationships: Object.freeze([]),
-    resources: Object.freeze([
-      Object.freeze({ label: "Information Studies and Digital Citizenship record", url: "https://www.linkedin.com/in/howardhayden/details/projects/", icon: "backpack4", opensInNewTab: true }),
-    ]),
+    resources: Object.freeze([]),
     publication: Object.freeze({ label: "May 2021", value: "2021-05", precision: "month" }),
     status: "completed",
     readmeAfterFirstParagraph: true,
@@ -323,10 +319,10 @@ export const projects = Object.freeze([
     canonicalPath: "/projects/comparative-database-design-and-data-analytics/",
     url: "https://www.linkedin.com/in/howardhayden/details/projects/",
     icon: "diagram-3",
-    thesis: "This comparative database study tested how different database models shape design, performance, warehousing, and real-time analysis.",
+    thesis: "This comparative database study made the consequences of data architecture visible across design, performance, warehousing, and real-time analysis.",
     summary: Object.freeze([
-      "This comparative database study tested how different database models shape design, performance, warehousing, and real-time analysis.",
-      "Across non-concurrent, non-sequential, interdepartmental undergraduate courses, I designed, performance-tuned, and scripted SQL, MongoDB, ArangoDB, and Neo4j databases; engineered, documented, and tested a scalable MySQL data warehouse with Git-logged changes; and separately used database virtualization and Google BigQuery for optimized real-time analytics queries.",
+      "This comparative database study made the consequences of data architecture visible across design, performance, warehousing, and real-time analysis.",
+      "Across non-concurrent, non-sequential, interdepartmental undergraduate courses, the line of study encompassed designing, performance-tuning, and scripting databases with SQL, MongoDB, ArangoDB, and Neo4j; engineering, documenting, and testing a scalable MySQL data warehouse with Git-logged changes; and using database virtualization and Google BigQuery for optimized real-time analytics queries.",
     ]),
     capabilities: Object.freeze(["Comparative database design", "Database performance tuning", "Data-warehouse engineering", "Database virtualization", "Real-time analytics querying", "Change logging and versioning"]),
     technologies: Object.freeze(["SQL", "MongoDB", "ArangoDB", "Neo4j", "MySQL", "Git", "Google BigQuery"]),
@@ -334,9 +330,7 @@ export const projects = Object.freeze([
     limitations: Object.freeze(["The work occurred across non-concurrent, non-sequential, interdepartmental undergraduate courses and is presented as one comparative line of study rather than one continuous implementation."]),
     emphasis: Object.freeze(["database systems", "data warehousing", "performance analysis"]),
     relationships: Object.freeze([]),
-    resources: Object.freeze([
-      Object.freeze({ label: "Comparative Database Design and Data Analytics with Various DBMS record", url: "https://www.linkedin.com/in/howardhayden/details/projects/", icon: "backpack4", opensInNewTab: true }),
-    ]),
+    resources: Object.freeze([]),
     publication: Object.freeze({ label: "August 2021 – May 2022", value: "2021-08", start: "2021-08", end: "2022-05", precision: "month-range" }),
     status: "completed",
     readmeAfterFirstParagraph: true,
@@ -349,10 +343,10 @@ export const projects = Object.freeze([
     canonicalPath: "/projects/ux-optimization-case-study/",
     url: "https://www.linkedin.com/in/howardhayden/details/projects/",
     icon: "tree",
-    thesis: "The UX Optimization Case Study connected observed library-site behavior to iterative design and statistical evaluation.",
+    thesis: "The UX Optimization Case Study made the relationships among observed library-site behavior, iterative design, and measured outcomes explicit.",
     summary: Object.freeze([
-      "The UX Optimization Case Study connected observed library-site behavior to iterative design and statistical evaluation.",
-      "Across non-concurrent, non-sequential, interdepartmental undergraduate courses concerning the Miami University Libraries index page, I combined field observation, interviews, contextual inquiry, heuristic evaluation, card sorting, usability testing, design artifacts, Bayesian forecasting, A/B experiments, and multivariate statistical analysis in R and Python.",
+      "The UX Optimization Case Study made the relationships among observed library-site behavior, iterative design, and measured outcomes explicit.",
+      "Across non-concurrent, non-sequential, interdepartmental undergraduate courses concerning the Miami University Libraries index page, the line of study combined field observation, interviews, contextual inquiry, heuristic evaluation, card sorting, usability testing, and design artifacts with Bayesian forecasting, A/B experiments, and multivariate statistical analysis in R and Python.",
     ]),
     capabilities: Object.freeze(["User interviews", "Contextual inquiry", "Heuristic evaluation", "Card sorting", "Usability testing", "Cognitive walkthroughs", "Task and journey analysis", "A/B testing", "Bayesian inference", "Multivariate regression", "Analysis of variance"]),
     technologies: Object.freeze(["Wireshark", "R", "Python"]),
@@ -360,9 +354,7 @@ export const projects = Object.freeze([
     limitations: Object.freeze(["The research occurred across non-concurrent, non-sequential, interdepartmental undergraduate courses and is presented as one case-study line rather than one continuous study."]),
     emphasis: Object.freeze(["user experience research", "library web design", "experimental analysis"]),
     relationships: Object.freeze([]),
-    resources: Object.freeze([
-      Object.freeze({ label: "UX Optimization Case Study record", url: "https://www.linkedin.com/in/howardhayden/details/projects/", icon: "backpack4", opensInNewTab: true }),
-    ]),
+    resources: Object.freeze([]),
     publication: Object.freeze({ label: "August 2021 – December 2022", value: "2021-08", start: "2021-08", end: "2022-12", precision: "month-range" }),
     status: "completed",
     readmeAfterFirstParagraph: true,

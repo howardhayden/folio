@@ -17,15 +17,20 @@ import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
   LATTICE_PROVIDER_CALL_LIMIT,
   LATTICE_PROVIDER_CALL_TIMEOUT_MS,
+  LATTICE_PROVIDER_FAILURE_CLASSES,
   LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
   LATTICE_REMOTE_MODELS,
+  LATTICE_PROVIDER_STAGES,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
   LATTICE_API_ORIGIN,
   LATTICE_API_REQUEST_BYTE_LIMIT,
   LATTICE_API_REQUEST_TIMEOUT_MS,
   LATTICE_API_RESPONSE_BYTE_LIMIT,
+  LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
+  LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
 import {
   LATTICE_TRANSFORMATIONS_PER_UTC_DAY,
@@ -65,6 +70,8 @@ const UNABLE_CANARY_CLASSES = new Map([
   ["generation-unavailable", "pre-candidate-generation-contract"],
   ["candidate-withheld", "post-candidate-withheld"],
 ]);
+const PROVIDER_FAILURE_CLASS_SET = new Set(LATTICE_PROVIDER_FAILURE_CLASSES);
+const PROVIDER_STAGE_SET = new Set(LATTICE_PROVIDER_STAGES);
 const DOCUMENT_PATHS = Object.freeze([
   "/",
   "/index.html",
@@ -757,16 +764,62 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   const response = await fetchOnce(
     fetchImpl,
     `${origin}${LATTICE_API_PATH}`,
-    withVisitorCookie(apiPost(exactPayload(SYNTHETIC_CANARY_TEXT)), visitorCookieHeader),
+    withVisitorCookie(apiPost(exactPayload(SYNTHETIC_CANARY_TEXT), {
+      headers: {
+        [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
+          LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+      },
+    }), visitorCookieHeader),
     CANARY_TIMEOUT_MS,
     label,
   );
   assertApiHeaders(response, label);
   const bytes = await boundedBytes(response, API_RESPONSE_LIMIT, label);
   const envelope = parseJson(bytes, label);
+  const diagnosticValues = Object.freeze({
+    failureClass: response.headers.get(
+      LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass,
+    ),
+    upstreamStatus: response.headers.get(
+      LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus,
+    ),
+    stage: response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage),
+    callOrdinal: response.headers.get(
+      LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal,
+    ),
+  });
+  const diagnosticPresent = Object.values(diagnosticValues).filter((value) => value !== null).length;
+  if (diagnosticPresent !== 0 && diagnosticPresent !== 4) {
+    fail(`${label} returned an incomplete qualification diagnostic`);
+  }
+  let diagnostic = null;
+  if (diagnosticPresent === 4) {
+    const ordinal = Number(diagnosticValues.callOrdinal);
+    if (!PROVIDER_FAILURE_CLASS_SET.has(diagnosticValues.failureClass)
+      || !(diagnosticValues.upstreamStatus === "none"
+        || /^[45]\d{2}$/u.test(diagnosticValues.upstreamStatus))
+      || !PROVIDER_STAGE_SET.has(diagnosticValues.stage)
+      || !/^(?:[1-9]|[12]\d|3[0-2])$/u.test(diagnosticValues.callOrdinal)
+      || !Number.isSafeInteger(ordinal)
+      || ordinal < 1
+      || ordinal > LATTICE_PROVIDER_CALL_LIMIT) {
+      fail(`${label} returned an invalid qualification diagnostic`);
+    }
+    diagnostic = Object.freeze({ ...diagnosticValues, callOrdinal: ordinal });
+  }
   if (response.status !== 200) {
     const code = isLatticeApiError(envelope) ? envelope.error : "invalid_response";
-    fail(`${label} returned HTTP ${response.status} (${code})`);
+    if (diagnostic === null) {
+      fail(`${label} returned HTTP ${response.status} (${code}) without a qualification diagnostic`);
+    }
+    fail(`${label} returned HTTP ${response.status} (${code}); `
+      + `failure_class=${diagnostic.failureClass}; `
+      + `upstream_status=${diagnostic.upstreamStatus}; `
+      + `stage=${diagnostic.stage}; `
+      + `call_ordinal=${diagnostic.callOrdinal}`);
+  }
+  if (diagnostic !== null) {
+    fail(`${label} returned a qualification diagnostic on success`);
   }
   if (!exactRecord(envelope, ["result", "schema_version"])
     || envelope.schema_version !== LATTICE_API_SCHEMA_VERSION

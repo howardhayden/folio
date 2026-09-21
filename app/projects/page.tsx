@@ -48,32 +48,34 @@ export default function ProjectsPage() {
                   projectId={`record-${project.id}`}
                   projectName={project.name}
                 />
-                <nav className="project-resources" aria-label={`${project.name} supporting materials`}>
-                  <ul className="list-unstyled">
-                    {project.resources.map((resource) => {
-                      const opensInNewTab = resource.opensInNewTab === true;
+                {project.resources.length ? (
+                  <nav className="project-resources" aria-label={`${project.name} supporting materials`}>
+                    <ul className="list-unstyled">
+                      {project.resources.map((resource) => {
+                        const opensInNewTab = resource.opensInNewTab === true;
 
-                      return (
-                        <li key={`${resource.label}-${resource.url}`}>
-                          <a
-                            className="signal-fuzz"
-                            href={resource.url}
-                            target={opensInNewTab ? "_blank" : undefined}
-                            rel={opensInNewTab ? "noopener noreferrer" : undefined}
-                            aria-label={
-                              opensInNewTab
-                                ? `${resource.label}, opens in a new tab`
-                                : resource.label
-                            }
-                          >
-                            <span aria-hidden="true"><DocumentationIcon /></span>{" "}
-                            <span>{resource.label}</span>
-                          </a>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </nav>
+                        return (
+                          <li key={`${resource.label}-${resource.url}`}>
+                            <a
+                              className="signal-fuzz"
+                              href={resource.url}
+                              target={opensInNewTab ? "_blank" : undefined}
+                              rel={opensInNewTab ? "noopener noreferrer" : undefined}
+                              aria-label={
+                                opensInNewTab
+                                  ? `${resource.label}, opens in a new tab`
+                                  : resource.label
+                              }
+                            >
+                              <span aria-hidden="true"><DocumentationIcon /></span>{" "}
+                              <span>{resource.label}</span>
+                            </a>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </nav>
+                ) : null}
                 <p><strong>Status:</strong> {project.status}; <strong>publication:</strong> {project.publication.label}</p>
               </div>
             </article>

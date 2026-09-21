@@ -17,6 +17,9 @@ import {
   runTextToLattice,
 } from "../../app/resume/latticeDemo.js";
 import {
+  LATTICE_PROVIDER_CALL_LIMIT,
+  LATTICE_PROVIDER_FAILURE_CLASSES,
+  LATTICE_PROVIDER_STAGES,
   LatticeProviderError,
   createHuggingFaceLatticeAdapter,
 } from "./huggingFaceAdapter.js";
@@ -38,6 +41,15 @@ export const LATTICE_API_RESPONSE_BYTE_LIMIT = 262_144;
 export const LATTICE_API_RATE_LIMIT_KEY = "text-to-lattice:transform";
 export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
+  "X-Lattice-Qualification-Diagnostic";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v1";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
+  failureClass: "X-Lattice-Qualification-Failure-Class",
+  upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
+  stage: "X-Lattice-Qualification-Stage",
+  callOrdinal: "X-Lattice-Qualification-Call-Ordinal",
+});
 
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset=utf-8)?$/iu;
 const EXPLICIT_CALLER_CREDENTIAL_HEADERS = new Set([
@@ -77,6 +89,8 @@ const HELD_RESPONSE_HEADERS = Object.freeze({
   "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
 });
 const CANONICAL_UTC_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
+const LATTICE_PROVIDER_FAILURE_CLASS_SET = new Set(LATTICE_PROVIDER_FAILURE_CLASSES);
+const LATTICE_PROVIDER_STAGE_SET = new Set(LATTICE_PROVIDER_STAGES);
 
 class LatticeApiError extends Error {
   constructor(status, code, retryAfterSeconds = null) {
@@ -343,6 +357,50 @@ function safeProviderResponse(error) {
   }
 }
 
+function qualificationProviderDiagnostic(error) {
+  const failureClass = error.code;
+  const upstreamStatus = error.status === null ? "none" : `${error.status}`;
+  const stage = error.qualificationStage;
+  const callOrdinal = error.qualificationCallOrdinal;
+  if (!LATTICE_PROVIDER_FAILURE_CLASS_SET.has(failureClass)
+    || !(upstreamStatus === "none" || /^[45]\d{2}$/u.test(upstreamStatus))
+    || !LATTICE_PROVIDER_STAGE_SET.has(stage)
+    || !Number.isSafeInteger(callOrdinal)
+    || callOrdinal < 1
+    || callOrdinal > LATTICE_PROVIDER_CALL_LIMIT) {
+    return null;
+  }
+  return Object.freeze({
+    failureClass,
+    upstreamStatus,
+    stage,
+    callOrdinal: `${callOrdinal}`,
+  });
+}
+
+function withQualificationProviderDiagnostic(response, error, enabled) {
+  if (!enabled) return response;
+  const diagnostic = qualificationProviderDiagnostic(error);
+  if (diagnostic === null) return response;
+  response.headers.set(
+    LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass,
+    diagnostic.failureClass,
+  );
+  response.headers.set(
+    LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus,
+    diagnostic.upstreamStatus,
+  );
+  response.headers.set(
+    LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage,
+    diagnostic.stage,
+  );
+  response.headers.set(
+    LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal,
+    diagnostic.callOrdinal,
+  );
+  return response;
+}
+
 export async function enforceLatticeApiRateLimit(binding) {
   if (!binding || typeof binding.limit !== "function") {
     throw apiError(500, "internal_error");
@@ -401,6 +459,9 @@ export function createLatticeApiWorker({
         now(),
       );
       if (!qualificationWindow.allowsRequests) return qualificationHeldResponse();
+      const qualificationDiagnosticRequested = qualificationWindow.expiresAt !== null
+        && request.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER)
+          === LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE;
 
       let url;
       try {
@@ -597,7 +658,12 @@ export function createLatticeApiWorker({
         } else if (error instanceof LatticeApiError) {
           response = errorResponse(error.status, error.code, error.retryAfterSeconds);
         } else if (error instanceof LatticeProviderError) {
-          response = safeProviderResponse(error);
+          response = withQualificationProviderDiagnostic(
+            safeProviderResponse(error),
+            error,
+            qualificationDiagnosticRequested
+              && qualificationWindowAllowsOutput(qualificationWindow, now()),
+          );
         } else if (deadline.signal.aborted) {
           response = errorResponse(400, "invalid_request");
         } else {

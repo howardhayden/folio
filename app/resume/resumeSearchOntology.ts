@@ -1672,6 +1672,10 @@ const PROJECT_AUTHORED_SEARCH_METADATA: Readonly<Record<string, readonly Authore
     Object.freeze({ text: "Fog of war", conceptIds: Object.freeze(["fog-of-war"]) }),
     Object.freeze({ text: "Information environment", conceptIds: Object.freeze(["information-environments"]) }),
     Object.freeze({ text: "Escalation dynamics", conceptIds: Object.freeze(["escalation"]) }),
+    Object.freeze({ text: "Education", conceptIds: Object.freeze(["education"]) }),
+    Object.freeze({ text: "Teaching", conceptIds: Object.freeze(["teaching"]) }),
+    Object.freeze({ text: "Learning", conceptIds: Object.freeze(["education"]) }),
+    Object.freeze({ text: "Educational", conceptIds: Object.freeze(["education"]) }),
   ]),
   chorus: Object.freeze([
     Object.freeze({ text: "Strategic communications", conceptIds: Object.freeze(["strategic-communications"]) }),

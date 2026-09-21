@@ -1253,7 +1253,7 @@ test("renders current projects and consistent project documentation icons", asyn
     (count, project) => count + project.resources.length,
     0,
   );
-  assert.equal(expectedProjectResourceCount, 22, "the current project register exposes twenty-two scented resources");
+  assert.equal(expectedProjectResourceCount, 18, "the current project register exposes eighteen nonredundant scented resources");
   const primaryBackpackCount = projects.filter(({ icon }) => icon === "backpack4").length;
   assert.equal(
     (html.match(/class="bi bi-backpack4"/g) ?? []).length,
@@ -1262,10 +1262,16 @@ test("renders current projects and consistent project documentation icons", asyn
 });
 
 test("keeps project hooks, native Read More content, and scented resources in a stable no-JavaScript order", async () => {
-  const [resumeResponse, projectsResponse] = await Promise.all([
+  const [resumeResponse, projectsResponse, activeProjectsSource, heldProjectsSource] = await Promise.all([
     render("/resume/"),
     render("/projects/"),
+    readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/resume/ResumeProjectsHeld.tsx", import.meta.url), "utf8"),
   ]);
+  for (const source of [activeProjectsSource, heldProjectsSource]) {
+    assert.match(source, /<h3 className="card-title tools-card-title" id=\{headingId\}>/u);
+    assert.doesNotMatch(source, /<h3[^>]*tools-card-title[^>]*justify-content-center/u);
+  }
   const htmlText = (value) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
   const regexEscape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -1310,22 +1316,26 @@ test("keeps project hooks, native Read More content, and scented resources in a 
       assert.ok(detailsEnd > detailsStart, `${project.name} keeps its paragraph in native details`);
       assert.ok(card.slice(detailsStart, detailsEnd).includes(`>${paragraph}</p>`), `${project.name} reveals its paragraph without JavaScript`);
       assert.equal(card.split(paragraph).length - 1, 1, `${project.name} authors one inline copy of its paragraph`);
-      assert.ok(resourcesStart > detailsEnd && resourcesEnd > resourcesStart, `${project.name} keeps information-scent links outside Read More`);
+      if (!project.resources.length) {
+        assert.equal(resourcesStart, -1, `${project.name} omits a redundant resource block after Read More`);
+      } else {
+        assert.ok(resourcesStart > detailsEnd && resourcesEnd > resourcesStart, `${project.name} keeps information-scent links outside Read More`);
 
-      const resources = card.slice(resourcesStart, resourcesEnd);
-      assert.doesNotMatch(resources, /↗|&#x2197;|&#8599;/u, `${project.name} resource labels omit decorative arrows`);
-      let resourceCursor = 0;
-      for (const resource of project.resources) {
-        const href = htmlText(resource.url);
-        const label = htmlText(resource.label);
-        const hrefAt = resources.indexOf(`href="${href}"`, resourceCursor);
-        const linkStart = resources.lastIndexOf("<a", hrefAt);
-        const linkEnd = resources.indexOf("</a>", hrefAt);
-        assert.ok(hrefAt >= 0 && linkStart >= 0 && linkEnd > hrefAt, `${surface} links ${resource.label}`);
-        const link = resources.slice(linkStart, linkEnd);
-        assert.match(link, new RegExp(`<span>${regexEscape(label)}</span>`));
-        assert.equal((link.match(/class="bi bi-backpack4"/gu) ?? []).length, 1, `${resource.label} has one Documentation icon`);
-        resourceCursor = linkEnd + "</a>".length;
+        const resources = card.slice(resourcesStart, resourcesEnd);
+        assert.doesNotMatch(resources, /↗|&#x2197;|&#8599;/u, `${project.name} resource labels omit decorative arrows`);
+        let resourceCursor = 0;
+        for (const resource of project.resources) {
+          const href = htmlText(resource.url);
+          const label = htmlText(resource.label);
+          const hrefAt = resources.indexOf(`href="${href}"`, resourceCursor);
+          const linkStart = resources.lastIndexOf("<a", hrefAt);
+          const linkEnd = resources.indexOf("</a>", hrefAt);
+          assert.ok(hrefAt >= 0 && linkStart >= 0 && linkEnd > hrefAt, `${surface} links ${resource.label}`);
+          const link = resources.slice(linkStart, linkEnd);
+          assert.match(link, new RegExp(`<span>${regexEscape(label)}</span>`));
+          assert.equal((link.match(/class="bi bi-backpack4"/gu) ?? []).length, 1, `${resource.label} has one Documentation icon`);
+          resourceCursor = linkEnd + "</a>".length;
+        }
       }
     }
   }
