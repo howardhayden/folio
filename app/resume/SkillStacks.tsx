@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LegacyIcon, type LegacyIconName } from "../components/LegacyIcon";
+import { TerminalBranchTree } from "../components/TerminalBranchTree";
 import { skillStacks } from "../data";
 
 const iconByStackId: Record<string, LegacyIconName> = {
@@ -22,18 +23,14 @@ export function SkillStackContent({ stack, contentId }: { stack: SkillStack; con
   return (
     <div className="skill-stack-details" id={contentId}>
       {stack.items.length > 0 ? (
-        <ul className="skill-stack-list">
-          {stack.items.map((item) => <li key={item}>{item}</li>)}
-        </ul>
+        <TerminalBranchTree branches={stack.items.map((label) => ({ label }))} />
       ) : null}
       {stack.sections.map((section, index) => {
         const sectionTitleId = `${contentId}-section-${index + 1}`;
         return (
           <section className="skill-stack-group" aria-labelledby={sectionTitleId} key={section.label}>
             <h4 id={sectionTitleId}>{section.label}</h4>
-            <ul className="skill-stack-list">
-              {section.items.map((item) => <li key={item}>{item}</li>)}
-            </ul>
+            <TerminalBranchTree branches={section.items.map((label) => ({ label }))} />
           </section>
         );
       })}
