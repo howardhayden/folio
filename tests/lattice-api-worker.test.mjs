@@ -1190,8 +1190,8 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
   assert.deepEqual(calls.map(({ body }) => body.temperature), [0.1, 0]);
   assert.deepEqual(calls.map(({ body }) => body.top_p), [0.9, 1]);
   assert.deepEqual(calls.map(({ body }) => body.seed), [71_903, 71_903]);
-  for (const { init, body } of calls) {
-    assert.deepEqual(Object.keys(body).sort(), [
+  for (const [index, { init, body }] of calls.entries()) {
+    const expectedKeys = [
       "max_tokens",
       "messages",
       "model",
@@ -1200,7 +1200,9 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
       "stream",
       "temperature",
       "top_p",
-    ]);
+    ];
+    if (index === 0) expectedKeys.push("chat_template_kwargs");
+    assert.deepEqual(Object.keys(body).sort(), expectedKeys.sort());
     assert.equal(init.method, "POST");
     assert.equal(init.cache, "no-store");
     assert.equal(init.credentials, "omit");
@@ -1212,6 +1214,8 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
     assert.equal(Object.hasOwn(body.response_format, "json_schema"), false);
     assert.equal(JSON.stringify(body.response_format).includes("strict"), false);
   }
+  assert.deepEqual(calls[0].body.chat_template_kwargs, { enable_thinking: false });
+  assert.equal(Object.hasOwn(calls[1].body, "chat_template_kwargs"), false);
   assert.match(calls[0].body.messages[0].content, /Return exactly one minified JSON object/u);
   assert.ok(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)));
   assert.ok(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)));
@@ -1309,6 +1313,7 @@ test("a direct JSON-object request prepends the trusted closed schema without ch
   await requestHuggingFaceJson(options);
 
   assert.deepEqual(body.response_format, { type: "json_object" });
+  assert.deepEqual(body.chat_template_kwargs, { enable_thinking: false });
   assert.equal(body.messages[0].role, "system");
   assert.match(body.messages[0].content, /Response contract lattice_test_v1/u);
   assert.ok(body.messages[0].content.includes(JSON.stringify(options.schema)));
@@ -2017,6 +2022,7 @@ test("the serialized provider request is byte-bounded before external fetch", as
     model: LATTICE_REMOTE_MODELS.generator,
     messages: baseOptions.messages,
     response_format: { type: "json_object" },
+    chat_template_kwargs: { enable_thinking: false },
     max_tokens: baseOptions.maxTokens,
     temperature: baseOptions.temperature,
     top_p: baseOptions.topP,

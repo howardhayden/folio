@@ -344,6 +344,9 @@ export async function requestHuggingFaceJson({
     model: LATTICE_REMOTE_MODELS[role],
     messages: jsonObjectMessages(messages, role, schemaName, schema),
     response_format: { type: "json_object" },
+    ...(role === "generator"
+      ? { chat_template_kwargs: { enable_thinking: false } }
+      : {}),
     max_tokens: maxTokens,
     temperature,
     top_p: topP,
