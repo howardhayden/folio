@@ -22,7 +22,7 @@ test("Resume Search covers every canonical content class and preserves evidence 
     experiences: 8,
     skills: 9,
     education: 5,
-    evidence: 1678,
+    evidence: 1682,
   });
   for (const indexed of resumeSearchIndex.records) {
     assert.ok(indexed.record.evidence.length > 0, indexed.record.id);
@@ -576,13 +576,17 @@ test("historical project records preserve supplied dates, collaborators, qualifi
     assert.deepEqual(byId.get(id).resources, [], `${id} relies on its canonical title link`);
   }
   const digitalCitizenship = byId.get("information-studies-and-digital-citizenship");
-  assert.doesNotMatch(digitalCitizenship.summary.join(" "), /Jaclynn Spraetz|Miami University Libraries/u);
+  assert.doesNotMatch(digitalCitizenship.summary.join(" "), /Nate Floyd|Jaclynn Spraetz|Miami University Libraries/u);
   assert.deepEqual(
     digitalCitizenship.resources.map(({ label, url }) => ({ label, url })),
     [
       {
         label: "Information Studies and Digital Citizenship syllabus",
         url: "https://scdb.lib.miamioh.edu/server/api/core/bitstreams/acd28a12-c901-420e-bb71-ab16f9316448/content",
+      },
+      {
+        label: "Contributor: Nate Floyd",
+        url: "https://www.linkedin.com/in/nate-floyd",
       },
       {
         label: "Contributor: Jaclynn Spraetz",

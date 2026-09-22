@@ -103,6 +103,8 @@ test("the modernized University view keeps semantic time, disclosure, and visual
   assert.match(source, /aria-label=\{`Degree \$\{quarterLabel\}`\}/u);
   assert.match(source, /geometry\.kind === "interval"[\s\S]*?university-progress-span[\s\S]*?: \([\s\S]*?university-progress-point/u);
   assert.match(source, /aria-controls=\{`resume-modal-\$\{record\.detail\}`\}[\s\S]*?aria-haspopup="dialog"[\s\S]*?href=\{detail\.canonicalPath\}/u);
+  assert.match(source, /document\.body\.classList\.toggle\("resume-modal-open", Boolean\(selected\)\)/u);
+  assert.match(css, /\.resume-modal-open,\s*\.skill-stack-modal-open \{ overflow: hidden !important; \}/u, "every open Resume modal locks background scrolling");
   assert.doesNotMatch(source, /width=\{(?:"49%"|"22%"|"29%"|"100%")\}/u, "manual chronology widths stay retired");
 
   assert.match(css, /\.university-quarter-scale \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/u);

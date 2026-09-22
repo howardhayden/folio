@@ -30,6 +30,8 @@ export default function ProjectsPage() {
                   paragraph={project.summary[1]}
                   projectId={`record-${project.id}`}
                   projectName={project.name}
+                  projectSlug={project.slug}
+                  technologies={project.technologies}
                 />
                 <ProjectResources projectName={project.name} resources={project.resources} />
                 <p><strong>Status:</strong> {project.status}; <strong>publication:</strong> {project.publication.label}</p>

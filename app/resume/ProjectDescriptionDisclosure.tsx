@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import ChromebookManagementViews from "./ChromebookManagementViews";
 
 type ProjectDescriptionDisclosureProps = Readonly<{
   hook: string;
   paragraph: string;
   projectId: string;
   projectName: string;
+  projectSlug: string;
+  technologies: readonly string[];
 }>;
 
 export default function ProjectDescriptionDisclosure({
@@ -15,6 +18,8 @@ export default function ProjectDescriptionDisclosure({
   paragraph,
   projectId,
   projectName,
+  projectSlug,
+  technologies,
 }: ProjectDescriptionDisclosureProps) {
   const [open, setOpen] = useState(false);
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -24,6 +29,7 @@ export default function ProjectDescriptionDisclosure({
   const modalTitleId = `project-readme-modal-title-${projectId}`;
   const modalContentId = `project-readme-modal-content-${projectId}`;
   const closeDescription = useCallback(() => setOpen(false), []);
+  const hasChromebookViews = projectSlug === "chromebook-management";
 
   useEffect(() => {
     detailsRef.current?.removeAttribute("open");
@@ -44,7 +50,9 @@ export default function ProjectDescriptionDisclosure({
     ].join(",");
     const focusableElements = () => Array.from(
       dialog?.querySelectorAll<HTMLElement>(focusableSelector) ?? [],
-    ).filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+    ).filter((element) => (
+      element.tabIndex >= 0 && !element.closest("[hidden], [aria-hidden='true']")
+    ));
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -128,7 +136,7 @@ export default function ProjectDescriptionDisclosure({
         >
           <div
             ref={dialogRef}
-            className="modal-content skill-stack-modal-content project-description-modal-content"
+            className={`modal-content skill-stack-modal-content project-description-modal-content${hasChromebookViews ? " project-description-modal-content--chromebook" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby={modalTitleId}
@@ -137,8 +145,14 @@ export default function ProjectDescriptionDisclosure({
             tabIndex={-1}
           >
             <h3 id={modalTitleId}>{projectName}</h3>
-            <div className="project-readme-copy" id={modalContentId}>
-              <p className="card-text">{paragraph}</p>
+            <div className="project-readme-copy">
+              <p className="card-text" id={modalContentId}>{paragraph}</p>
+              {hasChromebookViews ? (
+                <ChromebookManagementViews
+                  instanceId={projectId}
+                  technologies={technologies}
+                />
+              ) : null}
             </div>
           </div>
         </div>,

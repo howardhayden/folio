@@ -1055,9 +1055,9 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
   assert.match(css, /@media \(min-width: 768px\) \{[\s\S]*?\.skill-stack-grid \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /@media \(min-width: 1200px\) \{[\s\S]*?\.skill-stack-grid \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container,\s*\.resume-modal-open \.resume-search-canonical > \.container,\s*\.resume-modal-open \.resume-search-results \{ filter: blur\(5px\); \}/);
-  assert.match(css, /\.skill-stack-modal-open \{ overflow: hidden !important; \}/);
+  assert.match(css, /\.resume-modal-open,\s*\.skill-stack-modal-open \{ overflow: hidden !important; \}/);
   assert.match(css, /\.modal \{[\s\S]*?background: transparent/);
-  assert.match(css, /\.modal-content \{[\s\S]*?background-color: #FFFFFF;[\s\S]*?padding: 20px;[\s\S]*?max-width: 400px;[\s\S]*?border: none/);
+  assert.match(css, /\.modal-content \{[\s\S]*?background-color: rgb\(255 255 255 \/ 94%\);[\s\S]*?padding: 20px;[\s\S]*?max-width: 400px;[\s\S]*?border: none/);
   assert.match(css, /\.skill-stack-modal-content \.skill-stack-details \{[\s\S]*?border-top: 0;[\s\S]*?padding-top: 0;[\s\S]*?text-align: left/);
   assert.match(css, /@media screen and \(max-width: 600px\) \{[\s\S]*?\.modal-content \{[\s\S]*?width: 90%;[\s\S]*?max-width: none;[\s\S]*?padding: 10px/);
   assert.match(css, /@media print \{[\s\S]*?\.skill-stack-disclosure:not\(\[open\]\) > \.skill-stack-details \{[\s\S]*?display: block !important/);
@@ -1065,6 +1065,7 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
   assert.match(css, /@media print \{[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container,\s*\.resume-modal-open \.resume-search-canonical > \.container,\s*\.resume-modal-open \.resume-search-results \{[\s\S]*?filter: none !important/);
   assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.lattice-cancel-button \{[\s\S]*?border: 1px solid ButtonText !important[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container,\s*\.resume-modal-open \.resume-search-canonical > \.container,\s*\.resume-modal-open \.resume-search-results \{[\s\S]*?filter: none !important/);
   assert.match(css, /@media \(prefers-reduced-transparency: reduce\) \{[\s\S]*?\.resume-modal-open main > \.container,\s*\.resume-modal-open main\.container,\s*\.resume-modal-open \.resume-search-canonical > \.container,\s*\.resume-modal-open \.resume-search-results \{[\s\S]*?filter: none !important/);
+  assert.match(css, /@media \(prefers-reduced-transparency: reduce\) \{[\s\S]*?\.modal-content \{[\s\S]*?background-color: #FFFFFF/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.skill-stack-card \{[\s\S]*?transition: none[\s\S]*?\.skill-stack-grid \.card:hover \{[\s\S]*?transform: none/);
   assert.doesNotMatch(css, /:has\([^)]*skill-stack[^)]*open/iu, "no-JavaScript disclosure use does not trigger the JavaScript focus blur");
 });
@@ -1488,6 +1489,7 @@ test("renders current projects and terminal resource manifests without documenta
     ["Ken Irwin", "ken-irwin-08a87ab5/"],
     ["Meng Qu", "mengqu/"],
     ["Jerry Yarnetsky", "jerry-yarnetsky/"],
+    ["Nate Floyd", "nate-floyd"],
     ["Jaclynn Spraetz", "jaclyn-spraetz-21a58792"],
   ]) {
     assert.match(
@@ -1499,7 +1501,7 @@ test("renders current projects and terminal resource manifests without documenta
     (count, project) => count + project.resources.length,
     0,
   );
-  assert.equal(expectedProjectResourceCount, 20, "the current project register exposes twenty nonredundant scented resources");
+  assert.equal(expectedProjectResourceCount, 21, "the current project register exposes twenty-one nonredundant scented resources");
   const primaryBackpackCount = projects.filter(({ icon }) => icon === "backpack4").length;
   assert.equal(
     (documentMarkup.match(/class="bi bi-backpack4"/g) ?? []).length,
@@ -1698,7 +1700,7 @@ test("uses the established Resume alert language for JavaScript project descript
   assert.match(source, /event\.preventDefault\(\);[\s\S]*?parentElement\?\.removeAttribute\("open"\)[\s\S]*?setOpen\(true\)/u);
   assert.match(source, /open && typeof document !== "undefined" \? createPortal\(/u);
   assert.match(source, /className="modal resume-modal skill-stack-modal project-description-modal"[\s\S]*?role="presentation"/u);
-  assert.match(source, /className="modal-content skill-stack-modal-content project-description-modal-content"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/u);
+  assert.match(source, /className=\{`modal-content skill-stack-modal-content project-description-modal-content\$\{hasChromebookViews \? " project-description-modal-content--chromebook" : ""\}`\}[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/u);
   assert.match(source, /aria-labelledby=\{modalTitleId\}[\s\S]*?aria-describedby=\{modalContentId\}/u);
   assert.match(source, /if \(event\.target === event\.currentTarget\) closeDescription\(\)/u);
   assert.match(source, /event\.key === "Escape"[\s\S]*?closeDescription\(\)/u);
@@ -1750,7 +1752,7 @@ test("keeps Lattice documentation direct in canonical no-JavaScript project surf
 test("links only contributor names on canonical project detail pages", async () => {
   for (const [pathname, contributors] of [
     ["/projects/finding-freedom-summer-traveling-exhibit/", ["Ken Irwin", "Meng Qu", "Jerry Yarnetsky"]],
-    ["/projects/information-studies-and-digital-citizenship/", ["Jaclynn Spraetz"]],
+    ["/projects/information-studies-and-digital-citizenship/", ["Nate Floyd", "Jaclynn Spraetz"]],
   ]) {
     const { html } = await render(pathname);
     const documentMarkup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, "");
@@ -1814,6 +1816,7 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.match(transitioningSearchStageRule, /isolation: isolate/u);
   const genericModalRule = css.match(/^\.modal-content \{([\s\S]*?)^\}/mu)?.[1] ?? "";
   assert.match(genericModalRule, /margin: auto/u, "the shared modal rule keeps the wider dialog centered");
+  assert.doesNotMatch(genericModalRule, /(?:-webkit-)?backdrop-filter|box-shadow/u, "the deployed modal treatment gains only a slightly translucent white fill");
   const latticeModalRule = css.match(/\.lattice-modal-content \{([\s\S]*?)\n\}/u)?.[1] ?? "";
   assert.match(latticeModalRule, /box-sizing: border-box/u);
   assert.match(latticeModalRule, /max-width: min\(56rem, calc\(100vw - 3rem\)\)/u);
