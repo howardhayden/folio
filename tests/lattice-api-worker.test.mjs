@@ -1557,6 +1557,94 @@ test("a provider HTTP 400 body is discarded without retry, logging, or reflectio
   assert.equal(bodyCanceled, true);
 });
 
+test("provider HTTP 402 at analysis call four remains private and qualification-only", async () => {
+  const privateBody = "PRIVATE-PAYMENT-DIAGNOSTIC-MUST-NOT-CROSS";
+  const privateCookie = "provider-private-cookie-must-not-cross";
+  const diagnosticHeaders = {
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
+      LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  };
+  const activeQualification = {
+    HF_TOKEN: "server_only_token",
+    [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z",
+  };
+  const cases = [
+    ["ordinary runtime", { HF_TOKEN: "server_only_token" }, {}, false],
+    ["active qualification", activeQualification, diagnosticHeaders, true],
+  ];
+
+  for (const [name, env, headers, diagnosticExpected] of cases) {
+    let providerCalls = 0;
+    let rejectedBodyCanceled = 0;
+    const worker = createLatticeApiWorker({
+      fetchImpl: async () => {
+        providerCalls += 1;
+        if (providerCalls < 4) {
+          return successfulProviderResponse({
+            documentKind: "instruction",
+            passages: [],
+            questions: [],
+          });
+        }
+        return new Response(new ReadableStream({
+          cancel() {
+            rejectedBodyCanceled += 1;
+          },
+        }), {
+          status: 402,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": "120",
+            "Set-Cookie": privateCookie,
+            "X-Private-Provider-Diagnostic": privateBody,
+          },
+        });
+      },
+      runTextToLatticeImpl: async (_text, { adapter }) => {
+        for (let call = 0; call < 4; call += 1) {
+          await adapter.analyze(minimalAnalysisRequest());
+        }
+        return validLatticeResult();
+      },
+    });
+
+    const response = await worker.fetch(
+      apiRequest(validPayload, { headers }),
+      env,
+    );
+    const responseBody = await response.text();
+    assert.equal(providerCalls, 4, name);
+    assert.equal(rejectedBodyCanceled, 1, name);
+    assert.equal(response.status, 502, name);
+    assert.deepEqual(JSON.parse(responseBody), { error: "upstream_unavailable" }, name);
+    assert.equal(responseBody.includes(privateBody), false, name);
+    assert.equal(responseBody.includes("retry_after_seconds"), false, name);
+    assert.equal(response.headers.has("retry-after"), false, name);
+    assert.equal(response.headers.has("set-cookie"), false, name);
+    assert.equal(JSON.stringify([...response.headers]).includes(privateBody), false, name);
+    assert.equal(JSON.stringify([...response.headers]).includes(privateCookie), false, name);
+
+    const expectedDiagnostic = diagnosticExpected
+      ? {
+        failureClass: "provider_http_error",
+        upstreamStatus: "402",
+        stage: "analysis",
+        callOrdinal: "4",
+      }
+      : {
+        failureClass: null,
+        upstreamStatus: null,
+        stage: null,
+        callOrdinal: null,
+      };
+    for (const [key, header] of Object.entries(
+      LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+    )) {
+      assert.equal(response.headers.get(header), expectedDiagnostic[key], `${name}: ${key}`);
+    }
+  }
+});
+
 test("typed provider failures map to exact flat public errors with a bounded 429 hint", async () => {
   const cases = [
     [new LatticeProviderError("provider_timeout", "private timeout"), 504, { error: "upstream_timeout" }],
