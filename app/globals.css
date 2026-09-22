@@ -1158,17 +1158,8 @@ svg:not(.background-static-defs) {
   padding-top: .85rem;
 }
 
-.skill-stack-list {
-  margin-bottom: 0;
-  padding-left: 1.25rem;
-}
-
-.skill-stack-list li + li {
-  margin-top: .32rem;
-}
-
 .skill-stack-group + .skill-stack-group,
-.skill-stack-list + .skill-stack-group {
+.skill-stack-details > .tool-branch-list + .skill-stack-group {
   margin-top: 1rem;
 }
 

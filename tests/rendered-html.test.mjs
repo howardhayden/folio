@@ -964,25 +964,65 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
     ];
     for (const content of orderedContent) {
       const encoded = htmlText(content.value);
-      const marker = content.kind === "heading" ? `>${encoded}</h4>` : `>${encoded}</li>`;
+      const marker = content.kind === "heading"
+        ? `>${encoded}</h4>`
+        : `class="tool-branch-label">${encoded}</span>`;
       const contentIndex = card.indexOf(marker);
       assert.ok(contentIndex > previousContentIndex, `${stack.title} preserves ${content.value} in its authored group and order`);
       previousContentIndex = contentIndex;
       if (content.kind === "item") expectedItemCount += 1;
     }
+    const expectedLists = [stack.items, ...stack.sections.map(({ items }) => items)]
+      .filter(({ length }) => length > 0);
+    const renderedLists = [...card.matchAll(/<ul class="tool-branch-list">([\s\S]*?)<\/ul>/gu)]
+      .map((match) => match[1]);
     assert.equal(
-      (card.match(/<li>[^<]+<\/li>/gu) ?? []).length,
+      renderedLists.length,
+      expectedLists.length,
+      `${stack.title} applies the shared terminal tree to every authored skill list`,
+    );
+    for (const [listIndex, items] of expectedLists.entries()) {
+      const list = renderedLists[listIndex];
+      assert.equal(
+        (list.match(/class="tool-branch-node"/gu) ?? []).length,
+        items.length,
+        `${stack.title} terminal list ${listIndex + 1} contains every skill`,
+      );
+      assert.equal(
+        (list.match(/class="tool-branch-prefix" aria-hidden="true">├─ <\/span>/gu) ?? []).length,
+        Math.max(0, items.length - 1),
+        `${stack.title} terminal list ${listIndex + 1} branches every non-final skill`,
+      );
+      assert.equal(
+        (list.match(/class="tool-branch-prefix" aria-hidden="true">└─ <\/span>/gu) ?? []).length,
+        1,
+        `${stack.title} terminal list ${listIndex + 1} terminates its final skill`,
+      );
+    }
+    assert.equal(
+      (card.match(/class="tool-branch-label"/gu) ?? []).length,
       stack.items.length + stack.sections.reduce((count, section) => count + section.items.length, 0),
       `${stack.title} contains no omitted or unassigned skills`,
     );
   }
-  assert.equal((documentMarkup.match(/<li>[^<]+<\/li>/gu) ?? []).length >= expectedItemCount, true);
+  assert.equal((documentMarkup.match(/class="tool-branch-label"/gu) ?? []).length, expectedItemCount);
 
-  const [css, source] = await Promise.all([
+  const [css, source, toolsSource, terminalSource] = await Promise.all([
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/resume/SkillStacks.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/tools/ToolsView.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/TerminalBranchTree.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(source, /^"use client";/u);
+  assert.match(source, /import \{ TerminalBranchTree \} from "\.\.\/components\/TerminalBranchTree";/u);
+  assert.equal((source.match(/<TerminalBranchTree branches=/gu) ?? []).length, 2);
+  assert.match(toolsSource, /import \{ TerminalBranchTree \} from "\.\.\/components\/TerminalBranchTree";/u);
+  assert.match(toolsSource, /<TerminalBranchTree branches=\{branches\} \/>/u);
+  assert.doesNotMatch(toolsSource, /function ToolBranchTree|function branchPrefix|function notePrefix/u);
+  assert.match(terminalSource, /export function TerminalBranchTree/u);
+  assert.match(terminalSource, /className="tool-branch-prefix" aria-hidden="true"/u);
+  assert.match(terminalSource, /return `\$\{ancestors\}\$\{isLast \? "└─ " : "├─ "\}`;/u);
+  assert.doesNotMatch(source, /skill-stack-list/u);
   assert.match(source, /export function SkillStackCard[\s\S]*?<details className="skill-stack-disclosure">[\s\S]*?onClick=\{onOpen \? \(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?onOpen\(stack\.id, event\.currentTarget\)/u);
   assert.match(source, /<SkillStackCard stack=\{stack\} onOpen=\{openSkillStack\}/u);
   assert.match(source, /event\.currentTarget\.parentElement\?\.removeAttribute\("open"\)/u);
@@ -1007,6 +1047,9 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
   assert.match(css, /\.skill-stack-disclosure > summary:focus-visible \{[\s\S]*?outline: 2px solid currentColor/);
   assert.match(css, /\.skill-stack-grid \.card \{[\s\S]*?border: none/);
   assert.match(css, /\.skill-stack-card \{[\s\S]*?background: transparent;[\s\S]*?border: 0/);
+  assert.match(css, /\.tool-branch-line \{[\s\S]*?font-family: ui-monospace,[\s\S]*?grid-template-columns: max-content minmax\(0, 1fr\);/u);
+  assert.match(css, /\.skill-stack-details > \.tool-branch-list \+ \.skill-stack-group \{[\s\S]*?margin-top: 1rem;/u);
+  assert.doesNotMatch(css, /\.skill-stack-list/u);
   assert.match(css, /\.skill-stack-grid \.card:hover \{[\s\S]*?transform: scale\(1\.1\)/);
   assert.match(css, /\.skill-stack-grid \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: 1fr/);
   assert.match(css, /@media \(min-width: 768px\) \{[\s\S]*?\.skill-stack-grid \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
