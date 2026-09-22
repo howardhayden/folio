@@ -337,8 +337,28 @@ export const timeline = [
   },
 ];
 
-export const tools = [
+export type ToolBranch = {
+  label: string;
+  notes?: string[];
+  children?: ToolBranch[];
+};
+
+export type Tool = {
+  kind: "application" | "provisions";
+  name: string;
+  url: string | null;
+  category: string | null;
+  summary: string | null;
+  traits: string[];
+  branches?: ToolBranch[];
+};
+
+export const TOOLS_CONTENT_VERSION = "hah-portfolio-tools.v2";
+export const TOOLS_CONTENT_UPDATED = "2026-09-21";
+
+export const tools: Tool[] = [
   {
+    kind: "application",
     name: "AppFlowy",
     url: "https://appflowy.io",
     category: "Workspace",
@@ -346,6 +366,7 @@ export const tools = [
     traits: ["Open-source", "Full native, offline support", "No account required", "Data privacy", "Community-driven"],
   },
   {
+    kind: "application",
     name: "Newsflow",
     url: "https://apps.microsoft.com/store/detail/newsflow/9NBLGGH58S5R",
     category: "Reading",
@@ -353,6 +374,7 @@ export const tools = [
     traits: ["Local, offline storage", "RSS, ATOM, RDF support", "Categorization", "Extended readability", "Customizable"],
   },
   {
+    kind: "application",
     name: "Firefox",
     url: "https://www.mozilla.org/firefox/",
     category: "Browser",
@@ -360,6 +382,7 @@ export const tools = [
     traits: ["Open-source", "Enhanced tracking protection", "Developer tools", "Mozilla community involvement", "Customizable"],
   },
   {
+    kind: "application",
     name: "VSCodium",
     url: "https://vscodium.com",
     category: "Development",
@@ -367,6 +390,7 @@ export const tools = [
     traits: ["MIT license", "No telemetry, no tracking", "Simple distribution", "Community-driven", "Inherited extensibility"],
   },
   {
+    kind: "application",
     name: "Tuta",
     url: "https://tuta.com",
     category: "Communication",
@@ -374,11 +398,63 @@ export const tools = [
     traits: ["Open-source codebase", "E2EE", "Zero-knowledge architecture", "No tracking, no logging", "Private business model; ad-free", "Cross-platform"],
   },
   {
+    kind: "application",
     name: "SearXNG",
     url: "https://searx.space",
     category: "Search",
     summary: "Metasearch engine.",
     traits: ["Open-source", "Decentralized", "Non-tracking", "Proxying", "Self-hostable", "Priority customization", "Non-tailored results", "Integration-supportive"],
+  },
+  {
+    kind: "provisions",
+    name: "Provisions",
+    url: null,
+    category: null,
+    summary: "Used up, worn out, and replaced.",
+    traits: [],
+    branches: [
+      {
+        label: "training",
+        children: [
+          { label: "Creatine Monohydrate", notes: ["Thorne"] },
+          { label: "Collagen", notes: ["Sports Research"] },
+          { label: "Ghost 17 GTX", notes: ["Brooks"] },
+        ],
+      },
+      {
+        label: "upkeep",
+        children: [
+          { label: "Leather Rejuvenator Soap", notes: ["Saphir"] },
+          {
+            label: "Crème Surfine",
+            notes: ["Saphir", "Navy Blue, White, Birch, Dark Green"],
+          },
+          { label: "Pâte de Luxe, Navy Blue", notes: ["Saphir"] },
+          { label: "Mirror Gloss, Navy Blue", notes: ["Saphir"] },
+          { label: "Amiral Gloss, Black", notes: ["Saphir"] },
+          {
+            label: "Pronamel Active Shield Whitening Toothpaste",
+            notes: ["Sensodyne"],
+          },
+        ],
+      },
+      {
+        label: "hair",
+        children: [
+          { label: "Pumpkin Seed Oil", notes: ["NOW Solutions"] },
+          { label: "Hair, Skin & Nails", notes: ["NOW Solutions"] },
+          { label: "Lustriva", notes: ["Nature's Bounty"] },
+          { label: "Round Olivewood Brush", notes: ["SHASH"] },
+        ],
+      },
+      {
+        label: "scent",
+        children: [
+          { label: "Molecule 01", notes: ["Escentric Molecules"] },
+          { label: "Coffee Tobacco Oud", notes: ["Sandy’s"] },
+        ],
+      },
+    ],
   },
 ];
 

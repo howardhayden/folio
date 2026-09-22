@@ -11,6 +11,7 @@ import {
 import { skillStacks, timeline } from "../data.ts";
 import { searchOntology, type SearchHit } from "../search/ontologySearch.ts";
 import { projects } from "./projects.js";
+import { TimelineManifest } from "./ResumeExperience";
 import { ResumeProjectHeldCard } from "./ResumeProjectsHeld";
 import {
   RESUME_SEARCH_CLASS_ORDER,
@@ -82,11 +83,12 @@ function ResumeSearchResultCard({
             {record.title}
           </a>
         </h3>
-        {record.summary ? <p className="text-center resume-search-record-date"><small>{record.summary}</small></p> : null}
-        {record.subtitle ? <p className="text-center">{record.subtitle}</p> : null}
-        {entry?.details.length ? (
-          <p><small>{entry.details.map((detail) => <span key={detail}>{detail}<br /></span>)}</small></p>
-        ) : null}
+        <TimelineManifest
+          period={record.summary ?? ""}
+          organization={record.subtitle ?? ""}
+          secondaryLabel={entry ? "Organization" : "Program"}
+          details={entry?.details ?? []}
+        />
       </div>
     </article>
   );

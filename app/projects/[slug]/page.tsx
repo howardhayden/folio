@@ -47,7 +47,32 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
           <h2>Evidence and documentation</h2>
           <ul>
             {project.evidence.map((url) => <li key={url}><a href={url}>{url}</a></li>)}
-            {(project.resources ?? []).filter(({ url }) => !project.evidence.includes(url)).map(({ label, url }) => <li key={`${label}-${url}`}><a href={url}>{label}</a></li>)}
+            {(project.resources ?? []).filter(({ url }) => !project.evidence.includes(url)).map((resource) => {
+              const contributorName = "kind" in resource
+                && resource.kind === "contributor"
+                && "contributorName" in resource
+                ? resource.contributorName
+                : null;
+
+              return (
+                <li key={`${resource.label}-${resource.url}`}>
+                  {contributorName ? (
+                    <>
+                      Contributor:{" "}
+                      <a
+                        href={resource.url}
+                        target={resource.opensInNewTab ? "_blank" : undefined}
+                        rel={resource.opensInNewTab ? "noopener noreferrer" : undefined}
+                      >
+                        {contributorName}
+                      </a>
+                    </>
+                  ) : (
+                    <a href={resource.url}>{resource.label}</a>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           <h2>Limitations</h2>
           {project.limitations.length ? <ul>{project.limitations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>None are documented in this portfolio record.</p>}

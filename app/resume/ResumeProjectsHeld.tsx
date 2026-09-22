@@ -3,6 +3,7 @@
 import type { MouseEvent } from "react";
 import { projects } from "./projects.js";
 import ProjectDescriptionDisclosure from "./ProjectDescriptionDisclosure";
+import ProjectResources from "./ProjectResources";
 
 type ProjectIconName =
   | "airplane-engines"
@@ -106,7 +107,7 @@ export function ResumeProjectHeldCard({
           )}
         </div>
 
-        <h3 className="card-title tools-card-title" id={headingId}>
+        <h3 className="card-title tools-card-title project-card-title row justify-content-center" id={headingId}>
           <a
             className="signal-fuzz"
             href={project.canonicalPath}
@@ -131,39 +132,7 @@ export function ResumeProjectHeldCard({
           </p>
         ) : null}
 
-        {project.resources.length ? (
-          <nav
-            className="project-resources"
-            aria-label={`${project.name} supporting materials`}
-          >
-            <ul className="list-unstyled">
-              {project.resources.map((resource) => {
-                const opensInNewTab = resource.opensInNewTab === true;
-
-                return (
-                  <li key={`${resource.label}-${resource.url}`}>
-                    <a
-                      className="signal-fuzz"
-                      href={resource.url}
-                      target={opensInNewTab ? "_blank" : undefined}
-                      rel={opensInNewTab ? "noopener noreferrer" : undefined}
-                      aria-label={
-                        opensInNewTab
-                          ? `${resource.label}, opens in a new tab`
-                          : resource.label
-                      }
-                    >
-                      <span aria-hidden="true">
-                        <ProjectIcon icon={resource.icon as ProjectIconName} />
-                      </span>{" "}
-                      <span>{resource.label}</span>
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
-        ) : null}
+        <ProjectResources projectName={project.name} resources={project.resources} />
 
         <p className="card-text">
           <small>{project.publication.label}</small>

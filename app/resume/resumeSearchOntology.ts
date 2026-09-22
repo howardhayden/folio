@@ -1819,6 +1819,7 @@ const TIMELINE_AUTHORED_SEARCH_METADATA: Readonly<Record<string, readonly Author
     Object.freeze({ text: "High-pressure operations and real-time decision-making", conceptIds: Object.freeze(["resilience", "resilient-systems", "high-consequence-systems"]) }),
     Object.freeze({ text: "Public service", conceptIds: Object.freeze(["public-service"]) }),
     Object.freeze({ text: "Officer, corrections", conceptIds: Object.freeze(["corrections"]) }),
+    Object.freeze({ text: "Radio ear", conceptIds: Object.freeze([]) }),
   ]),
   "kings-college-london-grand-strategy": Object.freeze([
     Object.freeze({ text: "Decision-making under uncertainty", conceptIds: Object.freeze(["decision-under-uncertainty"]) }),

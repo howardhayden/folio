@@ -32,10 +32,15 @@ import {
   projectsSchemaV1,
   renderProjectMarkdown,
   renderResumeMarkdown,
+  renderToolsMarkdown,
   resumeManifest,
   shelfManifest,
   toolsManifest,
 } from "../app/semantic/portfolio.js";
+import {
+  TOOLS_CONTENT_UPDATED,
+  TOOLS_CONTENT_VERSION,
+} from "../app/data.ts";
 
 const hah = namespaceGraphId;
 import {
@@ -390,6 +395,75 @@ test("machine manifests match their authoritative source objects", async () => {
   }
 });
 
+test("Tools semantics preserve branch descriptions and the exact Provisions tree", () => {
+  assert.equal(toolsManifest.version, TOOLS_CONTENT_VERSION);
+  assert.equal(toolsManifest.asOf, TOOLS_CONTENT_UPDATED);
+  assert.deepEqual(toolsManifest.tools.map(({ name }) => name), [
+    "AppFlowy", "Newsflow", "Firefox", "VSCodium", "Tuta", "SearXNG", "Provisions",
+  ]);
+
+  const provisions = toolsManifest.tools.find(({ name }) => name === "Provisions");
+  assert.ok(provisions);
+  assert.equal(provisions.kind, "provisions");
+  assert.equal(Object.hasOwn(provisions, "url"), false);
+  assert.equal(Object.hasOwn(provisions, "category"), false);
+  assert.equal(provisions.summary, "Used up, worn out, and replaced.");
+  assert.deepEqual(provisions.traits, []);
+  assert.deepEqual(provisions.branches, [
+    {
+      label: "training",
+      children: [
+        { label: "Creatine Monohydrate", notes: ["Thorne"] },
+        { label: "Collagen", notes: ["Sports Research"] },
+        { label: "Ghost 17 GTX", notes: ["Brooks"] },
+      ],
+    },
+    {
+      label: "upkeep",
+      children: [
+        { label: "Leather Rejuvenator Soap", notes: ["Saphir"] },
+        { label: "Crème Surfine", notes: ["Saphir", "Navy Blue, White, Birch, Dark Green"] },
+        { label: "Pâte de Luxe, Navy Blue", notes: ["Saphir"] },
+        { label: "Mirror Gloss, Navy Blue", notes: ["Saphir"] },
+        { label: "Amiral Gloss, Black", notes: ["Saphir"] },
+        { label: "Pronamel Active Shield Whitening Toothpaste", notes: ["Sensodyne"] },
+      ],
+    },
+    {
+      label: "hair",
+      children: [
+        { label: "Pumpkin Seed Oil", notes: ["NOW Solutions"] },
+        { label: "Hair, Skin & Nails", notes: ["NOW Solutions"] },
+        { label: "Lustriva", notes: ["Nature's Bounty"] },
+        { label: "Round Olivewood Brush", notes: ["SHASH"] },
+      ],
+    },
+    {
+      label: "scent",
+      children: [
+        { label: "Molecule 01", notes: ["Escentric Molecules"] },
+        { label: "Coffee Tobacco Oud", notes: ["Sandy’s"] },
+      ],
+    },
+  ]);
+
+  const toolsList = knowledgeGraph["@graph"].find(({ "@id": id }) => id === "https://hah.dev/tools/#items");
+  assert.ok(toolsList);
+  const provisionsGraphItem = toolsList.itemListElement.at(-1).item;
+  assert.equal(provisionsGraphItem["@type"], "ItemList");
+  assert.equal(provisionsGraphItem.name, "Provisions");
+  assert.deepEqual(
+    provisionsGraphItem.itemListElement.map(({ item }) => item.name),
+    ["training", "upkeep", "hair", "scent"],
+  );
+
+  const markdown = renderToolsMarkdown();
+  assert.match(markdown, /## Provisions\n\n- Summary: Used up, worn out, and replaced\.\n\n### Branches\n\n```text\n├─ training/u);
+  assert.match(markdown, /│  │  Navy Blue, White, Birch, Dark Green/u);
+  assert.match(markdown, /└─ scent[\s\S]*?      Sandy’s/u);
+  assert.doesNotMatch(markdown, /(?:URL|Category|Summary): (?:null|undefined)/u);
+});
+
 test("JSON-LD uses a scalar context and absolute extension IRIs for WebKit compatibility", () => {
   assert.equal(knowledgeGraph["@context"], "https://schema.org");
   const visit = (value, path = "$") => {
@@ -574,8 +648,17 @@ test("the completed King's College London record is exact across representations
   const article = authoredDocument(resumeHtml).match(/<article\b[^>]*data-record-id="kings-college-london-grand-strategy"[^>]*>[\s\S]*?<\/article>/u)?.[0];
   assert.ok(article, "the KCL record is a visible semantic article");
   assert.match(article, /id="kings-college-london-grand-strategy"/u);
-  assert.ok(article.includes(`<h3>${expected.role}</h3><p>${expected.period}<br/>${expected.organization.name}</p>`));
-  assert.ok(article.includes(`<p><small>${expected.details.map((line) => `<span>${line}<br/></span>`).join("")}</small></p>`));
+  assert.ok(article.includes(`<h3>${expected.role}</h3><dl class="timeline-manifest">`));
+  assert.match(article, /<span>Period<\/span>[\s\S]*?<span>June 2026 — August 2026<\/span>/u);
+  assert.match(article, /<span>Organization<\/span>[\s\S]*?<span>King’s College London<\/span>/u);
+  assert.match(article, /<span>Details<\/span>[\s\S]*?<dd class="timeline-manifest-details"><ul>/u);
+  let detailCursor = article.indexOf("<span>Details</span>");
+  for (const detail of expected.details) {
+    const detailAt = article.indexOf(`<span>${detail}</span>`, detailCursor + 1);
+    assert.ok(detailAt > detailCursor, `${detail} remains in authored Timeline order`);
+    detailCursor = detailAt;
+  }
+  assert.equal((article.match(/class="timeline-manifest-prefix" aria-hidden="true"/gu) ?? []).length, 10);
   assert.doesNotMatch(article, /present/iu);
   assert.doesNotMatch(resumeJson, /June 2026 — present/u);
 });
@@ -691,7 +774,7 @@ test("the not-found document contains only exclusionary crawler directives", asy
 test("project and Text to Lattice implementation provenance stays source-aligned", async () => {
   const graphById = new Map(knowledgeGraph["@graph"].map((node) => [node["@id"], node]));
   const resumeMarkdown = renderResumeMarkdown();
-  assert.equal(PROJECT_CONTENT_VERSION, "hah-portfolio-projects.v9");
+  assert.equal(PROJECT_CONTENT_VERSION, "hah-portfolio-projects.v10");
   assert.equal(projectsManifest.version, PROJECT_CONTENT_VERSION);
   assert.equal(projectsManifest.asOf, PROJECT_CONTENT_UPDATED);
   const mediumProject = projects.find(({ id }) => id === "medium");
@@ -726,10 +809,17 @@ test("project and Text to Lattice implementation provenance stays source-aligned
         "documentation",
         `${source.id} does not expose a vague Documentation link`,
       );
-      assert.ok(
-        resource.label.toLowerCase().includes(source.name.toLowerCase()),
-        `${source.id} resource label names its project or wrapper scope: ${resource.label}`,
-      );
+      const cardLabel = resource.cardLabel ?? resource.label;
+      assert.ok(cardLabel.trim(), `${source.id} has a nonempty card-facing resource label`);
+      if (resource.kind === "contributor") {
+        assert.equal(cardLabel, `Contributor: ${resource.contributorName}`);
+      } else {
+        assert.equal(
+          cardLabel.toLowerCase().includes(source.name.toLowerCase()),
+          false,
+          `${source.id} card-facing resource label does not repeat its project title: ${cardLabel}`,
+        );
+      }
       assert.ok(
         resumeMarkdown.includes(resource.markdownUrl
           ? `${resource.label}: HTML ${resource.url}; Markdown ${resource.markdownUrl}`
@@ -764,7 +854,9 @@ test("project and Text to Lattice implementation provenance stays source-aligned
         externalUrl: source.url,
         evidence: [...source.evidence],
         documentation: (source.resources ?? []).map((document) => Object.fromEntries(
-          Object.entries(document).filter(([key]) => key !== "icon" && key !== "opensInNewTab"),
+          Object.entries(document).filter(([key]) => ![
+            "cardLabel", "contributorName", "icon", "kind", "opensInNewTab",
+          ].includes(key)),
         )),
         publication: { ...source.publication },
         status: { value: source.status, asOf: PROJECT_CONTENT_UPDATED },
