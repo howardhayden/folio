@@ -59,7 +59,7 @@ export const textToLatticeContract = Object.freeze({
         seed: 71_903,
         thinking: false,
         stages: Object.freeze({
-          analysis: Object.freeze({ temperature: 0.1, topP: 0.9, maximumOutputTokens: 2_000 }),
+          analysis: Object.freeze({ temperature: 0.1, topP: 0.9, maximumOutputTokens: 3_072 }),
           candidate: Object.freeze({ temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 }),
           repair: Object.freeze({ temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 }),
         }),

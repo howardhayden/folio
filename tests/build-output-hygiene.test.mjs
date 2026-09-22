@@ -123,7 +123,7 @@ test("the remote adapter consumes the public server-side sampling contract", asy
   ]);
 
   assert.deepEqual(textToLatticeContract.implementation.generator.inference.stages, {
-    analysis: { temperature: 0.1, topP: 0.9, maximumOutputTokens: 2_000 },
+    analysis: { temperature: 0.1, topP: 0.9, maximumOutputTokens: 3_072 },
     candidate: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
     repair: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
   });
@@ -132,7 +132,7 @@ test("the remote adapter consumes the public server-side sampling contract", asy
     certification: { temperature: 0, topP: 1, maximumOutputTokens: 520 },
   });
   for (const [stage, maximumOutputTokens, temperature, topP] of [
-    ["analysis", "2_000", "0.1", "0.9"],
+    ["analysis", "3_072", "0.1", "0.9"],
     ["candidate", "800", "0.45", "0.9"],
     ["repair", "800", "0.45", "0.9"],
     ["verification", "1_200", "0", "1"],

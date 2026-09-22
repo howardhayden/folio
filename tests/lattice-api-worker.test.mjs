@@ -1186,7 +1186,7 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
     LATTICE_REMOTE_MODELS.generator,
     LATTICE_REMOTE_MODELS.verifier,
   ]);
-  assert.deepEqual(calls.map(({ body }) => body.max_tokens), [2_000, 520]);
+  assert.deepEqual(calls.map(({ body }) => body.max_tokens), [3_072, 520]);
   assert.deepEqual(calls.map(({ body }) => body.temperature), [0.1, 0]);
   assert.deepEqual(calls.map(({ body }) => body.top_p), [0.9, 1]);
   assert.deepEqual(calls.map(({ body }) => body.seed), [71_903, 71_903]);
