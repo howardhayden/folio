@@ -1,13 +1,21 @@
 import { documentsForProject } from "../content/projectDocuments.js";
 
-export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v9";
+export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v10";
 export const PROJECT_CONTENT_UPDATED = "2026-09-21";
+
+const LATTICE_CARD_RESOURCE_LABELS = Object.freeze({
+  "lattice-concept-map": "Concept and Ecosystem Map",
+  "lattice-skill-map": "System Skill Map",
+  "text-to-lattice-service-blueprint": "Service Blueprint",
+  "text-to-lattice-security-model": "Security Model",
+});
 
 export const LATTICE_DOCUMENTATION_RESOURCES = Object.freeze(
   documentsForProject("lattice").map((document) => Object.freeze({
     id: document.id,
     artifactId: document.artifactId,
     label: document.label,
+    cardLabel: LATTICE_CARD_RESOURCE_LABELS[document.id],
     title: document.title,
     url: document.htmlUrl,
     markdownUrl: document.markdownUrl,
@@ -21,6 +29,7 @@ export const LATTICE_DOCUMENTATION_RESOURCES = Object.freeze(
 
 export const LATTICE_RELEASE_QUALIFICATION_RESOURCE = Object.freeze({
   label: "Text to Lattice Release Qualification",
+  cardLabel: "Release Qualification",
   url: "https://hah.dev/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
   icon: "backpack4",
   opensInNewTab: false,
@@ -64,7 +73,7 @@ export const projects = Object.freeze([
       Object.freeze({ relation: "governs-linguistic-register-for", target: "evenward", scope: "selected embodied guidance and care" }),
     ]),
     resources: Object.freeze([
-      Object.freeze({ label: "Lattice Source Repository", url: "https://github.com/howardhayden/lattice", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "Lattice Source Repository", cardLabel: "Source Repository", url: "https://github.com/howardhayden/lattice", icon: "backpack4", opensInNewTab: true }),
       ...LATTICE_DOCUMENTATION_RESOURCES,
       LATTICE_RELEASE_QUALIFICATION_RESOURCE,
     ]),
@@ -96,8 +105,8 @@ export const projects = Object.freeze([
       Object.freeze({ relation: "operationalizes", target: "provenance-continuity", scope: "custody, fixity, recovery, and handoff" }),
     ]),
     resources: Object.freeze([
-      Object.freeze({ label: "IN KEEPING Technical Report", url: "https://inkeep.ing/?view=reports", icon: "backpack4", opensInNewTab: true }),
-      Object.freeze({ label: "IN KEEPING Public Notice", url: "https://inkeep.ing/?view=reports", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "IN KEEPING Technical Report", cardLabel: "Technical Report", url: "https://inkeep.ing/?view=reports", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "IN KEEPING Public Notice", cardLabel: "Public Notice", url: "https://inkeep.ing/?view=reports", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "August 2026", value: "2026-08", precision: "month" }),
     status: "public",
@@ -123,7 +132,7 @@ export const projects = Object.freeze([
     emphasis: Object.freeze(["operational uncertainty", "naval learning"]),
     relationships: Object.freeze([Object.freeze({ relation: "applies-lattice-to", target: "lattice", scope: "naval learning and operational uncertainty" })]),
     resources: Object.freeze([
-      Object.freeze({ label: "FOG OF SEA Systems Atlas", url: "https://nbviewer.org/github/howardhayden/fogofsea/blob/main/docs/Systems-Atlas.ipynb", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "FOG OF SEA Systems Atlas", cardLabel: "Systems Atlas", url: "https://nbviewer.org/github/howardhayden/fogofsea/blob/main/docs/Systems-Atlas.ipynb", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "August 2026", value: "2026-08", precision: "month" }),
     status: "public",
@@ -149,9 +158,9 @@ export const projects = Object.freeze([
     emphasis: Object.freeze(["social systems", "epistemic systems", "collective belief"]),
     relationships: Object.freeze([Object.freeze({ relation: "applies-lattice-to", target: "lattice", scope: "social and epistemic systems" })]),
     resources: Object.freeze([
-      Object.freeze({ label: "CHORUS Notebooks", url: "https://chorus.observer/notebooks/", icon: "backpack4", opensInNewTab: true }),
-      Object.freeze({ label: "CHORUS Concept Map", url: "https://chorus.observer/documentation/chorus-concept-map.html", icon: "backpack4", opensInNewTab: true }),
-      Object.freeze({ label: "CHORUS CSD Matrix", url: "https://chorus.observer/documentation/chorus-csd-matrix.html", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "CHORUS Notebooks", cardLabel: "Notebooks", url: "https://chorus.observer/notebooks/", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "CHORUS Concept Map", cardLabel: "Concept Map", url: "https://chorus.observer/documentation/chorus-concept-map.html", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "CHORUS CSD Matrix", cardLabel: "CSD Matrix", url: "https://chorus.observer/documentation/chorus-csd-matrix.html", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "August 2026", value: "2026-08", precision: "month" }),
     status: "public",
@@ -177,7 +186,7 @@ export const projects = Object.freeze([
     emphasis: Object.freeze(["embodied interaction", "care", "self-regulation"]),
     relationships: Object.freeze([Object.freeze({ relation: "selectively-applies-lattice-to", target: "lattice", scope: "embodied guidance and care" })]),
     resources: Object.freeze([
-      Object.freeze({ label: "Evenward.rest Studio", url: "https://evenward.rest/", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "Evenward.rest Studio", cardLabel: "Studio", url: "https://evenward.rest/", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "July 2026", value: "2026-07", precision: "month" }),
     status: "public",
@@ -203,7 +212,7 @@ export const projects = Object.freeze([
     emphasis: Object.freeze(["infrastructure", "work under pressure"]),
     relationships: Object.freeze([]),
     resources: Object.freeze([
-      Object.freeze({ label: "Howie’s Medium Articles", url: "https://medium.com/@howardhayden", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "Howie’s Medium Articles", cardLabel: "Articles", url: "https://medium.com/@howardhayden", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "June 2026–present", value: "2026-06", precision: "open-range" }),
     status: "ongoing",
@@ -229,7 +238,7 @@ export const projects = Object.freeze([
     emphasis: Object.freeze(["business analysis", "institutional decision-making", "long-term planning"]),
     relationships: Object.freeze([]),
     resources: Object.freeze([
-      Object.freeze({ label: "LMS Reimplementation Proposal record", url: "https://www.linkedin.com/in/howardhayden/details/projects/", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ label: "LMS Reimplementation Proposal record", cardLabel: "Record", url: "https://www.linkedin.com/in/howardhayden/details/projects/", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "February 2023", value: "2023-02", precision: "month" }),
     status: "completed",
@@ -270,7 +279,7 @@ export const projects = Object.freeze([
     thesis: "The Finding Freedom Summer Traveling Exhibit connected an OhioLINK-associated collaboration to the library systems and web-services relationships that supported it.",
     summary: Object.freeze([
       "The Finding Freedom Summer Traveling Exhibit connected an OhioLINK-associated collaboration to the library systems and web-services relationships that supported it.",
-      "Supported through Miami University Libraries, the collaboration involved Sierra ILS and Ruby on Rails and included web-services contributors Ken Irwin, Meng Qu, and Jerry Yarnetsky.",
+      "Supported through Miami University Libraries, the collaboration involved Sierra ILS and Ruby on Rails.",
     ]),
     capabilities: Object.freeze(["Collaborative exhibit support", "Library web-services collaboration"]),
     technologies: Object.freeze(["Sierra ILS", "Ruby on Rails"]),
@@ -279,9 +288,9 @@ export const projects = Object.freeze([
     emphasis: Object.freeze(["traveling exhibits", "OhioLINK", "library web services"]),
     relationships: Object.freeze([]),
     resources: Object.freeze([
-      Object.freeze({ label: "Finding Freedom Summer Traveling Exhibit contributor: Ken Irwin", url: "https://www.linkedin.com/in/ken-irwin-08a87ab5/", icon: "backpack4", opensInNewTab: true }),
-      Object.freeze({ label: "Finding Freedom Summer Traveling Exhibit contributor: Meng Qu", url: "https://www.linkedin.com/in/mengqu/", icon: "backpack4", opensInNewTab: true }),
-      Object.freeze({ label: "Finding Freedom Summer Traveling Exhibit contributor: Jerry Yarnetsky", url: "https://www.linkedin.com/in/jerry-yarnetsky/", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ kind: "contributor", contributorName: "Ken Irwin", label: "Contributor: Ken Irwin", url: "https://www.linkedin.com/in/ken-irwin-08a87ab5/", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ kind: "contributor", contributorName: "Meng Qu", label: "Contributor: Meng Qu", url: "https://www.linkedin.com/in/mengqu/", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ kind: "contributor", contributorName: "Jerry Yarnetsky", label: "Contributor: Jerry Yarnetsky", url: "https://www.linkedin.com/in/jerry-yarnetsky/", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "October 2021 – December 2021", value: "2021-10", start: "2021-10", end: "2021-12", precision: "month-range" }),
     status: "completed",
@@ -293,20 +302,23 @@ export const projects = Object.freeze([
     name: "Information Studies and Digital Citizenship",
     type: "Course",
     canonicalPath: "/projects/information-studies-and-digital-citizenship/",
-    url: "https://www.linkedin.com/in/howardhayden/details/projects/",
+    url: "https://scdb.lib.miamioh.edu/server/api/core/bitstreams/acd28a12-c901-420e-bb71-ab16f9316448/content",
     icon: "backpack4",
     thesis: "Information Studies and Digital Citizenship framed emerging technology through the relationships among business, design, and responsible participation.",
     summary: Object.freeze([
       "Information Studies and Digital Citizenship framed emerging technology through the relationships among business, design, and responsible participation.",
-      "This Miami University course-design project brought emerging technology into relation with business, design, and responsible digital participation through collaboration with instructional librarians, including Jaclynn Spraetz of Miami University Libraries.",
+      "This Miami University course-design project brought emerging technology into relation with business, design, and responsible digital participation through collaboration with instructional librarians.",
     ]),
     capabilities: Object.freeze(["Course design", "Emerging-technology instruction design", "Instructional-librarian collaboration"]),
     technologies: Object.freeze([]),
-    evidence: Object.freeze(["https://www.linkedin.com/in/howardhayden/details/projects/"]),
+    evidence: Object.freeze(["https://scdb.lib.miamioh.edu/server/api/core/bitstreams/acd28a12-c901-420e-bb71-ab16f9316448/content"]),
     limitations: Object.freeze(["This record documents course design; it does not claim that the course was delivered or independently taught by the author."]),
     emphasis: Object.freeze(["digital citizenship", "emerging technology", "business and design"]),
     relationships: Object.freeze([]),
-    resources: Object.freeze([]),
+    resources: Object.freeze([
+      Object.freeze({ label: "Information Studies and Digital Citizenship syllabus", cardLabel: "Syllabus", url: "https://scdb.lib.miamioh.edu/server/api/core/bitstreams/acd28a12-c901-420e-bb71-ab16f9316448/content", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ kind: "contributor", contributorName: "Jaclynn Spraetz", label: "Contributor: Jaclynn Spraetz", url: "https://www.linkedin.com/in/jaclyn-spraetz-21a58792", icon: "backpack4", opensInNewTab: true }),
+    ]),
     publication: Object.freeze({ label: "May 2021", value: "2021-05", precision: "month" }),
     status: "completed",
     readmeAfterFirstParagraph: true,

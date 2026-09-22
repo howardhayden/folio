@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
-import { LegacyIcon, type LegacyIconName } from "../components/LegacyIcon";
+import { LegacyIcon } from "../components/LegacyIcon";
 import { timeline } from "../data";
 import { resumeEducationOverview } from "../content/siteContent.js";
 import { resumeDetails } from "./resumeDetails.js";
@@ -14,18 +14,6 @@ import {
 
 type ModalKey = keyof typeof resumeDetails;
 type ModalId = ModalKey | null;
-
-const timelineIcons: Record<string, LegacyIconName> = {
-  "King’s College London": "floppy2",
-  "United States Navy": "arrows-move",
-  "Madison Correctional Facility": "camera-video-off-fill",
-  "Madison Consolidated Schools": "clipboard-check",
-  "American Public University System": "mortarboard",
-  "iSchool, University of Wisconsin-Madison": "floppy2",
-  "Germantown Public Library": "book-half",
-  "Dayton Area School Consortium": "clipboard-check",
-  "University of Tartu": "body-text",
-};
 
 function shouldInterceptResumeModalLink(event: ReactMouseEvent<HTMLAnchorElement>) {
   return !event.defaultPrevented
@@ -126,7 +114,6 @@ export default function ResumeExperience() {
               const className = `timeline-entry ${index % 2 ? "left" : "right"}`;
               const detailLink = entry.role === "Officer Candidate" ? {
                 href: resumeDetails.officer.canonicalPath,
-                label: "Open Officer Candidate details",
                 onActivate: (trigger: HTMLAnchorElement) => openModal("officer", trigger),
               } : undefined;
 
@@ -134,8 +121,6 @@ export default function ResumeExperience() {
                 <article className={className} data-record-id={entry.id} id={entry.id} key={`${entry.period}-${entry.organization}`}>
                   <TimelineEntry
                     entry={entry}
-                    icon={timelineIcons[entry.organization]}
-                    index={index}
                     detailLink={detailLink}
                   />
                 </article>
@@ -177,8 +162,11 @@ export default function ResumeExperience() {
           <div className="timeline">
             <article className="timeline-entry right" data-record-id="kettering-health-network-volunteer" id="kettering-health-network-volunteer">
               <h3>Volunteer</h3>
-              <p>March 2019 – August 2019<br />Kettering Health Network</p>
-              <LegacyIcon name="capsule" className="rotate-left timeline-icon signal-fuzz" />
+              <TimelineManifest
+                period="March 2019 – August 2019"
+                organization="Kettering Health Network"
+                details={[]}
+              />
             </article>
           </div>
         </section>
@@ -215,48 +203,98 @@ function UndergraduateDetails() {
 
 function TimelineEntry({
   entry,
-  icon,
-  index,
   detailLink,
 }: {
   entry: (typeof timeline)[number];
-  icon: LegacyIconName;
-  index: number;
   detailLink?: {
     href: string;
-    label: string;
     onActivate: (trigger: HTMLAnchorElement) => void;
   };
 }) {
-  const timelineIcon = (
-    <LegacyIcon
-      name={icon}
-      className={`${index % 2 ? "rotate-right" : "rotate-left"} timeline-icon${detailLink ? "" : " signal-fuzz"}`}
-    />
-  );
-
   return (
     <>
-      <h3>{entry.role}</h3>
-      <p>{entry.period}<br />{entry.organization}</p>
-      {entry.details.length > 0 && <p><small>{entry.details.map((detail) => <span key={detail}>{detail}<br /></span>)}</small></p>}
-      {detailLink ? (
-        <a
-          className="timeline-icon-trigger signal-fuzz"
-          aria-controls="resume-modal-officer"
-          aria-haspopup="dialog"
-          aria-label={detailLink.label}
-          href={detailLink.href}
-          onClick={(event) => {
-            if (!shouldInterceptResumeModalLink(event)) return;
-            event.preventDefault();
-            detailLink.onActivate(event.currentTarget);
-          }}
-        >
-          {timelineIcon}
-        </a>
-      ) : timelineIcon}
+      <h3>
+        {detailLink ? (
+          <a
+            className="signal-fuzz"
+            aria-controls="resume-modal-officer"
+            aria-haspopup="dialog"
+            href={detailLink.href}
+            onClick={(event) => {
+              if (!shouldInterceptResumeModalLink(event)) return;
+              event.preventDefault();
+              detailLink.onActivate(event.currentTarget);
+            }}
+          >
+            {entry.role}
+          </a>
+        ) : entry.role}
+      </h3>
+      <TimelineManifest
+        period={entry.period}
+        organization={entry.organization}
+        details={entry.details}
+      />
     </>
+  );
+}
+
+export function TimelineManifest({
+  period,
+  organization,
+  secondaryLabel = "Organization",
+  details,
+}: Readonly<{
+  period: string;
+  organization: string;
+  secondaryLabel?: string;
+  details: readonly string[];
+}>) {
+  const hasDetails = details.length > 0;
+
+  return (
+    <dl className="timeline-manifest">
+      <div className="timeline-manifest-entry">
+        <dt className="timeline-manifest-line">
+          <span className="timeline-manifest-prefix" aria-hidden="true">├─ </span>
+          <span>Period</span>
+        </dt>
+        <dd className="timeline-manifest-line timeline-manifest-value">
+          <span className="timeline-manifest-prefix" aria-hidden="true">│  </span>
+          <span>{period}</span>
+        </dd>
+      </div>
+      <div className="timeline-manifest-entry">
+        <dt className="timeline-manifest-line">
+          <span className="timeline-manifest-prefix" aria-hidden="true">{hasDetails ? "├─ " : "└─ "}</span>
+          <span>{secondaryLabel}</span>
+        </dt>
+        <dd className="timeline-manifest-line timeline-manifest-value">
+          <span className="timeline-manifest-prefix" aria-hidden="true">{hasDetails ? "│  " : "   "}</span>
+          <span>{organization}</span>
+        </dd>
+      </div>
+      {hasDetails ? (
+        <div className="timeline-manifest-entry">
+          <dt className="timeline-manifest-line">
+            <span className="timeline-manifest-prefix" aria-hidden="true">└─ </span>
+            <span>Details</span>
+          </dt>
+          <dd className="timeline-manifest-details">
+            <ul>
+              {details.map((detail, index) => (
+                <li className="timeline-manifest-line timeline-manifest-value" key={detail}>
+                  <span className="timeline-manifest-prefix" aria-hidden="true">
+                    {index === details.length - 1 ? "   └─ " : "   ├─ "}
+                  </span>
+                  <span>{detail}</span>
+                </li>
+              ))}
+            </ul>
+          </dd>
+        </div>
+      ) : null}
+    </dl>
   );
 }
 

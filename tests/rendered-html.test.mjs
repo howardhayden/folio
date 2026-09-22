@@ -27,6 +27,7 @@ import {
   filterShelfPapers,
   shuffleShelfPapers,
 } from "../app/shelf/shelfLogic.js";
+import { tools } from "../app/data.ts";
 import { projects } from "../app/resume/projects.js";
 
 const BAT_DIRECTIONS = ["left", "right", "upper-left", "upper-right"];
@@ -1037,7 +1038,7 @@ test("uses foreground background-gradient static for SVGs, colored text, ASCII t
   assert.match(home, /<pre[^>]*class="signal-fuzz signal-fuzz--ascii"/);
   assert.match(resume, /class="text-red text-center signal-fuzz"/);
   assert.match(resume, /href="\/projects\/chorus\/">CHORUS<\/a>/);
-  assert.match(tools, /class="tool-icon signal-fuzz"/);
+  assert.match(tools, /class="tool-icon tools-card-accent signal-fuzz"/);
   // vinext may serialize additional copies of the rendered tree into RSC
   // transport scripts. Inspect document markup, not inert script payloads.
   const documentMarkup = (html) => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, "");
@@ -1057,7 +1058,7 @@ test("uses foreground background-gradient static for SVGs, colored text, ASCII t
   );
 
   const resumeExperience = await readFile(new URL("../app/resume/ResumeExperience.tsx", import.meta.url), "utf8");
-  assert.match(resumeExperience, /timeline-icon signal-fuzz/);
+  assert.doesNotMatch(resumeExperience, /timeline-icon|rotate-left|rotate-right/u);
   assert.match(resumeExperience, /manifest: "technology-ethics-global-society", percent: 20, tone: "red-orange"/u);
   assert.match(resumeExperience, /manifest: "software-engineering-ui-ux", percent: 34, tone: "blue-green"/u);
   assert.match(resumeExperience, /manifest: "introduction-software-engineering", percent: 46, tone: "storm-gray"/u);
@@ -1140,8 +1141,162 @@ test("uses foreground background-gradient static for SVGs, colored text, ASCII t
   );
 });
 
-test("renders current projects and consistent project documentation icons", async () => {
+test("renders every Timeline card as an accessible terminal manifest without Timeline SVGs", async () => {
+  const [{ html }, css] = await Promise.all([
+    render("/resume/"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  const documentMarkup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, "");
+  const timelineCard = (recordId) => {
+    const markerAt = documentMarkup.indexOf(`data-record-id="${recordId}"`);
+    const cardStart = documentMarkup.lastIndexOf("<article", markerAt);
+    const cardEnd = documentMarkup.indexOf("</article>", markerAt);
+    assert.ok(markerAt >= 0 && cardStart >= 0 && cardEnd > markerAt, `${recordId} renders as a Timeline card`);
+    return documentMarkup.slice(cardStart, cardEnd + "</article>".length);
+  };
+
+  assert.equal(
+    (documentMarkup.match(/<dl class="timeline-manifest">/gu) ?? []).length,
+    (documentMarkup.match(/<article class="timeline-entry (?:left|right)"/gu) ?? []).length,
+    "every Timeline card has one semantic description list",
+  );
+
+  const timelineCards = [
+    ...documentMarkup.matchAll(/<article class="timeline-entry (?:left|right)"[^>]*>[\s\S]*?<\/article>/gu),
+  ].map(([card]) => card);
+  assert.ok(timelineCards.length > 0, "Timeline cards render");
+  for (const card of timelineCards) {
+    assert.doesNotMatch(card, /<svg\b/u, "Timeline cards contain no SVGs");
+    assert.doesNotMatch(card, /timeline-icon|rotate-(?:left|right)/u, "Timeline cards contain no legacy icon classes");
+  }
+
+  for (const [recordId, role, period, organization] of [
+    ["madison-correctional-facility-corrections-officer", "Corrections Officer", "August 2026 — present", "Madison Correctional Facility"],
+    ["kettering-health-network-volunteer", "Volunteer", "March 2019 – August 2019", "Kettering Health Network"],
+  ]) {
+    const card = timelineCard(recordId);
+    assert.match(card, new RegExp(`<h3>${role}</h3>[\\s\\S]*?<dl class="timeline-manifest">`, "u"));
+    assert.match(card, /<span class="timeline-manifest-prefix" aria-hidden="true">├─ <\/span><span>Period<\/span>/u);
+    assert.match(card, new RegExp(`<dd class="timeline-manifest-line timeline-manifest-value">[\\s\\S]*?<span>${period}</span>`, "u"));
+    assert.match(card, /<span class="timeline-manifest-prefix" aria-hidden="true">└─ <\/span><span>Organization<\/span>/u);
+    assert.match(card, new RegExp(`<dd class="timeline-manifest-line timeline-manifest-value">[\\s\\S]*?<span>${organization}</span>`, "u"));
+    assert.doesNotMatch(card, />Details<\/span>/u);
+    assert.equal((card.match(/<dl class="timeline-manifest">/gu) ?? []).length, 1);
+  }
+
+  const detailedCard = timelineCard("kings-college-london-grand-strategy");
+  assert.match(detailedCard, /<span class="timeline-manifest-prefix" aria-hidden="true">└─ <\/span><span>Details<\/span>/u);
+  assert.match(detailedCard, /<dd class="timeline-manifest-details"><ul>/u);
+  assert.match(
+    detailedCard,
+    /<li class="timeline-manifest-line timeline-manifest-value"><span class="timeline-manifest-prefix" aria-hidden="true">   ├─ <\/span><span>Professional Certificate in Grand Strategy:<\/span><\/li>/u,
+  );
+  assert.match(
+    detailedCard,
+    /<li class="timeline-manifest-line timeline-manifest-value"><span class="timeline-manifest-prefix" aria-hidden="true">   └─ <\/span><span>Wargaming and Strategy<\/span><\/li>/u,
+  );
+
+  const officerCard = timelineCard("united-states-navy-officer-candidate");
+  assert.match(
+    officerCard,
+    /<h3><a(?=[^>]*class="signal-fuzz")(?=[^>]*aria-controls="resume-modal-officer")(?=[^>]*aria-haspopup="dialog")(?=[^>]*href="\/resume\/officer-candidate\/")[^>]*>Officer Candidate<\/a><\/h3>/u,
+  );
+  assert.doesNotMatch(officerCard, /<h3><a[^>]*aria-label=/u, "the visible role remains the heading's accessible name");
+  assert.doesNotMatch(officerCard, /timeline-icon-trigger|<svg\b/u);
+  assert.match(
+    documentMarkup,
+    /<div class="modal resume-modal"[^>]*hidden=""[^>]*>[\s\S]*?<div[^>]*id="resume-modal-officer"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="resume-modal-title-officer"/u,
+  );
+
+  assert.match(css, /\.timeline-manifest \{[\s\S]*?text-align: left;/u);
+  assert.match(
+    css,
+    /\.timeline-manifest-line \{[\s\S]*?display: grid;[\s\S]*?font-family: ui-monospace,[\s\S]*?grid-template-columns: max-content minmax\(0, 1fr\);/u,
+  );
+  assert.match(css, /\.timeline-manifest-prefix \{[\s\S]*?color: #6c757d;[\s\S]*?white-space: pre;/u);
+  assert.doesNotMatch(css, /\.(?:timeline-icon(?:-trigger)?|rotate-left|rotate-right)\b/u);
+  assert.doesNotMatch(css, /\.timeline-entry[^\{]*\bsvg\b/u);
+});
+
+test("renders Tools descriptions as accessible branches and preserves the exact Provisions hierarchy", async () => {
+  const [{ html }, css] = await Promise.all([
+    render("/tools/"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  const documentMarkup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, "");
+
+  assert.equal(
+    (documentMarkup.match(/<article class="card" id="tool-/gu) ?? []).length,
+    tools.length,
+  );
+
+  let previousTitleAt = -1;
+  for (const tool of tools) {
+    const titleAt = documentMarkup.indexOf(`>${tool.name}</h3>`);
+    assert.ok(titleAt > previousTitleAt, `${tool.name} remains in authored card order`);
+    previousTitleAt = titleAt;
+  }
+
+  assert.match(documentMarkup, /class="tool-branch-prefix" aria-hidden="true">├─ <\/span>/u);
+  assert.match(documentMarkup, /class="tool-branch-prefix" aria-hidden="true">└─ <\/span>/u);
+  assert.doesNotMatch(documentMarkup, /<ul><li>Open-source<\/li>/u);
+
+  const provisionsStart = documentMarkup.indexOf('<article class="card" id="tool-provisions">');
+  const provisionsEnd = documentMarkup.indexOf("</article>", provisionsStart);
+  assert.ok(provisionsStart >= 0 && provisionsEnd > provisionsStart, "Provisions card renders");
+  const provisionsCard = documentMarkup.slice(provisionsStart, provisionsEnd);
+  assert.doesNotMatch(provisionsCard, /<a\b/u, "Provisions does not invent a destination");
+  assert.match(provisionsCard, /<span class="tool-icon tools-card-accent signal-fuzz" aria-hidden="true">/u);
+  assert.match(
+    provisionsCard,
+    /<h3 class="card-title tools-card-title tools-card-accent signal-fuzz row justify-content-center"[^>]*>Provisions<\/h3>[\s\S]*?<figcaption>Used up, worn out, and replaced\.<\/figcaption>/u,
+  );
+  assert.doesNotMatch(provisionsCard, /<small>Used up, worn out, and replaced\.<\/small>/u);
+  assert.match(css, /\.tool-manifest figcaption \{[\s\S]*?color: #0b4705;/u);
+
+  const linkBlock = css.match(/(?:^|\n)a \{([^}]*)\}/u)?.[1] ?? "";
+  const linkHoverBlock = css.match(/(?:^|\n)a:hover \{([^}]*)\}/u)?.[1] ?? "";
+  const toolIconBlock = css.match(/\.page-view--tools \.tool-icon \{([^}]*)\}/u)?.[1] ?? "";
+  const toolIconHoverBlock = css.match(/\.page-view--tools \.tool-icon:hover \{([^}]*)\}/u)?.[1] ?? "";
+  const declaration = (block, property) => block.match(new RegExp(`${property}:\\s*([^;]+);`, "u"))?.[1];
+
+  assert.ok(linkBlock && linkHoverBlock && toolIconBlock && toolIconHoverBlock, "link and Tools icon interaction rules render");
+  assert.equal(declaration(toolIconBlock, "transition"), declaration(linkBlock, "transition"));
+  assert.equal(declaration(toolIconHoverBlock, "color"), declaration(linkHoverBlock, "color"));
+  assert.equal(declaration(toolIconHoverBlock, "filter"), declaration(linkHoverBlock, "filter"));
+
+  const expectedTextOrder = [
+    "training",
+    "Creatine Monohydrate", "Thorne",
+    "Collagen", "Sports Research",
+    "Ghost 17 GTX", "Brooks",
+    "upkeep",
+    "Leather Rejuvenator Soap", "Saphir",
+    "Crème Surfine", "Navy Blue, White, Birch, Dark Green",
+    "Pâte de Luxe, Navy Blue", "Mirror Gloss, Navy Blue", "Amiral Gloss, Black",
+    "Pronamel Active Shield Whitening Toothpaste", "Sensodyne",
+    "hair",
+    "Pumpkin Seed Oil", "NOW Solutions", "Hair, Skin &amp; Nails",
+    "Lustriva", "Nature&#x27;s Bounty", "Round Olivewood Brush", "SHASH",
+    "scent",
+    "Molecule 01", "Escentric Molecules", "Coffee Tobacco Oud", "Sandy’s",
+  ];
+  let previousTextAt = -1;
+  for (const text of expectedTextOrder) {
+    const textAt = provisionsCard.indexOf(text, previousTextAt + 1);
+    assert.ok(textAt > previousTextAt, `${text} preserves the supplied Provisions order`);
+    previousTextAt = textAt;
+  }
+
+  assert.match(provisionsCard, />│  ├─ <\/span>[\s\S]*?>Creatine Monohydrate<\/span>/u);
+  assert.match(provisionsCard, />│  │  <\/span>[\s\S]*?>Thorne<\/span>/u);
+  assert.match(provisionsCard, />└─ <\/span>[\s\S]*?>scent<\/span>/u);
+  assert.match(provisionsCard, />      <\/span>[\s\S]*?>Sandy’s<\/span>/u);
+});
+
+test("renders current projects and terminal resource manifests without documentation icons", async () => {
   const { html } = await render("/resume/");
+  const documentMarkup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, "");
 
   assert.match(html, /class="bi bi-pen-fill"/);
   assert.match(
@@ -1174,14 +1329,14 @@ test("renders current projects and consistent project documentation icons", asyn
   );
   assert.match(
     html,
-    /href="https:\/\/github\.com\/howardhayden\/lattice"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="Lattice Source Repository, opens in a new tab"/,
+    /href="https:\/\/github\.com\/howardhayden\/lattice"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="Source Repository, opens in a new tab"/,
   );
   for (const [label, filename] of [
-    ["Lattice Concept and Ecosystem Map", "lattice-concept-map.html"],
-    ["Lattice System Skill Map", "lattice-skill-map.html"],
-    ["Text to Lattice Service Blueprint", "text-to-lattice-service-blueprint.html"],
-    ["Text to Lattice Security Model", "text-to-lattice-security-model.html"],
-    ["Text to Lattice Release Qualification", "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"],
+    ["Concept and Ecosystem Map", "lattice-concept-map.html"],
+    ["System Skill Map", "lattice-skill-map.html"],
+    ["Service Blueprint", "text-to-lattice-service-blueprint.html"],
+    ["Security Model", "text-to-lattice-security-model.html"],
+    ["Release Qualification", "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"],
   ]) {
     const url = `https://hah.dev/documentation/text-to-lattice/${filename}`;
     const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1189,12 +1344,8 @@ test("renders current projects and consistent project documentation icons", asyn
       `<a(?=[^>]*href="${escapedUrl}")(?=[^>]*aria-label="${label}")[^>]*>[\\s\\S]*?</a>`,
     ))?.[0];
     assert.ok(link, `${label} is a directly labeled Lattice resource`);
-    assert.equal(
-      (link.match(/class="bi bi-backpack4"/gu) ?? []).length,
-      1,
-      `${label} carries exactly one Documentation icon`,
-    );
-    assert.match(link, new RegExp(`<span>${label}</span>`));
+    assert.match(link, new RegExp(`>${label}</a>`));
+    assert.doesNotMatch(link, /<span|<svg/u, `${label} is linked directly without an icon wrapper`);
   }
   assert.match(html, /href="\/projects\/chorus\/"[^>]*>CHORUS<\/a>/);
   assert.match(
@@ -1203,27 +1354,31 @@ test("renders current projects and consistent project documentation icons", asyn
   );
   assert.match(
     html,
-    /href="https:\/\/chorus\.observer\/notebooks\/"[^>]*aria-label="CHORUS Notebooks, opens in a new tab"[^>]*>[\s\S]*?<span>CHORUS Notebooks<\/span>/,
+    /href="https:\/\/chorus\.observer\/notebooks\/"[^>]*aria-label="Notebooks, opens in a new tab"[^>]*>Notebooks<\/a>/,
   );
   assert.match(
     html,
-    /href="https:\/\/chorus\.observer\/documentation\/chorus-concept-map\.html"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="CHORUS Concept Map, opens in a new tab"/,
+    /href="https:\/\/chorus\.observer\/documentation\/chorus-concept-map\.html"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="Concept Map, opens in a new tab"/,
   );
   assert.match(
     html,
-    /href="https:\/\/chorus\.observer\/documentation\/chorus-csd-matrix\.html"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="CHORUS CSD Matrix, opens in a new tab"/,
+    /href="https:\/\/chorus\.observer\/documentation\/chorus-csd-matrix\.html"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*aria-label="CSD Matrix, opens in a new tab"/,
   );
   for (const [label, filename] of [
-    ["CHORUS Concept Map", "chorus-concept-map.html"],
-    ["CHORUS CSD Matrix", "chorus-csd-matrix.html"],
+    ["Concept Map", "chorus-concept-map.html"],
+    ["CSD Matrix", "chorus-csd-matrix.html"],
   ]) {
     const link = html.match(new RegExp(
       `<a(?=[^>]*href="https:\\/\\/chorus\\.observer\\/documentation\\/${filename}")(?=[^>]*aria-label="${label}, opens in a new tab")[^>]*>[\\s\\S]*?</a>`,
     ))?.[0];
     assert.ok(link, `${label} is a directly labeled CHORUS resource`);
-    assert.equal((link.match(/class="bi bi-backpack4"/gu) ?? []).length, 1, `${label} carries the Documentation icon`);
+    assert.match(link, new RegExp(`>${label}</a>`));
+    assert.doesNotMatch(link, /<span|<svg/u, `${label} is linked directly without an icon wrapper`);
   }
-  assert.doesNotMatch(html, /<span>Documentation<\/span>/u);
+  assert.match(
+    html,
+    /<span class="project-resource-label project-resource-group-label">Documentation<\/span>/u,
+  );
   assert.match(html, /href="\/projects\/in-keeping\/"[^>]*>IN KEEPING<\/a>/);
   const projectGrid = html.slice(
     html.indexOf('class="folio-card-grid"'),
@@ -1243,35 +1398,61 @@ test("renders current projects and consistent project documentation icons", asyn
   );
   assert.match(
     html,
-    /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="IN KEEPING Technical Report, opens in a new tab"/,
+    /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="Technical Report, opens in a new tab"/,
   );
   assert.match(
     html,
-    /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="IN KEEPING Public Notice, opens in a new tab"/,
+    /href="https:\/\/inkeep\.ing\/\?view=reports"[^>]*aria-label="Public Notice, opens in a new tab"/,
   );
+  assert.match(
+    html,
+    /href="https:\/\/scdb\.lib\.miamioh\.edu\/server\/api\/core\/bitstreams\/acd28a12-c901-420e-bb71-ab16f9316448\/content"[^>]*aria-label="Syllabus, opens in a new tab"[^>]*>Syllabus<\/a>/u,
+  );
+  for (const [name, profile] of [
+    ["Ken Irwin", "ken-irwin-08a87ab5/"],
+    ["Meng Qu", "mengqu/"],
+    ["Jerry Yarnetsky", "jerry-yarnetsky/"],
+    ["Jaclynn Spraetz", "jaclyn-spraetz-21a58792"],
+  ]) {
+    assert.match(
+      html,
+      new RegExp(`<a(?=[^>]*href="https:\\/\\/www\\.linkedin\\.com\\/in\\/${profile}")(?=[^>]*aria-label="${name}, opens in a new tab")[^>]*>${name}<\\/a>`),
+    );
+  }
   const expectedProjectResourceCount = projects.reduce(
     (count, project) => count + project.resources.length,
     0,
   );
-  assert.equal(expectedProjectResourceCount, 18, "the current project register exposes eighteen nonredundant scented resources");
+  assert.equal(expectedProjectResourceCount, 20, "the current project register exposes twenty nonredundant scented resources");
   const primaryBackpackCount = projects.filter(({ icon }) => icon === "backpack4").length;
   assert.equal(
-    (html.match(/class="bi bi-backpack4"/g) ?? []).length,
-    expectedProjectResourceCount + primaryBackpackCount,
+    (documentMarkup.match(/class="bi bi-backpack4"/g) ?? []).length,
+    primaryBackpackCount,
+    "backpack SVGs remain only where authored as primary Project card icons",
   );
 });
 
-test("keeps project hooks, native Read More content, and scented resources in a stable no-JavaScript order", async () => {
-  const [resumeResponse, projectsResponse, activeProjectsSource, heldProjectsSource] = await Promise.all([
+test("keeps centered project headings, native Read More content, and scented resources in a stable no-JavaScript order", async () => {
+  const [resumeResponse, projectsResponse, activeProjectsSource, heldProjectsSource, css] = await Promise.all([
     render("/resume/"),
     render("/projects/"),
     readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/resume/ResumeProjectsHeld.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   for (const source of [activeProjectsSource, heldProjectsSource]) {
-    assert.match(source, /<h3 className="card-title tools-card-title" id=\{headingId\}>/u);
-    assert.doesNotMatch(source, /<h3[^>]*tools-card-title[^>]*justify-content-center/u);
+    assert.match(
+      source,
+      /<h3\s+className="card-title tools-card-title project-card-title row justify-content-center"\s+id=\{headingId\}/u,
+    );
   }
+  assert.match(css, /\.project-card-title \{[\s\S]*?margin-top: 1rem;[\s\S]*?text-align: center;/u);
+  assert.match(
+    css,
+    /\.project-resource-line \{[\s\S]*?display: grid;[\s\S]*?font-family: ui-monospace,[\s\S]*?grid-template-columns: max-content minmax\(0, 1fr\);[\s\S]*?text-align: left;/u,
+  );
+  assert.match(css, /\.project-resource-prefix \{[\s\S]*?color: #6c757d;[\s\S]*?white-space: pre;/u);
+  assert.match(css, /\.project-resource-group-label \{[\s\S]*?color: black;/u);
   const htmlText = (value) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
   const regexEscape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -1323,18 +1504,108 @@ test("keeps project hooks, native Read More content, and scented resources in a 
 
         const resources = card.slice(resourcesStart, resourcesEnd);
         assert.doesNotMatch(resources, /↗|&#x2197;|&#8599;/u, `${project.name} resource labels omit decorative arrows`);
-        let resourceCursor = 0;
-        for (const resource of project.resources) {
-          const href = htmlText(resource.url);
-          const label = htmlText(resource.label);
-          const hrefAt = resources.indexOf(`href="${href}"`, resourceCursor);
-          const linkStart = resources.lastIndexOf("<a", hrefAt);
-          const linkEnd = resources.indexOf("</a>", hrefAt);
-          assert.ok(hrefAt >= 0 && linkStart >= 0 && linkEnd > hrefAt, `${surface} links ${resource.label}`);
-          const link = resources.slice(linkStart, linkEnd);
-          assert.match(link, new RegExp(`<span>${regexEscape(label)}</span>`));
-          assert.equal((link.match(/class="bi bi-backpack4"/gu) ?? []).length, 1, `${resource.label} has one Documentation icon`);
-          resourceCursor = linkEnd + "</a>".length;
+        assert.doesNotMatch(resources, /<svg\b|class="bi bi-backpack4"/u, `${project.name} resource manifest contains no backpack SVGs`);
+        const documents = project.resources.filter((resource) => resource.kind !== "contributor");
+        const contributors = project.resources.filter((resource) => resource.kind === "contributor");
+        const groups = [
+          documents.length ? {
+            ariaLabel: `${encodedName} documentation`,
+            label: "Documentation",
+            resources: documents,
+            visibleLabel: (resource) => resource.cardLabel ?? resource.label,
+          } : null,
+          contributors.length ? {
+            ariaLabel: `${encodedName} contributors`,
+            label: "Contributor(s)",
+            resources: contributors,
+            visibleLabel: (resource) => resource.contributorName,
+          } : null,
+        ].filter(Boolean);
+        const groupRoot = (label) => `<span class="project-resource-label project-resource-group-label">${label}</span>`;
+        assert.equal(
+          resources.split(groupRoot("Documentation")).length - 1,
+          documents.length ? 1 : 0,
+          `${project.name} conditionally exposes one Documentation branch`,
+        );
+        assert.equal(
+          resources.split(groupRoot("Contributor(s)")).length - 1,
+          contributors.length ? 1 : 0,
+          `${project.name} conditionally exposes one Contributor(s) branch`,
+        );
+        assert.doesNotMatch(
+          resources,
+          /<span class="project-resource-label project-resource-group-label">Contributor<\/span>|Contributor:/u,
+          `${project.name} uses the exact Contributor(s) card label without a colon`,
+        );
+        assert.doesNotMatch(
+          resources,
+          /project-resource-group-label[^"<]*signal-fuzz|signal-fuzz[^"<]*project-resource-group-label/u,
+          `${project.name} keeps non-link group labels black rather than applying link/static styling`,
+        );
+        assert.equal(
+          (resources.match(/class="project-resource-prefix" aria-hidden="true"/gu) ?? []).length,
+          project.resources.length + groups.length,
+          `${project.name} marks every visual terminal branch as decorative`,
+        );
+        let previousGroupAt = -1;
+        for (const [groupIndex, group] of groups.entries()) {
+          const root = groupRoot(group.label);
+          const groupAt = resources.indexOf(root, previousGroupAt + 1);
+          const groupRowStart = resources.lastIndexOf('<div class="project-resource-line">', groupAt);
+          const groupRowEnd = resources.indexOf("</div>", groupAt);
+          const groupRow = resources.slice(groupRowStart, groupRowEnd + "</div>".length);
+          const groupList = `<ul class="project-resource-children" aria-label="${group.ariaLabel}">`;
+          const groupListAt = resources.indexOf(groupList, groupAt);
+          const nextGroupAt = groupIndex === groups.length - 1
+            ? resources.length
+            : resources.indexOf(groupRoot(groups[groupIndex + 1].label), groupAt + root.length);
+          const isLastGroup = groupIndex === groups.length - 1;
+          const expectedRootPrefix = isLastGroup ? "└─ " : "├─ ";
+          const childStem = isLastGroup ? "   " : "│  ";
+
+          assert.ok(groupAt > previousGroupAt, `${project.name} keeps ${group.label} in first-branch order`);
+          assert.ok(groupRowStart >= 0 && groupRowEnd > groupAt, `${group.label} has a terminal branch row`);
+          assert.ok(
+            groupRow.includes(`<span class="project-resource-prefix" aria-hidden="true">${expectedRootPrefix}</span>`),
+            `${group.label} has the correct first-level branch`,
+          );
+          assert.doesNotMatch(groupRow, /<a\b/u, `${group.label} is a non-link group label`);
+          assert.ok(groupListAt > groupAt && groupListAt < nextGroupAt, `${group.label} owns its nested resource list`);
+
+          let resourceCursor = groupListAt + groupList.length;
+          for (const [resourceIndex, resource] of group.resources.entries()) {
+            const href = htmlText(resource.url);
+            const visibleLabel = htmlText(group.visibleLabel(resource));
+            const hrefAt = resources.indexOf(`href="${href}"`, resourceCursor);
+            const linkStart = resources.lastIndexOf("<a", hrefAt);
+            const linkEnd = resources.indexOf("</a>", hrefAt);
+            const rowStart = resources.lastIndexOf('<div class="project-resource-line">', hrefAt);
+            const rowEnd = resources.indexOf("</div>", hrefAt);
+            const expectedPrefix = `${childStem}${resourceIndex === group.resources.length - 1 ? "└─ " : "├─ "}`;
+
+            assert.ok(
+              hrefAt >= resourceCursor && hrefAt < nextGroupAt && linkStart >= 0 && linkEnd > hrefAt,
+              `${surface} nests ${resource.label} under ${group.label}`,
+            );
+            const link = resources.slice(linkStart, linkEnd + "</a>".length);
+            const row = resources.slice(rowStart, rowEnd + "</div>".length);
+            assert.match(
+              link,
+              /^<a class="project-resource-label signal-fuzz"/u,
+              `${resource.label} retains the established green/static link treatment`,
+            );
+            assert.doesNotMatch(link, /<span\b|<svg\b/u, `${resource.label} uses directly linked text`);
+            assert.match(link, new RegExp(`>${regexEscape(visibleLabel)}</a>`));
+            assert.ok(
+              row.includes(`<span class="project-resource-prefix" aria-hidden="true">${expectedPrefix}</span>`),
+              `${resource.label} has the correct nested child branch`,
+            );
+            if (group.label === "Contributor(s)") {
+              assert.doesNotMatch(link, /Contributor(?:\(s\))?:?/u, `${resource.label} links only the contributor name`);
+            }
+            resourceCursor = linkEnd + "</a>".length;
+          }
+          previousGroupAt = groupAt;
         }
       }
     }
@@ -1383,10 +1654,40 @@ test("keeps Lattice documentation direct in canonical no-JavaScript project surf
     ["Text to Lattice Security Model", "text-to-lattice-security-model.html"],
   ];
 
-  for (const { html } of [resume, project, contract]) {
+  for (const { html } of [project, contract]) {
     for (const [label, filename] of documents) {
       assert.match(html, new RegExp(`href="https:\\/\\/hah\\.dev\\/documentation\\/text-to-lattice\\/${filename}"`));
       assert.ok(html.includes(label), `${label} is named on the no-JavaScript project surface`);
+    }
+  }
+  for (const [label, filename] of [
+    ["Concept and Ecosystem Map", "lattice-concept-map.html"],
+    ["System Skill Map", "lattice-skill-map.html"],
+    ["Service Blueprint", "text-to-lattice-service-blueprint.html"],
+    ["Security Model", "text-to-lattice-security-model.html"],
+  ]) {
+    assert.match(resume.html, new RegExp(`href="https:\\/\\/hah\\.dev\\/documentation\\/text-to-lattice\\/${filename}"`));
+    assert.ok(resume.html.includes(label), `${label} is named without the enclosing project title on the card`);
+  }
+});
+
+test("links only contributor names on canonical project detail pages", async () => {
+  for (const [pathname, contributors] of [
+    ["/projects/finding-freedom-summer-traveling-exhibit/", ["Ken Irwin", "Meng Qu", "Jerry Yarnetsky"]],
+    ["/projects/information-studies-and-digital-citizenship/", ["Jaclynn Spraetz"]],
+  ]) {
+    const { html } = await render(pathname);
+    const documentMarkup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, "");
+
+    for (const contributor of contributors) {
+      assert.match(
+        documentMarkup,
+        new RegExp(`Contributor:(?:<!-- -->)? \\s*<a[^>]*>${contributor}<\\/a>`),
+      );
+      assert.doesNotMatch(
+        documentMarkup,
+        new RegExp(`<a[^>]*>Contributor: ${contributor}<\\/a>`),
+      );
     }
   }
 });
@@ -1563,7 +1864,10 @@ test("renders shelf records before client hydration", async () => {
   assert.match(html, /Ethical Machines/i);
   assert.match(html, /20 Sep 2022/);
   assert.match(html, />1859</);
-  assert.match(html, />180 C\.E\.<\/dd>/);
+  assert.match(html, />180 C\.E\.<\/span><\/dd>/);
+  assert.equal((html.match(/class="paper-meta-item shelf-manifest-entry"/gu) ?? []).length, 150);
+  assert.equal((html.match(/class="shelf-manifest-prefix" aria-hidden="true">├─ <\/span>/gu) ?? []).length, 120);
+  assert.equal((html.match(/class="shelf-manifest-prefix" aria-hidden="true">└─ <\/span>/gu) ?? []).length, 30);
   assert.match(html, /Orb: On the Movements of the Earth/i);
 });
 

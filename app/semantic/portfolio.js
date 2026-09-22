@@ -1,4 +1,11 @@
-import { papers, skillStacks, timeline, tools } from "../data.ts";
+import {
+  papers,
+  skillStacks,
+  timeline,
+  tools,
+  TOOLS_CONTENT_UPDATED,
+  TOOLS_CONTENT_VERSION,
+} from "../data.ts";
 import { ASCII_CHARACTER_DESCRIPTION } from "../components/asciiCharacter.js";
 import {
   homeIntroduction, homeQuestions, homeTitle, person, practiceStandards,
@@ -56,6 +63,28 @@ const skillStackRecord = (stack) => {
     sections,
   };
 };
+
+const cloneToolBranch = (branch) => ({
+  label: branch.label,
+  ...(branch.notes?.length ? { notes: [...branch.notes] } : {}),
+  ...(branch.children?.length ? { children: branch.children.map(cloneToolBranch) } : {}),
+});
+
+const presentationBranchesForTool = (tool) => (
+  tool.branches?.length
+    ? tool.branches.map(cloneToolBranch)
+    : tool.traits.map((label) => ({ label }))
+);
+
+const toolRecord = (tool) => ({
+  kind: tool.kind,
+  name: tool.name,
+  ...(tool.url ? { url: tool.url } : {}),
+  ...(tool.category ? { category: tool.category } : {}),
+  ...(tool.summary ? { summary: tool.summary } : {}),
+  traits: [...tool.traits],
+  branches: presentationBranchesForTool(tool),
+});
 
 function documentationRecord(resource) {
   return {
@@ -207,12 +236,16 @@ export const resumeManifest = {
 };
 
 export const toolsManifest = {
-  version: SITE_CONTENT_VERSION,
-  asOf: SITE_CONTENT_UPDATED,
+  version: TOOLS_CONTENT_VERSION,
+  asOf: TOOLS_CONTENT_UPDATED,
   canonicalUrl: absoluteUrl("/tools/"),
-  tools: tools.map((tool) => ({ ...tool, traits: [...tool.traits] })),
+  tools: tools.map(toolRecord),
   social: toolsSocial.map(({ name, title, url }) => ({ name, title, url })),
-  provenance: provenance(["app/data.ts", "app/content/siteContent.js"]),
+  provenance: provenance(
+    ["app/data.ts", "app/content/siteContent.js"],
+    TOOLS_CONTENT_VERSION,
+    TOOLS_CONTENT_UPDATED,
+  ),
 };
 
 export const shelfManifest = {
@@ -322,6 +355,36 @@ const namespaceNodes = namespaceTerms.map((item) => ({
   description: item.description, termCode: item.id, inDefinedTermSet: { "@id": namespaceSetId },
 }));
 const shelfDate = (value) => /^\d{4}(?:-\d{2}(?:-\d{2})?)?$/u.test(value) ? { datePublished: value } : {};
+const toolBranchGraphNode = (branch) => ({
+  "@type": branch.children?.length ? "ItemList" : "Thing",
+  name: branch.label,
+  ...(branch.notes?.length ? { [namespaceGraphId("detail")]: [...branch.notes] } : {}),
+  ...(branch.children?.length ? {
+    itemListElement: branch.children.map((child, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      item: toolBranchGraphNode(child),
+    })),
+  } : {}),
+});
+const toolGraphNode = (tool) => tool.kind === "application"
+  ? {
+      "@type": "SoftwareApplication",
+      name: tool.name,
+      url: tool.url,
+      description: tool.summary,
+      applicationCategory: tool.category,
+      [namespaceGraphId("traits")]: tool.traits,
+    }
+  : {
+      "@type": "ItemList",
+      name: tool.name,
+      itemListElement: tool.branches.map((branch, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        item: toolBranchGraphNode(branch),
+      })),
+    };
 const thirdPartyDocuments = Object.freeze([
   ["Required notice", "/NOTICE", "text/plain", "The site notice, including required Text to Lattice attribution."],
   ["Third-party notices", "/THIRD_PARTY_NOTICES.md", "text/markdown", "Pinned component versions, revisions, upstream sources, terms, and the binary-asset provenance boundary."],
@@ -443,7 +506,7 @@ export const knowledgeGraph = {
       "@id": toolsListId, "@type": "ItemList", name: "Tools",
       itemListElement: toolsManifest.tools.map((tool, index) => ({
         "@type": "ListItem", position: index + 1,
-        item: { "@type": "SoftwareApplication", name: tool.name, url: tool.url, description: tool.summary, applicationCategory: tool.category, [namespaceGraphId("traits")]: tool.traits },
+        item: toolGraphNode(tool),
       })),
       [namespaceGraphId("detail")]: toolsManifest.social,
     },
@@ -633,8 +696,48 @@ export function renderProjectsMarkdown() {
   return `# Projects\n\nCanonical URL: ${absoluteUrl("/projects/")}\n\n${projects.map(({ slug }) => renderProjectMarkdown(slug)).join("\n\n---\n\n")}`;
 }
 
+function toolBranchLines(branches, ancestorContinues = [], separateRootBranches = false) {
+  const lines = [];
+
+  branches.forEach((branch, index) => {
+    const isLast = index === branches.length - 1;
+    const continues = !isLast;
+    const ancestorPrefix = ancestorContinues
+      .map((ancestorContinuesAfterNode) => ancestorContinuesAfterNode ? "│  " : "   ")
+      .join("");
+
+    if (separateRootBranches && ancestorContinues.length === 0 && index > 0) lines.push("");
+    lines.push(`${ancestorPrefix}${isLast ? "└─ " : "├─ "}${branch.label}`);
+
+    const notePrefix = [...ancestorContinues, continues]
+      .map((ancestorContinuesAfterNode) => ancestorContinuesAfterNode ? "│  " : "   ")
+      .join("");
+    for (const note of branch.notes ?? []) lines.push(`${notePrefix}${note}`);
+
+    if (branch.children?.length) {
+      lines.push(...toolBranchLines(
+        branch.children,
+        [...ancestorContinues, continues],
+        separateRootBranches,
+      ));
+    }
+  });
+
+  return lines;
+}
+
 export function renderToolsMarkdown() {
-  const records = toolsManifest.tools.map((tool) => `## ${heading(tool.name)}\n\n- Category: ${tool.category}\n- URL: ${tool.url}\n- Summary: ${tool.summary}\n\n### Traits\n\n${bullets(tool.traits)}`).join("\n\n");
+  const records = toolsManifest.tools.map((tool) => {
+    const metadata = [
+      tool.category ? `- Category: ${tool.category}` : null,
+      tool.url ? `- URL: ${tool.url}` : null,
+      tool.summary ? `- Summary: ${tool.summary}` : null,
+    ].filter(Boolean);
+    const details = metadata.length ? `${metadata.join("\n")}\n\n` : "";
+    const branches = toolBranchLines(tool.branches, [], tool.kind === "provisions").join("\n");
+
+    return `## ${heading(tool.name)}\n\n${details}### Branches\n\n\`\`\`text\n${branches}\n\`\`\``;
+  }).join("\n\n");
   const social = toolsManifest.social.map((profile) => `- ${profile.name}: ${profile.url}`).join("\n");
   return `# Tools\n\nCanonical URL: ${toolsManifest.canonicalUrl}\n\n${records}\n\n## Social\n\n${social}\n`;
 }

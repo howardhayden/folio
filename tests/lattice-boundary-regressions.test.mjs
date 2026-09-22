@@ -179,10 +179,21 @@ test("resume detail links preserve native modified and nonprimary navigation", a
   assert.equal(
     source.match(/if \(!shouldInterceptResumeModalLink\(event\)\) return;/gu)?.length,
     2,
-    "timeline and progress detail links both use the native-navigation guard",
+    "the Officer Candidate heading and University chronology links both use the native-navigation guard",
   );
   assert.match(source, /<article className=\{className\}[\s\S]*?<TimelineEntry[\s\S]*?detailLink=\{detailLink\}/u);
-  assert.match(source, /className="timeline-icon-trigger signal-fuzz"[\s\S]*?aria-haspopup="dialog"/u);
+  const timelineEntryStart = source.indexOf("function TimelineEntry({");
+  const timelineEntryEnd = source.indexOf("\nexport function TimelineManifest", timelineEntryStart);
+  assert.ok(timelineEntryStart >= 0 && timelineEntryEnd > timelineEntryStart, "the shared Timeline entry is present");
+  const timelineEntry = source.slice(timelineEntryStart, timelineEntryEnd);
+  assert.match(
+    timelineEntry,
+    /<h3>[\s\S]*?<a[\s\S]*?className="signal-fuzz"[\s\S]*?aria-controls="resume-modal-officer"[\s\S]*?aria-haspopup="dialog"[\s\S]*?href=\{detailLink\.href\}[\s\S]*?if \(!shouldInterceptResumeModalLink\(event\)\) return;[\s\S]*?>\s*\{entry\.role\}\s*<\/a>/u,
+    "Officer Candidate uses its visible heading text as the guarded modal link",
+  );
+  assert.doesNotMatch(timelineEntry, /<h3>[\s\S]*?<a[^>]*aria-label=/u);
+  assert.doesNotMatch(timelineEntry, /LegacyIcon|<svg|timeline-icon|rotate-(?:left|right)/u);
+  assert.doesNotMatch(source, /timelineIcons|timeline-icon-trigger/u);
   assert.doesNotMatch(source, /<a className=\{`\$\{className\} timeline-button`\}/u);
   assert.match(source, /function UniversityChronologyEntry\([\s\S]*?aria-controls=\{`resume-modal-\$\{record\.detail\}`\}[\s\S]*?aria-haspopup="dialog"[\s\S]*?href=\{detail\.canonicalPath\}[\s\S]*?if \(!shouldInterceptResumeModalLink\(event\)\) return;/u);
   assert.match(source, /<section className=\{`container university-section\$\{blurred\}`\} aria-labelledby="resume-university-title">/u);
@@ -196,7 +207,12 @@ test("resume detail links preserve native modified and nonprimary navigation", a
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.university-progress-span \.progress-value \{[\s\S]*?transition: none;[\s\S]*?\.university-chronology-entry--interactive \.university-progress-span::after,[\s\S]*?\.background-gradient-green-blue::before \{[\s\S]*?animation: none;[\s\S]*?transition: none;/u);
   assert.match(css, /@media \(forced-colors: active\) \{[\s\S]*?\.background-gradient-green-blue \{[\s\S]*?background: CanvasText !important;[\s\S]*?color: Canvas !important;[\s\S]*?\.background-gradient-green-blue::before,\s*\.teaching-manifest-fill::before \{[\s\S]*?animation: none !important;[\s\S]*?background-image: none !important;[\s\S]*?\.university-chronology-entry \.progress-label a:focus-visible \{[\s\S]*?outline-color: Highlight !important;/u);
   assert.match(css, /@media print \{[\s\S]*?\.background-gradient-green-blue::before,\s*\.teaching-manifest-fill::before \{[\s\S]*?animation: none !important;[\s\S]*?background-image: none !important;/u);
-  assert.match(css, /\.project-modal-trigger,\s*\.timeline-icon-trigger \{[\s\S]*?min-height: 24px;[\s\S]*?min-width: 24px;/u);
+  assert.match(css, /\.project-modal-trigger \{[\s\S]*?min-height: 24px;[\s\S]*?min-width: 24px;/u);
+  assert.doesNotMatch(
+    css,
+    /\.timeline-icon(?:-trigger)?|\.rotate-(?:left|right)|\.timeline-entry\.(?:left|right)\s+svg/u,
+    "retired Timeline SVG and rotation selectors do not remain in the stylesheet",
+  );
 });
 
 test("semantic card headings retain an h5-scale presentation", async () => {

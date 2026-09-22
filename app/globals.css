@@ -475,6 +475,118 @@ svg:not(.background-static-defs) {
 }
 .teaching-manifest-percent { font-variant-numeric: tabular-nums; font-weight: 600; }
 
+.tool-manifest {
+  margin: 1rem 0 0;
+  min-width: 0;
+  text-align: left;
+}
+
+.tool-manifest figcaption,
+.tool-branch-line {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.tool-manifest figcaption {
+  color: #0b4705;
+  font-size: .9rem;
+  margin-bottom: .85rem;
+}
+
+.tool-branch-list,
+.tool-branch-children,
+.tool-branch-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tool-branch-list > .tool-branch-node + .tool-branch-node {
+  margin-top: .55rem;
+}
+
+.tool-manifest--provisions > .tool-branch-list > .tool-branch-node + .tool-branch-node {
+  margin-top: 1rem;
+}
+
+.tool-branch-children > .tool-branch-node + .tool-branch-node {
+  margin-top: .35rem;
+}
+
+.tool-branch-line {
+  align-items: baseline;
+  display: grid;
+  font-size: clamp(.7rem, 1.7vw, .86rem);
+  gap: .45rem;
+  grid-template-columns: max-content minmax(0, 1fr);
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.tool-branch-prefix {
+  color: #6c757d;
+  white-space: pre;
+}
+
+.tool-branch-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tool-branch-note-line {
+  color: #565b60;
+}
+
+.tool-manifest--provisions > .tool-branch-list > .tool-branch-node > .tool-branch-line .tool-branch-label {
+  font-weight: 600;
+}
+
+.tools-card-accent {
+  color: #0b4705;
+}
+
+.page-view--tools .tool-icon {
+  transition: box-shadow 0.5s ease-in 0.1s, filter 0.3s ease-in;
+}
+
+.page-view--tools .tool-icon:hover {
+  color: whitesmoke;
+  filter: grayscale(70%) brightness(70%);
+}
+
+.page-view--shelf .paper-meta {
+  margin: 1rem 0 0;
+}
+
+.page-view--shelf .shelf-manifest-entry + .shelf-manifest-entry {
+  margin-top: .55rem;
+}
+
+.page-view--shelf .shelf-manifest-line {
+  align-items: baseline;
+  display: grid;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: clamp(.7rem, 1.7vw, .86rem);
+  gap: .45rem;
+  grid-template-columns: max-content minmax(0, 1fr);
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.page-view--shelf .shelf-manifest-prefix {
+  color: #6c757d;
+  white-space: pre;
+}
+
+.page-view--shelf .shelf-manifest-line > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.page-view--shelf .shelf-manifest-value {
+  color: #565b60;
+  margin: 0;
+}
+
 .teaching-manifest-track {
   background: #eceae6;
   height: 10px;
@@ -890,36 +1002,50 @@ svg:not(.background-static-defs) {
   text-align: left;
 }
 
-/* SVG Rotation */
-.rotate-right {
-  transition: transform 0.4s ease;
+.timeline-manifest {
+  margin: 1rem 0;
+  min-width: 0;
+  text-align: left;
 }
 
-.rotate-right:hover {
-  transform: rotate(360deg);
+.timeline-manifest-entry + .timeline-manifest-entry {
+  margin-top: .55rem;
 }
 
-.rotate-left {
-  transition: transform 0.4s ease;
+.timeline-manifest-line {
+  align-items: baseline;
+  display: grid;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: clamp(.7rem, 1.7vw, .86rem);
+  gap: .45rem;
+  grid-template-columns: max-content minmax(0, 1fr);
+  line-height: 1.4;
+  min-width: 0;
 }
 
-.rotate-left:hover {
-  transform: rotate(-360deg);
+.timeline-manifest-prefix {
+  color: #6c757d;
+  white-space: pre;
 }
 
-/* SVG Styles */
-.timeline-entry.left svg {
-  width: 16px;
-  height: 16px;
-  fill: #077995;
-  transition: transform 0.4s ease;
+.timeline-manifest-line > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.timeline-entry.right svg {
-  width: 16px;
-  height: 16px;
-  fill: #077995;
-  transition: transform 0.4s ease;
+.timeline-manifest-value {
+  color: #565b60;
+  margin: 0;
+}
+
+.timeline-manifest-details {
+  margin: 0;
+}
+
+.timeline-manifest-details ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .timeline-entry:hover {
@@ -1092,15 +1218,13 @@ svg:not(.background-static-defs) {
 
 .project-readme > summary:focus-visible,
 .project-modal-trigger:focus-visible,
-.timeline-icon-trigger:focus-visible,
 .lattice-run-button:focus-visible,
 .lattice-cancel-button:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 3px;
 }
 
-.project-modal-trigger,
-.timeline-icon-trigger {
+.project-modal-trigger {
   align-items: center;
   display: inline-flex;
   justify-content: center;
@@ -1124,43 +1248,47 @@ svg:not(.background-static-defs) {
   margin-bottom: 1rem;
 }
 
-.project-resources ul {
-  display: grid;
-  gap: .45rem;
-  margin-bottom: 0;
+.project-card-title {
+  margin-top: 1rem;
+  text-align: center;
 }
 
-.project-resources li {
-  min-width: 0;
+.project-resource-list,
+.project-resource-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-.project-resources a {
+.project-resource-node + .project-resource-node {
+  margin-top: .45rem;
+}
+
+.project-resource-line {
   align-items: start;
   column-gap: .5rem;
   display: grid;
-  grid-template-columns: 1rem minmax(0, 1fr);
-  line-height: 1.35;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: clamp(.7rem, 1.7vw, .86rem);
+  grid-template-columns: max-content minmax(0, 1fr);
+  line-height: 1.4;
+  min-width: 0;
   text-align: left;
   width: 100%;
 }
 
-.project-resources a > span:first-child {
-  align-items: center;
-  display: inline-flex;
-  justify-content: center;
-  min-height: 1.35em;
-  width: 1rem;
+.project-resource-prefix {
+  color: #6c757d;
+  white-space: pre;
 }
 
-.project-resources a > span:last-child {
+.project-resource-label {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.project-resources svg {
-  display: block;
-  height: 1rem;
-  width: 1rem;
+.project-resource-group-label {
+  color: black;
 }
 
 .folio-card-grid {
@@ -2039,7 +2167,6 @@ a:hover {
 .stack-icon svg,
 .tool-icon svg,
 .social-icon svg { width: 16px; height: 16px; fill: currentColor; }
-.timeline-entry .timeline-icon { width: 16px; height: 16px; fill: #077995; }
 .shelf-intro p { text-align: center; z-index: 100; position: relative; }
 .shelf-empty { padding: 5rem 1rem; }
 

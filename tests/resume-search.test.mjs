@@ -22,7 +22,7 @@ test("Resume Search covers every canonical content class and preserves evidence 
     experiences: 8,
     skills: 9,
     education: 5,
-    evidence: 1673,
+    evidence: 1678,
   });
   for (const indexed of resumeSearchIndex.records) {
     assert.ok(indexed.record.evidence.length > 0, indexed.record.id);
@@ -171,6 +171,12 @@ test("Resume Search covers every canonical content class and preserves evidence 
       fieldPath: "TIMELINE_AUTHORED_SEARCH_METADATA[\"madison-correctional-facility-corrections-officer\"][11]",
       strength: "curated",
       conceptIds: ["corrections"],
+    },
+    {
+      text: "Radio ear",
+      fieldPath: "TIMELINE_AUTHORED_SEARCH_METADATA[\"madison-correctional-facility-corrections-officer\"][12]",
+      strength: "curated",
+      conceptIds: [],
     },
   ]);
 
@@ -328,6 +334,7 @@ test("Resume public-service and wargaming access points are precise, typo-tolera
   for (const query of ["first responder", "frist responder", "thin blue line", "thni blue line"]) {
     assert.deepEqual(ids(query), [corrections], query);
   }
+  assert.deepEqual(ids("radio ear"), [corrections], "radio ear remains record-local to Corrections Officer");
   for (const query of ["government", "goverment"]) {
     assert.deepEqual(ids(query), [corrections, officerCandidate, tartu], query);
   }
@@ -550,22 +557,39 @@ test("historical project records preserve supplied dates, collaborators, qualifi
     "Jekyll", "Ruby on Rails", "Google Cloud Platform", "Node.js", "Sierra ILS",
   ]);
   assert.deepEqual(byId.get("finding-freedom-summer-traveling-exhibit").resources.map(({ label }) => label), [
-    "Finding Freedom Summer Traveling Exhibit contributor: Ken Irwin",
-    "Finding Freedom Summer Traveling Exhibit contributor: Meng Qu",
-    "Finding Freedom Summer Traveling Exhibit contributor: Jerry Yarnetsky",
+    "Contributor: Ken Irwin",
+    "Contributor: Meng Qu",
+    "Contributor: Jerry Yarnetsky",
   ]);
+  assert.doesNotMatch(
+    byId.get("finding-freedom-summer-traveling-exhibit").summary.join(" "),
+    /Ken Irwin|Meng Qu|Jerry Yarnetsky/u,
+  );
   for (const id of revisedProjectIds) {
     assert.doesNotMatch(byId.get(id).summary.join(" "), /\bI\b/u, `${id} uses artifact-centered description copy`);
   }
   for (const id of [
     "chromebook-management",
-    "information-studies-and-digital-citizenship",
     "comparative-database-design-and-data-analytics",
     "ux-optimization-case-study",
   ]) {
     assert.deepEqual(byId.get(id).resources, [], `${id} relies on its canonical title link`);
   }
-  assert.match(byId.get("information-studies-and-digital-citizenship").summary.join(" "), /Jaclynn Spraetz/u);
+  const digitalCitizenship = byId.get("information-studies-and-digital-citizenship");
+  assert.doesNotMatch(digitalCitizenship.summary.join(" "), /Jaclynn Spraetz|Miami University Libraries/u);
+  assert.deepEqual(
+    digitalCitizenship.resources.map(({ label, url }) => ({ label, url })),
+    [
+      {
+        label: "Information Studies and Digital Citizenship syllabus",
+        url: "https://scdb.lib.miamioh.edu/server/api/core/bitstreams/acd28a12-c901-420e-bb71-ab16f9316448/content",
+      },
+      {
+        label: "Contributor: Jaclynn Spraetz",
+        url: "https://www.linkedin.com/in/jaclyn-spraetz-21a58792",
+      },
+    ],
+  );
   for (const id of ["comparative-database-design-and-data-analytics", "ux-optimization-case-study"]) {
     assert.match(byId.get(id).limitations.join(" "), /non-concurrent, non-sequential, interdepartmental undergraduate courses/u);
   }
@@ -631,6 +655,26 @@ test("Resume Search keeps one compact control row and reverses Shelf's five-pixe
   assert.match(source, /<ResumeProjectHeldCard[\s\S]*?onNavigate=\{followResult\}/u);
   assert.doesNotMatch(source, /from "\.\/ResumeProjects"|onLatticeLaunch|followLatticeResult|data-lattice-launch/u);
   assert.match(source, /<SkillStackCard stack=\{stack\}/u);
+  assert.match(source, /import \{ TimelineManifest \} from "\.\/ResumeExperience";/u);
+  const resultCardStart = source.indexOf("function ResumeSearchResultCard({");
+  const resultCardEnd = source.indexOf("\nfunction motionDuration", resultCardStart);
+  assert.ok(resultCardStart >= 0 && resultCardEnd > resultCardStart, "the shared Resume Search result renderer is present");
+  const resultCard = source.slice(resultCardStart, resultCardEnd);
+  assert.match(
+    resultCard,
+    /const entry = TIMELINE_BY_SEARCH_ID\.get\(record\.id\);[\s\S]*?<TimelineManifest[\s\S]*?period=\{record\.summary \?\? ""\}[\s\S]*?organization=\{record\.subtitle \?\? ""\}[\s\S]*?secondaryLabel=\{entry \? "Organization" : "Program"\}[\s\S]*?details=\{entry\?\.details \?\? \[\]\}/u,
+    "timeline hits reuse the canonical terminal manifest and the undergraduate record labels its degree as Program",
+  );
+  assert.doesNotMatch(
+    resultCard,
+    /resume-search-record-date|<p className="text-center">|entry\?\.details\.map/u,
+    "Resume Search has no parallel date, organization, or details presentation",
+  );
+  assert.doesNotMatch(
+    css,
+    /\.resume-search-record-card(?:\s|[.#:[>+~])/u,
+    "Resume Search does not restyle result cards independently from their canonical card presentation",
+  );
   assert.match(source, /classList\.contains\("resume-modal-open"\)/u);
   const resultsSection = source.slice(source.indexOf('<section\n          className={`container resume-search-surface resume-search-results'), source.indexOf("</section>", source.indexOf('id="resume-search-results"')));
   assert.doesNotMatch(resultsSection, /aria-live=/u, "complex result cards are not one giant live region");

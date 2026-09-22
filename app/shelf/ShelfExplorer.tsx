@@ -131,7 +131,7 @@ export default function ShelfExplorer({ papers, onNavigate }: { papers: Paper[];
                       <Meta label="Publisher" value={paper.publishers.join(", ")} />
                       <Meta label="Date" value={formatDate(paper.date)} />
                       <Meta label="Author(s)" value={paper.authors.join(", ")} />
-                      <Meta label="Collection(s)" value={paper.collections.join(", ")} />
+                      <Meta label="Collection(s)" value={paper.collections.join(", ")} isLast />
                     </dl>
                   </div>
                 </article>
@@ -154,6 +154,17 @@ function SearchField({ id, label, placeholder, value, onChange }: { id: string; 
   );
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
-  return <div className="paper-meta-item"><dt>{label}</dt><dd>{value}</dd></div>;
+function Meta({ label, value, isLast = false }: { label: string; value: string; isLast?: boolean }) {
+  return (
+    <div className="paper-meta-item shelf-manifest-entry">
+      <dt className="shelf-manifest-line">
+        <span className="shelf-manifest-prefix" aria-hidden="true">{isLast ? "└─ " : "├─ "}</span>
+        <span>{label}</span>
+      </dt>
+      <dd className="shelf-manifest-line shelf-manifest-value">
+        <span className="shelf-manifest-prefix" aria-hidden="true">{isLast ? "   " : "│  "}</span>
+        <span>{value}</span>
+      </dd>
+    </div>
+  );
 }
