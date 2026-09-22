@@ -1187,8 +1187,8 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
     LATTICE_REMOTE_MODELS.verifier,
   ]);
   assert.deepEqual(calls.map(({ body }) => body.max_tokens), [3_072, 520]);
-  assert.deepEqual(calls.map(({ body }) => body.temperature), [0.1, 0]);
-  assert.deepEqual(calls.map(({ body }) => body.top_p), [0.9, 1]);
+  assert.deepEqual(calls.map(({ body }) => body.temperature), [0.7, 0]);
+  assert.deepEqual(calls.map(({ body }) => body.top_p), [0.8, 1]);
   assert.deepEqual(calls.map(({ body }) => body.seed), [71_903, 71_903]);
   for (const [index, { init, body }] of calls.entries()) {
     const expectedKeys = [
@@ -1201,7 +1201,7 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
       "temperature",
       "top_p",
     ];
-    if (index === 0) expectedKeys.push("chat_template_kwargs");
+    if (index === 0) expectedKeys.push("chat_template_kwargs", "min_p", "top_k");
     assert.deepEqual(Object.keys(body).sort(), expectedKeys.sort());
     assert.equal(init.method, "POST");
     assert.equal(init.cache, "no-store");
@@ -1215,7 +1215,11 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
     assert.equal(JSON.stringify(body.response_format).includes("strict"), false);
   }
   assert.deepEqual(calls[0].body.chat_template_kwargs, { enable_thinking: false });
+  assert.equal(calls[0].body.top_k, 20);
+  assert.equal(calls[0].body.min_p, 0);
   assert.equal(Object.hasOwn(calls[1].body, "chat_template_kwargs"), false);
+  assert.equal(Object.hasOwn(calls[1].body, "top_k"), false);
+  assert.equal(Object.hasOwn(calls[1].body, "min_p"), false);
   assert.match(calls[0].body.messages[0].content, /Return exactly one minified JSON object/u);
   assert.ok(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)));
   assert.ok(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)));
@@ -1319,6 +1323,27 @@ test("a direct JSON-object request prepends the trusted closed schema without ch
   assert.ok(body.messages[0].content.includes(JSON.stringify(options.schema)));
   assert.match(body.messages[0].content, /\/no_think$/u);
   assert.deepEqual(body.messages[1], options.messages[0]);
+});
+
+test("optional provider sampler extensions fail closed before external fetch", async () => {
+  let fetches = 0;
+  const fetchImpl = async () => {
+    fetches += 1;
+    return successfulProviderResponse();
+  };
+  for (const overrides of [
+    { topK: 0 },
+    { topK: 1.5 },
+    { minP: -0.1 },
+    { minP: 1.1 },
+    { minP: Number.NaN },
+  ]) {
+    await assert.rejects(
+      requestHuggingFaceJson(providerRequestOptions(fetchImpl, overrides)),
+      TypeError,
+    );
+  }
+  assert.equal(fetches, 0);
 });
 
 test("the immutable 32-call adapter budget blocks a 33rd provider fetch", async () => {

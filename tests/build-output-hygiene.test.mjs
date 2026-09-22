@@ -123,7 +123,13 @@ test("the remote adapter consumes the public server-side sampling contract", asy
   ]);
 
   assert.deepEqual(textToLatticeContract.implementation.generator.inference.stages, {
-    analysis: { temperature: 0.1, topP: 0.9, maximumOutputTokens: 3_072 },
+    analysis: {
+      temperature: 0.7,
+      topP: 0.8,
+      topK: 20,
+      minP: 0,
+      maximumOutputTokens: 3_072,
+    },
     candidate: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
     repair: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
   });
@@ -132,7 +138,7 @@ test("the remote adapter consumes the public server-side sampling contract", asy
     certification: { temperature: 0, topP: 1, maximumOutputTokens: 520 },
   });
   for (const [stage, maximumOutputTokens, temperature, topP] of [
-    ["analysis", "3_072", "0.1", "0.9"],
+    ["analysis", "3_072", "0.7", "0.8"],
     ["candidate", "800", "0.45", "0.9"],
     ["repair", "800", "0.45", "0.9"],
     ["verification", "1_200", "0", "1"],
@@ -143,6 +149,7 @@ test("the remote adapter consumes the public server-side sampling contract", asy
       new RegExp(`${stage}:[\\s\\S]*?maxTokens: ${maximumOutputTokens},[\\s\\S]*?temperature: ${temperature},[\\s\\S]*?topP: ${topP},`, "u"),
     );
   }
+  assert.match(adapter, /analysis:[\s\S]*?topK: 20,[\s\S]*?minP: 0,/u);
   assert.match(adapter, /model: LATTICE_REMOTE_MODELS\[role\]/u);
   assert.doesNotMatch(adapter, /CreateMLCEngine|latticeWebllm\.worker/u);
 });
