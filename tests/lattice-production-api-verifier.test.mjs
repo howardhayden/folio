@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import { LATTICE_RESULT_VERSION } from "../app/resume/lattice/remoteProtocol.js";
@@ -8,10 +10,12 @@ import {
   LATTICE_PRODUCTION_EVIDENCE_SCHEMA,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS,
+  LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA,
   LATTICE_PRODUCTION_READINESS_CONTRACT,
   LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
   serializeLatticeProductionEvidence,
   verifyTextToLatticeApiProduction,
+  writeLatticeProductionEvidenceReceipt,
 } from "../scripts/verify-text-to-lattice-api-production.mjs";
 import {
   verifyTextToLatticeHeldApi,
@@ -179,6 +183,7 @@ function successfulFixture({ canaryResponse, readinessResponses, setupResponse }
 
 test("the production verifier establishes one bodyless visitor session before exactly one content canary", async () => {
   const fixture = successfulFixture();
+  let preflightCallbacks = 0;
   const readinessRequestCount =
     LATTICE_PRODUCTION_READINESS_CONTRACT.requiredConsecutiveActiveSamples;
   const evidence = await verifyTextToLatticeApiProduction({
@@ -186,11 +191,31 @@ test("the production verifier establishes one bodyless visitor session before ex
     context,
     now: fixedNow,
     wait: noWait,
+    async onPreflightEvidence(preflightEvidence) {
+      preflightCallbacks += 1;
+      assert.equal(fixture.canaryRequests, 0);
+      assert.equal(preflightEvidence.format, LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA);
+    },
   });
 
   assert.equal(evidence.format, LATTICE_PRODUCTION_EVIDENCE_SCHEMA);
   assert.equal(evidence.schemaVersion, 1);
   assert.equal(evidence.verified_at, "2026-09-14T12:34:56.000Z");
+  assert.equal(preflightCallbacks, 1);
+  assert.deepEqual(Object.keys(evidence), [
+    "format",
+    "schemaVersion",
+    "verified_at",
+    "deployment",
+    "boundary",
+    "declared_provider_contract",
+    "declared_hard_limits",
+    "document_policy",
+    "deployment_readiness",
+    "negative_probes",
+    "visitor_session_setup",
+    "transformation_canary",
+  ]);
   assert.deepEqual(
     evidence.negative_probes.outcomes.map(({ id }) => id),
     LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS,
@@ -350,6 +375,61 @@ test("the production verifier establishes one bodyless visitor session before ex
     createHash("sha256").update(serialized.serialized).digest("hex"),
   );
   assert.deepEqual(JSON.parse(serialized.serialized), evidence);
+});
+
+test("the sanitized preflight callback completes before any transformation canary", async () => {
+  const fixture = successfulFixture();
+  const stopAfterPreflight = new Error("stop after sanitized preflight");
+  let preflightEvidence = null;
+  let callbackCalls = 0;
+
+  await assert.rejects(
+    verifyTextToLatticeApiProduction({
+      fetchImpl: fixture.fetchImpl,
+      context,
+      now: fixedNow,
+      wait: noWait,
+      async onPreflightEvidence(evidence) {
+        callbackCalls += 1;
+        assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT - 1);
+        assert.equal(fixture.setupRequests, 1);
+        assert.equal(
+          fixture.negativeRequests,
+          LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.length,
+        );
+        assert.equal(fixture.canaryRequests, 0);
+        preflightEvidence = evidence;
+        throw stopAfterPreflight;
+      },
+    }),
+    (error) => error === stopAfterPreflight,
+  );
+
+  assert.equal(fixture.canaryRequests, 0);
+  assert.equal(callbackCalls, 1);
+  assert.equal(preflightEvidence.format, LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA);
+  assert.equal(Object.hasOwn(preflightEvidence, "transformation_canary"), false);
+  assert.deepEqual(preflightEvidence.qualification, {
+    status: "preflight-only",
+    gate_closing: false,
+    transformation_canary_performed: false,
+    provider_success_observed: false,
+  });
+  const serialized = JSON.stringify(preflightEvidence);
+  const cookieValue = quotaSetCookie.match(/^[^=]+=(?<value>[^;]+)/u)?.groups?.value;
+  assert.equal(typeof cookieValue, "string");
+  assert.equal(serialized.includes(cookieValue), false);
+  assert.doesNotMatch(
+    serialized,
+    /blue notebook|synthetic-credential|lattice-live-negative-canary/u,
+  );
+});
+
+test("the evidence writer rejects a relative receipt path", async () => {
+  await assert.rejects(
+    writeLatticeProductionEvidenceReceipt("preflight-boundary.json", {}),
+    /evidence receipt path must be absolute/u,
+  );
 });
 
 test("active-API readiness settles only after consecutive exact content-free samples", async () => {
@@ -550,7 +630,11 @@ test("the wrong-query probe verifies exact route exclusion as a non-API 405", as
   assert.equal(fixture.canaryRequests, 1);
 });
 
-test("a failed transformation canary is attempted once without retry or retained content", async () => {
+test("a failed transformation canary retains only sanitized non-qualifying preflight evidence", async (contextTest) => {
+  const receiptDirectory = await mkdtemp(join(tmpdir(), "lattice-preflight-"));
+  contextTest.after(async () => rm(receiptDirectory, { recursive: true, force: true }));
+  const preflightPath = join(receiptDirectory, "preflight-boundary.json");
+  const privateProviderDetail = "PRIVATE-PROVIDER-DETAIL-MUST-NOT-CROSS";
   const fixture = successfulFixture({
     canaryResponse: apiJson(
       { error: "upstream_unavailable" },
@@ -561,21 +645,58 @@ test("a failed transformation canary is attempted once without retry or retained
         [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus]: "503",
         [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage]: "analysis",
         [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal]: "1",
+        "X-Private-Provider-Diagnostic": privateProviderDetail,
       },
     ),
   });
+  const events = [];
   await assert.rejects(
     verifyTextToLatticeApiProduction({
-      fetchImpl: fixture.fetchImpl,
+      async fetchImpl(url, init) {
+        const canaryRequestsBefore = fixture.canaryRequests;
+        const response = await fixture.fetchImpl(url, init);
+        if (fixture.canaryRequests > canaryRequestsBefore) events.push("canary");
+        return response;
+      },
       context,
       now: fixedNow,
       wait: noWait,
+      async onPreflightEvidence(evidence) {
+        events.push("preflight");
+        await writeLatticeProductionEvidenceReceipt(preflightPath, evidence);
+      },
     }),
     /synthetic transformation canary returned HTTP 502 \(upstream_unavailable\); failure_class=provider_http_error; upstream_status=503; stage=analysis; call_ordinal=1/u,
   );
   assert.equal(fixture.canaryRequests, 1);
   assert.equal(fixture.setupRequests, 1);
   assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+  assert.deepEqual(events, ["preflight", "canary"]);
+
+  const serialized = await readFile(preflightPath, "utf8");
+  const digestReceipt = await readFile(`${preflightPath}.sha256`, "utf8");
+  const evidence = JSON.parse(serialized);
+  assert.equal(evidence.format, LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA);
+  assert.equal(Object.hasOwn(evidence, "transformation_canary"), false);
+  assert.deepEqual(evidence.qualification, {
+    status: "preflight-only",
+    gate_closing: false,
+    transformation_canary_performed: false,
+    provider_success_observed: false,
+  });
+  assert.equal(
+    digestReceipt,
+    `${createHash("sha256").update(serialized).digest("hex")}  preflight-boundary.json\n`,
+  );
+  const cookieValue = quotaSetCookie.match(/^[^=]+=(?<value>[^;]+)/u)?.groups?.value;
+  assert.equal(typeof cookieValue, "string");
+  assert.equal(serialized.includes(quotaSetCookie), false);
+  assert.equal(serialized.includes(cookieValue), false);
+  assert.equal(serialized.includes(privateProviderDetail), false);
+  assert.doesNotMatch(
+    serialized,
+    /blue notebook|synthetic-credential|lattice-live-negative-canary/u,
+  );
 });
 
 test("the canary rejects absent, partial, malformed, or success diagnostics without reflecting values", async (contextTest) => {

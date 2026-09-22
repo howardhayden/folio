@@ -47,6 +47,8 @@ import {
 
 export const LATTICE_PRODUCTION_EVIDENCE_SCHEMA =
   "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE";
+export const LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA =
+  "TEXT_TO_LATTICE_REMOTE_PREFLIGHT_EVIDENCE";
 
 const API_RESPONSE_LIMIT = LATTICE_API_RESPONSE_BYTE_LIMIT;
 const ERROR_RESPONSE_LIMIT = 4_096;
@@ -869,16 +871,34 @@ export function serializeLatticeProductionEvidence(evidence) {
   });
 }
 
+export async function writeLatticeProductionEvidenceReceipt(evidencePath, evidence) {
+  if (typeof evidencePath !== "string" || !isAbsolute(evidencePath)) {
+    fail("the evidence receipt path must be absolute");
+  }
+  const serialized = serializeLatticeProductionEvidence(evidence);
+  const resolvedEvidencePath = resolve(evidencePath);
+  await mkdir(dirname(resolvedEvidencePath), { recursive: true });
+  await writeFile(resolvedEvidencePath, serialized.serialized, { encoding: "utf8", mode: 0o600 });
+  await writeFile(
+    `${resolvedEvidencePath}.sha256`,
+    `${serialized.payloadSha256}  ${basename(resolvedEvidencePath)}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
+  return serialized;
+}
+
 export async function verifyTextToLatticeApiProduction({
   origin = LATTICE_API_ORIGIN,
   fetchImpl = globalThis.fetch,
   now = () => new Date(),
   monotonicNow = () => performance.now(),
   wait = waitMilliseconds,
+  onPreflightEvidence,
   context,
 } = {}) {
   if (typeof fetchImpl !== "function" || typeof now !== "function"
-    || typeof monotonicNow !== "function" || typeof wait !== "function") {
+    || typeof monotonicNow !== "function" || typeof wait !== "function"
+    || (onPreflightEvidence !== undefined && typeof onPreflightEvidence !== "function")) {
     throw new TypeError("The live API verifier received an invalid dependency.");
   }
   const exactOrigin = assertOrigin(origin);
@@ -897,16 +917,8 @@ export async function verifyTextToLatticeApiProduction({
     monotonicNow,
     visitorSession.requestHeader,
   );
-  const transformationCanary = await verifyTransformationCanary(
-    exactOrigin,
-    fetchImpl,
-    monotonicNow,
-    visitorSession.requestHeader,
-  );
   const runUrl = `${deployment.serverUrl}/${deployment.repository}/actions/runs/${deployment.runId}`;
-
-  const evidence = Object.freeze({
-    format: LATTICE_PRODUCTION_EVIDENCE_SCHEMA,
+  const commonEvidence = Object.freeze({
     schemaVersion: 1,
     verified_at: verifiedAt.toISOString(),
     deployment: Object.freeze({
@@ -957,12 +969,49 @@ export async function verifyTextToLatticeApiProduction({
       outcomes: negativeProbes,
     }),
     visitor_session_setup: visitorSession.evidence,
+  });
+  const preflightEvidence = Object.freeze({
+    format: LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA,
+    ...commonEvidence,
+    qualification: Object.freeze({
+      status: "preflight-only",
+      gate_closing: false,
+      transformation_canary_performed: false,
+      provider_success_observed: false,
+    }),
+  });
+  const visitorCookieValue = visitorSession.requestHeader.slice(
+    visitorSession.requestHeader.indexOf("=") + 1,
+  );
+  const serializedPreflightEvidence = JSON.stringify(preflightEvidence);
+  if (serializedPreflightEvidence.includes(SYNTHETIC_CANARY_TEXT)
+    || serializedPreflightEvidence.includes(SYNTHETIC_NEGATIVE_MARKER)
+    || serializedPreflightEvidence.includes("synthetic-credential")
+    || serializedPreflightEvidence.includes(visitorSession.requestHeader)
+    || serializedPreflightEvidence.includes(visitorCookieValue)) {
+    fail("the preflight evidence receipt contains probe or visitor-session content");
+  }
+  if (onPreflightEvidence !== undefined) {
+    await onPreflightEvidence(preflightEvidence);
+  }
+
+  const transformationCanary = await verifyTransformationCanary(
+    exactOrigin,
+    fetchImpl,
+    monotonicNow,
+    visitorSession.requestHeader,
+  );
+  const evidence = Object.freeze({
+    format: LATTICE_PRODUCTION_EVIDENCE_SCHEMA,
+    ...commonEvidence,
     transformation_canary: transformationCanary,
   });
 
   if (JSON.stringify(evidence).includes(SYNTHETIC_CANARY_TEXT)
     || JSON.stringify(evidence).includes(SYNTHETIC_NEGATIVE_MARKER)
-    || JSON.stringify(evidence).includes("synthetic-credential")) {
+    || JSON.stringify(evidence).includes("synthetic-credential")
+    || JSON.stringify(evidence).includes(visitorSession.requestHeader)
+    || JSON.stringify(evidence).includes(visitorCookieValue)) {
     fail("the evidence receipt contains probe content");
   }
   return evidence;
@@ -973,8 +1022,22 @@ async function main() {
   if (typeof evidencePath !== "string" || !isAbsolute(evidencePath)) {
     fail("LATTICE_API_EVIDENCE_PATH must be an absolute path");
   }
+  const resolvedEvidencePath = resolve(evidencePath);
+  const preflightEvidencePath = resolve(dirname(resolvedEvidencePath), "preflight-boundary.json");
+  if (resolvedEvidencePath === preflightEvidencePath) {
+    fail("LATTICE_API_EVIDENCE_PATH must not use the reserved preflight receipt path");
+  }
   const evidence = await verifyTextToLatticeApiProduction({
     origin: process.env.LATTICE_API_BASE_URL,
+    onPreflightEvidence: async (preflightEvidence) => {
+      const serialized = await writeLatticeProductionEvidenceReceipt(
+        preflightEvidencePath,
+        preflightEvidence,
+      );
+      process.stdout.write(
+        `Text to Lattice sanitized non-qualifying preflight retained; evidence SHA-256 ${serialized.payloadSha256}.\n`,
+      );
+    },
     context: {
       commit: process.env.GITHUB_SHA,
       runId: process.env.GITHUB_RUN_ID,
@@ -984,15 +1047,7 @@ async function main() {
       serverUrl: process.env.GITHUB_SERVER_URL,
     },
   });
-  const serialized = serializeLatticeProductionEvidence(evidence);
-  const resolvedEvidencePath = resolve(evidencePath);
-  await mkdir(dirname(resolvedEvidencePath), { recursive: true });
-  await writeFile(resolvedEvidencePath, serialized.serialized, { encoding: "utf8", mode: 0o600 });
-  await writeFile(
-    `${resolvedEvidencePath}.sha256`,
-    `${serialized.payloadSha256}  ${basename(resolvedEvidencePath)}\n`,
-    { encoding: "utf8", mode: 0o600 },
-  );
+  const serialized = await writeLatticeProductionEvidenceReceipt(resolvedEvidencePath, evidence);
   process.stdout.write(`Text to Lattice live API verified; sanitized evidence SHA-256 ${serialized.payloadSha256}.\n`);
 }
 
