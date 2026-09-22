@@ -353,8 +353,8 @@ export type Tool = {
   branches?: ToolBranch[];
 };
 
-export const TOOLS_CONTENT_VERSION = "hah-portfolio-tools.v2";
-export const TOOLS_CONTENT_UPDATED = "2026-09-21";
+export const TOOLS_CONTENT_VERSION = "hah-portfolio-tools.v3";
+export const TOOLS_CONTENT_UPDATED = "2026-09-22";
 
 export const tools: Tool[] = [
   {
@@ -419,6 +419,11 @@ export const tools: Tool[] = [
           { label: "Creatine Monohydrate", notes: ["Thorne"] },
           { label: "Collagen", notes: ["Sports Research"] },
           { label: "Ghost 17 GTX", notes: ["Brooks"] },
+          {
+            label: "Women's Multi Whole Food Vitamin",
+            notes: ["Garden of Life Organics"],
+          },
+          { label: "Beef Organs", notes: ["one earth Health"] },
         ],
       },
       {

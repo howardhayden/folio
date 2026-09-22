@@ -1284,7 +1284,7 @@ test("renders Tools descriptions as accessible branches and preserves the exact 
     "Tools cards retain their established transform geometry",
   );
   assert.equal(declaration(cardHoverBlock, "transform"), "scale(1.1)");
-  assert.equal(declaration(provisionsCardHoverBlock, "transform"), "scale(1.035)");
+  assert.equal(declaration(provisionsCardHoverBlock, "transform"), "scale(1.032)");
   assert.equal(declaration(linkBlock, "transition"), "box-shadow 0.5s ease-in 0.1s, filter 0.3s ease-in");
   assert.equal(declaration(linkHoverBlock, "color"), "whitesmoke");
   assert.equal(declaration(linkHoverBlock, "filter"), "grayscale(70%) brightness(70%)");
@@ -1294,6 +1294,8 @@ test("renders Tools descriptions as accessible branches and preserves the exact 
     "Creatine Monohydrate", "Thorne",
     "Collagen", "Sports Research",
     "Ghost 17 GTX", "Brooks",
+    "Women&#x27;s Multi Whole Food Vitamin", "Garden of Life Organics",
+    "Beef Organs", "one earth Health",
     "upkeep",
     "Leather Rejuvenator Soap", "Saphir",
     "Crème Surfine", "Navy Blue, White, Birch, Dark Green",
@@ -1314,6 +1316,8 @@ test("renders Tools descriptions as accessible branches and preserves the exact 
 
   assert.match(provisionsCard, />│  ├─ <\/span>[\s\S]*?>Creatine Monohydrate<\/span>/u);
   assert.match(provisionsCard, />│  │  <\/span>[\s\S]*?>Thorne<\/span>/u);
+  assert.match(provisionsCard, />│  └─ <\/span>[\s\S]*?>Beef Organs<\/span>/u);
+  assert.match(provisionsCard, />│     <\/span>[\s\S]*?>one earth Health<\/span>/u);
   assert.match(provisionsCard, />└─ <\/span>[\s\S]*?>scent<\/span>/u);
   assert.match(provisionsCard, />      <\/span>[\s\S]*?>Sandy’s<\/span>/u);
 });

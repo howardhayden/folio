@@ -416,6 +416,8 @@ test("Tools semantics preserve branch descriptions and the exact Provisions tree
         { label: "Creatine Monohydrate", notes: ["Thorne"] },
         { label: "Collagen", notes: ["Sports Research"] },
         { label: "Ghost 17 GTX", notes: ["Brooks"] },
+        { label: "Women's Multi Whole Food Vitamin", notes: ["Garden of Life Organics"] },
+        { label: "Beef Organs", notes: ["one earth Health"] },
       ],
     },
     {
