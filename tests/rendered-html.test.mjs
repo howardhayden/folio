@@ -1285,6 +1285,11 @@ test("renders Tools descriptions as accessible branches and preserves the exact 
   );
   assert.equal(declaration(cardHoverBlock, "transform"), "scale(1.1)");
   assert.equal(declaration(provisionsCardHoverBlock, "transform"), "scale(1.032)");
+  assert.ok(
+    css.indexOf(".page-view--tools #tool-provisions:hover")
+      > css.indexOf("#papershelf .card:hover"),
+    "the equally specific Provisions override follows and wins over the shared card hover rule",
+  );
   assert.equal(declaration(linkBlock, "transition"), "box-shadow 0.5s ease-in 0.1s, filter 0.3s ease-in");
   assert.equal(declaration(linkHoverBlock, "color"), "whitesmoke");
   assert.equal(declaration(linkHoverBlock, "filter"), "grayscale(70%) brightness(70%)");
