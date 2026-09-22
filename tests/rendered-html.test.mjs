@@ -1240,13 +1240,22 @@ test("renders Tools descriptions as accessible branches and preserves the exact 
   assert.match(documentMarkup, /class="tool-branch-prefix" aria-hidden="true">├─ <\/span>/u);
   assert.match(documentMarkup, /class="tool-branch-prefix" aria-hidden="true">└─ <\/span>/u);
   assert.doesNotMatch(documentMarkup, /<ul><li>Open-source<\/li>/u);
+  assert.equal(
+    (documentMarkup.match(/<a(?=[^>]*class="tool-icon tools-card-accent signal-fuzz")[^>]*>/gu) ?? []).length,
+    tools.length,
+    "every Tools SVG uses the same anchor element and styling path",
+  );
+  assert.doesNotMatch(documentMarkup, /<span class="tool-icon\b/u);
 
   const provisionsStart = documentMarkup.indexOf('<article class="card" id="tool-provisions">');
   const provisionsEnd = documentMarkup.indexOf("</article>", provisionsStart);
   assert.ok(provisionsStart >= 0 && provisionsEnd > provisionsStart, "Provisions card renders");
   const provisionsCard = documentMarkup.slice(provisionsStart, provisionsEnd);
-  assert.doesNotMatch(provisionsCard, /<a\b/u, "Provisions does not invent a destination");
-  assert.match(provisionsCard, /<span class="tool-icon tools-card-accent signal-fuzz" aria-hidden="true">/u);
+  assert.match(
+    provisionsCard,
+    /<a(?=[^>]*class="tool-icon tools-card-accent signal-fuzz")(?=[^>]*aria-hidden="true")(?![^>]*href=)(?![^>]*title=)(?![^>]*aria-label=)[^>]*>/u,
+    "Provisions reuses the shared icon element without inventing a link or accessible action",
+  );
   assert.match(
     provisionsCard,
     /<h3 class="card-title tools-card-title tools-card-accent signal-fuzz row justify-content-center"[^>]*>Provisions<\/h3>[\s\S]*?<figcaption>Used up, worn out, and replaced\.<\/figcaption>/u,
@@ -1256,14 +1265,29 @@ test("renders Tools descriptions as accessible branches and preserves the exact 
 
   const linkBlock = css.match(/(?:^|\n)a \{([^}]*)\}/u)?.[1] ?? "";
   const linkHoverBlock = css.match(/(?:^|\n)a:hover \{([^}]*)\}/u)?.[1] ?? "";
-  const toolIconBlock = css.match(/\.page-view--tools \.tool-icon \{([^}]*)\}/u)?.[1] ?? "";
-  const toolIconHoverBlock = css.match(/\.page-view--tools \.tool-icon:hover \{([^}]*)\}/u)?.[1] ?? "";
+  const cardHoverBlock = css.match(/#papershelf \.card:hover,[\s\S]*?\.skill-stack-grid \.card:hover \{([^}]*)\}/u)?.[1] ?? "";
+  const provisionsCardHoverBlock = css.match(/\.page-view--tools #tool-provisions:hover \{([^}]*)\}/u)?.[1] ?? "";
   const declaration = (block, property) => block.match(new RegExp(`${property}:\\s*([^;]+);`, "u"))?.[1];
 
-  assert.ok(linkBlock && linkHoverBlock && toolIconBlock && toolIconHoverBlock, "link and Tools icon interaction rules render");
-  assert.equal(declaration(toolIconBlock, "transition"), declaration(linkBlock, "transition"));
-  assert.equal(declaration(toolIconHoverBlock, "color"), declaration(linkHoverBlock, "color"));
-  assert.equal(declaration(toolIconHoverBlock, "filter"), declaration(linkHoverBlock, "filter"));
+  assert.ok(
+    linkBlock && linkHoverBlock && cardHoverBlock && provisionsCardHoverBlock,
+    "link and Tools icon interaction rules render",
+  );
+  assert.doesNotMatch(
+    css,
+    /\.page-view--tools[^\{]*\.tool-icon[^\{]*\{/u,
+    "Tools icons reuse the generic anchor styling without a recreated interaction rule",
+  );
+  assert.doesNotMatch(
+    css,
+    /\.page-view--tools #papershelf \.card \{[^}]*transform-origin:/u,
+    "Tools cards retain their established transform geometry",
+  );
+  assert.equal(declaration(cardHoverBlock, "transform"), "scale(1.1)");
+  assert.equal(declaration(provisionsCardHoverBlock, "transform"), "scale(1.035)");
+  assert.equal(declaration(linkBlock, "transition"), "box-shadow 0.5s ease-in 0.1s, filter 0.3s ease-in");
+  assert.equal(declaration(linkHoverBlock, "color"), "whitesmoke");
+  assert.equal(declaration(linkHoverBlock, "filter"), "grayscale(70%) brightness(70%)");
 
   const expectedTextOrder = [
     "training",

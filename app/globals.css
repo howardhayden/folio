@@ -544,13 +544,8 @@ svg:not(.background-static-defs) {
   color: #0b4705;
 }
 
-.page-view--tools .tool-icon {
-  transition: box-shadow 0.5s ease-in 0.1s, filter 0.3s ease-in;
-}
-
-.page-view--tools .tool-icon:hover {
-  color: whitesmoke;
-  filter: grayscale(70%) brightness(70%);
+.page-view--tools #tool-provisions:hover {
+  transform: scale(1.035);
 }
 
 .page-view--shelf .paper-meta {

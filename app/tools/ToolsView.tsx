@@ -94,13 +94,15 @@ export default function ToolsView() {
               <article className="card" id={toolId} key={tool.name}>
                 <div className="card-body">
                   <div className="row justify-content-center">
-                    {tool.url ? (
-                      <a href={tool.url} title={tool.name} className="tool-icon tools-card-accent signal-fuzz" aria-label={`Visit ${tool.name}`}>
-                        {icon}
-                      </a>
-                    ) : (
-                      <span className="tool-icon tools-card-accent signal-fuzz" aria-hidden="true">{icon}</span>
-                    )}
+                    <a
+                      href={tool.url ?? undefined}
+                      title={tool.url ? tool.name : undefined}
+                      className="tool-icon tools-card-accent signal-fuzz"
+                      aria-label={tool.url ? `Visit ${tool.name}` : undefined}
+                      aria-hidden={tool.url ? undefined : true}
+                    >
+                      {icon}
+                    </a>
                   </div>
                   <h3 className="card-title tools-card-title tools-card-accent signal-fuzz row justify-content-center" id={`${toolId}-title`}>{tool.name}</h3>
                   {tool.category ? <p className="text-center"><small>{tool.category}</small></p> : null}
