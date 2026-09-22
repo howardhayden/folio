@@ -53,7 +53,7 @@ const STAGES = Object.freeze({
     schema: REANALYSIS_SCHEMA,
     schemaName: "lattice_analysis_v1",
     messages: analysisMessages,
-    maxTokens: 2_000,
+    maxTokens: 3_072,
     temperature: 0.1,
     topP: 0.9,
   }),
