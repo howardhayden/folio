@@ -270,6 +270,8 @@ export function ResumeProjectCard({
           paragraph={project.summary[1]}
           projectId={disclosureId}
           projectName={project.name}
+          projectSlug={project.slug}
+          technologies={project.technologies}
         />
 
         <ProjectResources projectName={project.name} resources={project.resources ?? []} />

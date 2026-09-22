@@ -400,7 +400,7 @@ svg:not(.background-static-defs) {
 }
 
 .modal-content {
-  background-color: #FFFFFF;
+  background-color: rgb(255 255 255 / 94%);
   color: black;
   padding: 20px;
   text-align: center;
@@ -1189,6 +1189,10 @@ svg:not(.background-static-defs) {
   .resume-modal-open .resume-search-results {
     filter: none !important;
   }
+
+  .modal-content {
+    background-color: #FFFFFF;
+  }
 }
 
 .project-readme {
@@ -1228,6 +1232,438 @@ svg:not(.background-static-defs) {
 
 .project-description-modal-content .project-readme-copy {
   text-align: left;
+}
+
+.project-description-modal-content--chromebook {
+  max-width: min(58rem, calc(100vw - 2rem));
+  width: min(58rem, calc(100vw - 2rem));
+}
+
+.chromebook-management-views {
+  margin-top: 1.5rem;
+  min-width: 0;
+}
+
+.chromebook-visually-hidden {
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.chromebook-view-tabs {
+  align-items: center;
+  border-bottom: 1px solid var(--color-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem .5rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+  padding-bottom: .55rem;
+}
+
+.chromebook-state-tab.resume-search-close {
+  cursor: pointer;
+  font-size: clamp(.76rem, 2vw, .9rem);
+  grid-column: auto;
+  justify-self: auto;
+  position: relative;
+}
+
+.chromebook-state-tab[aria-selected="false"] {
+  font-weight: 400;
+}
+
+.chromebook-state-tab[aria-selected="true"] {
+  font-weight: 600;
+}
+
+.chromebook-state-tab[aria-selected="true"]::after {
+  background: currentColor;
+  bottom: -.22rem;
+  content: "";
+  height: 1px;
+  inset-inline: .5rem;
+  position: absolute;
+}
+
+.chromebook-view-tabs .chromebook-state-tab[aria-selected="true"]::after {
+  bottom: -.56rem;
+}
+
+.chromebook-condition-navigation {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  margin: 0 auto 1.25rem;
+  min-width: 0;
+}
+
+.chromebook-condition-tabs,
+.chromebook-exception-tabs {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  justify-content: center;
+}
+
+.chromebook-exception-navigation {
+  align-items: center;
+  display: flex;
+  gap: .25rem;
+  min-height: 1.75rem;
+  padding-inline-start: 1.25rem;
+}
+
+.chromebook-condition-tabs .chromebook-state-tab {
+  font-size: clamp(.72rem, 1.7vw, .82rem);
+}
+
+.chromebook-exception-tabs .chromebook-state-tab,
+.chromebook-condition-leaf {
+  font-size: clamp(.68rem, 1.55vw, .76rem);
+}
+
+.chromebook-condition-leaf {
+  color: #565b60;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.chromebook-state-stage {
+  margin-inline: auto;
+  max-width: 46rem;
+  min-width: 0;
+}
+
+.chromebook-state-surface {
+  align-items: center;
+  display: grid;
+  min-height: 32rem;
+  min-width: 0;
+  padding: .25rem .25rem 1rem;
+}
+
+.chromebook-state-surface.resume-search-surface--frosted {
+  opacity: 0;
+}
+
+.chromebook-state-surface:focus-visible,
+.chromebook-state-flow:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.chromebook-state-surface > section > h4,
+.chromebook-state-surface > section > p,
+.chromebook-state-flow > figcaption,
+.chromebook-skill-map > figcaption,
+.chromebook-state-resolution {
+  text-align: center;
+}
+
+.chromebook-state-surface > section > h4,
+.chromebook-state-flow > figcaption,
+.chromebook-skill-map > figcaption {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 .55rem;
+}
+
+.chromebook-state-flow > figcaption small {
+  display: block;
+  font-size: .78rem;
+  font-weight: 400;
+  margin-top: .35rem;
+}
+
+.chromebook-state-surface > section > p {
+  margin-inline: auto;
+  max-width: 42rem;
+}
+
+.chromebook-state-flow {
+  container-type: inline-size;
+  margin: 0;
+  min-width: 0;
+  overflow-x: auto;
+  padding: .25rem 0 1rem;
+}
+
+.chromebook-state-flow pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: clamp(.75rem, 2.6cqw, .78rem);
+  line-height: 1.42;
+  margin: 1.25rem auto 0;
+  padding: 0;
+  white-space: pre;
+  width: max-content;
+}
+
+.chromebook-skill-map {
+  margin: 0;
+  min-width: 0;
+}
+
+.chromebook-plain-emphasis {
+  font-weight: 400;
+}
+
+.chromebook-skill-map-visual {
+  isolation: isolate;
+  margin: 1rem auto 1.35rem;
+  min-height: 23rem;
+  max-width: 38rem;
+  position: relative;
+}
+
+.chromebook-skill-domain {
+  align-items: center;
+  background: var(--teaching-caret-fill);
+  background: color-mix(in srgb, var(--teaching-caret-fill) 82%, transparent);
+  border: 1px solid var(--teaching-caret-outline);
+  border-radius: 50%;
+  display: flex;
+  height: 15.5rem;
+  justify-content: center;
+  padding: 2.75rem;
+  position: absolute;
+  text-align: center;
+  transition: background-color .18s ease, border-color .18s ease;
+  width: 15.5rem;
+}
+
+.chromebook-skill-domain--quiet {
+  background: color-mix(in srgb, var(--teaching-caret-fill) 36%, transparent);
+  border-color: color-mix(in srgb, var(--teaching-caret-outline) 35%, transparent);
+}
+
+.chromebook-skill-domain--quiet .teaching-manifest-percent {
+  color: #454b52;
+}
+
+.chromebook-skill-domain.teaching-manifest-entry--blue-green .teaching-manifest-percent,
+.chromebook-skill-map-center.teaching-manifest-entry--blue-green .teaching-manifest-percent {
+  color: var(--teaching-caret-outline);
+}
+
+.chromebook-skill-domain--return-timing {
+  inset-inline-start: 14%;
+  top: 0;
+}
+
+.chromebook-skill-domain--endpoint-control {
+  inset-inline-end: 14%;
+  top: 0;
+}
+
+.chromebook-skill-domain--return-assurance {
+  inset-inline-start: 50%;
+  top: 7rem;
+  transform: translateX(-50%);
+}
+
+.chromebook-skill-map-center {
+  display: flex;
+  flex-direction: column;
+  font-size: .72rem;
+  font-weight: 600;
+  gap: .35rem;
+  inset-inline-start: 50%;
+  line-height: 1.25;
+  max-width: 9rem;
+  position: absolute;
+  text-align: center;
+  top: 9.25rem;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+.chromebook-state-resolution {
+  font-size: .82rem;
+  margin: 0 auto;
+  max-width: 34rem;
+}
+
+.chromebook-technology-list {
+  display: flex;
+  flex-wrap: wrap;
+  font-size: .78rem;
+  justify-content: center;
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.chromebook-technology-list li + li::before {
+  color: #6c757d;
+  content: "·";
+  padding-inline: .45rem;
+}
+
+.chromebook-evidence-table {
+  border-collapse: collapse;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: clamp(.7rem, 1.6vw, .82rem);
+  line-height: 1.4;
+  margin: 1.25rem auto 0;
+  max-width: 42rem;
+  width: 100%;
+}
+
+.chromebook-evidence-table caption {
+  caption-side: top;
+  color: inherit;
+  font-weight: 600;
+  padding: 0 0 .6rem;
+  text-align: left;
+}
+
+.chromebook-evidence-table th,
+.chromebook-evidence-table td {
+  border-bottom: 1px solid var(--color-2);
+  padding: .6rem .7rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.chromebook-evidence-table th {
+  font-weight: 600;
+  width: 34%;
+}
+
+.chromebook-evidence-table td.chromebook-matrix-action {
+  border-inline-start: 3px solid var(--teaching-caret-outline);
+}
+
+.chromebook-matrix-action .teaching-manifest-percent {
+  white-space: normal;
+}
+
+.chromebook-view-note {
+  font-size: .82rem;
+  margin: 1rem 0 0;
+}
+
+.chromebook-blueprint-lanes {
+  margin: 1.5rem auto 0;
+  max-width: 42rem;
+}
+
+.chromebook-blueprint-action {
+  border-inline-start: 3px solid var(--teaching-caret-outline);
+  padding-inline-start: .55rem;
+}
+
+@media (max-width: 700px) {
+  .chromebook-skill-map-visual {
+    max-width: 24rem;
+    min-height: 20rem;
+    width: 100%;
+  }
+
+  .chromebook-skill-domain {
+    height: clamp(9.5rem, 52vw, 12.5rem);
+    padding: 1rem;
+    width: clamp(9.5rem, 52vw, 12.5rem);
+  }
+
+  .chromebook-skill-domain--return-timing {
+    inset-inline-start: 2%;
+  }
+
+  .chromebook-skill-domain--endpoint-control {
+    inset-inline-end: 2%;
+  }
+
+  .chromebook-skill-domain--return-assurance {
+    top: 7rem;
+  }
+
+  .chromebook-skill-map-center {
+    max-width: 7.5rem;
+    top: 8.2rem;
+  }
+
+  .chromebook-evidence-table th {
+    width: 38%;
+  }
+}
+
+@media (max-width: 520px) {
+  .project-description-modal-content--chromebook {
+    padding-inline: .75rem;
+    width: calc(100vw - 1rem);
+  }
+
+  .chromebook-view-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chromebook-view-tabs .chromebook-state-tab {
+    text-align: center;
+    width: 100%;
+  }
+
+  .chromebook-view-tabs .chromebook-state-tab[aria-selected="true"]::after {
+    inset-inline: 25%;
+  }
+
+  .chromebook-exception-navigation {
+    padding-inline-start: 0;
+  }
+
+  .chromebook-state-surface {
+    min-height: 29rem;
+    padding-inline: 0;
+  }
+
+  .chromebook-evidence-table th,
+  .chromebook-evidence-table td {
+    padding-inline: .45rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chromebook-state-tab,
+  .chromebook-skill-domain {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .chromebook-skill-domain {
+    background: Canvas !important;
+    border-color: ButtonText !important;
+  }
+
+  .chromebook-skill-domain--quiet {
+    background: Canvas !important;
+    border-color: ButtonText !important;
+    border-style: dashed;
+  }
+
+  .chromebook-state-tab[aria-selected="true"]::after {
+    background: Highlight;
+  }
+
+  .chromebook-state-surface:focus-visible,
+  .chromebook-state-flow:focus-visible {
+    outline-color: Highlight;
+  }
+
+  .chromebook-evidence-table th,
+  .chromebook-evidence-table td {
+    border-color: ButtonText;
+  }
 }
 
 .project-resources {
@@ -1455,6 +1891,7 @@ a:hover {
 .modal.resume-modal.lattice-modal {
   isolation: isolate;
 }
+.resume-modal-open,
 .skill-stack-modal-open { overflow: hidden !important; }
 .resume-content-is-blurred,
 .shelf-page-is-blurred { filter: blur(5px); }

@@ -122,6 +122,8 @@ export function ResumeProjectHeldCard({
           paragraph={project.summary[1]}
           projectId={disclosureId}
           projectName={project.name}
+          projectSlug={project.slug}
+          technologies={project.technologies}
         />
 
         {project.id === "lattice" ? (

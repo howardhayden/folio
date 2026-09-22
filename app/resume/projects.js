@@ -1,7 +1,7 @@
 import { documentsForProject } from "../content/projectDocuments.js";
 
-export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v10";
-export const PROJECT_CONTENT_UPDATED = "2026-09-21";
+export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v11";
+export const PROJECT_CONTENT_UPDATED = "2026-09-22";
 
 const LATTICE_CARD_RESOURCE_LABELS = Object.freeze({
   "lattice-concept-map": "Concept and Ecosystem Map",
@@ -255,9 +255,9 @@ export const projects = Object.freeze([
     thesis: "Chromebook Management translated Sierra ILS device states into a workflow in which status, interpretation, and action remained connected.",
     summary: Object.freeze([
       "Chromebook Management translated Sierra ILS device states into a workflow in which status, interpretation, and action remained connected.",
-      "This internal web application contextualized differing Sierra ILS statuses in user-interpretable terms while supporting Chromebook activation and deactivation.",
+      "This internal web application reconciled Sierra ILS return timing with endpoint access: overdue devices still out were locked, while every returned device was wiped and verified, with late locked returns first unlocked.",
     ]),
-    capabilities: Object.freeze(["Device-status contextualization", "Chromebook activation", "Chromebook deactivation", "User-interpretable status presentation"]),
+    capabilities: Object.freeze(["Device-status contextualization", "Overdue-device locking", "Late-return unlocking", "Returned-device wiping", "Returned-device verification", "User-interpretable status presentation"]),
     technologies: Object.freeze(["Jekyll", "Ruby on Rails", "Google Cloud Platform", "Node.js", "Sierra ILS"]),
     evidence: Object.freeze(["https://www.linkedin.com/in/howardhayden/details/projects/"]),
     limitations: Object.freeze(["This portfolio record describes an internal application and does not expose the application or institutional data."]),
@@ -317,6 +317,7 @@ export const projects = Object.freeze([
     relationships: Object.freeze([]),
     resources: Object.freeze([
       Object.freeze({ label: "Information Studies and Digital Citizenship syllabus", cardLabel: "Syllabus", url: "https://scdb.lib.miamioh.edu/server/api/core/bitstreams/acd28a12-c901-420e-bb71-ab16f9316448/content", icon: "backpack4", opensInNewTab: true }),
+      Object.freeze({ kind: "contributor", contributorName: "Nate Floyd", label: "Contributor: Nate Floyd", url: "https://www.linkedin.com/in/nate-floyd", icon: "backpack4", opensInNewTab: true }),
       Object.freeze({ kind: "contributor", contributorName: "Jaclynn Spraetz", label: "Contributor: Jaclynn Spraetz", url: "https://www.linkedin.com/in/jaclyn-spraetz-21a58792", icon: "backpack4", opensInNewTab: true }),
     ]),
     publication: Object.freeze({ label: "May 2021", value: "2021-05", precision: "month" }),
