@@ -54,8 +54,10 @@ const STAGES = Object.freeze({
     schemaName: "lattice_analysis_v1",
     messages: analysisMessages,
     maxTokens: 3_072,
-    temperature: 0.1,
-    topP: 0.9,
+    temperature: 0.7,
+    topP: 0.8,
+    topK: 20,
+    minP: 0,
   }),
   candidate: Object.freeze({
     role: "generator",
@@ -321,6 +323,8 @@ export async function requestHuggingFaceJson({
   maxTokens,
   temperature,
   topP,
+  topK,
+  minP,
   signal,
   fetchImpl = globalThis.fetch,
   callTimeoutMs = LATTICE_PROVIDER_CALL_TIMEOUT_MS,
@@ -336,7 +340,9 @@ export async function requestHuggingFaceJson({
     || !validPositiveInteger(maximumRequestBytes)
     || !validPositiveInteger(maximumResponseBytes) || typeof fetchImpl !== "function"
     || !Number.isFinite(temperature) || temperature < 0 || temperature > 2
-    || !Number.isFinite(topP) || topP <= 0 || topP > 1) {
+    || !Number.isFinite(topP) || topP <= 0 || topP > 1
+    || (topK !== undefined && !validPositiveInteger(topK))
+    || (minP !== undefined && (!Number.isFinite(minP) || minP < 0 || minP > 1))) {
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
@@ -350,6 +356,8 @@ export async function requestHuggingFaceJson({
     max_tokens: maxTokens,
     temperature,
     top_p: topP,
+    ...(topK === undefined ? {} : { top_k: topK }),
+    ...(minP === undefined ? {} : { min_p: minP }),
     seed: 71_903,
     stream: false,
   });
@@ -481,6 +489,8 @@ export function createHuggingFaceLatticeAdapter({
         maxTokens: stage.maxTokens,
         temperature: stage.temperature,
         topP: stage.topP,
+        topK: stage.topK,
+        minP: stage.minP,
         signal: request.signal,
         fetchImpl,
         callTimeoutMs,
