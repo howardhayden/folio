@@ -152,7 +152,7 @@ export default function TextToLatticePage() {
           </dl>
           <p>{textToLatticeContract.implementation.runtime.wasmLicenseStatus}</p>
           <p>Model-assisted result design: Qwen drafts and Llama 3.2 checks on the server through the configured external service. These checks can miss altered, omitted, biased, or unsafe meaning; every result requires review before reliance. Built with Llama. Llama 3.2 is licensed under the <a href={textToLatticeContract.implementation.verifier.licenseUrl}>Llama 3.2 Community License</a> and <a href={textToLatticeContract.implementation.verifier.acceptableUseUrl}>Acceptable Use Policy</a>, Copyright © Meta Platforms, Inc. All Rights Reserved.</p>
-          <p><a href="/third-party-notices/">Third-party notices and supplied license copies</a>.</p>
+          <p><a href="/third-party-notices/">Legal, historical, and third-party notices</a>.</p>
           <p><a href="/resume/#projects-title">Return to the Lattice project card</a>.</p>
           <p><a href="/projects/lattice/">Read the canonical Lattice project record</a>.</p>
         </article>

@@ -43,7 +43,7 @@ test("the documentation generator binds current remote evidence and preserves in
 });
 
 test("the atlas models the held remote capability without promoting historical evidence", async () => {
-  assert.equal(atlas.revision, "2026-09-14");
+  assert.equal(atlas.revision, "2026-09-23");
   assert.equal(atlas.historicalBoundary.status, "inactive");
   assert.match(atlas.historicalBoundary.currentArchitecture, /same-origin \/api\/lattice[\s\S]*bodyless visitor-session setup[\s\S]*exactly one content-bearing POST/iu);
   assert.match(atlas.historicalBoundary.evidencePolicy, /do not satisfy the current remote-service release gates/iu);

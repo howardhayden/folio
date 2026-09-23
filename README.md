@@ -66,9 +66,17 @@ The test command validates every ASCII pose, performs a production build, valida
 
 ## Licensing
 
-hah.dev portfolio is **source-available for noncommercial use** under
-**PolyForm-Noncommercial-1.0.0**; commercial use requires a separate written license. Personal, résumé, ASCII-character, animation, and distinctive identity material remains rights-reserved.
-No current source file or function has a permissive commercial-use exception.
+Current Owner-controlled material is proprietary under the
+**Hayden Howard Proprietary Product and Source License 1.0**
+(`LicenseRef-Hayden-Proprietary-1.0`). Repository visibility grants no general
+permission to build, run, modify, redistribute, self-host, or reuse the source.
+Personal, résumé, ASCII-character, animation, and distinctive identity material
+also remains rights-reserved under its mapped content terms.
+
+This policy applies prospectively. Valid MIT, PolyForm, third-party, platform,
+and statutory rights attached to earlier distributed copies or separately
+identified material remain governed by their own terms within their scope. See
+[`COMMERCIAL_BASELINE.md`](COMMERCIAL_BASELINE.md) for the transition record.
 See [`LICENSING.md`](LICENSING.md),
 [`WORKFLOW-BOUNDARIES.md`](WORKFLOW-BOUNDARIES.md), and
 [`LICENSE-MAP.json`](LICENSE-MAP.json) for scope and historical limits.

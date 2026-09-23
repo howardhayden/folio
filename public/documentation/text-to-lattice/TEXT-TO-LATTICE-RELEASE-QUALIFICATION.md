@@ -4,13 +4,13 @@
 
 **Reviewed baseline:** `7a7ae672a9803136294bfae35a95db0b8204a205`
 
-**Qualification date:** 2026-09-14
+**Qualification date:** 2026-09-23
 
-**Evidence updated:** 2026-09-22
+**Evidence updated:** 2026-09-23
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `9d0fdb218b672f36054c991dc50e6e2b6a58b0ae8abc8fd4f651c3d7384f992e`
+**Qualified source-set SHA-256:** `c29836a72c9fa340466de87a20abcd1512e9a48de2f50bb4d43285b93346dbf8`
 
 **Artifact-set projection SHA-256:** `c49ca0a8468250e8d221e6f58d8b085a40a21015861e60d2b86d35bf15682cb5`
 

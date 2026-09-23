@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { SITE_SOURCE_TERMS_URL } from "../app/content/siteContent.js";
 import { staticSourceCopies } from "../app/semantic/routes.js";
 
 const sourceUrl = (path) => new URL(`../${path}`, import.meta.url);
@@ -78,7 +79,71 @@ test("direct framework and font dependencies ship their resolved notices and lic
   assert.match(await readText(jostTerms), /SIL OPEN FONT LICENSE Version 1\.1/u);
 });
 
-test("Text to Lattice implementation stays under the declared software license", async () => {
+test("current Owner terms align across policy, package, semantic, and baseline records", async () => {
+  const [
+    rootLicense,
+    publishedLicense,
+    licensing,
+    notice,
+    baseline,
+    licenseMapSource,
+    packageSource,
+    packageLockSource,
+    workerPackageSource,
+    workerPackageLockSource,
+    semanticSource,
+  ] = await Promise.all([
+    readText("LICENSE"),
+    readText("LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt"),
+    readText("LICENSING.md"),
+    readText("NOTICE"),
+    readText("COMMERCIAL_BASELINE.md"),
+    readText("LICENSE-MAP.json"),
+    readText("package.json"),
+    readText("package-lock.json"),
+    readText("workers/package.json"),
+    readText("workers/package-lock.json"),
+    readText("app/semantic/portfolio.js"),
+  ]);
+  const licenseMap = JSON.parse(licenseMapSource);
+  const packageManifest = JSON.parse(packageSource);
+  const packageLock = JSON.parse(packageLockSource);
+  const workerPackage = JSON.parse(workerPackageSource);
+  const workerPackageLock = JSON.parse(workerPackageLockSource);
+  const copiedSources = new Set(staticSourceCopies.map(({ source }) => source));
+
+  assert.equal(rootLicense, publishedLicense, "the public current-terms copy matches the root authority");
+  assert.match(rootLicense, /SPDX-License-Identifier: LicenseRef-Hayden-Proprietary-1\.0/u);
+  assert.match(rootLicense, /This license applies prospectively/u);
+  assert.match(licensing, /Historical MIT and PolyForm notices/u);
+  assert.match(notice, /Valid earlier grants, third-party terms, platform rights, and statutory exceptions remain effective\./u);
+  assert.match(baseline, /5bd566fb2ae4f456a03efcfa11b1ed96dd201912/u);
+  assert.match(baseline, /3d3b57d1a8f007eb9151549385a2ca49fb1e46cd/u);
+
+  assert.equal(licenseMap.default_license, "LicenseRef-Hayden-Proprietary-1.0");
+  assert.equal(licenseMap.implementation_reuse_granted, false);
+  assert.equal(licenseMap.noncommercial_reuse_granted, false);
+  assert.equal(licenseMap.rules.some(({ license }) => license === "PolyForm-Noncommercial-1.0.0"), false);
+  assert.match(licenseMap.historical_notice, /earlier distributed copies remain governed by their own terms/u);
+  assert.match(licenseMap.historical_notice, /does not determine whether an earlier permission applies to a different copy or later distribution/u);
+
+  assert.deepEqual(
+    [packageManifest.private, packageManifest.license, packageLock.packages[""].license],
+    [true, "UNLICENSED", "UNLICENSED"],
+  );
+  assert.deepEqual(
+    [workerPackage.private, workerPackage.license, workerPackageLock.packages[""].license],
+    [true, "UNLICENSED", "UNLICENSED"],
+  );
+  assert.equal(SITE_SOURCE_TERMS_URL, "https://hah.dev/LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt");
+  assert.ok(copiedSources.has("LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt"));
+  assert.ok(copiedSources.has("LICENSES/HISTORICAL/PolyForm-Noncommercial-1.0.0.txt"));
+  assert.equal(copiedSources.has("LICENSES/PolyForm-Noncommercial-1.0.0.txt"), false);
+  assert.match(semanticSource, /Historical PolyForm Noncommercial 1\.0\.0/u);
+  assert.match(semanticSource, /not a new grant over material first published under the current terms/u);
+});
+
+test("Text to Lattice implementation stays under the declared proprietary terms", async () => {
   const licenseMap = JSON.parse(await readText("LICENSE-MAP.json"));
   const latticeRuleIndex = licenseMap.rules.findIndex(({ paths }) => paths.includes("app/resume/lattice/**"));
   const resumeContentRuleIndex = licenseMap.rules.findIndex(({ paths }) => paths.includes("app/resume/**"));
@@ -88,7 +153,7 @@ test("Text to Lattice implementation stays under the declared software license",
 
   const latticeRule = licenseMap.rules[latticeRuleIndex];
   assert.equal(latticeRule.license, licenseMap.default_license);
-  assert.equal(latticeRule.license, "PolyForm-Noncommercial-1.0.0");
+  assert.equal(latticeRule.license, "LicenseRef-Hayden-Proprietary-1.0");
   assert.ok(latticeRule.paths.includes("app/resume/latticeDemo.js"));
   assert.ok(latticeRule.paths.includes("app/resume/ResumeProjects.tsx"));
   assert.ok(latticeRule.paths.includes("app/resume/ResumeProjectsHeld.tsx"));
@@ -129,7 +194,7 @@ test("Lattice documentation source, generator, and exported editions retain dist
     "public/documentation/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json",
   ];
 
-  assert.equal(ruleFor("scripts/docs/**")?.license, "PolyForm-Noncommercial-1.0.0");
+  assert.equal(ruleFor("scripts/docs/**")?.license, "LicenseRef-Hayden-Proprietary-1.0");
   assert.equal(ruleFor("docs/text-to-lattice/**")?.license, "LicenseRef-Hayden-Portfolio-Content");
   assert.equal(ruleFor("public/documentation/text-to-lattice/*.md")?.license, "LicenseRef-Hayden-Portfolio-Content");
   for (const path of publicReleaseEvidence) {

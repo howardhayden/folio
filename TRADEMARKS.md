@@ -1,6 +1,7 @@
 # Names, marks, and endorsement
 
-The copyright licenses do not grant permission to use project names, logos,
+Repository access, an Official Product entitlement, and permissions concerning
+copyrighted material do not grant permission to use project names, logos,
 word marks, source-identifying icons, personal name or likeness, or other
 source-designating elements in a way that suggests sponsorship, endorsement,
 affiliation, or official status.

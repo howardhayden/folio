@@ -311,6 +311,21 @@ test("the release register honestly holds the remote capability and preserves hi
   }
   assert.match(register.gates.find(({ id }) => id === "GATE-02").currentEvidence, /actions\/runs\/34320931448/u);
   assert.match(register.gates.find(({ id }) => id === "GATE-06").currentEvidence, /actions\/runs\/34325228788/u);
+  for (const legalAuthorityPath of [
+    "COMMERCIAL-LICENSE.md",
+    "COMMERCIAL_BASELINE.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "LICENSE-MAP.json",
+    "LICENSING.md",
+    "NOTICE",
+    "PERMISSIVE-EXCEPTIONS.md",
+    "README.md",
+    "TRADEMARKS.md",
+    "WORKFLOW-BOUNDARIES.md",
+  ]) {
+    assert.ok(register.authority.qualifiedSourceSet.files.includes(legalAuthorityPath), `${legalAuthorityPath} is release-bound`);
+  }
   assert.ok(register.authority.qualifiedSourceSet.files.includes("docs/lattice-resume-demo-requirements.md"));
   assert.ok(register.authority.qualifiedSourceSet.files.includes("docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.schema.json"));
   assert.ok(register.authority.qualifiedSourceSet.files.includes("docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.template.json"));

@@ -62,6 +62,7 @@ export const staticSourceCopies = Object.freeze([
   sourceCopyRecord("/THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md", "text/markdown"),
   sourceCopyRecord("/THIRD_PARTY_LICENSES.txt", "THIRD_PARTY_LICENSES.txt", "THIRD_PARTY_LICENSES.txt", "text/plain"),
   sourceCopyRecord("/LICENSES/Apache-2.0.txt", "LICENSES/Apache-2.0.txt", "LICENSES/Apache-2.0.txt", "text/plain"),
+  sourceCopyRecord("/LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt", "LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt", "LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt", "text/plain"),
   sourceCopyRecord("/LICENSES/LicenseRef-Hayden-Portfolio-Content.txt", "LICENSES/LicenseRef-Hayden-Portfolio-Content.txt", "LICENSES/LicenseRef-Hayden-Portfolio-Content.txt", "text/plain"),
   sourceCopyRecord("/LICENSES/Llama-3.2-Acceptable-Use-Policy.md", "LICENSES/Llama-3.2-Acceptable-Use-Policy.md", "LICENSES/Llama-3.2-Acceptable-Use-Policy.md", "text/markdown"),
   sourceCopyRecord("/LICENSES/Llama-3.2-Community-License.txt", "LICENSES/Llama-3.2-Community-License.txt", "LICENSES/Llama-3.2-Community-License.txt", "text/plain"),
@@ -70,7 +71,8 @@ export const staticSourceCopies = Object.freeze([
   sourceCopyRecord("/LICENSES/MIT-loglevel.txt", "LICENSES/MIT-loglevel.txt", "LICENSES/MIT-loglevel.txt", "text/plain"),
   sourceCopyRecord("/LICENSES/MIT-vinext.txt", "LICENSES/MIT-vinext.txt", "LICENSES/MIT-vinext.txt", "text/plain"),
   sourceCopyRecord("/LICENSES/OFL-1.1-Jost.txt", "LICENSES/OFL-1.1-Jost.txt", "LICENSES/OFL-1.1-Jost.txt", "text/plain"),
-  sourceCopyRecord("/LICENSES/PolyForm-Noncommercial-1.0.0.txt", "LICENSES/PolyForm-Noncommercial-1.0.0.txt", "LICENSES/PolyForm-Noncommercial-1.0.0.txt", "text/plain"),
+  // Historical evidence only; current Owner-controlled material uses LicenseRef-Hayden-Proprietary-1.0.
+  sourceCopyRecord("/LICENSES/HISTORICAL/PolyForm-Noncommercial-1.0.0.txt", "LICENSES/HISTORICAL/PolyForm-Noncommercial-1.0.0.txt", "LICENSES/HISTORICAL/PolyForm-Noncommercial-1.0.0.txt", "text/plain"),
 ]);
 
 export const staticExportRoutes = Object.freeze([

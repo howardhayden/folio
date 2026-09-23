@@ -248,6 +248,18 @@ function authoredDocument(html) {
   return html.split('<script id="_R_">')[0];
 }
 
+function normalizeBuildInstanceChunkReferences(html) {
+  return html
+    .replace(
+      /\/_next\/static\/chunks\/(index|vinext|layout-segment-context)-[A-Za-z0-9_-]+\.js/gu,
+      "/_next/static/chunks/$1-[build-instance].js",
+    )
+    .replace(
+      /deploymentVersion[^0-9]+[0-9a-f-]{36}/gu,
+      "deploymentVersion:[build-instance]",
+    );
+}
+
 function decodedText(html) {
   return authoredDocument(html)
     .replace(/<script\b[\s\S]*?<\/script>/giu, " ")
@@ -1171,6 +1183,12 @@ test("semantic artifacts and supplied license records are directly present at th
   for (const record of staticSourceCopies.filter(({ pathname }) => /^(?:\/LICENSES\/|\/NOTICE$|\/THIRD_PARTY_)/u.test(pathname))) {
     assert.ok(noticeLinks.has(record.pathname), `the notices page links directly to ${record.pathname}`);
   }
+  assert.ok(noticeLinks.has("/LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt"));
+  assert.ok(noticeLinks.has("/LICENSES/HISTORICAL/PolyForm-Noncommercial-1.0.0.txt"));
+  assert.equal(noticeLinks.has("/LICENSES/PolyForm-Noncommercial-1.0.0.txt"), false);
+  assert.match(noticesHtml, /Current Owner terms/u);
+  assert.match(noticesHtml, /Historical Owner license records/u);
+  assert.match(noticesHtml, /They do not grant rights over new Owner-controlled material/u);
 });
 
 test("a no-JavaScript anchor crawl from home reaches every canonical HTML record", async () => {
@@ -1197,7 +1215,7 @@ test("a no-JavaScript anchor crawl from home reaches every canonical HTML record
   );
 });
 
-test("every static export matches its built server representation", async () => {
+test("every static export matches its built server representation and references shipped assets", async () => {
   for (const route of staticExportRoutes) {
     const [response, staticBody] = await Promise.all([
       request(route.pathname, route.accept),
@@ -1206,6 +1224,16 @@ test("every static export matches its built server representation", async () => 
     const renderedBody = await response.text();
     assert.equal(response.status, route.expectedStatus, route.pathname);
     assert.match(response.headers.get("content-type") ?? "", new RegExp(`^${route.contentType.replace("+", "\\+")}`, "u"));
-    assert.equal(staticBody, renderedBody, `${route.output} is an exact render of ${route.pathname}`);
+    for (const match of staticBody.matchAll(/(?:href|src)="(\/_next\/static\/[^"]+)"/gu)) {
+      await assert.doesNotReject(
+        readFile(staticFileUrl(match[1].slice(1))),
+        `${route.output} references shipped asset ${match[1]}`,
+      );
+    }
+    assert.equal(
+      normalizeBuildInstanceChunkReferences(staticBody),
+      normalizeBuildInstanceChunkReferences(renderedBody),
+      `${route.output} is an exact semantic render of ${route.pathname}`,
+    );
   }
 });

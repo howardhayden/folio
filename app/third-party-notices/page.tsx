@@ -6,8 +6,8 @@ import { semanticMetadata } from "../semantic/metadata";
 import { jsonLdForPage } from "../semantic/portfolio.js";
 
 export const metadata = semanticMetadata(
-  "Third-party notices",
-  "Source, model, runtime, attribution, and license records for hah.dev and Text to Lattice.",
+  "Legal and third-party notices",
+  "Current Owner terms, historical license records, and third-party attribution for hah.dev and Text to Lattice.",
   "/third-party-notices/",
 );
 
@@ -32,7 +32,16 @@ const documents = [
   },
 ] as const;
 
-const licenseDocuments = [
+const ownerTermsDocuments = [
+  ["Hayden proprietary product and source terms", "/LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt"],
+  ["Hayden portfolio-content terms", "/LICENSES/LicenseRef-Hayden-Portfolio-Content.txt"],
+] as const;
+
+const historicalOwnerLicenseDocuments = [
+  ["PolyForm Noncommercial 1.0.0 — historical", "/LICENSES/HISTORICAL/PolyForm-Noncommercial-1.0.0.txt"],
+] as const;
+
+const thirdPartyLicenseDocuments = [
   ["Apache License 2.0", "/LICENSES/Apache-2.0.txt"],
   ["MIT License for React and React DOM", "/LICENSES/MIT-React.txt"],
   ["MIT License for Vinext", "/LICENSES/MIT-vinext.txt"],
@@ -41,8 +50,6 @@ const licenseDocuments = [
   ["MIT License for loglevel", "/LICENSES/MIT-loglevel.txt"],
   ["Llama 3.2 Community License", "/LICENSES/Llama-3.2-Community-License.txt"],
   ["Llama 3.2 Acceptable Use Policy", "/LICENSES/Llama-3.2-Acceptable-Use-Policy.md"],
-  ["PolyForm Noncommercial 1.0.0", "/LICENSES/PolyForm-Noncommercial-1.0.0.txt"],
-  ["Hayden portfolio-content terms", "/LICENSES/LicenseRef-Hayden-Portfolio-Content.txt"],
 ] as const;
 
 export default function ThirdPartyNoticesPage() {
@@ -57,8 +64,8 @@ export default function ThirdPartyNoticesPage() {
       <SiteHeader />
       <main className="container mt-4 page-view semantic-page" data-page-view="third-party-notices">
         <article>
-          <h1>Third-party notices</h1>
-          <p className="lead">Source, model, runtime, attribution, and license records for hah.dev and Text to Lattice.</p>
+          <h1>Legal and third-party notices</h1>
+          <p className="lead">Current Owner terms, historical license records, and third-party attribution for hah.dev and Text to Lattice.</p>
 
           <h2>Text to Lattice implementation</h2>
           <dl className="paper-meta">
@@ -79,9 +86,20 @@ export default function ThirdPartyNoticesPage() {
             {documents.map((document) => <li key={document.url}><a href={document.url}>{document.name}</a> — {document.description}</li>)}
           </ul>
 
-          <h2>License texts</h2>
+          <h2>Current Owner terms</h2>
           <ul>
-            {licenseDocuments.map(([name, url]) => <li key={url}><a href={url}>{name}</a></li>)}
+            {ownerTermsDocuments.map(([name, url]) => <li key={url}><a href={url}>{name}</a></li>)}
+          </ul>
+
+          <h2>Historical Owner license records</h2>
+          <p>These records preserve evidence of valid earlier grants. They do not grant rights over new Owner-controlled material first published under the current proprietary terms.</p>
+          <ul>
+            {historicalOwnerLicenseDocuments.map(([name, url]) => <li key={url}><a href={url}>{name}</a></li>)}
+          </ul>
+
+          <h2>Third-party license texts</h2>
+          <ul>
+            {thirdPartyLicenseDocuments.map(([name, url]) => <li key={url}><a href={url}>{name}</a></li>)}
           </ul>
 
           <p>Upstream model cards and terms remain controlling. No hah.dev record supersedes a third-party license, acceptable-use policy, attribution, or restriction.</p>
