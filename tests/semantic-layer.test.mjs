@@ -1183,12 +1183,14 @@ test("semantic artifacts and supplied license records are directly present at th
   for (const record of staticSourceCopies.filter(({ pathname }) => /^(?:\/LICENSES\/|\/NOTICE$|\/THIRD_PARTY_)/u.test(pathname))) {
     assert.ok(noticeLinks.has(record.pathname), `the notices page links directly to ${record.pathname}`);
   }
-  assert.ok(noticeLinks.has("/LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt"));
+  assert.ok(noticeLinks.has("/LICENSES/LicenseRef-Hayden-Proprietary-1.1.txt"));
+  assert.ok(noticeLinks.has("/LICENSES/HISTORICAL/LicenseRef-Hayden-Proprietary-1.0.txt"));
   assert.ok(noticeLinks.has("/LICENSES/HISTORICAL/PolyForm-Noncommercial-1.0.0.txt"));
   assert.equal(noticeLinks.has("/LICENSES/PolyForm-Noncommercial-1.0.0.txt"), false);
   assert.match(noticesHtml, /Current Owner terms/u);
   assert.match(noticesHtml, /Historical Owner license records/u);
-  assert.match(noticesHtml, /They do not grant rights over new Owner-controlled material/u);
+  assert.match(noticesHtml, /do not automatically attach to later copies/u);
+  assert.match(noticesHtml, /grant rights over new Owner-controlled material/u);
 });
 
 test("a no-JavaScript anchor crawl from home reaches every canonical HTML record", async () => {

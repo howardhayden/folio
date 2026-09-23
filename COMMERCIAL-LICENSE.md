@@ -13,6 +13,7 @@ the recipient, material, allowed actions, scope, and duration. There is no
 standing commitment to offer such a grant.
 
 This document is a policy summary, not a checkout, subscription enrollment,
-price schedule, warranty, or amendment to a valid earlier or third-party license.
+price schedule, warranty, or amendment to a valid permission attached to an
+earlier distributed copy or to a third-party license.
 Existing entitlements and the historical/statutory exceptions in `LICENSE`
 remain intact. Requests for additional permission are not permission themselves.

@@ -3,7 +3,7 @@
   "audited": "2026-09-23",
   "project": "hah.dev portfolio",
   "source_available_not_open_source": true,
-  "default_license": "LicenseRef-Hayden-Proprietary-1.0",
+  "default_license": "LicenseRef-Hayden-Proprietary-1.1",
   "commercial_use_granted": false,
   "precedence": [
     "applicable-law-and-platform-rights",
@@ -21,14 +21,14 @@
         "app/resume/latticeDemo.js",
         "app/resume/lattice/**"
       ],
-      "license": "LicenseRef-Hayden-Proprietary-1.0",
+      "license": "LicenseRef-Hayden-Proprietary-1.1",
       "scope": "Text to Lattice executable implementation; this explicit software rule precedes the broader resume-content rule"
     },
     {
       "paths": [
         "scripts/docs/**"
       ],
-      "license": "LicenseRef-Hayden-Proprietary-1.0",
+      "license": "LicenseRef-Hayden-Proprietary-1.1",
       "scope": "deterministic Lattice documentation generator and validation implementation"
     },
     {
@@ -102,7 +102,7 @@
     "the distinctive film-grain, signal, motion, typography, icon, and visual-identity integration"
   ],
   "permissive_exceptions": [],
-  "historical_notice": "Valid permissions already attached to earlier distributed copies remain governed by their own terms. This map does not determine whether an earlier permission applies to a different copy or later distribution. New pricing or this notice does not revoke rights already granted in an earlier copy. Historical and third-party license texts are not new grants over new Owner-controlled material.",
+  "historical_notice": "Permissions validly attached to earlier distributed copies remain governed by their own terms and do not automatically attach to later copies or snapshots. This map does not determine whether an earlier permission applies to a different copy or later distribution. A new filename, version, price, repository visibility setting, or license notice does not by itself extinguish rights validly attached to an earlier copy. Historical and third-party license texts are evidence, not new grants over new Owner-controlled material.",
   "policy_updated": "2026-09-23",
   "policy_license_file": "LICENSE",
   "implementation_reuse_granted": false,

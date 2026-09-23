@@ -2,7 +2,7 @@ export const SITE_ORIGIN = "https://hah.dev";
 export const SITE_CONTENT_VERSION = "hah-portfolio.v1";
 export const SITE_CONTENT_UPDATED = "2026-09-23";
 export const SITE_REPOSITORY = "https://github.com/howardhayden/folio";
-export const SITE_SOURCE_TERMS_URL = `${SITE_ORIGIN}/LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt`;
+export const SITE_SOURCE_TERMS_URL = `${SITE_ORIGIN}/LICENSES/LicenseRef-Hayden-Proprietary-1.1.txt`;
 export const SITE_CONTENT_TERMS_URL = `${SITE_REPOSITORY}/blob/main/LICENSES/LicenseRef-Hayden-Portfolio-Content.txt`;
 export const homeTitle = "Yes, my initials spell \"hah.\"";
 

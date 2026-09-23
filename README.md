@@ -67,8 +67,8 @@ The test command validates every ASCII pose, performs a production build, valida
 ## Licensing
 
 Current Owner-controlled material is proprietary under the
-**Hayden Howard Proprietary Product and Source License 1.0**
-(`LicenseRef-Hayden-Proprietary-1.0`). Repository visibility grants no general
+**Hayden Howard Proprietary Product and Source License 1.1**
+(`LicenseRef-Hayden-Proprietary-1.1`). Repository visibility grants no general
 permission to build, run, modify, redistribute, self-host, or reuse the source.
 Personal, résumé, ASCII-character, animation, and distinctive identity material
 also remains rights-reserved under its mapped content terms.

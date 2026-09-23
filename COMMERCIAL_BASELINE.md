@@ -40,3 +40,20 @@ license notices are not relicensed by this baseline.
 This record does not change repository visibility, remove history, activate a
 product, set a price, create customer assent, or claim that inaccessible copies
 of earlier releases have ceased to exist.
+
+## 2026-09-23 canonical successor
+
+The baseline record above remains an exact account of the initial
+`LicenseRef-Hayden-Proprietary-1.0` transition. It is not rewritten by the
+later policy revision. Snapshots first distributed from the successor commit
+forward use `LicenseRef-Hayden-Proprietary-1.1` as their active default terms.
+The canonical 1.1 text is `LICENSE` and
+`LICENSES/LicenseRef-Hayden-Proprietary-1.1.txt`, each with SHA-256
+`07b7734eb4da7c79ffdd32d4641ab64eea1922e8149ebf50c430e5f54657628c`.
+
+The superseded 1.0 text is retained at
+`LICENSES/HISTORICAL/LicenseRef-Hayden-Proprietary-1.0.txt` as evidence of the
+terms distributed with the commercial baseline. Permissions validly attached
+to earlier distributed copies remain governed by their own terms and do not
+automatically attach to later copies or snapshots. The 1.1 revision does not
+retroactively rewrite the 1.0 baseline or any still-earlier grant.

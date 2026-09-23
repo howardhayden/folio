@@ -33,11 +33,12 @@ const documents = [
 ] as const;
 
 const ownerTermsDocuments = [
-  ["Hayden proprietary product and source terms", "/LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt"],
+  ["Hayden proprietary product and source terms", "/LICENSES/LicenseRef-Hayden-Proprietary-1.1.txt"],
   ["Hayden portfolio-content terms", "/LICENSES/LicenseRef-Hayden-Portfolio-Content.txt"],
 ] as const;
 
 const historicalOwnerLicenseDocuments = [
+  ["Hayden Proprietary Product and Source License 1.0 — historical", "/LICENSES/HISTORICAL/LicenseRef-Hayden-Proprietary-1.0.txt"],
   ["PolyForm Noncommercial 1.0.0 — historical", "/LICENSES/HISTORICAL/PolyForm-Noncommercial-1.0.0.txt"],
 ] as const;
 
@@ -92,7 +93,7 @@ export default function ThirdPartyNoticesPage() {
           </ul>
 
           <h2>Historical Owner license records</h2>
-          <p>These records preserve evidence of valid earlier grants. They do not grant rights over new Owner-controlled material first published under the current proprietary terms.</p>
+          <p>These records preserve evidence of terms and permissions attached to earlier distributed copies. They do not automatically attach to later copies or grant rights over new Owner-controlled material first published under the current proprietary terms.</p>
           <ul>
             {historicalOwnerLicenseDocuments.map(([name, url]) => <li key={url}><a href={url}>{name}</a></li>)}
           </ul>

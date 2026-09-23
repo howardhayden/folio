@@ -396,8 +396,9 @@ const thirdPartyDocuments = Object.freeze([
   ["MIT License for loglevel", "/LICENSES/MIT-loglevel.txt", "text/plain", "License text supplied for loglevel."],
   ["Llama 3.2 Community License", "/LICENSES/Llama-3.2-Community-License.txt", "text/plain", "Agreement text supplied for the Llama 3.2 verifier."],
   ["Llama 3.2 Acceptable Use Policy", "/LICENSES/Llama-3.2-Acceptable-Use-Policy.md", "text/markdown", "Acceptable-use policy snapshot supplied for the Llama 3.2 verifier."],
-  ["Hayden proprietary product and source terms", "/LICENSES/LicenseRef-Hayden-Proprietary-1.0.txt", "text/plain", "Current terms governing Owner-controlled source and Official Product use."],
-  ["Historical PolyForm Noncommercial 1.0.0", "/LICENSES/HISTORICAL/PolyForm-Noncommercial-1.0.0.txt", "text/plain", "Historical license text retained as evidence of earlier grants; it is not a new grant over material first published under the current terms."],
+  ["Hayden proprietary product and source terms", "/LICENSES/LicenseRef-Hayden-Proprietary-1.1.txt", "text/plain", "Current terms governing Owner-controlled source and Official Product use."],
+  ["Historical Hayden Proprietary 1.0", "/LICENSES/HISTORICAL/LicenseRef-Hayden-Proprietary-1.0.txt", "text/plain", "Superseded proprietary terms retained as historical evidence; they are not the current terms."],
+  ["Historical PolyForm Noncommercial 1.0.0", "/LICENSES/HISTORICAL/PolyForm-Noncommercial-1.0.0.txt", "text/plain", "Historical license text retained as evidence of permissions attached to earlier copies; it is not a new grant over material first published under the current terms."],
   ["Hayden portfolio-content terms", "/LICENSES/LicenseRef-Hayden-Portfolio-Content.txt", "text/plain", "Terms governing owner-authored portfolio content."],
 ].map(([name, pathname, encodingFormat, description]) => Object.freeze({ name, pathname, encodingFormat, description })));
 const thirdPartyDocumentNodes = thirdPartyDocuments.map((document) => ({

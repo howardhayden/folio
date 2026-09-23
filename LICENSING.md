@@ -7,11 +7,12 @@ claim of independent legal review or a change to prior valid grants.
 ## Controlling terms
 
 Original Owner-controlled material is proprietary under the
-[Hayden Howard Proprietary Product and Source License 1.0](LICENSE).
-The identifier is `LicenseRef-Hayden-Proprietary-1.0`. It is not open source and has
+[Hayden Howard Proprietary Product and Source License 1.1](LICENSE).
+The identifier is `LicenseRef-Hayden-Proprietary-1.1`. It is not open source and has
 no general noncommercial, educational, nonprofit, or governmental reuse grant.
 `LICENSE-MAP.json` identifies material scopes; it does not relicense third-party
-components or eliminate rights already granted over earlier material.
+components. Permissions validly attached to earlier distributed copies remain
+governed by their own terms and do not automatically attach to later copies or snapshots.
 
 The existing `LicenseRef-Hayden-Portfolio-Content` scope remains reserved for personal, professional, and distinctive identity material; it is not converted into a reusable template license.
 
@@ -50,15 +51,16 @@ mixed documents retain the applicable terms of their components.
 
 ## Boundaries and precedence
 
-Apply applicable law and platform rights first. Preserve valid earlier grants
-and third-party terms for their material. Apply separately signed Owner
+Apply applicable law and platform rights first. Preserve permissions validly
+attached to earlier distributed copies and third-party terms for their material.
+Apply separately signed Owner
 agreements only within their express scope, then protected identity or register
 terms, the ordered scope map, and the default proprietary license.
 
 Historical MIT and PolyForm notices, and any other valid license notice that
 applies to a separately identified copy or third-party material, must not be
-deleted or rewritten to imply that earlier rights vanished. Those grants remain
-governed by their terms for the copies and material they covered when granted.
+deleted or rewritten to imply that earlier rights vanished. Permissions validly
+attached to earlier distributed copies remain governed by their own terms.
 This policy does not determine whether an earlier permission applies to a
 different copy or later distribution. Third-party fonts, packages, algorithms,
 and media retain their own notices. A public GitHub repository remains subject
