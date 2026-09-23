@@ -1,7 +1,7 @@
 import { documentsForProject } from "../content/projectDocuments.js";
 
-export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v11";
-export const PROJECT_CONTENT_UPDATED = "2026-09-22";
+export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v12";
+export const PROJECT_CONTENT_UPDATED = "2026-09-23";
 
 const LATTICE_CARD_RESOURCE_LABELS = Object.freeze({
   "lattice-concept-map": "Concept and Ecosystem Map",
@@ -274,7 +274,8 @@ export const projects = Object.freeze([
     name: "Finding Freedom Summer Traveling Exhibit",
     type: "CreativeWork",
     canonicalPath: "/projects/finding-freedom-summer-traveling-exhibit/",
-    url: "https://www.linkedin.com/in/howardhayden/details/projects/",
+    url: "https://findingfreedom.lib.miamioh.edu",
+    resumeCardLink: "authoritative-source",
     icon: "archive",
     thesis: "The Finding Freedom Summer Traveling Exhibit connected an OhioLINK-associated collaboration to the library systems and web-services relationships that supported it.",
     summary: Object.freeze([
@@ -283,11 +284,12 @@ export const projects = Object.freeze([
     ]),
     capabilities: Object.freeze(["Collaborative exhibit support", "Library web-services collaboration"]),
     technologies: Object.freeze(["Sierra ILS", "Ruby on Rails"]),
-    evidence: Object.freeze(["https://www.linkedin.com/in/howardhayden/details/projects/"]),
+    evidence: Object.freeze(["https://findingfreedom.lib.miamioh.edu"]),
     limitations: Object.freeze(["The supplied record identifies collaborators, association, and technologies but does not assign individual implementation responsibilities."]),
     emphasis: Object.freeze(["traveling exhibits", "OhioLINK", "library web services"]),
     relationships: Object.freeze([]),
     resources: Object.freeze([
+      Object.freeze({ label: "Finding Freedom Summer authoritative source", cardLabel: "Authoritative source", url: "https://findingfreedom.lib.miamioh.edu", icon: "archive", opensInNewTab: true }),
       Object.freeze({ kind: "contributor", contributorName: "Ken Irwin", label: "Contributor: Ken Irwin", url: "https://www.linkedin.com/in/ken-irwin-08a87ab5/", icon: "backpack4", opensInNewTab: true }),
       Object.freeze({ kind: "contributor", contributorName: "Meng Qu", label: "Contributor: Meng Qu", url: "https://www.linkedin.com/in/mengqu/", icon: "backpack4", opensInNewTab: true }),
       Object.freeze({ kind: "contributor", contributorName: "Jerry Yarnetsky", label: "Contributor: Jerry Yarnetsky", url: "https://www.linkedin.com/in/jerry-yarnetsky/", icon: "backpack4", opensInNewTab: true }),

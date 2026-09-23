@@ -22,7 +22,7 @@ test("Resume Search covers every canonical content class and preserves evidence 
     experiences: 8,
     skills: 9,
     education: 5,
-    evidence: 1682,
+    evidence: 1684,
   });
   for (const indexed of resumeSearchIndex.records) {
     assert.ok(indexed.record.evidence.length > 0, indexed.record.id);
@@ -556,13 +556,21 @@ test("historical project records preserve supplied dates, collaborators, qualifi
   assert.deepEqual(byId.get("chromebook-management").technologies, [
     "Jekyll", "Ruby on Rails", "Google Cloud Platform", "Node.js", "Sierra ILS",
   ]);
-  assert.deepEqual(byId.get("finding-freedom-summer-traveling-exhibit").resources.map(({ label }) => label), [
-    "Contributor: Ken Irwin",
-    "Contributor: Meng Qu",
-    "Contributor: Jerry Yarnetsky",
+  const findingFreedom = byId.get("finding-freedom-summer-traveling-exhibit");
+  assert.equal(findingFreedom.url, "https://findingfreedom.lib.miamioh.edu");
+  assert.equal(findingFreedom.resumeCardLink, "authoritative-source");
+  assert.deepEqual(findingFreedom.evidence, ["https://findingfreedom.lib.miamioh.edu"]);
+  assert.deepEqual(findingFreedom.resources.map(({ label, url }) => ({ label, url })), [
+    {
+      label: "Finding Freedom Summer authoritative source",
+      url: "https://findingfreedom.lib.miamioh.edu",
+    },
+    { label: "Contributor: Ken Irwin", url: "https://www.linkedin.com/in/ken-irwin-08a87ab5/" },
+    { label: "Contributor: Meng Qu", url: "https://www.linkedin.com/in/mengqu/" },
+    { label: "Contributor: Jerry Yarnetsky", url: "https://www.linkedin.com/in/jerry-yarnetsky/" },
   ]);
   assert.doesNotMatch(
-    byId.get("finding-freedom-summer-traveling-exhibit").summary.join(" "),
+    findingFreedom.summary.join(" "),
     /Ken Irwin|Meng Qu|Jerry Yarnetsky/u,
   );
   for (const id of revisedProjectIds) {

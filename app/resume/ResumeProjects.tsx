@@ -221,6 +221,9 @@ export function ResumeProjectCard({
 }: ResumeProjectCardProps) {
   const headingId = projectHeadingId(project.name, headingPrefix);
   const latticeProject = "interaction" in project && project.interaction === "lattice-demo";
+  const linksToAuthoritativeSource = "resumeCardLink" in project
+    && project.resumeCardLink === "authoritative-source";
+  const cardHref = linksToAuthoritativeSource ? project.url : project.canonicalPath;
 
   return (
     <article className="card" aria-labelledby={headingId}>
@@ -248,6 +251,15 @@ export function ResumeProjectCard({
             >
               <ProjectIcon icon={project.icon as ProjectIconName} />
             </a>
+          ) : linksToAuthoritativeSource ? (
+            <a
+              className="tool-icon signal-fuzz"
+              href={cardHref}
+              aria-label={`Open ${project.name} authoritative source`}
+              onClick={(event) => onNavigate?.(event, cardHref)}
+            >
+              <ProjectIcon icon={project.icon as ProjectIconName} />
+            </a>
           ) : (
             <span className="tool-icon signal-fuzz" aria-hidden="true">
               <ProjectIcon icon={project.icon as ProjectIconName} />
@@ -258,8 +270,8 @@ export function ResumeProjectCard({
         <h3 className="card-title tools-card-title project-card-title row justify-content-center" id={headingId}>
           <a
             className="signal-fuzz"
-            href={project.canonicalPath}
-            onClick={(event) => onNavigate?.(event, project.canonicalPath)}
+            href={cardHref}
+            onClick={(event) => onNavigate?.(event, cardHref)}
           >
             {project.name}
           </a>
