@@ -144,7 +144,7 @@ test("the Lattice project SVG alone intercepts unmodified primary activations", 
   const titleEnd = card.indexOf("</h3>", titleStart);
   assert.ok(titleStart >= 0 && titleEnd > titleStart, "the shared card retains canonical title navigation");
   const title = card.slice(titleStart, titleEnd);
-  assert.match(title, /href=\{project\.canonicalPath\}/u);
+  assert.match(title, /href=\{cardHref\}/u);
   assert.doesNotMatch(title, /onLatticeLaunch|launchLattice/u);
 
   assert.match(

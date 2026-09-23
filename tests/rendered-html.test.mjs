@@ -1485,6 +1485,10 @@ test("renders current projects and terminal resource manifests without documenta
     html,
     /href="https:\/\/scdb\.lib\.miamioh\.edu\/server\/api\/core\/bitstreams\/acd28a12-c901-420e-bb71-ab16f9316448\/content"[^>]*aria-label="Syllabus, opens in a new tab"[^>]*>Syllabus<\/a>/u,
   );
+  assert.match(
+    html,
+    /href="https:\/\/findingfreedom\.lib\.miamioh\.edu"[^>]*aria-label="Authoritative source, opens in a new tab"[^>]*>Authoritative source<\/a>/u,
+  );
   for (const [name, profile] of [
     ["Ken Irwin", "ken-irwin-08a87ab5/"],
     ["Meng Qu", "mengqu/"],
@@ -1501,7 +1505,7 @@ test("renders current projects and terminal resource manifests without documenta
     (count, project) => count + project.resources.length,
     0,
   );
-  assert.equal(expectedProjectResourceCount, 21, "the current project register exposes twenty-one nonredundant scented resources");
+  assert.equal(expectedProjectResourceCount, 22, "the current project register exposes twenty-two nonredundant scented resources");
   const primaryBackpackCount = projects.filter(({ icon }) => icon === "backpack4").length;
   assert.equal(
     (documentMarkup.match(/class="bi bi-backpack4"/g) ?? []).length,
@@ -1522,6 +1526,11 @@ test("keeps centered project headings, native Read More content, and scented res
     assert.match(
       source,
       /<h3\s+className="card-title tools-card-title project-card-title row justify-content-center"\s+id=\{headingId\}/u,
+    );
+    assert.match(
+      source,
+      /linksToAuthoritativeSource \? \([\s\S]*?className="tool-icon signal-fuzz"[\s\S]*?href=\{cardHref\}[\s\S]*?aria-label=\{`Open \$\{project\.name\} authoritative source`\}[\s\S]*?<ProjectIcon/u,
+      "both Resume card implementations link the authoritative-source SVG",
     );
   }
   assert.match(css, /\.project-card-title \{[\s\S]*?margin-top: 1rem;[\s\S]*?text-align: center;/u);
@@ -1552,12 +1561,22 @@ test("keeps centered project headings, native Read More content, and scented res
 
     for (const project of projects) {
       const encodedName = htmlText(project.name);
-      const titleMarker = `href="${project.canonicalPath}">${encodedName}</a>`;
+      const titleHref = surface === "Resume" && project.resumeCardLink === "authoritative-source"
+        ? project.url
+        : project.canonicalPath;
+      const titleMarker = `href="${titleHref}">${encodedName}</a>`;
       const titleAt = documentMarkup.indexOf(titleMarker);
       const cardStart = documentMarkup.lastIndexOf("<article", titleAt);
       const cardEnd = documentMarkup.indexOf("</article>", titleAt);
       assert.ok(titleAt >= 0 && cardStart >= 0 && cardEnd > titleAt, `${surface} renders the ${project.name} card`);
       const card = documentMarkup.slice(cardStart, cardEnd);
+      if (surface === "Resume" && project.resumeCardLink === "authoritative-source") {
+        assert.match(
+          card,
+          new RegExp(`<a(?=[^>]*class="tool-icon signal-fuzz")(?=[^>]*href="${regexEscape(project.url)}")(?=[^>]*aria-label="Open ${regexEscape(encodedName)} authoritative source")[^>]*>[\\s\\S]*?<svg[\\s\\S]*?<\\/svg>[\\s\\S]*?<\\/a>`),
+          `${project.name} links its SVG to its authoritative source`,
+        );
+      }
       const detailsStart = card.indexOf('<details class="project-readme project-description-disclosure"');
       const detailsEnd = card.indexOf("</details>", detailsStart);
       const resourcesStart = card.indexOf('<nav class="project-resources"', detailsEnd);

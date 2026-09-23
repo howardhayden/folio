@@ -61,7 +61,8 @@ test("the HTML-only Pages artifact uses native anchors for application navigatio
     heldProjects,
     /project\.id === "lattice"[\s\S]*?className="tool-icon project-modal-trigger signal-fuzz"[\s\S]*?href="\/projects\/lattice\/text-to-lattice\/"[\s\S]*?aria-label="Read Text to Lattice release status"/u,
   );
-  assert.match(heldProjects, /className="signal-fuzz"[\s\S]*?href=\{project\.canonicalPath\}/u);
+  assert.match(heldProjects, /const cardHref = linksToAuthoritativeSource \? project\.url : project\.canonicalPath/u);
+  assert.match(heldProjects, /className="signal-fuzz"[\s\S]*?href=\{cardHref\}/u);
   assert.doesNotMatch(heldProjects, /aria-haspopup=|role="dialog"|data-lattice-launch=/u);
   assert.doesNotMatch(resumeSearch, /onLatticeLaunch|data-lattice-launch|requestRemoteLattice/u);
 });
