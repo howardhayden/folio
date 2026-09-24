@@ -10,7 +10,7 @@
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `fe6ee7e3b0193756ba84ce02a8627ce17ffbe7dd645f5c1377a5934e01fce6f3`
+**Qualified source-set SHA-256:** `3101725647b66f51d38ca5a1c1b3c822cf104205af906f56ed91fccc8f11fef8`
 
 **Artifact-set projection SHA-256:** `c49ca0a8468250e8d221e6f58d8b085a40a21015861e60d2b86d35bf15682cb5`
 

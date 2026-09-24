@@ -1201,7 +1201,9 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
       "temperature",
       "top_p",
     ];
-    if (index === 0) expectedKeys.push("chat_template_kwargs", "min_p", "top_k");
+    if (index === 0) {
+      expectedKeys.push("chat_template_kwargs", "min_p", "presence_penalty", "top_k");
+    }
     assert.deepEqual(Object.keys(body).sort(), expectedKeys.sort());
     assert.equal(init.method, "POST");
     assert.equal(init.cache, "no-store");
@@ -1217,9 +1219,11 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
   assert.deepEqual(calls[0].body.chat_template_kwargs, { enable_thinking: false });
   assert.equal(calls[0].body.top_k, 20);
   assert.equal(calls[0].body.min_p, 0);
+  assert.equal(calls[0].body.presence_penalty, 1.5);
   assert.equal(Object.hasOwn(calls[1].body, "chat_template_kwargs"), false);
   assert.equal(Object.hasOwn(calls[1].body, "top_k"), false);
   assert.equal(Object.hasOwn(calls[1].body, "min_p"), false);
+  assert.equal(Object.hasOwn(calls[1].body, "presence_penalty"), false);
   assert.match(calls[0].body.messages[0].content, /Return exactly one minified JSON object/u);
   assert.ok(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)));
   assert.ok(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)));
@@ -1337,6 +1341,9 @@ test("optional provider sampler extensions fail closed before external fetch", a
     { minP: -0.1 },
     { minP: 1.1 },
     { minP: Number.NaN },
+    { presencePenalty: -0.1 },
+    { presencePenalty: 2.1 },
+    { presencePenalty: Number.NaN },
   ]) {
     await assert.rejects(
       requestHuggingFaceJson(providerRequestOptions(fetchImpl, overrides)),
@@ -1344,6 +1351,28 @@ test("optional provider sampler extensions fail closed before external fetch", a
     );
   }
   assert.equal(fetches, 0);
+});
+
+test("a provider output limit fails after one fetch without retry", async () => {
+  let fetches = 0;
+  await assert.rejects(
+    requestHuggingFaceJson(providerRequestOptions(async () => {
+      fetches += 1;
+      return new Response(JSON.stringify({
+        choices: [{
+          finish_reason: "length",
+          message: { role: "assistant", content: "private truncated output" },
+        }],
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    })),
+    (error) => error instanceof LatticeProviderError
+      && error.code === "provider_output_limit"
+      && !error.message.includes("private truncated output"),
+  );
+  assert.equal(fetches, 1);
 });
 
 test("the immutable 32-call adapter budget blocks a 33rd provider fetch", async () => {
@@ -2130,7 +2159,7 @@ test("the serialized provider request is byte-bounded before external fetch", as
   const baseOptions = providerRequestOptions(async () => {
     fetches += 1;
     return successfulProviderResponse();
-  });
+  }, { presencePenalty: 1.5 });
   const preContractBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS.generator,
     messages: baseOptions.messages,
@@ -2139,6 +2168,7 @@ test("the serialized provider request is byte-bounded before external fetch", as
     max_tokens: baseOptions.maxTokens,
     temperature: baseOptions.temperature,
     top_p: baseOptions.topP,
+    presence_penalty: baseOptions.presencePenalty,
     seed: 71_903,
     stream: false,
   });
