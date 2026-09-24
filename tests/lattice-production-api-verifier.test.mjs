@@ -18,6 +18,7 @@ import {
   writeLatticeProductionEvidenceReceipt,
 } from "../scripts/verify-text-to-lattice-api-production.mjs";
 import {
+  LATTICE_HELD_API_READINESS_CONTRACT,
   verifyTextToLatticeHeldApi,
 } from "../scripts/verify-text-to-lattice-held-api.mjs";
 import {
@@ -101,13 +102,14 @@ function unableResult(findings, overrides = {}) {
   };
 }
 
-function activeReadinessResponse() {
-  return apiJson({ error: "invalid_request" }, 405, { Allow: "POST" });
+function activeReadinessResponse(headers = {}) {
+  return apiJson({ error: "invalid_request" }, 405, { Allow: "POST", ...headers });
 }
 
-function heldReadinessResponse() {
+function heldReadinessResponse(headers = {}) {
   return apiJson({ error: "upstream_unavailable" }, 503, {
     "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    ...headers,
   });
 }
 
@@ -917,41 +919,342 @@ test("the transformation response cannot rotate the setup cookie", async () => {
   assert.equal(fixture.canaryRequests, 1);
 });
 
-test("the rollback verifier binds one held Worker version to a bounded public 503 without content evidence", async () => {
+const heldDeploymentStatus = Object.freeze({
+  id: "deployment-held-123",
+  created_on: "2026-09-14T12:35:00.000Z",
+  versions: Object.freeze([Object.freeze({
+    version_id: "123e4567-e89b-42d3-a456-426614174000",
+    percentage: 100,
+  })]),
+});
+
+const heldWorkflowEnvironment = Object.freeze({
+  GITHUB_REPOSITORY: context.repository,
+  GITHUB_SHA: context.commit,
+  GITHUB_RUN_ID: context.runId,
+  GITHUB_RUN_ATTEMPT: context.runAttempt,
+  GITHUB_SERVER_URL: context.serverUrl,
+});
+
+test("the held readiness contract mirrors the active propagation envelope", () => {
+  assert.deepEqual(LATTICE_HELD_API_READINESS_CONTRACT, {
+    attemptLimit: 18,
+    deadlineMs: 45_000,
+    intervalMs: 2_000,
+    requestTimeoutMs: 7_000,
+    requiredConsecutiveHeldSamples: 3,
+  });
+});
+
+test("the rollback verifier binds one held Worker version to three bounded public 503 samples without content evidence", async () => {
   let calls = 0;
   const evidence = await verifyTextToLatticeHeldApi({
-    deploymentStatus: {
-      id: "deployment-held-123",
-      created_on: "2026-09-14T12:35:00.000Z",
-      versions: [{
-        version_id: "123e4567-e89b-42d3-a456-426614174000",
-        percentage: 100,
-      }],
-    },
-    environment: {
-      GITHUB_REPOSITORY: context.repository,
-      GITHUB_SHA: context.commit,
-      GITHUB_RUN_ID: context.runId,
-      GITHUB_RUN_ATTEMPT: context.runAttempt,
-      GITHUB_SERVER_URL: context.serverUrl,
-    },
+    deploymentStatus: heldDeploymentStatus,
+    environment: heldWorkflowEnvironment,
+    wait: noWait,
     now: fixedNow,
     async fetchImpl(url, init) {
       calls += 1;
       assert.equal(url, "https://hah.dev/api/lattice");
       assert.equal(init.method, "GET");
-      return apiJson({ error: "upstream_unavailable" }, 503, {
-        "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
-      });
+      assert.deepEqual(init.headers, { Accept: "application/json" });
+      assert.equal(init.cache, "no-store");
+      assert.equal(init.credentials, "omit");
+      assert.equal(init.redirect, "error");
+      assert.equal(init.referrerPolicy, "no-referrer");
+      assert.equal("body" in init, false);
+      assert.ok(init.signal instanceof AbortSignal);
+      return heldReadinessResponse();
     },
   });
-  assert.equal(calls, 1);
+  assert.equal(calls, LATTICE_HELD_API_READINESS_CONTRACT.requiredConsecutiveHeldSamples);
   assert.equal(evidence.format, "TEXT_TO_LATTICE_HELD_ROLLBACK_EVIDENCE");
   assert.equal(evidence.worker.versionId, "123e4567-e89b-42d3-a456-426614174000");
+  assert.equal(evidence.attemptCount, 3);
+  assert.deepEqual(evidence.readiness, {
+    requestCount: 3,
+    requiredConsecutiveHeldSamples: 3,
+    observedConsecutiveHeldSamples: 3,
+    heldResponseCount: 3,
+    activeResponseCount: 0,
+    networkErrorCount: 0,
+  });
   assert.equal(evidence.boundary.httpStatus, 503);
   assert.equal(evidence.boundary.errorCode, "upstream_unavailable");
   assert.equal(evidence.contentBodiesRetained, false);
   assert.equal(evidence.secretValuesRead, false);
+});
+
+test("the rollback verifier waits through the observed run-102 propagation sequence", async () => {
+  let calls = 0;
+  const waits = [];
+  const evidence = await verifyTextToLatticeHeldApi({
+    deploymentStatus: heldDeploymentStatus,
+    environment: heldWorkflowEnvironment,
+    async wait(milliseconds) {
+      waits.push(milliseconds);
+    },
+    now: fixedNow,
+    async fetchImpl() {
+      calls += 1;
+      return calls <= 14 ? activeReadinessResponse() : heldReadinessResponse();
+    },
+  });
+  assert.equal(calls, 17);
+  assert.equal(waits.length, 16);
+  assert.ok(waits.every((milliseconds) => (
+    milliseconds === LATTICE_HELD_API_READINESS_CONTRACT.intervalMs
+  )));
+  assert.equal(evidence.attemptCount, 17);
+  assert.deepEqual(evidence.readiness, {
+    requestCount: 17,
+    requiredConsecutiveHeldSamples: 3,
+    observedConsecutiveHeldSamples: 3,
+    heldResponseCount: 3,
+    activeResponseCount: 14,
+    networkErrorCount: 0,
+  });
+  assert.equal(evidence.boundary.httpStatus, 503);
+});
+
+test("the rollback verifier resets held settlement after an exact active observation", async () => {
+  let calls = 0;
+  const dispositions = ["held", "held", "active", "held", "held", "held"];
+  const evidence = await verifyTextToLatticeHeldApi({
+    deploymentStatus: heldDeploymentStatus,
+    environment: heldWorkflowEnvironment,
+    wait: noWait,
+    now: fixedNow,
+    async fetchImpl() {
+      const disposition = dispositions[calls];
+      calls += 1;
+      return disposition === "active" ? activeReadinessResponse() : heldReadinessResponse();
+    },
+  });
+  assert.equal(calls, 6);
+  assert.equal(evidence.attemptCount, 6);
+  assert.equal(evidence.readiness.observedConsecutiveHeldSamples, 3);
+  assert.equal(evidence.readiness.heldResponseCount, 5);
+  assert.equal(evidence.readiness.activeResponseCount, 1);
+});
+
+test("the rollback verifier resets held settlement after a transient network failure", async () => {
+  let calls = 0;
+  const evidence = await verifyTextToLatticeHeldApi({
+    deploymentStatus: heldDeploymentStatus,
+    environment: heldWorkflowEnvironment,
+    wait: noWait,
+    now: fixedNow,
+    async fetchImpl() {
+      calls += 1;
+      if (calls === 3) throw new Error("synthetic network failure");
+      return heldReadinessResponse();
+    },
+  });
+  assert.equal(calls, 6);
+  assert.equal(evidence.readiness.heldResponseCount, 5);
+  assert.equal(evidence.readiness.activeResponseCount, 0);
+  assert.equal(evidence.readiness.networkErrorCount, 1);
+});
+
+test("the rollback verifier fails closed on a malformed held readiness response", async () => {
+  let calls = 0;
+  await assert.rejects(
+    verifyTextToLatticeHeldApi({
+      deploymentStatus: heldDeploymentStatus,
+      environment: heldWorkflowEnvironment,
+      wait: noWait,
+      async fetchImpl() {
+        calls += 1;
+        if (calls === 3) return heldReadinessResponse({ "Set-Cookie": "unexpected=true" });
+        return heldReadinessResponse();
+      },
+    }),
+    /cross-origin or cookie surface/u,
+  );
+  assert.equal(calls, 3);
+});
+
+test("the rollback verifier immediately rejects other non-exact complete readiness responses", async (t) => {
+  for (const fixture of [
+    {
+      label: "malformed active Allow header",
+      response: () => activeReadinessResponse({ Allow: "GET" }),
+      pattern: /invalid Allow header/u,
+    },
+    {
+      label: "missing held CSP",
+      response: () => heldReadinessResponse({ "Content-Security-Policy": "" }),
+      pattern: /invalid content-security-policy/u,
+    },
+    {
+      label: "wrong held envelope",
+      response: () => apiJson({ error: "invalid_request" }, 503, {
+        "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+      }),
+      pattern: /invalid error envelope/u,
+    },
+  ]) {
+    await t.test(fixture.label, async () => {
+      let calls = 0;
+      await assert.rejects(
+        verifyTextToLatticeHeldApi({
+          deploymentStatus: heldDeploymentStatus,
+          environment: heldWorkflowEnvironment,
+          wait: noWait,
+          async fetchImpl() {
+            calls += 1;
+            return fixture.response();
+          },
+        }),
+        fixture.pattern,
+      );
+      assert.equal(calls, 1);
+    });
+  }
+});
+
+test("the rollback verifier cancels a streamed response at its byte boundary", async () => {
+  let pulls = 0;
+  let cancelled = false;
+  await assert.rejects(
+    verifyTextToLatticeHeldApi({
+      deploymentStatus: heldDeploymentStatus,
+      environment: heldWorkflowEnvironment,
+      wait: noWait,
+      async fetchImpl() {
+        return new Response(new ReadableStream({
+          pull(controller) {
+            pulls += 1;
+            controller.enqueue(new Uint8Array(2_048).fill(0x20));
+            if (pulls === 10) controller.close();
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }), {
+          status: 503,
+          headers: {
+            ...apiHeaders,
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+          },
+        });
+      },
+    }),
+    /exceeded its size boundary/u,
+  );
+  assert.equal(cancelled, true);
+  assert.ok(pulls < 10);
+});
+
+test("the rollback verifier exhausts its fixed propagation window without accepting the active boundary", async () => {
+  let calls = 0;
+  const waits = [];
+  await assert.rejects(
+    verifyTextToLatticeHeldApi({
+      deploymentStatus: heldDeploymentStatus,
+      environment: heldWorkflowEnvironment,
+      async wait(milliseconds) {
+        waits.push(milliseconds);
+      },
+      async fetchImpl() {
+        calls += 1;
+        return activeReadinessResponse();
+      },
+    }),
+    /did not settle within its fixed readiness window/u,
+  );
+  assert.equal(calls, LATTICE_HELD_API_READINESS_CONTRACT.attemptLimit);
+  assert.equal(waits.length, LATTICE_HELD_API_READINESS_CONTRACT.attemptLimit - 1);
+  assert.ok(waits.every((milliseconds) => (
+    milliseconds === LATTICE_HELD_API_READINESS_CONTRACT.intervalMs
+  )));
+});
+
+test("the rollback verifier stops at its absolute readiness deadline", async () => {
+  let calls = 0;
+  const waits = [];
+  const clockValues = [0, 0, 0, LATTICE_HELD_API_READINESS_CONTRACT.deadlineMs];
+  await assert.rejects(
+    verifyTextToLatticeHeldApi({
+      deploymentStatus: heldDeploymentStatus,
+      environment: heldWorkflowEnvironment,
+      async wait(milliseconds) {
+        waits.push(milliseconds);
+      },
+      monotonicNow() {
+        return clockValues.shift() ?? LATTICE_HELD_API_READINESS_CONTRACT.deadlineMs;
+      },
+      async fetchImpl() {
+        calls += 1;
+        return activeReadinessResponse();
+      },
+    }),
+    /did not settle within its fixed readiness window/u,
+  );
+  assert.equal(calls, 1);
+  assert.deepEqual(waits, [LATTICE_HELD_API_READINESS_CONTRACT.intervalMs]);
+});
+
+test("the rollback verifier cannot accept a final held sample that completes at the deadline", async () => {
+  let calls = 0;
+  const deadline = LATTICE_HELD_API_READINESS_CONTRACT.deadlineMs;
+  const clockValues = [0, 0, 0, 0, 0, 0, deadline];
+  await assert.rejects(
+    verifyTextToLatticeHeldApi({
+      deploymentStatus: heldDeploymentStatus,
+      environment: heldWorkflowEnvironment,
+      wait: noWait,
+      monotonicNow() {
+        return clockValues.shift() ?? deadline;
+      },
+      async fetchImpl() {
+        calls += 1;
+        return heldReadinessResponse();
+      },
+    }),
+    /did not settle within its fixed readiness window/u,
+  );
+  assert.equal(calls, 3);
+});
+
+test("the rollback verifier rejects invalid dependencies and clocks before any public request", async () => {
+  let calls = 0;
+  const baseOptions = {
+    deploymentStatus: heldDeploymentStatus,
+    environment: heldWorkflowEnvironment,
+    wait: noWait,
+    async fetchImpl() {
+      calls += 1;
+      return heldReadinessResponse();
+    },
+  };
+  for (const overrides of [
+    { wait: null },
+    { fetchImpl: null },
+    { now: null },
+    { monotonicNow: null },
+  ]) {
+    await assert.rejects(
+      verifyTextToLatticeHeldApi({ ...baseOptions, ...overrides }),
+      TypeError,
+    );
+  }
+  await assert.rejects(
+    verifyTextToLatticeHeldApi({ ...baseOptions, monotonicNow: () => Number.NaN }),
+    /readiness clock/u,
+  );
+  await assert.rejects(
+    verifyTextToLatticeHeldApi({
+      ...baseOptions,
+      monotonicNow: (() => {
+        const values = [10, 9];
+        return () => values.shift() ?? 9;
+      })(),
+    }),
+    /moved backwards/u,
+  );
+  assert.equal(calls, 0);
 });
 
 test("the held entry preserves the Durable Object export and has no provider path", async () => {
