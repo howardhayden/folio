@@ -58,6 +58,7 @@ const STAGES = Object.freeze({
     topP: 0.8,
     topK: 20,
     minP: 0,
+    presencePenalty: 1.5,
   }),
   candidate: Object.freeze({
     role: "generator",
@@ -325,6 +326,7 @@ export async function requestHuggingFaceJson({
   topP,
   topK,
   minP,
+  presencePenalty,
   signal,
   fetchImpl = globalThis.fetch,
   callTimeoutMs = LATTICE_PROVIDER_CALL_TIMEOUT_MS,
@@ -342,7 +344,9 @@ export async function requestHuggingFaceJson({
     || !Number.isFinite(temperature) || temperature < 0 || temperature > 2
     || !Number.isFinite(topP) || topP <= 0 || topP > 1
     || (topK !== undefined && !validPositiveInteger(topK))
-    || (minP !== undefined && (!Number.isFinite(minP) || minP < 0 || minP > 1))) {
+    || (minP !== undefined && (!Number.isFinite(minP) || minP < 0 || minP > 1))
+    || (presencePenalty !== undefined
+      && (!Number.isFinite(presencePenalty) || presencePenalty < 0 || presencePenalty > 2))) {
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
@@ -358,6 +362,7 @@ export async function requestHuggingFaceJson({
     top_p: topP,
     ...(topK === undefined ? {} : { top_k: topK }),
     ...(minP === undefined ? {} : { min_p: minP }),
+    ...(presencePenalty === undefined ? {} : { presence_penalty: presencePenalty }),
     seed: 71_903,
     stream: false,
   });
@@ -491,6 +496,7 @@ export function createHuggingFaceLatticeAdapter({
         topP: stage.topP,
         topK: stage.topK,
         minP: stage.minP,
+        presencePenalty: stage.presencePenalty,
         signal: request.signal,
         fetchImpl,
         callTimeoutMs,
