@@ -17,7 +17,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "900f5057433c955a4a4d8aed53b2d579e0d14d165cb8ff5545a0373a6c5e079c",
+    "qualificationDossierSha256": "cccd1347964f64d493de823f2c16bf2218841957cd4e026b6f4f625f4733147d",
     "browserEvidence": {
       "status": "not-collected",
       "path": null,
@@ -87,7 +87,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "c5a7a93198312fe8b1b4b681e56e9342c899a87487e3ccdbb176f012ba00fe15",
+      "sha256": "210b5b8a36ce9f0d8b8899f67f0c0ac524d58f02fc117ad2ea7137c462fb61e1",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, controlling Owner terms and baseline record, license-routing map, package metadata, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -114,7 +114,7 @@
   "ownerDisposition": {
     "status": "hold-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "c5a7a93198312fe8b1b4b681e56e9342c899a87487e3ccdbb176f012ba00fe15",
+    "qualifiedSourceSetSha256": "210b5b8a36ce9f0d8b8899f67f0c0ac524d58f02fc117ad2ea7137c462fb61e1",
     "decidedOn": "2026-09-25",
     "record": "The site owner directs the remote Text to Lattice source candidate to remain held and documentation-only until the active production and canonical-browser release blockers close. Source review, Worker deployment preparation, and explicit historical evidence do not activate the public client.",
     "note": "The earlier GATE-02 deployment record and GATE-06 canonical-browser lifecycle and privacy captures remain verbatim historical evidence for their browser-local revisions. They do not establish the /api/lattice route, HF_TOKEN and VISITOR_COOKIE_SECRET bindings, exact quota-cookie boundary, exact 30-global and scoped 3-cooperating-cookie-jar UTC-day admission, fixed Hugging Face router with Nscale generator and DeepInfra verifier targets, remote retention boundary, successful remote conversion, or current privacy trace."
@@ -207,7 +207,7 @@
         "endpoint": "https://router.huggingface.co/v1/chat/completions",
         "generatorModel": "Qwen/Qwen3-4B-Instruct-2507:nscale",
         "verifierModel": "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
-        "callTimeoutMs": 60000,
+        "callTimeoutMs": 120000,
         "callLimit": 32,
         "responseByteLimit": 262144,
         "contentCharacterLimit": 128000,
@@ -539,7 +539,7 @@
         "verbatimSha256": "df0907c36021a720319c12fd81b3a55ee22c3aafed3e82f720f5e9c14fb0d1f7",
         "claimBoundary": "The two named fields are retained verbatim as historical capacity analysis and do not establish the remote provider boundary."
       },
-      "activeCurrentEvidence": "Source establishes or preserves the signed visitor cookie through a content-free setup that performs no quota claim or provider call, rejects missing-cookie content as 428 visitor_session_required and invalid, tampered, or undeclared-cookie content as 403 invalid_request before admission or provider work, then atomically admits each exactly validated content request once before provider work. It caps admission at 30 transformations globally per UTC day and 3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day and stores only the current-day aggregate plus bounded opaque visitor counts. Intentional cookie clearing and uncooperative callers remain outside the per-browser identity claim; the global 30-per-day counter is exact and authoritative. It uses no IP address, browser fingerprint, submitted content, or result for quota identity or state; counts admitted disconnects and provider failures without refund; and performs no shared quota recheck within the admitted pipeline. Source also bounds each provider call to 60 seconds, caps an admitted request at 32 provider calls and therefore 960 provider calls from admitted requests per UTC day, bounds provider response bytes and characters, configures a 30-per-60-second path-scoped Worker rate limiter, disables observability, and exposes no provider-selection parameter. Qualification-only run #86 directly observed one admitted synthetic canary reach provider work under attempted source-set digest c11136839d67ebf03235f1fed8025cb4b6a820a6fac384c2d17ae00c1c341eb7. Its first three provider calls completed before call four failed with outer HTTP 502 and public code upstream_unavailable; the sanitized diagnostic reported failure_class=provider_http_error, upstream_status=402, stage=analysis, and call_ordinal=4. This is bounded production failure evidence for that attempt, not evidence of a successful transformation, the complete 30-global and 3-cooperating-browser boundary, or qualification of the current source set. Effective provider capacity, latency, cost behavior, and abuse behavior have not been observed.",
+      "activeCurrentEvidence": "Source establishes or preserves the signed visitor cookie through a content-free setup that performs no quota claim or provider call, rejects missing-cookie content as 428 visitor_session_required and invalid, tampered, or undeclared-cookie content as 403 invalid_request before admission or provider work, then atomically admits each exactly validated content request once before provider work. It caps admission at 30 transformations globally per UTC day and 3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day and stores only the current-day aggregate plus bounded opaque visitor counts. Intentional cookie clearing and uncooperative callers remain outside the per-browser identity claim; the global 30-per-day counter is exact and authoritative. It uses no IP address, browser fingerprint, submitted content, or result for quota identity or state; counts admitted disconnects and provider failures without refund; and performs no shared quota recheck within the admitted pipeline. Source also bounds each provider call to 120 seconds, caps an admitted request at 32 provider calls and therefore 960 provider calls from admitted requests per UTC day, bounds provider response bytes and characters, configures a 30-per-60-second path-scoped Worker rate limiter, disables observability, and exposes no provider-selection parameter. Qualification-only run #86 directly observed one admitted synthetic canary reach provider work under attempted source-set digest c11136839d67ebf03235f1fed8025cb4b6a820a6fac384c2d17ae00c1c341eb7. Its first three provider calls completed before call four failed with outer HTTP 502 and public code upstream_unavailable; the sanitized diagnostic reported failure_class=provider_http_error, upstream_status=402, stage=analysis, and call_ordinal=4. This is bounded production failure evidence for that attempt, not evidence of a successful transformation, the complete 30-global and 3-cooperating-browser boundary, or qualification of the current source set. Effective provider capacity, latency, cost behavior, and abuse behavior have not been observed.",
       "activeEvidence": [
         "workers/text-to-lattice-api/huggingFaceAdapter.js",
         "workers/text-to-lattice-api/worker.js",

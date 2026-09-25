@@ -17,6 +17,7 @@ import {
 } from "../app/resume/lattice/promptContract.js";
 import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
+  LATTICE_PROVIDER_CALL_TIMEOUT_MS,
   LATTICE_PROVIDER_CALL_LIMIT,
   LATTICE_PROVIDER_FAILURE_CLASSES,
   LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
@@ -1271,6 +1272,7 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
 });
 
 test("the adapter uses provider-specific tool choices for compact analysis and certification", async () => {
+  assert.equal(LATTICE_PROVIDER_CALL_TIMEOUT_MS, 120_000);
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, init, body: JSON.parse(init.body) });

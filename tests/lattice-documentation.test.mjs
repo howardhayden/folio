@@ -190,7 +190,7 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /no alternate provider or model fallback/iu);
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
   assert.match(dossier, /Historical inactive WebLLM and lease appendix/u);
-  assert.match(dossier, /de62e66001ebc21c6f496b668746c17e9ba151b1f32ce03e4faa0949a2ca0de0/u);
+  assert.match(dossier, /68ca4e0a4438f0789ff1fa318de26152416e05849de57f3a269e350695475313/u);
   assert.match(dossier, /workflow run 34325228788[\s\S]{0,300}9ab26b95cc1f9a94697118c0fc20a849db8f6ad2/u);
   assert.match(dossier, /266db6b8264a0aa42ac16916ddf696554c846b239960e7d19fc002917d843950/u);
 });
