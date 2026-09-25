@@ -17,12 +17,21 @@ import {
   runTextToLattice,
 } from "../../app/resume/latticeDemo.js";
 import {
+  LATTICE_PROVIDER_ANALYSIS_ATTEMPTS,
+  LATTICE_PROVIDER_ANALYSIS_ORIGINS,
   LATTICE_PROVIDER_CALL_LIMIT,
+  LATTICE_PROVIDER_COMPLETION_TOKEN_BUCKETS,
   LATTICE_PROVIDER_FAILURE_CLASSES,
+  LATTICE_PROVIDER_FINISH_REASONS,
+  LATTICE_PROVIDER_MALFORMED_SUBTYPES,
+  LATTICE_PROVIDER_SIZE_BUCKETS,
   LATTICE_PROVIDER_STAGES,
   LatticeProviderError,
   createHuggingFaceLatticeAdapter,
 } from "./huggingFaceAdapter.js";
+import {
+  LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
+} from "../../app/resume/lattice/promptContract.js";
 import {
   claimGlobalLatticeTransformation,
 } from "./capacityClient.js";
@@ -43,12 +52,21 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v1";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v2";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
   stage: "X-Lattice-Qualification-Stage",
   callOrdinal: "X-Lattice-Qualification-Call-Ordinal",
+  subtype: "X-Lattice-Qualification-Subtype",
+  finishReason: "X-Lattice-Qualification-Finish-Reason",
+  requestSize: "X-Lattice-Qualification-Request-Size",
+  responseSize: "X-Lattice-Qualification-Response-Size",
+  contentSize: "X-Lattice-Qualification-Content-Size",
+  completionTokens: "X-Lattice-Qualification-Completion-Tokens",
+  analysisOrigin: "X-Lattice-Qualification-Analysis-Origin",
+  analysisAttempt: "X-Lattice-Qualification-Analysis-Attempt",
+  priorValidationCategory: "X-Lattice-Qualification-Prior-Validation",
 });
 
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset=utf-8)?$/iu;
@@ -91,6 +109,16 @@ const HELD_RESPONSE_HEADERS = Object.freeze({
 const CANONICAL_UTC_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const LATTICE_PROVIDER_FAILURE_CLASS_SET = new Set(LATTICE_PROVIDER_FAILURE_CLASSES);
 const LATTICE_PROVIDER_STAGE_SET = new Set(LATTICE_PROVIDER_STAGES);
+const LATTICE_PROVIDER_MALFORMED_SUBTYPE_SET = new Set(LATTICE_PROVIDER_MALFORMED_SUBTYPES);
+const LATTICE_PROVIDER_FINISH_REASON_SET = new Set(LATTICE_PROVIDER_FINISH_REASONS);
+const LATTICE_PROVIDER_SIZE_BUCKET_SET = new Set(LATTICE_PROVIDER_SIZE_BUCKETS);
+const LATTICE_PROVIDER_COMPLETION_TOKEN_BUCKET_SET = new Set(
+  LATTICE_PROVIDER_COMPLETION_TOKEN_BUCKETS,
+);
+const LATTICE_PROVIDER_ANALYSIS_ORIGIN_SET = new Set(LATTICE_PROVIDER_ANALYSIS_ORIGINS);
+const LATTICE_PROVIDER_ANALYSIS_ATTEMPT_SET = new Set(LATTICE_PROVIDER_ANALYSIS_ATTEMPTS);
+const LATTICE_PROVIDER_ACTIVE_ANALYSIS_ATTEMPT_SET = new Set(["1", "2"]);
+const LATTICE_ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
 
 class LatticeApiError extends Error {
   constructor(status, code, retryAfterSeconds = null) {
@@ -362,12 +390,44 @@ function qualificationProviderDiagnostic(error) {
   const upstreamStatus = error.status === null ? "none" : `${error.status}`;
   const stage = error.qualificationStage;
   const callOrdinal = error.qualificationCallOrdinal;
+  const subtype = error.qualificationSubtype;
+  const finishReason = error.qualificationFinishReason;
+  const requestSize = error.qualificationRequestSize;
+  const responseSize = error.qualificationResponseSize;
+  const contentSize = error.qualificationContentSize;
+  const completionTokens = error.qualificationCompletionTokens;
+  const analysisOrigin = error.qualificationAnalysisOrigin;
+  const analysisAttempt = error.qualificationAnalysisAttempt;
+  const priorValidationCategory = error.qualificationPriorValidationCategory;
   if (!LATTICE_PROVIDER_FAILURE_CLASS_SET.has(failureClass)
     || !(upstreamStatus === "none" || /^[45]\d{2}$/u.test(upstreamStatus))
     || !LATTICE_PROVIDER_STAGE_SET.has(stage)
     || !Number.isSafeInteger(callOrdinal)
     || callOrdinal < 1
-    || callOrdinal > LATTICE_PROVIDER_CALL_LIMIT) {
+    || callOrdinal > LATTICE_PROVIDER_CALL_LIMIT
+    || !LATTICE_PROVIDER_MALFORMED_SUBTYPE_SET.has(subtype)
+    || !LATTICE_PROVIDER_FINISH_REASON_SET.has(finishReason)
+    || !LATTICE_PROVIDER_SIZE_BUCKET_SET.has(requestSize)
+    || !LATTICE_PROVIDER_SIZE_BUCKET_SET.has(responseSize)
+    || !LATTICE_PROVIDER_SIZE_BUCKET_SET.has(contentSize)
+    || !LATTICE_PROVIDER_COMPLETION_TOKEN_BUCKET_SET.has(completionTokens)
+    || !LATTICE_PROVIDER_ANALYSIS_ORIGIN_SET.has(analysisOrigin)
+    || !LATTICE_PROVIDER_ANALYSIS_ATTEMPT_SET.has(analysisAttempt)
+    || !LATTICE_ANALYSIS_VALIDATION_CATEGORY_SET.has(priorValidationCategory)
+    || (failureClass === "provider_malformed_response" && subtype === "none")
+    || (failureClass !== "provider_malformed_response" && subtype !== "none")
+    || (failureClass === "provider_output_limit" && finishReason !== "length")
+    || (stage === "analysis" && (
+      analysisOrigin === "none"
+      || !LATTICE_PROVIDER_ACTIVE_ANALYSIS_ATTEMPT_SET.has(analysisAttempt)
+      || (analysisAttempt === "1" && priorValidationCategory !== "none")
+      || (analysisAttempt === "2" && priorValidationCategory === "none")
+    ))
+    || (stage !== "analysis" && (
+      analysisOrigin !== "none"
+      || analysisAttempt !== "none"
+      || priorValidationCategory !== "none"
+    ))) {
     return null;
   }
   return Object.freeze({
@@ -375,6 +435,15 @@ function qualificationProviderDiagnostic(error) {
     upstreamStatus,
     stage,
     callOrdinal: `${callOrdinal}`,
+    subtype,
+    finishReason,
+    requestSize,
+    responseSize,
+    contentSize,
+    completionTokens,
+    analysisOrigin,
+    analysisAttempt,
+    priorValidationCategory,
   });
 }
 
@@ -382,22 +451,9 @@ function withQualificationProviderDiagnostic(response, error, enabled) {
   if (!enabled) return response;
   const diagnostic = qualificationProviderDiagnostic(error);
   if (diagnostic === null) return response;
-  response.headers.set(
-    LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass,
-    diagnostic.failureClass,
-  );
-  response.headers.set(
-    LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus,
-    diagnostic.upstreamStatus,
-  );
-  response.headers.set(
-    LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage,
-    diagnostic.stage,
-  );
-  response.headers.set(
-    LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal,
-    diagnostic.callOrdinal,
-  );
+  for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) {
+    response.headers.set(header, diagnostic[field]);
+  }
   return response;
 }
 

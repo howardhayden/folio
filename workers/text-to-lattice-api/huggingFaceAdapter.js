@@ -2,6 +2,9 @@ import {
   ANALYSIS_SCHEMA,
   CANDIDATE_SCHEMA,
   DOCUMENT_CERTIFICATION_SCHEMA,
+  LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT,
+  LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS,
+  LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
   LATTICE_BATCH_ATOM_LIMIT,
   LATTICE_FITTED_ANALYSIS_CONTEXT,
   REANALYSIS_SCHEMA,
@@ -33,6 +36,63 @@ export const LATTICE_PROVIDER_FAILURE_CLASSES = Object.freeze([
   "provider_malformed_response",
 ]);
 
+export const LATTICE_PROVIDER_MALFORMED_SUBTYPES = Object.freeze([
+  "none",
+  "response_read",
+  "response_type",
+  "media_type",
+  "envelope_json",
+  "choice_count",
+  "choice_shape",
+  "finish_reason",
+  "message_shape",
+  "message_role",
+  "content_empty",
+  "content_json",
+  "content_shape",
+  "response_processing",
+]);
+
+export const LATTICE_PROVIDER_FINISH_REASONS = Object.freeze([
+  "none",
+  "stop",
+  "length",
+  "other",
+]);
+
+export const LATTICE_PROVIDER_SIZE_BUCKETS = Object.freeze([
+  "none",
+  "0",
+  "1-4096",
+  "4097-16384",
+  "16385-65536",
+  "65537-262144",
+  "262145-1048576",
+  "1048577-plus",
+]);
+
+export const LATTICE_PROVIDER_COMPLETION_TOKEN_BUCKETS = Object.freeze([
+  "none",
+  "0",
+  "1-255",
+  "256-511",
+  "512-1023",
+  "1024-2047",
+  "2048-3071",
+  "3072-plus",
+]);
+
+export const LATTICE_PROVIDER_ANALYSIS_ORIGINS = Object.freeze([
+  "none",
+  ...LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS,
+]);
+
+export const LATTICE_PROVIDER_ANALYSIS_ATTEMPTS = Object.freeze([
+  "none",
+  "1",
+  "2",
+]);
+
 export const LATTICE_PROVIDER_CALL_TIMEOUT_MS = 60_000;
 export const LATTICE_PROVIDER_CALL_LIMIT = 32;
 export const LATTICE_PROVIDER_REQUEST_BYTE_LIMIT = 1_048_576;
@@ -41,6 +101,13 @@ export const LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT = 128_000;
 
 const REMOTE_ROLES = new Set(Object.keys(LATTICE_REMOTE_MODELS));
 const REQUESTED_MODES = new Set(["auto", "operative", "experiential"]);
+const MALFORMED_SUBTYPE_SET = new Set(LATTICE_PROVIDER_MALFORMED_SUBTYPES);
+const FINISH_REASON_SET = new Set(LATTICE_PROVIDER_FINISH_REASONS);
+const SIZE_BUCKET_SET = new Set(LATTICE_PROVIDER_SIZE_BUCKETS);
+const COMPLETION_TOKEN_BUCKET_SET = new Set(LATTICE_PROVIDER_COMPLETION_TOKEN_BUCKETS);
+const ANALYSIS_ORIGIN_SET = new Set(LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS);
+const ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
+const PROVIDER_DIAGNOSTICS = new WeakMap();
 const JSON_HEADERS = Object.freeze({
   Accept: "application/json",
   "Content-Type": "application/json",
@@ -110,11 +177,82 @@ export class LatticeProviderError extends Error {
   }
 }
 
+function sizeBucket(value) {
+  if (!Number.isSafeInteger(value) || value < 0) return "none";
+  if (value === 0) return "0";
+  if (value <= 4_096) return "1-4096";
+  if (value <= 16_384) return "4097-16384";
+  if (value <= 65_536) return "16385-65536";
+  if (value <= 262_144) return "65537-262144";
+  if (value <= 1_048_576) return "262145-1048576";
+  return "1048577-plus";
+}
+
+function completionTokenBucket(value) {
+  if (!Number.isSafeInteger(value) || value < 0) return "none";
+  if (value === 0) return "0";
+  if (value <= 255) return "1-255";
+  if (value <= 511) return "256-511";
+  if (value <= 1_023) return "512-1023";
+  if (value <= 2_047) return "1024-2047";
+  if (value <= 3_071) return "2048-3071";
+  return "3072-plus";
+}
+
+function finishReason(value) {
+  if (value === "stop" || value === "length") return value;
+  return value === undefined || value === null ? "none" : "other";
+}
+
+function withProviderDiagnostic(error, patch) {
+  if (!(error instanceof LatticeProviderError) || !record(patch)) return error;
+  const current = PROVIDER_DIAGNOSTICS.get(error) ?? Object.freeze({
+    subtype: "none",
+    finishReason: "none",
+    requestSize: "none",
+    responseSize: "none",
+    contentSize: "none",
+    completionTokens: "none",
+  });
+  const next = { ...current };
+  if (MALFORMED_SUBTYPE_SET.has(patch.subtype)) next.subtype = patch.subtype;
+  if (FINISH_REASON_SET.has(patch.finishReason)) next.finishReason = patch.finishReason;
+  if (SIZE_BUCKET_SET.has(patch.requestSize)) next.requestSize = patch.requestSize;
+  if (SIZE_BUCKET_SET.has(patch.responseSize)) next.responseSize = patch.responseSize;
+  if (SIZE_BUCKET_SET.has(patch.contentSize)) next.contentSize = patch.contentSize;
+  if (COMPLETION_TOKEN_BUCKET_SET.has(patch.completionTokens)) {
+    next.completionTokens = patch.completionTokens;
+  }
+  if (error.code !== "provider_malformed_response") next.subtype = "none";
+  PROVIDER_DIAGNOSTICS.set(error, Object.freeze(next));
+  return error;
+}
+
 function providerError(code, message, options) {
   return new LatticeProviderError(code, message, options);
 }
 
-function withQualificationDiagnostic(error, stage, callOrdinal) {
+function analysisQualificationDiagnostic(stage, context) {
+  if (stage !== "analysis" || !record(context) || !Object.isFrozen(context)
+    || !ANALYSIS_ORIGIN_SET.has(context.origin)
+    || ![1, 2].includes(context.attempt)
+    || !ANALYSIS_VALIDATION_CATEGORY_SET.has(context.priorValidationCategory)
+    || (context.attempt === 1 && context.priorValidationCategory !== "none")
+    || (context.attempt === 2 && context.priorValidationCategory === "none")) {
+    return Object.freeze({
+      origin: "none",
+      attempt: "none",
+      priorValidationCategory: "none",
+    });
+  }
+  return Object.freeze({
+    origin: context.origin,
+    attempt: `${context.attempt}`,
+    priorValidationCategory: context.priorValidationCategory,
+  });
+}
+
+function withQualificationDiagnostic(error, stage, callOrdinal, analysisContext) {
   if (!(error instanceof LatticeProviderError)
     || !LATTICE_PROVIDER_STAGES.includes(stage)
     || !Number.isSafeInteger(callOrdinal)
@@ -122,6 +260,15 @@ function withQualificationDiagnostic(error, stage, callOrdinal) {
     || callOrdinal > LATTICE_PROVIDER_CALL_LIMIT) {
     return error;
   }
+  const providerDiagnostic = PROVIDER_DIAGNOSTICS.get(error) ?? Object.freeze({
+    subtype: "none",
+    finishReason: "none",
+    requestSize: "none",
+    responseSize: "none",
+    contentSize: "none",
+    completionTokens: "none",
+  });
+  const analysisDiagnostic = analysisQualificationDiagnostic(stage, analysisContext);
   Object.defineProperties(error, {
     qualificationStage: {
       configurable: false,
@@ -133,6 +280,60 @@ function withQualificationDiagnostic(error, stage, callOrdinal) {
       configurable: false,
       enumerable: false,
       value: callOrdinal,
+      writable: false,
+    },
+    qualificationSubtype: {
+      configurable: false,
+      enumerable: false,
+      value: providerDiagnostic.subtype,
+      writable: false,
+    },
+    qualificationFinishReason: {
+      configurable: false,
+      enumerable: false,
+      value: providerDiagnostic.finishReason,
+      writable: false,
+    },
+    qualificationRequestSize: {
+      configurable: false,
+      enumerable: false,
+      value: providerDiagnostic.requestSize,
+      writable: false,
+    },
+    qualificationResponseSize: {
+      configurable: false,
+      enumerable: false,
+      value: providerDiagnostic.responseSize,
+      writable: false,
+    },
+    qualificationContentSize: {
+      configurable: false,
+      enumerable: false,
+      value: providerDiagnostic.contentSize,
+      writable: false,
+    },
+    qualificationCompletionTokens: {
+      configurable: false,
+      enumerable: false,
+      value: providerDiagnostic.completionTokens,
+      writable: false,
+    },
+    qualificationAnalysisOrigin: {
+      configurable: false,
+      enumerable: false,
+      value: analysisDiagnostic.origin,
+      writable: false,
+    },
+    qualificationAnalysisAttempt: {
+      configurable: false,
+      enumerable: false,
+      value: analysisDiagnostic.attempt,
+      writable: false,
+    },
+    qualificationPriorValidationCategory: {
+      configurable: false,
+      enumerable: false,
+      value: analysisDiagnostic.priorValidationCategory,
       writable: false,
     },
   });
@@ -239,11 +440,14 @@ async function boundedResponseText(response, maximumBytes, signal) {
   if (claimedLength !== null) {
     if (!/^\d+$/u.test(claimedLength) || Number(claimedLength) > maximumBytes) {
       discardResponseBody(response);
-      throw providerError("provider_response_too_large", "The Lattice provider response exceeded its limit.");
+      throw withProviderDiagnostic(
+        providerError("provider_response_too_large", "The Lattice provider response exceeded its limit."),
+        { responseSize: /^\d+$/u.test(claimedLength) ? sizeBucket(Number(claimedLength)) : "none" },
+      );
     }
   }
 
-  if (!response.body) return "";
+  if (!response.body) return Object.freeze({ text: "", responseSize: "0" });
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let total = 0;
@@ -255,17 +459,23 @@ async function boundedResponseText(response, maximumBytes, signal) {
       total += part.value.byteLength;
       if (total > maximumBytes) {
         cancelReader(reader);
-        throw providerError("provider_response_too_large", "The Lattice provider response exceeded its limit.");
+        throw withProviderDiagnostic(
+          providerError("provider_response_too_large", "The Lattice provider response exceeded its limit."),
+          { responseSize: sizeBucket(total) },
+        );
       }
       result += decoder.decode(part.value, { stream: true });
     }
     result += decoder.decode();
-    return result;
+    return Object.freeze({ text: result, responseSize: sizeBucket(total) });
   } catch (error) {
     if (error instanceof LatticeProviderError || signal?.aborted) throw error;
-    throw providerError("provider_malformed_response", "The Lattice provider returned an unreadable response.", {
-      cause: error,
-    });
+    throw withProviderDiagnostic(
+      providerError("provider_malformed_response", "The Lattice provider returned an unreadable response.", {
+        cause: error,
+      }),
+      { subtype: "response_read", responseSize: sizeBucket(total) },
+    );
   } finally {
     if (signal?.aborted) {
       cancelReader(reader, signal.reason);
@@ -278,41 +488,132 @@ async function boundedResponseText(response, maximumBytes, signal) {
   }
 }
 
-function parsedProviderContent(body) {
+function parsedProviderContent(body, responseSize) {
   let envelope;
   try {
     envelope = JSON.parse(body);
   } catch (error) {
-    throw providerError("provider_malformed_response", "The Lattice provider returned invalid JSON.", { cause: error });
+    throw withProviderDiagnostic(
+      providerError("provider_malformed_response", "The Lattice provider returned invalid JSON.", { cause: error }),
+      { subtype: "envelope_json", responseSize },
+    );
   }
-  const choice = Array.isArray(envelope?.choices) && envelope.choices.length === 1
-    ? envelope.choices[0]
-    : null;
-  if (!record(choice) || choice.finish_reason !== "stop" || !record(choice.message)
-    || choice.message.role !== "assistant") {
-    const code = choice?.finish_reason === "length"
+  const completionTokens = completionTokenBucket(envelope?.usage?.completion_tokens);
+  if (!Array.isArray(envelope?.choices) || envelope.choices.length !== 1) {
+    throw withProviderDiagnostic(
+      providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
+      { subtype: "choice_count", responseSize, completionTokens },
+    );
+  }
+  const choice = envelope.choices[0];
+  if (!record(choice)) {
+    throw withProviderDiagnostic(
+      providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
+      { subtype: "choice_shape", responseSize, completionTokens },
+    );
+  }
+  const providerFinishReason = finishReason(choice.finish_reason);
+  const providerContentSize = sizeBucket(
+    record(choice.message) && typeof choice.message.content === "string"
+      ? choice.message.content.length
+      : null,
+  );
+  if (choice.finish_reason !== "stop") {
+    const code = choice.finish_reason === "length"
       ? "provider_output_limit"
       : "provider_malformed_response";
-    throw providerError(code, code === "provider_output_limit"
-      ? "The Lattice provider reached its output limit."
-      : "The Lattice provider returned an invalid completion envelope.");
+    throw withProviderDiagnostic(
+      providerError(code, code === "provider_output_limit"
+        ? "The Lattice provider reached its output limit."
+        : "The Lattice provider returned an invalid completion envelope."),
+      {
+        subtype: code === "provider_malformed_response" ? "finish_reason" : "none",
+        finishReason: providerFinishReason,
+        responseSize,
+        contentSize: providerContentSize,
+        completionTokens,
+      },
+    );
+  }
+  if (!record(choice.message)) {
+    throw withProviderDiagnostic(
+      providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
+      {
+        subtype: "message_shape",
+        finishReason: providerFinishReason,
+        responseSize,
+        completionTokens,
+      },
+    );
+  }
+  if (choice.message.role !== "assistant") {
+    throw withProviderDiagnostic(
+      providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
+      {
+        subtype: "message_role",
+        finishReason: providerFinishReason,
+        responseSize,
+        completionTokens,
+      },
+    );
   }
   const content = choice.message.content;
+  const contentSize = providerContentSize;
   if (typeof content !== "string" || !content.trim()) {
-    throw providerError("provider_malformed_response", "The Lattice provider returned no structured content.");
+    throw withProviderDiagnostic(
+      providerError("provider_malformed_response", "The Lattice provider returned no structured content."),
+      {
+        subtype: "content_empty",
+        finishReason: providerFinishReason,
+        responseSize,
+        contentSize,
+        completionTokens,
+      },
+    );
   }
   if (content.length > LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT) {
-    throw providerError("provider_response_too_large", "The Lattice provider content exceeded its limit.");
+    throw withProviderDiagnostic(
+      providerError("provider_response_too_large", "The Lattice provider content exceeded its limit."),
+      {
+        finishReason: providerFinishReason,
+        responseSize,
+        contentSize,
+        completionTokens,
+      },
+    );
   }
+  let parsed;
   try {
-    const parsed = JSON.parse(content);
-    if (!record(parsed)) throw new TypeError("Structured content was not an object.");
-    return parsed;
+    parsed = JSON.parse(content);
   } catch (error) {
-    throw providerError("provider_malformed_response", "The Lattice provider returned invalid structured content.", {
-      cause: error,
-    });
+    throw withProviderDiagnostic(
+      providerError("provider_malformed_response", "The Lattice provider returned invalid structured content.", {
+        cause: error,
+      }),
+      {
+        subtype: "content_json",
+        finishReason: providerFinishReason,
+        responseSize,
+        contentSize,
+        completionTokens,
+      },
+    );
   }
+  if (!record(parsed)) {
+    throw withProviderDiagnostic(
+      providerError("provider_malformed_response", "The Lattice provider returned invalid structured content.", {
+        cause: new TypeError("Structured content was not an object."),
+      }),
+      {
+        subtype: "content_shape",
+        finishReason: providerFinishReason,
+        responseSize,
+        contentSize,
+        completionTokens,
+      },
+    );
+  }
+  return parsed;
 }
 
 export async function requestHuggingFaceJson({
@@ -366,10 +667,15 @@ export async function requestHuggingFaceJson({
     seed: 71_903,
     stream: false,
   });
-  if (new TextEncoder().encode(providerRequestBody).byteLength > maximumRequestBytes) {
-    throw providerError(
-      "provider_request_too_large",
-      "The Lattice provider request exceeded its byte limit.",
+  const requestByteLength = new TextEncoder().encode(providerRequestBody).byteLength;
+  const requestSize = sizeBucket(requestByteLength);
+  if (requestByteLength > maximumRequestBytes) {
+    throw withProviderDiagnostic(
+      providerError(
+        "provider_request_too_large",
+        "The Lattice provider request exceeded its byte limit.",
+      ),
+      { requestSize },
     );
   }
 
@@ -406,7 +712,10 @@ export async function requestHuggingFaceJson({
 
     try {
       if (!(response instanceof Response)) {
-        throw providerError("provider_malformed_response", "The Lattice provider returned an invalid response.");
+        throw withProviderDiagnostic(
+          providerError("provider_malformed_response", "The Lattice provider returned an invalid response."),
+          { subtype: "response_type" },
+        );
       }
       if (response.redirected
         || response.type === "opaqueredirect"
@@ -426,20 +735,31 @@ export async function requestHuggingFaceJson({
       }
       if (!PROVIDER_JSON_CONTENT_TYPE.test(response.headers.get("content-type") ?? "")) {
         discardResponseBody(response);
-        throw providerError("provider_malformed_response", "The Lattice provider returned an invalid media type.");
+        throw withProviderDiagnostic(
+          providerError("provider_malformed_response", "The Lattice provider returned an invalid media type."),
+          { subtype: "media_type" },
+        );
       }
-      const body = await boundedResponseText(response, maximumResponseBytes, deadline.signal);
-      return parsedProviderContent(body);
+      const boundedBody = await boundedResponseText(response, maximumResponseBytes, deadline.signal);
+      return parsedProviderContent(boundedBody.text, boundedBody.responseSize);
     } catch (error) {
       if (deadline.didTimeOut()) {
         throw providerError("provider_timeout", "The Lattice provider timed out.", { cause: error });
       }
       if (signal?.aborted) throw signal.reason ?? abortError();
       if (error instanceof LatticeProviderError) throw error;
-      throw providerError("provider_malformed_response", "The Lattice provider returned an invalid response.", {
-        cause: error,
-      });
+      throw withProviderDiagnostic(
+        providerError("provider_malformed_response", "The Lattice provider returned an invalid response.", {
+          cause: error,
+        }),
+        { subtype: "response_processing" },
+      );
     }
+  } catch (error) {
+    if (error instanceof LatticeProviderError) {
+      throw withProviderDiagnostic(error, { requestSize });
+    }
+    throw error;
   } finally {
     deadline.dispose();
   }
@@ -483,6 +803,9 @@ export function createHuggingFaceLatticeAdapter({
     budget.used += 1;
     const callOrdinal = budget.used;
     const stage = STAGES[stageName];
+    const analysisContext = stageName === "analysis"
+      ? request?.[LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT]
+      : null;
     let result;
     try {
       result = await requestHuggingFaceJson({
@@ -504,7 +827,7 @@ export function createHuggingFaceLatticeAdapter({
         maximumResponseBytes,
       });
     } catch (error) {
-      throw withQualificationDiagnostic(error, stageName, callOrdinal);
+      throw withQualificationDiagnostic(error, stageName, callOrdinal, analysisContext);
     }
     if (stageName === "analysis") {
       Object.defineProperty(result, LATTICE_FITTED_ANALYSIS_CONTEXT, {
