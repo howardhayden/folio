@@ -6,6 +6,28 @@ export const PUBLIC_REGISTER_VERSION = "public-lattice-registers.v2";
 // production adapter. It binds normalization to the exact fitted ledger and
 // atom budget the model actually received without entering JSON or prompts.
 export const LATTICE_FITTED_ANALYSIS_CONTEXT = Symbol("lattice-fitted-analysis-context");
+// Host-only call-path context attached non-enumerably to analyzer requests.
+// It is consumed by bounded qualification diagnostics and never enters model
+// messages, public protocol objects, or retained transformation results.
+export const LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT = Symbol("lattice-analysis-diagnostic-context");
+export const LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS = Object.freeze([
+  "initial", "split", "reanalysis",
+]);
+export const LATTICE_ANALYSIS_VALIDATION_CATEGORIES = Object.freeze([
+  "none",
+  "response-shape",
+  "passage-coverage",
+  "capacity",
+  "identifier",
+  "evidence",
+  "relation",
+  "ambiguity",
+  "conformance",
+  "text",
+  "provenance",
+  "clarification",
+  "other",
+]);
 
 export const LATTICE_LAYERS = Object.freeze(["operative", "experiential", "interpretive", "mixed", "accessibility"]);
 export const LATTICE_REQUEST_MODES = Object.freeze(["auto", "operative", "experiential"]);

@@ -10,6 +10,7 @@ import {
 } from "../app/resume/lattice/remoteProtocol.js";
 import {
   DOCUMENT_CERTIFICATION_SCHEMA,
+  LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT,
   REANALYSIS_SCHEMA,
 } from "../app/resume/lattice/promptContract.js";
 import {
@@ -72,6 +73,22 @@ const resolveTestVisitor = async () => Object.freeze({
   visitorId: TEST_VISITOR_ID,
   cookieValue: TEST_VISITOR_COOKIE_VALUE,
 });
+
+function analysisRequestWithDiagnostic(
+  origin = "initial",
+  attempt = 1,
+  priorValidationCategory = "none",
+) {
+  const request = { ...minimalAnalysisRequest() };
+  Object.defineProperty(request, LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT, {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: Object.freeze({ origin, attempt, priorValidationCategory }),
+  });
+  return Object.freeze(request);
+}
+
 function capacityVisitor(index) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
   return alphabet[index].repeat(24);
@@ -1631,7 +1648,9 @@ test("provider HTTP 402 at analysis call four remains private and qualification-
       },
       runTextToLatticeImpl: async (_text, { adapter }) => {
         for (let call = 0; call < 4; call += 1) {
-          await adapter.analyze(minimalAnalysisRequest());
+          await adapter.analyze(call === 3
+            ? analysisRequestWithDiagnostic("reanalysis", 1)
+            : analysisRequestWithDiagnostic());
         }
         return validLatticeResult();
       },
@@ -1659,13 +1678,19 @@ test("provider HTTP 402 at analysis call four remains private and qualification-
         upstreamStatus: "402",
         stage: "analysis",
         callOrdinal: "4",
+        subtype: "none",
+        finishReason: "none",
+        requestSize: "4097-16384",
+        responseSize: "none",
+        contentSize: "none",
+        completionTokens: "none",
+        analysisOrigin: "reanalysis",
+        analysisAttempt: "1",
+        priorValidationCategory: "none",
       }
-      : {
-        failureClass: null,
-        upstreamStatus: null,
-        stage: null,
-        callOrdinal: null,
-      };
+      : Object.fromEntries(Object.keys(
+        LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+      ).map((key) => [key, null]));
     for (const [key, header] of Object.entries(
       LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
     )) {
@@ -1708,7 +1733,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
   }
 });
 
-test("the four-field provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v2 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -1716,7 +1741,7 @@ test("the four-field provider diagnostic is opt-in and confined to an active qua
       headers: { "Content-Type": "text/plain" },
     }),
     runTextToLatticeImpl: async (_text, { adapter }) => {
-      await adapter.analyze(minimalAnalysisRequest());
+      await adapter.analyze(analysisRequestWithDiagnostic());
       return validLatticeResult();
     },
     ...overrides,
@@ -1736,7 +1761,7 @@ test("the four-field provider diagnostic is opt-in and confined to an active qua
       "wrong diagnostic version",
       createFailureWorker(),
       activeQualification,
-      { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v2" },
+      { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v1" },
     ],
   ];
   for (const [name, worker, env, headers] of cases) {
@@ -1770,6 +1795,24 @@ test("the four-field provider diagnostic is opt-in and confined to an active qua
     response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal),
     "1",
   );
+  const diagnosticFields = {
+    subtype: "none",
+    finishReason: "none",
+    requestSize: "4097-16384",
+    responseSize: "none",
+    contentSize: "none",
+    completionTokens: "none",
+    analysisOrigin: "initial",
+    analysisAttempt: "1",
+    priorValidationCategory: "none",
+  };
+  for (const [field, value] of Object.entries(diagnosticFields)) {
+    assert.equal(
+      response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS[field]),
+      value,
+      field,
+    );
+  }
   assert.equal(JSON.stringify([...response.headers]).includes(privateBody), false);
 
   const successfulQualification = await createLatticeApiWorker({

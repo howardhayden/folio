@@ -65,6 +65,28 @@ function apiJson(value, status, headers = {}) {
   });
 }
 
+function qualificationDiagnosticHeaders(overrides = {}) {
+  const values = {
+    failureClass: "provider_http_error",
+    upstreamStatus: "503",
+    stage: "analysis",
+    callOrdinal: "1",
+    subtype: "none",
+    finishReason: "none",
+    requestSize: "4097-16384",
+    responseSize: "none",
+    contentSize: "none",
+    completionTokens: "none",
+    analysisOrigin: "initial",
+    analysisAttempt: "1",
+    priorValidationCategory: "none",
+    ...overrides,
+  };
+  return Object.fromEntries(Object.entries(
+    LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  ).map(([field, header]) => [header, values[field]]));
+}
+
 function validResult() {
   return {
     version: LATTICE_RESULT_VERSION,
@@ -642,11 +664,7 @@ test("a failed transformation canary retains only sanitized non-qualifying prefl
       { error: "upstream_unavailable" },
       502,
       {
-        [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass]:
-          "provider_http_error",
-        [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus]: "503",
-        [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage]: "analysis",
-        [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal]: "1",
+        ...qualificationDiagnosticHeaders(),
         "X-Private-Provider-Diagnostic": privateProviderDetail,
       },
     ),
@@ -668,7 +686,7 @@ test("a failed transformation canary retains only sanitized non-qualifying prefl
         await writeLatticeProductionEvidenceReceipt(preflightPath, evidence);
       },
     }),
-    /synthetic transformation canary returned HTTP 502 \(upstream_unavailable\); failure_class=provider_http_error; upstream_status=503; stage=analysis; call_ordinal=1/u,
+    /synthetic transformation canary returned HTTP 502 \(upstream_unavailable\); failure_class=provider_http_error; upstream_status=503; stage=analysis; call_ordinal=1; subtype=none; finish_reason=none; request_size=4097-16384; response_size=none; content_size=none; completion_tokens=none; analysis_origin=initial; analysis_attempt=1; prior_validation=none/u,
   );
   assert.equal(fixture.canaryRequests, 1);
   assert.equal(fixture.setupRequests, 1);
@@ -703,13 +721,7 @@ test("a failed transformation canary retains only sanitized non-qualifying prefl
 
 test("the canary rejects absent, partial, malformed, or success diagnostics without reflecting values", async (contextTest) => {
   const privateMarker = "PRIVATE-DIAGNOSTIC-MARKER-MUST-NOT-CROSS";
-  const exactDiagnostic = {
-    [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass]:
-      "provider_http_error",
-    [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus]: "503",
-    [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage]: "analysis",
-    [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal]: "1",
-  };
+  const exactDiagnostic = qualificationDiagnosticHeaders();
   const cases = [
     ["absent", {}, /without a qualification diagnostic/u, 502],
     [
@@ -739,6 +751,45 @@ test("the canary rejects absent, partial, malformed, or success diagnostics with
     [
       "ordinal",
       { ...exactDiagnostic, [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal]: "33" },
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
+      "subtype",
+      qualificationDiagnosticHeaders({ subtype: privateMarker }),
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
+      "size bucket",
+      qualificationDiagnosticHeaders({ requestSize: "4096-ish" }),
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
+      "analysis attempt",
+      qualificationDiagnosticHeaders({ analysisAttempt: "3" }),
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
+      "missing prior validation",
+      qualificationDiagnosticHeaders({ analysisAttempt: "2" }),
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
+      "inconsistent output limit",
+      qualificationDiagnosticHeaders({
+        failureClass: "provider_output_limit",
+        finishReason: "stop",
+      }),
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
+      "non-analysis context",
+      qualificationDiagnosticHeaders({ stage: "candidate" }),
       /invalid qualification diagnostic/u,
       502,
     ],

@@ -14,15 +14,24 @@ import {
   isLatticeApiResult,
 } from "../app/resume/lattice/remoteProtocol.js";
 import {
+  LATTICE_PROVIDER_ANALYSIS_ATTEMPTS,
+  LATTICE_PROVIDER_ANALYSIS_ORIGINS,
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
   LATTICE_PROVIDER_CALL_LIMIT,
   LATTICE_PROVIDER_CALL_TIMEOUT_MS,
+  LATTICE_PROVIDER_COMPLETION_TOKEN_BUCKETS,
   LATTICE_PROVIDER_FAILURE_CLASSES,
+  LATTICE_PROVIDER_FINISH_REASONS,
+  LATTICE_PROVIDER_MALFORMED_SUBTYPES,
   LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
   LATTICE_REMOTE_MODELS,
+  LATTICE_PROVIDER_SIZE_BUCKETS,
   LATTICE_PROVIDER_STAGES,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
+import {
+  LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
+} from "../app/resume/lattice/promptContract.js";
 import {
   LATTICE_API_ORIGIN,
   LATTICE_API_REQUEST_BYTE_LIMIT,
@@ -74,6 +83,14 @@ const UNABLE_CANARY_CLASSES = new Map([
 ]);
 const PROVIDER_FAILURE_CLASS_SET = new Set(LATTICE_PROVIDER_FAILURE_CLASSES);
 const PROVIDER_STAGE_SET = new Set(LATTICE_PROVIDER_STAGES);
+const PROVIDER_MALFORMED_SUBTYPE_SET = new Set(LATTICE_PROVIDER_MALFORMED_SUBTYPES);
+const PROVIDER_FINISH_REASON_SET = new Set(LATTICE_PROVIDER_FINISH_REASONS);
+const PROVIDER_SIZE_BUCKET_SET = new Set(LATTICE_PROVIDER_SIZE_BUCKETS);
+const PROVIDER_COMPLETION_TOKEN_BUCKET_SET = new Set(LATTICE_PROVIDER_COMPLETION_TOKEN_BUCKETS);
+const PROVIDER_ANALYSIS_ORIGIN_SET = new Set(LATTICE_PROVIDER_ANALYSIS_ORIGINS);
+const PROVIDER_ANALYSIS_ATTEMPT_SET = new Set(LATTICE_PROVIDER_ANALYSIS_ATTEMPTS);
+const PROVIDER_ACTIVE_ANALYSIS_ATTEMPT_SET = new Set(["1", "2"]);
+const ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
 const DOCUMENT_PATHS = Object.freeze([
   "/",
   "/index.html",
@@ -778,24 +795,18 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   assertApiHeaders(response, label);
   const bytes = await boundedBytes(response, API_RESPONSE_LIMIT, label);
   const envelope = parseJson(bytes, label);
-  const diagnosticValues = Object.freeze({
-    failureClass: response.headers.get(
-      LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass,
-    ),
-    upstreamStatus: response.headers.get(
-      LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus,
-    ),
-    stage: response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage),
-    callOrdinal: response.headers.get(
-      LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal,
-    ),
-  });
+  const diagnosticValues = Object.freeze(Object.fromEntries(
+    Object.entries(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS).map(([field, header]) => (
+      [field, response.headers.get(header)]
+    )),
+  ));
   const diagnosticPresent = Object.values(diagnosticValues).filter((value) => value !== null).length;
-  if (diagnosticPresent !== 0 && diagnosticPresent !== 4) {
+  const diagnosticFieldCount = Object.keys(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS).length;
+  if (diagnosticPresent !== 0 && diagnosticPresent !== diagnosticFieldCount) {
     fail(`${label} returned an incomplete qualification diagnostic`);
   }
   let diagnostic = null;
-  if (diagnosticPresent === 4) {
+  if (diagnosticPresent === diagnosticFieldCount) {
     const ordinal = Number(diagnosticValues.callOrdinal);
     if (!PROVIDER_FAILURE_CLASS_SET.has(diagnosticValues.failureClass)
       || !(diagnosticValues.upstreamStatus === "none"
@@ -804,7 +815,35 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
       || !/^(?:[1-9]|[12]\d|3[0-2])$/u.test(diagnosticValues.callOrdinal)
       || !Number.isSafeInteger(ordinal)
       || ordinal < 1
-      || ordinal > LATTICE_PROVIDER_CALL_LIMIT) {
+      || ordinal > LATTICE_PROVIDER_CALL_LIMIT
+      || !PROVIDER_MALFORMED_SUBTYPE_SET.has(diagnosticValues.subtype)
+      || !PROVIDER_FINISH_REASON_SET.has(diagnosticValues.finishReason)
+      || !PROVIDER_SIZE_BUCKET_SET.has(diagnosticValues.requestSize)
+      || !PROVIDER_SIZE_BUCKET_SET.has(diagnosticValues.responseSize)
+      || !PROVIDER_SIZE_BUCKET_SET.has(diagnosticValues.contentSize)
+      || !PROVIDER_COMPLETION_TOKEN_BUCKET_SET.has(diagnosticValues.completionTokens)
+      || !PROVIDER_ANALYSIS_ORIGIN_SET.has(diagnosticValues.analysisOrigin)
+      || !PROVIDER_ANALYSIS_ATTEMPT_SET.has(diagnosticValues.analysisAttempt)
+      || !ANALYSIS_VALIDATION_CATEGORY_SET.has(diagnosticValues.priorValidationCategory)
+      || (diagnosticValues.failureClass === "provider_malformed_response"
+        && diagnosticValues.subtype === "none")
+      || (diagnosticValues.failureClass !== "provider_malformed_response"
+        && diagnosticValues.subtype !== "none")
+      || (diagnosticValues.failureClass === "provider_output_limit"
+        && diagnosticValues.finishReason !== "length")
+      || (diagnosticValues.stage === "analysis" && (
+        diagnosticValues.analysisOrigin === "none"
+        || !PROVIDER_ACTIVE_ANALYSIS_ATTEMPT_SET.has(diagnosticValues.analysisAttempt)
+        || (diagnosticValues.analysisAttempt === "1"
+          && diagnosticValues.priorValidationCategory !== "none")
+        || (diagnosticValues.analysisAttempt === "2"
+          && diagnosticValues.priorValidationCategory === "none")
+      ))
+      || (diagnosticValues.stage !== "analysis" && (
+        diagnosticValues.analysisOrigin !== "none"
+        || diagnosticValues.analysisAttempt !== "none"
+        || diagnosticValues.priorValidationCategory !== "none"
+      ))) {
       fail(`${label} returned an invalid qualification diagnostic`);
     }
     diagnostic = Object.freeze({ ...diagnosticValues, callOrdinal: ordinal });
@@ -818,7 +857,16 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
       + `failure_class=${diagnostic.failureClass}; `
       + `upstream_status=${diagnostic.upstreamStatus}; `
       + `stage=${diagnostic.stage}; `
-      + `call_ordinal=${diagnostic.callOrdinal}`);
+      + `call_ordinal=${diagnostic.callOrdinal}; `
+      + `subtype=${diagnostic.subtype}; `
+      + `finish_reason=${diagnostic.finishReason}; `
+      + `request_size=${diagnostic.requestSize}; `
+      + `response_size=${diagnostic.responseSize}; `
+      + `content_size=${diagnostic.contentSize}; `
+      + `completion_tokens=${diagnostic.completionTokens}; `
+      + `analysis_origin=${diagnostic.analysisOrigin}; `
+      + `analysis_attempt=${diagnostic.analysisAttempt}; `
+      + `prior_validation=${diagnostic.priorValidationCategory}`);
   }
   if (diagnostic !== null) {
     fail(`${label} returned a qualification diagnostic on success`);

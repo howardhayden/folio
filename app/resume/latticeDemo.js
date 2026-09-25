@@ -39,6 +39,9 @@ import {
   LATTICE_ATOM_KINDS,
   LATTICE_ATOM_PRIORITIES,
   LATTICE_ATOM_RELATIONS,
+  LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT,
+  LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS,
+  LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
   LATTICE_BATCH_ATOM_LIMIT,
   LATTICE_CONFORMANCE_CRITERIA,
   LATTICE_CONFORMANCE_CRITERION_IDS,
@@ -122,6 +125,54 @@ const QUESTION_JOINER = /[\u200C\u200D]/gu;
 const QUESTION_WORD_SEGMENTER = typeof Intl !== "undefined" && typeof Intl.Segmenter === "function"
   ? new Intl.Segmenter("und", { granularity: "word" })
   : null;
+const ANALYSIS_DIAGNOSTIC_ORIGIN_SET = new Set(LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS);
+const ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
+const ANALYSIS_VALIDATION_MESSAGE_CATEGORIES = Object.freeze([
+  Object.freeze({
+    category: "provenance",
+    pattern: /^(?:The host supplied an invalid atomization revision\.|The atomizer response (?:lost its fitted host context|referenced invalid fitted ledger provenance)\.)$/u,
+  }),
+  Object.freeze({
+    category: "passage-coverage",
+    pattern: /^(?:Atomization (?:must be a list|contains an invalid passage identifier|contains a duplicate passage|did not cover every passage|did not match the requested passages)\.|The atomizer referenced an unknown passage\.)$/u,
+  }),
+  Object.freeze({
+    category: "capacity",
+    pattern: /^(?:Atomization exceeded the fitted \d+-atom batch limit\.|The atomizer returned an invalid atom set for .+\.|.+ (?:exceeded its protocol limit|must be a bounded list|contains too many invisible format controls)\.)$/u,
+  }),
+  Object.freeze({
+    category: "relation",
+    pattern: /^(?:Atom .+ (?:has invalid links|has an invalid link|has an unsupported link relation|repeats an identical typed link|links to an unknown atom|cannot link to itself)\.)$/u,
+  }),
+  Object.freeze({
+    category: "ambiguity",
+    pattern: /^(?:Ambiguity atoms in .+|Passage .+ (?:references an unknown ambiguity atom|labels a non-ambiguity atom as an ambiguity))\.$/u,
+  }),
+  Object.freeze({
+    category: "conformance",
+    pattern: /^(?:(?:Conformance (?:criteria|evidence spans|assertions)|Rewrite plan) in? .+|Conformance assertion .+|.+ criterion .+)\.$/u,
+  }),
+  Object.freeze({
+    category: "evidence",
+    pattern: /^(?:Atom .+ evidence spans .+|Exact atom .+ must cite only fine-grained literal spans\.|Atomization did not ground every lossless source span of passage .+\.|.+ (?:references an unknown or cross-passage source span|references an unknown passage|must cite at least \d+ source spans?)\.)$/u,
+  }),
+  Object.freeze({
+    category: "identifier",
+    pattern: /^(?:The atomizer (?:returned an invalid atom identifier|used the host-reserved atom identifier namespace|reused a visible external atom identifier as a local identifier)\.|Atom identifier .+ is duplicated\.|.+ contains a duplicate identifier\.)$/u,
+  }),
+  Object.freeze({
+    category: "text",
+    pattern: /^.+ (?:must be text|contains an incomplete Unicode character|contains an unsupported control character|contains a Unicode noncharacter|contains invalid direction markers|contains an oversized character sequence|contains an overlong word-like token|cannot be empty)\.$/u,
+  }),
+  Object.freeze({
+    category: "clarification",
+    pattern: /^(?:Post-candidate re-atomization cannot return visible clarification text|(?:Question|Clarification|Answer|Option).+|.+ clarification .+)\.$/iu,
+  }),
+  Object.freeze({
+    category: "response-shape",
+    pattern: /^(?:The atomizer returned an invalid (?:response|document kind|passage|layer for .+|disposition for .+)|Atomization response .+|Atom .+ (?:is invalid|has an invalid kind|has an invalid priority|has an invalid preservation mode)|.+ (?:must be an object|contains an unknown field|is missing a required field))\.$/u,
+  }),
+]);
 const QUESTION_GROUNDING_STOPWORDS = new Set([
   "a", "an", "and", "are", "as", "at", "be", "by", "did", "do", "does", "for", "from",
   "in", "is", "mean", "means", "meant", "of", "on", "or", "reading", "the", "to", "was", "were",
@@ -1187,6 +1238,38 @@ function retryableStageFailure(error) {
     || ["lattice-context", "lattice-output-length", "lattice-json", "lattice-response"].includes(error?.code);
 }
 
+function analysisValidationCategory(error) {
+  if (error instanceof SyntaxError || ["lattice-json", "lattice-response"].includes(error?.code)) {
+    return "response-shape";
+  }
+  if (error?.code === "lattice-output-length") return "capacity";
+  if (!(error instanceof LatticeProtocolError) || typeof error.message !== "string") return "other";
+  const matched = ANALYSIS_VALIDATION_MESSAGE_CATEGORIES.find(({ pattern }) => pattern.test(error.message));
+  const category = matched?.category ?? "other";
+  return ANALYSIS_VALIDATION_CATEGORY_SET.has(category) ? category : "other";
+}
+
+function analysisDiagnosticRequest(request, origin, stage, attempt, lastError) {
+  if (!ANALYSIS_DIAGNOSTIC_ORIGIN_SET.has(origin) || ![1, 2].includes(attempt)) {
+    throw new TypeError("Text to Lattice received invalid analysis diagnostic context.");
+  }
+  const currentRequest = {
+    ...request,
+    ...(attempt === 1 ? {} : { protocolFeedback: stageFeedback(stage, lastError, attempt) }),
+  };
+  Object.defineProperty(currentRequest, LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT, {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: Object.freeze({
+      origin,
+      attempt,
+      priorValidationCategory: attempt === 1 ? "none" : analysisValidationCategory(lastError),
+    }),
+  });
+  return Object.freeze(currentRequest);
+}
+
 function stageFeedback(stage, error, attempt) {
   return Object.freeze({
     stage,
@@ -1196,13 +1279,23 @@ function stageFeedback(stage, error, attempt) {
   });
 }
 
-async function callNormalizedStage({ stage, request, invoke, normalize, signal, attempts = 2 }) {
+async function callNormalizedStage({
+  stage,
+  request,
+  invoke,
+  normalize,
+  signal,
+  attempts = 2,
+  analysisDiagnosticOrigin = null,
+}) {
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     throwIfAborted(signal);
-    const currentRequest = attempt === 1
-      ? request
-      : Object.freeze({ ...request, protocolFeedback: stageFeedback(stage, lastError, attempt) });
+    const currentRequest = analysisDiagnosticOrigin === null
+      ? attempt === 1
+        ? request
+        : Object.freeze({ ...request, protocolFeedback: stageFeedback(stage, lastError, attempt) })
+      : analysisDiagnosticRequest(request, analysisDiagnosticOrigin, stage, attempt, lastError);
     try {
       return await normalize(await invoke(currentRequest), currentRequest);
     } catch (error) {
@@ -2786,6 +2879,7 @@ export async function runTextToLattice(value, options = {}) {
   throwIfAborted(signal);
 
   const pendingBatches = [...batches];
+  const adaptivelySplitAnalysisBatches = new WeakSet();
   let analyses = [];
   let analysisRevisionSerial = 0;
   const nextAnalysisRevisionId = () => {
@@ -2817,6 +2911,7 @@ export async function runTextToLattice(value, options = {}) {
       const analysis = await callClarifiableStage({
         clarificationAnswers,
         stage: "atomization",
+        analysisDiagnosticOrigin: adaptivelySplitAnalysisBatches.has(batch) ? "split" : "initial",
         request,
         invoke: (currentRequest) => options.adapter.analyze(currentRequest),
         normalize: (raw) => normalizeAnalysis(
@@ -2835,6 +2930,8 @@ export async function runTextToLattice(value, options = {}) {
     } catch (error) {
       if (batch.passages.length > 1 && retryableAnalysisFailure(error)) {
         const [left, right] = splitBatch(batch);
+        adaptivelySplitAnalysisBatches.add(left);
+        adaptivelySplitAnalysisBatches.add(right);
         pendingBatches.unshift(left, right);
         continue;
       }
@@ -2844,10 +2941,11 @@ export async function runTextToLattice(value, options = {}) {
         const withinPassageLimit = children && passages.length + 1 <= LATTICE_PASSAGE_LIMIT;
         const withinBatchLimit = analyses.length + pendingBatches.length + 2 <= LATTICE_EXECUTION_BATCH_LIMIT;
         if (withinPassageLimit && withinBatchLimit && replacePassageWithChildren(passages, sourcePassage, children)) {
-          pendingBatches.unshift(
-            buildBatch(`${batch.id}a`, [children[0]]),
-            buildBatch(`${batch.id}b`, [children[1]]),
-          );
+          const left = buildBatch(`${batch.id}a`, [children[0]]);
+          const right = buildBatch(`${batch.id}b`, [children[1]]);
+          adaptivelySplitAnalysisBatches.add(left);
+          adaptivelySplitAnalysisBatches.add(right);
+          pendingBatches.unshift(left, right);
           continue;
         }
         return resultFromState({
@@ -3123,6 +3221,7 @@ export async function runTextToLattice(value, options = {}) {
     try {
       const normalizedAnalysis = await callNormalizedStage({
         stage: "re-atomization",
+        analysisDiagnosticOrigin: "reanalysis",
         request,
         invoke: (currentRequest) => options.adapter.analyze(currentRequest),
         normalize: (raw) => normalizeAnalysis(
