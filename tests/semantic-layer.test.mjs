@@ -938,7 +938,6 @@ test("project and Text to Lattice implementation provenance stays source-aligned
           topP: 0.8,
           topK: 20,
           minP: 0,
-          presencePenalty: 1.5,
           maximumOutputTokens: 3_072,
         },
         candidate: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },

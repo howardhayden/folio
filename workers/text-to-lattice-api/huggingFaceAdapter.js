@@ -200,7 +200,6 @@ const STAGES = Object.freeze({
     topP: 0.8,
     topK: 20,
     minP: 0,
-    presencePenalty: 1.5,
   }),
   candidate: Object.freeze({
     role: "generator",
