@@ -132,6 +132,26 @@ test("an initial host-validation correction attributes malformed provider call t
       /lattice-analysis-diagnostic-context|analysisOrigin|analysisAttempt|priorValidationCategory/u,
     );
   }
+  const [firstBody, correctedBody] = providerBodies.map((body) => JSON.parse(body));
+  const firstSerialized = JSON.stringify(firstBody);
+  const correctedSerialized = JSON.stringify(correctedBody);
+  assert.doesNotMatch(firstSerialized, /private-analysis-wire-invalid/u);
+  assert.match(correctedSerialized, /private-analysis-wire-invalid/u);
+  assert.match(correctedSerialized, /exactly one p tuple for every supplied passage ID|exact tuple widths|covering every source span|valid link targets|Keep q empty/iu);
+  assert.doesNotMatch(
+    correctedSerialized,
+    /Atomization did not cover every passage|matching every named field|Return the analysis schema\./iu,
+  );
+  for (const body of [firstBody, correctedBody]) {
+    const system = body.messages.find(({ role }) => role === "system")?.content ?? "";
+    assert.match(system, /private d\/p\/q wire object/u);
+    assert.match(system, /Keep q empty/u);
+    assert.equal((system.match(/Response contract lattice_analysis_wire_v1/gu) ?? []).length, 1);
+    assert.doesNotMatch(system, /Return the analysis schema\.|Return questions empty|affectedAtomIds/iu);
+  }
+  assert.doesNotMatch(firstBody.messages[0].content, /one bounded correction attempt/u);
+  assert.match(correctedBody.messages[0].content, /one bounded correction attempt/u);
+  assert.doesNotMatch(correctedBody.messages[1].content, /one bounded correction attempt/u);
 });
 
 test("a malformed compact analysis tuple fails into the bounded host correction path", async () => {

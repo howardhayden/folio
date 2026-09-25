@@ -181,12 +181,16 @@ const ANALYSIS_WIRE_SCHEMA = Object.freeze({
 });
 const ANALYSIS_WIRE_GUIDE = [
   "Use only this private analysis wire layout; the single-letter root keys and tuple positions are mandatory.",
-  "Root: {\"d\":documentKind,\"p\":[passage tuples],\"q\":[]}. The q array must be empty.",
-  "Passage tuple: [passageId,discourseFunction,layer,disposition,rationale,atoms,ambiguityAtomIds,conformanceCriteria,conformanceEvidenceSpanIds,conformanceAssertions].",
-  "Atom tuple: [id,kind,value,priority,preservation,evidenceSpanIds,links].",
-  "Link tuple: [relation,targetAtomId]. Conformance assertion tuple: [criterion,evidenceSpanIds].",
-  "Fill the required discourseFunction and rationale tuple strings. Do not emit long field names, Markdown, explanations, reasoning, or any other text outside the JSON object.",
+  "The root has exactly d, p, and q: d is the document-kind enum string; p is the passage-tuple array; q is the empty array [].",
+  "Passage tuple positions 0-9: [passage ID,discourse function,layer,disposition,rationale,atom tuples,ambiguity atom IDs,conformance criterion IDs,conformance evidence span IDs,conformance assertion tuples].",
+  "Atom tuple positions 0-6: [atom ID,kind,value,priority,preservation,evidence span IDs,link tuples].",
+  "Link tuple positions 0-1: [relation,target atom ID]. Conformance assertion tuple positions 0-1: [criterion,evidence span IDs].",
+  "Fill passage position 1 with the discourse function and position 4 with the rationale. Do not emit long field names, Markdown, explanations, reasoning, or any other text outside the JSON object.",
 ].join("\n");
+
+function analysisWireMessages(request) {
+  return analysisMessages(request, { responseDialect: "compact-wire-v1" });
+}
 
 const STAGES = Object.freeze({
   analysis: Object.freeze({
@@ -194,7 +198,7 @@ const STAGES = Object.freeze({
     schema: ANALYSIS_WIRE_SCHEMA,
     schemaName: "lattice_analysis_wire_v1",
     responseGuide: ANALYSIS_WIRE_GUIDE,
-    messages: analysisMessages,
+    messages: analysisWireMessages,
     maxTokens: 3_072,
     temperature: 0.7,
     topP: 0.8,

@@ -28,6 +28,9 @@ export const LATTICE_ANALYSIS_VALIDATION_CATEGORIES = Object.freeze([
   "clarification",
   "other",
 ]);
+const ANALYSIS_RESPONSE_DIALECTS = new Set(["host-schema", "compact-wire-v1"]);
+const COMPACT_ANALYSIS_RETRY_CODE = "private-analysis-wire-invalid";
+const COMPACT_ANALYSIS_RETRY_INSTRUCTION = "This is the one bounded correction attempt. Return one complete d/p/q analysis-result instance. Include exactly one p tuple for every supplied passage ID. Use exact tuple widths, short unique atom IDs, cited supplied evidence IDs covering every source span, valid link targets, and every required value. Keep q empty. Do not emit long field names or copy a schema.";
 
 export const LATTICE_LAYERS = Object.freeze(["operative", "experiential", "interpretive", "mixed", "accessibility"]);
 export const LATTICE_REQUEST_MODES = Object.freeze(["auto", "operative", "experiential"]);
@@ -872,7 +875,24 @@ function requestedModeInstruction(request) {
   return "";
 }
 
-export function analysisMessages(request) {
+export function analysisMessages(request, { responseDialect = "host-schema" } = {}) {
+  if (!ANALYSIS_RESPONSE_DIALECTS.has(responseDialect)) {
+    throw new TypeError("Text to Lattice received an invalid analysis response dialect.");
+  }
+  const compactWire = responseDialect === "compact-wire-v1";
+  const clarificationInstruction = compactWire
+    ? " Keep q empty. Make a definitive best-supported classification while preserving unresolved ambiguity or uncertainty in the atom graph; never ask a public question."
+    : request.allowClarification === false
+      ? " Return questions empty. Make a definitive best-supported classification while preserving unresolved ambiguity or uncertainty in the atom graph; never turn it into a public question."
+      : request.clarificationAnswers?.length
+        ? " One clarification tuple [passage ID, current question, answer] is bound to this exact source and revision; resolve it and return questions empty."
+        : " If needed, ask one short evidence-grounded ? question; affectedAtomIds name declared ambiguity/uncertainty atoms.";
+  const conformanceCoverageInstruction = compactWire
+    ? "their evidence plus the conformance-evidence span IDs at passage tuple index 8 cover every supplied span and annotation"
+    : "their evidence plus conformanceEvidenceSpanIds cover every supplied span and annotation";
+  const compactRetryInstruction = compactWire && request.protocolFeedback
+    ? ` ${COMPACT_ANALYSIS_RETRY_INSTRUCTION}`
+    : "";
   return messages(
     "Atomize every supplied passage and plan its appropriate public Lattice layer.",
     {
@@ -890,13 +910,19 @@ export function analysisMessages(request) {
         documentLedgerCoverage: documentLedgerCoverageForModel(request.documentLedgerCoverage),
       } : {}),
       ...(request.reanalysisFeedback ? { reanalysisFeedback: verificationFeedbackForModel(request.reanalysisFeedback) } : {}),
-      ...(request.protocolFeedback ? { protocolFeedback: request.protocolFeedback } : {}),
+      ...(request.protocolFeedback
+        ? compactWire
+          ? { retry: COMPACT_ANALYSIS_RETRY_CODE }
+          : { protocolFeedback: request.protocolFeedback }
+        : {}),
       ...(request.requestedMode ? { requestedMode: request.requestedMode } : {}),
-      ...(request.allowClarification !== false && request.clarificationAnswers?.length ? {
+      ...(!compactWire && request.allowClarification !== false && request.clarificationAnswers?.length ? {
         clarificationAnswers: clarificationAnswersForModel(request.clarificationAnswers),
       } : {}),
     },
-    `Return the analysis schema. Passage source groups are [passage ID, ordered spans, nested literal annotations].${directionFrameInstruction(request)} Spans are [ID,"source",text] or [ID,"literal",subtype,text], forming one lossless partition. Nested literal annotations are [ID,subtype,start,end,text] inside an indivisible balanced direction-isolate span; cite them for exact preservation without splitting. Boundaries are ordered gaps [before first, between pairs, after last]. Normal gaps use exact [unit,count] runs: CRLF, LF, CR, TAB, SP, LS, PS, or U+hex; repeat/host-exact summaries remain binding host structure. Cite span or annotation IDs only. Feedback is [decision, failed gates, passage tuples, issues]; passage tuples are [ID, missing atoms, unsupported flag, unmodeled spans, failed checks, conformance spans, conformance failed, independent layer, layer-evidence atoms, layer-evidence spans, failed criterion checks], and each issue is [failed check, passage ID]. Use at most ${request.analysisAtomLimit ?? 24} atoms total with short IDs. Atomize each distinct explicit commitment, identity, role, coreference, polarity, modality, uncertainty, condition, order, cause, effect, and attribution. Add typed links only for relations the source supports; independent atoms need no invented link. Proper names are hard identity atoms preserved equivalently by default; unambiguous pronouns are allowed. Exact atoms cite only literal spans or annotations. State the passage's source-specific discourse function and explain in the rationale which supported atoms the selected layer will make legible.${requestedModeInstruction(request)} Plan ordinary prose as rewrite. Retain only if every universal and selected-layer criterion has its own nonempty conformance assertion and their evidence plus conformanceEvidenceSpanIds cover every supplied span and annotation; otherwise leave all conformance lists empty.${request.allowClarification === false ? " Return questions empty. Make a definitive best-supported classification while preserving unresolved ambiguity or uncertainty in the atom graph; never turn it into a public question." : request.clarificationAnswers?.length ? " One clarification tuple [passage ID, current question, answer] is bound to this exact source and revision; resolve it and return questions empty." : " If needed, ask one short evidence-grounded ? question; affectedAtomIds name declared ambiguity/uncertainty atoms."} Do not use atoms, IDs, schemas, gates, candidates, models, or verifiers as implementation language in its visible prompt or option labels; one of those words may appear only when it occurs in the cited source passage.`,
+    `${compactWire
+      ? "Return one analysis-result instance using only the private d/p/q wire object defined by the final response contract. Never return or copy a schema definition."
+      : "Return the analysis schema."} Passage source groups are [passage ID, ordered spans, nested literal annotations].${directionFrameInstruction(request)} Spans are [ID,"source",text] or [ID,"literal",subtype,text], forming one lossless partition. Nested literal annotations are [ID,subtype,start,end,text] inside an indivisible balanced direction-isolate span; cite them for exact preservation without splitting. Boundaries are ordered gaps [before first, between pairs, after last]. Normal gaps use exact [unit,count] runs: CRLF, LF, CR, TAB, SP, LS, PS, or U+hex; repeat/host-exact summaries remain binding host structure. Cite span or annotation IDs only. Feedback is [decision, failed gates, passage tuples, issues]; passage tuples are [ID, missing atoms, unsupported flag, unmodeled spans, failed checks, conformance spans, conformance failed, independent layer, layer-evidence atoms, layer-evidence spans, failed criterion checks], and each issue is [failed check, passage ID]. Use at most ${request.analysisAtomLimit ?? 24} atoms total with short IDs. Atomize each distinct explicit commitment, identity, role, coreference, polarity, modality, uncertainty, condition, order, cause, effect, and attribution. Add typed links only for relations the source supports; independent atoms need no invented link. Proper names are hard identity atoms preserved equivalently by default; unambiguous pronouns are allowed. Exact atoms cite only literal spans or annotations. State the passage's source-specific discourse function and explain in the rationale which supported atoms the selected layer will make legible.${requestedModeInstruction(request)} Plan ordinary prose as rewrite. Retain only if every universal and selected-layer criterion has its own nonempty conformance assertion and ${conformanceCoverageInstruction}; otherwise leave all conformance lists empty.${clarificationInstruction}${compactRetryInstruction} Do not use atoms, IDs, schemas, gates, candidates, models, or verifiers as implementation language in its visible prompt or option labels; one of those words may appear only when it occurs in the cited source passage.`,
   );
 }
 

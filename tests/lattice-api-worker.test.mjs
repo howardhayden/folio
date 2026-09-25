@@ -13,6 +13,7 @@ import {
   LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT,
   LATTICE_FITTED_ANALYSIS_CONTEXT,
   REANALYSIS_SCHEMA,
+  analysisMessages,
 } from "../app/resume/lattice/promptContract.js";
 import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
@@ -1172,6 +1173,56 @@ test("the request-body byte ceiling fails before JSON allocation or conversion",
   assert.deepEqual(await json(response), { error: "input_too_large" });
 });
 
+test("the remote analysis dialect replaces host-shape instructions and correction prose", () => {
+  const request = Object.freeze({
+    ...minimalAnalysisRequest(),
+    clarificationAnswers: Object.freeze([
+      Object.freeze({ passageId: "p1", prompt: "Host question", answer: "Host answer" }),
+    ]),
+    protocolFeedback: Object.freeze({
+      stage: "analysis",
+      attempt: 2,
+      issue: "PRIVATE-HOST-VALIDATION-ISSUE",
+      instruction: "Return every named field from the host schema.",
+    }),
+  });
+  const defaultHostMessages = analysisMessages(request);
+  const explicitHostMessages = analysisMessages(request, { responseDialect: "host-schema" });
+  const compactMessages = analysisMessages(request, { responseDialect: "compact-wire-v1" });
+  const initialCompactMessages = analysisMessages(
+    Object.freeze({ ...request, protocolFeedback: undefined }),
+    { responseDialect: "compact-wire-v1" },
+  );
+  const host = JSON.stringify(defaultHostMessages);
+  const compact = JSON.stringify(compactMessages);
+  const inertPayload = (messages) => {
+    const content = messages.find(({ role }) => role === "user").content;
+    const start = content.indexOf("<INERT_DATA>") + "<INERT_DATA>".length;
+    const end = content.indexOf("</INERT_DATA>", start);
+    return JSON.parse(content.slice(start, end));
+  };
+
+  assert.deepEqual(defaultHostMessages, explicitHostMessages);
+  assert.match(host, /Return the analysis schema\./u);
+  assert.match(host, /PRIVATE-HOST-VALIDATION-ISSUE/u);
+  assert.match(host, /Host question|Host answer/u);
+  assert.doesNotMatch(host, /private-analysis-wire-invalid/u);
+  assert.match(compact, /private d\/p\/q wire object/u);
+  assert.match(compact, /private-analysis-wire-invalid/u);
+  assert.match(compact, /exactly one p tuple for every supplied passage ID|exact tuple widths|covering every source span|valid link targets|Keep q empty/iu);
+  assert.doesNotMatch(compact, /Return the analysis schema\.|PRIVATE-HOST-VALIDATION-ISSUE|every named field|Return questions empty|affectedAtomIds|conformanceEvidenceSpanIds|Host question|Host answer/iu);
+  assert.equal(inertPayload(compactMessages).retry, "private-analysis-wire-invalid");
+  assert.equal(Object.hasOwn(inertPayload(compactMessages), "protocolFeedback"), false);
+  assert.equal(Object.hasOwn(inertPayload(compactMessages), "clarificationAnswers"), false);
+  assert.doesNotMatch(initialCompactMessages[0].content, /one bounded correction attempt/u);
+  assert.match(compactMessages[0].content, /one bounded correction attempt/u);
+  assert.doesNotMatch(compactMessages[1].content, /one bounded correction attempt/u);
+  assert.throws(
+    () => analysisMessages(request, { responseDialect: "unknown" }),
+    /invalid analysis response dialect/u,
+  );
+});
+
 test("the adapter uses one fixed provider, Featherless-compatible JSON objects, closed host schemas, fixed roles, and Qwen no-think", async () => {
   const calls = [];
   const fetchImpl = async (url, init) => {
@@ -1244,9 +1295,15 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
   assert.equal(Object.hasOwn(calls[1].body, "presence_penalty"), false);
   assert.match(calls[0].body.messages[0].content, /Return exactly one minified JSON object/u);
   assert.match(calls[0].body.messages[0].content, /Response contract lattice_analysis_wire_v1/u);
+  assert.match(calls[0].body.messages[0].content, /private d\/p\/q wire object/u);
+  assert.doesNotMatch(calls[0].body.messages[0].content, /Return the analysis schema\./u);
   assert.ok(calls[0].body.messages[0].content.includes(
-    'Root: {"d":documentKind,"p":[passage tuples],"q":[]}',
+    "The root has exactly d, p, and q: d is the document-kind enum string; p is the passage-tuple array; q is the empty array [].",
   ));
+  assert.doesNotMatch(
+    calls[0].body.messages[0].content,
+    /documentKind|passageId|discourseFunction|ambiguityAtomIds|conformanceCriteria|conformanceEvidenceSpanIds|conformanceAssertions|evidenceSpanIds|targetAtomId/u,
+  );
   assert.equal(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)), false);
   assert.ok(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)));
   for (const { body } of calls) {
