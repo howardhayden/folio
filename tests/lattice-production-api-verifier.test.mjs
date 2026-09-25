@@ -11,6 +11,7 @@ import {
   LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS,
   LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA,
+  LATTICE_PRODUCTION_READINESS_CONTENT_TYPE,
   LATTICE_PRODUCTION_READINESS_CONTRACT,
   LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
   serializeLatticeProductionEvidence,
@@ -128,6 +129,10 @@ function activeReadinessResponse(headers = {}) {
   return apiJson({ error: "invalid_request" }, 405, { Allow: "POST", ...headers });
 }
 
+function productionActiveReadinessResponse(headers = {}) {
+  return apiJson({ error: "invalid_request" }, 400, headers);
+}
+
 function heldReadinessResponse(headers = {}) {
   return apiJson({ error: "upstream_unavailable" }, 503, {
     "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
@@ -139,7 +144,7 @@ function successfulFixture({ canaryResponse, readinessResponses, setupResponse }
   const calls = [];
   const readinessSequence = readinessResponses ?? Array.from(
     { length: LATTICE_PRODUCTION_READINESS_CONTRACT.requiredConsecutiveActiveSamples },
-    activeReadinessResponse,
+    productionActiveReadinessResponse,
   );
   let readinessIndex = 0;
   let negativeIndex = 0;
@@ -161,7 +166,9 @@ function successfulFixture({ canaryResponse, readinessResponses, setupResponse }
     }
 
     if (pathname === "/api/lattice"
-      && init.method === "GET"
+      && init.method === "POST"
+      && init.headers.Accept === LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT
+      && init.headers["Content-Type"] === LATTICE_PRODUCTION_READINESS_CONTENT_TYPE
       && readinessIndex < readinessSequence.length) {
       const response = readinessSequence[readinessIndex];
       readinessIndex += 1;
@@ -256,18 +263,21 @@ test("the production verifier establishes one bodyless visitor session before ex
   assert.equal(fixture.readinessRequests, readinessRequestCount);
   assert.deepEqual(evidence.deployment_readiness, {
     request_count: readinessRequestCount,
-    method: "GET",
+    method: "POST",
     path: "/api/lattice",
+    accept: LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
+    content_type: LATTICE_PRODUCTION_READINESS_CONTENT_TYPE,
+    content_type_header_present: true,
     required_consecutive_active_samples: readinessRequestCount,
     observed_consecutive_active_samples: readinessRequestCount,
     active_response_count: readinessRequestCount,
     held_response_count: 0,
     network_error_count: 0,
-    final_http_status: 405,
+    final_http_status: 400,
     final_error_code: "invalid_request",
     request_body_present: false,
     request_body_bytes: 0,
-    origin_header_present: false,
+    origin_header_present: true,
     cookie_header_present: false,
     visitor_session_created: false,
     quota_claimed: false,
@@ -333,12 +343,14 @@ test("the production verifier establishes one bodyless visitor session before ex
   assert.equal(readinessCalls.length, readinessRequestCount);
   for (const call of readinessCalls) {
     assert.equal(call.url, "https://hah.dev/api/lattice");
-    assert.equal(call.init.method, "GET");
-    assert.equal(call.init.headers.Accept, "application/json");
+    assert.equal(call.init.method, "POST");
+    assert.deepEqual(call.init.headers, {
+      Accept: LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
+      "Content-Type": LATTICE_PRODUCTION_READINESS_CONTENT_TYPE,
+      Origin: "https://hah.dev",
+    });
     assert.equal(Object.hasOwn(call.init, "body"), false);
-    assert.equal(Object.keys(call.init.headers).some((name) => name.toLowerCase() === "origin"), false);
     assert.equal(Object.keys(call.init.headers).some((name) => name.toLowerCase() === "cookie"), false);
-    assert.equal(Object.keys(call.init.headers).some((name) => name.toLowerCase() === "content-type"), false);
     assert.equal(call.init.credentials, "omit");
   }
 
@@ -460,11 +472,11 @@ test("active-API readiness settles only after consecutive exact content-free sam
   const readinessResponses = [
     new Error("synthetic edge transport failure"),
     heldReadinessResponse(),
-    activeReadinessResponse(),
+    productionActiveReadinessResponse(),
     heldReadinessResponse(),
-    activeReadinessResponse(),
-    activeReadinessResponse(),
-    activeReadinessResponse(),
+    productionActiveReadinessResponse(),
+    productionActiveReadinessResponse(),
+    productionActiveReadinessResponse(),
   ];
   const waits = [];
   const fixture = successfulFixture({ readinessResponses });
@@ -482,18 +494,21 @@ test("active-API readiness settles only after consecutive exact content-free sam
   )));
   assert.deepEqual(evidence.deployment_readiness, {
     request_count: 7,
-    method: "GET",
+    method: "POST",
     path: "/api/lattice",
+    accept: LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
+    content_type: LATTICE_PRODUCTION_READINESS_CONTENT_TYPE,
+    content_type_header_present: true,
     required_consecutive_active_samples: 3,
     observed_consecutive_active_samples: 3,
     active_response_count: 4,
     held_response_count: 2,
     network_error_count: 1,
-    final_http_status: 405,
+    final_http_status: 400,
     final_error_code: "invalid_request",
     request_body_present: false,
     request_body_bytes: 0,
-    origin_header_present: false,
+    origin_header_present: true,
     cookie_header_present: false,
     visitor_session_created: false,
     quota_claimed: false,
@@ -507,8 +522,12 @@ test("active-API readiness settles only after consecutive exact content-free sam
   assert.equal(readinessCalls.length, readinessResponses.length);
   for (const { url, init } of readinessCalls) {
     assert.equal(url, "https://hah.dev/api/lattice");
-    assert.equal(init.method, "GET");
-    assert.deepEqual(init.headers, { Accept: "application/json" });
+    assert.equal(init.method, "POST");
+    assert.deepEqual(init.headers, {
+      Accept: LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
+      "Content-Type": LATTICE_PRODUCTION_READINESS_CONTENT_TYPE,
+      Origin: "https://hah.dev",
+    });
     assert.equal(Object.hasOwn(init, "body"), false);
     assert.equal(init.credentials, "omit");
   }
@@ -540,11 +559,12 @@ test("active-API readiness exhausts a fixed held window before any cookie, quota
     4 + LATTICE_PRODUCTION_READINESS_CONTRACT.attemptLimit,
   );
   assert.ok(fixture.calls.slice(4).every(({ init }) => (
-    init.method === "GET"
+    init.method === "POST"
       && !Object.hasOwn(init, "body")
-      && Object.keys(init.headers).every((name) => !["cookie", "origin", "content-type"].includes(
-        name.toLowerCase(),
-      ))
+      && init.headers.Accept === LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT
+      && init.headers["Content-Type"] === LATTICE_PRODUCTION_READINESS_CONTENT_TYPE
+      && init.headers.Origin === "https://hah.dev"
+      && Object.keys(init.headers).every((name) => name.toLowerCase() !== "cookie")
   )));
 });
 
@@ -553,7 +573,7 @@ test("active-API readiness fails immediately on any non-exact complete response"
     [
       "unexpected status",
       apiJson({ error: "invalid_request" }, 200),
-      /returned HTTP 200; expected the active 405 or held 503 boundary/u,
+      /returned HTTP 200; expected the active 400 or held 503 boundary/u,
     ],
     [
       "malformed held headers",
@@ -562,14 +582,19 @@ test("active-API readiness fails immediately on any non-exact complete response"
     ],
     [
       "malformed active envelope",
-      apiJson({ error: "upstream_unavailable" }, 405, { Allow: "POST" }),
+      apiJson({ error: "upstream_unavailable" }, 400),
       /unexpected closed error envelope/u,
+    ],
+    [
+      "active response mutates visitor state",
+      apiJson({ error: "invalid_request" }, 400, { "Set-Cookie": quotaSetCookie }),
+      /set an undeclared cookie/u,
     ],
     [
       "oversized active body",
       new Response("x".repeat(4_097), {
-        status: 405,
-        headers: { ...apiHeaders, Allow: "POST" },
+        status: 400,
+        headers: apiHeaders,
       }),
       /exceeded its response-size boundary/u,
     ],
@@ -947,6 +972,23 @@ test("the bodyless setup requires only the exact value-free browser quota cookie
     assert.equal(fixture.setupRequests, 1);
     assert.equal(fixture.canaryRequests, 0);
   }
+});
+
+test("a setup-time 503 is validated and classified as the exact held boundary", async () => {
+  const fixture = successfulFixture({ setupResponse: heldReadinessResponse() });
+  await assert.rejects(
+    verifyTextToLatticeApiProduction({
+      fetchImpl: fixture.fetchImpl,
+      context,
+      now: fixedNow,
+      wait: noWait,
+    }),
+    /reached the exact held API boundary after active readiness; expected 204/u,
+  );
+  assert.equal(fixture.readinessRequests, 3);
+  assert.equal(fixture.setupRequests, 1);
+  assert.equal(fixture.negativeRequests, 0);
+  assert.equal(fixture.canaryRequests, 0);
 });
 
 test("the transformation response cannot rotate the setup cookie", async () => {

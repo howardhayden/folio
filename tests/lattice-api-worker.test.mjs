@@ -881,7 +881,7 @@ test("visitor-session setup rejects a real body byte or Content-Type before visi
         },
       }),
     }),
-    visitorSessionRequest({ headers: { "Content-Type": "application/octet-stream" } }),
+    visitorSessionRequest({ headers: { "Content-Type": "application/json" } }),
   ];
 
   for (const request of requests) {
