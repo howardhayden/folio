@@ -67,6 +67,7 @@ const validPayload = Object.freeze({
 const TEST_VISITOR_ID = "A".repeat(24);
 const TEST_VISITOR_COOKIE_VALUE = `v1.${TEST_VISITOR_ID}.${"B".repeat(43)}`;
 const TEST_VISITOR_SECRET = "test-only-independent-api-visitor-secret-value";
+const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v1";
 const allowTransformation = async () => Object.freeze({
   allowed: true,
   retryAfterSeconds: null,
@@ -186,6 +187,49 @@ function successfulProviderResponse(value = { accepted: true }) {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function providerChoiceResponse(choice) {
+  return new Response(JSON.stringify({ choices: [choice] }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function successfulProviderToolResponse(value = { d: "instruction", p: [], q: [] }, {
+  finishReason = "tool_calls",
+  toolName = ANALYSIS_TOOL_NAME,
+  toolCallId = "call_lattice_analysis",
+  content,
+} = {}) {
+  return providerChoiceResponse({
+    finish_reason: finishReason,
+    message: {
+      role: "assistant",
+      ...(content === undefined ? {} : { content }),
+      tool_calls: [{
+        id: toolCallId,
+        type: "function",
+        function: {
+          name: toolName,
+          arguments: JSON.stringify(value),
+        },
+      }],
+    },
+  });
+}
+
+function providerToolCall({
+  id = "call_lattice_analysis",
+  type = "function",
+  name = ANALYSIS_TOOL_NAME,
+  argumentsValue = JSON.stringify({ accepted: true }),
+} = {}) {
+  return {
+    id,
+    type,
+    function: { name, arguments: argumentsValue },
+  };
 }
 
 function minimalAnalysisRequest(text = validPayload.text) {
@@ -1207,7 +1251,7 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
   assert.match(host, /PRIVATE-HOST-VALIDATION-ISSUE/u);
   assert.match(host, /Host question|Host answer/u);
   assert.doesNotMatch(host, /private-analysis-wire-invalid/u);
-  assert.match(compact, /private d\/p\/q wire object/u);
+  assert.match(compact, /private d\/p\/q wire layout/u);
   assert.match(compact, /private-analysis-wire-invalid/u);
   assert.match(compact, /exactly one p tuple for every supplied passage ID|exact tuple widths|covering every source span|valid link targets|Keep q empty/iu);
   assert.doesNotMatch(compact, /Return the analysis schema\.|PRIVATE-HOST-VALIDATION-ISSUE|every named field|Return questions empty|affectedAtomIds|conformanceEvidenceSpanIds|Host question|Host answer/iu);
@@ -1223,15 +1267,13 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
   );
 });
 
-test("the adapter uses one fixed provider, Featherless-compatible JSON objects, closed host schemas, fixed roles, and Qwen no-think", async () => {
+test("the adapter forces the compact analysis tool while other stages retain JSON objects", async () => {
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, init, body: JSON.parse(init.body) });
-    return successfulProviderResponse({
-      documentKind: "instruction",
-      passages: [],
-      questions: [],
-    });
+    return calls.length === 1
+      ? successfulProviderToolResponse()
+      : successfulProviderResponse({ accepted: true });
   };
   const adapter = createHuggingFaceLatticeAdapter({
     token: "hf_server_only_token",
@@ -1239,7 +1281,11 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
     fetchImpl,
     callTimeoutMs: 1_000,
   });
-  await adapter.analyze(minimalAnalysisRequest());
+  const analysisRequest = Object.freeze({
+    ...minimalAnalysisRequest(),
+    analysisAtomLimit: 7,
+  });
+  await adapter.analyze(analysisRequest);
   await adapter.certify({
     certificateId: "certificate:test",
     obligationIds: Object.freeze(["document:whole"]),
@@ -1264,14 +1310,15 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
       "max_tokens",
       "messages",
       "model",
-      "response_format",
       "seed",
       "stream",
       "temperature",
       "top_p",
     ];
     if (index === 0) {
-      expectedKeys.push("chat_template_kwargs", "min_p", "top_k");
+      expectedKeys.push("chat_template_kwargs", "min_p", "tool_choice", "tools", "top_k");
+    } else {
+      expectedKeys.push("response_format");
     }
     assert.deepEqual(Object.keys(body).sort(), expectedKeys.sort());
     assert.equal(init.method, "POST");
@@ -1281,10 +1328,66 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
     assert.equal(init.referrerPolicy, "no-referrer");
     assert.equal(init.headers.Authorization, "Bearer hf_server_only_token");
     assert.equal(body.stream, false);
-    assert.deepEqual(body.response_format, { type: "json_object" });
-    assert.equal(Object.hasOwn(body.response_format, "json_schema"), false);
-    assert.equal(JSON.stringify(body.response_format).includes("strict"), false);
   }
+  const analysisBody = calls[0].body;
+  const analysisTool = analysisBody.tools[0];
+  const analysisParameters = analysisTool.function.parameters;
+  assert.equal(Object.hasOwn(analysisBody, "response_format"), false);
+  assert.equal(Object.hasOwn(analysisBody, "parallel_tool_calls"), false);
+  assert.deepEqual(analysisBody.tool_choice, {
+    type: "function",
+    function: { name: ANALYSIS_TOOL_NAME },
+  });
+  assert.equal(analysisBody.tools.length, 1);
+  assert.deepEqual(Object.keys(analysisTool).sort(), ["function", "type"]);
+  assert.equal(analysisTool.type, "function");
+  assert.deepEqual(Object.keys(analysisTool.function).sort(), ["description", "name", "parameters"]);
+  assert.equal(analysisTool.function.name, ANALYSIS_TOOL_NAME);
+  assert.match(
+    analysisTool.function.description,
+    /Supply one complete private analysis instance as this function's arguments/u,
+  );
+  assert.equal(Object.hasOwn(analysisTool.function, "strict"), false);
+  assert.equal(analysisParameters.type, "object");
+  assert.equal(analysisParameters.additionalProperties, false);
+  assert.deepEqual(analysisParameters.required, ["d", "p", "q"]);
+  assert.deepEqual(Object.keys(analysisParameters.properties).sort(), ["d", "p", "q"]);
+  assert.equal(analysisParameters.properties.p.type, "array");
+  assert.equal(analysisParameters.properties.p.minItems, 1);
+  assert.equal(analysisParameters.properties.p.maxItems, 1);
+  assert.equal(analysisParameters.properties.p.items.type, "array");
+  assert.equal(analysisParameters.properties.p.items.prefixItems.length, 10);
+  const passageTuple = analysisParameters.properties.p.items.prefixItems;
+  assert.deepEqual(passageTuple[0].enum, [analysisRequest.batch.passages[0].id]);
+  assert.deepEqual(
+    { minLength: passageTuple[0].minLength, maxLength: passageTuple[0].maxLength },
+    { minLength: 1, maxLength: 120 },
+  );
+  assert.deepEqual(
+    { minLength: passageTuple[1].minLength, maxLength: passageTuple[1].maxLength },
+    { minLength: 1, maxLength: 300 },
+  );
+  assert.deepEqual(
+    { minLength: passageTuple[4].minLength, maxLength: passageTuple[4].maxLength },
+    { minLength: 1, maxLength: 600 },
+  );
+  assert.equal(passageTuple[5].maxItems, 7);
+  const atomTuple = passageTuple[5].items.prefixItems;
+  assert.equal(atomTuple[0].maxLength, 120);
+  assert.equal(atomTuple[2].maxLength, 600);
+  assert.equal(atomTuple[5].items.maxLength, 160);
+  assert.equal(atomTuple[6].items.prefixItems[1].maxLength, 180);
+  assert.equal(passageTuple[6].items.maxLength, 160);
+  assert.equal(passageTuple[8].items.maxLength, 160);
+  assert.equal(passageTuple[9].items.prefixItems[1].items.maxLength, 160);
+  assert.deepEqual(analysisParameters.properties.q, { type: "array", maxItems: 0 });
+  assert.equal(JSON.stringify(analysisBody.tools).includes('"strict"'), false);
+  assert.deepEqual(calls[1].body.response_format, { type: "json_object" });
+  assert.equal(Object.hasOwn(calls[1].body.response_format, "json_schema"), false);
+  assert.equal(JSON.stringify(calls[1].body.response_format).includes("strict"), false);
+  assert.equal(Object.hasOwn(calls[1].body, "tools"), false);
+  assert.equal(Object.hasOwn(calls[1].body, "tool_choice"), false);
+  assert.equal(Object.hasOwn(calls[1].body, "parallel_tool_calls"), false);
   assert.deepEqual(calls[0].body.chat_template_kwargs, { enable_thinking: false });
   assert.equal(calls[0].body.top_k, 20);
   assert.equal(calls[0].body.min_p, 0);
@@ -1293,16 +1396,30 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
   assert.equal(Object.hasOwn(calls[1].body, "top_k"), false);
   assert.equal(Object.hasOwn(calls[1].body, "min_p"), false);
   assert.equal(Object.hasOwn(calls[1].body, "presence_penalty"), false);
-  assert.match(calls[0].body.messages[0].content, /Return exactly one minified JSON object/u);
-  assert.match(calls[0].body.messages[0].content, /Response contract lattice_analysis_wire_v1/u);
-  assert.match(calls[0].body.messages[0].content, /private d\/p\/q wire object/u);
+  assert.match(calls[0].body.messages[0].content, /lattice_analysis_wire_v1/u);
+  assert.match(calls[0].body.messages[0].content, /Call this function exactly once/u);
+  assert.doesNotMatch(calls[0].body.messages[0].content, /Return exactly one minified JSON object/u);
+  assert.match(calls[0].body.messages[0].content, /private d\/p\/q wire layout/u);
   assert.doesNotMatch(calls[0].body.messages[0].content, /Return the analysis schema\./u);
-  assert.ok(calls[0].body.messages[0].content.includes(
+  assert.ok(analysisTool.function.description.includes(
     "The root has exactly d, p, and q: d is the document-kind enum string; p is the passage-tuple array; q is the empty array [].",
   ));
   assert.doesNotMatch(
     calls[0].body.messages[0].content,
     /documentKind|passageId|discourseFunction|ambiguityAtomIds|conformanceCriteria|conformanceEvidenceSpanIds|conformanceAssertions|evidenceSpanIds|targetAtomId/u,
+  );
+  assert.doesNotMatch(JSON.stringify(calls[0].body.messages), /LATTICE_RESPONSE_SCHEMA/u);
+  assert.doesNotMatch(
+    JSON.stringify(calls[0].body.messages),
+    /Return one (?:complete )?d\/p\/q analysis-result instance/u,
+  );
+  assert.equal(
+    JSON.stringify(calls[0].body.messages).includes(analysisTool.function.description),
+    false,
+  );
+  assert.equal(
+    JSON.stringify(calls[0].body.messages).includes(JSON.stringify(analysisParameters)),
+    false,
   );
   assert.equal(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)), false);
   assert.ok(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)));
@@ -1318,6 +1435,27 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
   assert.match(calls[0].body.messages[0].content, /Requested mode: experiential/u);
   assert.match(calls[0].body.messages[0].content, /\/no_think$/u);
   assert.doesNotMatch(calls[1].body.messages[0].content, /\/no_think/u);
+});
+
+test("invalid fitted analysis atom limits fail before provider work", async () => {
+  let fetches = 0;
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => {
+      fetches += 1;
+      return successfulProviderToolResponse();
+    },
+  });
+  for (const analysisAtomLimit of [0, 25, 1.5, Number.NaN, "7"]) {
+    await assert.rejects(
+      adapter.analyze(Object.freeze({
+        ...minimalAnalysisRequest(),
+        analysisAtomLimit,
+      })),
+      TypeError,
+    );
+  }
+  assert.equal(fetches, 0);
 });
 
 test("the private compact analysis wire format expands to the unchanged host schema", async () => {
@@ -1347,7 +1485,7 @@ test("the private compact analysis wire format expands to the unchanged host sch
     token: "server-token",
     fetchImpl: async (_url, init) => {
       providerBody = JSON.parse(init.body);
-      return successfulProviderResponse(wire);
+      return successfulProviderToolResponse(wire);
     },
   });
 
@@ -1391,8 +1529,17 @@ test("the private compact analysis wire format expands to the unchanged host sch
   });
   assert.equal(Object.keys(result).includes(String(LATTICE_FITTED_ANALYSIS_CONTEXT)), false);
   assert.ok(JSON.stringify(wire).length < JSON.stringify(expected).length);
-  assert.match(providerBody.messages[0].content, /single-letter root keys and tuple positions are mandatory/u);
-  assert.ok(providerBody.messages[0].content.includes('"required":["d","p","q"]'));
+  assert.match(
+    providerBody.tools[0].function.description,
+    /single-letter root keys and tuple positions are mandatory/u,
+  );
+  assert.deepEqual(providerBody.tools[0].function.parameters.required, ["d", "p", "q"]);
+  assert.equal(providerBody.tools[0].function.name, ANALYSIS_TOOL_NAME);
+  assert.equal(
+    providerBody.messages[0].content.includes(providerBody.tools[0].function.description),
+    false,
+  );
+  assert.equal(providerBody.messages[0].content.includes('"required":["d","p","q"]'), false);
   assert.equal(providerBody.messages[0].content.includes(
     '"required":["documentKind","passages","questions"]',
   ), false);
@@ -1432,11 +1579,7 @@ test("provider diagnostics attribute a later verifier-stage failure to its exact
     fetchImpl: async (_url, init) => {
       calls.push(JSON.parse(init.body));
       if (calls.length === 1) {
-        return successfulProviderResponse({
-          documentKind: "instruction",
-          passages: [],
-          questions: [],
-        });
+        return successfulProviderToolResponse();
       }
       return new Response("PRIVATE-LATER-STAGE-BODY", {
         status: 503,
@@ -1486,6 +1629,165 @@ test("a direct JSON-object request prepends the trusted closed schema without ch
   assert.deepEqual(body.messages[1], options.messages[0]);
 });
 
+test("a forced named tool request accepts exactly one bounded function call for stop or tool_calls", async () => {
+  for (const [finishReason, content] of [
+    ["tool_calls", undefined],
+    ["stop", null],
+    ["tool_calls", ""],
+  ]) {
+    let body;
+    const result = await requestHuggingFaceJson(providerRequestOptions(async (_url, init) => {
+      body = JSON.parse(init.body);
+      return successfulProviderToolResponse(
+        { accepted: true },
+        { finishReason, content },
+      );
+    }, {
+      toolName: ANALYSIS_TOOL_NAME,
+      responseGuide: "Return the accepted decision through the named function.",
+    }));
+
+    assert.deepEqual(result, { accepted: true });
+    assert.equal(Object.hasOwn(body, "response_format"), false);
+    assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
+    assert.deepEqual(body.tool_choice, {
+      type: "function",
+      function: { name: ANALYSIS_TOOL_NAME },
+    });
+    assert.equal(body.tools.length, 1);
+    assert.equal(body.tools[0].type, "function");
+    assert.equal(body.tools[0].function.name, ANALYSIS_TOOL_NAME);
+    assert.deepEqual(body.tools[0].function.parameters, providerRequestOptions(() => {}).schema);
+    assert.equal(Object.hasOwn(body.tools[0].function, "strict"), false);
+    assert.equal(JSON.stringify(body.messages).includes(JSON.stringify(body.tools[0].function.parameters)), false);
+  }
+});
+
+test("forced tool envelopes fail closed for missing, extra, or malformed calls and assistant content", async () => {
+  const validToolCall = providerToolCall();
+  const cases = [
+    ["missing tool calls", { role: "assistant" }],
+    ["empty tool calls", { role: "assistant", tool_calls: [] }],
+    [
+      "extra tool calls",
+      { role: "assistant", tool_calls: [validToolCall, providerToolCall({ id: "call_extra" })] },
+    ],
+    [
+      "wrong tool type",
+      { role: "assistant", tool_calls: [providerToolCall({ type: "computer" })] },
+    ],
+    [
+      "wrong tool name",
+      { role: "assistant", tool_calls: [providerToolCall({ name: "other_tool" })] },
+    ],
+    [
+      "missing call id",
+      {
+        role: "assistant",
+        tool_calls: [{
+          type: "function",
+          function: { name: ANALYSIS_TOOL_NAME, arguments: JSON.stringify({ accepted: true }) },
+        }],
+      },
+    ],
+    [
+      "empty call id",
+      { role: "assistant", tool_calls: [providerToolCall({ id: "" })] },
+    ],
+    [
+      "non-string call id",
+      { role: "assistant", tool_calls: [providerToolCall({ id: 7 })] },
+    ],
+    [
+      "overlong call id",
+      { role: "assistant", tool_calls: [providerToolCall({ id: "x".repeat(257) })] },
+    ],
+    [
+      "missing function",
+      { role: "assistant", tool_calls: [{ id: "call_lattice_analysis", type: "function" }] },
+    ],
+    [
+      "missing arguments",
+      {
+        role: "assistant",
+        tool_calls: [{
+          id: "call_lattice_analysis",
+          type: "function",
+          function: { name: ANALYSIS_TOOL_NAME },
+        }],
+      },
+    ],
+    [
+      "non-string arguments",
+      { role: "assistant", tool_calls: [providerToolCall({ argumentsValue: { accepted: true } })] },
+    ],
+    [
+      "empty arguments",
+      { role: "assistant", tool_calls: [providerToolCall({ argumentsValue: "" })] },
+    ],
+    [
+      "invalid arguments JSON",
+      { role: "assistant", tool_calls: [providerToolCall({ argumentsValue: "{" })] },
+    ],
+    [
+      "non-object arguments JSON",
+      { role: "assistant", tool_calls: [providerToolCall({ argumentsValue: "[]" })] },
+    ],
+    [
+      "nonempty assistant content",
+      { role: "assistant", content: "unexpected", tool_calls: [validToolCall] },
+    ],
+    [
+      "whitespace assistant content",
+      { role: "assistant", content: " ", tool_calls: [validToolCall] },
+    ],
+    [
+      "legacy function call",
+      {
+        role: "assistant",
+        function_call: { name: ANALYSIS_TOOL_NAME, arguments: JSON.stringify({ accepted: true }) },
+        tool_calls: [validToolCall],
+      },
+    ],
+  ];
+
+  for (const [name, message] of cases) {
+    let fetches = 0;
+    await assert.rejects(
+      requestHuggingFaceJson(providerRequestOptions(async () => {
+        fetches += 1;
+        return providerChoiceResponse({ finish_reason: "tool_calls", message });
+      }, { toolName: ANALYSIS_TOOL_NAME })),
+      (error) => {
+        assert.ok(error instanceof LatticeProviderError, name);
+        assert.equal(error.code, "provider_malformed_response", name);
+        return true;
+      },
+    );
+    assert.equal(fetches, 1, name);
+  }
+});
+
+test("a forced tool completion that reaches the output limit fails after one fetch", async () => {
+  let fetches = 0;
+  await assert.rejects(
+    requestHuggingFaceJson(providerRequestOptions(async () => {
+      fetches += 1;
+      return providerChoiceResponse({
+        finish_reason: "length",
+        message: {
+          role: "assistant",
+          tool_calls: [providerToolCall({ argumentsValue: '{"accepted":' })],
+        },
+      });
+    }, { toolName: ANALYSIS_TOOL_NAME })),
+    (error) => error instanceof LatticeProviderError
+      && error.code === "provider_output_limit"
+      && !error.message.includes("accepted"),
+  );
+  assert.equal(fetches, 1);
+});
+
 test("optional provider sampler extensions fail closed before external fetch", async () => {
   let fetches = 0;
   const fetchImpl = async () => {
@@ -1501,6 +1803,9 @@ test("optional provider sampler extensions fail closed before external fetch", a
     { presencePenalty: -0.1 },
     { presencePenalty: 2.1 },
     { presencePenalty: Number.NaN },
+    { toolName: "" },
+    { toolName: "contains spaces" },
+    { toolName: "x".repeat(65) },
   ]) {
     await assert.rejects(
       requestHuggingFaceJson(providerRequestOptions(fetchImpl, overrides)),
@@ -1538,11 +1843,7 @@ test("the immutable 32-call adapter budget blocks a 33rd provider fetch", async 
     token: "server-token",
     fetchImpl: async () => {
       fetches += 1;
-      return successfulProviderResponse({
-        documentKind: "instruction",
-        passages: [],
-        questions: [],
-      });
+      return successfulProviderToolResponse();
     },
   });
   const initial = adapter.completionCapacity();
@@ -1766,11 +2067,7 @@ test("provider HTTP 402 at analysis call four remains private and qualification-
       fetchImpl: async () => {
         providerCalls += 1;
         if (providerCalls < 4) {
-          return successfulProviderResponse({
-            documentKind: "instruction",
-            passages: [],
-            questions: [],
-          });
+          return successfulProviderToolResponse();
         }
         return new Response(new ReadableStream({
           cancel() {
@@ -2225,11 +2522,7 @@ test("one admitted transformation can complete multiple provider stages without 
     },
     fetchImpl: async () => {
       events.push("provider-fetch");
-      return successfulProviderResponse({
-        documentKind: "instruction",
-        passages: [],
-        questions: [],
-      });
+      return successfulProviderToolResponse();
     },
     async runTextToLatticeImpl(_text, { adapter }) {
       await adapter.analyze(minimalAnalysisRequest());
@@ -2256,7 +2549,7 @@ test("the production request admission fails closed on a missing or exhausted Du
   const allowedWorker = createProductionLatticeApiWorker({
     async fetchImpl() {
       allowedEvents.push("provider-fetch");
-      return successfulProviderResponse();
+      return successfulProviderToolResponse();
     },
     runTextToLatticeImpl: runOneProviderCall,
   });
@@ -2296,7 +2589,7 @@ test("the production request admission fails closed on a missing or exhausted Du
   const deniedWorker = createProductionLatticeApiWorker({
     async fetchImpl() {
       deniedFetches += 1;
-      return successfulProviderResponse();
+      return successfulProviderToolResponse();
     },
     runTextToLatticeImpl: runOneProviderCall,
   });

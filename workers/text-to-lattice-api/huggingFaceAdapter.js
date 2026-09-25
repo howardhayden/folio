@@ -56,6 +56,7 @@ export const LATTICE_PROVIDER_MALFORMED_SUBTYPES = Object.freeze([
 export const LATTICE_PROVIDER_FINISH_REASONS = Object.freeze([
   "none",
   "stop",
+  "tool_calls",
   "length",
   "other",
 ]);
@@ -123,6 +124,21 @@ function fixedTuple(...items) {
   });
 }
 
+function boundedString(schema, maxLength) {
+  return Object.freeze({
+    ...schema,
+    minLength: 1,
+    maxLength,
+  });
+}
+
+function boundedStringArray(schema, maxLength) {
+  return Object.freeze({
+    ...schema,
+    items: boundedString(schema.items, maxLength),
+  });
+}
+
 const INTERNAL_ANALYSIS_PASSAGE_SCHEMA = REANALYSIS_SCHEMA.properties.passages.items;
 const INTERNAL_ANALYSIS_ATOM_SCHEMA = INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.atoms.items;
 const INTERNAL_ANALYSIS_LINK_SCHEMA = INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.links.items;
@@ -130,15 +146,15 @@ const INTERNAL_ANALYSIS_ASSERTION_SCHEMA =
   INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceAssertions.items;
 const ANALYSIS_WIRE_LINK_SCHEMA = fixedTuple(
   INTERNAL_ANALYSIS_LINK_SCHEMA.properties.relation,
-  INTERNAL_ANALYSIS_LINK_SCHEMA.properties.targetAtomId,
+  boundedString(INTERNAL_ANALYSIS_LINK_SCHEMA.properties.targetAtomId, 180),
 );
 const ANALYSIS_WIRE_ATOM_SCHEMA = fixedTuple(
-  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.id,
+  boundedString(INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.id, 120),
   INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.kind,
-  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.value,
+  boundedString(INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.value, 600),
   INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.priority,
   INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.preservation,
-  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.evidenceSpanIds,
+  boundedStringArray(INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.evidenceSpanIds, 160),
   Object.freeze({
     ...INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.links,
     items: ANALYSIS_WIRE_LINK_SCHEMA,
@@ -146,21 +162,21 @@ const ANALYSIS_WIRE_ATOM_SCHEMA = fixedTuple(
 );
 const ANALYSIS_WIRE_ASSERTION_SCHEMA = fixedTuple(
   INTERNAL_ANALYSIS_ASSERTION_SCHEMA.properties.criterion,
-  INTERNAL_ANALYSIS_ASSERTION_SCHEMA.properties.evidenceSpanIds,
+  boundedStringArray(INTERNAL_ANALYSIS_ASSERTION_SCHEMA.properties.evidenceSpanIds, 160),
 );
 const ANALYSIS_WIRE_PASSAGE_SCHEMA = fixedTuple(
-  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.passageId,
-  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.discourseFunction,
+  boundedString(INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.passageId, 120),
+  boundedString(INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.discourseFunction, 300),
   INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.layer,
   INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.disposition,
-  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.rationale,
+  boundedString(INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.rationale, 600),
   Object.freeze({
     ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.atoms,
     items: ANALYSIS_WIRE_ATOM_SCHEMA,
   }),
-  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.ambiguityAtomIds,
+  boundedStringArray(INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.ambiguityAtomIds, 160),
   INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceCriteria,
-  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceEvidenceSpanIds,
+  boundedStringArray(INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceEvidenceSpanIds, 160),
   Object.freeze({
     ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceAssertions,
     items: ANALYSIS_WIRE_ASSERTION_SCHEMA,
@@ -180,13 +196,15 @@ const ANALYSIS_WIRE_SCHEMA = Object.freeze({
   required: Object.freeze(["d", "p", "q"]),
 });
 const ANALYSIS_WIRE_GUIDE = [
-  "Use only this private analysis wire layout; the single-letter root keys and tuple positions are mandatory.",
+  "Supply one complete private analysis instance as this function's arguments; the single-letter root keys and tuple positions are mandatory.",
   "The root has exactly d, p, and q: d is the document-kind enum string; p is the passage-tuple array; q is the empty array [].",
   "Passage tuple positions 0-9: [passage ID,discourse function,layer,disposition,rationale,atom tuples,ambiguity atom IDs,conformance criterion IDs,conformance evidence span IDs,conformance assertion tuples].",
   "Atom tuple positions 0-6: [atom ID,kind,value,priority,preservation,evidence span IDs,link tuples].",
   "Link tuple positions 0-1: [relation,target atom ID]. Conformance assertion tuple positions 0-1: [criterion,evidence span IDs].",
-  "Fill passage position 1 with the discourse function and position 4 with the rationale. Do not emit long field names, Markdown, explanations, reasoning, or any other text outside the JSON object.",
+  "Fill passage position 1 with the discourse function and position 4 with the rationale. Keep all free text concise. Do not put long field names, Markdown, explanations, or reasoning in assistant content.",
 ].join("\n");
+
+const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v1";
 
 function analysisWireMessages(request) {
   return analysisMessages(request, { responseDialect: "compact-wire-v1" });
@@ -197,6 +215,7 @@ const STAGES = Object.freeze({
     role: "generator",
     schema: ANALYSIS_WIRE_SCHEMA,
     schemaName: "lattice_analysis_wire_v1",
+    toolName: ANALYSIS_TOOL_NAME,
     responseGuide: ANALYSIS_WIRE_GUIDE,
     messages: analysisWireMessages,
     maxTokens: 3_072,
@@ -278,7 +297,7 @@ function completionTokenBucket(value) {
 }
 
 function finishReason(value) {
-  if (value === "stop" || value === "length") return value;
+  if (value === "stop" || value === "tool_calls" || value === "length") return value;
   return value === undefined || value === null ? "none" : "other";
 }
 
@@ -426,6 +445,14 @@ function validPositiveInteger(value) {
   return Number.isSafeInteger(value) && value > 0;
 }
 
+function analysisAtomLimitForRequest(request) {
+  const value = request?.analysisAtomLimit ?? LATTICE_BATCH_ATOM_LIMIT;
+  if (!validPositiveInteger(value) || value > LATTICE_BATCH_ATOM_LIMIT) {
+    throw new TypeError("The Lattice provider received an invalid analysis atom limit.");
+  }
+  return value;
+}
+
 function record(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -450,6 +477,67 @@ function jsonObjectMessages(messages, role, schemaName, schema, responseGuide) {
   return Object.freeze(messages.map((message, index) => Object.freeze(index === systemIndex
     ? { ...message, content: `${message.content}\n${content}` }
     : { ...message })));
+}
+
+function forcedToolMessages(messages, role, toolName) {
+  const contract = [
+    `Response channel ${toolName}: Call this function exactly once with the complete structured result as its arguments.`,
+    "Do not return a normal assistant response or call any other function.",
+  ].join("\n");
+  const content = role === "generator" ? `${contract}\n/no_think` : contract;
+  const systemIndex = messages.findIndex((message) => (
+    record(message) && message.role === "system" && typeof message.content === "string"
+  ));
+  if (systemIndex === -1) {
+    return Object.freeze([
+      Object.freeze({ role: "system", content }),
+      ...messages.map((message) => Object.freeze({ ...message })),
+    ]);
+  }
+  return Object.freeze(messages.map((message, index) => Object.freeze(index === systemIndex
+    ? { ...message, content: `${message.content}\n${content}` }
+    : { ...message })));
+}
+
+function analysisWireSchemaForRequest(request) {
+  const passageIds = Array.isArray(request?.batch?.passages)
+    ? request.batch.passages.map(({ id }) => id)
+    : [];
+  const passageIdSchema = Object.freeze({
+    ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[0],
+    ...(passageIds.length > 0 ? { enum: Object.freeze([...passageIds]) } : {}),
+  });
+  const requestedAtomLimit = analysisAtomLimitForRequest(request);
+  const atomSchema = Object.freeze({
+    ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[5],
+    maxItems: requestedAtomLimit,
+  });
+  const passageSchema = fixedTuple(
+    passageIdSchema,
+    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[1],
+    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[2],
+    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[3],
+    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[4],
+    atomSchema,
+    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[6],
+    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[7],
+    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[8],
+    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[9],
+  );
+  return Object.freeze({
+    ...ANALYSIS_WIRE_SCHEMA,
+    properties: Object.freeze({
+      ...ANALYSIS_WIRE_SCHEMA.properties,
+      p: Object.freeze({
+        ...ANALYSIS_WIRE_SCHEMA.properties.p,
+        ...(passageIds.length > 0 ? {
+          minItems: passageIds.length,
+          maxItems: passageIds.length,
+        } : {}),
+        items: passageSchema,
+      }),
+    }),
+  });
 }
 
 function exactKeys(value, keys) {
@@ -629,7 +717,7 @@ async function boundedResponseText(response, maximumBytes, signal) {
   }
 }
 
-function parsedProviderContent(body, responseSize) {
+function parsedProviderContent(body, responseSize, toolName) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -654,12 +742,23 @@ function parsedProviderContent(body, responseSize) {
     );
   }
   const providerFinishReason = finishReason(choice.finish_reason);
+  const provisionalToolArguments = toolName !== undefined
+    && record(choice.message)
+    && Array.isArray(choice.message.tool_calls)
+    && typeof choice.message.tool_calls[0]?.function?.arguments === "string"
+    ? choice.message.tool_calls[0].function.arguments
+    : null;
   const providerContentSize = sizeBucket(
-    record(choice.message) && typeof choice.message.content === "string"
+    provisionalToolArguments !== null
+      ? provisionalToolArguments.length
+      : record(choice.message) && typeof choice.message.content === "string"
       ? choice.message.content.length
       : null,
   );
-  if (choice.finish_reason !== "stop") {
+  const validFinishReason = toolName === undefined
+    ? choice.finish_reason === "stop"
+    : choice.finish_reason === "stop" || choice.finish_reason === "tool_calls";
+  if (!validFinishReason) {
     const code = choice.finish_reason === "length"
       ? "provider_output_limit"
       : "provider_malformed_response";
@@ -697,6 +796,112 @@ function parsedProviderContent(body, responseSize) {
         completionTokens,
       },
     );
+  }
+  if (toolName !== undefined) {
+    if ((choice.message.content !== undefined
+        && choice.message.content !== null
+        && choice.message.content !== "")
+      || (choice.message.function_call !== undefined && choice.message.function_call !== null)) {
+      throw withProviderDiagnostic(
+        providerError("provider_malformed_response", "The Lattice provider returned invalid structured content."),
+        {
+          subtype: "content_shape",
+          finishReason: providerFinishReason,
+          responseSize,
+          contentSize: providerContentSize,
+          completionTokens,
+        },
+      );
+    }
+    if (!Array.isArray(choice.message.tool_calls) || choice.message.tool_calls.length !== 1) {
+      throw withProviderDiagnostic(
+        providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
+        {
+          subtype: "message_shape",
+          finishReason: providerFinishReason,
+          responseSize,
+          contentSize: providerContentSize,
+          completionTokens,
+        },
+      );
+    }
+    const toolCall = choice.message.tool_calls[0];
+    if (!record(toolCall)
+      || typeof toolCall.id !== "string"
+      || !toolCall.id.trim()
+      || toolCall.id.length > 256
+      || toolCall.type !== "function"
+      || !record(toolCall.function)
+      || toolCall.function.name !== toolName
+      || typeof toolCall.function.arguments !== "string") {
+      throw withProviderDiagnostic(
+        providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
+        {
+          subtype: "message_shape",
+          finishReason: providerFinishReason,
+          responseSize,
+          contentSize: providerContentSize,
+          completionTokens,
+        },
+      );
+    }
+    const content = toolCall.function.arguments;
+    const contentSize = sizeBucket(content.length);
+    if (!content.trim()) {
+      throw withProviderDiagnostic(
+        providerError("provider_malformed_response", "The Lattice provider returned no structured content."),
+        {
+          subtype: "content_empty",
+          finishReason: providerFinishReason,
+          responseSize,
+          contentSize,
+          completionTokens,
+        },
+      );
+    }
+    if (content.length > LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT) {
+      throw withProviderDiagnostic(
+        providerError("provider_response_too_large", "The Lattice provider content exceeded its limit."),
+        {
+          finishReason: providerFinishReason,
+          responseSize,
+          contentSize,
+          completionTokens,
+        },
+      );
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch (error) {
+      throw withProviderDiagnostic(
+        providerError("provider_malformed_response", "The Lattice provider returned invalid structured content.", {
+          cause: error,
+        }),
+        {
+          subtype: "content_json",
+          finishReason: providerFinishReason,
+          responseSize,
+          contentSize,
+          completionTokens,
+        },
+      );
+    }
+    if (!record(parsed)) {
+      throw withProviderDiagnostic(
+        providerError("provider_malformed_response", "The Lattice provider returned invalid structured content.", {
+          cause: new TypeError("Structured content was not an object."),
+        }),
+        {
+          subtype: "content_shape",
+          finishReason: providerFinishReason,
+          responseSize,
+          contentSize,
+          completionTokens,
+        },
+      );
+    }
+    return parsed;
   }
   const content = choice.message.content;
   const contentSize = providerContentSize;
@@ -764,6 +969,7 @@ export async function requestHuggingFaceJson({
   schema,
   schemaName,
   responseGuide,
+  toolName,
   maxTokens,
   temperature,
   topP,
@@ -791,14 +997,30 @@ export async function requestHuggingFaceJson({
     || (presencePenalty !== undefined
       && (!Number.isFinite(presencePenalty) || presencePenalty < 0 || presencePenalty > 2))
     || (responseGuide !== undefined
-      && (typeof responseGuide !== "string" || !responseGuide.trim() || responseGuide.length > 4_096))) {
+      && (typeof responseGuide !== "string" || !responseGuide.trim() || responseGuide.length > 4_096))
+    || (toolName !== undefined
+      && (typeof toolName !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(toolName)))) {
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],
-    messages: jsonObjectMessages(messages, role, schemaName, schema, responseGuide),
-    response_format: { type: "json_object" },
+    messages: toolName === undefined
+      ? jsonObjectMessages(messages, role, schemaName, schema, responseGuide)
+      : forcedToolMessages(messages, role, toolName),
+    ...(toolName === undefined
+      ? { response_format: { type: "json_object" } }
+      : {
+        tools: [{
+          type: "function",
+          function: {
+            name: toolName,
+            description: responseGuide ?? "Supply one complete structured response.",
+            parameters: schema,
+          },
+        }],
+        tool_choice: { type: "function", function: { name: toolName } },
+      }),
     ...(role === "generator"
       ? { chat_template_kwargs: { enable_thinking: false } }
       : {}),
@@ -885,7 +1107,7 @@ export async function requestHuggingFaceJson({
         );
       }
       const boundedBody = await boundedResponseText(response, maximumResponseBytes, deadline.signal);
-      return parsedProviderContent(boundedBody.text, boundedBody.responseSize);
+      return parsedProviderContent(boundedBody.text, boundedBody.responseSize, toolName);
     } catch (error) {
       if (deadline.didTimeOut()) {
         throw providerError("provider_timeout", "The Lattice provider timed out.", { cause: error });
@@ -956,9 +1178,10 @@ export function createHuggingFaceLatticeAdapter({
         token,
         role: stage.role,
         messages: messagesWithMode(stage.messages, request, requestedMode),
-        schema: stage.schema,
+        schema: stageName === "analysis" ? analysisWireSchemaForRequest(request) : stage.schema,
         schemaName: stage.schemaName,
         responseGuide: stage.responseGuide,
+        toolName: stage.toolName,
         maxTokens: stage.maxTokens,
         temperature: stage.temperature,
         topP: stage.topP,
@@ -981,7 +1204,7 @@ export function createHuggingFaceLatticeAdapter({
         enumerable: false,
         writable: false,
         value: Object.freeze({
-          analysisAtomLimit: request.analysisAtomLimit ?? LATTICE_BATCH_ATOM_LIMIT,
+          analysisAtomLimit: analysisAtomLimitForRequest(request),
           documentLedgerAtomIds: Object.freeze((request.documentLedger ?? []).map(({ id }) => id)),
         }),
       });
