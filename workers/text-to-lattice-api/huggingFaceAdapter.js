@@ -798,21 +798,10 @@ function parsedProviderContent(body, responseSize, toolName) {
     );
   }
   if (toolName !== undefined) {
-    if ((choice.message.content !== undefined
-        && choice.message.content !== null
-        && choice.message.content !== "")
-      || (choice.message.function_call !== undefined && choice.message.function_call !== null)) {
-      throw withProviderDiagnostic(
-        providerError("provider_malformed_response", "The Lattice provider returned invalid structured content."),
-        {
-          subtype: "content_shape",
-          finishReason: providerFinishReason,
-          responseSize,
-          contentSize: providerContentSize,
-          completionTokens,
-        },
-      );
-    }
+    // Some OpenAI-compatible providers retain auxiliary assistant content or a
+    // legacy function_call while also returning the authoritative tool_calls
+    // entry. Ignore those fields: they are never interpreted, exposed, or used as a
+    // fallback, and the exact single named tool call below remains mandatory.
     if (!Array.isArray(choice.message.tool_calls) || choice.message.tool_calls.length !== 1) {
       throw withProviderDiagnostic(
         providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
@@ -1003,6 +992,10 @@ export async function requestHuggingFaceJson({
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
+  // Qwen3's documented Featherless/vLLM path parses its native Hermes call
+  // markup when tools are supplied without a named tool_choice. The trusted
+  // system contract still requires the single tool, and the response parser
+  // below fails closed unless that exact structured call is returned.
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],
     messages: toolName === undefined
@@ -1019,7 +1012,6 @@ export async function requestHuggingFaceJson({
             parameters: schema,
           },
         }],
-        tool_choice: { type: "function", function: { name: toolName } },
       }),
     ...(role === "generator"
       ? { chat_template_kwargs: { enable_thinking: false } }

@@ -172,10 +172,7 @@ test("an initial host-validation correction attributes malformed provider call t
   for (const body of [firstBody, correctedBody]) {
     assert.equal(Object.hasOwn(body, "response_format"), false);
     assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
-    assert.deepEqual(body.tool_choice, {
-      type: "function",
-      function: { name: ANALYSIS_TOOL_NAME },
-    });
+    assert.equal(Object.hasOwn(body, "tool_choice"), false);
     assert.equal(body.tools.length, 1);
     assert.equal(body.tools[0].type, "function");
     assert.equal(body.tools[0].function.name, ANALYSIS_TOOL_NAME);
@@ -316,6 +313,115 @@ test("malformed structured content carries only fixed subtype and coarse size me
     /lattice-analysis-diagnostic-context|analysisOrigin|analysisAttempt|priorValidationCategory/u,
   );
   assertHiddenImmutableDiagnostics(error);
+});
+
+test("an exact named analysis tool call remains authoritative over auxiliary provider fields", async () => {
+  const authoritativeWire = Object.freeze({
+    d: "instruction",
+    p: Object.freeze([]),
+    q: Object.freeze([]),
+  });
+  const auxiliaryWire = JSON.stringify({ d: "other", p: [["PRIVATE-AUXILIARY"]], q: [] });
+  const cases = [
+    {
+      name: "nonempty assistant content",
+      message: { content: auxiliaryWire },
+    },
+    {
+      name: "legacy function call",
+      message: {
+        function_call: {
+          name: "legacy_analysis",
+          arguments: auxiliaryWire,
+        },
+      },
+    },
+    {
+      name: "both auxiliary fields",
+      message: {
+        content: auxiliaryWire,
+        function_call: {
+          name: "legacy_analysis",
+          arguments: auxiliaryWire,
+        },
+      },
+    },
+  ];
+
+  for (const { name, message } of cases) {
+    let fetches = 0;
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      requestedMode: "operative",
+      fetchImpl: async () => {
+        fetches += 1;
+        return analysisProviderResponse(authoritativeWire, {
+          finishReason: "stop",
+          message,
+        });
+      },
+    });
+
+    const result = await adapter.analyze(minimalAnalysisRequest());
+    assert.equal(result.documentKind, "instruction", name);
+    assert.deepEqual(result.passages, [], name);
+    assert.deepEqual(result.questions, [], name);
+    assert.equal(JSON.stringify(result).includes("PRIVATE-AUXILIARY"), false, name);
+    assert.equal(fetches, 1, name);
+  }
+});
+
+test("analysis never substitutes content-only output and still classifies non-object tool arguments", async () => {
+  const privateMarker = "PRIVATE-NONAUTHORITATIVE-ANALYSIS";
+  const cases = [
+    {
+      name: "content only",
+      subtype: "message_shape",
+      finishReason: "stop",
+      response: () => jsonProviderEnvelope({
+        choices: [{
+          finish_reason: "stop",
+          message: {
+            role: "assistant",
+            content: JSON.stringify({ d: "instruction", p: [], q: [privateMarker] }),
+          },
+        }],
+      }),
+    },
+    {
+      name: "non-object tool arguments",
+      subtype: "content_shape",
+      finishReason: "tool_calls",
+      response: () => analysisProviderResponse(undefined, {
+        argumentsText: JSON.stringify([privateMarker]),
+      }),
+    },
+  ];
+
+  for (const { name, subtype, finishReason, response } of cases) {
+    let fetches = 0;
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      requestedMode: "operative",
+      fetchImpl: async () => {
+        fetches += 1;
+        return response();
+      },
+    });
+
+    const error = await captureFailure(adapter.analyze(minimalAnalysisRequest()));
+    assert.ok(error instanceof LatticeProviderError, name);
+    assert.equal(error.code, "provider_malformed_response", name);
+    assert.equal(error.qualificationSubtype, subtype, name);
+    assert.equal(error.qualificationFinishReason, finishReason, name);
+    assert.equal(error.qualificationStage, "analysis", name);
+    assert.equal(error.qualificationCallOrdinal, 1, name);
+    assert.equal(error.qualificationContentSize, "1-4096", name);
+    assert.equal(error.message.includes(privateMarker), false, name);
+    assert.equal(JSON.stringify(error).includes(privateMarker), false, name);
+    assert.equal(fetches, 1, name);
+    assertHiddenImmutableDiagnostics(error);
+  }
 });
 
 test("every remaining malformed-response branch maps to one fixed content-free subtype", async () => {
