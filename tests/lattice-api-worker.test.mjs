@@ -11,6 +11,7 @@ import {
 import {
   DOCUMENT_CERTIFICATION_SCHEMA,
   LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT,
+  LATTICE_FITTED_ANALYSIS_CONTEXT,
   REANALYSIS_SCHEMA,
 } from "../app/resume/lattice/promptContract.js";
 import {
@@ -1242,7 +1243,11 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
   assert.equal(Object.hasOwn(calls[1].body, "min_p"), false);
   assert.equal(Object.hasOwn(calls[1].body, "presence_penalty"), false);
   assert.match(calls[0].body.messages[0].content, /Return exactly one minified JSON object/u);
-  assert.ok(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)));
+  assert.match(calls[0].body.messages[0].content, /Response contract lattice_analysis_wire_v1/u);
+  assert.ok(calls[0].body.messages[0].content.includes(
+    'Root: {"d":documentKind,"p":[passage tuples],"q":[]}',
+  ));
+  assert.equal(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)), false);
   assert.ok(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)));
   for (const { body } of calls) {
     assert.equal(body.messages.slice(1).some(({ content }) => (
@@ -1256,6 +1261,84 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
   assert.match(calls[0].body.messages[0].content, /Requested mode: experiential/u);
   assert.match(calls[0].body.messages[0].content, /\/no_think$/u);
   assert.doesNotMatch(calls[1].body.messages[0].content, /\/no_think/u);
+});
+
+test("the private compact analysis wire format expands to the unchanged host schema", async () => {
+  const request = minimalAnalysisRequest();
+  const passageId = request.batch.passages[0].id;
+  const wire = {
+    d: "instruction",
+    p: [[
+      passageId,
+      "directs a bounded action",
+      "operative",
+      "rewrite",
+      "make the supported sequence explicit",
+      [
+        ["a1", "action", "review the document", "hard", "equivalent", ["s1"], [["patient", "a2"]]],
+        ["a2", "object", "the document", "semantic", "equivalent", ["s1"], []],
+      ],
+      [],
+      ["semantic-coverage"],
+      ["s1"],
+      [["semantic-coverage", ["s1"]]],
+    ]],
+    q: [],
+  };
+  let providerBody;
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async (_url, init) => {
+      providerBody = JSON.parse(init.body);
+      return successfulProviderResponse(wire);
+    },
+  });
+
+  const result = await adapter.analyze(request);
+  const expected = {
+    documentKind: "instruction",
+    passages: [{
+      passageId,
+      discourseFunction: "directs a bounded action",
+      layer: "operative",
+      disposition: "rewrite",
+      rationale: "make the supported sequence explicit",
+      atoms: [{
+        id: "a1",
+        kind: "action",
+        value: "review the document",
+        priority: "hard",
+        preservation: "equivalent",
+        evidenceSpanIds: ["s1"],
+        links: [{ relation: "patient", targetAtomId: "a2" }],
+      }, {
+        id: "a2",
+        kind: "object",
+        value: "the document",
+        priority: "semantic",
+        preservation: "equivalent",
+        evidenceSpanIds: ["s1"],
+        links: [],
+      }],
+      ambiguityAtomIds: [],
+      conformanceCriteria: ["semantic-coverage"],
+      conformanceEvidenceSpanIds: ["s1"],
+      conformanceAssertions: [{ criterion: "semantic-coverage", evidenceSpanIds: ["s1"] }],
+    }],
+    questions: [],
+  };
+  assert.deepEqual(result, expected);
+  assert.deepEqual(result[LATTICE_FITTED_ANALYSIS_CONTEXT], {
+    analysisAtomLimit: 24,
+    documentLedgerAtomIds: [],
+  });
+  assert.equal(Object.keys(result).includes(String(LATTICE_FITTED_ANALYSIS_CONTEXT)), false);
+  assert.ok(JSON.stringify(wire).length < JSON.stringify(expected).length);
+  assert.match(providerBody.messages[0].content, /single-letter root keys and tuple positions are mandatory/u);
+  assert.ok(providerBody.messages[0].content.includes('"required":["d","p","q"]'));
+  assert.equal(providerBody.messages[0].content.includes(
+    '"required":["documentKind","passages","questions"]',
+  ), false);
 });
 
 test("provider failures carry only an immutable allowlisted stage and bounded call ordinal", async () => {

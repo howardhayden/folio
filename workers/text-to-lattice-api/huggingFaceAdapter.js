@@ -114,11 +114,86 @@ const JSON_HEADERS = Object.freeze({
 });
 const PROVIDER_JSON_CONTENT_TYPE = /^application\/json(?:\s*;.*)?$/iu;
 
+function fixedTuple(...items) {
+  return Object.freeze({
+    type: "array",
+    minItems: items.length,
+    maxItems: items.length,
+    prefixItems: Object.freeze(items),
+  });
+}
+
+const INTERNAL_ANALYSIS_PASSAGE_SCHEMA = REANALYSIS_SCHEMA.properties.passages.items;
+const INTERNAL_ANALYSIS_ATOM_SCHEMA = INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.atoms.items;
+const INTERNAL_ANALYSIS_LINK_SCHEMA = INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.links.items;
+const INTERNAL_ANALYSIS_ASSERTION_SCHEMA =
+  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceAssertions.items;
+const ANALYSIS_WIRE_LINK_SCHEMA = fixedTuple(
+  INTERNAL_ANALYSIS_LINK_SCHEMA.properties.relation,
+  INTERNAL_ANALYSIS_LINK_SCHEMA.properties.targetAtomId,
+);
+const ANALYSIS_WIRE_ATOM_SCHEMA = fixedTuple(
+  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.id,
+  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.kind,
+  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.value,
+  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.priority,
+  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.preservation,
+  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.evidenceSpanIds,
+  Object.freeze({
+    ...INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.links,
+    items: ANALYSIS_WIRE_LINK_SCHEMA,
+  }),
+);
+const ANALYSIS_WIRE_ASSERTION_SCHEMA = fixedTuple(
+  INTERNAL_ANALYSIS_ASSERTION_SCHEMA.properties.criterion,
+  INTERNAL_ANALYSIS_ASSERTION_SCHEMA.properties.evidenceSpanIds,
+);
+const ANALYSIS_WIRE_PASSAGE_SCHEMA = fixedTuple(
+  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.passageId,
+  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.discourseFunction,
+  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.layer,
+  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.disposition,
+  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.rationale,
+  Object.freeze({
+    ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.atoms,
+    items: ANALYSIS_WIRE_ATOM_SCHEMA,
+  }),
+  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.ambiguityAtomIds,
+  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceCriteria,
+  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceEvidenceSpanIds,
+  Object.freeze({
+    ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceAssertions,
+    items: ANALYSIS_WIRE_ASSERTION_SCHEMA,
+  }),
+);
+const ANALYSIS_WIRE_SCHEMA = Object.freeze({
+  type: "object",
+  additionalProperties: false,
+  properties: Object.freeze({
+    d: REANALYSIS_SCHEMA.properties.documentKind,
+    p: Object.freeze({
+      ...REANALYSIS_SCHEMA.properties.passages,
+      items: ANALYSIS_WIRE_PASSAGE_SCHEMA,
+    }),
+    q: Object.freeze({ type: "array", maxItems: 0 }),
+  }),
+  required: Object.freeze(["d", "p", "q"]),
+});
+const ANALYSIS_WIRE_GUIDE = [
+  "Use only this private analysis wire layout; the single-letter root keys and tuple positions are mandatory.",
+  "Root: {\"d\":documentKind,\"p\":[passage tuples],\"q\":[]}. The q array must be empty.",
+  "Passage tuple: [passageId,discourseFunction,layer,disposition,rationale,atoms,ambiguityAtomIds,conformanceCriteria,conformanceEvidenceSpanIds,conformanceAssertions].",
+  "Atom tuple: [id,kind,value,priority,preservation,evidenceSpanIds,links].",
+  "Link tuple: [relation,targetAtomId]. Conformance assertion tuple: [criterion,evidenceSpanIds].",
+  "Fill the required discourseFunction and rationale tuple strings. Do not emit long field names, Markdown, explanations, reasoning, or any other text outside the JSON object.",
+].join("\n");
+
 const STAGES = Object.freeze({
   analysis: Object.freeze({
     role: "generator",
-    schema: REANALYSIS_SCHEMA,
-    schemaName: "lattice_analysis_v1",
+    schema: ANALYSIS_WIRE_SCHEMA,
+    schemaName: "lattice_analysis_wire_v1",
+    responseGuide: ANALYSIS_WIRE_GUIDE,
     messages: analysisMessages,
     maxTokens: 3_072,
     temperature: 0.7,
@@ -352,10 +427,11 @@ function record(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function jsonObjectMessages(messages, role, schemaName, schema) {
+function jsonObjectMessages(messages, role, schemaName, schema, responseGuide) {
   const contract = [
     `Response contract ${schemaName}: Return exactly one minified JSON object matching the following closed JSON Schema.`,
     "Do not wrap the JSON object in Markdown or add text before or after it.",
+    ...(responseGuide ? [responseGuide] : []),
     `<LATTICE_RESPONSE_SCHEMA>${JSON.stringify(schema)}</LATTICE_RESPONSE_SCHEMA>`,
   ].join("\n");
   const content = role === "generator" ? `${contract}\n/no_think` : contract;
@@ -371,6 +447,68 @@ function jsonObjectMessages(messages, role, schemaName, schema) {
   return Object.freeze(messages.map((message, index) => Object.freeze(index === systemIndex
     ? { ...message, content: `${message.content}\n${content}` }
     : { ...message })));
+}
+
+function exactKeys(value, keys) {
+  if (!record(value)) return false;
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length
+    && actual.every((key, index) => key === expected[index]);
+}
+
+function decodeAnalysisWire(value) {
+  if (!exactKeys(value, ["d", "p", "q"])
+    || !Array.isArray(value.p)
+    || !Array.isArray(value.q)) return {};
+  const passages = [];
+  for (const passage of value.p) {
+    if (!Array.isArray(passage) || passage.length !== 10 || !Array.isArray(passage[5])) return {};
+    const atoms = [];
+    for (const atom of passage[5]) {
+      if (!Array.isArray(atom) || atom.length !== 7 || !Array.isArray(atom[6])) return {};
+      const links = [];
+      for (const link of atom[6]) {
+        if (!Array.isArray(link) || link.length !== 2) return {};
+        links.push({ relation: link[0], targetAtomId: link[1] });
+      }
+      atoms.push({
+        id: atom[0],
+        kind: atom[1],
+        value: atom[2],
+        priority: atom[3],
+        preservation: atom[4],
+        evidenceSpanIds: atom[5],
+        links,
+      });
+    }
+    if (!Array.isArray(passage[9])) return {};
+    const conformanceAssertions = [];
+    for (const assertion of passage[9]) {
+      if (!Array.isArray(assertion) || assertion.length !== 2) return {};
+      conformanceAssertions.push({
+        criterion: assertion[0],
+        evidenceSpanIds: assertion[1],
+      });
+    }
+    passages.push({
+      passageId: passage[0],
+      discourseFunction: passage[1],
+      layer: passage[2],
+      disposition: passage[3],
+      rationale: passage[4],
+      atoms,
+      ambiguityAtomIds: passage[6],
+      conformanceCriteria: passage[7],
+      conformanceEvidenceSpanIds: passage[8],
+      conformanceAssertions,
+    });
+  }
+  return {
+    documentKind: value.d,
+    passages,
+    questions: value.q,
+  };
 }
 
 function raceAbort(operation, signal) {
@@ -622,6 +760,7 @@ export async function requestHuggingFaceJson({
   messages,
   schema,
   schemaName,
+  responseGuide,
   maxTokens,
   temperature,
   topP,
@@ -647,13 +786,15 @@ export async function requestHuggingFaceJson({
     || (topK !== undefined && !validPositiveInteger(topK))
     || (minP !== undefined && (!Number.isFinite(minP) || minP < 0 || minP > 1))
     || (presencePenalty !== undefined
-      && (!Number.isFinite(presencePenalty) || presencePenalty < 0 || presencePenalty > 2))) {
+      && (!Number.isFinite(presencePenalty) || presencePenalty < 0 || presencePenalty > 2))
+    || (responseGuide !== undefined
+      && (typeof responseGuide !== "string" || !responseGuide.trim() || responseGuide.length > 4_096))) {
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],
-    messages: jsonObjectMessages(messages, role, schemaName, schema),
+    messages: jsonObjectMessages(messages, role, schemaName, schema, responseGuide),
     response_format: { type: "json_object" },
     ...(role === "generator"
       ? { chat_template_kwargs: { enable_thinking: false } }
@@ -814,6 +955,7 @@ export function createHuggingFaceLatticeAdapter({
         messages: messagesWithMode(stage.messages, request, requestedMode),
         schema: stage.schema,
         schemaName: stage.schemaName,
+        responseGuide: stage.responseGuide,
         maxTokens: stage.maxTokens,
         temperature: stage.temperature,
         topP: stage.topP,
@@ -830,6 +972,7 @@ export function createHuggingFaceLatticeAdapter({
       throw withQualificationDiagnostic(error, stageName, callOrdinal, analysisContext);
     }
     if (stageName === "analysis") {
+      result = decodeAnalysisWire(result);
       Object.defineProperty(result, LATTICE_FITTED_ANALYSIS_CONTEXT, {
         configurable: false,
         enumerable: false,
@@ -864,4 +1007,24 @@ export function createHuggingFaceLatticeAdapter({
 // distinguishing public clarification from closed server execution.
 if (ANALYSIS_SCHEMA === REANALYSIS_SCHEMA || REANALYSIS_SCHEMA.properties.questions.maxItems !== 0) {
   throw new Error("The closed Lattice analysis schema is unavailable.");
+}
+
+function exactRequiredFields(schema, fields) {
+  return Array.isArray(schema?.required)
+    && schema.required.length === fields.length
+    && [...schema.required].sort().every((field, index) => field === [...fields].sort()[index]);
+}
+
+if (!exactRequiredFields(REANALYSIS_SCHEMA, ["documentKind", "passages", "questions"])
+  || !exactRequiredFields(INTERNAL_ANALYSIS_PASSAGE_SCHEMA, [
+    "passageId", "discourseFunction", "layer", "disposition", "rationale", "atoms",
+    "ambiguityAtomIds", "conformanceCriteria", "conformanceEvidenceSpanIds",
+    "conformanceAssertions",
+  ])
+  || !exactRequiredFields(INTERNAL_ANALYSIS_ATOM_SCHEMA, [
+    "id", "kind", "value", "priority", "preservation", "evidenceSpanIds", "links",
+  ])
+  || !exactRequiredFields(INTERNAL_ANALYSIS_LINK_SCHEMA, ["relation", "targetAtomId"])
+  || !exactRequiredFields(INTERNAL_ANALYSIS_ASSERTION_SCHEMA, ["criterion", "evidenceSpanIds"])) {
+  throw new Error("The private analysis wire schema has drifted from the closed host schema.");
 }

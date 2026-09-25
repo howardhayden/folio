@@ -44,9 +44,9 @@ function providerResponse(value, { completionTokens } = {}) {
 
 function invalidAnalysisResponse() {
   return providerResponse({
-    documentKind: "instruction",
-    passages: [],
-    questions: [],
+    d: "instruction",
+    p: [],
+    q: [],
   });
 }
 
@@ -132,6 +132,42 @@ test("an initial host-validation correction attributes malformed provider call t
       /lattice-analysis-diagnostic-context|analysisOrigin|analysisAttempt|priorValidationCategory/u,
     );
   }
+});
+
+test("a malformed compact analysis tuple fails into the bounded host correction path", async () => {
+  let calls = 0;
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-test-token",
+    requestedMode: "operative",
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return providerResponse({ d: "instruction", p: [["too-short"]], q: [] });
+      }
+      return jsonProviderEnvelope({
+        choices: [{
+          finish_reason: "stop",
+          message: { role: "assistant", content: "not-json" },
+        }],
+      });
+    },
+  });
+
+  const error = await captureFailure(runTextToLattice(SOURCE, {
+    adapter,
+    requestedMode: "operative",
+    allowClarification: false,
+  }));
+
+  assert.ok(error instanceof LatticeProviderError);
+  assert.equal(error.code, "provider_malformed_response");
+  assert.equal(error.qualificationCallOrdinal, 2);
+  assert.equal(error.qualificationSubtype, "content_json");
+  assert.equal(error.qualificationAnalysisOrigin, "initial");
+  assert.equal(error.qualificationAnalysisAttempt, "2");
+  assert.equal(error.qualificationPriorValidationCategory, "response-shape");
+  assert.equal(calls, 2);
+  assertHiddenImmutableDiagnostics(error);
 });
 
 test("a split-child correction keeps split origin when global analysis call four reaches its output limit", async () => {
