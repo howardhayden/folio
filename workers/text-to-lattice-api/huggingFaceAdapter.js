@@ -20,8 +20,8 @@ export const HUGGING_FACE_CHAT_COMPLETIONS_URL =
   "https://router.huggingface.co/v1/chat/completions";
 
 export const LATTICE_REMOTE_MODELS = Object.freeze({
-  generator: "Qwen/Qwen3-4B:featherless-ai",
-  verifier: "meta-llama/Llama-3.2-3B-Instruct:featherless-ai",
+  generator: "Qwen/Qwen3-4B-Instruct-2507:nscale",
+  verifier: "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
 });
 
 export const LATTICE_PROVIDER_FAILURE_CLASSES = Object.freeze([
@@ -205,6 +205,8 @@ const ANALYSIS_WIRE_GUIDE = [
 ].join("\n");
 
 const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v1";
+const VERIFICATION_TOOL_NAME = "lattice_verification_v1";
+const CERTIFICATION_TOOL_NAME = "lattice_certification_v1";
 
 function analysisWireMessages(request) {
   return analysisMessages(request, { responseDialect: "compact-wire-v1" });
@@ -237,6 +239,8 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: VERIFICATION_SCHEMA,
     schemaName: "lattice_verification_v1",
+    toolName: VERIFICATION_TOOL_NAME,
+    responseGuide: "Supply one complete verification record as this function's arguments.",
     messages: verificationMessages,
     maxTokens: 1_200,
     temperature: 0,
@@ -246,6 +250,8 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: DOCUMENT_CERTIFICATION_SCHEMA,
     schemaName: "lattice_certification_v1",
+    toolName: CERTIFICATION_TOOL_NAME,
+    responseGuide: "Supply one complete document-certification record as this function's arguments.",
     messages: documentCertificationMessages,
     maxTokens: 520,
     temperature: 0,
@@ -457,14 +463,14 @@ function record(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function jsonObjectMessages(messages, role, schemaName, schema, responseGuide) {
+function jsonObjectMessages(messages, schemaName, schema, responseGuide) {
   const contract = [
     `Response contract ${schemaName}: Return exactly one minified JSON object matching the following closed JSON Schema.`,
     "Do not wrap the JSON object in Markdown or add text before or after it.",
     ...(responseGuide ? [responseGuide] : []),
     `<LATTICE_RESPONSE_SCHEMA>${JSON.stringify(schema)}</LATTICE_RESPONSE_SCHEMA>`,
   ].join("\n");
-  const content = role === "generator" ? `${contract}\n/no_think` : contract;
+  const content = contract;
   const systemIndex = messages.findIndex((message) => (
     record(message) && message.role === "system" && typeof message.content === "string"
   ));
@@ -479,12 +485,12 @@ function jsonObjectMessages(messages, role, schemaName, schema, responseGuide) {
     : { ...message })));
 }
 
-function forcedToolMessages(messages, role, toolName) {
+function forcedToolMessages(messages, toolName) {
   const contract = [
     `Response channel ${toolName}: Call this function exactly once with the complete structured result as its arguments.`,
     "Do not return a normal assistant response or call any other function.",
   ].join("\n");
-  const content = role === "generator" ? `${contract}\n/no_think` : contract;
+  const content = contract;
   const systemIndex = messages.findIndex((message) => (
     record(message) && message.role === "system" && typeof message.content === "string"
   ));
@@ -992,15 +998,13 @@ export async function requestHuggingFaceJson({
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
-  // Qwen3's documented Featherless/vLLM path parses its native Hermes call
-  // markup when tools are supplied without a named tool_choice. The trusted
-  // system contract still requires the single tool, and the response parser
-  // below fails closed unless that exact structured call is returned.
+  // Each structured stage supplies one exact named tool choice. The response
+  // parser below fails closed unless that matching structured call is returned.
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],
     messages: toolName === undefined
-      ? jsonObjectMessages(messages, role, schemaName, schema, responseGuide)
-      : forcedToolMessages(messages, role, toolName),
+      ? jsonObjectMessages(messages, schemaName, schema, responseGuide)
+      : forcedToolMessages(messages, toolName),
     ...(toolName === undefined
       ? { response_format: { type: "json_object" } }
       : {
@@ -1012,10 +1016,11 @@ export async function requestHuggingFaceJson({
             parameters: schema,
           },
         }],
+        tool_choice: {
+          type: "function",
+          function: { name: toolName },
+        },
       }),
-    ...(role === "generator"
-      ? { chat_template_kwargs: { enable_thinking: false } }
-      : {}),
     max_tokens: maxTokens,
     temperature,
     top_p: topP,

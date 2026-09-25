@@ -54,6 +54,14 @@ const providerHostPatterns = [
   "*.featherless.ai",
   "featherless.ai.",
   "*.featherless.ai.",
+  "nscale.com",
+  "*.nscale.com",
+  "nscale.com.",
+  "*.nscale.com.",
+  "deepinfra.com",
+  "*.deepinfra.com",
+  "deepinfra.com.",
+  "*.deepinfra.com.",
 ];
 const markerEncodings = ["literal", "json-escaped", "percent-encoded", "base64", "base64url", "sha256"];
 

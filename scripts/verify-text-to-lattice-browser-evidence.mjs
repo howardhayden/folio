@@ -368,6 +368,14 @@ const PROVIDER_HOST_PATTERNS = Object.freeze([
   "*.featherless.ai",
   "featherless.ai.",
   "*.featherless.ai.",
+  "nscale.com",
+  "*.nscale.com",
+  "nscale.com.",
+  "*.nscale.com.",
+  "deepinfra.com",
+  "*.deepinfra.com",
+  "deepinfra.com.",
+  "*.deepinfra.com.",
 ]);
 const MARKER_ENCODINGS = Object.freeze([
   "literal",

@@ -12,8 +12,10 @@ import { LATTICE_BATCH_LIMIT, LATTICE_PASSAGE_LIMIT } from "../resume/lattice/se
 import { LATTICE_USAGE_POLICY as HISTORICAL_LATTICE_USAGE_POLICY } from "../resume/lattice/usagePolicy.js";
 
 const HUGGING_FACE_CHAT_COMPLETIONS_URL = "https://router.huggingface.co/v1/chat/completions";
-const REMOTE_GENERATOR_ID = "Qwen/Qwen3-4B:featherless-ai";
-const REMOTE_VERIFIER_ID = "meta-llama/Llama-3.2-3B-Instruct:featherless-ai";
+const REMOTE_GENERATOR_ID = "Qwen/Qwen3-4B-Instruct-2507:nscale";
+const REMOTE_VERIFIER_ID = "meta-llama/Llama-3.1-8B-Instruct:deepinfra";
+const REMOTE_GENERATOR_REVIEWED_REVISION = "cdbee75f17c01a7cc42f958dc650907174af0554";
+const REMOTE_VERIFIER_REVIEWED_REVISION = "0e9e39f249a16976918f6564b8830bc894c89659";
 
 // Keep the former lease-policy shape temporarily available to older semantic
 // renderers, but mark every use as historical. It does not govern /api/lattice.
@@ -40,21 +42,22 @@ export const textToLatticeContract = Object.freeze({
     "After explicit confirmation, send one content-free cookie setup POST with no body or Content-Type to the same-origin /api/lattice capability; after its 204 response, send exactly one content-bearing POST with text, requested_mode, and schema_version 1.",
     "On the server, atomize actors, events, states, relationships, causality, chronology, modality, polarity, uncertainty, quantities, knowledge, instructions, institutional conditions, and ethical stakes.",
     "Select operative, experiential, interpretive, mixed, or accessibility treatment passage by passage under the Relational Systems Register; an operative or experiential request remains a preference subordinate to evidence, semantic fidelity, and safety.",
-    "Use the fixed Qwen generator to draft and the fixed Llama 3.2 verifier to check source coverage, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament through the configured Hugging Face/Featherless service.",
+    "Use the fixed Nscale-served Qwen generator to draft and the fixed DeepInfra-served Llama 3.1 verifier to check source coverage, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament through the Hugging Face router.",
     "Re-atomize incomplete passages or repair a rejected draft within bounded passes against the same fixed models; do not switch providers or models.",
     "Certify required multi-batch candidates against the complete source for distant identity, attribution, chronology, causality, modality, polarity, ambiguity, and document consistency.",
     "Return one bounded result or an explicit terminal error; the browser performs no automatic retry or fallback.",
   ]),
   implementation: Object.freeze({
     generator: Object.freeze({
-      name: "Qwen3-4B server-side generator",
+      name: "Qwen3-4B-Instruct-2507 server-side generator",
       modelId: REMOTE_GENERATOR_ID,
       revision: "provider-managed remote serving revision",
-      repository: "https://huggingface.co/Qwen/Qwen3-4B",
-      revisionUrl: "https://huggingface.co/Qwen/Qwen3-4B",
-      baseModelRepository: "https://huggingface.co/Qwen/Qwen3-4B",
+      repository: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507",
+      reviewedSourceRevision: REMOTE_GENERATOR_REVIEWED_REVISION,
+      revisionUrl: `https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/tree/${REMOTE_GENERATOR_REVIEWED_REVISION}`,
+      baseModelRepository: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507",
       licenseName: "Apache License 2.0",
-      licenseUrl: "https://huggingface.co/Qwen/Qwen3-4B/blob/main/LICENSE",
+      licenseUrl: `https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/blob/${REMOTE_GENERATOR_REVIEWED_REVISION}/LICENSE`,
       inference: Object.freeze({
         seed: 71_903,
         thinking: false,
@@ -70,18 +73,19 @@ export const textToLatticeContract = Object.freeze({
           repair: Object.freeze({ temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 }),
         }),
       }),
-      inferenceSummary: "server-side structured completion through Hugging Face Inference Providers and Featherless AI; fixed seed 71903; Qwen thinking disabled; bounded stage-specific output limits",
+      inferenceSummary: "server-side structured completion through Hugging Face Inference Providers and Nscale; fixed seed 71903; non-thinking-only Qwen variant; bounded stage-specific output limits",
     }),
     verifier: Object.freeze({
-      name: "Llama 3.2 3B Instruct server-side verifier",
+      name: "Llama 3.1 8B Instruct server-side verifier",
       modelId: REMOTE_VERIFIER_ID,
       revision: "provider-managed remote serving revision",
-      repository: "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct",
-      revisionUrl: "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct",
-      baseModelRepository: "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct",
-      licenseName: HISTORICAL_LOCAL_LATTICE_MODEL.models[1].licenseName,
-      licenseUrl: HISTORICAL_LOCAL_LATTICE_MODEL.models[1].licenseUrl,
-      acceptableUseUrl: HISTORICAL_LOCAL_LATTICE_MODEL.models[1].acceptableUseUrl,
+      repository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+      reviewedSourceRevision: REMOTE_VERIFIER_REVIEWED_REVISION,
+      revisionUrl: `https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/tree/${REMOTE_VERIFIER_REVIEWED_REVISION}`,
+      baseModelRepository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+      licenseName: "Llama 3.1 Community License Agreement",
+      licenseUrl: "https://developer.meta.com/ai/llama3_1/license/",
+      acceptableUseUrl: "https://developer.meta.com/ai/llama3_1/use-policy/",
       inference: Object.freeze({
         seed: 71_903,
         stages: Object.freeze({
@@ -91,7 +95,7 @@ export const textToLatticeContract = Object.freeze({
       }),
     }),
     runtime: Object.freeze({
-      name: "Hugging Face Inference Providers with Featherless AI",
+      name: "Hugging Face Inference Providers with Nscale and DeepInfra",
       version: "provider-managed remote service",
       packageUrl: "https://huggingface.co/docs/inference-providers/",
       documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
@@ -99,10 +103,10 @@ export const textToLatticeContract = Object.freeze({
       tokenizerName: "Provider-managed model tokenizer",
       tokenizerVersion: "provider-managed",
       tokenizerPackageUrl: "https://huggingface.co/docs/inference-providers/",
-      structuredOutputName: "JSON-object generation with exact host-side closed-schema validation",
+      structuredOutputName: "Function-call and JSON-object generation with exact host-side closed-schema validation",
       structuredOutputVersion: "provider-managed",
-      structuredOutputPackageUrl: "https://featherless.ai/docs/tool-calling",
-      structuredOutputRepository: "https://featherless.ai/docs/tool-calling",
+      structuredOutputPackageUrl: "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
+      structuredOutputRepository: "https://huggingface.co/docs/inference-providers/en/guides/function-calling",
       structuredOutputLicenseName: "Hugging Face and provider service terms",
       structuredOutputLicenseUrl: "https://huggingface.co/terms-of-service",
       wasmRevision: "historical and inactive",
@@ -139,21 +143,22 @@ export const textToLatticeContract = Object.freeze({
       ]),
     }),
     huggingFace: Object.freeze({
-      summary: "After explicit confirmation, hah.dev sends server-created prompts containing the submitted text to the Hugging Face Inference Providers chat-completions router, configured to use Featherless AI. Qwen3-4B is the fixed generator and Llama 3.2 3B Instruct is the fixed verifier.",
+      summary: "After explicit confirmation, hah.dev sends server-created prompts containing the submitted text to the Hugging Face Inference Providers chat-completions router, configured to use Nscale for the fixed Qwen3-4B-Instruct-2507 generator and DeepInfra for the fixed Llama 3.1 8B Instruct verifier.",
       protections: Object.freeze([
         `The server can call only ${HUGGING_FACE_CHAT_COMPLETIONS_URL}; user text cannot select a URL, provider, model, header, or credential.`,
         `The generator is fixed to ${REMOTE_GENERATOR_ID} and the verifier is fixed to ${REMOTE_VERIFIER_ID}. There is no automatic provider or model fallback.`,
         "The Hugging Face token is a server-side encrypted Worker secret and is never sent to the browser. Browser Content Security Policy limits connect-src to the hah.dev origin.",
-        "Provider calls omit caches, reject redirects, request JSON-object output with the exact closed schema in the trusted system instruction, and enforce bounded request, response, token, and time limits. hah.dev validates every returned object against that closed contract; a schema-correction pass may call the same fixed model again within the pipeline budget and never switches providers.",
+        "Provider calls omit caches, reject redirects, request either one exact named function call or JSON-object output under a trusted closed-schema contract, and enforce bounded request, response, token, and time limits. hah.dev validates every returned object against that closed contract; a schema-correction pass may call the same fixed model again within the pipeline budget and never switches providers.",
         "The hah.dev application does not persist source text, prompts, candidates, results, or raw provider bodies and does not write them to application logs or analytics. Responses use Cache-Control: no-store.",
       ]),
-      residualDisclosure: "This text leaves hah.dev for external processing. Hugging Face, Featherless AI, and their infrastructure receive the content and ordinary connection metadata under their own policies; hah.dev's no-retention statement does not promise their retention behavior. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Browser extensions, security products, DNS providers, and networks selected by the visitor remain outside hah.dev's control.",
+      residualDisclosure: "This text leaves hah.dev for external processing. Hugging Face, Nscale, DeepInfra, and their infrastructure receive the content and ordinary connection metadata under their own policies; hah.dev's no-retention statement does not promise their retention behavior. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Browser extensions, security products, DNS providers, and networks selected by the visitor remain outside hah.dev's control.",
       sources: Object.freeze([
         Object.freeze({ label: "Hugging Face Inference Providers chat completion", url: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion" }),
         Object.freeze({ label: "Hugging Face structured outputs", url: "https://huggingface.co/docs/inference-providers/en/guides/structured-output" }),
-        Object.freeze({ label: "Featherless JSON-object guidance", url: "https://featherless.ai/docs/tool-calling" }),
+        Object.freeze({ label: "Hugging Face function calling", url: "https://huggingface.co/docs/inference-providers/en/guides/function-calling" }),
         Object.freeze({ label: "Hugging Face Inference Providers security", url: "https://huggingface.co/docs/inference-providers/en/security" }),
-        Object.freeze({ label: "Hugging Face Featherless AI provider documentation", url: "https://huggingface.co/docs/inference-providers/en/providers/featherless-ai" }),
+        Object.freeze({ label: "Hugging Face Nscale provider documentation", url: "https://huggingface.co/docs/inference-providers/en/providers/nscale" }),
+        Object.freeze({ label: "Hugging Face DeepInfra provider documentation", url: "https://huggingface.co/docs/inference-providers/en/providers/deepinfra" }),
         Object.freeze({ label: "Hugging Face Privacy Policy", url: "https://huggingface.co/privacy" }),
         Object.freeze({ label: "Hugging Face Terms of Service", url: "https://huggingface.co/terms-of-service" }),
       ]),
@@ -192,7 +197,7 @@ export const textToLatticeContract = Object.freeze({
     "After the user explicitly chooses Process with external service, the browser sends one content-free cookie setup POST and then exactly one content-bearing POST to the same-origin /api/lattice path. Only the second contains this text or can initiate external-provider processing, and its body is exactly {text, requested_mode, schema_version: 1}.",
     "Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information.",
     "hah.dev application code does not retain source text, prompts, candidates, results, or raw provider responses in storage, logs, caches, queues, or analytics. The bounded Worker and browser keep only transient in-memory state needed for the request and display.",
-    "Hugging Face, Featherless AI, and their infrastructure process the submitted content under their own policies; hah.dev does not claim that its application-level no-retention rule governs those external systems.",
+    "Hugging Face, Nscale, DeepInfra, and their infrastructure process the submitted content under their own policies; hah.dev does not claim that its application-level no-retention rule governs those external systems.",
     "The provider endpoint, provider, generator, and verifier are fixed server-side. There is no automatic provider or model fallback, and a terminal failure requires another deliberate submission.",
     "The service admits at most 30 transformations globally per UTC day and 3 from one ordinary persistent cookie jar per UTC day. Its API-scoped opaque HttpOnly cookie contains no submitted content and expires at the next UTC-day boundary; no IP or browser fingerprint is used as a second quota identity.",
     "The active remote runtime may differ in weights, tokenizer behavior, kernels, numerical behavior, and serving configuration from the historical pinned MLC/WebGPU artifacts; byte-for-byte equivalence is not claimed.",

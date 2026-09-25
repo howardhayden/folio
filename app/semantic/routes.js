@@ -64,6 +64,9 @@ export const staticSourceCopies = Object.freeze([
   sourceCopyRecord("/LICENSES/Apache-2.0.txt", "LICENSES/Apache-2.0.txt", "LICENSES/Apache-2.0.txt", "text/plain"),
   sourceCopyRecord("/LICENSES/LicenseRef-Hayden-Proprietary-1.1.txt", "LICENSES/LicenseRef-Hayden-Proprietary-1.1.txt", "LICENSES/LicenseRef-Hayden-Proprietary-1.1.txt", "text/plain"),
   sourceCopyRecord("/LICENSES/LicenseRef-Hayden-Portfolio-Content.txt", "LICENSES/LicenseRef-Hayden-Portfolio-Content.txt", "LICENSES/LicenseRef-Hayden-Portfolio-Content.txt", "text/plain"),
+  sourceCopyRecord("/LICENSES/Llama-3.1-Acceptable-Use-Policy.md", "LICENSES/Llama-3.1-Acceptable-Use-Policy.md", "LICENSES/Llama-3.1-Acceptable-Use-Policy.md", "text/markdown"),
+  sourceCopyRecord("/LICENSES/Llama-3.1-Community-License.txt", "LICENSES/Llama-3.1-Community-License.txt", "LICENSES/Llama-3.1-Community-License.txt", "text/plain"),
+  // Historical inactive browser-local verifier terms remain exported.
   sourceCopyRecord("/LICENSES/Llama-3.2-Acceptable-Use-Policy.md", "LICENSES/Llama-3.2-Acceptable-Use-Policy.md", "LICENSES/Llama-3.2-Acceptable-Use-Policy.md", "text/markdown"),
   sourceCopyRecord("/LICENSES/Llama-3.2-Community-License.txt", "LICENSES/Llama-3.2-Community-License.txt", "LICENSES/Llama-3.2-Community-License.txt", "text/plain"),
   sourceCopyRecord("/LICENSES/MIT-Bootstrap.txt", "LICENSES/MIT-Bootstrap.txt", "LICENSES/MIT-Bootstrap.txt", "text/plain"),

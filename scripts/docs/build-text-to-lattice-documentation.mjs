@@ -148,7 +148,7 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     /VISITOR_COOKIE_SECRET/u,
     /__Secure-hah-lattice-api-visitor/u,
     /fixed Hugging Face router/iu,
-    /Featherless-qualified Qwen and Llama targets/iu,
+    /Nscale-qualified Qwen target and DeepInfra-qualified Llama target/iu,
     /Cache-Control: no-store/iu,
     /no application content storage or logging/iu,
     /no automatic retry/iu,
@@ -158,7 +158,7 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
   ];
   if (productionBoundaryGate.label !== "Remote API origin, secret, and privacy boundary"
     || gate02Required.some((pattern) => !pattern.test(gate02ActiveBoundary))) {
-    fail("release gate GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face and Featherless targets, restrictive CSP, application nonretention, bounded no-store errors, and no retry or fallback.");
+    fail("release gate GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with Nscale and DeepInfra targets, restrictive CSP, application nonretention, bounded no-store errors, and no retry or fallback.");
   }
 
   const gate03ActiveBoundary = [
@@ -375,7 +375,7 @@ function validateAtlas(data) {
   }
   const textToLatticeNode = data.conceptMap.nodes.find(({ id }) => id === "LAT-N-021");
   if (!/same-origin API/iu.test(textToLatticeNode?.definition ?? "")
-    || !/Qwen generation and Llama verification/iu.test(textToLatticeNode?.definition ?? "")
+    || !/Qwen generation[\s\S]{0,80}Llama verification/iu.test(textToLatticeNode?.definition ?? "")
     || !/external-processing boundary/iu.test(textToLatticeNode?.definition ?? "")) {
     fail("LAT-N-021 must describe the current same-origin remote Qwen and Llama wrapper and its weaker external-processing authority boundary.");
   }
@@ -434,8 +434,8 @@ function validateAtlas(data) {
   const activeBlueprint = JSON.stringify(data.serviceBlueprint);
   for (const required of [
     "/api/lattice",
-    "Qwen/Qwen3-4B:featherless-ai",
-    "meta-llama/Llama-3.2-3B-Instruct:featherless-ai",
+    "Qwen/Qwen3-4B-Instruct-2507:nscale",
+    "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
     "HF_TOKEN",
     "VISITOR_COOKIE_SECRET",
     "__Secure-hah-lattice-api-visitor",
@@ -623,8 +623,8 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || activeCapability?.admission?.maximumProviderCallsPerAdmittedRequest !== 32
     || activeCapability?.admission?.maximumProviderCallsFromAdmittedRequestsPerUtcDay !== 960
     || activeProvider?.endpoint !== "https://router.huggingface.co/v1/chat/completions"
-    || activeProvider?.generatorModel !== "Qwen/Qwen3-4B:featherless-ai"
-    || activeProvider?.verifierModel !== "meta-llama/Llama-3.2-3B-Instruct:featherless-ai"
+    || activeProvider?.generatorModel !== "Qwen/Qwen3-4B-Instruct-2507:nscale"
+    || activeProvider?.verifierModel !== "meta-llama/Llama-3.1-8B-Instruct:deepinfra"
     || activeProvider?.revisionStatus !== "provider-managed-not-byte-pinned"
     || activeProvider?.historicalByteEquivalenceEstablished !== false
     || activeCapability?.automaticRetry !== false
@@ -748,7 +748,7 @@ function humanLabel(value) {
 
 function lifecycleGateNarrative(productionLifecycleGate) {
   if (productionLifecycleGate.status === "satisfied-in-production") {
-    return "GATE-06 records current canonical-browser evidence for one deliberately confirmed bodyless content-free same-origin POST /api/lattice setup followed after its accepted 204 under the same origin-wide Web Lock by exactly one content-bearing POST /api/lattice, a non-error remote result through the fixed Qwen generator and Llama verifier, bounded no-store handling, no automatic retry or alternate provider or model fallback, and a sanitized hah.dev application privacy trace. That evidence acknowledges the submitted body as an intentional transmission and does not claim control over Hugging Face, Featherless AI, or their infrastructure retention. A later route, setup, cookie, Web Lock, model, provider, response, cache, persistence, telemetry, or lifecycle drift reopens the blocker and restores held documentation-only publication.";
+    return "GATE-06 records current canonical-browser evidence for one deliberately confirmed bodyless content-free same-origin POST /api/lattice setup followed after its accepted 204 under the same origin-wide Web Lock by exactly one content-bearing POST /api/lattice, a non-error remote result through the fixed Qwen generator and Llama verifier, bounded no-store handling, no automatic retry or alternate provider or model fallback, and a sanitized hah.dev application privacy trace. That evidence acknowledges the submitted body as an intentional transmission and does not claim control over Hugging Face, Nscale, DeepInfra, or their infrastructure retention. A later route, setup, cookie, Web Lock, model, provider, response, cache, persistence, telemetry, or lifecycle drift reopens the blocker and restores held documentation-only publication.";
   }
   if (productionLifecycleGate.status === "post-deployment-verification") {
     return "The interactive client is deployed only for immediate canonical-browser qualification and is not qualified. GATE-02 and GATE-03 carry current production evidence; GATE-06 remains in post-deployment verification until the required structured browser evidence passes. Any failed, incomplete, or delayed qualification requires immediate rollback to the held documentation-only artifact.";
@@ -1411,7 +1411,7 @@ function blueprintMarkdown(data) {
     "",
     "## Binding data-flow rule",
     "",
-    "After explicit confirmation, one origin-wide Web Lock spans a bodyless same-origin `POST /api/lattice` visitor-session setup and, after its accepted 204, exactly one content-bearing `POST /api/lattice` with `{text, requested_mode, schema_version: 1}`. Setup carries no content and makes no quota claim or provider call. A transport or non-204 setup response prevents the content request; if the accepted setup's HttpOnly cookie is blocked or dropped, the Worker rejects the single content request as `428 visitor_session_required` before admission or provider work, so setup or cookie-storage failure never sends content to the provider. The Worker uses server-created prompts with the fixed Hugging Face and Featherless Qwen generator and Llama verifier, then returns one validated bounded result or machine-readable error. `HF_TOKEN` remains server-only; hah.dev defines no application storage, raw-content log, cache, queue, or analytics sink for content, performs no automatic retry, and has no alternate provider or model fallback. External-provider processing and retention remain governed by provider policies.",
+    "After explicit confirmation, one origin-wide Web Lock spans a bodyless same-origin `POST /api/lattice` visitor-session setup and, after its accepted 204, exactly one content-bearing `POST /api/lattice` with `{text, requested_mode, schema_version: 1}`. Setup carries no content and makes no quota claim or provider call. A transport or non-204 setup response prevents the content request; if the accepted setup's HttpOnly cookie is blocked or dropped, the Worker rejects the single content request as `428 visitor_session_required` before admission or provider work, so setup or cookie-storage failure never sends content to the provider. The Worker uses server-created prompts with the fixed Nscale-served Qwen generator and DeepInfra-served Llama verifier through Hugging Face, then returns one validated bounded result or machine-readable error. `HF_TOKEN` remains server-only; hah.dev defines no application storage, raw-content log, cache, queue, or analytics sink for content, performs no automatic retry, and has no alternate provider or model fallback. External-provider processing and retention remain governed by provider policies.",
     "",
     "Repository tests support the as-built rows. They do not establish that the remote API, encrypted secret binding, provider behavior, response policy, application nonretention boundary, or canonical-browser lifecycle is deployed or observed in production.",
     "",
@@ -1459,7 +1459,7 @@ function blueprintHtml(data) {
   ${toolbar}<div class="record-grid">${cards}</div></section>
   <section class="panel" aria-labelledby="blueprint-heading"><h2 id="blueprint-heading">Complete six-layer blueprint</h2><p>This canonical table remains complete when the interactive cards are filtered.</p><div class="table-wrap" tabindex="0" aria-label="Scrollable complete Text to Lattice service blueprint"><table class="blueprint-table"><caption>Eight lifecycle stages across six service layers</caption><thead><tr><th scope="col">Stage</th><th scope="col">Visitor action</th><th scope="col">Frontstage</th><th scope="col">Backstage client/server</th><th scope="col">Support/network</th><th scope="col">Evidence/recovery</th><th scope="col">Data crossing boundary</th></tr></thead><tbody>${stageRows}</tbody></table></div></section>
   <section class="panel" aria-labelledby="owners-heading"><h2 id="owners-heading">Lifecycle ownership</h2><p>External providers are dependencies, not assumed accountable owners. Each handoff names retained accountability and required evidence.</p><div class="table-wrap" tabindex="0" aria-label="Scrollable lifecycle ownership matrix"><table><caption>Accountable owner and handoff evidence</caption><thead><tr><th scope="col">ID</th><th scope="col">Surface</th><th scope="col">Accountable owner</th><th scope="col">Responsibility</th><th scope="col">Handoff evidence</th></tr></thead><tbody>${ownerRows}</tbody></table></div></section>
-  <section class="panel boundary"><h2>Binding data-flow rule</h2><p>After explicit confirmation, one origin-wide Web Lock spans a bodyless same-origin POST /api/lattice visitor-session setup and, after an accepted 204, exactly one content-bearing POST /api/lattice with {text, requested_mode, schema_version: 1}. Setup carries no content and makes no quota claim or provider call. A transport or non-204 setup response prevents the content request; if the accepted setup's HttpOnly cookie is blocked or dropped, the Worker rejects the single content request as 428 visitor_session_required before admission or provider work, so setup or cookie-storage failure never sends content to the provider. The Worker uses server-created prompts with the fixed Hugging Face and Featherless Qwen generator and Llama verifier, then returns one validated bounded result or machine-readable error. HF_TOKEN remains server-only; hah.dev defines no application storage, raw-content log, cache, queue, or analytics sink for content, performs no automatic retry, and has no alternate provider or model fallback. External-provider processing and retention remain governed by provider policies.</p></section>
+  <section class="panel boundary"><h2>Binding data-flow rule</h2><p>After explicit confirmation, one origin-wide Web Lock spans a bodyless same-origin POST /api/lattice visitor-session setup and, after an accepted 204, exactly one content-bearing POST /api/lattice with {text, requested_mode, schema_version: 1}. Setup carries no content and makes no quota claim or provider call. A transport or non-204 setup response prevents the content request; if the accepted setup's HttpOnly cookie is blocked or dropped, the Worker rejects the single content request as 428 visitor_session_required before admission or provider work, so setup or cookie-storage failure never sends content to the provider. The Worker uses server-created prompts with the fixed Nscale-served Qwen generator and DeepInfra-served Llama verifier through Hugging Face, then returns one validated bounded result or machine-readable error. HF_TOKEN remains server-only; hah.dev defines no application storage, raw-content log, cache, queue, or analytics sink for content, performs no automatic retry, and has no alternate provider or model fallback. External-provider processing and retention remain governed by provider policies.</p></section>
   <section class="panel"><h2>Sources and exports</h2><p><a class="button-link" href="TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md" download>Download complete Markdown</a> <a class="button-link" href="documentation-atlas.json" download>Download authoritative JSON</a> <a class="button-link" href="artifact-manifest.json">Inspect integrity manifest</a></p></section>
   ${htmlSources(data)}${htmlTerms()}`;
   return htmlPage(data, {
@@ -1688,7 +1688,7 @@ function indexHtml(data, releaseRegister) {
   const productionLifecycleSatisfied = releaseRegister.gates
     .some(({ id, status }) => id === "GATE-06" && status === "satisfied-in-production");
   const releaseSummary = releaseRegister.overallStatus === "held"
-    ? "The remote interactive client is held and documentation-only because GATE-02, GATE-03, and GATE-06 remain open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face and Featherless path, but there is no remote production evidence. Historical WebLLM, Turnstile, and lease records remain inactive."
+    ? "The remote interactive client is held and documentation-only because GATE-02, GATE-03, and GATE-06 remain open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face router with Nscale and DeepInfra targets, but there is no remote production evidence. Historical WebLLM, Turnstile, and lease records remain inactive."
     : releaseRegister.overallStatus === "qualification-pending"
       ? "The interactive client is deployed only for immediate canonical-browser qualification and is not qualified. GATE-06 remains in post-deployment verification; failed, incomplete, or delayed structured browser evidence requires immediate rollback to the held documentation-only artifact."
     : productionLifecycleSatisfied
@@ -1719,7 +1719,7 @@ function validateGeneratedMarkdown(filename, markdown, data, expectedIds, releas
     if (!markdown.includes(id)) fail(`${filename} omits record ${id}.`);
   }
   if (filename === "TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md") {
-    for (const requirement of ["Backstage client/server", "POST /api/lattice", "HF_TOKEN", "Hugging Face and Featherless", "no automatic retry", "no alternate provider or model fallback"]) {
+    for (const requirement of ["Backstage client/server", "POST /api/lattice", "HF_TOKEN", "Hugging Face, Nscale, and DeepInfra", "no automatic retry", "no alternate provider or model fallback"]) {
       if (!markdown.includes(requirement)) fail(`${filename} omits the active remote-service boundary: ${requirement}.`);
     }
     if (markdown.includes("Backstage browser-local")) fail(`${filename} renders the historical browser-local architecture as active.`);
@@ -1776,7 +1776,7 @@ function validateGeneratedHtml(filename, html, {
     if (!html.includes(id)) fail(`${filename} omits pre-rendered record ${id}.`);
   }
   if (filename === "text-to-lattice-service-blueprint.html") {
-    for (const requirement of ["Backstage client/server", "POST /api/lattice", "HF_TOKEN", "Hugging Face and Featherless", "no automatic retry", "no alternate provider or model fallback"]) {
+    for (const requirement of ["Backstage client/server", "POST /api/lattice", "HF_TOKEN", "Hugging Face, Nscale, and DeepInfra", "no automatic retry", "no alternate provider or model fallback"]) {
       if (!html.includes(requirement)) fail(`${filename} omits the active remote-service boundary: ${requirement}.`);
     }
     if (html.includes("Backstage browser-local")) fail(`${filename} renders the historical browser-local architecture as active.`);
