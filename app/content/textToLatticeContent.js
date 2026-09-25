@@ -129,7 +129,7 @@ export const textToLatticeContract = Object.freeze({
         `${LATTICE_PASSAGE_LIMIT} passages and ${LATTICE_BATCH_LIMIT} model work groups`,
         `${LATTICE_GRAPHEME_CODE_POINT_LIMIT} Unicode code points in any grapheme, ${LATTICE_TOKEN_CODE_POINT_LIMIT} in any word-like token, and ${LATTICE_FORMAT_CONTROL_LIMIT} format controls in an entry`,
         `${LATTICE_COMPLETION_CALL_LIMIT} protocol-level model completions across initial, correction, repair, re-atomization, and certification work, additionally bounded by the shorter request and provider deadlines`,
-        "65,536 request bytes, 60 seconds per provider call, 240 seconds for the complete API request, 262,144 provider-response bytes, and a bounded client response envelope",
+        "65,536 request bytes, 120 seconds per provider call, 240 seconds for the complete API request, 262,144 provider-response bytes, and a bounded client response envelope",
         "30 accepted transformation requests globally per UTC day and 3 from one ordinary persistent browser cookie jar per UTC day",
       ]),
       isolation: Object.freeze([

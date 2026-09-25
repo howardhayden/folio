@@ -326,7 +326,7 @@ test("the production verifier establishes one bodyless visitor session before ex
     api_request_timeout_ms: 240_000,
     api_request_bytes: 65_536,
     api_response_bytes: 262_144,
-    provider_call_timeout_ms: 60_000,
+    provider_call_timeout_ms: 120_000,
     provider_request_bytes: 1_048_576,
     provider_response_bytes: 262_144,
     provider_calls_per_request: 32,

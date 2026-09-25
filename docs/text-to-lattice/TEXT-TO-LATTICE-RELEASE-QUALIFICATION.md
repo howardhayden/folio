@@ -10,9 +10,9 @@
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `c5a7a93198312fe8b1b4b681e56e9342c899a87487e3ccdbb176f012ba00fe15`
+**Qualified source-set SHA-256:** `210b5b8a36ce9f0d8b8899f67f0c0ac524d58f02fc117ad2ea7137c462fb61e1`
 
-**Artifact-set projection SHA-256:** `de62e66001ebc21c6f496b668746c17e9ba151b1f32ce03e4faa0949a2ca0de0`
+**Artifact-set projection SHA-256:** `68ca4e0a4438f0789ff1fa318de26152416e05849de57f3a269e350695475313`
 
 Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence.
 

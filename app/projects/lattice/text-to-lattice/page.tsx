@@ -109,7 +109,7 @@ export default function TextToLatticePage() {
                   <div className="paper-meta-item"><dt>Request deadline</dt><dd>240 seconds for the complete API request and client wait</dd></div>
                   <div className="paper-meta-item"><dt>Daily availability</dt><dd>30 accepted transformations globally per UTC day; 3 per ordinary persistent browser cookie jar per UTC day</dd></div>
                   <div className="paper-meta-item"><dt>Quota identity</dt><dd>One opaque, signed, HttpOnly cookie scoped to <code>/api/lattice</code> until the next UTC day; no submitted content, IP identity, or browser fingerprint</dd></div>
-                  <div className="paper-meta-item"><dt>Provider-call deadline</dt><dd>60 seconds for each bounded call to the fixed Hugging Face router</dd></div>
+                  <div className="paper-meta-item"><dt>Provider-call deadline</dt><dd>120 seconds for each bounded call to the fixed Hugging Face router</dd></div>
                   <div className="paper-meta-item"><dt>Secret boundary</dt><dd>The Hugging Face token is an encrypted server-side Worker secret and never enters the browser or response</dd></div>
                   <div className="paper-meta-item"><dt>Correction boundary</dt><dd>A schema-correction or repair pass may call the same fixed role model within the pipeline budget; it never switches provider or model</dd></div>
                   <div className="paper-meta-item"><dt>Historical controls</dt><dd>The WebLLM/MLC download path, bodyless quota lease, Turnstile attestation frame, renewal, and release protocol are inactive and retained only as provenance.</dd></div>

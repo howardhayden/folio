@@ -182,7 +182,7 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     /(?:without refund|never refunded)/iu,
     /no IP address/iu,
     /browser fingerprint/iu,
-    /60 seconds/iu,
+    /bounds each provider call to 120 seconds/iu,
     /32 provider calls/iu,
     /960/iu,
     /path-scoped (?:Worker )?rate limiter/iu,
