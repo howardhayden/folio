@@ -1220,7 +1220,7 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
       "top_p",
     ];
     if (index === 0) {
-      expectedKeys.push("chat_template_kwargs", "min_p", "presence_penalty", "top_k");
+      expectedKeys.push("chat_template_kwargs", "min_p", "top_k");
     }
     assert.deepEqual(Object.keys(body).sort(), expectedKeys.sort());
     assert.equal(init.method, "POST");
@@ -1237,7 +1237,7 @@ test("the adapter uses one fixed provider, Featherless-compatible JSON objects, 
   assert.deepEqual(calls[0].body.chat_template_kwargs, { enable_thinking: false });
   assert.equal(calls[0].body.top_k, 20);
   assert.equal(calls[0].body.min_p, 0);
-  assert.equal(calls[0].body.presence_penalty, 1.5);
+  assert.equal(Object.hasOwn(calls[0].body, "presence_penalty"), false);
   assert.equal(Object.hasOwn(calls[1].body, "chat_template_kwargs"), false);
   assert.equal(Object.hasOwn(calls[1].body, "top_k"), false);
   assert.equal(Object.hasOwn(calls[1].body, "min_p"), false);
