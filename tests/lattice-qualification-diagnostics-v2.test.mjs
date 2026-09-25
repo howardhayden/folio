@@ -172,10 +172,7 @@ test("an initial host-validation correction attributes malformed provider call t
   for (const body of [firstBody, correctedBody]) {
     assert.equal(Object.hasOwn(body, "response_format"), false);
     assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
-    assert.deepEqual(body.tool_choice, {
-      type: "function",
-      function: { name: ANALYSIS_TOOL_NAME },
-    });
+    assert.equal(body.tool_choice, "auto");
     assert.equal(body.tools.length, 1);
     assert.equal(body.tools[0].type, "function");
     assert.equal(body.tools[0].function.name, ANALYSIS_TOOL_NAME);

@@ -223,8 +223,7 @@ const STAGES = Object.freeze({
     maxTokens: 3_072,
     temperature: 0.7,
     topP: 0.8,
-    topK: 20,
-    minP: 0,
+    toolChoice: "auto",
   }),
   candidate: Object.freeze({
     role: "generator",
@@ -968,8 +967,9 @@ export async function requestHuggingFaceJson({
   maxTokens,
   temperature,
   topP,
-  topK,
-  minP,
+  topK: unsupportedTopK,
+  minP: unsupportedMinP,
+  toolChoice,
   presencePenalty,
   signal,
   fetchImpl = globalThis.fetch,
@@ -977,6 +977,9 @@ export async function requestHuggingFaceJson({
   maximumRequestBytes = LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   maximumResponseBytes = LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
 }) {
+  const resolvedToolChoice = toolName === undefined
+    ? undefined
+    : toolChoice ?? (role === "generator" ? "auto" : "named");
   if (typeof token !== "string" || !token.trim()) {
     throw providerError("provider_not_configured", "The Lattice provider is not configured.");
   }
@@ -987,19 +990,25 @@ export async function requestHuggingFaceJson({
     || !validPositiveInteger(maximumResponseBytes) || typeof fetchImpl !== "function"
     || !Number.isFinite(temperature) || temperature < 0 || temperature > 2
     || !Number.isFinite(topP) || topP <= 0 || topP > 1
-    || (topK !== undefined && !validPositiveInteger(topK))
-    || (minP !== undefined && (!Number.isFinite(minP) || minP < 0 || minP > 1))
+    || unsupportedTopK !== undefined
+    || unsupportedMinP !== undefined
     || (presencePenalty !== undefined
       && (!Number.isFinite(presencePenalty) || presencePenalty < 0 || presencePenalty > 2))
     || (responseGuide !== undefined
       && (typeof responseGuide !== "string" || !responseGuide.trim() || responseGuide.length > 4_096))
     || (toolName !== undefined
-      && (typeof toolName !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(toolName)))) {
+      && (typeof toolName !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(toolName)))
+    || (toolChoice !== undefined && toolChoice !== "auto" && toolChoice !== "named")
+    || (toolChoice !== undefined && toolName === undefined)
+    || (resolvedToolChoice === "auto" && role !== "generator")
+    || (resolvedToolChoice === "named" && role !== "verifier")) {
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
-  // Each structured stage supplies one exact named tool choice. The response
-  // parser below fails closed unless that matching structured call is returned.
+  // Nscale accepts only the string tool choices "auto" and "none". Analysis
+  // therefore supplies its one tool with "auto"; DeepInfra stages retain the
+  // named choice. The response parser fails closed unless exactly one matching
+  // structured call is returned in either case.
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],
     messages: toolName === undefined
@@ -1016,16 +1025,16 @@ export async function requestHuggingFaceJson({
             parameters: schema,
           },
         }],
-        tool_choice: {
-          type: "function",
-          function: { name: toolName },
-        },
+        tool_choice: resolvedToolChoice === "auto"
+          ? "auto"
+          : {
+            type: "function",
+            function: { name: toolName },
+          },
       }),
     max_tokens: maxTokens,
     temperature,
     top_p: topP,
-    ...(topK === undefined ? {} : { top_k: topK }),
-    ...(minP === undefined ? {} : { min_p: minP }),
     ...(presencePenalty === undefined ? {} : { presence_penalty: presencePenalty }),
     seed: 71_903,
     stream: false,
@@ -1179,11 +1188,10 @@ export function createHuggingFaceLatticeAdapter({
         schemaName: stage.schemaName,
         responseGuide: stage.responseGuide,
         toolName: stage.toolName,
+        toolChoice: stage.toolChoice,
         maxTokens: stage.maxTokens,
         temperature: stage.temperature,
         topP: stage.topP,
-        topK: stage.topK,
-        minP: stage.minP,
         presencePenalty: stage.presencePenalty,
         signal: request.signal,
         fetchImpl,
