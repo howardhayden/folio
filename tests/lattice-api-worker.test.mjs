@@ -68,6 +68,7 @@ const TEST_VISITOR_ID = "A".repeat(24);
 const TEST_VISITOR_COOKIE_VALUE = `v1.${TEST_VISITOR_ID}.${"B".repeat(43)}`;
 const TEST_VISITOR_SECRET = "test-only-independent-api-visitor-secret-value";
 const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v1";
+const CERTIFICATION_TOOL_NAME = "lattice_certification_v1";
 const allowTransformation = async () => Object.freeze({
   allowed: true,
   retryAfterSeconds: null,
@@ -1269,13 +1270,16 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
   );
 });
 
-test("the adapter offers one compact analysis tool while other stages retain JSON objects", async () => {
+test("the adapter uses exact named tools for compact analysis and verifier certification", async () => {
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, init, body: JSON.parse(init.body) });
     return calls.length === 1
       ? successfulProviderToolResponse()
-      : successfulProviderResponse({ accepted: true });
+      : successfulProviderToolResponse(
+        { accepted: true },
+        { toolName: CERTIFICATION_TOOL_NAME, toolCallId: "call_lattice_certification" },
+      );
   };
   const adapter = createHuggingFaceLatticeAdapter({
     token: "hf_server_only_token",
@@ -1303,6 +1307,14 @@ test("the adapter offers one compact analysis tool while other stages retain JSO
     LATTICE_REMOTE_MODELS.generator,
     LATTICE_REMOTE_MODELS.verifier,
   ]);
+  assert.equal(
+    LATTICE_REMOTE_MODELS.generator,
+    "Qwen/Qwen3-4B-Instruct-2507:nscale",
+  );
+  assert.equal(
+    LATTICE_REMOTE_MODELS.verifier,
+    "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+  );
   assert.deepEqual(calls.map(({ body }) => body.max_tokens), [3_072, 520]);
   assert.deepEqual(calls.map(({ body }) => body.temperature), [0.7, 0]);
   assert.deepEqual(calls.map(({ body }) => body.top_p), [0.8, 1]);
@@ -1318,9 +1330,9 @@ test("the adapter offers one compact analysis tool while other stages retain JSO
       "top_p",
     ];
     if (index === 0) {
-      expectedKeys.push("chat_template_kwargs", "min_p", "tools", "top_k");
+      expectedKeys.push("min_p", "tool_choice", "tools", "top_k");
     } else {
-      expectedKeys.push("response_format");
+      expectedKeys.push("tool_choice", "tools");
     }
     assert.deepEqual(Object.keys(body).sort(), expectedKeys.sort());
     assert.equal(init.method, "POST");
@@ -1336,7 +1348,10 @@ test("the adapter offers one compact analysis tool while other stages retain JSO
   const analysisParameters = analysisTool.function.parameters;
   assert.equal(Object.hasOwn(analysisBody, "response_format"), false);
   assert.equal(Object.hasOwn(analysisBody, "parallel_tool_calls"), false);
-  assert.equal(Object.hasOwn(analysisBody, "tool_choice"), false);
+  assert.deepEqual(analysisBody.tool_choice, {
+    type: "function",
+    function: { name: ANALYSIS_TOOL_NAME },
+  });
   assert.equal(analysisBody.tools.length, 1);
   assert.deepEqual(Object.keys(analysisTool).sort(), ["function", "type"]);
   assert.equal(analysisTool.type, "function");
@@ -1381,13 +1396,16 @@ test("the adapter offers one compact analysis tool while other stages retain JSO
   assert.equal(passageTuple[9].items.prefixItems[1].items.maxLength, 160);
   assert.deepEqual(analysisParameters.properties.q, { type: "array", maxItems: 0 });
   assert.equal(JSON.stringify(analysisBody.tools).includes('"strict"'), false);
-  assert.deepEqual(calls[1].body.response_format, { type: "json_object" });
-  assert.equal(Object.hasOwn(calls[1].body.response_format, "json_schema"), false);
-  assert.equal(JSON.stringify(calls[1].body.response_format).includes("strict"), false);
-  assert.equal(Object.hasOwn(calls[1].body, "tools"), false);
-  assert.equal(Object.hasOwn(calls[1].body, "tool_choice"), false);
+  assert.equal(Object.hasOwn(calls[1].body, "response_format"), false);
+  assert.equal(calls[1].body.tools.length, 1);
+  assert.equal(calls[1].body.tools[0].function.name, CERTIFICATION_TOOL_NAME);
+  assert.deepEqual(calls[1].body.tools[0].function.parameters, DOCUMENT_CERTIFICATION_SCHEMA);
+  assert.deepEqual(calls[1].body.tool_choice, {
+    type: "function",
+    function: { name: CERTIFICATION_TOOL_NAME },
+  });
   assert.equal(Object.hasOwn(calls[1].body, "parallel_tool_calls"), false);
-  assert.deepEqual(calls[0].body.chat_template_kwargs, { enable_thinking: false });
+  assert.equal(Object.hasOwn(calls[0].body, "chat_template_kwargs"), false);
   assert.equal(calls[0].body.top_k, 20);
   assert.equal(calls[0].body.min_p, 0);
   assert.equal(Object.hasOwn(calls[0].body, "presence_penalty"), false);
@@ -1421,7 +1439,8 @@ test("the adapter offers one compact analysis tool while other stages retain JSO
     false,
   );
   assert.equal(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)), false);
-  assert.ok(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)));
+  assert.match(calls[1].body.messages[0].content, /Call this function exactly once/u);
+  assert.equal(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)), false);
   for (const { body } of calls) {
     assert.equal(body.messages.slice(1).some(({ content }) => (
       typeof content === "string" && content.includes("LATTICE_RESPONSE_SCHEMA")
@@ -1432,7 +1451,7 @@ test("the adapter offers one compact analysis tool while other stages retain JSO
     typeof content === "string" && content.includes(validPayload.text)
   )), true);
   assert.match(calls[0].body.messages[0].content, /Requested mode: experiential/u);
-  assert.match(calls[0].body.messages[0].content, /\/no_think$/u);
+  assert.doesNotMatch(calls[0].body.messages[0].content, /\/no_think/u);
   assert.doesNotMatch(calls[1].body.messages[0].content, /\/no_think/u);
 });
 
@@ -1620,15 +1639,15 @@ test("a direct JSON-object request prepends the trusted closed schema without ch
   await requestHuggingFaceJson(options);
 
   assert.deepEqual(body.response_format, { type: "json_object" });
-  assert.deepEqual(body.chat_template_kwargs, { enable_thinking: false });
+  assert.equal(Object.hasOwn(body, "chat_template_kwargs"), false);
   assert.equal(body.messages[0].role, "system");
   assert.match(body.messages[0].content, /Response contract lattice_test_v1/u);
   assert.ok(body.messages[0].content.includes(JSON.stringify(options.schema)));
-  assert.match(body.messages[0].content, /\/no_think$/u);
+  assert.doesNotMatch(body.messages[0].content, /\/no_think/u);
   assert.deepEqual(body.messages[1], options.messages[0]);
 });
 
-test("a one-tool request omits tool_choice and uses only the exact returned call", async () => {
+test("a one-tool request selects the exact named tool and uses only that returned call", async () => {
   const variants = [
     { name: "absent content", finishReason: "tool_calls" },
     { name: "null content", finishReason: "stop", content: null },
@@ -1664,7 +1683,10 @@ test("a one-tool request omits tool_choice and uses only the exact returned call
     assert.deepEqual(result, { accepted: true }, name);
     assert.equal(Object.hasOwn(body, "response_format"), false);
     assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
-    assert.equal(Object.hasOwn(body, "tool_choice"), false);
+    assert.deepEqual(body.tool_choice, {
+      type: "function",
+      function: { name: ANALYSIS_TOOL_NAME },
+    });
     assert.equal(body.tools.length, 1);
     assert.equal(body.tools[0].type, "function");
     assert.equal(body.tools[0].function.name, ANALYSIS_TOOL_NAME);
@@ -2679,7 +2701,6 @@ test("the serialized provider request is byte-bounded before external fetch", as
     model: LATTICE_REMOTE_MODELS.generator,
     messages: baseOptions.messages,
     response_format: { type: "json_object" },
-    chat_template_kwargs: { enable_thinking: false },
     max_tokens: baseOptions.maxTokens,
     temperature: baseOptions.temperature,
     top_p: baseOptions.topP,

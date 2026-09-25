@@ -260,6 +260,51 @@ function normalizeBuildInstanceChunkReferences(html) {
     );
 }
 
+const VINEXT_BOOTSTRAP_REFERENCE_PATTERN = /(?:<script src="(\/_next\/static\/chunks\/(?:rolldown-runtime|framework|vinext)-[A-Za-z0-9_-]+\.js)" type="module" async=""><\/script>|<link rel="modulepreload" href="(\/_next\/static\/chunks\/(?:rolldown-runtime|framework|vinext)-[A-Za-z0-9_-]+\.js)" crossorigin=""\/>)/gu;
+const VINEXT_BOOTSTRAP_PATH_PATTERN = /^\/_next\/static\/chunks\/(?:rolldown-runtime|framework|vinext)-[A-Za-z0-9_-]+\.js$/u;
+
+function extractVinextBootstrapReferences(html, label) {
+  const references = [];
+  const body = html.replace(
+    VINEXT_BOOTSTRAP_REFERENCE_PATTERN,
+    (_match, scriptReference, preloadReference) => {
+      references.push(scriptReference ?? preloadReference);
+      return "";
+    },
+  );
+  return Object.freeze({ body, references: Object.freeze(references.sort()), label });
+}
+
+function assertExactVinextBootstrapReferences({ references, label }) {
+  assert.deepEqual(
+    references
+      .map((reference) => reference.match(/\/(rolldown-runtime|framework|vinext)-/u)?.[1])
+      .sort(),
+    ["framework", "rolldown-runtime", "vinext"],
+    `${label} has exactly the three Vinext bootstrap chunk references`,
+  );
+}
+
+async function currentVinextBootstrapReferences() {
+  const manifest = JSON.parse(await readFile(resolve(root, "dist/client/.vite/manifest.json"), "utf8"));
+  const entry = manifest["virtual:vinext-app-browser-entry"];
+  assert.ok(Array.isArray(entry?.imports), "the Vinext client manifest identifies browser-entry imports");
+  const references = entry.imports
+    .map((importId) => {
+      const file = manifest[importId]?.file;
+      assert.equal(typeof file, "string", `the Vinext client manifest resolves ${importId}`);
+      return `/${file}`;
+    })
+    .filter((reference) => VINEXT_BOOTSTRAP_PATH_PATTERN.test(reference))
+    .sort();
+  const expected = Object.freeze({
+    references: Object.freeze(references),
+    label: "the Vinext client manifest",
+  });
+  assertExactVinextBootstrapReferences(expected);
+  return expected.references;
+}
+
 function decodedText(html) {
   return authoredDocument(html)
     .replace(/<script\b[\s\S]*?<\/script>/giu, " ")
@@ -921,14 +966,15 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   }
 
   const expectedGenerator = {
-    name: "Qwen3-4B server-side generator",
+    name: "Qwen3-4B-Instruct-2507 server-side generator",
     modelId: LATTICE_REMOTE_MODELS.generator,
     revision: "provider-managed remote serving revision",
-    repository: "https://huggingface.co/Qwen/Qwen3-4B",
-    revisionUrl: "https://huggingface.co/Qwen/Qwen3-4B",
-    baseModelRepository: "https://huggingface.co/Qwen/Qwen3-4B",
+    repository: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507",
+    reviewedSourceRevision: "cdbee75f17c01a7cc42f958dc650907174af0554",
+    revisionUrl: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/tree/cdbee75f17c01a7cc42f958dc650907174af0554",
+    baseModelRepository: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507",
     licenseName: "Apache License 2.0",
-    licenseUrl: "https://huggingface.co/Qwen/Qwen3-4B/blob/main/LICENSE",
+    licenseUrl: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/blob/cdbee75f17c01a7cc42f958dc650907174af0554/LICENSE",
     inference: {
       seed: 71_903,
       thinking: false,
@@ -944,18 +990,19 @@ test("project and Text to Lattice implementation provenance stays source-aligned
         repair: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
       },
     },
-    inferenceSummary: "server-side structured completion through Hugging Face Inference Providers and Featherless AI; fixed seed 71903; Qwen thinking disabled; bounded stage-specific output limits",
+    inferenceSummary: "server-side structured completion through Hugging Face Inference Providers and Nscale; fixed seed 71903; non-thinking-only Qwen variant; bounded stage-specific output limits",
   };
   const expectedVerifier = {
-    name: "Llama 3.2 3B Instruct server-side verifier",
+    name: "Llama 3.1 8B Instruct server-side verifier",
     modelId: LATTICE_REMOTE_MODELS.verifier,
     revision: "provider-managed remote serving revision",
-    repository: "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct",
-    revisionUrl: "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct",
-    baseModelRepository: "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct",
-    licenseName: "Llama 3.2 Community License Agreement",
-    licenseUrl: "https://developer.meta.com/ai/llama3_2/license/",
-    acceptableUseUrl: "https://developer.meta.com/ai/llama3_2/use-policy/",
+    repository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+    reviewedSourceRevision: "0e9e39f249a16976918f6564b8830bc894c89659",
+    revisionUrl: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/tree/0e9e39f249a16976918f6564b8830bc894c89659",
+    baseModelRepository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+    licenseName: "Llama 3.1 Community License Agreement",
+    licenseUrl: "https://developer.meta.com/ai/llama3_1/license/",
+    acceptableUseUrl: "https://developer.meta.com/ai/llama3_1/use-policy/",
     inference: {
       seed: 71_903,
       stages: {
@@ -965,7 +1012,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     },
   };
   const expectedRuntime = {
-    name: "Hugging Face Inference Providers with Featherless AI",
+    name: "Hugging Face Inference Providers with Nscale and DeepInfra",
     version: "provider-managed remote service",
     packageUrl: "https://huggingface.co/docs/inference-providers/",
     documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
@@ -973,10 +1020,10 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     tokenizerName: "Provider-managed model tokenizer",
     tokenizerVersion: "provider-managed",
     tokenizerPackageUrl: "https://huggingface.co/docs/inference-providers/",
-    structuredOutputName: "JSON-object generation with exact host-side closed-schema validation",
+    structuredOutputName: "Function-call and JSON-object generation with exact host-side closed-schema validation",
     structuredOutputVersion: "provider-managed",
-    structuredOutputPackageUrl: "https://featherless.ai/docs/tool-calling",
-    structuredOutputRepository: "https://featherless.ai/docs/tool-calling",
+    structuredOutputPackageUrl: "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
+    structuredOutputRepository: "https://huggingface.co/docs/inference-providers/en/guides/function-calling",
     structuredOutputLicenseName: "Hugging Face and provider service terms",
     structuredOutputLicenseUrl: "https://huggingface.co/terms-of-service",
     wasmRevision: "historical and inactive",
@@ -1070,9 +1117,10 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     "https://huggingface.co/terms-of-service",
     "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
     "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
-    "https://featherless.ai/docs/tool-calling",
+    "https://huggingface.co/docs/inference-providers/en/guides/function-calling",
     "https://huggingface.co/docs/inference-providers/en/security",
-    "https://huggingface.co/docs/inference-providers/en/providers/featherless-ai",
+    "https://huggingface.co/docs/inference-providers/en/providers/nscale",
+    "https://huggingface.co/docs/inference-providers/en/providers/deepinfra",
   ]) assert.ok(upstreamUrls.has(required), required);
   for (const id of ["securityAndPrivacy", "interactiveRelease", "publicationMode"]) {
     assert.ok(namespaceTerms.some((term) => term.id === id), `${id} has a vocabulary definition`);
@@ -1218,6 +1266,7 @@ test("a no-JavaScript anchor crawl from home reaches every canonical HTML record
 });
 
 test("every static export matches its built server representation and references shipped assets", async () => {
+  const expectedVinextBootstrapReferences = await currentVinextBootstrapReferences();
   for (const route of staticExportRoutes) {
     const [response, staticBody] = await Promise.all([
       request(route.pathname, route.accept),
@@ -1232,10 +1281,43 @@ test("every static export matches its built server representation and references
         `${route.output} references shipped asset ${match[1]}`,
       );
     }
-    assert.equal(
-      normalizeBuildInstanceChunkReferences(staticBody),
-      normalizeBuildInstanceChunkReferences(renderedBody),
-      `${route.output} is an exact semantic render of ${route.pathname}`,
-    );
+    if (route.contentType === "text/html") {
+      const staticRender = extractVinextBootstrapReferences(staticBody, route.output);
+      const serverRender = extractVinextBootstrapReferences(renderedBody, route.pathname);
+      assertExactVinextBootstrapReferences(staticRender);
+      assert.deepEqual(
+        staticRender.references,
+        expectedVinextBootstrapReferences,
+        `${route.output} references the current manifest's Vinext bootstrap chunks`,
+      );
+      if (route.expectedStatus === 404) {
+        if (serverRender.references.length > 0) {
+          assertExactVinextBootstrapReferences(serverRender);
+          assert.deepEqual(
+            serverRender.references,
+            expectedVinextBootstrapReferences,
+            `${route.pathname} uses the current manifest when its 404 response includes bootstrap chunks`,
+          );
+        }
+      } else {
+        assertExactVinextBootstrapReferences(serverRender);
+        assert.deepEqual(
+          serverRender.references,
+          expectedVinextBootstrapReferences,
+          `${route.pathname} references the current manifest's Vinext bootstrap chunks`,
+        );
+      }
+      assert.equal(
+        normalizeBuildInstanceChunkReferences(staticRender.body),
+        normalizeBuildInstanceChunkReferences(serverRender.body),
+        `${route.output} is an exact semantic render of ${route.pathname}`,
+      );
+    } else {
+      assert.equal(
+        normalizeBuildInstanceChunkReferences(staticBody),
+        normalizeBuildInstanceChunkReferences(renderedBody),
+        `${route.output} is an exact semantic render of ${route.pathname}`,
+      );
+    }
   }
 });

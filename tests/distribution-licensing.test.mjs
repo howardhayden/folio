@@ -176,24 +176,56 @@ test("Text to Lattice implementation stays under the declared proprietary terms"
   assert.ok(latticeRule.paths.includes("app/resume/ResumeProjectsHeld.tsx"));
 });
 
-test("Llama terms, required attribution, and held-artifact provenance are regression-bound", async () => {
+test("active Llama terms, required attribution, and historical artifacts are regression-bound", async () => {
   const { createHash } = await import("node:crypto");
-  const [notice, notices, license, acceptableUse, registerSource] = await Promise.all([
+  const [
+    notice,
+    notices,
+    activeLicense,
+    activeAcceptableUse,
+    historicalLicense,
+    historicalAcceptableUse,
+    registerSource,
+  ] = await Promise.all([
     readText("NOTICE"),
     readText("THIRD_PARTY_NOTICES.md"),
+    readFile(sourceUrl("LICENSES/Llama-3.1-Community-License.txt")),
+    readFile(sourceUrl("LICENSES/Llama-3.1-Acceptable-Use-Policy.md")),
     readFile(sourceUrl("LICENSES/Llama-3.2-Community-License.txt")),
     readFile(sourceUrl("LICENSES/Llama-3.2-Acceptable-Use-Policy.md")),
     readText("docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json"),
   ]);
   const register = JSON.parse(registerSource);
   const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+  const { active, historicalBrowserLocal } = register.artifactSet.llamaTerms;
+  const copiedSources = new Set(staticSourceCopies.map(({ source }) => source));
 
-  assert.equal(sha256(license), register.artifactSet.llamaTerms.license.sha256);
-  assert.equal(sha256(acceptableUse), register.artifactSet.llamaTerms.acceptableUsePolicy.sha256);
+  assert.equal(active.status, "active");
+  assert.equal(active.version, "Llama 3.1");
+  assert.equal(active.model, "meta-llama/Llama-3.1-8B-Instruct:deepinfra");
+  assert.equal(active.modelRepositoryRevision, "0e9e39f249a16976918f6564b8830bc894c89659");
+  assert.equal(sha256(activeLicense), active.license.sha256);
+  assert.equal(sha256(activeAcceptableUse), active.acceptableUsePolicy.sha256);
+  assert.equal(active.license.gitBlob, "a7c3ca16cee30425ed6ad841a809590f2bcbf290");
+  assert.equal(active.acceptableUsePolicy.gitBlob, "81ebb55902285e8dd5804ccf423d17ffb2a622ee");
+  assert.ok(copiedSources.has(active.license.path));
+  assert.ok(copiedSources.has(active.acceptableUsePolicy.path));
+
+  assert.equal(historicalBrowserLocal.status, "historical-inactive");
+  assert.equal(historicalBrowserLocal.version, "Llama 3.2");
+  assert.equal(sha256(historicalLicense), historicalBrowserLocal.license.sha256);
+  assert.equal(sha256(historicalAcceptableUse), historicalBrowserLocal.acceptableUsePolicy.sha256);
+  assert.ok(copiedSources.has(historicalBrowserLocal.license.path));
+  assert.ok(copiedSources.has(historicalBrowserLocal.acceptableUsePolicy.path));
   assert.match(notice, /Built with Llama\./u);
+  assert.match(notice, /Llama 3\.1 is licensed under the Llama 3\.1 Community License, Copyright © Meta Platforms, Inc\. All Rights Reserved\./u);
   assert.match(notice, /Llama 3\.2 is licensed under the Llama 3\.2 Community License, Copyright © Meta Platforms, Inc\. All Rights Reserved\./u);
-  assert.match(notices, /developer\.meta\.com\/ai\/llama3_2\/license\//u);
-  assert.match(notices, /developer\.meta\.com\/ai\/llama3_2\/use-policy\//u);
+  assert.match(notices, new RegExp(active.modelRepositoryRevision, "u"));
+  assert.match(notices, new RegExp(active.license.sha256, "u"));
+  assert.match(notices, new RegExp(active.acceptableUsePolicy.sha256, "u"));
+  assert.match(notices, /developer\.meta\.com\/ai\/llama3_1\/license\//u);
+  assert.match(notices, /developer\.meta\.com\/ai\/llama3_1\/use-policy\//u);
+  assert.match(notices, /historical inactive Llama 3\.2/u);
   assert.match(notices, new RegExp(register.artifactSet.wasm.files.generator.sha256, "u"));
   assert.match(notices, new RegExp(register.artifactSet.wasm.files.verifier.sha256, "u"));
   assert.equal(register.artifactSet.wasm.reproducibility.status, "accepted-residual-risk");

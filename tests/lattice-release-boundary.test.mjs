@@ -294,10 +294,53 @@ test("the release register honestly holds the remote capability and preserves hi
     },
   );
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
-  assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-4B:featherless-ai");
-  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.2-3B-Instruct:featherless-ai");
+  assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-4B-Instruct-2507:nscale");
+  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.1-8B-Instruct:deepinfra");
   assert.equal(capability.provider.historicalByteEquivalenceEstablished, false);
   assert.equal(register.artifactSet.historicalBrowserLocalArtifacts.status, "historical-inactive");
+  assert.deepEqual(register.artifactSet.llamaTerms.active, {
+    status: "active",
+    version: "Llama 3.1",
+    model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+    modelRepository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+    modelRepositoryRevision: "0e9e39f249a16976918f6564b8830bc894c89659",
+    modelRepositoryRevisionUrl: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/tree/0e9e39f249a16976918f6564b8830bc894c89659",
+    license: {
+      path: "LICENSES/Llama-3.1-Community-License.txt",
+      sha256: "64e1b2889b7892e6bbe7a7ed5bfe6ff793c61f9d584345f8f41cf9f5cb30a369",
+      gitBlob: "a7c3ca16cee30425ed6ad841a809590f2bcbf290",
+      sourceUrl: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/LICENSE",
+      canonicalUrl: "https://developer.meta.com/ai/llama3_1/license/",
+    },
+    acceptableUsePolicy: {
+      path: "LICENSES/Llama-3.1-Acceptable-Use-Policy.md",
+      sha256: "a568f2ebc73cec3fd74ba2afd992d4e945a8c7a9d851f9b66163aac834b7b859",
+      gitBlob: "81ebb55902285e8dd5804ccf423d17ffb2a622ee",
+      sourceUrl: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/USE_POLICY.md",
+      canonicalUrl: "https://developer.meta.com/ai/llama3_1/use-policy/",
+    },
+    officialSourceCommit: "1f0feb795a4130697ced243fb53051670d591653",
+    termsMatchStatus: "byte-identical-to-reviewed-model-repository-files",
+    reviewedAt: "2026-09-25",
+  });
+  assert.equal(register.artifactSet.llamaTerms.historicalBrowserLocal.status, "historical-inactive");
+  assert.equal(register.artifactSet.llamaTerms.historicalBrowserLocal.version, "Llama 3.2");
+  assert.equal(
+    register.artifactSet.llamaTerms.historicalBrowserLocal.license.path,
+    "LICENSES/Llama-3.2-Community-License.txt",
+  );
+  assert.equal(
+    register.artifactSet.llamaTerms.historicalBrowserLocal.acceptableUsePolicy.path,
+    "LICENSES/Llama-3.2-Acceptable-Use-Policy.md",
+  );
+  assert.equal(register.artifactSet.llamaBehaviorEvaluation.targetVerifier.model, capability.provider.verifierModel);
+  assert.equal(
+    register.artifactSet.llamaBehaviorEvaluation.targetVerifier.modelRepositoryRevision,
+    register.artifactSet.llamaTerms.active.modelRepositoryRevision,
+  );
+  assert.equal(register.artifactSet.llamaBehaviorEvaluation.evidenceResetAt, "2026-09-25");
+  assert.match(register.artifactSet.llamaBehaviorEvaluation.evidenceResetReason, /different model or serving revision/iu);
+  assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionPerformed, false);
 
   for (const id of ["GATE-02", "GATE-03", "GATE-06"]) {
     const gate = register.gates.find((item) => item.id === id);

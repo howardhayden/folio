@@ -247,7 +247,15 @@
           "featherless.ai",
           "*.featherless.ai",
           "featherless.ai.",
-          "*.featherless.ai."
+          "*.featherless.ai.",
+          "nscale.com",
+          "*.nscale.com",
+          "nscale.com.",
+          "*.nscale.com.",
+          "deepinfra.com",
+          "*.deepinfra.com",
+          "deepinfra.com.",
+          "*.deepinfra.com."
         ],
         "provider_host_match_case_insensitive": true,
         "marker_encodings_scanned": [
@@ -513,7 +521,15 @@
           "featherless.ai",
           "*.featherless.ai",
           "featherless.ai.",
-          "*.featherless.ai."
+          "*.featherless.ai.",
+          "nscale.com",
+          "*.nscale.com",
+          "nscale.com.",
+          "*.nscale.com.",
+          "deepinfra.com",
+          "*.deepinfra.com",
+          "deepinfra.com.",
+          "*.deepinfra.com."
         ],
         "provider_host_match_case_insensitive": true,
         "marker_encodings_scanned": [

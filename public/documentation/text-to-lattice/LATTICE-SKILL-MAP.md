@@ -1,6 +1,6 @@
 ---
 title: Lattice system skill map
-revision: 2026-09-23
+revision: 2026-09-25
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
@@ -196,7 +196,7 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-REMOTE-PROTOCOL — Remote request and response protocol:** `app/resume/lattice/remoteProtocol.js`
 - **SRC-REMOTE-CLIENT — Same-origin remote request client:** `app/resume/lattice/remoteRequest.js`
 - **SRC-API-WORKER — Same-origin Text to Lattice API Worker:** `workers/text-to-lattice-api/worker.js`
-- **SRC-HF-ADAPTER — Fixed Hugging Face and Featherless provider adapter:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
+- **SRC-HF-ADAPTER — Fixed Hugging Face, Nscale, and DeepInfra provider adapter:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
 - **SRC-API-CONFIG — Text to Lattice API Worker configuration:** `workers/text-to-lattice-api/wrangler.jsonc`
 - **SRC-CAPACITY-POLICY — Atomic Text to Lattice request-admission policy:** `workers/text-to-lattice-api/capacityPolicy.js`
 - **SRC-CAPACITY-CLIENT — Text to Lattice request-admission client:** `workers/text-to-lattice-api/capacityClient.js`
@@ -218,8 +218,10 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-PROJECTS — Portfolio project and ecosystem register:** `app/resume/projects.js`
 - **SRC-RELEASE-REGISTER — Machine-enforced Text to Lattice release register:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json`
 - **SRC-RELEASE-QUALIFICATION — Text to Lattice release qualification:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
-- **SRC-LLAMA-LICENSE — Canonical Llama 3.2 Community License:** [Reviewed source](https://developer.meta.com/ai/llama3_2/license/)
-- **SRC-LLAMA-AUP — Canonical Llama 3.2 Acceptable Use Policy:** [Reviewed source](https://developer.meta.com/ai/llama3_2/use-policy/)
+- **SRC-LLAMA-3-1-LICENSE — Active Llama 3.1 Community License at the reviewed model revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/LICENSE)
+- **SRC-LLAMA-3-1-AUP — Active Llama 3.1 Acceptable Use Policy at the reviewed model revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/USE_POLICY.md)
+- **SRC-LLAMA-LICENSE — Historical Llama 3.2 Community License:** [Reviewed source](https://developer.meta.com/ai/llama3_2/license/)
+- **SRC-LLAMA-AUP — Historical Llama 3.2 Acceptable Use Policy:** [Reviewed source](https://developer.meta.com/ai/llama3_2/use-policy/)
 - **SRC-LLAMA-EVAL — Non-operational Llama-use evaluation cases:** `docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json`
 - **SRC-WASM-PR — Upstream current-WASM rebuild record:** [Reviewed source](https://github.com/mlc-ai/binary-mlc-llm-libs/pull/158)
 - **SRC-LAT-README — Lattice README at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/README.md)
@@ -235,7 +237,8 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-HF-CHAT — Hugging Face OpenAI-compatible chat-completions API:** [Reviewed source](https://huggingface.co/docs/inference-providers/tasks/chat-completion)
 - **SRC-HF-STRUCTURED — Hugging Face structured-output guidance:** [Reviewed source](https://huggingface.co/docs/inference-providers/guides/structured-output)
 - **SRC-HF-SECURITY — Hugging Face security and privacy policy:** [Reviewed source](https://huggingface.co/security)
-- **SRC-HF-FEATHERLESS — Hugging Face Featherless provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/featherless-ai)
+- **SRC-HF-NSCALE — Hugging Face Nscale provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/nscale)
+- **SRC-HF-DEEPINFRA — Hugging Face DeepInfra provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/deepinfra)
 - **SRC-LATTICE-UPSTREAM — Lattice upstream repository:** [Reviewed source](https://github.com/howardhayden/lattice)
 
 ## Terms and provenance

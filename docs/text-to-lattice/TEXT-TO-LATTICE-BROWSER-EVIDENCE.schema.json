@@ -799,7 +799,15 @@
             "featherless.ai",
             "*.featherless.ai",
             "featherless.ai.",
-            "*.featherless.ai."
+            "*.featherless.ai.",
+            "nscale.com",
+            "*.nscale.com",
+            "nscale.com.",
+            "*.nscale.com.",
+            "deepinfra.com",
+            "*.deepinfra.com",
+            "deepinfra.com.",
+            "*.deepinfra.com."
           ]
         },
         "provider_host_match_case_insensitive": {

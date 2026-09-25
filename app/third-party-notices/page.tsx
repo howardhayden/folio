@@ -49,8 +49,10 @@ const thirdPartyLicenseDocuments = [
   ["MIT License for Bootstrap", "/LICENSES/MIT-Bootstrap.txt"],
   ["SIL Open Font License 1.1 for Jost", "/LICENSES/OFL-1.1-Jost.txt"],
   ["MIT License for loglevel", "/LICENSES/MIT-loglevel.txt"],
-  ["Llama 3.2 Community License", "/LICENSES/Llama-3.2-Community-License.txt"],
-  ["Llama 3.2 Acceptable Use Policy", "/LICENSES/Llama-3.2-Acceptable-Use-Policy.md"],
+  ["Llama 3.1 Community License — active verifier", "/LICENSES/Llama-3.1-Community-License.txt"],
+  ["Llama 3.1 Acceptable Use Policy — active verifier", "/LICENSES/Llama-3.1-Acceptable-Use-Policy.md"],
+  ["Llama 3.2 Community License — historical inactive verifier", "/LICENSES/Llama-3.2-Community-License.txt"],
+  ["Llama 3.2 Acceptable Use Policy — historical inactive verifier", "/LICENSES/Llama-3.2-Acceptable-Use-Policy.md"],
 ] as const;
 
 export default function ThirdPartyNoticesPage() {
@@ -76,11 +78,11 @@ export default function ThirdPartyNoticesPage() {
           </dl>
           <p>{String(interactiveRelease) === "held"
             ? "When the machine release record contains an open blocker, the client stays outside the public bundle and makes no transformation submission. If enabled, the capability submits only after explicit confirmation."
-            : "The enabled capability submits only after the visitor explicitly chooses Process with external service."} The enabled browser flow first sends one content-free cookie setup <code>POST /api/lattice</code> with no body or Content-Type, then exactly one content-bearing <code>POST /api/lattice</code> whose JSON body contains exactly <code>{"{text, requested_mode, schema_version: 1}"}</code>. Only the second request includes submitted text or can initiate external-provider processing. The server uses the fixed Qwen generator and Llama verifier through Hugging Face Inference Providers and Featherless AI.</p>
-          <p>hah.dev application code does not store source, prompts, candidates, provider bodies, or results; write raw-content logs; cache or queue that content; or send it to analytics. The browser does not retry automatically, and the server does not fall back to another provider or model. Text nevertheless leaves hah.dev for external processing under Hugging Face, Featherless AI, and their infrastructure policies. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information.</p>
+            : "The enabled capability submits only after the visitor explicitly chooses Process with external service."} The enabled browser flow first sends one content-free cookie setup <code>POST /api/lattice</code> with no body or Content-Type, then exactly one content-bearing <code>POST /api/lattice</code> whose JSON body contains exactly <code>{"{text, requested_mode, schema_version: 1}"}</code>. Only the second request includes submitted text or can initiate external-provider processing. The server uses the fixed Nscale-served Qwen generator and DeepInfra-served Llama verifier through Hugging Face Inference Providers.</p>
+          <p>hah.dev application code does not store source, prompts, candidates, provider bodies, or results; write raw-content logs; cache or queue that content; or send it to analytics. The browser does not retry automatically, and the server does not fall back to another provider or model. Text nevertheless leaves hah.dev for external processing under Hugging Face, Nscale, DeepInfra, and their infrastructure policies. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information.</p>
           <p>The former browser-local WebLLM/MLC runtime and bodyless lease, renewal, release, and Turnstile-attestation controls are historical and inactive. Their pinned model and WebAssembly records remain below as provenance only and do not identify the provider-served runtime byte for byte. {runtime.wasmLicenseStatus}</p>
-          <p>The models and provider runtime are third-party materials, not works authored by Hayden Howard. Qwen3-4B is published under the <a href={generator.licenseUrl}>{generator.licenseName}</a>. Upstream service terms and model cards remain controlling.</p>
-          <p>Built with Llama. Llama 3.2 is licensed under the <a href={verifier.licenseUrl}>Llama 3.2 Community License</a> and <a href={verifier.acceptableUseUrl}>Acceptable Use Policy</a>, Copyright © Meta Platforms, Inc. All Rights Reserved.</p>
+          <p>The models and provider runtime are third-party materials, not works authored by Hayden Howard. Qwen3-4B-Instruct-2507 is published under the <a href={generator.licenseUrl}>{generator.licenseName}</a>. Upstream service terms and model cards remain controlling.</p>
+          <p>Built with Llama. Llama 3.1 is licensed under the <a href={verifier.licenseUrl}>Llama 3.1 Community License</a> and <a href={verifier.acceptableUseUrl}>Acceptable Use Policy</a>, Copyright © Meta Platforms, Inc. All Rights Reserved.</p>
 
           <h2>Notices and index</h2>
           <ul>

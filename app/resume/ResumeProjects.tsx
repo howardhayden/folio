@@ -17,7 +17,7 @@ import {
   validateLatticeInput,
 } from "./lattice/inputPolicy.js";
 import {
-  LLAMA_3_2_PUBLIC_TERMS,
+  LLAMA_3_1_PUBLIC_TERMS,
 } from "./lattice/publicTerms.js";
 import {
   LatticeRemoteError,
@@ -885,7 +885,7 @@ export default function ResumeProjects() {
               This text leaves hah.dev for processing by the configured external Hugging Face inference service only when you choose <strong>Process with external service</strong>. hah.dev does not retain your sample or result. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. <a href="/projects/lattice/text-to-lattice/#text-to-lattice-privacy">Privacy details</a>.
             </p>
             <p id="lattice-model-disclosure" className="lattice-local-note">
-              Model-assisted result: Qwen drafts and Llama 3.2 checks through the configured external service. The service may apply its own processing terms. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_2_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
+              Model-assisted result: Qwen3-4B-Instruct-2507 drafts and Llama 3.1 8B Instruct checks through the configured external service. The service may apply its own processing terms. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_1_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
             </p>
             <p className="lattice-usage-note" id="lattice-demonstration-profile">
               Demonstration profile: after explicit confirmation, the browser sends one
@@ -945,10 +945,10 @@ export default function ResumeProjects() {
                 }}
               />
               <label className="lattice-use-confirmation-label" htmlFor="lattice-use-confirmation">
-                I confirm that this source is in one of the supported languages, I am authorized to send it to the configured external service, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.2 Acceptable Use Policy.
+                I confirm that this source is in one of the supported languages, I am authorized to send it to the configured external service, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.1 Acceptable Use Policy.
               </label>
               <small id="lattice-use-confirmation-detail" className="lattice-use-confirmation-detail">
-                Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_2_PUBLIC_TERMS.acceptableUseUrl}>Llama 3.2 Acceptable Use Policy</a>.
+                Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_1_PUBLIC_TERMS.acceptableUseUrl}>Llama 3.1 Acceptable Use Policy</a>.
               </small>
             </div>
             {latticeError ? (

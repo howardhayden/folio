@@ -1,7 +1,7 @@
 {
   "format": "TEXT_TO_LATTICE_RELEASE_REGISTER",
   "schemaVersion": 1,
-  "revision": "2026-09-23",
+  "revision": "2026-09-25",
   "implementationBaselineRevision": "7a7ae672a9803136294bfae35a95db0b8204a205",
   "qualificationScope": "The named commit is the last pulled hah.dev deployment and ancestry baseline, not by itself current qualification evidence. The qualified source-set digest binds the held remote-capability candidate, its exact public activation boundary, API Worker, fixed provider adapter, validators, tests, legal notices, response policy, and release workflow without claiming that the digest alone establishes the candidate as deployed or observed in production. Qualification-only production observations are recorded separately in the active gate evidence and do not qualify or activate the public client. The superseded browser-local WebLLM, Turnstile, and lease records remain historical and inactive.",
   "overallStatus": "held",
@@ -17,7 +17,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "11bc19e2958ad0c37ceaf2f8671f82533f9e6141b77850116cfb4fd587c76c28",
+    "qualificationDossierSha256": "fcb0ab80b7948938dc3baef16c0d34b6d37b72e3391666db6ebc684d23cf1ae5",
     "browserEvidence": {
       "status": "not-collected",
       "path": null,
@@ -87,7 +87,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "f07fd5b23e64959f5aaa25716ad382fae18fc2907c91717a70fe5fc769b7a5c2",
+      "sha256": "5de56bea4a465087c123408a5f4eaddcac95b0c556dc32577a827c8a50538608",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, controlling Owner terms and baseline record, license-routing map, package metadata, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -114,10 +114,10 @@
   "ownerDisposition": {
     "status": "hold-directed",
     "owner": "site owner",
-    "qualifiedSourceSetSha256": "f07fd5b23e64959f5aaa25716ad382fae18fc2907c91717a70fe5fc769b7a5c2",
-    "decidedOn": "2026-09-23",
+    "qualifiedSourceSetSha256": "5de56bea4a465087c123408a5f4eaddcac95b0c556dc32577a827c8a50538608",
+    "decidedOn": "2026-09-25",
     "record": "The site owner directs the remote Text to Lattice source candidate to remain held and documentation-only until the active production and canonical-browser release blockers close. Source review, Worker deployment preparation, and explicit historical evidence do not activate the public client.",
-    "note": "The earlier GATE-02 deployment record and GATE-06 canonical-browser lifecycle and privacy captures remain verbatim historical evidence for their browser-local revisions. They do not establish the /api/lattice route, HF_TOKEN and VISITOR_COOKIE_SECRET bindings, exact quota-cookie boundary, exact 30-global and scoped 3-cooperating-cookie-jar UTC-day admission, fixed Hugging Face and Featherless provider targets, remote retention boundary, successful remote conversion, or current privacy trace."
+    "note": "The earlier GATE-02 deployment record and GATE-06 canonical-browser lifecycle and privacy captures remain verbatim historical evidence for their browser-local revisions. They do not establish the /api/lattice route, HF_TOKEN and VISITOR_COOKIE_SECRET bindings, exact quota-cookie boundary, exact 30-global and scoped 3-cooperating-cookie-jar UTC-day admission, fixed Hugging Face router with Nscale generator and DeepInfra verifier targets, remote retention boundary, successful remote conversion, or current privacy trace."
   },
   "artifactSet": {
     "activeCapability": {
@@ -205,8 +205,8 @@
       },
       "provider": {
         "endpoint": "https://router.huggingface.co/v1/chat/completions",
-        "generatorModel": "Qwen/Qwen3-4B:featherless-ai",
-        "verifierModel": "meta-llama/Llama-3.2-3B-Instruct:featherless-ai",
+        "generatorModel": "Qwen/Qwen3-4B-Instruct-2507:nscale",
+        "verifierModel": "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
         "callTimeoutMs": 60000,
         "callLimit": 32,
         "responseByteLimit": 262144,
@@ -360,31 +360,66 @@
       }
     },
     "llamaTerms": {
-      "version": "Llama 3.2",
-      "license": {
-        "path": "LICENSES/Llama-3.2-Community-License.txt",
-        "sha256": "8cc15535a8a34b41888f644b339a1a9eb428af793a4f5e24df58a3e5b1487d74",
-        "canonicalUrl": "https://developer.meta.com/ai/llama3_2/license/"
+      "active": {
+        "status": "active",
+        "version": "Llama 3.1",
+        "model": "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+        "modelRepository": "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+        "modelRepositoryRevision": "0e9e39f249a16976918f6564b8830bc894c89659",
+        "modelRepositoryRevisionUrl": "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/tree/0e9e39f249a16976918f6564b8830bc894c89659",
+        "license": {
+          "path": "LICENSES/Llama-3.1-Community-License.txt",
+          "sha256": "64e1b2889b7892e6bbe7a7ed5bfe6ff793c61f9d584345f8f41cf9f5cb30a369",
+          "gitBlob": "a7c3ca16cee30425ed6ad841a809590f2bcbf290",
+          "sourceUrl": "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/LICENSE",
+          "canonicalUrl": "https://developer.meta.com/ai/llama3_1/license/"
+        },
+        "acceptableUsePolicy": {
+          "path": "LICENSES/Llama-3.1-Acceptable-Use-Policy.md",
+          "sha256": "a568f2ebc73cec3fd74ba2afd992d4e945a8c7a9d851f9b66163aac834b7b859",
+          "gitBlob": "81ebb55902285e8dd5804ccf423d17ffb2a622ee",
+          "sourceUrl": "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/USE_POLICY.md",
+          "canonicalUrl": "https://developer.meta.com/ai/llama3_1/use-policy/"
+        },
+        "officialSourceCommit": "1f0feb795a4130697ced243fb53051670d591653",
+        "termsMatchStatus": "byte-identical-to-reviewed-model-repository-files",
+        "reviewedAt": "2026-09-25"
       },
-      "acceptableUsePolicy": {
-        "path": "LICENSES/Llama-3.2-Acceptable-Use-Policy.md",
-        "sha256": "40e2777d7faa6beaf98400654170f414d8ab29b921b5163ad4ea0a1d39894201",
-        "canonicalUrl": "https://developer.meta.com/ai/llama3_2/use-policy/"
-      },
-      "officialSourceCommit": "8d29d93fa5700a60532e0061a02ffa89d0acd3fc",
-      "termsMatchStatus": "byte-identical-to-reviewed-official-files",
-      "reviewedAt": "2026-09-09"
+      "historicalBrowserLocal": {
+        "status": "historical-inactive",
+        "version": "Llama 3.2",
+        "license": {
+          "path": "LICENSES/Llama-3.2-Community-License.txt",
+          "sha256": "8cc15535a8a34b41888f644b339a1a9eb428af793a4f5e24df58a3e5b1487d74",
+          "canonicalUrl": "https://developer.meta.com/ai/llama3_2/license/"
+        },
+        "acceptableUsePolicy": {
+          "path": "LICENSES/Llama-3.2-Acceptable-Use-Policy.md",
+          "sha256": "40e2777d7faa6beaf98400654170f414d8ab29b921b5163ad4ea0a1d39894201",
+          "canonicalUrl": "https://developer.meta.com/ai/llama3_2/use-policy/"
+        },
+        "officialSourceCommit": "8d29d93fa5700a60532e0061a02ffa89d0acd3fc",
+        "termsMatchStatus": "byte-identical-to-reviewed-official-files",
+        "reviewedAt": "2026-09-09",
+        "claimBoundary": "These terms remain bound to the historical inactive Llama 3.2 browser-local MLC artifact and do not govern or qualify the active Llama 3.1 verifier."
+      }
     },
     "llamaBehaviorEvaluation": {
       "path": "docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json",
-      "sha256": "259ba4cc17d28e16bf9470621f95af017e26988e22602c452246f055e0b8d3b4",
+      "sha256": "86aad271f8e6a5befb978d6146fbbf9ce7b1c7eca16b8c1b5d7681e3d99294a7",
       "caseCount": 10,
       "expectedAllowCount": 5,
       "expectedDenyCount": 5,
       "fixtureStatus": "defined-and-machine-checked",
+      "targetVerifier": {
+        "model": "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+        "modelRepositoryRevision": "0e9e39f249a16976918f6564b8830bc894c89659"
+      },
+      "evidenceResetAt": "2026-09-25",
+      "evidenceResetReason": "The active verifier changed to Llama 3.1 8B Instruct; no behavioral result from a different model or serving revision is carried forward.",
       "exactModelExecutionStatus": "accepted-residual-risk",
       "exactModelExecutionPerformed": false,
-      "claimBoundary": "A balanced non-operational fixture defines expected dispositions; it does not establish how the exact Llama artifact behaves until the cases are run and reviewed."
+      "claimBoundary": "A balanced non-operational fixture defines expected dispositions; it does not establish how the exact active Llama 3.1 8B Instruct verifier behaves until the cases are run and reviewed against that provider-served model."
     }
   },
   "gates": [
@@ -419,7 +454,7 @@
       "label": "Remote API origin, secret, and privacy boundary",
       "status": "open-release-blocker",
       "marginalValue": "high",
-      "requirement": "Before public activation, the deployed hah.dev origin must expose exactly one named same-origin POST /api/lattice capability. After explicit confirmation and under one origin-wide browser Web Lock, the canonical client must first send a bodyless visitor-session setup with Accept application/vnd.hah.text-to-lattice-visitor-session.v1+json and no Content-Type, then after an accepted 204 setup send exactly one content-bearing request with schema version 1 and only text, requested_mode, and schema_version in its body. A transport or non-204 setup failure must stop before the content request. Client script cannot observe storage of the HttpOnly cookie, so an accepted 204 whose cookie is blocked or dropped may still be followed by that one content request; the Worker must reject a missing cookie as 428 visitor_session_required before Durable Object admission or provider work, while invalid or undeclared cookies fail closed as 403 invalid_request at the same boundary. The setup must establish or preserve the signed cookie without a quota claim or provider call. The API Worker must use exactly the encrypted HF_TOKEN and VISITOR_COOKIE_SECRET bindings; a first isolated setup has no Cookie header, the following content request may carry only the signed opaque __Secure-hah-lattice-api-visitor cookie, and the setup response sets only that cookie with Path=/api/lattice, Secure, HttpOnly, SameSite=Strict, no Domain, and expiry at the next UTC-day boundary. No cookie value may enter retained evidence. The Worker must also use the fixed Hugging Face router and Featherless-qualified Qwen and Llama targets, bounded non-reflective errors, Cache-Control: no-store, no application content storage or logging, no automatic retry, no alternate provider or model fallback, and a Content-Security-Policy whose connect-src is 'self'.",
+      "requirement": "Before public activation, the deployed hah.dev origin must expose exactly one named same-origin POST /api/lattice capability. After explicit confirmation and under one origin-wide browser Web Lock, the canonical client must first send a bodyless visitor-session setup with Accept application/vnd.hah.text-to-lattice-visitor-session.v1+json and no Content-Type, then after an accepted 204 setup send exactly one content-bearing request with schema version 1 and only text, requested_mode, and schema_version in its body. A transport or non-204 setup failure must stop before the content request. Client script cannot observe storage of the HttpOnly cookie, so an accepted 204 whose cookie is blocked or dropped may still be followed by that one content request; the Worker must reject a missing cookie as 428 visitor_session_required before Durable Object admission or provider work, while invalid or undeclared cookies fail closed as 403 invalid_request at the same boundary. The setup must establish or preserve the signed cookie without a quota claim or provider call. The API Worker must use exactly the encrypted HF_TOKEN and VISITOR_COOKIE_SECRET bindings; a first isolated setup has no Cookie header, the following content request may carry only the signed opaque __Secure-hah-lattice-api-visitor cookie, and the setup response sets only that cookie with Path=/api/lattice, Secure, HttpOnly, SameSite=Strict, no Domain, and expiry at the next UTC-day boundary. No cookie value may enter retained evidence. The Worker must also use the fixed Hugging Face router with the Nscale-qualified Qwen target and DeepInfra-qualified Llama target, bounded non-reflective errors, Cache-Control: no-store, no application content storage or logging, no automatic retry, no alternate provider or model fallback, and a Content-Security-Policy whose connect-src is 'self'.",
       "currentEvidence": "The canonical run URL is https://github.com/howardhayden/folio/actions/runs/34320931448; service job 102367490246; commit a9b1db818dc7bb87b5bee16d0e168bf17d130185; live verification at 2026-09-09T06:52:40.6740509Z; and current-main postcheck at 2026-09-09T06:52:41.0031258Z. The successful job deployed response-policy Worker version 06e29e21-bbba-48d7-9fe3-28e8a960a88f, verification-frame Worker version 8c7d9e11-f6b8-40b2-9b5d-b9e2af082271, and lease Worker version 1a18b449-2341-449b-96e1-f27451efd483. The exact route inventory covered hah.dev/, hah.dev/index.html, hah.dev/resume/, hah.dev/resume/index.html, verify.hah.dev, and hah.dev/api/text-to-lattice/lease, with no missing, extra, or stale owned routes; the job verified frame bytes and isolation headers, main-page response policies, and the four encrypted binding-name inventory without reading values. Its fail-closed probes covered method, cross-origin, cookie, missing-attestation, and invalid-attestation behavior, including first-visitor and returning-visitor flows. The exact official dummy-token lifecycle returned HTTP 200 acquisition and authenticated bodyless HTTP 204 release. The direct dummy-token lifecycle establishes only the deployed Siteverify, lease, and release path; it is not evidence that the frame or widget participated or that canonical-browser GATE-06 passed, and it does not establish human verification or production anti-bot assurance. This retained production record predates the replacement source candidate's negotiated typed HTTP 200 challenge and does not establish that new protocol; the checked-in workflow must deploy and live-verify its typed HTTP 200 path plus legacy HTTP 428 overlap compatibility before publishing the new Pages client.",
       "historicalInactiveRecord": {
         "status": "historical-inactive",
@@ -553,14 +588,15 @@
       "status": "accepted-residual-risk",
       "marginalValue": "moderate",
       "requirement": "The public flow discloses model assistance and known limitations, obtains a source-specific lawful-and-authorized-use confirmation, defines prohibited-use safety by purpose and consequence, withholds any safety-failing candidate, and tests realistic harmful and legitimate-context cases.",
-      "currentEvidence": "The checked-in terms and attribution match the reviewed official files. Source implements point-of-use disclosure, resettable source-specific confirmation, purpose-and-consequence safety, and candidate suppression, with deterministic regressions and a balanced ten-case non-operational fixture. This environment does not contain a recorded execution and manual review of that fixture against the exact verifier artifact.",
+      "currentEvidence": "The active Llama 3.1 terms snapshots and attribution match the reviewed model-repository files. Source implements point-of-use disclosure, resettable source-specific confirmation, purpose-and-consequence safety, and candidate suppression, with deterministic regressions and a balanced ten-case non-operational fixture. Exact-model behavioral evidence was reset for meta-llama/Llama-3.1-8B-Instruct:deepinfra; this environment does not contain a recorded execution and manual review of that fixture against the active verifier.",
       "evidenceNeeded": "When the exact runtime is available, execute the checked-in cases and record false-positive and false-negative dispositions; treat any consequential safety-release failure as a release regression.",
       "rationale": "The public-use controls address realistic misuse and misunderstanding. Exact provider-served model fixture execution would improve empirical confidence; a verifier false negative remains unobserved and candidate withholding depends on the verifier's classification. Source-specific confirmation, error and explicit-denial withholding, a fixed tool-free server pipeline, and mandatory human review bound the official product surface without proving classifier behavior.",
       "evidence": [
-        "LICENSES/Llama-3.2-Community-License.txt",
-        "LICENSES/Llama-3.2-Acceptable-Use-Policy.md",
+        "LICENSES/Llama-3.1-Community-License.txt",
+        "LICENSES/Llama-3.1-Acceptable-Use-Policy.md",
         "docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json",
-        "app/resume/lattice/usagePolicy.js",
+        "app/content/textToLatticeContent.js",
+        "app/resume/lattice/promptContract.js",
         "tests/lattice-usage-policy.test.mjs"
       ],
       "safeguards": [

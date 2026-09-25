@@ -13,7 +13,8 @@ COMMERCIAL-LICENSE.md. Historical license texts are retained without changing
 past rights. No trademark or endorsement rights are granted.
 Additional reserved identity scope: LicenseRef-Hayden-Portfolio-Content.
 
-Text to Lattice uses a Qwen3 generator, a Llama 3.2 verifier, WebLLM,
-and Web Tokenizers. See THIRD_PARTY_NOTICES.md and LICENSES/.
+Text to Lattice uses a Qwen3-4B-Instruct-2507 generator and a Llama 3.1
+8B Instruct verifier. See THIRD_PARTY_NOTICES.md and LICENSES/.
 Built with Llama.
+Llama 3.1 is licensed under the Llama 3.1 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved.
 Llama 3.2 is licensed under the Llama 3.2 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved.

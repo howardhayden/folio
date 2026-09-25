@@ -50,14 +50,17 @@ test("the modal discloses the external boundary before the user can submit", () 
 });
 
 test("model identity, limitations, and acceptable-use boundaries remain visible", () => {
-  assert.match(resumeProjectsSource, /Model-assisted result: Qwen drafts and Llama 3\.2 checks through the configured external service/u);
+  assert.match(resumeProjectsSource, /Model-assisted result: Qwen3-4B-Instruct-2507 drafts and Llama 3\.1 8B Instruct checks through the configured external service/u);
   assert.match(resumeProjectsSource, /The service may apply its own processing terms/u);
   assert.match(resumeProjectsSource, /Review every result before relying on it/u);
   assert.match(resumeProjectsSource, />Built with Llama<\/a>/u);
   assert.match(resumeProjectsSource, /from "\.\/lattice\/publicTerms\.js"/u);
   assert.doesNotMatch(resumeProjectsSource, /\.\/lattice\/modelContract\.js/u);
-  assert.match(publicTermsSource, /https:\/\/developer\.meta\.com\/ai\/llama3_2\/license\//u);
-  assert.match(publicTermsSource, /https:\/\/developer\.meta\.com\/ai\/llama3_2\/use-policy\//u);
+  assert.match(resumeProjectsSource, /LLAMA_3_1_PUBLIC_TERMS/u);
+  assert.match(resumeProjectsSource, /Llama 3\.1 Acceptable Use Policy/u);
+  assert.match(publicTermsSource, /https:\/\/developer\.meta\.com\/ai\/llama3_1\/license\//u);
+  assert.match(publicTermsSource, /https:\/\/developer\.meta\.com\/ai\/llama3_1\/use-policy\//u);
+  assert.match(publicTermsSource, /LLAMA_3_2_PUBLIC_TERMS/u, "historical inactive terms remain public");
 
   assert.match(promptSource, /Safety is purpose- and consequence-aware/u);
   assert.match(promptSource, /materially further prohibited conduct/u);
