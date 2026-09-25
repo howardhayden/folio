@@ -65,6 +65,7 @@ const PAGE_RESPONSE_LIMIT = 2 * 1024 * 1024;
 const NEGATIVE_PROBE_TIMEOUT_MS = 15_000;
 const CANARY_TIMEOUT_MS = 255_000;
 export const LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT = LATTICE_VISITOR_SESSION_ACCEPT;
+export const LATTICE_PRODUCTION_READINESS_CONTENT_TYPE = "application/json";
 export const LATTICE_PRODUCTION_READINESS_CONTRACT = Object.freeze({
   attemptLimit: 18,
   deadlineMs: 45_000,
@@ -146,6 +147,17 @@ function visitorSessionPost() {
     method: "POST",
     headers: Object.freeze({
       Accept: LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
+      Origin: LATTICE_API_ORIGIN,
+    }),
+  });
+}
+
+function activeReadinessPost() {
+  return Object.freeze({
+    method: "POST",
+    headers: Object.freeze({
+      Accept: LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
+      "Content-Type": LATTICE_PRODUCTION_READINESS_CONTENT_TYPE,
       Origin: LATTICE_API_ORIGIN,
     }),
   });
@@ -514,17 +526,15 @@ async function readinessResponseBytes(response, label) {
 
 async function inspectApiReadinessResponse(response, label) {
   if (!(response instanceof Response)) fail(`${label} returned an invalid response`);
-  if (response.status !== 405 && response.status !== 503) {
+  if (response.status !== 400 && response.status !== 503) {
     const bytes = await readinessResponseBytes(response, label);
     if (bytes === null) return "network-error";
-    fail(`${label} returned HTTP ${response.status}; expected the active 405 or held 503 boundary`);
+    fail(`${label} returned HTTP ${response.status}; expected the active 400 or held 503 boundary`);
   }
 
   assertApiHeaders(response, label);
-  if (response.status === 405) {
-    if (response.headers.get("allow") !== "POST") fail(`${label} returned an invalid Allow header`);
-  } else {
-    if (response.headers.has("allow")) fail(`${label} returned an undeclared Allow header`);
+  if (response.headers.has("allow")) fail(`${label} returned an undeclared Allow header`);
+  if (response.status === 503) {
     if (responseHeader(response, "content-security-policy", label).toLowerCase()
       !== "default-src 'none'; frame-ancestors 'none'") {
       fail(`${label} returned an invalid Content-Security-Policy`);
@@ -534,13 +544,13 @@ async function inspectApiReadinessResponse(response, label) {
   const bytes = await readinessResponseBytes(response, label);
   if (bytes === null) return "network-error";
   const body = parseJson(bytes, label);
-  const expectedError = response.status === 405 ? "invalid_request" : "upstream_unavailable";
+  const expectedError = response.status === 400 ? "invalid_request" : "upstream_unavailable";
   if (!isLatticeApiError(body)
     || !exactRecord(body, ["error"])
     || body.error !== expectedError) {
     fail(`${label} returned an unexpected closed error envelope`);
   }
-  return response.status === 405 ? "active" : "held";
+  return response.status === 400 ? "active" : "held";
 }
 
 async function verifyActiveApiReadiness(origin, fetchImpl, wait) {
@@ -564,8 +574,7 @@ async function verifyActiveApiReadiness(origin, fetchImpl, wait) {
     let disposition = "network-error";
     try {
       const response = await fetchImpl(`${origin}${LATTICE_API_PATH}`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
+        ...activeReadinessPost(),
         cache: "no-store",
         credentials: "omit",
         redirect: "error",
@@ -586,18 +595,21 @@ async function verifyActiveApiReadiness(origin, fetchImpl, wait) {
       if (consecutiveActiveSamples === requiredConsecutiveActiveSamples) {
         return Object.freeze({
           request_count: attempt,
-          method: "GET",
+          method: "POST",
           path: LATTICE_API_PATH,
+          accept: LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
+          content_type: LATTICE_PRODUCTION_READINESS_CONTENT_TYPE,
+          content_type_header_present: true,
           required_consecutive_active_samples: requiredConsecutiveActiveSamples,
           observed_consecutive_active_samples: consecutiveActiveSamples,
           active_response_count: activeResponseCount,
           held_response_count: heldResponseCount,
           network_error_count: networkErrorCount,
-          final_http_status: 405,
+          final_http_status: 400,
           final_error_code: "invalid_request",
           request_body_present: false,
           request_body_bytes: 0,
-          origin_header_present: false,
+          origin_header_present: true,
           cookie_header_present: false,
           visitor_session_created: false,
           quota_claimed: false,
@@ -683,6 +695,13 @@ async function verifyVisitorSessionSetup(origin, fetchImpl, monotonicNow) {
     label,
   );
   if (response.status !== 204) {
+    if (response.status === 503) {
+      const disposition = await inspectApiReadinessResponse(response, label);
+      if (disposition === "held") {
+        fail(`${label} reached the exact held API boundary after active readiness; expected 204`);
+      }
+      fail(`${label} returned an unreadable HTTP 503 after active readiness; expected 204`);
+    }
     await response.body?.cancel().catch(() => {});
     fail(`${label} returned HTTP ${response.status}; expected 204`);
   }
