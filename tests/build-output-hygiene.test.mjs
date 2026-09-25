@@ -127,8 +127,7 @@ test("the remote adapter consumes the public server-side sampling contract", asy
     analysis: {
       temperature: 0.7,
       topP: 0.8,
-      topK: 20,
-      minP: 0,
+      toolChoice: "auto",
       maximumOutputTokens: 3_072,
     },
     candidate: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
@@ -150,11 +149,12 @@ test("the remote adapter consumes the public server-side sampling contract", asy
       new RegExp(`${stage}:[\\s\\S]*?maxTokens: ${maximumOutputTokens},[\\s\\S]*?temperature: ${temperature},[\\s\\S]*?topP: ${topP},`, "u"),
     );
   }
-  assert.match(adapter, /analysis:[\s\S]*?topK: 20,[\s\S]*?minP: 0,/u);
   const analysisStageSource = adapter.slice(
     adapter.indexOf("analysis: Object.freeze({"),
     adapter.indexOf("candidate: Object.freeze({"),
   );
+  assert.match(analysisStageSource, /toolChoice: "auto"/u);
+  assert.doesNotMatch(analysisStageSource, /topK|minP/u);
   assert.doesNotMatch(analysisStageSource, /presencePenalty/u);
   assert.match(adapter, /model: LATTICE_REMOTE_MODELS\[role\]/u);
   assert.doesNotMatch(adapter, /CreateMLCEngine|latticeWebllm\.worker/u);

@@ -65,8 +65,7 @@ export const textToLatticeContract = Object.freeze({
           analysis: Object.freeze({
             temperature: 0.7,
             topP: 0.8,
-            topK: 20,
-            minP: 0,
+            toolChoice: "auto",
             maximumOutputTokens: 3_072,
           }),
           candidate: Object.freeze({ temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 }),

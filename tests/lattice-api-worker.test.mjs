@@ -1270,7 +1270,7 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
   );
 });
 
-test("the adapter uses exact named tools for compact analysis and verifier certification", async () => {
+test("the adapter uses provider-specific tool choices for compact analysis and certification", async () => {
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, init, body: JSON.parse(init.body) });
@@ -1319,7 +1319,7 @@ test("the adapter uses exact named tools for compact analysis and verifier certi
   assert.deepEqual(calls.map(({ body }) => body.temperature), [0.7, 0]);
   assert.deepEqual(calls.map(({ body }) => body.top_p), [0.8, 1]);
   assert.deepEqual(calls.map(({ body }) => body.seed), [71_903, 71_903]);
-  for (const [index, { init, body }] of calls.entries()) {
+  for (const { init, body } of calls) {
     const expectedKeys = [
       "max_tokens",
       "messages",
@@ -1329,11 +1329,7 @@ test("the adapter uses exact named tools for compact analysis and verifier certi
       "temperature",
       "top_p",
     ];
-    if (index === 0) {
-      expectedKeys.push("min_p", "tool_choice", "tools", "top_k");
-    } else {
-      expectedKeys.push("tool_choice", "tools");
-    }
+    expectedKeys.push("tool_choice", "tools");
     assert.deepEqual(Object.keys(body).sort(), expectedKeys.sort());
     assert.equal(init.method, "POST");
     assert.equal(init.cache, "no-store");
@@ -1348,10 +1344,7 @@ test("the adapter uses exact named tools for compact analysis and verifier certi
   const analysisParameters = analysisTool.function.parameters;
   assert.equal(Object.hasOwn(analysisBody, "response_format"), false);
   assert.equal(Object.hasOwn(analysisBody, "parallel_tool_calls"), false);
-  assert.deepEqual(analysisBody.tool_choice, {
-    type: "function",
-    function: { name: ANALYSIS_TOOL_NAME },
-  });
+  assert.equal(analysisBody.tool_choice, "auto");
   assert.equal(analysisBody.tools.length, 1);
   assert.deepEqual(Object.keys(analysisTool).sort(), ["function", "type"]);
   assert.equal(analysisTool.type, "function");
@@ -1406,8 +1399,8 @@ test("the adapter uses exact named tools for compact analysis and verifier certi
   });
   assert.equal(Object.hasOwn(calls[1].body, "parallel_tool_calls"), false);
   assert.equal(Object.hasOwn(calls[0].body, "chat_template_kwargs"), false);
-  assert.equal(calls[0].body.top_k, 20);
-  assert.equal(calls[0].body.min_p, 0);
+  assert.equal(Object.hasOwn(calls[0].body, "top_k"), false);
+  assert.equal(Object.hasOwn(calls[0].body, "min_p"), false);
   assert.equal(Object.hasOwn(calls[0].body, "presence_penalty"), false);
   assert.equal(Object.hasOwn(calls[1].body, "chat_template_kwargs"), false);
   assert.equal(Object.hasOwn(calls[1].body, "top_k"), false);
@@ -1647,7 +1640,7 @@ test("a direct JSON-object request prepends the trusted closed schema without ch
   assert.deepEqual(body.messages[1], options.messages[0]);
 });
 
-test("a one-tool request selects the exact named tool and uses only that returned call", async () => {
+test("an auto-choice Nscale request still accepts only its exact returned tool call", async () => {
   const variants = [
     { name: "absent content", finishReason: "tool_calls" },
     { name: "null content", finishReason: "stop", content: null },
@@ -1683,10 +1676,7 @@ test("a one-tool request selects the exact named tool and uses only that returne
     assert.deepEqual(result, { accepted: true }, name);
     assert.equal(Object.hasOwn(body, "response_format"), false);
     assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
-    assert.deepEqual(body.tool_choice, {
-      type: "function",
-      function: { name: ANALYSIS_TOOL_NAME },
-    });
+    assert.equal(body.tool_choice, "auto");
     assert.equal(body.tools.length, 1);
     assert.equal(body.tools[0].type, "function");
     assert.equal(body.tools[0].function.name, ANALYSIS_TOOL_NAME);
@@ -1849,15 +1839,17 @@ test("an analysis tool completion that reaches the output limit fails after one 
   assert.equal(fetches, 1);
 });
 
-test("optional provider sampler extensions fail closed before external fetch", async () => {
+test("unsupported provider request extensions fail closed before external fetch", async () => {
   let fetches = 0;
   const fetchImpl = async () => {
     fetches += 1;
     return successfulProviderResponse();
   };
   for (const overrides of [
+    { topK: 20 },
     { topK: 0 },
     { topK: 1.5 },
+    { minP: 0 },
     { minP: -0.1 },
     { minP: 1.1 },
     { minP: Number.NaN },
@@ -1867,6 +1859,11 @@ test("optional provider sampler extensions fail closed before external fetch", a
     { toolName: "" },
     { toolName: "contains spaces" },
     { toolName: "x".repeat(65) },
+    { toolChoice: "auto" },
+    { toolName: ANALYSIS_TOOL_NAME, toolChoice: "named" },
+    { toolName: ANALYSIS_TOOL_NAME, toolChoice: "none" },
+    { toolName: ANALYSIS_TOOL_NAME, toolChoice: "required" },
+    { role: "verifier", toolName: ANALYSIS_TOOL_NAME, toolChoice: "auto" },
   ]) {
     await assert.rejects(
       requestHuggingFaceJson(providerRequestOptions(fetchImpl, overrides)),
