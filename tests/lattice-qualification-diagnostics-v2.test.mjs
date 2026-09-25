@@ -15,6 +15,7 @@ import {
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 
 const SOURCE = "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
+const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v1";
 const QUALIFICATION_FIELDS = Object.freeze([
   "qualificationStage",
   "qualificationCallOrdinal",
@@ -29,11 +30,37 @@ const QUALIFICATION_FIELDS = Object.freeze([
   "qualificationPriorValidationCategory",
 ]);
 
-function providerResponse(value, { completionTokens } = {}) {
+function analysisToolCall({
+  name = ANALYSIS_TOOL_NAME,
+  argumentsText,
+  id = "call_lattice_analysis",
+  type = "function",
+} = {}) {
+  return {
+    id,
+    type,
+    function: {
+      name,
+      arguments: argumentsText,
+    },
+  };
+}
+
+function analysisProviderResponse(value, {
+  completionTokens,
+  argumentsText = JSON.stringify(value),
+  finishReason = "tool_calls",
+  message = {},
+  toolCalls,
+} = {}) {
   return new Response(JSON.stringify({
     choices: [{
-      finish_reason: "stop",
-      message: { role: "assistant", content: JSON.stringify(value) },
+      finish_reason: finishReason,
+      message: {
+        role: "assistant",
+        ...message,
+        tool_calls: toolCalls ?? [analysisToolCall({ argumentsText })],
+      },
     }],
     ...(completionTokens === undefined ? {} : { usage: { completion_tokens: completionTokens } }),
   }), {
@@ -43,7 +70,7 @@ function providerResponse(value, { completionTokens } = {}) {
 }
 
 function invalidAnalysisResponse() {
-  return providerResponse({
+  return analysisProviderResponse({
     d: "instruction",
     p: [],
     q: [],
@@ -143,12 +170,28 @@ test("an initial host-validation correction attributes malformed provider call t
     /Atomization did not cover every passage|matching every named field|Return the analysis schema\./iu,
   );
   for (const body of [firstBody, correctedBody]) {
+    assert.equal(Object.hasOwn(body, "response_format"), false);
+    assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
+    assert.deepEqual(body.tool_choice, {
+      type: "function",
+      function: { name: ANALYSIS_TOOL_NAME },
+    });
+    assert.equal(body.tools.length, 1);
+    assert.equal(body.tools[0].type, "function");
+    assert.equal(body.tools[0].function.name, ANALYSIS_TOOL_NAME);
+    assert.equal(Object.hasOwn(body.tools[0].function, "strict"), false);
+    assert.equal(body.tools[0].function.parameters.type, "object");
     const system = body.messages.find(({ role }) => role === "system")?.content ?? "";
-    assert.match(system, /private d\/p\/q wire object/u);
+    assert.match(system, /private d\/p\/q wire/u);
     assert.match(system, /Keep q empty/u);
-    assert.equal((system.match(/Response contract lattice_analysis_wire_v1/gu) ?? []).length, 1);
+    assert.equal(system.includes(JSON.stringify(body.tools[0].function.parameters)), false);
+    assert.doesNotMatch(system, /LATTICE_RESPONSE_SCHEMA/u);
     assert.doesNotMatch(system, /Return the analysis schema\.|Return questions empty|affectedAtomIds/iu);
   }
+  assert.deepEqual(
+    firstBody.tools[0].function.parameters,
+    correctedBody.tools[0].function.parameters,
+  );
   assert.doesNotMatch(firstBody.messages[0].content, /one bounded correction attempt/u);
   assert.match(correctedBody.messages[0].content, /one bounded correction attempt/u);
   assert.doesNotMatch(correctedBody.messages[1].content, /one bounded correction attempt/u);
@@ -162,14 +205,9 @@ test("a malformed compact analysis tuple fails into the bounded host correction 
     fetchImpl: async () => {
       calls += 1;
       if (calls === 1) {
-        return providerResponse({ d: "instruction", p: [["too-short"]], q: [] });
+        return analysisProviderResponse({ d: "instruction", p: [["too-short"]], q: [] });
       }
-      return jsonProviderEnvelope({
-        choices: [{
-          finish_reason: "stop",
-          message: { role: "assistant", content: "not-json" },
-        }],
-      });
+      return analysisProviderResponse(undefined, { argumentsText: "not-json" });
     },
   });
 
@@ -201,7 +239,10 @@ test("a split-child correction keeps split origin when global analysis call four
       return new Response(JSON.stringify({
         choices: [{
           finish_reason: "length",
-          message: { role: "assistant", content: "PRIVATE-TRUNCATED-CONTENT" },
+          message: {
+            role: "assistant",
+            tool_calls: [analysisToolCall({ argumentsText: "PRIVATE-TRUNCATED-CONTENT" })],
+          },
         }],
         usage: { completion_tokens: 3_072 },
       }), {
@@ -244,15 +285,9 @@ test("malformed structured content carries only fixed subtype and coarse size me
     requestedMode: "operative",
     fetchImpl: async (_url, init) => {
       providerBody = init.body;
-      return new Response(JSON.stringify({
-        choices: [{
-          finish_reason: "stop",
-          message: { role: "assistant", content: privateContent },
-        }],
-        usage: { completion_tokens: 512 },
-      }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
+      return analysisProviderResponse(undefined, {
+        argumentsText: privateContent,
+        completionTokens: 512,
       });
     },
   });
@@ -266,7 +301,7 @@ test("malformed structured content carries only fixed subtype and coarse size me
   assert.ok(error instanceof LatticeProviderError);
   assert.equal(error.code, "provider_malformed_response");
   assert.equal(error.qualificationSubtype, "content_json");
-  assert.equal(error.qualificationFinishReason, "stop");
+  assert.equal(error.qualificationFinishReason, "tool_calls");
   assert.equal(error.qualificationRequestSize, "4097-16384");
   assert.equal(error.qualificationResponseSize, "1-4096");
   assert.equal(error.qualificationContentSize, "1-4096");
@@ -323,42 +358,41 @@ test("every remaining malformed-response branch maps to one fixed content-free s
       response: () => jsonProviderEnvelope({
         choices: [{
           finish_reason: "content_filter",
-          message: { role: "assistant", content: privateMarker },
+          message: {
+            role: "assistant",
+            tool_calls: [analysisToolCall({ argumentsText: privateMarker })],
+          },
         }],
       }),
     },
     {
       subtype: "message_shape",
       response: () => jsonProviderEnvelope({
-        choices: [{ finish_reason: "stop", message: null }],
+        choices: [{
+          finish_reason: "tool_calls",
+          message: { role: "assistant", tool_calls: [] },
+        }],
       }),
     },
     {
       subtype: "message_role",
       response: () => jsonProviderEnvelope({
         choices: [{
-          finish_reason: "stop",
-          message: { role: "user", content: privateMarker },
+          finish_reason: "tool_calls",
+          message: {
+            role: "user",
+            tool_calls: [analysisToolCall({ argumentsText: privateMarker })],
+          },
         }],
       }),
     },
     {
       subtype: "content_empty",
-      response: () => jsonProviderEnvelope({
-        choices: [{
-          finish_reason: "stop",
-          message: { role: "assistant", content: "" },
-        }],
-      }),
+      response: () => analysisProviderResponse(undefined, { argumentsText: "" }),
     },
     {
       subtype: "content_shape",
-      response: () => jsonProviderEnvelope({
-        choices: [{
-          finish_reason: "stop",
-          message: { role: "assistant", content: "[]" },
-        }],
-      }),
+      response: () => analysisProviderResponse(undefined, { argumentsText: "[]" }),
     },
     {
       subtype: "response_processing",
