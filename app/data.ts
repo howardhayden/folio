@@ -354,7 +354,7 @@ export type Tool = {
 };
 
 export const TOOLS_CONTENT_VERSION = "hah-portfolio-tools.v3";
-export const TOOLS_CONTENT_UPDATED = "2026-09-22";
+export const TOOLS_CONTENT_UPDATED = "2026-09-25";
 
 export const tools: Tool[] = [
   {
@@ -455,8 +455,12 @@ export const tools: Tool[] = [
       {
         label: "scent",
         children: [
-          { label: "Molecule 01", notes: ["Escentric Molecules"] },
-          { label: "Coffee Tobacco Oud", notes: ["Sandy’s"] },
+          { label: "Molecule 01+ Black Tea", notes: ["Eccentric Molecules"] },
+          { label: "Eastern Wood Accord Eau de Parfum", notes: ["Black Paw"] },
+          { label: "Mineral Spring", notes: ["Civil Alchemy"] },
+          { label: "Petrichor", notes: ["Civil Alchemy"] },
+          { label: "Jasandar Perfume", notes: ["Civil Alchemy"] },
+          { label: "Dirty Suede", notes: ["Heretic"] },
         ],
       },
     ],

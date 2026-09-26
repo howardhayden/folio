@@ -500,8 +500,12 @@ test("Tools semantics preserve branch descriptions and the exact Provisions tree
     {
       label: "scent",
       children: [
-        { label: "Molecule 01", notes: ["Escentric Molecules"] },
-        { label: "Coffee Tobacco Oud", notes: ["Sandy’s"] },
+        { label: "Molecule 01+ Black Tea", notes: ["Eccentric Molecules"] },
+        { label: "Eastern Wood Accord Eau de Parfum", notes: ["Black Paw"] },
+        { label: "Mineral Spring", notes: ["Civil Alchemy"] },
+        { label: "Petrichor", notes: ["Civil Alchemy"] },
+        { label: "Jasandar Perfume", notes: ["Civil Alchemy"] },
+        { label: "Dirty Suede", notes: ["Heretic"] },
       ],
     },
   ]);
@@ -519,7 +523,7 @@ test("Tools semantics preserve branch descriptions and the exact Provisions tree
   const markdown = renderToolsMarkdown();
   assert.match(markdown, /## Provisions\n\n- Summary: Used up, worn out, and replaced\.\n\n### Branches\n\n```text\n├─ training/u);
   assert.match(markdown, /│  │  Navy Blue, White, Birch, Dark Green/u);
-  assert.match(markdown, /└─ scent[\s\S]*?      Sandy’s/u);
+  assert.match(markdown, /└─ scent[\s\S]*?      Heretic/u);
   assert.doesNotMatch(markdown, /(?:URL|Category|Summary): (?:null|undefined)/u);
 });
 
