@@ -1359,6 +1359,7 @@ test("renders Tools descriptions as accessible branches and preserves the exact 
     "Mineral Spring", "Civil Alchemy",
     "Petrichor", "Civil Alchemy",
     "Jasandar Perfume", "Civil Alchemy",
+    "Coffee Tobacco Oud", "Sandy’s",
     "Dirty Suede", "Heretic",
   ];
   let previousTextAt = -1;

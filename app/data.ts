@@ -460,6 +460,7 @@ export const tools: Tool[] = [
           { label: "Mineral Spring", notes: ["Civil Alchemy"] },
           { label: "Petrichor", notes: ["Civil Alchemy"] },
           { label: "Jasandar Perfume", notes: ["Civil Alchemy"] },
+          { label: "Coffee Tobacco Oud", notes: ["Sandy’s"] },
           { label: "Dirty Suede", notes: ["Heretic"] },
         ],
       },
