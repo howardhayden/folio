@@ -1354,7 +1354,7 @@ test("renders Tools descriptions as accessible branches and preserves the exact 
     "Pumpkin Seed Oil", "NOW Solutions", "Hair, Skin &amp; Nails",
     "Lustriva", "Nature&#x27;s Bounty", "Round Olivewood Brush", "SHASH",
     "scent",
-    "Molecule 01+ Black Tea", "Eccentric Molecules",
+    "Molecule 01+ Black Tea", "Escentric Molecules",
     "Eastern Wood Accord Eau de Parfum", "Black Paw",
     "Mineral Spring", "Civil Alchemy",
     "Petrichor", "Civil Alchemy",
