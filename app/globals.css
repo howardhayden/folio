@@ -1095,7 +1095,7 @@ svg:not(.background-static-defs) {
 }
 
 .page-view--tools #tool-provisions:hover {
-  transform: scale(1.032);
+  transform: scale(1.015);
 }
 
 #papershelf .card-columns {

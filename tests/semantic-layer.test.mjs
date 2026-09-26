@@ -500,8 +500,12 @@ test("Tools semantics preserve branch descriptions and the exact Provisions tree
     {
       label: "scent",
       children: [
-        { label: "Molecule 01", notes: ["Escentric Molecules"] },
-        { label: "Coffee Tobacco Oud", notes: ["Sandy’s"] },
+        { label: "Molecule 01+ Black Tea", notes: ["Eccentric Molecules"] },
+        { label: "Eastern Wood Accord Eau de Parfum", notes: ["Black Paw"] },
+        { label: "Mineral Spring", notes: ["Civil Alchemy"] },
+        { label: "Petrichor", notes: ["Civil Alchemy"] },
+        { label: "Jasandar Perfume", notes: ["Civil Alchemy"] },
+        { label: "Dirty Suede", notes: ["Heretic"] },
       ],
     },
   ]);

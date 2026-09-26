@@ -1328,7 +1328,7 @@ test("renders Tools descriptions as accessible branches and preserves the exact 
     "Tools cards retain their established transform geometry",
   );
   assert.equal(declaration(cardHoverBlock, "transform"), "scale(1.1)");
-  assert.equal(declaration(provisionsCardHoverBlock, "transform"), "scale(1.032)");
+  assert.equal(declaration(provisionsCardHoverBlock, "transform"), "scale(1.015)");
   assert.ok(
     css.indexOf(".page-view--tools #tool-provisions:hover")
       > css.indexOf("#papershelf .card:hover"),
@@ -1354,7 +1354,12 @@ test("renders Tools descriptions as accessible branches and preserves the exact 
     "Pumpkin Seed Oil", "NOW Solutions", "Hair, Skin &amp; Nails",
     "Lustriva", "Nature&#x27;s Bounty", "Round Olivewood Brush", "SHASH",
     "scent",
-    "Molecule 01", "Escentric Molecules", "Coffee Tobacco Oud", "Sandy’s",
+    "Molecule 01+ Black Tea", "Eccentric Molecules",
+    "Eastern Wood Accord Eau de Parfum", "Black Paw",
+    "Mineral Spring", "Civil Alchemy",
+    "Petrichor", "Civil Alchemy",
+    "Jasandar Perfume", "Civil Alchemy",
+    "Dirty Suede", "Heretic",
   ];
   let previousTextAt = -1;
   for (const text of expectedTextOrder) {
