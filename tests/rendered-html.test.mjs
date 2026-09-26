@@ -1373,7 +1373,7 @@ test("renders Tools descriptions as accessible branches and preserves the exact 
   assert.match(provisionsCard, />│  └─ <\/span>[\s\S]*?>Beef Organs<\/span>/u);
   assert.match(provisionsCard, />│     <\/span>[\s\S]*?>one earth Health<\/span>/u);
   assert.match(provisionsCard, />└─ <\/span>[\s\S]*?>scent<\/span>/u);
-  assert.match(provisionsCard, />      <\/span>[\s\S]*?>Sandy’s<\/span>/u);
+  assert.match(provisionsCard, />      <\/span>[\s\S]*?>Heretic<\/span>/u);
 });
 
 test("renders current projects and terminal resource manifests without documentation icons", async () => {
