@@ -74,8 +74,8 @@ const conformanceGuide = Object.entries(LATTICE_CONFORMANCE_CRITERIA)
   .map(([layer, criteria]) => `${layer}: ${criteria.join(" + ")}`)
   .join("; ");
 export const LATTICE_SCHEMA_GUIDES = new Map([
-  [ANALYSIS_SCHEMA, `Schema keys are binding. Root: documentKind, passages, questions. Each passage: passageId, discourseFunction, layer, disposition, rationale, atoms, ambiguityAtomIds, conformanceCriteria, conformanceEvidenceSpanIds, conformanceAssertions. Each assertion: criterion, evidenceSpanIds. At most ${LATTICE_BATCH_ATOM_LIMIT} atoms total. Each atom: id, kind, value, priority, preservation, evidenceSpanIds, links. Evidence fields use supplied span IDs. Each link: relation, targetAtomId. Use schema enum values. Retained passages require criterion-specific evidence for these criteria: ${conformanceGuide}.`],
-  [REANALYSIS_SCHEMA, `Schema keys are binding. Root: documentKind, passages, questions, which must be empty. Each passage: passageId, discourseFunction, layer, disposition, rationale, atoms, ambiguityAtomIds, conformanceCriteria, conformanceEvidenceSpanIds, conformanceAssertions. Each assertion: criterion, evidenceSpanIds. At most ${LATTICE_BATCH_ATOM_LIMIT} atoms total. Each atom: id, kind, value, priority, preservation, evidenceSpanIds, links. Evidence fields use supplied span IDs. Each link: relation, targetAtomId. Use schema enum values. Retained passages require criterion-specific evidence for these criteria: ${conformanceGuide}.`],
+  [ANALYSIS_SCHEMA, `Schema keys are binding. Root: documentKind, passages, questions. Each passage: passageId, discourseFunction, layer, disposition, rationale, atoms, ambiguityAtomIds, conformanceCriteria, conformanceEvidenceSpanIds, conformanceAssertions. Each assertion: criterion, evidenceSpanIds. Use the stated atom cap. Each atom: id, kind, value, priority, preservation, evidenceSpanIds, links. Evidence fields use supplied span IDs. Each link: relation, targetAtomId. Use schema enum values. Retained passages require criterion-specific evidence for these criteria: ${conformanceGuide}.`],
+  [REANALYSIS_SCHEMA, `Schema keys are binding. Root: documentKind, passages, questions, which must be empty. Each passage: passageId, discourseFunction, layer, disposition, rationale, atoms, ambiguityAtomIds, conformanceCriteria, conformanceEvidenceSpanIds, conformanceAssertions. Each assertion: criterion, evidenceSpanIds. Use the stated atom cap. Each atom: id, kind, value, priority, preservation, evidenceSpanIds, links. Evidence fields use supplied span IDs. Each link: relation, targetAtomId. Use schema enum values. Retained passages require criterion-specific evidence for these criteria: ${conformanceGuide}.`],
   [CANDIDATE_SCHEMA, "Schema keys are binding. Root: passages. Each passage: passageId, layer, text, preservedAtomIds. Use schema enum values."],
   [VERIFICATION_SCHEMA, "Schema keys are binding. Root: decision, failedGates, passages, issues, questions. List only failed gate/check enum values. Each passage: passageId, checkedAtomIds, missingAtomIds, unsupportedClaims, unmodeledSpanIds, failedChecks, conformanceConfirmed, conformanceEvidenceSpanIds, independentLayer, layerEvidenceAtomIds, layerEvidenceSpanIds, criterionChecks. Each criterion check: criterion, passed, evidenceSpanIds. Evidence fields use supplied IDs. Each issue: id, check, passageId, atomIds, message; check names a failed gate or passage check."],
   [DOCUMENT_CERTIFICATION_SCHEMA, `Return one JSON object with no unknown keys: certificateId, obligationIds, decision, checks, issues. Echo the supplied certificateId and every supplied obligationId exactly once. decision: ${choices(LATTICE_DOCUMENT_CERTIFICATION_DECISIONS)}. checks contains exactly: ${choices(LATTICE_DOCUMENT_CERTIFICATION_CHECKS)}. Each issue has id, check, message.`],
@@ -633,6 +633,19 @@ function minimumAnalysisAtomCount(request) {
   return Math.max(request.batch.passages.length, evidenceMinimum);
 }
 
+function analysisAtomCeiling(request, minimumAtoms) {
+  const ceiling = request.analysisAtomLimit === undefined
+    ? LATTICE_BATCH_ATOM_LIMIT
+    : request.analysisAtomLimit;
+  if (!Number.isSafeInteger(ceiling) || ceiling < 1 || ceiling > LATTICE_BATCH_ATOM_LIMIT) {
+    throw new TypeError("Text to Lattice received an invalid local analysis atom limit.");
+  }
+  if (ceiling < minimumAtoms) {
+    throw new TypeError("Text to Lattice received a local analysis atom limit below its evidence minimum.");
+  }
+  return ceiling;
+}
+
 export function latticeAnalysisOutputTokenLimit(batch, atomLimit) {
   const estimated = 430 + (batch.passages.length * 70) + (atomLimit * 58);
   return Math.min(LATTICE_STAGE_OUTPUT_TOKENS.analysis, estimated);
@@ -693,11 +706,12 @@ export async function fitLatticeDocumentLedger(request, fits) {
 async function fitStageRequest(role, request, messageFactory, schema, maxTokens, onProgress) {
   const analysisSchema = schema === ANALYSIS_SCHEMA || schema === REANALYSIS_SCHEMA;
   const minimumAtoms = analysisSchema ? minimumAnalysisAtomCount(request) : null;
+  const maximumAtoms = minimumAtoms === null ? null : analysisAtomCeiling(request, minimumAtoms);
   const atomLimits = minimumAtoms === null
     ? [null]
     : Array.from(
-      { length: LATTICE_BATCH_ATOM_LIMIT - minimumAtoms + 1 },
-      (_, index) => LATTICE_BATCH_ATOM_LIMIT - index,
+      { length: maximumAtoms - minimumAtoms + 1 },
+      (_, index) => maximumAtoms - index,
     );
   let terminal = null;
   for (const atomLimit of atomLimits) {

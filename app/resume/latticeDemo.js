@@ -319,7 +319,7 @@ async function normalizeAnalysis(
   revisionId,
   sourceFingerprint,
   committedProvenance = [],
-  { allowClarification = true, signal } = {},
+  { allowClarification = true, analysisAtomLimit = LATTICE_BATCH_ATOM_LIMIT, signal } = {},
 ) {
   protocol(typeof revisionId === "string" && ANALYSIS_REVISION_ID_PATTERN.test(revisionId),
     "The host supplied an invalid atomization revision.");
@@ -334,18 +334,23 @@ async function normalizeAnalysis(
   exactIdCoverage(raw.passages, expectedIds, "Atomization");
   const sourceById = new Map(batch.passages.map((passage) => [passage.id, passage]));
   const spansByPassage = sourceSpanLookup(batch);
+  protocol(Number.isSafeInteger(analysisAtomLimit)
+    && analysisAtomLimit >= 1
+    && analysisAtomLimit <= LATTICE_BATCH_ATOM_LIMIT,
+    "The atomizer response lost its fitted host context.");
   const fittedContext = raw[LATTICE_FITTED_ANALYSIS_CONTEXT];
   if (fittedContext !== undefined) {
     protocol(record(fittedContext)
       && Number.isSafeInteger(fittedContext.analysisAtomLimit)
       && fittedContext.analysisAtomLimit >= 1
       && fittedContext.analysisAtomLimit <= LATTICE_BATCH_ATOM_LIMIT
+      && fittedContext.analysisAtomLimit <= analysisAtomLimit
       && Array.isArray(fittedContext.documentLedgerAtomIds),
     "The atomizer response lost its fitted host context.");
   }
-  const analysisAtomLimit = fittedContext?.analysisAtomLimit ?? LATTICE_BATCH_ATOM_LIMIT;
-  protocol(raw.passages.reduce((sum, passage) => sum + (Array.isArray(passage?.atoms) ? passage.atoms.length : 0), 0) <= analysisAtomLimit,
-    `Atomization exceeded the fitted ${analysisAtomLimit}-atom batch limit.`);
+  const effectiveAnalysisAtomLimit = fittedContext?.analysisAtomLimit ?? analysisAtomLimit;
+  protocol(raw.passages.reduce((sum, passage) => sum + (Array.isArray(passage?.atoms) ? passage.atoms.length : 0), 0) <= effectiveAnalysisAtomLimit,
+    `Atomization exceeded the fitted ${effectiveAnalysisAtomLimit}-atom batch limit.`);
   const originalExternalAtomIds = new Set(documentLedger.map((atom) => atom.id));
   const externalAtomIds = fittedContext
     ? new Set(fittedContext.documentLedgerAtomIds)
@@ -1301,6 +1306,8 @@ async function callNormalizedStage({
     } catch (error) {
       throwIfAborted(signal);
       if (error?.code === "lattice-context") throw error;
+      if (analysisDiagnosticOrigin !== null
+        && ["lattice-output-length", "provider_output_limit"].includes(error?.code)) throw error;
       if (!retryableStageFailure(error)) throw error;
       lastError = error;
     }
@@ -2273,6 +2280,62 @@ function buildBatch(id, passages) {
   });
 }
 
+function fitAnalysisAtomPlan(sourceSpans, maximumAtomLimit = LATTICE_BATCH_ATOM_LIMIT) {
+  if (!Array.isArray(sourceSpans)
+    || sourceSpans.length === 0
+    || !Number.isSafeInteger(maximumAtomLimit)
+    || maximumAtomLimit < 1
+    || maximumAtomLimit > LATTICE_BATCH_ATOM_LIMIT) return null;
+  const allocations = sourceSpans.map((group) => {
+    const evidenceUnits = (Array.isArray(group?.spans) ? group.spans.length : 0)
+      + (Array.isArray(group?.literalAnnotations) ? group.literalAnnotations.length : 0);
+    const minimum = Math.max(1, Math.ceil(evidenceUnits / 3));
+    const maximum = Math.max(minimum, Math.min(LATTICE_BATCH_ATOM_LIMIT, evidenceUnits * 4));
+    return {
+      passageId: group?.passageId,
+      minimum,
+      maximum,
+      analysisAtomLimit: minimum,
+    };
+  });
+  if (allocations.some(({ passageId }) => typeof passageId !== "string" || passageId.length === 0)
+    || new Set(allocations.map(({ passageId }) => passageId)).size !== allocations.length) return null;
+  const minimumTotal = allocations.reduce((sum, allocation) => sum + allocation.minimum, 0);
+  const maximumTotal = allocations.reduce((sum, allocation) => sum + allocation.maximum, 0);
+  const analysisAtomLimit = Math.min(maximumAtomLimit, maximumTotal);
+  if (minimumTotal > analysisAtomLimit) return null;
+
+  // Allocate from the evidence-covering minima in stable passage order. A
+  // round-robin fill prevents an early passage from consuming the whole
+  // bounded batch budget while keeping the result deterministic.
+  let remaining = analysisAtomLimit - minimumTotal;
+  while (remaining > 0) {
+    let advanced = false;
+    for (const allocation of allocations) {
+      if (remaining === 0) break;
+      if (allocation.analysisAtomLimit >= allocation.maximum) continue;
+      allocation.analysisAtomLimit += 1;
+      remaining -= 1;
+      advanced = true;
+    }
+    if (!advanced) return null;
+  }
+  return Object.freeze({
+    analysisAtomLimit,
+    allocations: Object.freeze(allocations.map((allocation) => Object.freeze({ ...allocation }))),
+  });
+}
+
+function analysisAtomSubplan(plan, batch) {
+  if (!plan || !Array.isArray(plan.allocations) || !Array.isArray(batch?.passages)) return null;
+  const byPassage = new Map(plan.allocations.map((allocation) => [allocation.passageId, allocation]));
+  const allocations = batch.passages.map(({ id }) => byPassage.get(id));
+  if (allocations.some((allocation) => !allocation)) return null;
+  const analysisAtomLimit = allocations.reduce((sum, allocation) => sum + allocation.analysisAtomLimit, 0);
+  if (analysisAtomLimit < 1 || analysisAtomLimit > plan.analysisAtomLimit) return null;
+  return Object.freeze({ analysisAtomLimit, allocations: Object.freeze([...allocations]) });
+}
+
 function splitBatch(batch) {
   const midpoint = Math.ceil(batch.passages.length / 2);
   return [
@@ -2289,7 +2352,10 @@ function replacePassageWithChildren(passages, passage, children) {
 }
 
 function retryableAnalysisFailure(error) {
-  return retryableStageFailure(error);
+  // A provider-reported output limit cannot improve by repeating the same
+  // request. Let the bounded outer analysis loop shrink both source and output
+  // capacity immediately instead of spending its correction attempt unchanged.
+  return error?.code === "provider_output_limit" || retryableStageFailure(error);
 }
 
 function buildDocumentLedger(analyses, anchorBatchId = null) {
@@ -2880,6 +2946,7 @@ export async function runTextToLattice(value, options = {}) {
 
   const pendingBatches = [...batches];
   const adaptivelySplitAnalysisBatches = new WeakSet();
+  const analysisAtomPlans = new WeakMap();
   let analyses = [];
   let analysisRevisionSerial = 0;
   const nextAnalysisRevisionId = () => {
@@ -2887,6 +2954,22 @@ export async function runTextToLattice(value, options = {}) {
     protocol(analysisRevisionSerial <= 999, "Text to Lattice exhausted its bounded atomization revisions.");
     return `r${String(analysisRevisionSerial).padStart(3, "0")}`;
   };
+  const atomizationUnavailable = (passageId = "") => resultFromState({
+    source,
+    wordCount,
+    passages,
+    analyses,
+    finalCandidates: [],
+    finalReviews: [],
+    status: "unable-to-attempt",
+    verificationPasses: 0,
+    documentFindings: [Object.freeze({
+      id: "atomization-unavailable",
+      passageId,
+      atomIds: Object.freeze([]),
+      message: "The bounded atomization attempts did not produce a valid semantic graph. No source text was presented as transformed output.",
+    })],
+  });
 
   while (pendingBatches.length > 0) {
     throwIfAborted(signal);
@@ -2894,11 +2977,16 @@ export async function runTextToLattice(value, options = {}) {
     const documentLedger = buildDocumentLedger(analyses);
     const clarificationDocumentProvenance = committedClarificationProvenance(analyses);
     const analysisRevisionId = nextAnalysisRevisionId();
+    const sourceSpans = latticeSourceSpansForBatch(batch);
+    const analysisAtomPlan = analysisAtomPlans.get(batch) ?? fitAnalysisAtomPlan(sourceSpans);
+    if (!analysisAtomPlan) return atomizationUnavailable(batch.passages[0]?.id ?? "");
+    analysisAtomPlans.set(batch, analysisAtomPlan);
     const request = Object.freeze({
       batch,
       analysisRevisionId,
       sourceFingerprint,
-      sourceSpans: latticeSourceSpansForBatch(batch),
+      sourceSpans,
+      analysisAtomLimit: analysisAtomPlan.analysisAtomLimit,
       context: contextPassagesForBatch(passages, batch),
       documentLedger,
       clarificationDocumentProvenance,
@@ -2921,7 +3009,7 @@ export async function runTextToLattice(value, options = {}) {
           analysisRevisionId,
           sourceFingerprint,
           clarificationDocumentProvenance,
-          { allowClarification, signal },
+          { allowClarification, analysisAtomLimit: analysisAtomPlan.analysisAtomLimit, signal },
         ),
         signal,
       });
@@ -2930,6 +3018,14 @@ export async function runTextToLattice(value, options = {}) {
     } catch (error) {
       if (batch.passages.length > 1 && retryableAnalysisFailure(error)) {
         const [left, right] = splitBatch(batch);
+        const leftPlan = analysisAtomSubplan(analysisAtomPlan, left);
+        const rightPlan = analysisAtomSubplan(analysisAtomPlan, right);
+        if (!leftPlan || !rightPlan
+          || leftPlan.analysisAtomLimit + rightPlan.analysisAtomLimit > analysisAtomPlan.analysisAtomLimit) {
+          return atomizationUnavailable(batch.passages[0]?.id ?? "");
+        }
+        analysisAtomPlans.set(left, leftPlan);
+        analysisAtomPlans.set(right, rightPlan);
         adaptivelySplitAnalysisBatches.add(left);
         adaptivelySplitAnalysisBatches.add(right);
         pendingBatches.unshift(left, right);
@@ -2940,30 +3036,28 @@ export async function runTextToLattice(value, options = {}) {
         const children = splitLatticePassage(sourcePassage);
         const withinPassageLimit = children && passages.length + 1 <= LATTICE_PASSAGE_LIMIT;
         const withinBatchLimit = analyses.length + pendingBatches.length + 2 <= LATTICE_EXECUTION_BATCH_LIMIT;
-        if (withinPassageLimit && withinBatchLimit && replacePassageWithChildren(passages, sourcePassage, children)) {
+        if (withinPassageLimit && withinBatchLimit) {
           const left = buildBatch(`${batch.id}a`, [children[0]]);
           const right = buildBatch(`${batch.id}b`, [children[1]]);
+          const splitSourceSpans = latticeSourceSpansForBatch(buildBatch(`${batch.id}s`, children));
+          const splitPlan = fitAnalysisAtomPlan(splitSourceSpans, analysisAtomPlan.analysisAtomLimit);
+          const leftPlan = analysisAtomSubplan(splitPlan, left);
+          const rightPlan = analysisAtomSubplan(splitPlan, right);
+          if (!splitPlan || !leftPlan || !rightPlan
+            || leftPlan.analysisAtomLimit + rightPlan.analysisAtomLimit > analysisAtomPlan.analysisAtomLimit) {
+            return atomizationUnavailable(sourcePassage?.id ?? "");
+          }
+          if (!replacePassageWithChildren(passages, sourcePassage, children)) {
+            return atomizationUnavailable(sourcePassage?.id ?? "");
+          }
+          analysisAtomPlans.set(left, leftPlan);
+          analysisAtomPlans.set(right, rightPlan);
           adaptivelySplitAnalysisBatches.add(left);
           adaptivelySplitAnalysisBatches.add(right);
           pendingBatches.unshift(left, right);
           continue;
         }
-        return resultFromState({
-          source,
-          wordCount,
-          passages,
-          analyses,
-          finalCandidates: [],
-          finalReviews: [],
-          status: "unable-to-attempt",
-          verificationPasses: 0,
-          documentFindings: [Object.freeze({
-            id: "atomization-unavailable",
-            passageId: batch.passages[0]?.id ?? "",
-            atomIds: Object.freeze([]),
-            message: "The bounded atomization attempts did not produce a valid semantic graph. No source text was presented as transformed output.",
-          })],
-        });
+        return atomizationUnavailable(batch.passages[0]?.id ?? "");
       }
       throw error;
     }
@@ -3211,6 +3305,7 @@ export async function runTextToLattice(value, options = {}) {
       context: entry.context,
       sourceFingerprint,
       analysisRevisionId,
+      analysisAtomLimit: entry.analysisAtomLimit,
       documentLedger: reanalysisLedger,
       clarificationDocumentProvenance,
       reanalysisFeedback: closedReanalysisFeedback(entry.verification),
@@ -3231,7 +3326,7 @@ export async function runTextToLattice(value, options = {}) {
           analysisRevisionId,
           sourceFingerprint,
           clarificationDocumentProvenance,
-          { allowClarification: false, signal },
+          { allowClarification: false, analysisAtomLimit: entry.analysisAtomLimit, signal },
         ),
         signal,
       });
@@ -3266,7 +3361,7 @@ export async function runTextToLattice(value, options = {}) {
       reanalyzedByBatch.set(entry.batch.id, Object.freeze({ ...request, analysis }));
     } catch (error) {
       throwIfAborted(signal);
-      if (!retryableStageFailure(error)) throw error;
+      if (!retryableAnalysisFailure(error)) throw error;
       retryNotes.push(Object.freeze({ id: "reanalysis-unavailable", passageId: entry.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The bounded re-atomization pass did not produce a valid replacement graph." }));
     }
     progress(onProgress, "reatomizing", index + 1, structurallyFailed.length, entry.batch.id);
