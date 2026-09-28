@@ -52,7 +52,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v2";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v3";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
@@ -67,6 +67,15 @@ export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   analysisOrigin: "X-Lattice-Qualification-Analysis-Origin",
   analysisAttempt: "X-Lattice-Qualification-Analysis-Attempt",
   priorValidationCategory: "X-Lattice-Qualification-Prior-Validation",
+});
+export const LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
+  cause: "X-Lattice-Qualification-Terminal-Analysis-Cause",
+  validationCategory: "X-Lattice-Qualification-Terminal-Analysis-Validation",
+  priorValidationCategory: "X-Lattice-Qualification-Terminal-Analysis-Prior-Validation",
+  origin: "X-Lattice-Qualification-Terminal-Analysis-Origin",
+  attempt: "X-Lattice-Qualification-Terminal-Analysis-Attempt",
+  atomLimit: "X-Lattice-Qualification-Terminal-Analysis-Atom-Limit",
+  callOrdinal: "X-Lattice-Qualification-Terminal-Analysis-Call-Ordinal",
 });
 
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset=utf-8)?$/iu;
@@ -119,6 +128,46 @@ const LATTICE_PROVIDER_ANALYSIS_ORIGIN_SET = new Set(LATTICE_PROVIDER_ANALYSIS_O
 const LATTICE_PROVIDER_ANALYSIS_ATTEMPT_SET = new Set(LATTICE_PROVIDER_ANALYSIS_ATTEMPTS);
 const LATTICE_PROVIDER_ACTIVE_ANALYSIS_ATTEMPT_SET = new Set(["1", "2"]);
 const LATTICE_ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
+const LATTICE_TERMINAL_ANALYSIS_CAUSE_SET = new Set([
+  "planning",
+  "host-validation",
+  "output-limit",
+  "context-capacity",
+]);
+const LATTICE_TERMINAL_ANALYSIS_ORIGIN_SET = new Set(["none", "initial", "split"]);
+const LATTICE_TERMINAL_ANALYSIS_ATTEMPT_SET = new Set(["none", "1", "2"]);
+const LATTICE_TERMINAL_ANALYSIS_TRACE_FIELDS = Object.freeze([
+  "cause",
+  "validationCategory",
+  "priorValidationCategory",
+  "origin",
+  "attempt",
+  "atomLimit",
+]);
+
+function terminalAnalysisTraceIsConsistent(trace) {
+  const atomLimitIsValid = trace.atomLimit === "none"
+    || /^(?:[1-9]|1\d|2[0-4])$/u.test(trace.atomLimit);
+  if (!atomLimitIsValid) return false;
+  if (trace.cause === "planning") {
+    return trace.validationCategory === "none"
+      && trace.priorValidationCategory === "none"
+      && trace.origin === "none"
+      && trace.attempt === "none";
+  }
+  if (trace.validationCategory === "none"
+    || !["initial", "split"].includes(trace.origin)
+    || !["1", "2"].includes(trace.attempt)
+    || trace.atomLimit === "none"
+    || (trace.attempt === "1" && trace.priorValidationCategory !== "none")
+    || (trace.attempt === "2" && trace.priorValidationCategory === "none")
+    || (trace.cause === "host-validation" && trace.attempt !== "2")
+    || (["output-limit", "context-capacity"].includes(trace.cause)
+      && trace.validationCategory !== "capacity")) {
+    return false;
+  }
+  return true;
+}
 
 class LatticeApiError extends Error {
   constructor(status, code, retryAfterSeconds = null) {
@@ -457,6 +506,69 @@ function withQualificationProviderDiagnostic(response, error, enabled) {
   return response;
 }
 
+function qualificationTerminalAnalysisDiagnostic(trace, adapter) {
+  try {
+    if (trace === null
+      || typeof trace !== "object"
+      || Array.isArray(trace)
+      || !Object.isFrozen(trace)
+      || Object.getPrototypeOf(trace) !== Object.prototype
+      || Reflect.ownKeys(trace).length !== LATTICE_TERMINAL_ANALYSIS_TRACE_FIELDS.length
+      || !LATTICE_TERMINAL_ANALYSIS_TRACE_FIELDS.every((field) => (
+        Object.prototype.hasOwnProperty.call(trace, field)
+      ))
+      || !LATTICE_TERMINAL_ANALYSIS_CAUSE_SET.has(trace.cause)
+      || !LATTICE_ANALYSIS_VALIDATION_CATEGORY_SET.has(trace.validationCategory)
+      || !LATTICE_ANALYSIS_VALIDATION_CATEGORY_SET.has(trace.priorValidationCategory)
+      || !LATTICE_TERMINAL_ANALYSIS_ORIGIN_SET.has(trace.origin)
+      || !LATTICE_TERMINAL_ANALYSIS_ATTEMPT_SET.has(trace.attempt)
+      || !terminalAnalysisTraceIsConsistent(trace)
+      || typeof adapter?.completionCapacity !== "function") {
+      return null;
+    }
+    const capacity = adapter.completionCapacity();
+    if (capacity === null
+      || typeof capacity !== "object"
+      || Array.isArray(capacity)
+      || !Number.isSafeInteger(capacity.used)
+      || capacity.used < 0
+      || capacity.used > LATTICE_PROVIDER_CALL_LIMIT) {
+      return null;
+    }
+    return Object.freeze({
+      cause: trace.cause,
+      validationCategory: trace.validationCategory,
+      priorValidationCategory: trace.priorValidationCategory,
+      origin: trace.origin,
+      attempt: trace.attempt,
+      atomLimit: trace.atomLimit,
+      callOrdinal: `${capacity.used}`,
+    });
+  } catch {
+    return null;
+  }
+}
+
+function isHomogeneousAtomizationUnavailable(result) {
+  return result.status === "unable-to-attempt"
+    && result.findings.length > 0
+    && result.findings.every(({ id }) => id === "atomization-unavailable");
+}
+
+function withQualificationTerminalAnalysisDiagnostic(response, result, diagnostic, enabled) {
+  if (!enabled
+    || diagnostic === null
+    || !isHomogeneousAtomizationUnavailable(result)) {
+    return response;
+  }
+  for (const [field, header] of Object.entries(
+    LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
+  )) {
+    response.headers.set(header, diagnostic[field]);
+  }
+  return response;
+}
+
 export async function enforceLatticeApiRateLimit(binding) {
   if (!binding || typeof binding.limit !== "function") {
     throw apiError(500, "internal_error");
@@ -685,14 +797,33 @@ export function createLatticeApiWorker({
           adapterOptions.maximumResponseBytes = providerResponseByteLimit;
         }
         const adapter = createAdapter(adapterOptions);
+        let qualificationTerminalAnalysisDiagnosticValue = null;
+        let qualificationTerminalAnalysisDiagnosticRejected = false;
+        const captureTerminalAnalysisDiagnostic = (trace) => {
+          if (qualificationTerminalAnalysisDiagnosticRejected
+            || qualificationTerminalAnalysisDiagnosticValue !== null) {
+            qualificationTerminalAnalysisDiagnosticValue = null;
+            qualificationTerminalAnalysisDiagnosticRejected = true;
+            return;
+          }
+          qualificationTerminalAnalysisDiagnosticValue =
+            qualificationTerminalAnalysisDiagnostic(trace, adapter);
+          if (qualificationTerminalAnalysisDiagnosticValue === null) {
+            qualificationTerminalAnalysisDiagnosticRejected = true;
+          }
+        };
         assertRequestPhaseOpen(deadline, qualificationWindow, now());
-        const result = await raceAbort(runTextToLatticeImpl(payload.text, {
+        const runOptions = {
           adapter,
           signal: deadline.signal,
           allowClarification: false,
           clarificationAnswers: Object.freeze([]),
           requestedMode: payload.requested_mode,
-        }), deadline.signal);
+        };
+        if (qualificationDiagnosticRequested) {
+          runOptions.onAnalysisTerminalDiagnostic = captureTerminalAnalysisDiagnostic;
+        }
+        const result = await raceAbort(runTextToLatticeImpl(payload.text, runOptions), deadline.signal);
         if (!isLatticeApiResult(result)) {
           throw apiError(502, "malformed_upstream_response");
         }
@@ -703,8 +834,15 @@ export function createLatticeApiWorker({
         if (new TextEncoder().encode(responseBody).byteLength > responseByteLimit) {
           throw apiError(500, "internal_error");
         }
-        assertRequestPhaseOpen(deadline, qualificationWindow, now());
-        response = new Response(responseBody, { status: 200, headers: RESPONSE_HEADERS });
+        const responseTime = now();
+        assertRequestPhaseOpen(deadline, qualificationWindow, responseTime);
+        response = withQualificationTerminalAnalysisDiagnostic(
+          new Response(responseBody, { status: 200, headers: RESPONSE_HEADERS }),
+          result,
+          qualificationTerminalAnalysisDiagnosticValue,
+          qualificationDiagnosticRequested
+            && qualificationWindowAllowsOutput(qualificationWindow, responseTime),
+        );
       } catch (error) {
         if (deadline.didQualificationExpire()
           || error instanceof LatticeQualificationExpiredError) {

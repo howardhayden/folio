@@ -40,6 +40,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
 import {
   LATTICE_TRANSFORMATIONS_PER_UTC_DAY,
@@ -92,6 +93,38 @@ const PROVIDER_ANALYSIS_ORIGIN_SET = new Set(LATTICE_PROVIDER_ANALYSIS_ORIGINS);
 const PROVIDER_ANALYSIS_ATTEMPT_SET = new Set(LATTICE_PROVIDER_ANALYSIS_ATTEMPTS);
 const PROVIDER_ACTIVE_ANALYSIS_ATTEMPT_SET = new Set(["1", "2"]);
 const ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
+const TERMINAL_ANALYSIS_CAUSE_SET = new Set([
+  "planning",
+  "host-validation",
+  "output-limit",
+  "context-capacity",
+]);
+const TERMINAL_ANALYSIS_ORIGIN_SET = new Set(["none", "initial", "split"]);
+const TERMINAL_ANALYSIS_ATTEMPT_SET = new Set(["none", "1", "2"]);
+
+function terminalAnalysisDiagnosticIsConsistent(diagnostic) {
+  const atomLimitIsValid = diagnostic.atomLimit === "none"
+    || /^(?:[1-9]|1\d|2[0-4])$/u.test(diagnostic.atomLimit);
+  if (!atomLimitIsValid) return false;
+  if (diagnostic.cause === "planning") {
+    return diagnostic.validationCategory === "none"
+      && diagnostic.priorValidationCategory === "none"
+      && diagnostic.origin === "none"
+      && diagnostic.attempt === "none";
+  }
+  if (diagnostic.validationCategory === "none"
+    || !["initial", "split"].includes(diagnostic.origin)
+    || !["1", "2"].includes(diagnostic.attempt)
+    || diagnostic.atomLimit === "none"
+    || (diagnostic.attempt === "1" && diagnostic.priorValidationCategory !== "none")
+    || (diagnostic.attempt === "2" && diagnostic.priorValidationCategory === "none")
+    || (diagnostic.cause === "host-validation" && diagnostic.attempt !== "2")
+    || (["output-limit", "context-capacity"].includes(diagnostic.cause)
+      && diagnostic.validationCategory !== "capacity")) {
+    return false;
+  }
+  return true;
+}
 const DOCUMENT_PATHS = Object.freeze([
   "/",
   "/index.html",
@@ -867,8 +900,46 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     }
     diagnostic = Object.freeze({ ...diagnosticValues, callOrdinal: ordinal });
   }
+  const terminalDiagnosticValues = Object.freeze(Object.fromEntries(
+    Object.entries(LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS)
+      .map(([field, header]) => [field, response.headers.get(header)]),
+  ));
+  const terminalDiagnosticPresent = Object.values(terminalDiagnosticValues)
+    .filter((value) => value !== null).length;
+  const terminalDiagnosticFieldCount = Object.keys(
+    LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
+  ).length;
+  if (terminalDiagnosticPresent !== 0
+    && terminalDiagnosticPresent !== terminalDiagnosticFieldCount) {
+    fail(`${label} returned an incomplete terminal analysis diagnostic`);
+  }
+  let terminalDiagnostic = null;
+  if (terminalDiagnosticPresent === terminalDiagnosticFieldCount) {
+    const ordinal = Number(terminalDiagnosticValues.callOrdinal);
+    if (!TERMINAL_ANALYSIS_CAUSE_SET.has(terminalDiagnosticValues.cause)
+      || !ANALYSIS_VALIDATION_CATEGORY_SET.has(terminalDiagnosticValues.validationCategory)
+      || !ANALYSIS_VALIDATION_CATEGORY_SET.has(
+        terminalDiagnosticValues.priorValidationCategory,
+      )
+      || !TERMINAL_ANALYSIS_ORIGIN_SET.has(terminalDiagnosticValues.origin)
+      || !TERMINAL_ANALYSIS_ATTEMPT_SET.has(terminalDiagnosticValues.attempt)
+      || !terminalAnalysisDiagnosticIsConsistent(terminalDiagnosticValues)
+      || !/^(?:0|[1-9]|[12]\d|3[0-2])$/u.test(terminalDiagnosticValues.callOrdinal)
+      || !Number.isSafeInteger(ordinal)
+      || ordinal < 0
+      || ordinal > LATTICE_PROVIDER_CALL_LIMIT) {
+      fail(`${label} returned an invalid terminal analysis diagnostic`);
+    }
+    terminalDiagnostic = Object.freeze({
+      ...terminalDiagnosticValues,
+      callOrdinal: ordinal,
+    });
+  }
   if (response.status !== 200) {
     const code = isLatticeApiError(envelope) ? envelope.error : "invalid_response";
+    if (terminalDiagnostic !== null) {
+      fail(`${label} returned a terminal analysis diagnostic on a non-success response`);
+    }
     if (diagnostic === null) {
       fail(`${label} returned HTTP ${response.status} (${code}) without a qualification diagnostic`);
     }
@@ -896,11 +967,35 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     fail(`${label} returned an invalid strict result envelope`);
   }
   if (envelope.result.status === "unable-to-attempt") {
+    const unableClass = unableCanaryClass(envelope.result);
+    if (unableClass === "pre-candidate-analysis-contract") {
+      if (terminalDiagnostic === null) {
+        fail(`${label} returned a pre-candidate analysis failure without a terminal analysis diagnostic`);
+      }
+      fail(`${label} did not reach a non-error terminal transformation result (`
+        + `class=${unableClass}; `
+        + `terminal_cause=${terminalDiagnostic.cause}; `
+        + `validation=${terminalDiagnostic.validationCategory}; `
+        + `prior_validation=${terminalDiagnostic.priorValidationCategory}; `
+        + `analysis_origin=${terminalDiagnostic.origin}; `
+        + `analysis_attempt=${terminalDiagnostic.attempt}; `
+        + `atom_limit=${terminalDiagnostic.atomLimit}; `
+        + `call_ordinal=${terminalDiagnostic.callOrdinal}; `
+        + `batch_count=${envelope.result.batchCount}; `
+        + `verification_passes=${envelope.result.verificationPasses}; `
+        + `finding_count=${envelope.result.findings.length})`);
+    }
+    if (terminalDiagnostic !== null) {
+      fail(`${label} returned a terminal analysis diagnostic on an incompatible unable result`);
+    }
     fail(`${label} did not reach a non-error terminal transformation result (`
-      + `class=${unableCanaryClass(envelope.result)}; `
+      + `class=${unableClass}; `
       + `batch_count=${envelope.result.batchCount}; `
       + `verification_passes=${envelope.result.verificationPasses}; `
       + `finding_count=${envelope.result.findings.length})`);
+  }
+  if (terminalDiagnostic !== null) {
+    fail(`${label} returned a terminal analysis diagnostic on success`);
   }
   return Object.freeze({
     request_count: 1,

@@ -194,6 +194,7 @@ test("an initial host-validation correction attributes malformed provider call t
   );
   assert.doesNotMatch(firstBody.messages[0].content, /one bounded correction attempt/u);
   assert.match(correctedBody.messages[0].content, /one bounded correction attempt/u);
+  assert.match(correctedBody.messages[0].content, /Closed correction category: passage-coverage/u);
   assert.doesNotMatch(correctedBody.messages[1].content, /one bounded correction attempt/u);
 });
 

@@ -31,6 +31,16 @@ export const LATTICE_ANALYSIS_VALIDATION_CATEGORIES = Object.freeze([
 const ANALYSIS_RESPONSE_DIALECTS = new Set(["host-schema", "compact-wire-v1"]);
 const COMPACT_ANALYSIS_RETRY_CODE = "private-analysis-wire-invalid";
 const COMPACT_ANALYSIS_RETRY_INSTRUCTION = "This is the one bounded correction attempt. Supply one complete d/p/q analysis-result instance through the required response channel. Include exactly one p tuple for every supplied passage ID. Use exact tuple widths, short unique atom IDs, cited supplied evidence IDs covering every source span, valid link targets, and every required value. Keep q empty. Do not emit long field names or copy a schema.";
+const COMPACT_ANALYSIS_RETRY_RULES = Object.freeze({
+  evidence: "Use exact only with exclusively literal evidence; ordinary source evidence uses equivalent or implicit. Cite supplied evidence IDs and cover every source span.",
+  conformance: "When disposition is rewrite, passage tuple positions 7, 8, and 9 are empty arrays. Retained text needs complete criterion-specific evidence.",
+  relation: "Every link target names an emitted non-self atom or supplied ledger atom, with no repeated typed link.",
+  ambiguity: "Every ambiguity ID names an emitted atom whose kind is ambiguity or uncertainty.",
+  identifier: "Use short, nonempty, unique local atom IDs and never use a host-qualified or supplied ledger ID.",
+  capacity: "Use the smallest complete atom graph within the fitted cap and keep every bounded field concise.",
+  "passage-coverage": "Return exactly one passage tuple for every supplied passage ID, in supplied order.",
+  "response-shape": "Return only the complete fitted d/p/q instance with exact tuple widths and required values.",
+});
 
 export const LATTICE_LAYERS = Object.freeze(["operative", "experiential", "interpretive", "mixed", "accessibility"]);
 export const LATTICE_REQUEST_MODES = Object.freeze(["auto", "operative", "experiential"]);
@@ -890,8 +900,11 @@ export function analysisMessages(request, { responseDialect = "host-schema" } = 
   const conformanceCoverageInstruction = compactWire
     ? "their evidence plus the conformance-evidence span IDs at passage tuple index 8 cover every supplied span and annotation"
     : "their evidence plus conformanceEvidenceSpanIds cover every supplied span and annotation";
+  const retryCategory = LATTICE_ANALYSIS_VALIDATION_CATEGORIES.includes(
+    request.protocolFeedback?.category,
+  ) ? request.protocolFeedback.category : "other";
   const compactRetryInstruction = compactWire && request.protocolFeedback
-    ? ` ${COMPACT_ANALYSIS_RETRY_INSTRUCTION}`
+    ? ` ${COMPACT_ANALYSIS_RETRY_INSTRUCTION} Closed correction category: ${retryCategory}. ${COMPACT_ANALYSIS_RETRY_RULES[retryCategory] ?? "Recheck every fitted enum, identifier, evidence reference, and empty-placeholder constraint."}`
     : "";
   return messages(
     "Atomize every supplied passage and plan its appropriate public Lattice layer.",

@@ -1048,6 +1048,134 @@ test("unknown source-span IDs fail before generation", async () => {
   assert.equal(adapter.calls.generate, 0);
 });
 
+test("ordinary exact preservation is conservatively normalized before canary generation", async () => {
+  const source = "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
+  const analyzedBatchIds = [];
+  let normalizedPreservations;
+  const adapter = scriptedAdapter({
+    analyze(request) {
+      analyzedBatchIds.push(request.batch.id);
+      const analysis = rawAnalysis(request);
+      analysis.passages[0].atoms[0].preservation = "exact";
+      return analysis;
+    },
+    generate(request) {
+      normalizedPreservations = request.analysis.passages[0].atoms.map(({ preservation }) => preservation);
+      return rawCandidate(request);
+    },
+  });
+  const result = await runTextToLattice(source, { adapter });
+  assert.equal(result.status, "translated");
+  assert.deepEqual(analyzedBatchIds, ["b001"]);
+  assert.deepEqual(normalizedPreservations, ["equivalent", "equivalent", "equivalent"]);
+  assert.deepEqual(adapter.calls, { analyze: 1, generate: 1, verify: 1, repair: 0 });
+});
+
+test("literal-only exact preservation remains exact after host normalization", async () => {
+  const source = "`bravo` alpha beta gamma delta epsilon";
+  let normalizedPreservation;
+  const adapter = scriptedAdapter({
+    analyze(request) {
+      const analysis = rawAnalysis(request);
+      const literalId = request.sourceSpans[0].spans.find(({ kind }) => kind === "literal").id;
+      const literalAtom = analysis.passages[0].atoms.find(({ evidenceSpanIds }) => (
+        evidenceSpanIds.length === 1 && evidenceSpanIds[0] === literalId
+      ));
+      assert.ok(literalAtom);
+      literalAtom.preservation = "exact";
+      return analysis;
+    },
+    generate(request) {
+      normalizedPreservation = request.analysis.passages[0].atoms
+        .find(({ evidence }) => evidence.some(({ text }) => text === "`bravo`"))
+        .preservation;
+      return literalSafeCandidate(request);
+    },
+  });
+  const result = await runTextToLattice(source, { adapter });
+  assert.equal(result.status, "translated");
+  assert.equal(normalizedPreservation, "exact");
+  assert.equal(adapter.calls.analyze, 1);
+  assert.equal(adapter.calls.generate, 1);
+});
+
+test("rewrite conformance claims are cleared before canary generation", async () => {
+  const source = "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
+  const analyzedBatchIds = [];
+  let normalizedConformance;
+  const adapter = scriptedAdapter({
+    analyze(request) {
+      analyzedBatchIds.push(request.batch.id);
+      const analysis = rawAnalysis(request);
+      const passage = analysis.passages[0];
+      const criteria = requiredConformanceCriteria(passage.layer);
+      const evidenceSpanIds = request.sourceSpans[0].spans.map(({ id }) => id);
+      passage.conformanceCriteria = [...criteria];
+      passage.conformanceEvidenceSpanIds = [...evidenceSpanIds];
+      passage.conformanceAssertions = criteria.map((criterion) => ({
+        criterion,
+        evidenceSpanIds: [...evidenceSpanIds],
+      }));
+      return analysis;
+    },
+    generate(request) {
+      const passage = request.analysis.passages[0];
+      normalizedConformance = {
+        disposition: passage.disposition,
+        conformanceCriteria: passage.conformanceCriteria,
+        conformanceEvidenceSpanIds: passage.conformanceEvidenceSpanIds,
+        conformanceEvidence: passage.conformanceEvidence,
+        conformanceAssertions: passage.conformanceAssertions,
+      };
+      return rawCandidate(request);
+    },
+  });
+  const result = await runTextToLattice(source, { adapter });
+  assert.equal(result.status, "translated");
+  assert.deepEqual(analyzedBatchIds, ["b001"]);
+  assert.deepEqual(normalizedConformance, {
+    disposition: "rewrite",
+    conformanceCriteria: [],
+    conformanceEvidenceSpanIds: [],
+    conformanceEvidence: [],
+    conformanceAssertions: [],
+  });
+  assert.deepEqual(adapter.calls, { analyze: 1, generate: 1, verify: 1, repair: 0 });
+});
+
+test("an unknown atom link still fails closed before generation", async () => {
+  let terminalDiagnostic;
+  const adapter = scriptedAdapter({
+    analyze(request) {
+      const analysis = rawAnalysis(request);
+      analysis.passages[0].atoms[0].links = [{
+        relation: "related-to",
+        targetAtomId: "missing-atom",
+      }];
+      return analysis;
+    },
+  });
+  const result = await runTextToLattice("word", {
+    adapter,
+    onAnalysisTerminalDiagnostic(value) {
+      terminalDiagnostic = value;
+    },
+  });
+  assert.equal(result.status, "unable-to-attempt");
+  assert.equal(result.text, null);
+  assert.equal(adapter.calls.analyze, 2);
+  assert.equal(adapter.calls.generate, 0);
+  assert.deepEqual(terminalDiagnostic, {
+    cause: "host-validation",
+    validationCategory: "relation",
+    priorValidationCategory: "relation",
+    origin: "initial",
+    attempt: "2",
+    atomLimit: "4",
+  });
+  assert.equal(Object.isFrozen(terminalDiagnostic), true);
+});
+
 test("atomization accepts only links and atom counts visible in its fitted model context", async () => {
   const adapter = scriptedAdapter({
     analyze(request) {
@@ -1234,20 +1362,6 @@ test("document kind, discourse function, and realization rationale reach every d
     assert.match(contract, /coordinates a conditional closure sequence/u);
     assert.match(contract, /make the supported actor, condition, and order directly navigable/u);
   }
-});
-
-test("an exact atom cannot bind a coarse span and its surrounding text", async () => {
-  const adapter = scriptedAdapter({
-    analyze(request) {
-      const analysis = rawAnalysis(request);
-      analysis.passages[0].atoms[0].preservation = "exact";
-      return analysis;
-    },
-  });
-  const result = await runTextToLattice(opaqueWords(8), { adapter });
-  assert.equal(result.status, "unable-to-attempt");
-  assert.equal(result.text, null);
-  assert.equal(adapter.calls.generate, 0);
 });
 
 test("literal extraction remains bounded and non-throwing at its maximum", async () => {
