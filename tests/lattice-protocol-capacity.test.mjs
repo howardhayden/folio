@@ -676,13 +676,14 @@ test("maximal fitted verifier and certifier wires remain inside their live outpu
     });
 
     const fittedSchema = (body) => {
-      const content = body.messages.find(({ role }) => role === "system")?.content ?? "";
-      const opening = "<LATTICE_RESPONSE_SCHEMA>";
-      const closing = "</LATTICE_RESPONSE_SCHEMA>";
-      const start = content.indexOf(opening);
-      const end = content.indexOf(closing, start + opening.length);
-      assert.ok(start >= 0 && end > start);
-      return JSON.parse(content.slice(start + opening.length, end));
+      assert.equal(Object.hasOwn(body, "response_format"), false);
+      assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
+      assert.equal(body.tools.length, 1);
+      assert.deepEqual(body.tool_choice, {
+        type: "function",
+        function: { name: body.tools[0].function.name },
+      });
+      return body.tools[0].function.parameters;
     };
     const [verificationSchema, certificationSchema] = bodies.map(fittedSchema);
     assert.deepEqual(verificationSchema.required, ["d", "g", "p", "i"]);
@@ -715,6 +716,17 @@ test("maximal fitted verifier and certifier wires remain inside their live outpu
     const certificationTokens = tokenizers.llama.encode(certificationWire).length;
     const prettyVerificationTokens = tokenizers.llama.encode(prettyVerificationWire).length;
     const prettyCertificationTokens = tokenizers.llama.encode(prettyCertificationWire).length;
+    assert.deepEqual({
+      verificationTokens,
+      prettyVerificationTokens,
+      certificationTokens,
+      prettyCertificationTokens,
+    }, {
+      verificationTokens: 539,
+      prettyVerificationTokens: 965,
+      certificationTokens: 142,
+      prettyCertificationTokens: 243,
+    });
     assert.ok(
       verificationTokens <= 1_200,
       `maximal fitted verifier wire used ${verificationTokens} pinned-Llama tokens`,
@@ -730,6 +742,14 @@ test("maximal fitted verifier and certifier wires remain inside their live outpu
     assert.ok(
       prettyCertificationTokens <= 520,
       `pretty maximal fitted certifier wire used ${prettyCertificationTokens} pinned-Llama tokens`,
+    );
+    assert.ok(
+      1_200 - prettyVerificationTokens >= 200,
+      "the maximal pretty verifier arguments must retain at least 200 pinned-Llama tokens of transport headroom",
+    );
+    assert.ok(
+      520 - prettyCertificationTokens >= 200,
+      "the maximal pretty certifier arguments must retain at least 200 pinned-Llama tokens of transport headroom",
     );
   } finally {
     tokenizers.dispose();

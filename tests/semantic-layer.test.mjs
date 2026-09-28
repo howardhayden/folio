@@ -1011,8 +1011,22 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     inference: {
       seed: 71_903,
       stages: {
-        verification: { temperature: 0, topP: 1, responseFormat: "json_object", maximumOutputTokens: 1_200 },
-        certification: { temperature: 0, topP: 1, responseFormat: "json_object", maximumOutputTokens: 520 },
+        verification: {
+          temperature: 0,
+          topP: 1,
+          responseTransport: "forced_named_tool",
+          toolName: "lattice_verification_wire_v1",
+          stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
+          maximumOutputTokens: 1_200,
+        },
+        certification: {
+          temperature: 0,
+          topP: 1,
+          responseTransport: "forced_named_tool",
+          toolName: "lattice_certification_wire_v1",
+          stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
+          maximumOutputTokens: 520,
+        },
       },
     },
   };
@@ -1025,7 +1039,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     tokenizerName: "Provider-managed model tokenizer",
     tokenizerVersion: "provider-managed",
     tokenizerPackageUrl: "https://huggingface.co/docs/inference-providers/",
-    structuredOutputName: "Strict JSON Schema and JSON-object generation with exact host-side closed-schema validation",
+    structuredOutputName: "Strict JSON Schema, JSON-object, and forced named-tool generation with exact host-side closed-schema validation",
     structuredOutputVersion: "provider-managed",
     structuredOutputPackageUrl: "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
     structuredOutputRepository: "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
