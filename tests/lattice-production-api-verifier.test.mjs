@@ -26,6 +26,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
 import {
   TEXT_TO_LATTICE_DOCUMENT_POLICY,
@@ -85,6 +86,22 @@ function qualificationDiagnosticHeaders(overrides = {}) {
   };
   return Object.fromEntries(Object.entries(
     LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  ).map(([field, header]) => [header, values[field]]));
+}
+
+function terminalAnalysisDiagnosticHeaders(overrides = {}) {
+  const values = {
+    cause: "host-validation",
+    validationCategory: "evidence",
+    priorValidationCategory: "passage-coverage",
+    origin: "split",
+    attempt: "2",
+    atomLimit: "6",
+    callOrdinal: "4",
+    ...overrides,
+  };
+  return Object.fromEntries(Object.entries(
+    LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   ).map(([field, header]) => [header, values[field]]));
 }
 
@@ -864,7 +881,9 @@ test("an unable canary reports only an allowlisted homogeneous failure class and
             { id: findingId, passageId: "p002", atomIds: [], message: privateMarker },
           ], { batchCount: 2, passageCount: 2 }),
           schema_version: 1,
-        }, 200),
+        }, 200, findingId === "atomization-unavailable"
+          ? terminalAnalysisDiagnosticHeaders()
+          : {}),
       });
       let failure;
       try {
@@ -878,10 +897,160 @@ test("an unable canary reports only an allowlisted homogeneous failure class and
         failure = error;
       }
       assert.ok(failure instanceof Error);
-      assert.match(
-        failure.message,
-        new RegExp(`class=${expectedClass}; batch_count=2; verification_passes=0; finding_count=2`, "u"),
-      );
+      if (findingId === "atomization-unavailable") {
+        assert.match(
+          failure.message,
+          /class=pre-candidate-analysis-contract; terminal_cause=host-validation; validation=evidence; prior_validation=passage-coverage; analysis_origin=split; analysis_attempt=2; atom_limit=6; call_ordinal=4; batch_count=2; verification_passes=0; finding_count=2/u,
+        );
+      } else {
+        assert.match(
+          failure.message,
+          new RegExp(`class=${expectedClass}; batch_count=2; verification_passes=0; finding_count=2`, "u"),
+        );
+      }
+      assert.equal(failure.message.includes(privateMarker), false);
+      assert.equal(fixture.canaryRequests, 1);
+      assert.equal(fixture.setupRequests, 1);
+      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+    });
+  }
+});
+
+test("terminal analysis diagnostics are complete, allowlisted, and confined to analysis unable results", async (contextTest) => {
+  const privateMarker = "PRIVATE-TERMINAL-DIAGNOSTIC-MUST-NOT-CROSS";
+  const exactTerminal = terminalAnalysisDiagnosticHeaders();
+  const atomizationBody = {
+    result: unableResult([
+      { id: "atomization-unavailable", passageId: "p001", atomIds: [], message: "fixed" },
+    ]),
+    schema_version: 1,
+  };
+  const planningTerminal = terminalAnalysisDiagnosticHeaders({
+    cause: "planning",
+    validationCategory: "none",
+    priorValidationCategory: "none",
+    origin: "none",
+    attempt: "none",
+    atomLimit: "none",
+    callOrdinal: "0",
+  });
+  const invalidSemanticDiagnostics = [
+    ["planning validation", { ...planningTerminal,
+      [LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS.validationCategory]:
+        "evidence" }],
+    ["planning prior validation", { ...planningTerminal,
+      [LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS.priorValidationCategory]:
+        "evidence" }],
+    ["planning origin", { ...planningTerminal,
+      [LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS.origin]: "split" }],
+    ["planning attempt", { ...planningTerminal,
+      [LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS.attempt]: "1" }],
+    ["non-planning validation", terminalAnalysisDiagnosticHeaders({ validationCategory: "none" })],
+    ["non-planning origin", terminalAnalysisDiagnosticHeaders({ origin: "none" })],
+    ["non-planning attempt", terminalAnalysisDiagnosticHeaders({ attempt: "none" })],
+    ["non-planning atom limit", terminalAnalysisDiagnosticHeaders({ atomLimit: "none" })],
+    ["first-attempt prior validation", terminalAnalysisDiagnosticHeaders({
+      cause: "output-limit",
+      validationCategory: "capacity",
+      attempt: "1",
+    })],
+    ["second-attempt missing prior validation", terminalAnalysisDiagnosticHeaders({
+      priorValidationCategory: "none",
+    })],
+    ["first-attempt host validation", terminalAnalysisDiagnosticHeaders({
+      attempt: "1",
+      priorValidationCategory: "none",
+    })],
+    ["output-limit validation", terminalAnalysisDiagnosticHeaders({ cause: "output-limit" })],
+    ["context-capacity validation", terminalAnalysisDiagnosticHeaders({
+      cause: "context-capacity",
+    })],
+  ];
+  const cases = [
+    [
+      "valid planning",
+      atomizationBody,
+      200,
+      planningTerminal,
+      /terminal_cause=planning; validation=none; prior_validation=none; analysis_origin=none; analysis_attempt=none; atom_limit=none; call_ordinal=0/u,
+    ],
+    ["absent", atomizationBody, 200, {}, /without a terminal analysis diagnostic/u],
+    [
+      "partial",
+      atomizationBody,
+      200,
+      {
+        [LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS.cause]:
+          "host-validation",
+      },
+      /incomplete terminal analysis diagnostic/u,
+    ],
+    [
+      "hostile cause",
+      atomizationBody,
+      200,
+      terminalAnalysisDiagnosticHeaders({ cause: privateMarker }),
+      /invalid terminal analysis diagnostic/u,
+    ],
+    [
+      "invalid ordinal",
+      atomizationBody,
+      200,
+      terminalAnalysisDiagnosticHeaders({ callOrdinal: "33" }),
+      /invalid terminal analysis diagnostic/u,
+    ],
+    [
+      "translated",
+      { result: validResult(), schema_version: 1 },
+      200,
+      exactTerminal,
+      /terminal analysis diagnostic on success/u,
+    ],
+    [
+      "other unable",
+      {
+        result: unableResult([
+          { id: "generation-unavailable", passageId: "p001", atomIds: [], message: "fixed" },
+        ]),
+        schema_version: 1,
+      },
+      200,
+      exactTerminal,
+      /terminal analysis diagnostic on an incompatible unable result/u,
+    ],
+    [
+      "provider error",
+      { error: "upstream_unavailable" },
+      502,
+      { ...qualificationDiagnosticHeaders(), ...exactTerminal },
+      /terminal analysis diagnostic on a non-success response/u,
+    ],
+    ...invalidSemanticDiagnostics.map(([name, headers]) => [
+      name,
+      atomizationBody,
+      200,
+      headers,
+      /invalid terminal analysis diagnostic/u,
+    ]),
+  ];
+  for (const [name, body, status, headers, expected] of cases) {
+    await contextTest.test(name, async () => {
+      const fixture = successfulFixture({
+        canaryResponse: apiJson(body, status, headers),
+      });
+      let failure;
+      try {
+        await verifyTextToLatticeApiProduction({
+          fetchImpl: fixture.fetchImpl,
+          context,
+          now: fixedNow,
+          wait: noWait,
+        });
+      } catch (error) {
+        failure = error;
+      }
+      assert.ok(failure instanceof Error);
+      assert.match(failure.message, expected);
       assert.equal(failure.message.includes(privateMarker), false);
       assert.equal(fixture.canaryRequests, 1);
       assert.equal(fixture.setupRequests, 1);

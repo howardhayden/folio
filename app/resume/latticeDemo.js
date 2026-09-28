@@ -127,6 +127,7 @@ const QUESTION_WORD_SEGMENTER = typeof Intl !== "undefined" && typeof Intl.Segme
   : null;
 const ANALYSIS_DIAGNOSTIC_ORIGIN_SET = new Set(LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS);
 const ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
+const ANALYSIS_FAILURE_DIAGNOSTICS = new WeakMap();
 const ANALYSIS_VALIDATION_MESSAGE_CATEGORIES = Object.freeze([
   Object.freeze({
     category: "provenance",
@@ -401,10 +402,14 @@ async function normalizeAnalysis(
         `Atom ${id} evidence spans`,
         { minimum: 1, maximum: 3 },
       );
-      if (rawAtom.preservation === "exact") {
-        protocol(resolvedEvidence.records.every(({ kind }) => kind === "literal"),
-          `Exact atom ${id} must cite only fine-grained literal spans.`);
-      }
+      // `exact` is a stronger claim than coarse source evidence can support.
+      // Conservatively downgrade that overclaim instead of turning an otherwise
+      // grounded graph into a retry/split loop. Literal-only evidence remains
+      // exact, and independent literal validators still bind exact source text.
+      const preservation = rawAtom.preservation === "exact"
+        && !resolvedEvidence.records.every(({ kind }) => kind === "literal")
+        ? "equivalent"
+        : rawAtom.preservation;
       protocol(Array.isArray(rawAtom.links) && rawAtom.links.length <= 8, `Atom ${id} has invalid links.`);
       const linkKeys = new Set();
       const links = rawAtom.links.map((rawLink) => {
@@ -426,7 +431,7 @@ async function normalizeAnalysis(
         kind: rawAtom.kind,
         value: stringValue(rawAtom.value, `Atom ${id} value`, { maximum: 600 }),
         priority: rawAtom.priority,
-        preservation: rawAtom.preservation,
+        preservation,
         evidenceSpanIds: resolvedEvidence.ids,
         evidence: resolvedEvidence.evidence,
         links: Object.freeze(links),
@@ -444,21 +449,28 @@ async function normalizeAnalysis(
     protocol(ambiguityAtomIds.every((id) => ["ambiguity", "uncertainty"].includes(atomById.get(id).kind)),
       `Passage ${source.id} labels a non-ambiguity atom as an ambiguity.`);
 
-    const conformanceCriteria = uniqueStrings(rawPassage.conformanceCriteria, `Conformance criteria in ${source.id}`, 6);
+    // Conformance claims apply only to unchanged retained text. A rewrite may
+    // contain schema-valid but irrelevant claims, so discard them before
+    // semantic validation instead of rejecting the whole grounded analysis.
+    const rewritePlan = rawPassage.disposition === "rewrite";
+    const conformanceCriteriaInput = rewritePlan ? [] : rawPassage.conformanceCriteria;
+    const conformanceEvidenceInput = rewritePlan ? [] : rawPassage.conformanceEvidenceSpanIds;
+    const conformanceAssertionsInput = rewritePlan ? [] : rawPassage.conformanceAssertions;
+    const conformanceCriteria = uniqueStrings(conformanceCriteriaInput, `Conformance criteria in ${source.id}`, 6);
     protocol(conformanceCriteria.every((criterion) => CONFORMANCE_CRITERIA.has(criterion)),
       `Conformance criteria in ${source.id} include an unknown assertion.`);
     const resolvedConformance = resolveSourceSpanIds(
-      rawPassage.conformanceEvidenceSpanIds,
+      conformanceEvidenceInput,
       source.id,
       spansByPassage,
       `Conformance evidence spans in ${source.id}`,
       { maximum: MODEL_SOURCE_SPAN_LIMIT },
     );
     const conformanceEvidence = resolvedConformance.evidence;
-    protocol(Array.isArray(rawPassage.conformanceAssertions) && rawPassage.conformanceAssertions.length <= 6,
+    protocol(Array.isArray(conformanceAssertionsInput) && conformanceAssertionsInput.length <= 6,
       `Conformance assertions in ${source.id} must be a bounded list.`);
     const assertedCriteria = new Set();
-    const conformanceAssertions = rawPassage.conformanceAssertions.map((rawAssertion, assertionIndex) => {
+    const conformanceAssertions = conformanceAssertionsInput.map((rawAssertion, assertionIndex) => {
       protocol(record(rawAssertion), `Conformance assertion ${assertionIndex + 1} in ${source.id} is invalid.`);
       exactKeys(rawAssertion, ["criterion", "evidenceSpanIds"], `Conformance assertion ${assertionIndex + 1} in ${source.id}`);
       protocol(CONFORMANCE_CRITERIA.has(rawAssertion.criterion),
@@ -479,10 +491,6 @@ async function normalizeAnalysis(
         evidence: resolved.evidence,
       });
     });
-    if (rawPassage.disposition === "rewrite") {
-      protocol(conformanceCriteria.length === 0 && resolvedConformance.ids.length === 0 && conformanceAssertions.length === 0,
-        `Rewrite plan ${source.id} must not claim unchanged-text conformance.`);
-    }
     let disposition = rawPassage.disposition;
     let retainedCriteria = conformanceCriteria;
     let retainedConformanceSpanIds = resolvedConformance.ids;
@@ -1254,13 +1262,28 @@ function analysisValidationCategory(error) {
   return ANALYSIS_VALIDATION_CATEGORY_SET.has(category) ? category : "other";
 }
 
+function rememberAnalysisFailureDiagnostic(error, diagnostic) {
+  if ((typeof error !== "object" && typeof error !== "function") || error === null) return;
+  ANALYSIS_FAILURE_DIAGNOSTICS.set(error, Object.freeze({ ...diagnostic }));
+}
+
+function analysisFailureDiagnostic(error) {
+  if ((typeof error !== "object" && typeof error !== "function") || error === null) return null;
+  return ANALYSIS_FAILURE_DIAGNOSTICS.get(error) ?? null;
+}
+
 function analysisDiagnosticRequest(request, origin, stage, attempt, lastError) {
   if (!ANALYSIS_DIAGNOSTIC_ORIGIN_SET.has(origin) || ![1, 2].includes(attempt)) {
     throw new TypeError("Text to Lattice received invalid analysis diagnostic context.");
   }
   const currentRequest = {
     ...request,
-    ...(attempt === 1 ? {} : { protocolFeedback: stageFeedback(stage, lastError, attempt) }),
+    ...(attempt === 1 ? {} : {
+      protocolFeedback: Object.freeze({
+        ...stageFeedback(stage, lastError, attempt),
+        category: analysisValidationCategory(lastError),
+      }),
+    }),
   };
   Object.defineProperty(currentRequest, LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT, {
     configurable: false,
@@ -1294,6 +1317,7 @@ async function callNormalizedStage({
   analysisDiagnosticOrigin = null,
 }) {
   let lastError = null;
+  let firstError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     throwIfAborted(signal);
     const currentRequest = analysisDiagnosticOrigin === null
@@ -1305,12 +1329,47 @@ async function callNormalizedStage({
       return await normalize(await invoke(currentRequest), currentRequest);
     } catch (error) {
       throwIfAborted(signal);
-      if (error?.code === "lattice-context") throw error;
+      const priorValidationCategory = attempt === 1 || firstError === null
+        ? "none"
+        : analysisValidationCategory(firstError);
+      if (error?.code === "lattice-context") {
+        if (analysisDiagnosticOrigin !== null) {
+          rememberAnalysisFailureDiagnostic(error, {
+            cause: "context-capacity",
+            validationCategory: "capacity",
+            priorValidationCategory,
+            origin: analysisDiagnosticOrigin,
+            attempt: `${attempt}`,
+          });
+        }
+        throw error;
+      }
       if (analysisDiagnosticOrigin !== null
-        && ["lattice-output-length", "provider_output_limit"].includes(error?.code)) throw error;
+        && ["lattice-output-length", "provider_output_limit"].includes(error?.code)) {
+        rememberAnalysisFailureDiagnostic(error, {
+          cause: "output-limit",
+          validationCategory: "capacity",
+          priorValidationCategory,
+          origin: analysisDiagnosticOrigin,
+          attempt: `${attempt}`,
+        });
+        throw error;
+      }
       if (!retryableStageFailure(error)) throw error;
+      if (firstError === null) firstError = error;
       lastError = error;
     }
+  }
+  if (analysisDiagnosticOrigin !== null && lastError !== null) {
+    rememberAnalysisFailureDiagnostic(lastError, {
+      cause: "host-validation",
+      validationCategory: analysisValidationCategory(lastError),
+      priorValidationCategory: attempts === 1 || firstError === null
+        ? "none"
+        : analysisValidationCategory(firstError),
+      origin: analysisDiagnosticOrigin,
+      attempt: `${attempts}`,
+    });
   }
   throw lastError ?? new LatticeProtocolError(`The ${stage} stage did not return a valid response.`);
 }
@@ -2932,6 +2991,11 @@ export async function runTextToLattice(value, options = {}) {
   if (typeof allowClarification !== "boolean") {
     throw new TypeError("Text to Lattice received an invalid clarification policy.");
   }
+  const onAnalysisTerminalDiagnostic = options.onAnalysisTerminalDiagnostic;
+  if (onAnalysisTerminalDiagnostic !== undefined
+    && typeof onAnalysisTerminalDiagnostic !== "function") {
+    throw new TypeError("Text to Lattice received an invalid terminal diagnostic observer.");
+  }
   const clarificationAnswers = clarificationAnswersPayload(options.clarificationAnswers);
   if (!allowClarification && clarificationAnswers.length > 0) {
     throw new TypeError("Text to Lattice cannot accept clarification answers when clarification is disabled.");
@@ -2954,22 +3018,45 @@ export async function runTextToLattice(value, options = {}) {
     protocol(analysisRevisionSerial <= 999, "Text to Lattice exhausted its bounded atomization revisions.");
     return `r${String(analysisRevisionSerial).padStart(3, "0")}`;
   };
-  const atomizationUnavailable = (passageId = "") => resultFromState({
-    source,
-    wordCount,
-    passages,
-    analyses,
-    finalCandidates: [],
-    finalReviews: [],
-    status: "unable-to-attempt",
-    verificationPasses: 0,
-    documentFindings: [Object.freeze({
-      id: "atomization-unavailable",
-      passageId,
-      atomIds: Object.freeze([]),
-      message: "The bounded atomization attempts did not produce a valid semantic graph. No source text was presented as transformed output.",
-    })],
-  });
+  const atomizationUnavailable = (passageId = "", error = null, analysisAtomLimit = null) => {
+    if (onAnalysisTerminalDiagnostic) {
+      const failure = analysisFailureDiagnostic(error);
+      const diagnostic = Object.freeze({
+        cause: failure?.cause ?? "planning",
+        validationCategory: failure?.validationCategory ?? "none",
+        priorValidationCategory: failure?.priorValidationCategory ?? "none",
+        origin: failure?.origin ?? "none",
+        attempt: failure?.attempt ?? "none",
+        atomLimit: Number.isSafeInteger(analysisAtomLimit)
+          && analysisAtomLimit >= 1
+          && analysisAtomLimit <= LATTICE_BATCH_ATOM_LIMIT
+          ? `${analysisAtomLimit}`
+          : "none",
+      });
+      try {
+        onAnalysisTerminalDiagnostic(diagnostic);
+      } catch {
+        // Qualification diagnostics are observational and cannot change the
+        // fail-closed transformation result.
+      }
+    }
+    return resultFromState({
+      source,
+      wordCount,
+      passages,
+      analyses,
+      finalCandidates: [],
+      finalReviews: [],
+      status: "unable-to-attempt",
+      verificationPasses: 0,
+      documentFindings: [Object.freeze({
+        id: "atomization-unavailable",
+        passageId,
+        atomIds: Object.freeze([]),
+        message: "The bounded atomization attempts did not produce a valid semantic graph. No source text was presented as transformed output.",
+      })],
+    });
+  };
 
   while (pendingBatches.length > 0) {
     throwIfAborted(signal);
@@ -3022,7 +3109,11 @@ export async function runTextToLattice(value, options = {}) {
         const rightPlan = analysisAtomSubplan(analysisAtomPlan, right);
         if (!leftPlan || !rightPlan
           || leftPlan.analysisAtomLimit + rightPlan.analysisAtomLimit > analysisAtomPlan.analysisAtomLimit) {
-          return atomizationUnavailable(batch.passages[0]?.id ?? "");
+          return atomizationUnavailable(
+            batch.passages[0]?.id ?? "",
+            error,
+            analysisAtomPlan.analysisAtomLimit,
+          );
         }
         analysisAtomPlans.set(left, leftPlan);
         analysisAtomPlans.set(right, rightPlan);
@@ -3045,10 +3136,18 @@ export async function runTextToLattice(value, options = {}) {
           const rightPlan = analysisAtomSubplan(splitPlan, right);
           if (!splitPlan || !leftPlan || !rightPlan
             || leftPlan.analysisAtomLimit + rightPlan.analysisAtomLimit > analysisAtomPlan.analysisAtomLimit) {
-            return atomizationUnavailable(sourcePassage?.id ?? "");
+            return atomizationUnavailable(
+              sourcePassage?.id ?? "",
+              error,
+              analysisAtomPlan.analysisAtomLimit,
+            );
           }
           if (!replacePassageWithChildren(passages, sourcePassage, children)) {
-            return atomizationUnavailable(sourcePassage?.id ?? "");
+            return atomizationUnavailable(
+              sourcePassage?.id ?? "",
+              error,
+              analysisAtomPlan.analysisAtomLimit,
+            );
           }
           analysisAtomPlans.set(left, leftPlan);
           analysisAtomPlans.set(right, rightPlan);
@@ -3057,7 +3156,11 @@ export async function runTextToLattice(value, options = {}) {
           pendingBatches.unshift(left, right);
           continue;
         }
-        return atomizationUnavailable(batch.passages[0]?.id ?? "");
+        return atomizationUnavailable(
+          batch.passages[0]?.id ?? "",
+          error,
+          analysisAtomPlan.analysisAtomLimit,
+        );
       }
       throw error;
     }

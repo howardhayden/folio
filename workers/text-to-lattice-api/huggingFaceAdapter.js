@@ -213,6 +213,7 @@ const ANALYSIS_WIRE_GUIDE = [
   "Atom tuple positions 0-6: [atom ID,kind,value,priority,preservation,evidence span IDs,link tuples].",
   "Link tuple positions 0-1: [relation,target atom ID]. Conformance assertion tuple positions 0-1: [criterion,evidence span IDs].",
   "Fill passage position 1 with the discourse function and position 4 with the rationale. Keep all free text concise. Do not put long field names, Markdown, explanations, or reasoning in assistant content.",
+  "Ordinary source spans use equivalent or implicit preservation; exact is available only when every selectable evidence record is literal. A rewrite uses empty arrays at passage positions 7, 8, and 9. Ambiguity IDs name emitted ambiguity or uncertainty atoms, and links name emitted non-self targets or supplied ledger atoms only.",
   "Use short local atom IDs and the smallest complete atom graph allowed by each fitted cap. Carry exact source text through cited evidence IDs instead of copying spans into values. Avoid redundant links and emit no extra prose.",
 ].join("\n");
 
@@ -549,7 +550,10 @@ function analysisEvidenceIdsForRequest(request, passages) {
   // Keep this fallback identical to sourcePassagesForModel so direct adapter
   // callers receive one fitted schema and prompt view of the same evidence.
   if (request?.sourceSpans === undefined) {
-    return passages.map(({ id }) => Object.freeze([`${id}:s01`]));
+    return passages.map(({ id }) => Object.freeze({
+      ids: Object.freeze([`${id}:s01`]),
+      literalIds: Object.freeze([]),
+    }));
   }
   if (!Array.isArray(request.sourceSpans)) {
     throw new TypeError("The Lattice provider received invalid analysis evidence.");
@@ -568,7 +572,12 @@ function analysisEvidenceIdsForRequest(request, passages) {
     )) || new Set(ids).size !== ids.length) {
       throw new TypeError("The Lattice provider received invalid analysis evidence.");
     }
-    groups.set(group.passageId, Object.freeze(ids));
+    groups.set(group.passageId, Object.freeze({
+      ids: Object.freeze(ids),
+      literalIds: Object.freeze(records
+        .filter((span) => span?.kind === "literal")
+        .map((span) => span.id)),
+    }));
   }
   if (groups.size !== passages.length
     || passages.some(({ id }, index) => (
@@ -623,7 +632,11 @@ function fittedAnalysisTextLimit(passage, minimum, maximum, multiplier) {
 
 function fitAnalysisRequest(request) {
   const passages = analysisPassagesForRequest(request);
-  const evidenceIdsByPassage = analysisEvidenceIdsForRequest(request, passages);
+  const evidenceByPassage = analysisEvidenceIdsForRequest(request, passages);
+  const evidenceIdsByPassage = Object.freeze(evidenceByPassage.map(({ ids }) => ids));
+  const literalEvidenceIdsByPassage = Object.freeze(
+    evidenceByPassage.map(({ literalIds }) => literalIds),
+  );
   const requestedAtomLimit = analysisAtomLimitForRequest(request);
   const atomPlan = analysisAtomAllocations(
     passages,
@@ -634,6 +647,7 @@ function fitAnalysisRequest(request) {
     request: Object.freeze({ ...request, analysisAtomLimit: atomPlan.analysisAtomLimit }),
     passages,
     evidenceIdsByPassage,
+    literalEvidenceIdsByPassage,
     analysisAtomLimit: atomPlan.analysisAtomLimit,
     atomAllocations: atomPlan.allocations,
   });
@@ -641,7 +655,8 @@ function fitAnalysisRequest(request) {
 
 function analysisWireSchemaForFit(fit) {
   const {
-    request, passages, evidenceIdsByPassage, analysisAtomLimit, atomAllocations,
+    request, passages, evidenceIdsByPassage, literalEvidenceIdsByPassage,
+    analysisAtomLimit, atomAllocations,
   } = fit;
   const visibleLedgerIds = (request.documentLedger ?? []).map(({ id }) => id);
   if (visibleLedgerIds.some((id) => typeof id !== "string" || !id || id.length > 180)) {
@@ -653,6 +668,7 @@ function analysisWireSchemaForFit(fit) {
   );
   const passageSchemas = passages.map((passage, index) => {
     const evidenceIds = evidenceIdsByPassage[index];
+    const literalEvidenceIds = literalEvidenceIdsByPassage[index];
     const atomLimit = atomAllocations[index];
     const discourseLimit = fittedAnalysisTextLimit(passage, 80, 160, 1);
     const rationaleLimit = fittedAnalysisTextLimit(passage, 120, 240, 1.75);
@@ -666,6 +682,14 @@ function analysisWireSchemaForFit(fit) {
       evidenceIds,
       3,
     );
+    const preservationSchema = literalEvidenceIds.length === evidenceIds.length
+      ? ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[4]
+      : Object.freeze({
+        ...ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[4],
+        enum: Object.freeze(
+          ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[4].enum.filter((value) => value !== "exact"),
+        ),
+      });
     const linkSchema = fixedTuple(
       ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[0],
       boundedString(ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[1], linkTargetLimit),
@@ -675,7 +699,7 @@ function analysisWireSchemaForFit(fit) {
       ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[1],
       boundedString(ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[2], atomValueLimit),
       ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[3],
-      ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[4],
+      preservationSchema,
       evidenceSchema,
       Object.freeze({
         ...ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[6],

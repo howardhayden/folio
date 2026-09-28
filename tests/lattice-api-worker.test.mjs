@@ -50,6 +50,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_EXPIRES_AT_BINDING,
   createLatticeApiWorker as createProductionLatticeApiWorker,
   qualificationWindowAllowsRequests,
@@ -130,6 +131,33 @@ function validLatticeResult(text = "Review the document, then save the approved 
     verificationPasses: 1,
     findings: Object.freeze([]),
     questions: Object.freeze([]),
+  });
+}
+
+function unableLatticeResult(
+  findingId = "atomization-unavailable",
+  message = "The passage could not be atomized safely.",
+) {
+  return Object.freeze({
+    ...validLatticeResult(),
+    status: "unable-to-attempt",
+    text: null,
+    primaryLayer: null,
+    layerId: null,
+    layerLabel: "Undetermined",
+    layersUsed: Object.freeze([]),
+    revisedPassageCount: 0,
+    retainedPassageCount: 0,
+    batchCount: 0,
+    verificationPasses: 0,
+    findings: Object.freeze([
+      Object.freeze({
+        id: findingId,
+        passageId: "p001",
+        atomIds: Object.freeze([]),
+        message,
+      }),
+    ]),
   });
 }
 
@@ -1260,6 +1288,7 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
     protocolFeedback: Object.freeze({
       stage: "analysis",
       attempt: 2,
+      category: "evidence",
       issue: "PRIVATE-HOST-VALIDATION-ISSUE",
       instruction: "Return every named field from the host schema.",
     }),
@@ -1271,6 +1300,14 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
     Object.freeze({ ...request, protocolFeedback: undefined }),
     { responseDialect: "compact-wire-v1" },
   );
+  const privateCategory = "PRIVATE-HOST-CATEGORY-MUST-NOT-CROSS";
+  const invalidCategoryMessages = analysisMessages(Object.freeze({
+    ...request,
+    protocolFeedback: Object.freeze({
+      ...request.protocolFeedback,
+      category: privateCategory,
+    }),
+  }), { responseDialect: "compact-wire-v1" });
   const host = JSON.stringify(defaultHostMessages);
   const compact = JSON.stringify(compactMessages);
   const inertPayload = (messages) => {
@@ -1288,6 +1325,8 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
   assert.match(compact, /private d\/p\/q wire layout/u);
   assert.match(compact, /private-analysis-wire-invalid/u);
   assert.match(compact, /exactly one p tuple for every supplied passage ID|exact tuple widths|covering every source span|valid link targets|Keep q empty/iu);
+  assert.match(compact, /Closed correction category: evidence/u);
+  assert.match(compact, /exact only with exclusively literal evidence/u);
   assert.doesNotMatch(compact, /Return the analysis schema\.|PRIVATE-HOST-VALIDATION-ISSUE|every named field|Return questions empty|affectedAtomIds|conformanceEvidenceSpanIds|Host question|Host answer/iu);
   assert.equal(inertPayload(compactMessages).retry, "private-analysis-wire-invalid");
   assert.equal(Object.hasOwn(inertPayload(compactMessages), "protocolFeedback"), false);
@@ -1295,6 +1334,9 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
   assert.doesNotMatch(initialCompactMessages[0].content, /one bounded correction attempt/u);
   assert.match(compactMessages[0].content, /one bounded correction attempt/u);
   assert.doesNotMatch(compactMessages[1].content, /one bounded correction attempt/u);
+  assert.match(invalidCategoryMessages[0].content, /Closed correction category: other/u);
+  assert.doesNotMatch(JSON.stringify(invalidCategoryMessages), new RegExp(privateCategory, "u"));
+  assert.deepEqual(inertPayload(invalidCategoryMessages), inertPayload(compactMessages));
   assert.throws(
     () => analysisMessages(request, { responseDialect: "unknown" }),
     /invalid analysis response dialect/u,
@@ -1433,6 +1475,7 @@ test("the adapter uses strict JSON Schema analysis and a named certification too
     atomTuple[2].maxLength,
     Math.min(192, Math.max(96, analysisRequest.batch.passages[0].text.length)),
   );
+  assert.deepEqual(atomTuple[4].enum, ["equivalent", "implicit"]);
   assert.equal(atomTuple[5].items.maxLength, 160);
   assert.deepEqual(atomTuple[5].items.enum, [`${analysisRequest.batch.passages[0].id}:s01`]);
   assert.equal(atomTuple[5].maxItems, 1);
@@ -1579,16 +1622,23 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
     ...skewedBase,
     analysisAtomLimit: 4,
   });
+  const allLiteralBase = minimalAnalysisRequest("https://example.com");
+  const allLiteral = Object.freeze({
+    ...allLiteralBase,
+    analysisAtomLimit: 4,
+    sourceSpans: latticeSourceSpansForBatch(allLiteralBase.batch),
+  });
 
   await adapter.analyze(canary);
   await adapter.analyze(splitCanaryChild);
   await adapter.analyze(oneWord);
   await adapter.analyze(multipassage);
   await adapter.analyze(skewed);
+  await adapter.analyze(allLiteral);
 
   assert.deepEqual(
     bodies.map(({ max_tokens: maxTokens }) => maxTokens),
-    [3_072, 3_072, 3_072, 3_072, 3_072],
+    [3_072, 3_072, 3_072, 3_072, 3_072, 3_072],
   );
   const schemas = bodies.map(({ response_format: responseFormat }) => (
     responseFormat.json_schema.schema
@@ -1607,6 +1657,14 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
       canary.sourceSpans[0].spans.map(({ id }) => id),
       splitCanaryChild.sourceSpans[0].spans.map(({ id }) => id),
       oneWord.sourceSpans[0].spans.map(({ id }) => id),
+    ],
+  );
+  assert.deepEqual(
+    passageTuples.slice(0, 3).map(([tuple]) => tuple[5].items.prefixItems[4].enum),
+    [
+      ["equivalent", "implicit"],
+      ["equivalent", "implicit"],
+      ["equivalent", "implicit"],
     ],
   );
   assert.deepEqual(
@@ -1643,6 +1701,10 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
     [[firstPassage.id], [secondPassage.id]],
   );
   assert.deepEqual(multiTuples.map((tuple) => tuple[5].maxItems), [1, 2]);
+  assert.deepEqual(
+    multiTuples.map((tuple) => tuple[5].items.prefixItems[4].enum),
+    [["equivalent", "implicit"], ["equivalent", "implicit"]],
+  );
   assert.equal(multiTuples.reduce((sum, tuple) => sum + tuple[5].maxItems, 0), 3);
   assert.deepEqual(
     multiTuples.map((tuple) => tuple[5].items.prefixItems[6].maxItems),
@@ -1663,6 +1725,10 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
   assert.equal(multiTuples[1][7].maxItems, 5);
   assert.equal(multiTuples[1][9].maxItems, 5);
   assert.deepEqual(passageTuples[4].map((tuple) => tuple[5].maxItems), [2, 2]);
+  assert.deepEqual(
+    passageTuples[5][0][5].items.prefixItems[4].enum,
+    ["exact", "equivalent", "implicit"],
+  );
   assert.doesNotMatch(JSON.stringify(schemas[2]), /"maxItems":(?:24|60)/u);
 });
 
@@ -2640,7 +2706,215 @@ test("typed provider failures map to exact flat public errors with a bounded 429
   }
 });
 
-test("the v2 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v3");
+  const diagnosticHeaders = {
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
+      LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  };
+  const activeQualification = {
+    HF_TOKEN: "server_only_token",
+    [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z",
+  };
+  const terminalTrace = Object.freeze({
+    cause: "host-validation",
+    validationCategory: "evidence",
+    priorValidationCategory: "passage-coverage",
+    origin: "split",
+    attempt: "2",
+    atomLimit: "6",
+  });
+  const expectedDiagnostic = {
+    ...terminalTrace,
+    callOrdinal: "4",
+  };
+  const makeWorker = ({
+    result = unableLatticeResult(),
+    trace = terminalTrace,
+    used = 4,
+    callbackCount = 1,
+    throwAfterDiagnostic = false,
+  } = {}) => createLatticeApiWorker({
+    createAdapter: () => Object.freeze({
+      completionCapacity: () => Object.freeze({
+        used,
+        limit: LATTICE_PROVIDER_CALL_LIMIT,
+        remaining: LATTICE_PROVIDER_CALL_LIMIT - used,
+      }),
+    }),
+    runTextToLatticeImpl: async (_text, options) => {
+      for (let index = 0; index < callbackCount; index += 1) {
+        options.onAnalysisTerminalDiagnostic?.(trace);
+      }
+      if (throwAfterDiagnostic) {
+        throw new LatticeProviderError("provider_timeout", "private timeout", {
+          qualificationStage: "analysis",
+          qualificationCallOrdinal: 4,
+          qualificationAnalysisOrigin: "split",
+          qualificationAnalysisAttempt: "2",
+          qualificationPriorValidationCategory: "passage-coverage",
+        });
+      }
+      return result;
+    },
+  });
+
+  const response = await makeWorker().fetch(
+    apiRequest(validPayload, { headers: diagnosticHeaders }),
+    activeQualification,
+  );
+  assert.equal(response.status, 200);
+  const body = await json(response);
+  assert.deepEqual(body, { result: unableLatticeResult(), schema_version: 1 });
+  for (const [field, header] of Object.entries(
+    LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
+  )) {
+    assert.equal(response.headers.get(header), expectedDiagnostic[field], field);
+  }
+  for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) {
+    assert.equal(response.headers.has(header), false, header);
+  }
+  assert.equal(JSON.stringify(body).includes("host-validation"), false);
+  assert.equal(JSON.stringify(body).includes("passage-coverage"), false);
+
+  const planningTrace = Object.freeze({
+    cause: "planning",
+    validationCategory: "none",
+    priorValidationCategory: "none",
+    origin: "none",
+    attempt: "none",
+    atomLimit: "none",
+  });
+  const planningResponse = await makeWorker({ trace: planningTrace, used: 0 }).fetch(
+    apiRequest(validPayload, { headers: diagnosticHeaders }),
+    activeQualification,
+  );
+  assert.equal(planningResponse.status, 200);
+  for (const [field, header] of Object.entries(
+    LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
+  )) {
+    assert.equal(planningResponse.headers.get(header), {
+      ...planningTrace,
+      callOrdinal: "0",
+    }[field], `planning: ${field}`);
+  }
+
+  const privateMarker = "PRIVATE-TERMINAL-TRACE-MUST-NOT-CROSS";
+  const invalidTraceCases = [
+    ["planning validation", { ...planningTrace, validationCategory: "evidence" }],
+    ["planning prior validation", { ...planningTrace, priorValidationCategory: "evidence" }],
+    ["planning origin", { ...planningTrace, origin: "split" }],
+    ["planning attempt", { ...planningTrace, attempt: "1" }],
+    ["non-planning validation", { ...terminalTrace, validationCategory: "none" }],
+    ["non-planning origin", { ...terminalTrace, origin: "none" }],
+    ["non-planning attempt", { ...terminalTrace, attempt: "none" }],
+    ["non-planning atom limit", { ...terminalTrace, atomLimit: "none" }],
+    ["first-attempt prior validation", {
+      ...terminalTrace,
+      cause: "output-limit",
+      validationCategory: "capacity",
+      attempt: "1",
+    }],
+    ["second-attempt missing prior validation", {
+      ...terminalTrace,
+      priorValidationCategory: "none",
+    }],
+    ["first-attempt host validation", {
+      ...terminalTrace,
+      attempt: "1",
+      priorValidationCategory: "none",
+    }],
+    ["output-limit validation", { ...terminalTrace, cause: "output-limit" }],
+    ["context-capacity validation", { ...terminalTrace, cause: "context-capacity" }],
+  ];
+  const cases = [
+    [
+      "qualified runtime",
+      makeWorker(),
+      { HF_TOKEN: "server_only_token" },
+      diagnosticHeaders,
+      200,
+    ],
+    ["unmarked qualification", makeWorker(), activeQualification, {}, 200],
+    [
+      "wrong version",
+      makeWorker(),
+      activeQualification,
+      { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v2" },
+      200,
+    ],
+    [
+      "non-analysis unable result",
+      makeWorker({ result: unableLatticeResult("generation-unavailable") }),
+      activeQualification,
+      diagnosticHeaders,
+      200,
+    ],
+    [
+      "translated result",
+      makeWorker({ result: validLatticeResult() }),
+      activeQualification,
+      diagnosticHeaders,
+      200,
+    ],
+    [
+      "hostile trace",
+      makeWorker({
+        trace: Object.freeze({
+          ...terminalTrace,
+          validationCategory: privateMarker,
+        }),
+      }),
+      activeQualification,
+      diagnosticHeaders,
+      200,
+    ],
+    [
+      "out-of-range ordinal",
+      makeWorker({ used: LATTICE_PROVIDER_CALL_LIMIT + 1 }),
+      activeQualification,
+      diagnosticHeaders,
+      200,
+    ],
+    [
+      "repeated callback",
+      makeWorker({ callbackCount: 2 }),
+      activeQualification,
+      diagnosticHeaders,
+      200,
+    ],
+    [
+      "provider error",
+      makeWorker({ throwAfterDiagnostic: true }),
+      activeQualification,
+      diagnosticHeaders,
+      504,
+    ],
+    ...invalidTraceCases.map(([name, trace]) => [
+      name,
+      makeWorker({ trace: Object.freeze(trace) }),
+      activeQualification,
+      diagnosticHeaders,
+      200,
+    ]),
+  ];
+  for (const [name, worker, env, headers, status] of cases) {
+    await contextTest.test(name, async () => {
+      const caseResponse = await worker.fetch(apiRequest(validPayload, { headers }), env);
+      assert.equal(caseResponse.status, status);
+      const serializedBody = await caseResponse.text();
+      for (const header of Object.values(
+        LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
+      )) {
+        assert.equal(caseResponse.headers.has(header), false, `${name}: ${header}`);
+      }
+      assert.equal(JSON.stringify([...caseResponse.headers]).includes(privateMarker), false);
+      assert.equal(serializedBody.includes(privateMarker), false);
+    });
+  }
+});
+
+test("the v3 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -2668,7 +2942,7 @@ test("the v2 provider diagnostic is opt-in and confined to an active qualificati
       "wrong diagnostic version",
       createFailureWorker(),
       activeQualification,
-      { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v1" },
+      { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v2" },
     ],
   ];
   for (const [name, worker, env, headers] of cases) {
