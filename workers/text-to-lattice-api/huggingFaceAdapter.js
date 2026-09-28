@@ -6,6 +6,7 @@ import {
   LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS,
   LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
   LATTICE_BATCH_ATOM_LIMIT,
+  LATTICE_CONFORMANCE_CRITERIA,
   LATTICE_FITTED_ANALYSIS_CONTEXT,
   REANALYSIS_SCHEMA,
   VERIFICATION_SCHEMA,
@@ -15,6 +16,11 @@ import {
   repairMessages,
   verificationMessages,
 } from "../../app/resume/lattice/promptContract.js";
+import {
+  LITERAL_BATCH_SPAN_LIMIT,
+  MODEL_SOURCE_SPAN_LIMIT,
+  SOURCE_SPAN_LIMIT,
+} from "../../app/resume/lattice/segments.js";
 
 export const HUGGING_FACE_CHAT_COMPLETIONS_URL =
   "https://router.huggingface.co/v1/chat/completions";
@@ -118,6 +124,11 @@ const PROVIDER_JSON_CONTENT_TYPE = /^application\/json(?:\s*;.*)?$/iu;
 const ANALYSIS_LOCAL_ID_CHARACTER_LIMIT = 8;
 const ANALYSIS_CONFORMANCE_ITEM_LIMIT = 5;
 const ANALYSIS_LINK_ITEM_LIMIT = 4;
+// Certification identifiers are host-generated ASCII. Bounding the complete
+// worst-case wire below the 520-token cap prevents an echoed binding record
+// from consuming the certifier's entire response budget.
+const CERTIFICATION_WIRE_CHARACTER_LIMIT = 440;
+const CERTIFICATION_WIRE_ID_PATTERN = /^[A-Za-z0-9:._-]+$/u;
 
 function fixedTuple(...items) {
   return Object.freeze({
@@ -221,6 +232,127 @@ function analysisWireMessages(request) {
   return analysisMessages(request, { responseDialect: "compact-wire-v1" });
 }
 
+const INTERNAL_VERIFICATION_PASSAGE_SCHEMA = VERIFICATION_SCHEMA.properties.passages.items;
+const INTERNAL_VERIFICATION_CRITERION_SCHEMA =
+  INTERNAL_VERIFICATION_PASSAGE_SCHEMA.properties.criterionChecks.items;
+const INTERNAL_VERIFICATION_ISSUE_SCHEMA = VERIFICATION_SCHEMA.properties.issues.items;
+const VERIFICATION_DECISIONS = Object.freeze([...VERIFICATION_SCHEMA.properties.decision.enum]);
+const VERIFICATION_GATES = Object.freeze([...VERIFICATION_SCHEMA.properties.failedGates.items.enum]);
+const VERIFICATION_PASSAGE_CHECKS = Object.freeze([
+  ...INTERNAL_VERIFICATION_PASSAGE_SCHEMA.properties.failedChecks.items.enum,
+]);
+const VERIFICATION_LAYERS = Object.freeze([
+  ...INTERNAL_VERIFICATION_PASSAGE_SCHEMA.properties.independentLayer.enum,
+]);
+const VERIFICATION_ISSUE_CHECKS = Object.freeze([
+  ...INTERNAL_VERIFICATION_ISSUE_SCHEMA.properties.check.enum,
+]);
+const WIRE_MASK_PLACEHOLDER_SCHEMA = Object.freeze({ type: "string", minLength: 1 });
+function wireBitMaskSchema(width, { requireSelection = false } = {}) {
+  if (!Number.isSafeInteger(width) || width < 1) {
+    throw new TypeError("The Lattice provider received an invalid wire-mask width.");
+  }
+  return Object.freeze({
+    type: "string",
+    minLength: width,
+    maxLength: width,
+    pattern: requireSelection ? `^(?=[01]*1)[01]{${width}}$` : `^[01]{${width}}$`,
+  });
+}
+const VERIFICATION_WIRE_CRITERION_SCHEMA = fixedTuple(
+  INTERNAL_VERIFICATION_CRITERION_SCHEMA.properties.passed,
+  WIRE_MASK_PLACEHOLDER_SCHEMA,
+);
+const VERIFICATION_WIRE_PASSAGE_SCHEMA = fixedTuple(
+  WIRE_MASK_PLACEHOLDER_SCHEMA,
+  Object.freeze({ type: "boolean" }),
+  WIRE_MASK_PLACEHOLDER_SCHEMA,
+  wireBitMaskSchema(VERIFICATION_PASSAGE_CHECKS.length),
+  Object.freeze({ type: "integer", minimum: 0, maximum: VERIFICATION_LAYERS.length - 1 }),
+  WIRE_MASK_PLACEHOLDER_SCHEMA,
+  WIRE_MASK_PLACEHOLDER_SCHEMA,
+  fixedTuple(
+    INTERNAL_VERIFICATION_PASSAGE_SCHEMA.properties.conformanceConfirmed,
+    WIRE_MASK_PLACEHOLDER_SCHEMA,
+    Object.freeze({ type: "array", items: VERIFICATION_WIRE_CRITERION_SCHEMA }),
+  ),
+);
+const VERIFICATION_WIRE_ISSUE_SCHEMA = fixedTuple(
+  Object.freeze({ type: "integer", minimum: 0, maximum: VERIFICATION_ISSUE_CHECKS.length - 1 }),
+  Object.freeze({
+    type: "integer",
+    minimum: -1,
+    maximum: VERIFICATION_SCHEMA.properties.passages.maxItems - 1,
+  }),
+);
+const VERIFICATION_WIRE_SCHEMA = Object.freeze({
+  type: "object",
+  additionalProperties: false,
+  properties: Object.freeze({
+    d: Object.freeze({ type: "integer", minimum: 0, maximum: VERIFICATION_DECISIONS.length - 1 }),
+    g: wireBitMaskSchema(VERIFICATION_GATES.length),
+    p: Object.freeze({
+      ...VERIFICATION_SCHEMA.properties.passages,
+      items: VERIFICATION_WIRE_PASSAGE_SCHEMA,
+    }),
+    i: Object.freeze({
+      ...VERIFICATION_SCHEMA.properties.issues,
+      items: VERIFICATION_WIRE_ISSUE_SCHEMA,
+    }),
+  }),
+  required: Object.freeze(["d", "g", "p", "i"]),
+});
+const VERIFICATION_WIRE_GUIDE = [
+  "Return one minified private verification instance using only the mandatory d/g/p/i layout; never echo the schema.",
+  `Root d is the zero-based decision index [${VERIFICATION_DECISIONS.join(",")}]. Root g is the ${VERIFICATION_GATES.length}-character failed-gate bit string in this order: [${VERIFICATION_GATES.join(",")}].`,
+  "Root p contains one passage tuple per supplied passage in supplied order. Root i contains only necessary [zero-based failed-check index,zero-based passage index] tuples; passage index -1 means document-wide.",
+  "Passage tuple positions 0-7: [atom-status digits,unsupported-meaning boolean,unmodeled-span bit string,failed-check bit string,independent-layer index,layer-evidence atom bit string,layer-evidence span bit string,conformance tuple].",
+  `Atom-status digits use supplied atom order: 1 checked, 2 missing, 0 unaccounted. Failed-check mask order: [${VERIFICATION_PASSAGE_CHECKS.join(",")}]. Layer indices are zero-based in this order: [${VERIFICATION_LAYERS.join(",")}].`,
+  "Every bit string uses supplied order and exact fitted width; 1 selects an item. The conformance tuple is [confirmed,conformance-span bit string,criterion tuples], with each criterion tuple [passed,evidence-span bit string] in the fitted criterion order. Rewrites use [false,all-zero span mask,[]].",
+  "The unmodeled-span mask selects at most 12 positions. Every passed criterion selects at least one evidence bit. Root i contains no duplicate tuple.",
+  `Issue check index order: [${VERIFICATION_ISSUE_CHECKS.join(",")}]. Keep i empty when g or a passage tuple already records the failure. Emit no source identifiers, long-form host field names, explanations, schema text, or whitespace after the closing brace.`,
+].join("\n");
+
+function verificationWireMessages(request) {
+  return verificationMessages(request, { responseDialect: "compact-wire-v1" });
+}
+
+const CERTIFICATION_CHECK_NAMES = Object.freeze([
+  ...DOCUMENT_CERTIFICATION_SCHEMA.properties.checks.required,
+]);
+const CERTIFICATION_DECISIONS = Object.freeze([
+  ...DOCUMENT_CERTIFICATION_SCHEMA.properties.decision.enum,
+]);
+const CERTIFICATION_WIRE_CHECKS_SCHEMA = fixedTuple(
+  ...CERTIFICATION_CHECK_NAMES.map(() => Object.freeze({ type: "boolean" })),
+);
+const CERTIFICATION_WIRE_SCHEMA = Object.freeze({
+  type: "object",
+  additionalProperties: false,
+  properties: Object.freeze({
+    c: DOCUMENT_CERTIFICATION_SCHEMA.properties.certificateId,
+    o: DOCUMENT_CERTIFICATION_SCHEMA.properties.obligationIds,
+    d: Object.freeze({ type: "integer", minimum: 0, maximum: CERTIFICATION_DECISIONS.length - 1 }),
+    k: CERTIFICATION_WIRE_CHECKS_SCHEMA,
+    i: Object.freeze({
+      type: "array",
+      maxItems: DOCUMENT_CERTIFICATION_SCHEMA.properties.issues.maxItems,
+      items: Object.freeze({ type: "integer", minimum: 0, maximum: CERTIFICATION_CHECK_NAMES.length - 1 }),
+    }),
+  }),
+  required: Object.freeze(["c", "o", "d", "k", "i"]),
+});
+const CERTIFICATION_WIRE_GUIDE = [
+  "Return one minified private document-certification instance using only the mandatory c/o/d/k/i layout; never echo the schema.",
+  `Root c is the exact certificate ID, o contains every exact obligation ID once in supplied order, d is the zero-based decision index [${CERTIFICATION_DECISIONS.join(",")}], k is the fixed boolean check tuple, and i lists only zero-based failed-check indices.`,
+  `Check tuple order: [${CERTIFICATION_CHECK_NAMES.join(",")}].`,
+  "Root i contains no duplicate index, and every listed index points to false in k. Keep i empty on acceptance. Emit no long-form host field names, explanations, issue prose, schema text, or whitespace after the closing brace.",
+].join("\n");
+
+function certificationWireMessages(request) {
+  return documentCertificationMessages(request, { responseDialect: "compact-wire-v1" });
+}
+
 const STAGES = Object.freeze({
   analysis: Object.freeze({
     role: "generator",
@@ -244,22 +376,22 @@ const STAGES = Object.freeze({
   }),
   verification: Object.freeze({
     role: "verifier",
-    schema: VERIFICATION_SCHEMA,
-    schemaName: "lattice_verification_v1",
+    schema: VERIFICATION_WIRE_SCHEMA,
+    schemaName: "lattice_verification_wire_v1",
     responseFormat: "json_object",
-    responseGuide: "Return one complete verification record as the JSON object.",
-    messages: verificationMessages,
+    responseGuide: VERIFICATION_WIRE_GUIDE,
+    messages: verificationWireMessages,
     maxTokens: 1_200,
     temperature: 0,
     topP: 1,
   }),
   certification: Object.freeze({
     role: "verifier",
-    schema: DOCUMENT_CERTIFICATION_SCHEMA,
-    schemaName: "lattice_certification_v1",
+    schema: CERTIFICATION_WIRE_SCHEMA,
+    schemaName: "lattice_certification_wire_v1",
     responseFormat: "json_object",
-    responseGuide: "Return one complete document-certification record as the JSON object.",
-    messages: documentCertificationMessages,
+    responseGuide: CERTIFICATION_WIRE_GUIDE,
+    messages: certificationWireMessages,
     maxTokens: 520,
     temperature: 0,
     topP: 1,
@@ -534,7 +666,9 @@ function forcedToolMessages(messages, toolName) {
 
 function analysisPassagesForRequest(request) {
   const passages = request?.batch?.passages;
-  if (!Array.isArray(passages) || passages.length === 0 || passages.some((passage) => (
+  if (!Array.isArray(passages) || passages.length === 0
+    || passages.length > REANALYSIS_SCHEMA.properties.passages.maxItems
+    || passages.some((passage) => (
     !record(passage) || typeof passage.id !== "string" || !passage.id || passage.id.length > 120
     || typeof passage.text !== "string" || passage.text.length === 0
   )) || new Set(passages.map((passage) => passage.id)).size !== passages.length) {
@@ -760,6 +894,186 @@ function analysisWireSchemaForFit(fit) {
   });
 }
 
+function verificationPlansForRequest(request, passages, evidenceByPassage) {
+  const plans = request?.analysis?.passages;
+  if (!Array.isArray(plans) || plans.length !== passages.length) {
+    throw new TypeError("The Lattice provider received invalid verification plans.");
+  }
+  const fitted = Object.freeze(plans.map((plan, index) => {
+    const atoms = plan?.atoms;
+    const atomIds = atoms?.map((atom) => atom?.id);
+    const evidenceIds = new Set(evidenceByPassage[index].ids);
+    const expectedCriteria = plan?.disposition === "retain-if-conformant"
+      ? [
+        ...LATTICE_CONFORMANCE_CRITERIA.universal,
+        ...(LATTICE_CONFORMANCE_CRITERIA[plan?.layer] ?? []),
+      ]
+      : [];
+    if (!record(plan) || plan.passageId !== passages[index].id
+      || !INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.layer.enum.includes(plan.layer)
+      || !INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.disposition.enum.includes(plan.disposition)
+      || !Array.isArray(atomIds) || atomIds.length === 0
+      || atomIds.length > INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.atoms.maxItems
+      || atomIds.some((id) => typeof id !== "string" || !id || id.length > 160)
+      || new Set(atomIds).size !== atomIds.length
+      || atoms.some((atom) => !record(atom)
+        || !Array.isArray(atom.evidenceSpanIds)
+        || atom.evidenceSpanIds.length === 0
+        || atom.evidenceSpanIds.some((id) => !evidenceIds.has(id)))
+      || !Array.isArray(plan.conformanceCriteria)
+      || new Set(plan.conformanceCriteria).size !== plan.conformanceCriteria.length
+      || plan.conformanceCriteria.some((criterion) => (
+        !INTERNAL_VERIFICATION_CRITERION_SCHEMA.properties.criterion.enum.includes(criterion)
+      ))
+      || plan.conformanceCriteria.length !== expectedCriteria.length
+      || expectedCriteria.some((criterion) => !plan.conformanceCriteria.includes(criterion))) {
+      throw new TypeError("The Lattice provider received an invalid verification plan.");
+    }
+    return Object.freeze({
+      passageId: plan.passageId,
+      layer: plan.layer,
+      disposition: plan.disposition,
+      atomIds: Object.freeze(atomIds),
+      conformanceCriteria: Object.freeze([...plan.conformanceCriteria]),
+    });
+  }));
+  if (fitted.reduce((sum, plan) => sum + plan.atomIds.length, 0) > LATTICE_BATCH_ATOM_LIMIT) {
+    throw new TypeError("The Lattice provider received an oversized verification atom plan.");
+  }
+  return fitted;
+}
+
+function fitVerificationRequest(request) {
+  const passages = analysisPassagesForRequest(request);
+  const evidenceByPassage = analysisEvidenceIdsForRequest(request, passages);
+  const maximumEvidence = (SOURCE_SPAN_LIMIT * passages.length) + (2 * LITERAL_BATCH_SPAN_LIMIT);
+  if (evidenceByPassage.some(({ ids }) => ids.length > MODEL_SOURCE_SPAN_LIMIT)
+    || evidenceByPassage.reduce((sum, { ids }) => sum + ids.length, 0) > maximumEvidence) {
+    throw new TypeError("The Lattice provider received oversized verification evidence.");
+  }
+  const plans = verificationPlansForRequest(request, passages, evidenceByPassage);
+  return Object.freeze({ passages, evidenceByPassage, plans });
+}
+
+function verificationWireSchemaForFit(fit) {
+  const passageSchemas = fit.passages.map((_passage, index) => {
+    const plan = fit.plans[index];
+    const atomCount = plan.atomIds.length;
+    const evidenceCount = fit.evidenceByPassage[index].ids.length;
+    const rewrite = plan.disposition === "rewrite";
+    const criteria = rewrite ? Object.freeze([]) : plan.conformanceCriteria;
+    const evidenceMask = wireBitMaskSchema(evidenceCount);
+    const criterionSchemas = criteria.map(() => fixedTuple(
+      VERIFICATION_WIRE_CRITERION_SCHEMA.prefixItems[0],
+      evidenceMask,
+    ));
+    const conformanceSchema = fixedTuple(
+      rewrite
+        ? Object.freeze({ type: "boolean", enum: Object.freeze([false]) })
+        : VERIFICATION_WIRE_PASSAGE_SCHEMA.prefixItems[7].prefixItems[0],
+      rewrite
+        ? Object.freeze({ ...evidenceMask, enum: Object.freeze(["0".repeat(evidenceCount)]) })
+        : evidenceMask,
+      Object.freeze({
+        type: "array",
+        minItems: criterionSchemas.length,
+        maxItems: criterionSchemas.length,
+        prefixItems: Object.freeze(criterionSchemas),
+      }),
+    );
+    return fixedTuple(
+      Object.freeze({
+        type: "string",
+        minLength: atomCount,
+        maxLength: atomCount,
+        pattern: `^[012]{${atomCount}}$`,
+      }),
+      VERIFICATION_WIRE_PASSAGE_SCHEMA.prefixItems[1],
+      evidenceMask,
+      VERIFICATION_WIRE_PASSAGE_SCHEMA.prefixItems[3],
+      VERIFICATION_WIRE_PASSAGE_SCHEMA.prefixItems[4],
+      wireBitMaskSchema(atomCount, { requireSelection: true }),
+      wireBitMaskSchema(evidenceCount, { requireSelection: true }),
+      conformanceSchema,
+    );
+  });
+  const issueSchema = fixedTuple(
+    VERIFICATION_WIRE_ISSUE_SCHEMA.prefixItems[0],
+    Object.freeze({
+      ...VERIFICATION_WIRE_ISSUE_SCHEMA.prefixItems[1],
+      maximum: fit.passages.length - 1,
+    }),
+  );
+  return Object.freeze({
+    ...VERIFICATION_WIRE_SCHEMA,
+    properties: Object.freeze({
+      ...VERIFICATION_WIRE_SCHEMA.properties,
+      p: Object.freeze({
+        type: "array",
+        minItems: passageSchemas.length,
+        maxItems: passageSchemas.length,
+        prefixItems: Object.freeze(passageSchemas),
+      }),
+      i: Object.freeze({
+        ...VERIFICATION_WIRE_SCHEMA.properties.i,
+        items: issueSchema,
+      }),
+    }),
+  });
+}
+
+function fitCertificationRequest(request) {
+  const certificateId = request?.certificateId;
+  const obligationIds = request?.obligationIds;
+  if (typeof certificateId !== "string" || !certificateId
+    || certificateId.length > DOCUMENT_CERTIFICATION_SCHEMA.properties.certificateId.maxLength
+    || !CERTIFICATION_WIRE_ID_PATTERN.test(certificateId)
+    || !Array.isArray(obligationIds)
+    || obligationIds.length < DOCUMENT_CERTIFICATION_SCHEMA.properties.obligationIds.minItems
+    || obligationIds.length > DOCUMENT_CERTIFICATION_SCHEMA.properties.obligationIds.maxItems
+    || obligationIds.some((id) => typeof id !== "string" || !id || id.length > 160
+      || !CERTIFICATION_WIRE_ID_PATTERN.test(id))
+    || new Set(obligationIds).size !== obligationIds.length) {
+    throw new TypeError("The Lattice provider received an invalid certification obligation.");
+  }
+  const maximalWire = JSON.stringify({
+    c: certificateId,
+    o: obligationIds,
+    d: CERTIFICATION_DECISIONS.length - 1,
+    k: CERTIFICATION_CHECK_NAMES.map(() => false),
+    i: Array.from(
+      { length: DOCUMENT_CERTIFICATION_SCHEMA.properties.issues.maxItems },
+      (_value, index) => CERTIFICATION_CHECK_NAMES.length - 1 - index,
+    ),
+  });
+  if (maximalWire.length > CERTIFICATION_WIRE_CHARACTER_LIMIT) {
+    throw new TypeError("The Lattice provider received oversized certification identifiers.");
+  }
+  return Object.freeze({ certificateId, obligationIds: Object.freeze([...obligationIds]) });
+}
+
+function certificationWireSchemaForFit(fit) {
+  return Object.freeze({
+    ...CERTIFICATION_WIRE_SCHEMA,
+    properties: Object.freeze({
+      ...CERTIFICATION_WIRE_SCHEMA.properties,
+      c: Object.freeze({
+        ...CERTIFICATION_WIRE_SCHEMA.properties.c,
+        enum: Object.freeze([fit.certificateId]),
+      }),
+      o: Object.freeze({
+        type: "array",
+        minItems: fit.obligationIds.length,
+        maxItems: fit.obligationIds.length,
+        prefixItems: Object.freeze(fit.obligationIds.map((id) => Object.freeze({
+          ...CERTIFICATION_WIRE_SCHEMA.properties.o.items,
+          enum: Object.freeze([id]),
+        }))),
+      }),
+    }),
+  });
+}
+
 function exactKeys(value, keys) {
   if (!record(value)) return false;
   const actual = Object.keys(value).sort();
@@ -819,6 +1133,159 @@ function decodeAnalysisWire(value) {
     documentKind: value.d,
     passages,
     questions: value.q,
+  };
+}
+
+function wireEnumValue(index, values) {
+  return Number.isSafeInteger(index) && index >= 0 && index < values.length
+    ? values[index]
+    : null;
+}
+
+function wireMaskSelections(mask, values, { minimum = 0, maximum = values.length } = {}) {
+  if (typeof mask !== "string" || mask.length !== values.length || !/^[01]+$/u.test(mask)
+    || !Number.isSafeInteger(minimum) || !Number.isSafeInteger(maximum)
+    || minimum < 0 || maximum < minimum) return null;
+  const selected = values.filter((_value, index) => mask[index] === "1");
+  return selected.length >= minimum && selected.length <= maximum ? selected : null;
+}
+
+function wireAtomStatuses(statuses, atomIds) {
+  if (typeof statuses !== "string" || statuses.length !== atomIds.length
+    || !/^[012]+$/u.test(statuses)) return null;
+  return Object.freeze({
+    checked: atomIds.filter((_id, index) => statuses[index] === "1"),
+    missing: atomIds.filter((_id, index) => statuses[index] === "2"),
+  });
+}
+
+function decodeVerificationWire(value, fit) {
+  if (!fit || !exactKeys(value, ["d", "g", "p", "i"])
+    || !Array.isArray(value.p) || value.p.length !== fit.passages.length
+    || !Array.isArray(value.i)
+    || value.i.length > VERIFICATION_SCHEMA.properties.issues.maxItems) return {};
+  const decision = wireEnumValue(value.d, VERIFICATION_DECISIONS);
+  const failedGates = wireMaskSelections(value.g, VERIFICATION_GATES);
+  if (decision === null || failedGates === null) return {};
+  const passages = [];
+  for (let index = 0; index < value.p.length; index += 1) {
+    const passage = value.p[index];
+    const plan = fit.plans[index];
+    const evidenceIds = fit.evidenceByPassage[index].ids;
+    if (!Array.isArray(passage) || passage.length !== 8
+      || typeof passage[1] !== "boolean"
+      || !Array.isArray(passage[7]) || passage[7].length !== 3
+      || typeof passage[7][0] !== "boolean"
+      || !Array.isArray(passage[7][2])) return {};
+    const atomStatuses = wireAtomStatuses(passage[0], plan.atomIds);
+    const unmodeledSpanIds = wireMaskSelections(passage[2], evidenceIds, { maximum: 12 });
+    const failedChecks = wireMaskSelections(passage[3], VERIFICATION_PASSAGE_CHECKS);
+    const independentLayer = wireEnumValue(passage[4], VERIFICATION_LAYERS);
+    const layerEvidenceAtomIds = wireMaskSelections(passage[5], plan.atomIds, { minimum: 1 });
+    const layerEvidenceSpanIds = wireMaskSelections(passage[6], evidenceIds, { minimum: 1 });
+    const conformanceEvidenceSpanIds = wireMaskSelections(passage[7][1], evidenceIds);
+    if (atomStatuses === null || unmodeledSpanIds === null || failedChecks === null
+      || independentLayer === null || layerEvidenceAtomIds === null
+      || layerEvidenceSpanIds === null || conformanceEvidenceSpanIds === null) return {};
+    const rewrite = plan.disposition === "rewrite";
+    const rawCriterionChecks = passage[7][2];
+    if (rewrite) {
+      if (passage[7][0] !== false || conformanceEvidenceSpanIds.length !== 0
+        || rawCriterionChecks.length !== 0) return {};
+    } else if (rawCriterionChecks.length !== plan.conformanceCriteria.length) {
+      return {};
+    }
+    const criterionChecks = [];
+    for (let criterionIndex = 0; criterionIndex < rawCriterionChecks.length; criterionIndex += 1) {
+      const check = rawCriterionChecks[criterionIndex];
+      if (!Array.isArray(check) || check.length !== 2 || typeof check[0] !== "boolean") return {};
+      const evidenceSpanIds = wireMaskSelections(check[1], evidenceIds, {
+        minimum: check[0] ? 1 : 0,
+      });
+      if (evidenceSpanIds === null) return {};
+      criterionChecks.push({
+        criterion: plan.conformanceCriteria[criterionIndex],
+        passed: check[0],
+        evidenceSpanIds,
+      });
+    }
+    passages.push({
+      passageId: plan.passageId,
+      checkedAtomIds: atomStatuses.checked,
+      missingAtomIds: atomStatuses.missing,
+      unsupportedClaims: passage[1]
+        ? [{ claim: "The candidate contains unsupported meaning.", evidence: "" }]
+        : [],
+      unmodeledSpanIds,
+      failedChecks,
+      conformanceConfirmed: passage[7][0],
+      conformanceEvidenceSpanIds,
+      independentLayer,
+      layerEvidenceAtomIds,
+      layerEvidenceSpanIds,
+      criterionChecks,
+    });
+  }
+  const issues = [];
+  const issueKeys = new Set();
+  for (let index = 0; index < value.i.length; index += 1) {
+    const issue = value.i[index];
+    if (!Array.isArray(issue) || issue.length !== 2
+      || !Number.isSafeInteger(issue[1]) || issue[1] < -1
+      || issue[1] >= fit.passages.length) return {};
+    const check = wireEnumValue(issue[0], VERIFICATION_ISSUE_CHECKS);
+    const issueKey = `${issue[0]}:${issue[1]}`;
+    if (check === null || issueKeys.has(issueKey)) return {};
+    issueKeys.add(issueKey);
+    issues.push({
+      id: `wire-issue-${index + 1}`,
+      check,
+      passageId: issue[1] === -1 ? "" : fit.passages[issue[1]].id,
+      atomIds: [],
+      message: "The independent check did not clear a required condition.",
+    });
+  }
+  return {
+    decision,
+    failedGates,
+    passages,
+    issues,
+    questions: [],
+  };
+}
+
+function decodeCertificationWire(value, fit) {
+  if (!fit || !exactKeys(value, ["c", "o", "d", "k", "i"])
+    || value.c !== fit.certificateId
+    || !Array.isArray(value.o) || value.o.length !== fit.obligationIds.length
+    || value.o.some((id, index) => id !== fit.obligationIds[index])
+    || !Array.isArray(value.k) || value.k.length !== CERTIFICATION_CHECK_NAMES.length
+    || value.k.some((check) => typeof check !== "boolean")
+    || !Array.isArray(value.i)
+    || value.i.length > DOCUMENT_CERTIFICATION_SCHEMA.properties.issues.maxItems) return {};
+  const decision = wireEnumValue(value.d, CERTIFICATION_DECISIONS);
+  if (decision === null) return {};
+  const issueIndices = new Set();
+  const issues = [];
+  for (let index = 0; index < value.i.length; index += 1) {
+    const checkIndex = value.i[index];
+    const check = wireEnumValue(checkIndex, CERTIFICATION_CHECK_NAMES);
+    if (check === null || issueIndices.has(checkIndex)) return {};
+    issueIndices.add(checkIndex);
+    issues.push({
+      id: `wire-issue-${index + 1}`,
+      check,
+      message: "The independent document check did not clear a required condition.",
+    });
+  }
+  return {
+    certificateId: value.c,
+    obligationIds: [...value.o],
+    decision,
+    checks: Object.fromEntries(CERTIFICATION_CHECK_NAMES.map((name, index) => (
+      [name, value.k[index]]
+    ))),
+    issues,
   };
 }
 
@@ -1410,15 +1877,26 @@ export function createHuggingFaceLatticeAdapter({
       ? request?.[LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT]
       : null;
     let analysisFit = null;
+    let verificationFit = null;
+    let certificationFit = null;
     let result;
     try {
       analysisFit = stageName === "analysis" ? fitAnalysisRequest(request) : null;
+      verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
+      certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
       const fittedRequest = analysisFit?.request ?? request;
+      const fittedSchema = analysisFit
+        ? analysisWireSchemaForFit(analysisFit)
+        : verificationFit
+        ? verificationWireSchemaForFit(verificationFit)
+        : certificationFit
+        ? certificationWireSchemaForFit(certificationFit)
+        : stage.schema;
       result = await requestHuggingFaceJson({
         token,
         role: stage.role,
         messages: messagesWithMode(stage.messages, fittedRequest, requestedMode),
-        schema: analysisFit ? analysisWireSchemaForFit(analysisFit) : stage.schema,
+        schema: fittedSchema,
         schemaName: stage.schemaName,
         responseGuide: stage.responseGuide,
         responseFormat: stage.responseFormat,
@@ -1448,6 +1926,10 @@ export function createHuggingFaceLatticeAdapter({
           documentLedgerAtomIds: Object.freeze((request.documentLedger ?? []).map(({ id }) => id)),
         }),
       });
+    } else if (stageName === "verification") {
+      result = decodeVerificationWire(result, verificationFit);
+    } else if (stageName === "certification") {
+      result = decodeCertificationWire(result, certificationFit);
     }
     return result;
   };
@@ -1493,4 +1975,29 @@ if (!exactRequiredFields(REANALYSIS_SCHEMA, ["documentKind", "passages", "questi
   || !exactRequiredFields(INTERNAL_ANALYSIS_LINK_SCHEMA, ["relation", "targetAtomId"])
   || !exactRequiredFields(INTERNAL_ANALYSIS_ASSERTION_SCHEMA, ["criterion", "evidenceSpanIds"])) {
   throw new Error("The private analysis wire schema has drifted from the closed host schema.");
+}
+
+if (!exactRequiredFields(VERIFICATION_SCHEMA, [
+  "decision", "failedGates", "passages", "issues", "questions",
+])
+  || !exactRequiredFields(INTERNAL_VERIFICATION_PASSAGE_SCHEMA, [
+    "passageId", "checkedAtomIds", "missingAtomIds", "unsupportedClaims",
+    "unmodeledSpanIds", "failedChecks", "conformanceConfirmed",
+    "conformanceEvidenceSpanIds", "independentLayer", "layerEvidenceAtomIds",
+    "layerEvidenceSpanIds", "criterionChecks",
+  ])
+  || !exactRequiredFields(INTERNAL_VERIFICATION_CRITERION_SCHEMA, [
+    "criterion", "passed", "evidenceSpanIds",
+  ])
+  || !exactRequiredFields(INTERNAL_VERIFICATION_ISSUE_SCHEMA, [
+    "id", "check", "passageId", "atomIds", "message",
+  ])
+  || !exactRequiredFields(DOCUMENT_CERTIFICATION_SCHEMA, [
+    "certificateId", "obligationIds", "decision", "checks", "issues",
+  ])
+  || !exactRequiredFields(DOCUMENT_CERTIFICATION_SCHEMA.properties.checks, CERTIFICATION_CHECK_NAMES)
+  || !exactRequiredFields(DOCUMENT_CERTIFICATION_SCHEMA.properties.issues.items, [
+    "id", "check", "message",
+  ])) {
+  throw new Error("A private verifier wire schema has drifted from its closed host schema.");
 }

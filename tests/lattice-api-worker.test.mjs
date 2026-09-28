@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { preflightLatticeInput } from "../app/resume/latticeDemo.js";
+import { preflightLatticeInput, runTextToLattice } from "../app/resume/latticeDemo.js";
 import {
   LATTICE_RESULT_VERSION,
   LATTICE_VISITOR_SESSION_ACCEPT,
@@ -11,10 +11,13 @@ import {
 import {
   DOCUMENT_CERTIFICATION_SCHEMA,
   LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT,
+  LATTICE_CONFORMANCE_CRITERIA,
   LATTICE_FITTED_ANALYSIS_CONTEXT,
   REANALYSIS_SCHEMA,
   VERIFICATION_SCHEMA,
   analysisMessages,
+  documentCertificationMessages,
+  verificationMessages,
 } from "../app/resume/lattice/promptContract.js";
 import {
   latticeSourceSpansForBatch,
@@ -301,6 +304,98 @@ function minimalAnalysisRequest(text = validPayload.text) {
     context: null,
     signal: new AbortController().signal,
   });
+}
+
+function minimalVerificationRequest(text = validPayload.text) {
+  const base = minimalAnalysisRequest(text);
+  const sourceSpans = latticeSourceSpansForBatch(base.batch);
+  const passageId = base.batch.passages[0].id;
+  const evidenceSpanIds = [
+    ...sourceSpans[0].spans,
+    ...(sourceSpans[0].literalAnnotations ?? []),
+  ].map(({ id }) => id);
+  const atom = Object.freeze({
+    id: "a1",
+    kind: "action",
+    value: "perform the supported action",
+    priority: "hard",
+    preservation: "equivalent",
+    evidenceSpanIds: Object.freeze(evidenceSpanIds),
+    links: Object.freeze([]),
+  });
+  const analysis = Object.freeze({
+    documentKind: "instruction",
+    passages: Object.freeze([Object.freeze({
+      passageId,
+      discourseFunction: "directs one bounded action",
+      layer: "operative",
+      disposition: "rewrite",
+      rationale: "make the supported action explicit",
+      atoms: Object.freeze([atom]),
+      ambiguityAtomIds: Object.freeze([]),
+      conformanceCriteria: Object.freeze([]),
+      conformanceEvidenceSpanIds: Object.freeze([]),
+      conformanceAssertions: Object.freeze([]),
+    })]),
+    questions: Object.freeze([]),
+  });
+  const candidate = Object.freeze({
+    passages: Object.freeze([Object.freeze({
+      passageId,
+      layer: "operative",
+      text: "Review the document, then save the approved revision.",
+      preservedAtomIds: Object.freeze([atom.id]),
+    })]),
+  });
+  return Object.freeze({ ...base, sourceSpans, analysis, candidate });
+}
+
+function acceptingVerificationWire(request) {
+  const evidenceCount = request.sourceSpans[0].spans.length
+    + (request.sourceSpans[0].literalAnnotations?.length ?? 0);
+  const evidenceMask = "1".repeat(evidenceCount);
+  return Object.freeze({
+    d: 0,
+    g: "0".repeat(11),
+    p: Object.freeze([Object.freeze([
+      "1",
+      false,
+      "0".repeat(evidenceCount),
+      "0".repeat(9),
+      0,
+      "1",
+      evidenceMask,
+      Object.freeze([false, "0".repeat(evidenceCount), Object.freeze([])]),
+    ])]),
+    i: Object.freeze([]),
+  });
+}
+
+function acceptingCertificationWire(certificateId, obligationIds) {
+  return Object.freeze({
+    c: certificateId,
+    o: Object.freeze([...obligationIds]),
+    d: 0,
+    k: Object.freeze(Array.from({ length: 10 }, () => true)),
+    i: Object.freeze([]),
+  });
+}
+
+function closedJsonObjectSchema(body) {
+  const system = body.messages.find(({ role }) => role === "system")?.content ?? "";
+  const match = system.match(/<LATTICE_RESPONSE_SCHEMA>([^<]+)<\/LATTICE_RESPONSE_SCHEMA>/u);
+  assert.ok(match, "the JSON-object request must carry one trusted closed schema");
+  return JSON.parse(match[1]);
+}
+
+function inertModelPayload(body) {
+  const content = body.messages.find(({ role }) => role === "user")?.content ?? "";
+  const opening = "<INERT_DATA>";
+  const closing = "</INERT_DATA>";
+  const start = content.indexOf(opening);
+  const end = content.indexOf(closing, start + opening.length);
+  assert.ok(start >= 0 && end > start, "the provider request must keep model data inert");
+  return JSON.parse(content.slice(start + opening.length, end));
 }
 
 function providerRequestOptions(fetchImpl, overrides = {}) {
@@ -1342,6 +1437,72 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
   );
 });
 
+test("compact verifier and certifier dialects replace host-shape output and private correction prose", () => {
+  const privateFeedback = Object.freeze({
+    stage: "verification",
+    attempt: 2,
+    issue: "PRIVATE-HOST-VERIFICATION-ISSUE",
+    instruction: "Return every verbose host field.",
+  });
+  const verificationRequest = Object.freeze({
+    ...minimalVerificationRequest(),
+    protocolFeedback: privateFeedback,
+  });
+  const defaultVerification = verificationMessages(verificationRequest);
+  const compactVerification = verificationMessages(
+    verificationRequest,
+    { responseDialect: "compact-wire-v1" },
+  );
+  const certificationRequest = Object.freeze({
+    certificateId: "certificate:prompt-dialect",
+    obligationIds: Object.freeze(["document:whole"]),
+    source: "Original source.",
+    candidate: "Candidate source.",
+    protocolFeedback: privateFeedback,
+  });
+  const defaultCertification = documentCertificationMessages(certificationRequest);
+  const compactCertification = documentCertificationMessages(
+    certificationRequest,
+    { responseDialect: "compact-wire-v1" },
+  );
+  const inertPayload = (messages) => {
+    const content = messages.find(({ role }) => role === "user").content;
+    const start = content.indexOf("<INERT_DATA>") + "<INERT_DATA>".length;
+    const end = content.indexOf("</INERT_DATA>", start);
+    return JSON.parse(content.slice(start, end));
+  };
+
+  assert.match(JSON.stringify(defaultVerification), /Return the verification schema/u);
+  assert.match(JSON.stringify(defaultVerification), /PRIVATE-HOST-VERIFICATION-ISSUE/u);
+  assert.match(JSON.stringify(compactVerification), /private fitted d\/g\/p\/i index-and-mask wire layout/u);
+  assert.match(JSON.stringify(compactVerification), /private-verification-wire-invalid/u);
+  assert.doesNotMatch(
+    JSON.stringify(compactVerification),
+    /Return the verification schema|PRIVATE-HOST-VERIFICATION-ISSUE|every verbose host field/u,
+  );
+  assert.deepEqual(inertPayload(compactVerification).retry, "private-verification-wire-invalid");
+  assert.equal(Object.hasOwn(inertPayload(compactVerification), "protocolFeedback"), false);
+
+  assert.match(JSON.stringify(defaultCertification), /Return the document-certification schema/u);
+  assert.match(JSON.stringify(defaultCertification), /PRIVATE-HOST-VERIFICATION-ISSUE/u);
+  assert.match(JSON.stringify(compactCertification), /private c\/o\/d\/k\/i wire layout/u);
+  assert.match(JSON.stringify(compactCertification), /private-certification-wire-invalid/u);
+  assert.doesNotMatch(
+    JSON.stringify(compactCertification),
+    /Return the document-certification schema|PRIVATE-HOST-VERIFICATION-ISSUE|every verbose host field/u,
+  );
+  assert.deepEqual(inertPayload(compactCertification).retry, "private-certification-wire-invalid");
+  assert.equal(Object.hasOwn(inertPayload(compactCertification), "protocolFeedback"), false);
+  assert.throws(
+    () => verificationMessages(verificationRequest, { responseDialect: "unknown" }),
+    /invalid verification response dialect/u,
+  );
+  assert.throws(
+    () => documentCertificationMessages(certificationRequest, { responseDialect: "unknown" }),
+    /invalid certification response dialect/u,
+  );
+});
+
 test("the adapter uses strict JSON Schema analysis and JSON-object certification", async () => {
   assert.equal(LATTICE_PROVIDER_CALL_TIMEOUT_MS, 120_000);
   const calls = [];
@@ -1349,7 +1510,10 @@ test("the adapter uses strict JSON Schema analysis and JSON-object certification
     calls.push({ url, init, body: JSON.parse(init.body) });
     return calls.length === 1
       ? successfulProviderResponse({ d: "instruction", p: [], q: [] })
-      : successfulProviderResponse({ accepted: true });
+      : successfulProviderResponse(acceptingCertificationWire(
+        "certificate:test",
+        ["document:whole"],
+      ));
   };
   const adapter = createHuggingFaceLatticeAdapter({
     token: "hf_server_only_token",
@@ -1526,10 +1690,20 @@ test("the adapter uses strict JSON Schema analysis and JSON-object certification
     false,
   );
   assert.equal(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)), false);
-  assert.match(calls[1].body.messages[0].content, /Response contract lattice_certification_v1/u);
-  assert.match(calls[1].body.messages[0].content, /Return one complete document-certification record as the JSON object/u);
+  assert.match(calls[1].body.messages[0].content, /Response contract lattice_certification_wire_v1/u);
+  assert.match(calls[1].body.messages[0].content, /private document-certification instance/u);
+  assert.match(calls[1].body.messages[0].content, /private c\/o\/d\/k\/i wire layout/u);
+  assert.doesNotMatch(calls[1].body.messages[0].content, /Return the document-certification schema/u);
   assert.doesNotMatch(calls[1].body.messages[0].content, /Call this function exactly once/u);
-  assert.equal(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)), true);
+  assert.equal(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)), false);
+  const certificationSchema = closedJsonObjectSchema(calls[1].body);
+  assert.deepEqual(certificationSchema.required, ["c", "o", "d", "k", "i"]);
+  assert.deepEqual(certificationSchema.properties.c.enum, ["certificate:test"]);
+  assert.deepEqual(
+    certificationSchema.properties.o.prefixItems.map(({ enum: values }) => values),
+    [["document:whole"]],
+  );
+  assert.equal(certificationSchema.properties.k.prefixItems.length, 10);
   for (const { body } of calls) {
     assert.equal(body.messages.slice(1).some(({ content }) => (
       typeof content === "string" && content.includes("LATTICE_RESPONSE_SCHEMA")
@@ -1723,11 +1897,16 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
 
 test("all five production stages use their exact provider response transport", async () => {
   const calls = [];
+  const base = minimalVerificationRequest();
+  const { analysis, candidate } = base;
   const responses = [
     successfulProviderResponse({ d: "instruction", p: [], q: [] }),
     successfulProviderResponse({ passages: [] }),
-    successfulProviderResponse({ accepted: true }),
-    successfulProviderResponse({ accepted: true }),
+    successfulProviderResponse(acceptingVerificationWire(base)),
+    successfulProviderResponse(acceptingCertificationWire(
+      "certificate:transport-matrix",
+      ["document:whole"],
+    )),
     successfulProviderResponse({ passages: [] }),
   ];
   const adapter = createHuggingFaceLatticeAdapter({
@@ -1736,32 +1915,6 @@ test("all five production stages use their exact provider response transport", a
       calls.push(JSON.parse(init.body));
       return responses[calls.length - 1];
     },
-  });
-  const base = minimalAnalysisRequest();
-  const passageId = base.batch.passages[0].id;
-  const analysis = Object.freeze({
-    documentKind: "instruction",
-    passages: Object.freeze([Object.freeze({
-      passageId,
-      discourseFunction: "directs one bounded action",
-      layer: "operative",
-      disposition: "rewrite",
-      rationale: "make the supported action explicit",
-      atoms: Object.freeze([]),
-      ambiguityAtomIds: Object.freeze([]),
-      conformanceCriteria: Object.freeze([]),
-      conformanceEvidenceSpanIds: Object.freeze([]),
-      conformanceAssertions: Object.freeze([]),
-    })]),
-    questions: Object.freeze([]),
-  });
-  const candidate = Object.freeze({
-    passages: Object.freeze([Object.freeze({
-      passageId,
-      layer: "operative",
-      text: "Review the document and save the approved revision.",
-      preservedAtomIds: Object.freeze([]),
-    })]),
   });
   const verification = Object.freeze({
     decision: "revise",
@@ -1799,9 +1952,407 @@ test("all five production stages use their exact provider response transport", a
     assert.equal(Object.hasOwn(calls[index], "tools"), false);
     assert.equal(Object.hasOwn(calls[index], "tool_choice"), false);
   }
-  assert.equal(calls[2].messages[0].content.includes(JSON.stringify(VERIFICATION_SCHEMA)), true);
-  assert.equal(calls[3].messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)), true);
+  assert.match(calls[2].messages[0].content, /Response contract lattice_verification_wire_v1/u);
+  assert.match(calls[3].messages[0].content, /Response contract lattice_certification_wire_v1/u);
+  assert.equal(calls[2].messages[0].content.includes(JSON.stringify(VERIFICATION_SCHEMA)), false);
+  assert.equal(calls[3].messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)), false);
+  assert.deepEqual(closedJsonObjectSchema(calls[2]).required, ["d", "g", "p", "i"]);
+  assert.deepEqual(closedJsonObjectSchema(calls[3]).required, ["c", "o", "d", "k", "i"]);
   for (const body of calls) assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
+});
+
+test("compact verifier and certifier wires expand to the unchanged host schemas", async () => {
+  const verificationRequest = minimalVerificationRequest();
+  const evidenceIds = [
+    ...verificationRequest.sourceSpans[0].spans,
+    ...(verificationRequest.sourceSpans[0].literalAnnotations ?? []),
+  ].map(({ id }) => id);
+  const certificateId = "certificate:compact-round-trip";
+  const obligationIds = Object.freeze(["document:whole", "boundary:0"]);
+  const calls = [];
+  const responses = [
+    acceptingVerificationWire(verificationRequest),
+    acceptingCertificationWire(certificateId, obligationIds),
+  ];
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async (_url, init) => {
+      calls.push(JSON.parse(init.body));
+      return successfulProviderResponse(responses[calls.length - 1]);
+    },
+  });
+
+  const verification = await adapter.verify(verificationRequest);
+  const certification = await adapter.certify({
+    certificateId,
+    obligationIds,
+    source: validPayload.text,
+    candidate: "Review the document, then save the approved revision.",
+    analysis: verificationRequest.analysis,
+    signal: verificationRequest.signal,
+  });
+
+  assert.deepEqual(verification, {
+    decision: "accept",
+    failedGates: [],
+    passages: [{
+      passageId: verificationRequest.batch.passages[0].id,
+      checkedAtomIds: ["a1"],
+      missingAtomIds: [],
+      unsupportedClaims: [],
+      unmodeledSpanIds: [],
+      failedChecks: [],
+      conformanceConfirmed: false,
+      conformanceEvidenceSpanIds: [],
+      independentLayer: "operative",
+      layerEvidenceAtomIds: ["a1"],
+      layerEvidenceSpanIds: evidenceIds,
+      criterionChecks: [],
+    }],
+    issues: [],
+    questions: [],
+  });
+  assert.deepEqual(certification, {
+    certificateId,
+    obligationIds: [...obligationIds],
+    decision: "accept",
+    checks: {
+      semanticFidelity: true,
+      identityRolesAttribution: true,
+      chronology: true,
+      causality: true,
+      modalityPolarity: true,
+      ambiguityPreservation: true,
+      noUnsupportedMeaning: true,
+      registerConformance: true,
+      boundaryFidelity: true,
+      documentConsistency: true,
+    },
+    issues: [],
+  });
+
+  const verificationSchema = closedJsonObjectSchema(calls[0]);
+  const verificationTuple = verificationSchema.properties.p.prefixItems[0].prefixItems;
+  assert.deepEqual(verificationSchema.required, ["d", "g", "p", "i"]);
+  assert.equal(verificationSchema.properties.p.prefixItems.length, 1);
+  assert.equal(verificationTuple.length, 8);
+  assert.equal(verificationTuple[0].minLength, 1);
+  assert.equal(verificationTuple[2].minLength, evidenceIds.length);
+  assert.equal(verificationTuple[3].minLength, 9);
+  assert.equal(verificationTuple[5].pattern, "^(?=[01]*1)[01]{1}$");
+  assert.equal(verificationTuple[6].minLength, evidenceIds.length);
+  assert.deepEqual(verificationTuple[7].prefixItems[0].enum, [false]);
+  assert.deepEqual(verificationTuple[7].prefixItems[1].enum, ["0".repeat(evidenceIds.length)]);
+  assert.equal(calls[0].max_tokens, 1_200);
+  assert.equal(calls[0].messages[0].content.includes(JSON.stringify(VERIFICATION_SCHEMA)), false);
+
+  const certificationSchema = closedJsonObjectSchema(calls[1]);
+  assert.deepEqual(certificationSchema.properties.c.enum, [certificateId]);
+  assert.deepEqual(
+    certificationSchema.properties.o.prefixItems.map(({ enum: values }) => values[0]),
+    [...obligationIds],
+  );
+  assert.equal(certificationSchema.properties.k.prefixItems.length, 10);
+  assert.equal(calls[1].max_tokens, 520);
+  assert.equal(calls[1].messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)), false);
+});
+
+test("the production canary completes through the compact verifier wire", async () => {
+  const source = validPayload.text;
+  const { batch, sourceSpans } = minimalVerificationRequest(source);
+  const passageId = batch.passages[0].id;
+  const evidenceIds = [
+    ...sourceSpans[0].spans,
+    ...(sourceSpans[0].literalAnnotations ?? []),
+  ].map(({ id }) => id);
+  const transformed = "First, open and review the document; then save the approved revision.";
+  const calls = [];
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    requestedMode: "operative",
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      calls.push(body);
+      if (calls.length === 1) {
+        return successfulProviderResponse({
+          d: "instruction",
+          p: [[
+            passageId,
+            "directs an ordered document task",
+            "operative",
+            "rewrite",
+            "make the supported sequence explicit",
+            [[
+              "a1",
+              "action",
+              "open and review the document, then save the approved revision",
+              "hard",
+              "equivalent",
+              evidenceIds,
+              [],
+            ]],
+            [],
+            [],
+            [],
+            [],
+          ]],
+          q: [],
+        });
+      }
+      if (calls.length === 2) {
+        const analysisAtomId = inertModelPayload(body).analysis[1][0][5][0][0];
+        return successfulProviderResponse({
+          passages: [{
+            passageId,
+            layer: "operative",
+            text: transformed,
+            preservedAtomIds: [analysisAtomId],
+          }],
+        });
+      }
+      if (calls.length === 3) {
+        return successfulProviderResponse({
+          d: 0,
+          g: "0".repeat(11),
+          p: [[
+            "1",
+            false,
+            "0".repeat(evidenceIds.length),
+            "0".repeat(9),
+            0,
+            "1",
+            "1".repeat(evidenceIds.length),
+            [false, "0".repeat(evidenceIds.length), []],
+          ]],
+          i: [],
+        });
+      }
+      return assert.fail("the single-passage canary must not require document certification");
+    },
+  });
+
+  const result = await runTextToLattice(source, {
+    adapter,
+    requestedMode: "operative",
+    allowClarification: false,
+    signal: new AbortController().signal,
+  });
+
+  assert.equal(result.status, "translated");
+  assert.equal(result.text, transformed);
+  assert.equal(result.verificationPasses, 1);
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [3_072, 800, 1_200]);
+  assert.deepEqual(calls[2].response_format, { type: "json_object" });
+});
+
+test("the compact verifier preserves retained-conformance evidence and every independent layer", async () => {
+  const base = minimalVerificationRequest();
+  const evidenceIds = [
+    ...base.sourceSpans[0].spans,
+    ...(base.sourceSpans[0].literalAnnotations ?? []),
+  ].map(({ id }) => id);
+  const criteria = Object.freeze([
+    ...LATTICE_CONFORMANCE_CRITERIA.universal,
+    ...LATTICE_CONFORMANCE_CRITERIA.operative,
+  ]);
+  const retainedPlan = Object.freeze({
+    ...base.analysis.passages[0],
+    disposition: "retain-if-conformant",
+    conformanceCriteria: criteria,
+    conformanceEvidenceSpanIds: Object.freeze(evidenceIds),
+    conformanceAssertions: Object.freeze(criteria.map((criterion) => Object.freeze({
+      criterion,
+      evidenceSpanIds: Object.freeze(evidenceIds),
+    }))),
+  });
+  const request = Object.freeze({
+    ...base,
+    analysis: Object.freeze({
+      ...base.analysis,
+      passages: Object.freeze([retainedPlan]),
+    }),
+  });
+  const evidenceMask = "1".repeat(evidenceIds.length);
+  const wire = Object.freeze({
+    d: 1,
+    g: "0".repeat(11),
+    p: Object.freeze([Object.freeze([
+      "1",
+      false,
+      "0".repeat(evidenceIds.length),
+      "000001000",
+      1,
+      "1",
+      evidenceMask,
+      Object.freeze([
+        true,
+        evidenceMask,
+        Object.freeze(criteria.map(() => Object.freeze([true, evidenceMask]))),
+      ]),
+    ])]),
+    i: Object.freeze([]),
+  });
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => successfulProviderResponse(wire),
+  });
+
+  const result = await adapter.verify(request);
+
+  assert.equal(result.decision, "repair");
+  assert.equal(result.passages[0].independentLayer, "experiential");
+  assert.deepEqual(result.passages[0].failedChecks, ["registerFit"]);
+  assert.equal(result.passages[0].conformanceConfirmed, true);
+  assert.deepEqual(result.passages[0].conformanceEvidenceSpanIds, evidenceIds);
+  assert.deepEqual(result.passages[0].criterionChecks, criteria.map((criterion) => ({
+    criterion,
+    passed: true,
+    evidenceSpanIds: evidenceIds,
+  })));
+});
+
+test("malformed compact verifier and certifier wires fail closed after one provider call", async () => {
+  const verificationRequest = minimalVerificationRequest();
+  const calls = [];
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async (_url, init) => {
+      calls.push(JSON.parse(init.body));
+      return successfulProviderResponse(calls.length === 1
+        ? { ...acceptingVerificationWire(verificationRequest), g: "0000000000x" }
+        : {
+          ...acceptingCertificationWire("certificate:malformed-wire", ["document:whole"]),
+          i: [10],
+        });
+    },
+  });
+
+  assert.deepEqual(await adapter.verify(verificationRequest), {});
+  assert.deepEqual(await adapter.certify({
+    certificateId: "certificate:malformed-wire",
+    obligationIds: Object.freeze(["document:whole"]),
+    source: "Original source.",
+    candidate: "Candidate source.",
+    signal: verificationRequest.signal,
+  }), {});
+  assert.equal(calls.length, 2);
+});
+
+test("oversized fitted verifier and certifier records fail before provider work", async () => {
+  let fetches = 0;
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => {
+      fetches += 1;
+      return successfulProviderResponse({});
+    },
+  });
+  const multipassageBase = minimalAnalysisRequest("One.\n\nTwo.");
+  const sourceSpans = latticeSourceSpansForBatch(multipassageBase.batch);
+  assert.equal(multipassageBase.batch.passages.length, 2);
+  const analysisPassages = multipassageBase.batch.passages.map((passage, passageIndex) => {
+    const evidenceSpanIds = [
+      ...sourceSpans[passageIndex].spans,
+      ...(sourceSpans[passageIndex].literalAnnotations ?? []),
+    ].map(({ id }) => id);
+    return Object.freeze({
+      passageId: passage.id,
+      discourseFunction: "states one fact",
+      layer: "operative",
+      disposition: "rewrite",
+      rationale: "make the fact explicit",
+      atoms: Object.freeze(Array.from({ length: 13 }, (_value, atomIndex) => Object.freeze({
+        id: `p${passageIndex + 1}a${atomIndex + 1}`,
+        kind: "state",
+        value: "supported fact",
+        priority: "semantic",
+        preservation: "equivalent",
+        evidenceSpanIds: Object.freeze(evidenceSpanIds),
+        links: Object.freeze([]),
+      }))),
+      ambiguityAtomIds: Object.freeze([]),
+      conformanceCriteria: Object.freeze([]),
+      conformanceEvidenceSpanIds: Object.freeze([]),
+      conformanceAssertions: Object.freeze([]),
+    });
+  });
+  await assert.rejects(
+    adapter.verify(Object.freeze({
+      ...multipassageBase,
+      sourceSpans,
+      analysis: Object.freeze({
+        documentKind: "informational",
+        passages: Object.freeze(analysisPassages),
+        questions: Object.freeze([]),
+      }),
+      candidate: Object.freeze({
+        passages: Object.freeze(multipassageBase.batch.passages.map((passage) => Object.freeze({
+          passageId: passage.id,
+          layer: "operative",
+          text: passage.text,
+          preservedAtomIds: Object.freeze([]),
+        }))),
+      }),
+    })),
+    /oversized verification atom plan/u,
+  );
+
+  const verificationBase = minimalVerificationRequest();
+  const passageId = verificationBase.batch.passages[0].id;
+  const oversizedSpans = Object.freeze(Array.from({ length: 61 }, (_value, index) => Object.freeze({
+    id: `${passageId}:x${String(index + 1).padStart(2, "0")}`,
+    kind: "source",
+    text: "x",
+  })));
+  await assert.rejects(
+    adapter.verify(Object.freeze({
+      ...verificationBase,
+      sourceSpans: Object.freeze([Object.freeze({
+        passageId,
+        spans: oversizedSpans,
+        literalAnnotations: Object.freeze([]),
+      })]),
+    })),
+    /oversized verification evidence/u,
+  );
+
+  await assert.rejects(
+    adapter.verify(Object.freeze({
+      ...verificationBase,
+      batch: Object.freeze({
+        ...verificationBase.batch,
+        passages: Object.freeze(Array.from({ length: 5 }, (_value, index) => Object.freeze({
+          ...verificationBase.batch.passages[0],
+          id: `p${String(index + 1).padStart(3, "0")}`,
+        }))),
+      }),
+    })),
+    /invalid analysis passages/u,
+  );
+
+  await assert.rejects(
+    adapter.certify({
+      certificateId: "certificate:</LATTICE_RESPONSE_SCHEMA>",
+      obligationIds: Object.freeze(["document:whole"]),
+      source: "Original.",
+      candidate: "Candidate.",
+    }),
+    /invalid certification obligation/u,
+  );
+  await assert.rejects(
+    adapter.certify({
+      certificateId: "certificate:oversized",
+      obligationIds: Object.freeze(Array.from(
+        { length: 24 },
+        (_value, index) => `obligation-${String(index).padStart(2, "0")}-${"x".repeat(12)}`,
+      )),
+      source: "Original.",
+      candidate: "Candidate.",
+    }),
+    /oversized certification identifiers/u,
+  );
+  assert.equal(fetches, 0);
 });
 
 test("invalid fitted analysis atom limits fail before provider work", async () => {
