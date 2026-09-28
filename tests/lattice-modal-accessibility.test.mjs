@@ -37,7 +37,10 @@ test("the modal discloses the external boundary before the user can submit", () 
   }
 
   assert.match(resumeProjectsSource, /id="lattice-external-privacy"/u);
-  assert.match(resumeProjectsSource, /aria-describedby="[^"]*lattice-external-privacy[^"]*"/u);
+  assert.match(
+    resumeProjectsSource,
+    /aria-describedby=\{latticeView === "try"[\s\S]*?lattice-external-privacy[\s\S]*?: "lattice-demo-evidence-description"\}/u,
+  );
   assert.match(
     resumeProjectsSource,
     /content-free cookie setup POST[\s\S]*?exactly one content-bearing POST[\s\S]*?Only the second includes your text or can initiate[\s\S]*?external-provider processing/u,
@@ -111,10 +114,11 @@ test("focus remains contained and favors the active cancellation or returned res
     assert.ok(resumeProjectsSource.includes(selector), `missing focusable selector: ${selector}`);
   }
   assert.match(resumeProjectsSource, /const focusObserver = new MutationObserver\(scheduleFocusContainment\)/u);
-  assert.match(resumeProjectsSource, /attributeFilter: \["aria-hidden", "disabled", "hidden", "tabindex"\]/u);
+  assert.match(resumeProjectsSource, /attributeFilter: \["aria-hidden", "disabled", "hidden", "inert", "tabindex"\]/u);
+  assert.match(resumeProjectsSource, /closest\("\[hidden\], \[aria-hidden='true'\], \[inert\]"\)/u);
   assert.match(resumeProjectsSource, /latticeCancelButtonRef\.current/u);
-  assert.match(resumeProjectsSource, /if \(result && latticeOutputRef\.current\) return latticeOutputRef\.current/u);
-  assert.match(resumeProjectsSource, /if \(input && !input\.disabled\) return input/u);
+  assert.match(resumeProjectsSource, /if \(result && latticeOutputRef\.current && !latticeOutputRef\.current\.closest\("\[hidden\], \[aria-hidden='true'\], \[inert\]"\)\) return latticeOutputRef\.current/u);
+  assert.match(resumeProjectsSource, /if \(input && !input\.disabled && !input\.closest\("\[hidden\], \[aria-hidden='true'\], \[inert\]"\)\) return input/u);
   assert.match(resumeProjectsSource, /event\.key === "Escape"[\s\S]*?latticeCloseRef\.current\(\)/u);
   assert.match(resumeProjectsSource, /trigger\?\.isConnected[\s\S]*?trigger\.focus/u);
   assert.match(resumeProjectsSource, /focusObserver\.disconnect\(\)/u);
@@ -160,7 +164,7 @@ test("returned layered output is protected, announced once, and brought into vie
 
 test("remote failures use bounded interface copy and never expose raw diagnostics", () => {
   const failureStart = resumeProjectsSource.indexOf("function latticeFailureMessage");
-  const failureEnd = resumeProjectsSource.indexOf("function latticeProgressText", failureStart);
+  const failureEnd = resumeProjectsSource.indexOf("function latticeFailureDisposition", failureStart);
   const failureSource = resumeProjectsSource.slice(failureStart, failureEnd);
   assert.ok(failureStart >= 0 && failureEnd > failureStart);
   assert.doesNotMatch(failureSource, /return error\.message|return message \|\|/u);

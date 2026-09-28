@@ -725,23 +725,28 @@
         "status": "accepted-residual-risk",
         "marginalValue": "moderate",
         "requirement": "Keyboard, screen reader, touch, 400 percent zoom, reduced motion, forced colors, print, cancellation, blur, and a second browser engine complete the critical paths.",
-        "currentEvidence": "Automated interaction, accessibility, rendering, and browser-path checks cover dialog focus, dismissal, blur, cancellation, reduced motion, forced colors, print, responsive layout, and no-JS navigation. A complete dated assistive-technology matrix for the eventual deployed artifact is not recorded here.",
+        "currentEvidence": "Automated source, model, rendering-contract, and boundary checks cover dialog focus, dismissal, blur, cancellation, reduced motion, forced colors, print, responsive layout, and no-JS navigation. The current modal evidence additionally binds fresh-open Try selection, side-effect-free Try/Evidence switching with mounted request state, five shared diagram views and complete text equivalents, a visible semantic reconciliation table, lifecycle trajectories at 0, 20, 45, 75, and 100 percent with terminal non-success states preserving the last observed milestone, matching shared progress and caret tone variables, and hidden-ancestor focus exclusion. The held public artifact does not render the interactive modal, and a complete dated browser and assistive-technology matrix for the eventual interactive artifact is not recorded here.",
         "evidenceNeeded": "Record a representative dated keyboard, screen-reader, touch, 400 percent zoom, reduced-motion, forced-colors, print, cancellation, blur, and second-engine matrix when the interactive deployment exists.",
-        "rationale": "A blocked critical path is consequential, while exhaustive device coverage is impossible. Existing automated and browser checks make the unrecorded matrix a moderate residual that is cheap to observe and triage during release follow-up.",
+        "rationale": "A blocked critical path is consequential, while exhaustive device coverage is impossible. Existing automated source, model, and rendering-contract checks make the unrecorded browser and assistive-technology matrix a moderate residual that is cheap to observe and triage during release follow-up.",
         "evidence": [
           "tests/lattice-modal-accessibility.test.mjs",
+          "tests/text-to-lattice-modal-evidence.test.mjs",
+          "tests/lattice-modal-presentation.test.mjs",
+          "tests/chromebook-management-modal.test.mjs",
           "tests/lattice-boundary-regressions.test.mjs",
           "tests/rendered-html.test.mjs",
           "tests/lattice-graceful-degradation.test.mjs"
         ],
         "safeguards": [
-          "ARIA dialog semantics and deterministic focus restoration",
+          "ARIA dialog semantics, hidden-ancestor exclusion, and deterministic focus restoration",
+          "shared roving tabs, semantic diagrams, and complete non-spatial text equivalents",
+          "mapped lifecycle milestones retain the last observed percentage for non-success outcomes and share the established progress and caret tones",
           "page blur and scroll isolation while expanded content is active",
           "reduced-motion, forced-color, print, and no-JS paths remain source-tested"
         ],
         "followUp": "Record the dated deployed interaction matrix and fix any realistic blocked or misleading path; do not block on exotic combinations without a plausible consequential failure.",
         "rollbackCondition": null,
-        "acceptanceBasis": "The remaining evidence is observational rather than a known defect. Automated and browser checks cover the highest-consequence paths, and the residual can be bounded through prompt post-release observation and repair."
+        "acceptanceBasis": "The remaining evidence is observational rather than a known defect. Automated source, model, rendering-contract, and boundary checks cover the highest-consequence implementation paths; actual browser, assistive-technology, zoom, touch, and second-engine behavior remains a named residual that can be bounded through prompt post-release observation and repair."
       },
       {
         "id": "GATE-06",

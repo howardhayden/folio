@@ -1805,7 +1805,10 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
   assert.match(source, /aria-labelledby="lattice-demo-title"/);
-  assert.match(source, /aria-describedby="lattice-demo-description lattice-external-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"/);
+  assert.match(
+    source,
+    /aria-describedby=\{latticeView === "try"[\s\S]*?"lattice-demo-description lattice-external-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"[\s\S]*?: "lattice-demo-evidence-description"\}/,
+  );
   assert.equal((source.match(/spellCheck=\{false\}/gu) ?? []).length, 1);
   assert.equal((source.match(/autoCorrect="off"/gu) ?? []).length, 1);
   assert.equal((source.match(/autoCapitalize="off"/gu) ?? []).length, 1);
@@ -1901,7 +1904,7 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   );
   assert.match(source, /\{wordCount\} of \{LATTICE_WORD_LIMIT\} words/);
   assert.match(source, />\s*Process with external service\s*<\/button>/u);
-  assert.match(source, /className="lattice-progress"/);
+  assert.match(source, /className=\{`lattice-progress teaching-manifest-entry--\$\{progress\.tone\}`\}/);
   assert.match(source, /cancelLattice/);
   assert.match(source, /output\.scrollIntoView\(\{ block: "nearest" \}\)[\s\S]*?output\.focus\(\{ preventScroll: true \}\)/u);
   assert.match(source, /className="lattice-output-text"[\s\S]*?data-nosnippet=""[\s\S]*?draggable=\{false\}/u);

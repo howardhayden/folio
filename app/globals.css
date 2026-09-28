@@ -190,6 +190,25 @@ svg:not(.background-static-defs) {
     border-left-color: Highlight !important;
   }
 
+  .lattice-progress .teaching-manifest-fill {
+    background: Highlight !important;
+  }
+
+  .lattice-progress .teaching-manifest-caret {
+    background: Canvas !important;
+    box-shadow: 0 0 0 1px Highlight !important;
+  }
+
+  .lattice-evidence-claim-boundary,
+  .lattice-evidence-text-equivalent,
+  .lattice-evidence-matrix-value {
+    border-color: CanvasText !important;
+  }
+
+  .lattice-evidence-text-equivalent > summary:focus-visible {
+    outline-color: Highlight;
+  }
+
   .lattice-output-veil {
     display: none;
   }
@@ -2167,6 +2186,78 @@ a:hover {
 .lattice-modal-content > h3 {
   margin-bottom: 1.5rem;
 }
+.lattice-mode-tabs {
+  margin-bottom: 1.5rem;
+}
+.lattice-mode-panel,
+.lattice-try-view,
+.lattice-evidence-view {
+  min-width: 0;
+}
+.lattice-try-view[hidden],
+.lattice-evidence-view[hidden] {
+  display: none !important;
+}
+.lattice-evidence-views {
+  margin-top: 0;
+}
+.lattice-evidence-description {
+  margin: 0 auto 1.25rem;
+  max-width: 42rem;
+  text-align: center;
+}
+.lattice-evidence-view-tabs {
+  margin-bottom: 1.25rem;
+}
+.lattice-evidence-claim-boundary {
+  border-inline-start: 3px solid var(--color-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  padding-inline-start: .75rem;
+}
+.lattice-evidence-text-equivalent {
+  border-top: 1px solid var(--color-2);
+  font-size: .82rem;
+  margin-top: 1.25rem;
+  padding-top: .75rem;
+  text-align: left;
+}
+.lattice-evidence-text-equivalent > summary {
+  color: #0b4705;
+  cursor: pointer;
+  font-weight: 600;
+}
+.lattice-evidence-text-equivalent > summary:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.lattice-evidence-text-equivalent > ol {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0 0;
+  padding-inline-start: 1.4rem;
+}
+.lattice-evidence-text-equivalent dl {
+  display: grid;
+  gap: .35rem;
+  margin: .4rem 0 0;
+}
+.lattice-evidence-text-equivalent dl > div {
+  display: grid;
+  gap: .5rem;
+  grid-template-columns: minmax(5.5rem, max-content) minmax(0, 1fr);
+}
+.lattice-evidence-text-equivalent dt {
+  font-weight: 600;
+}
+.lattice-evidence-text-equivalent dd {
+  margin: 0;
+}
+.lattice-evidence-matrix-value {
+  border-inline-start: 3px solid var(--teaching-caret-outline);
+}
+.lattice-evidence-actions {
+  justify-content: flex-end;
+}
 .lattice-modal-introduction {
   display: grid;
   gap: 1.25rem;
@@ -2335,18 +2426,24 @@ a:hover {
   padding: .625rem 1rem;
 }
 .lattice-progress {
-  align-items: center;
-  color: #0b4705;
   display: grid;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: .875rem;
-  gap: .4rem;
+  gap: .45rem;
   margin-top: 1rem;
 }
-.lattice-progress progress {
-  accent-color: #0b4705;
-  height: .55rem;
-  max-width: 24rem;
-  width: 100%;
+.lattice-progress-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.lattice-progress .teaching-manifest-track {
+  margin: 0;
+}
+.lattice-progress > small {
+  color: #545454;
+  line-height: 1.45;
 }
 .lattice-attestation {
   max-width: 100%;
@@ -2554,6 +2651,11 @@ a:hover {
 
   .lattice-output {
     padding: 1rem;
+  }
+
+  .lattice-evidence-text-equivalent dl > div {
+    gap: .15rem;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
