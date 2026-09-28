@@ -115,6 +115,9 @@ const JSON_HEADERS = Object.freeze({
   "Content-Type": "application/json",
 });
 const PROVIDER_JSON_CONTENT_TYPE = /^application\/json(?:\s*;.*)?$/iu;
+const ANALYSIS_LOCAL_ID_CHARACTER_LIMIT = 8;
+const ANALYSIS_CONFORMANCE_ITEM_LIMIT = 5;
+const ANALYSIS_LINK_ITEM_LIMIT = 4;
 
 function fixedTuple(...items) {
   return Object.freeze({
@@ -150,7 +153,7 @@ const ANALYSIS_WIRE_LINK_SCHEMA = fixedTuple(
   boundedString(INTERNAL_ANALYSIS_LINK_SCHEMA.properties.targetAtomId, 180),
 );
 const ANALYSIS_WIRE_ATOM_SCHEMA = fixedTuple(
-  boundedString(INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.id, 120),
+  boundedString(INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.id, ANALYSIS_LOCAL_ID_CHARACTER_LIMIT),
   INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.kind,
   boundedString(INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.value, 600),
   INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.priority,
@@ -175,11 +178,18 @@ const ANALYSIS_WIRE_PASSAGE_SCHEMA = fixedTuple(
     ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.atoms,
     items: ANALYSIS_WIRE_ATOM_SCHEMA,
   }),
-  boundedStringArray(INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.ambiguityAtomIds, 160),
-  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceCriteria,
+  boundedStringArray(
+    INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.ambiguityAtomIds,
+    ANALYSIS_LOCAL_ID_CHARACTER_LIMIT,
+  ),
+  Object.freeze({
+    ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceCriteria,
+    maxItems: ANALYSIS_CONFORMANCE_ITEM_LIMIT,
+  }),
   boundedStringArray(INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceEvidenceSpanIds, 160),
   Object.freeze({
     ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceAssertions,
+    maxItems: ANALYSIS_CONFORMANCE_ITEM_LIMIT,
     items: ANALYSIS_WIRE_ASSERTION_SCHEMA,
   }),
 );
@@ -203,6 +213,7 @@ const ANALYSIS_WIRE_GUIDE = [
   "Atom tuple positions 0-6: [atom ID,kind,value,priority,preservation,evidence span IDs,link tuples].",
   "Link tuple positions 0-1: [relation,target atom ID]. Conformance assertion tuple positions 0-1: [criterion,evidence span IDs].",
   "Fill passage position 1 with the discourse function and position 4 with the rationale. Keep all free text concise. Do not put long field names, Markdown, explanations, or reasoning in assistant content.",
+  "Use short local atom IDs and the smallest complete atom graph allowed by each fitted cap. Carry exact source text through cited evidence IDs instead of copying spans into values. Avoid redundant links and emit no extra prose.",
 ].join("\n");
 
 const VERIFICATION_TOOL_NAME = "lattice_verification_v1";
@@ -523,42 +534,206 @@ function forcedToolMessages(messages, toolName) {
     : { ...message })));
 }
 
-function analysisWireSchemaForRequest(request) {
-  const passageIds = Array.isArray(request?.batch?.passages)
-    ? request.batch.passages.map(({ id }) => id)
-    : [];
-  const passageIdSchema = Object.freeze({
-    ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[0],
-    ...(passageIds.length > 0 ? { enum: Object.freeze([...passageIds]) } : {}),
+function analysisPassagesForRequest(request) {
+  const passages = request?.batch?.passages;
+  if (!Array.isArray(passages) || passages.length === 0 || passages.some((passage) => (
+    !record(passage) || typeof passage.id !== "string" || !passage.id || passage.id.length > 120
+    || typeof passage.text !== "string" || passage.text.length === 0
+  )) || new Set(passages.map((passage) => passage.id)).size !== passages.length) {
+    throw new TypeError("The Lattice provider received invalid analysis passages.");
+  }
+  return passages;
+}
+
+function analysisEvidenceIdsForRequest(request, passages) {
+  // Keep this fallback identical to sourcePassagesForModel so direct adapter
+  // callers receive one fitted schema and prompt view of the same evidence.
+  if (request?.sourceSpans === undefined) {
+    return passages.map(({ id }) => Object.freeze([`${id}:s01`]));
+  }
+  if (!Array.isArray(request.sourceSpans)) {
+    throw new TypeError("The Lattice provider received invalid analysis evidence.");
+  }
+  const groups = new Map();
+  for (const group of request.sourceSpans) {
+    if (!record(group) || typeof group.passageId !== "string"
+      || groups.has(group.passageId) || !Array.isArray(group.spans)
+      || (group.literalAnnotations !== undefined && !Array.isArray(group.literalAnnotations))) {
+      throw new TypeError("The Lattice provider received invalid analysis evidence.");
+    }
+    const records = [...group.spans, ...(group.literalAnnotations ?? [])];
+    const ids = records.map((span) => span?.id);
+    if (ids.length === 0 || ids.some((id) => (
+      typeof id !== "string" || !id || id.length > 160
+    )) || new Set(ids).size !== ids.length) {
+      throw new TypeError("The Lattice provider received invalid analysis evidence.");
+    }
+    groups.set(group.passageId, Object.freeze(ids));
+  }
+  if (groups.size !== passages.length
+    || passages.some(({ id }, index) => (
+      !groups.has(id) || request.sourceSpans[index]?.passageId !== id
+    ))) {
+    throw new TypeError("The Lattice provider received invalid analysis evidence coverage.");
+  }
+  return passages.map(({ id }) => groups.get(id));
+}
+
+function analysisAtomAllocations(passages, evidenceIdsByPassage, atomLimit) {
+  const minimums = evidenceIdsByPassage.map((ids) => Math.max(1, Math.ceil(ids.length / 3)));
+  const maximums = evidenceIdsByPassage.map((ids, index) => (
+    Math.max(minimums[index], Math.min(LATTICE_BATCH_ATOM_LIMIT, 4 * ids.length))
+  ));
+  const allocations = [...minimums];
+  const required = minimums.reduce((sum, count) => sum + count, 0);
+  const available = maximums.reduce((sum, count) => sum + count, 0);
+  const analysisAtomLimit = Math.min(atomLimit, available);
+  if (required > analysisAtomLimit) {
+    throw new TypeError("The Lattice provider received an analysis atom limit outside evidence capacity.");
+  }
+  let remaining = analysisAtomLimit - required;
+  while (remaining > 0) {
+    for (let index = 0; index < passages.length && remaining > 0; index += 1) {
+      if (allocations[index] >= maximums[index]) continue;
+      allocations[index] += 1;
+      remaining -= 1;
+    }
+  }
+  return Object.freeze({
+    analysisAtomLimit,
+    allocations: Object.freeze(allocations),
   });
+}
+
+function fittedEvidenceArraySchema(schema, evidenceIds, maximum) {
+  return Object.freeze({
+    ...schema,
+    maxItems: Math.min(maximum, evidenceIds.length),
+    items: Object.freeze({
+      ...schema.items,
+      enum: Object.freeze([...evidenceIds]),
+    }),
+  });
+}
+
+function fittedAnalysisTextLimit(passage, minimum, maximum, multiplier) {
+  const characterCount = passage.text.length;
+  return Math.min(maximum, Math.max(minimum, Math.ceil(multiplier * characterCount)));
+}
+
+function fitAnalysisRequest(request) {
+  const passages = analysisPassagesForRequest(request);
+  const evidenceIdsByPassage = analysisEvidenceIdsForRequest(request, passages);
   const requestedAtomLimit = analysisAtomLimitForRequest(request);
-  const atomSchema = Object.freeze({
-    ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[5],
-    maxItems: requestedAtomLimit,
-  });
-  const passageSchema = fixedTuple(
-    passageIdSchema,
-    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[1],
-    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[2],
-    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[3],
-    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[4],
-    atomSchema,
-    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[6],
-    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[7],
-    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[8],
-    ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[9],
+  const atomPlan = analysisAtomAllocations(
+    passages,
+    evidenceIdsByPassage,
+    requestedAtomLimit,
   );
+  return Object.freeze({
+    request: Object.freeze({ ...request, analysisAtomLimit: atomPlan.analysisAtomLimit }),
+    passages,
+    evidenceIdsByPassage,
+    analysisAtomLimit: atomPlan.analysisAtomLimit,
+    atomAllocations: atomPlan.allocations,
+  });
+}
+
+function analysisWireSchemaForFit(fit) {
+  const {
+    request, passages, evidenceIdsByPassage, analysisAtomLimit, atomAllocations,
+  } = fit;
+  const visibleLedgerIds = (request.documentLedger ?? []).map(({ id }) => id);
+  if (visibleLedgerIds.some((id) => typeof id !== "string" || !id || id.length > 180)) {
+    throw new TypeError("The Lattice provider received invalid analysis ledger identifiers.");
+  }
+  const linkTargetLimit = Math.max(
+    ANALYSIS_LOCAL_ID_CHARACTER_LIMIT,
+    ...visibleLedgerIds.map((id) => id.length),
+  );
+  const passageSchemas = passages.map((passage, index) => {
+    const evidenceIds = evidenceIdsByPassage[index];
+    const atomLimit = atomAllocations[index];
+    const discourseLimit = fittedAnalysisTextLimit(passage, 80, 160, 1);
+    const rationaleLimit = fittedAnalysisTextLimit(passage, 120, 240, 1.75);
+    const atomValueLimit = fittedAnalysisTextLimit(passage, 96, 192, 1);
+    const linkLimit = Math.min(
+      ANALYSIS_LINK_ITEM_LIMIT,
+      Math.max(0, analysisAtomLimit - 1 + visibleLedgerIds.length),
+    );
+    const evidenceSchema = fittedEvidenceArraySchema(
+      ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[5],
+      evidenceIds,
+      3,
+    );
+    const linkSchema = fixedTuple(
+      ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[0],
+      boundedString(ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[1], linkTargetLimit),
+    );
+    const atomSchema = fixedTuple(
+      ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[0],
+      ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[1],
+      boundedString(ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[2], atomValueLimit),
+      ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[3],
+      ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[4],
+      evidenceSchema,
+      Object.freeze({
+        ...ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[6],
+        maxItems: linkLimit,
+        items: linkSchema,
+      }),
+    );
+    const atomsSchema = Object.freeze({
+      ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[5],
+      maxItems: atomLimit,
+      items: atomSchema,
+    });
+    const ambiguityIdsSchema = Object.freeze({
+      ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[6],
+      maxItems: Math.min(ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[6].maxItems, atomLimit),
+    });
+    const conformanceEvidenceSchema = fittedEvidenceArraySchema(
+      ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[8],
+      evidenceIds,
+      evidenceIds.length,
+    );
+    const assertionSchema = fixedTuple(
+      ANALYSIS_WIRE_ASSERTION_SCHEMA.prefixItems[0],
+      fittedEvidenceArraySchema(
+        ANALYSIS_WIRE_ASSERTION_SCHEMA.prefixItems[1],
+        evidenceIds,
+        evidenceIds.length,
+      ),
+    );
+    const assertionsSchema = Object.freeze({
+      ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[9],
+      items: assertionSchema,
+    });
+    return fixedTuple(
+      Object.freeze({
+        ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[0],
+        enum: Object.freeze([passage.id]),
+      }),
+      boundedString(ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[1], discourseLimit),
+      ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[2],
+      ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[3],
+      boundedString(ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[4], rationaleLimit),
+      atomsSchema,
+      ambiguityIdsSchema,
+      ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[7],
+      conformanceEvidenceSchema,
+      assertionsSchema,
+    );
+  });
   return Object.freeze({
     ...ANALYSIS_WIRE_SCHEMA,
     properties: Object.freeze({
       ...ANALYSIS_WIRE_SCHEMA.properties,
       p: Object.freeze({
-        ...ANALYSIS_WIRE_SCHEMA.properties.p,
-        ...(passageIds.length > 0 ? {
-          minItems: passageIds.length,
-          maxItems: passageIds.length,
-        } : {}),
-        items: passageSchema,
+        type: "array",
+        minItems: passageSchemas.length,
+        maxItems: passageSchemas.length,
+        prefixItems: Object.freeze(passageSchemas),
       }),
     }),
   });
@@ -1212,13 +1387,16 @@ export function createHuggingFaceLatticeAdapter({
     const analysisContext = stageName === "analysis"
       ? request?.[LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT]
       : null;
+    let analysisFit = null;
     let result;
     try {
+      analysisFit = stageName === "analysis" ? fitAnalysisRequest(request) : null;
+      const fittedRequest = analysisFit?.request ?? request;
       result = await requestHuggingFaceJson({
         token,
         role: stage.role,
-        messages: messagesWithMode(stage.messages, request, requestedMode),
-        schema: stageName === "analysis" ? analysisWireSchemaForRequest(request) : stage.schema,
+        messages: messagesWithMode(stage.messages, fittedRequest, requestedMode),
+        schema: analysisFit ? analysisWireSchemaForFit(analysisFit) : stage.schema,
         schemaName: stage.schemaName,
         responseGuide: stage.responseGuide,
         responseFormat: stage.responseFormat,
@@ -1228,7 +1406,7 @@ export function createHuggingFaceLatticeAdapter({
         temperature: stage.temperature,
         topP: stage.topP,
         presencePenalty: stage.presencePenalty,
-        signal: request.signal,
+        signal: fittedRequest.signal,
         fetchImpl,
         callTimeoutMs,
         maximumRequestBytes,
@@ -1244,7 +1422,7 @@ export function createHuggingFaceLatticeAdapter({
         enumerable: false,
         writable: false,
         value: Object.freeze({
-          analysisAtomLimit: analysisAtomLimitForRequest(request),
+          analysisAtomLimit: analysisFit.analysisAtomLimit,
           documentLedgerAtomIds: Object.freeze((request.documentLedger ?? []).map(({ id }) => id)),
         }),
       });

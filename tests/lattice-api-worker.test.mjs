@@ -16,6 +16,10 @@ import {
   analysisMessages,
 } from "../app/resume/lattice/promptContract.js";
 import {
+  latticeSourceSpansForBatch,
+  splitLatticePassage,
+} from "../app/resume/lattice/segments.js";
+import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
   LATTICE_PROVIDER_CALL_TIMEOUT_MS,
   LATTICE_PROVIDER_CALL_LIMIT,
@@ -235,6 +239,31 @@ function providerToolCall({
     type,
     function: { name, arguments: argumentsValue },
   };
+}
+
+function maximalJsonSchemaValue(schema, stringValue = (length) => "x".repeat(length)) {
+  if (Array.isArray(schema.enum)) {
+    return [...schema.enum].sort((left, right) => (
+      JSON.stringify(right).length - JSON.stringify(left).length
+    ))[0];
+  }
+  if (schema.type === "string") return stringValue(schema.maxLength ?? 1);
+  if (schema.type === "array") {
+    if (Array.isArray(schema.prefixItems)) {
+      return schema.prefixItems.map((item) => maximalJsonSchemaValue(item, stringValue));
+    }
+    return Array.from(
+      { length: schema.maxItems ?? schema.minItems ?? 0 },
+      () => maximalJsonSchemaValue(schema.items, stringValue),
+    );
+  }
+  if (schema.type === "object") {
+    return Object.fromEntries(schema.required.map((key) => (
+      [key, maximalJsonSchemaValue(schema.properties[key], stringValue)]
+    )));
+  }
+  if (schema.type === "boolean") return false;
+  throw new TypeError("The test received an unsupported JSON Schema shape.");
 }
 
 function minimalAnalysisRequest(text = validPayload.text) {
@@ -1292,7 +1321,7 @@ test("the adapter uses strict JSON Schema analysis and a named certification too
   });
   const analysisRequest = Object.freeze({
     ...minimalAnalysisRequest(),
-    analysisAtomLimit: 7,
+    analysisAtomLimit: 4,
   });
   await adapter.analyze(analysisRequest);
   await adapter.certify({
@@ -1370,9 +1399,11 @@ test("the adapter uses strict JSON Schema analysis and a named certification too
   assert.equal(analysisParameters.properties.p.type, "array");
   assert.equal(analysisParameters.properties.p.minItems, 1);
   assert.equal(analysisParameters.properties.p.maxItems, 1);
-  assert.equal(analysisParameters.properties.p.items.type, "array");
-  assert.equal(analysisParameters.properties.p.items.prefixItems.length, 10);
-  const passageTuple = analysisParameters.properties.p.items.prefixItems;
+  assert.equal(Object.hasOwn(analysisParameters.properties.p, "items"), false);
+  assert.equal(analysisParameters.properties.p.prefixItems.length, 1);
+  assert.equal(analysisParameters.properties.p.prefixItems[0].type, "array");
+  assert.equal(analysisParameters.properties.p.prefixItems[0].prefixItems.length, 10);
+  const passageTuple = analysisParameters.properties.p.prefixItems[0].prefixItems;
   assert.deepEqual(passageTuple[0].enum, [analysisRequest.batch.passages[0].id]);
   assert.deepEqual(
     { minLength: passageTuple[0].minLength, maxLength: passageTuple[0].maxLength },
@@ -1380,21 +1411,46 @@ test("the adapter uses strict JSON Schema analysis and a named certification too
   );
   assert.deepEqual(
     { minLength: passageTuple[1].minLength, maxLength: passageTuple[1].maxLength },
-    { minLength: 1, maxLength: 300 },
+    {
+      minLength: 1,
+      maxLength: Math.min(160, Math.max(80, analysisRequest.batch.passages[0].text.length)),
+    },
   );
   assert.deepEqual(
     { minLength: passageTuple[4].minLength, maxLength: passageTuple[4].maxLength },
-    { minLength: 1, maxLength: 600 },
+    {
+      minLength: 1,
+      maxLength: Math.min(
+        240,
+        Math.max(120, Math.ceil(1.75 * analysisRequest.batch.passages[0].text.length)),
+      ),
+    },
   );
-  assert.equal(passageTuple[5].maxItems, 7);
+  assert.equal(passageTuple[5].maxItems, 4);
   const atomTuple = passageTuple[5].items.prefixItems;
-  assert.equal(atomTuple[0].maxLength, 120);
-  assert.equal(atomTuple[2].maxLength, 600);
+  assert.equal(atomTuple[0].maxLength, 8);
+  assert.equal(
+    atomTuple[2].maxLength,
+    Math.min(192, Math.max(96, analysisRequest.batch.passages[0].text.length)),
+  );
   assert.equal(atomTuple[5].items.maxLength, 160);
-  assert.equal(atomTuple[6].items.prefixItems[1].maxLength, 180);
-  assert.equal(passageTuple[6].items.maxLength, 160);
+  assert.deepEqual(atomTuple[5].items.enum, [`${analysisRequest.batch.passages[0].id}:s01`]);
+  assert.equal(atomTuple[5].maxItems, 1);
+  assert.equal(atomTuple[6].maxItems, 3);
+  assert.equal(atomTuple[6].items.prefixItems[1].maxLength, 8);
+  assert.equal(passageTuple[6].items.maxLength, 8);
+  assert.equal(passageTuple[6].maxItems, 4);
+  assert.equal(passageTuple[7].maxItems, 5);
   assert.equal(passageTuple[8].items.maxLength, 160);
+  assert.deepEqual(passageTuple[8].items.enum, [`${analysisRequest.batch.passages[0].id}:s01`]);
+  assert.equal(passageTuple[8].maxItems, 1);
+  assert.equal(passageTuple[9].maxItems, 5);
   assert.equal(passageTuple[9].items.prefixItems[1].items.maxLength, 160);
+  assert.deepEqual(
+    passageTuple[9].items.prefixItems[1].items.enum,
+    [`${analysisRequest.batch.passages[0].id}:s01`],
+  );
+  assert.equal(passageTuple[9].items.prefixItems[1].maxItems, 1);
   assert.deepEqual(analysisParameters.properties.q, { type: "array", maxItems: 0 });
   assert.equal(Object.hasOwn(calls[1].body, "response_format"), false);
   assert.equal(calls[1].body.tools.length, 1);
@@ -1421,6 +1477,7 @@ test("the adapter uses strict JSON Schema analysis and a named certification too
   assert.ok(analysisContract.description.includes(
     "The root has exactly d, p, and q: d is the document-kind enum string; p is the passage-tuple array; q is the empty array [].",
   ));
+  assert.match(analysisContract.description, /smallest complete atom graph allowed by each fitted cap/u);
   assert.doesNotMatch(
     calls[0].body.messages[0].content,
     /documentKind|passageId|discourseFunction|ambiguityAtomIds|conformanceCriteria|conformanceEvidenceSpanIds|conformanceAssertions|evidenceSpanIds|targetAtomId/u,
@@ -1453,6 +1510,160 @@ test("the adapter uses strict JSON Schema analysis and a named certification too
   assert.match(calls[0].body.messages[0].content, /Requested mode: experiential/u);
   assert.doesNotMatch(calls[0].body.messages[0].content, /\/no_think/u);
   assert.doesNotMatch(calls[1].body.messages[0].content, /\/no_think/u);
+});
+
+test("analysis schemas fit canary, one-word, and multipassage atom and evidence budgets", async () => {
+  const bodies = [];
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async (_url, init) => {
+      bodies.push(JSON.parse(init.body));
+      return successfulProviderResponse({ d: "instruction", p: [], q: [] });
+    },
+  });
+  const canaryText = "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
+  const canaryBase = minimalAnalysisRequest(canaryText);
+  const canary = Object.freeze({
+    ...canaryBase,
+    analysisAtomLimit: 12,
+    sourceSpans: latticeSourceSpansForBatch(canaryBase.batch),
+  });
+  const [leftCanaryPassage] = splitLatticePassage(canaryBase.batch.passages[0]);
+  const leftCanaryBatch = Object.freeze({
+    id: `${canaryBase.batch.id}a`,
+    passages: Object.freeze([leftCanaryPassage]),
+    wordCount: leftCanaryPassage.wordCount,
+    characterCount: leftCanaryPassage.text.length,
+  });
+  const splitCanaryChild = Object.freeze({
+    ...canary,
+    batch: leftCanaryBatch,
+    analysisAtomLimit: 6,
+    sourceSpans: latticeSourceSpansForBatch(leftCanaryBatch),
+  });
+  const oneWordBase = minimalAnalysisRequest("A");
+  const oneWord = Object.freeze({
+    ...oneWordBase,
+    analysisAtomLimit: 4,
+    sourceSpans: latticeSourceSpansForBatch(oneWordBase.batch),
+  });
+  const multipassageBase = minimalAnalysisRequest("One.\n\nTwo three four.");
+  const [firstPassage, secondPassage] = multipassageBase.batch.passages;
+  const evidenceRecord = (id, text) => Object.freeze({ id, kind: "source", text });
+  const multipassage = Object.freeze({
+    ...multipassageBase,
+    analysisAtomLimit: 3,
+    sourceSpans: Object.freeze([
+      Object.freeze({
+        passageId: firstPassage.id,
+        spans: Object.freeze([evidenceRecord(`${firstPassage.id}:s01`, firstPassage.text)]),
+        literalAnnotations: Object.freeze([]),
+      }),
+      Object.freeze({
+        passageId: secondPassage.id,
+        spans: Object.freeze([
+          evidenceRecord(`${secondPassage.id}:s01`, "Two"),
+          evidenceRecord(`${secondPassage.id}:s02`, "three"),
+        ]),
+        literalAnnotations: Object.freeze([
+          Object.freeze({ id: `${secondPassage.id}:l01`, literalType: "quoted", text: "four" }),
+          Object.freeze({ id: `${secondPassage.id}:l02`, literalType: "quoted", text: "." }),
+        ]),
+      }),
+    ]),
+  });
+  const skewedBase = minimalAnalysisRequest(
+    "One two three four five six seven eight nine ten eleven twelve.\n\nLast.",
+  );
+  const skewed = Object.freeze({
+    ...skewedBase,
+    analysisAtomLimit: 4,
+  });
+
+  await adapter.analyze(canary);
+  await adapter.analyze(splitCanaryChild);
+  await adapter.analyze(oneWord);
+  await adapter.analyze(multipassage);
+  await adapter.analyze(skewed);
+
+  assert.deepEqual(
+    bodies.map(({ max_tokens: maxTokens }) => maxTokens),
+    [3_072, 3_072, 3_072, 3_072, 3_072],
+  );
+  const schemas = bodies.map(({ response_format: responseFormat }) => (
+    responseFormat.json_schema.schema
+  ));
+  const passageTuples = schemas.map((schema) => (
+    schema.properties.p.prefixItems.map(({ prefixItems }) => prefixItems)
+  ));
+  assert.deepEqual(passageTuples.slice(0, 3).map(([tuple]) => tuple[5].maxItems), [12, 6, 4]);
+  assert.deepEqual(
+    passageTuples.slice(0, 3).map(([tuple]) => tuple[5].items.prefixItems[5].maxItems),
+    [3, 2, 1],
+  );
+  assert.deepEqual(
+    passageTuples.slice(0, 3).map(([tuple]) => tuple[5].items.prefixItems[5].items.enum),
+    [
+      canary.sourceSpans[0].spans.map(({ id }) => id),
+      splitCanaryChild.sourceSpans[0].spans.map(({ id }) => id),
+      oneWord.sourceSpans[0].spans.map(({ id }) => id),
+    ],
+  );
+  assert.deepEqual(
+    [
+      passageTuples[0][0][1].maxLength,
+      passageTuples[0][0][4].maxLength,
+      passageTuples[0][0][5].items.prefixItems[2].maxLength,
+      passageTuples[0][0][5].items.prefixItems[6].maxItems,
+    ],
+    [82, 144, 96, 4],
+  );
+  assert.deepEqual(
+    [
+      passageTuples[2][0][1].maxLength,
+      passageTuples[2][0][4].maxLength,
+      passageTuples[2][0][5].items.prefixItems[2].maxLength,
+      passageTuples[2][0][5].items.prefixItems[6].maxItems,
+    ],
+    [80, 120, 96, 3],
+  );
+  let denseState = 0x51f15e;
+  const denseHex = (length) => Array.from({ length }, () => {
+    denseState = (Math.imul(denseState, 1_664_525) + 1_013_904_223) >>> 0;
+    return (denseState >>> 28).toString(16);
+  }).join("");
+  const maximalCanaryWire = JSON.stringify(maximalJsonSchemaValue(schemas[0], denseHex));
+  assert.ok(maximalCanaryWire.length < 4_900, maximalCanaryWire.length);
+  assert.equal(Object.hasOwn(schemas[0].properties.p, "items"), false);
+  assert.equal(Object.hasOwn(schemas[1].properties.p, "items"), false);
+
+  const multiTuples = passageTuples[3];
+  assert.deepEqual(
+    multiTuples.map((tuple) => tuple[0].enum),
+    [[firstPassage.id], [secondPassage.id]],
+  );
+  assert.deepEqual(multiTuples.map((tuple) => tuple[5].maxItems), [1, 2]);
+  assert.equal(multiTuples.reduce((sum, tuple) => sum + tuple[5].maxItems, 0), 3);
+  assert.deepEqual(
+    multiTuples.map((tuple) => tuple[5].items.prefixItems[6].maxItems),
+    [2, 2],
+  );
+  const secondEvidence = [
+    `${secondPassage.id}:s01`,
+    `${secondPassage.id}:s02`,
+    `${secondPassage.id}:l01`,
+    `${secondPassage.id}:l02`,
+  ];
+  assert.deepEqual(multiTuples[1][5].items.prefixItems[5].items.enum, secondEvidence);
+  assert.equal(multiTuples[1][5].items.prefixItems[5].maxItems, 3);
+  assert.deepEqual(multiTuples[1][8].items.enum, secondEvidence);
+  assert.equal(multiTuples[1][8].maxItems, secondEvidence.length);
+  assert.deepEqual(multiTuples[1][9].items.prefixItems[1].items.enum, secondEvidence);
+  assert.equal(multiTuples[1][9].items.prefixItems[1].maxItems, secondEvidence.length);
+  assert.equal(multiTuples[1][7].maxItems, 5);
+  assert.equal(multiTuples[1][9].maxItems, 5);
+  assert.deepEqual(passageTuples[4].map((tuple) => tuple[5].maxItems), [2, 2]);
+  assert.doesNotMatch(JSON.stringify(schemas[2]), /"maxItems":(?:24|60)/u);
 });
 
 test("all five production stages use their exact provider response transport", async () => {
@@ -1569,6 +1780,30 @@ test("invalid fitted analysis atom limits fail before provider work", async () =
       TypeError,
     );
   }
+  const duplicatePassageRequest = minimalAnalysisRequest();
+  await assert.rejects(
+    adapter.analyze(Object.freeze({
+      ...duplicatePassageRequest,
+      batch: Object.freeze({
+        ...duplicatePassageRequest.batch,
+        passages: Object.freeze([
+          duplicatePassageRequest.batch.passages[0],
+          duplicatePassageRequest.batch.passages[0],
+        ]),
+      }),
+    })),
+    TypeError,
+  );
+  const reorderedEvidenceRequest = minimalAnalysisRequest("One.\n\nTwo.");
+  const orderedEvidence = latticeSourceSpansForBatch(reorderedEvidenceRequest.batch);
+  await assert.rejects(
+    adapter.analyze(Object.freeze({
+      ...reorderedEvidenceRequest,
+      analysisAtomLimit: 4,
+      sourceSpans: Object.freeze([...orderedEvidence].reverse()),
+    })),
+    TypeError,
+  );
   assert.equal(fetches, 0);
 });
 
@@ -1638,7 +1873,7 @@ test("the private compact analysis wire format expands to the unchanged host sch
   };
   assert.deepEqual(result, expected);
   assert.deepEqual(result[LATTICE_FITTED_ANALYSIS_CONTEXT], {
-    analysisAtomLimit: 24,
+    analysisAtomLimit: 4,
     documentLedgerAtomIds: [],
   });
   assert.equal(Object.keys(result).includes(String(LATTICE_FITTED_ANALYSIS_CONTEXT)), false);
@@ -1646,6 +1881,12 @@ test("the private compact analysis wire format expands to the unchanged host sch
   assert.match(
     providerBody.response_format.json_schema.description,
     /single-letter root keys and tuple positions are mandatory/u,
+  );
+  assert.match(providerBody.messages[0].content, /Use at most 4 atoms total/u);
+  assert.equal(
+    providerBody.response_format.json_schema.schema.properties.p.prefixItems[0]
+      .prefixItems[5].maxItems,
+    result[LATTICE_FITTED_ANALYSIS_CONTEXT].analysisAtomLimit,
   );
   assert.deepEqual(providerBody.response_format.json_schema.schema.required, ["d", "p", "q"]);
   assert.equal(providerBody.response_format.json_schema.name, ANALYSIS_TOOL_NAME);

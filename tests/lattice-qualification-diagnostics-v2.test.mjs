@@ -228,24 +228,32 @@ test("a malformed compact analysis tuple fails into the bounded host correction 
   assertHiddenImmutableDiagnostics(error);
 });
 
-test("a split-child correction keeps split origin when global analysis call four reaches its output limit", async () => {
+test("a split-child output limit immediately starts a smaller first attempt", async () => {
   let calls = 0;
+  const providerBodies = [];
   const adapter = createHuggingFaceLatticeAdapter({
     token: "server-test-token",
     requestedMode: "operative",
-    fetchImpl: async () => {
+    fetchImpl: async (_url, init) => {
       calls += 1;
+      providerBodies.push(JSON.parse(init.body));
       if (calls < 4) return invalidAnalysisResponse();
-      return new Response(JSON.stringify({
-        choices: [{
-          finish_reason: "length",
-          message: {
-            role: "assistant",
-            content: "PRIVATE-TRUNCATED-CONTENT",
-          },
-        }],
-        usage: { completion_tokens: 3_072 },
-      }), {
+      if (calls === 4) {
+        return new Response(JSON.stringify({
+          choices: [{
+            finish_reason: "length",
+            message: {
+              role: "assistant",
+              content: "PRIVATE-TRUNCATED-CONTENT",
+            },
+          }],
+          usage: { completion_tokens: 3_072 },
+        }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response("not-json", {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
@@ -259,21 +267,21 @@ test("a split-child correction keeps split origin when global analysis call four
   }));
 
   assert.ok(error instanceof LatticeProviderError);
-  assert.equal(error.code, "provider_output_limit");
+  assert.equal(error.code, "provider_malformed_response");
   assert.equal(error.qualificationStage, "analysis");
-  assert.equal(error.qualificationCallOrdinal, 4);
-  assert.equal(error.qualificationSubtype, "none");
-  assert.equal(error.qualificationFinishReason, "length");
-  assert.equal(error.qualificationRequestSize, "4097-16384");
-  assert.equal(error.qualificationResponseSize, "1-4096");
-  assert.equal(error.qualificationContentSize, "1-4096");
-  assert.equal(error.qualificationCompletionTokens, "3072-plus");
+  assert.equal(error.qualificationCallOrdinal, 5);
+  assert.equal(error.qualificationSubtype, "envelope_json");
   assert.equal(error.qualificationAnalysisOrigin, "split");
-  assert.equal(error.qualificationAnalysisAttempt, "2");
-  assert.equal(error.qualificationPriorValidationCategory, "passage-coverage");
+  assert.equal(error.qualificationAnalysisAttempt, "1");
+  assert.equal(error.qualificationPriorValidationCategory, "none");
   assert.equal(error.message.includes("PRIVATE-TRUNCATED-CONTENT"), false);
   assert.equal(JSON.stringify(error).includes("PRIVATE-TRUNCATED-CONTENT"), false);
-  assert.equal(calls, 4);
+  assert.equal(calls, 5);
+  const fourthSystem = providerBodies[3].messages.find(({ role }) => role === "system")?.content ?? "";
+  const fifthSystem = providerBodies[4].messages.find(({ role }) => role === "system")?.content ?? "";
+  assert.match(fourthSystem, /one bounded correction attempt/u);
+  assert.doesNotMatch(fifthSystem, /one bounded correction attempt/u);
+  assert.notDeepEqual(providerBodies[4].response_format, providerBodies[3].response_format);
   assertHiddenImmutableDiagnostics(error);
 });
 

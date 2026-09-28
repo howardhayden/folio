@@ -903,6 +903,116 @@ test("adaptive atomization recovery never bisects an exact literal", async () =>
   assert.ok(observed.every((text) => (text.match(/`/gu)?.length ?? 0) % 2 === 0));
 });
 
+test("analysis output limits split immediately without an unchanged correction call", async () => {
+  const source = "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
+  for (const code of ["lattice-output-length", "provider_output_limit"]) {
+    const observed = [];
+    const adapter = scriptedAdapter({
+      analyze(request, count) {
+        observed.push(Object.freeze({
+          batchId: request.batch.id,
+          analysisAtomLimit: request.analysisAtomLimit,
+        }));
+        if (count === 1) {
+          const error = new Error("synthetic bounded output limit");
+          error.code = code;
+          throw error;
+        }
+        return rawAnalysis(request);
+      },
+    });
+    const result = await runTextToLattice(source, { adapter });
+    assert.equal(result.status, "translated", code);
+    assert.equal(observed.filter(({ batchId }) => batchId === "b001").length, 1, code);
+    assert.equal(observed.length, 3, code);
+    assert.deepEqual(observed.map(({ batchId }) => batchId), ["b001", "b001a", "b001b"], code);
+    assert.deepEqual(observed.map(({ analysisAtomLimit }) => analysisAtomLimit), [12, 6, 6], code);
+    assert.equal(
+      observed[1].analysisAtomLimit + observed[2].analysisAtomLimit,
+      observed[0].analysisAtomLimit,
+      code,
+    );
+  }
+});
+
+test("the production canary carries its fitted atom budget through host-validation splitting", async () => {
+  const source = "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
+  const observed = [];
+  const adapter = scriptedAdapter({
+    analyze(request) {
+      observed.push(Object.freeze({
+        batchId: request.batch.id,
+        analysisAtomLimit: request.analysisAtomLimit,
+      }));
+      if (request.batch.id === "b001") throw new SyntaxError("synthetic invalid analysis");
+      return rawAnalysis(request);
+    },
+  });
+  const result = await runTextToLattice(source, { adapter });
+  assert.equal(result.status, "translated");
+  assert.deepEqual(observed, [
+    { batchId: "b001", analysisAtomLimit: 12 },
+    { batchId: "b001", analysisAtomLimit: 12 },
+    { batchId: "b001a", analysisAtomLimit: 6 },
+    { batchId: "b001b", analysisAtomLimit: 6 },
+  ]);
+  assert.equal(adapter.calls.generate, 2);
+});
+
+test("adaptive batch and passage splits deterministically preserve their parent atom budgets", async () => {
+  const source = [fixedPassage("alpha"), fixedPassage("bravo")].join("\n");
+  const observed = [];
+  const adapter = scriptedAdapter({
+    analyze(request) {
+      observed.push(Object.freeze({
+        batchId: request.batch.id,
+        analysisAtomLimit: request.analysisAtomLimit,
+      }));
+      if (["b001", "b001a"].includes(request.batch.id)) {
+        throw new SyntaxError("synthetic invalid analysis");
+      }
+      return rawAnalysis(request);
+    },
+  });
+  const result = await runTextToLattice(source, { adapter });
+  assert.equal(result.status, "translated");
+  const limits = new Map(observed.map(({ batchId, analysisAtomLimit }) => [batchId, analysisAtomLimit]));
+  assert.equal(observed.filter(({ batchId }) => batchId === "b001").length, 2);
+  assert.equal(observed.filter(({ batchId }) => batchId === "b001a").length, 2);
+  assert.equal(limits.get("b001a") + limits.get("b001b"), limits.get("b001"));
+  assert.equal(limits.get("b001aa") + limits.get("b001ab"), limits.get("b001a"));
+  assert.equal(limits.get("b001"), 24);
+});
+
+test("an atom budget below split-child evidence minima fails closed without calling the children", async () => {
+  const observed = [];
+  const adapter = scriptedAdapter({
+    analyze(request) {
+      observed.push(Object.freeze({
+        batchId: request.batch.id,
+        wordCount: request.batch.wordCount,
+        analysisAtomLimit: request.analysisAtomLimit,
+      }));
+      if (request.analysisAtomLimit === 1 || request.batch.wordCount > 2) {
+        const error = new Error("synthetic bounded output limit");
+        error.code = "provider_output_limit";
+        throw error;
+      }
+      return rawAnalysis(request);
+    },
+  });
+  const result = await runTextToLattice(opaqueWords(16, "a"), { adapter });
+  assert.equal(result.status, "unable-to-attempt");
+  assert.equal(result.text, null);
+  assert.equal(adapter.calls.generate, 0);
+  assert.deepEqual(observed.at(-1), {
+    batchId: "b001aab",
+    wordCount: 2,
+    analysisAtomLimit: 1,
+  });
+  assert.equal(observed.some(({ batchId }) => batchId.startsWith("b001aaba")), false);
+});
+
 test("model-cited span IDs resolve to exact internal UTF-16 evidence records", async () => {
   const source = Array.from({ length: 12 }, () => `u${"\u0301".repeat(2)} \u{1F469}\u200d\u{1F4BB}`).join(" ");
   let resolved;
@@ -995,6 +1105,35 @@ test("atomization accepts only links and atom counts visible in its fitted model
   assert.equal(indivisibleResult.status, "unable-to-attempt");
   assert.equal(indivisibleResult.text, null);
   assert.equal(indivisible.calls.generate, 0);
+});
+
+test("host normalization enforces its assigned atom cap and forbids fitted-context widening", async () => {
+  const source = "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
+  const omitted = scriptedAdapter({
+    analyze(request) {
+      return rawAnalysisWithAtomCount(request, request.analysisAtomLimit + 1);
+    },
+  });
+  const omittedResult = await runTextToLattice(source, { adapter: omitted });
+  assert.equal(omittedResult.status, "unable-to-attempt");
+  assert.equal(omitted.calls.generate, 0);
+
+  const widened = scriptedAdapter({
+    analyze(request) {
+      const analysis = rawAnalysis(request);
+      Object.defineProperty(analysis, LATTICE_FITTED_ANALYSIS_CONTEXT, {
+        enumerable: false,
+        value: Object.freeze({
+          analysisAtomLimit: request.analysisAtomLimit + 1,
+          documentLedgerAtomIds: Object.freeze([]),
+        }),
+      });
+      return analysis;
+    },
+  });
+  const widenedResult = await runTextToLattice(source, { adapter: widened });
+  assert.equal(widenedResult.status, "unable-to-attempt");
+  assert.equal(widened.calls.generate, 0);
 });
 
 test("fine-grained literal spans preserve exact URL, quantity, and code while surrounding tokens rewrite", async () => {
@@ -1220,7 +1359,7 @@ test("same-kind exact literal bundles remain complete and model-citable", async 
   const result = await runTextToLattice(source, {
     adapter: scriptedAdapter({
       analyze(request) {
-        const analysis = rawAnalysisWithAtomCount(request, 24);
+        const analysis = rawAnalysisWithAtomCount(request, request.analysisAtomLimit);
         analysis.passages = analysis.passages.map((plan) => {
           const sourcePassage = request.batch.passages.find(({ id }) => id === plan.passageId);
           if (sourcePassage.text.replace(/`[^`]*`/gu, "").trim()) return plan;
@@ -1883,11 +2022,15 @@ test("an initial thirty-two-group source may safely split to a thirty-third exec
   assert.equal(8 * LATTICE_EXECUTION_BATCH_LIMIT, LATTICE_COMPLETION_CALL_LIMIT);
 });
 
-test("tiny adjacent lines coalesce into bounded model work while admitting twenty-four atoms", async () => {
+test("tiny adjacent lines coalesce with an evidence-fitted atom budget", async () => {
   const source = Array.from({ length: 12 }, (_, index) => `u${String.fromCharCode(97 + index)}`).join("\n");
   const admittedAtoms = [];
+  const assignedLimits = [];
   const adapter = scriptedAdapter({
-    analyze(request) { return rawAnalysisWithAtomCount(request, 24); },
+    analyze(request) {
+      assignedLimits.push(request.analysisAtomLimit);
+      return rawAnalysisWithAtomCount(request, request.analysisAtomLimit);
+    },
     generate(request) {
       admittedAtoms.push(request.analysis.passages.reduce((sum, passage) => sum + passage.atoms.length, 0));
       return rawCandidate(request);
@@ -1897,7 +2040,8 @@ test("tiny adjacent lines coalesce into bounded model work while admitting twent
   assert.equal(result.status, "translated");
   assert.equal(result.batchCount, 1);
   assert.equal(result.passageCount, 1);
-  assert.deepEqual(admittedAtoms, [24]);
+  assert.deepEqual(assignedLimits, [8]);
+  assert.deepEqual(admittedAtoms, assignedLimits);
 });
 
 test("the twenty-four-atom batch limit is enforced before generation", async () => {
@@ -2704,6 +2848,34 @@ test("missing source coverage re-atomizes before it regenerates", async () => {
   assert.equal(adapter.calls.verify, 2);
 });
 
+test("re-atomization preserves its fitted cap and degrades output limits without an unchanged retry", async () => {
+  for (const code of ["lattice-output-length", "provider_output_limit"]) {
+    const observedLimits = [];
+    const adapter = scriptedAdapter({
+      analyze(request, count) {
+        observedLimits.push(request.analysisAtomLimit);
+        if (count === 2) {
+          const error = new Error("synthetic bounded re-analysis output limit");
+          error.code = code;
+          throw error;
+        }
+        return rawAnalysis(request);
+      },
+      verify(request) {
+        return rawVerification(request, {
+          decision: "repair",
+          gates: { sourceCoverage: false },
+          passage: { unmodeledSpanIds: request.sourceSpans[0].spans.map(({ id }) => id) },
+        });
+      },
+    });
+    const result = await runTextToLattice(opaqueWords(8), { adapter });
+    assert.equal(result.status, "unable-to-attempt", code);
+    assert.deepEqual(observedLimits, [8, 8], code);
+    assert.deepEqual(adapter.calls, { analyze: 2, generate: 1, verify: 1, repair: 0 }, code);
+  }
+});
+
 test("an independently unconfirmed sub-register re-atomizes and stays hidden if unresolved", async () => {
   const recovered = scriptedAdapter({
     verify(request, count) {
@@ -3034,7 +3206,7 @@ test("duplicate evidence triggers bounded finer planning before generation", asy
           layer: "interpretive",
           disposition: "rewrite",
           rationale: "r0",
-          atoms: Array.from({ length: 24 }, (_, index) => ({
+          atoms: Array.from({ length: request.analysisAtomLimit }, (_, index) => ({
             id: `a${index}`,
             kind: ["state", "object", "unit"][index % 3],
             value: `v${index}`,

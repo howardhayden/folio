@@ -13,11 +13,16 @@ import {
   LATTICE_SCHEMA_GUIDES,
   LATTICE_STAGE_OUTPUT_TOKENS,
   createLocalLatticeAdapter,
+  discardLocalLatticeModel,
   fitLatticeContextPair,
   latticeAnalysisOutputTokenLimit,
   latticeClarificationAnalysisOutputTokenLimit,
   latticeVerificationOutputTokenLimit,
 } from "../app/resume/lattice/localModel.js";
+import {
+  latticeModelRpcStarted,
+  latticeModelRpcSuccess,
+} from "../app/resume/lattice/modelRpc.js";
 import { LATTICE_TOKENIZER_SHA256 } from "../app/resume/lattice/modelContract.js";
 import {
   ANALYSIS_SCHEMA,
@@ -25,6 +30,7 @@ import {
   DOCUMENT_CERTIFICATION_SCHEMA,
   LATTICE_CONFORMANCE_CRITERIA,
   LATTICE_DOCUMENT_KINDS,
+  LATTICE_FITTED_ANALYSIS_CONTEXT,
   LATTICE_PASSAGE_VERIFICATION_CHECKS,
   LATTICE_VERIFICATION_GATES,
   REANALYSIS_SCHEMA,
@@ -51,6 +57,7 @@ import {
   preflightLatticeInput,
   validateLatticeClarificationAnswer,
 } from "../app/resume/latticeDemo.js";
+import { createHuggingFaceLatticeAdapter } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 
 const QWEN_TOKENIZER_PATH = process.env.LATTICE_QWEN_TOKENIZER_JSON ?? "/tmp/qwen3-lattice-tokenizer.json";
 const LLAMA_TOKENIZER_PATH = process.env.LATTICE_LLAMA_TOKENIZER_JSON ?? "/tmp/llama32-lattice-tokenizer.json";
@@ -540,6 +547,221 @@ function minifiedProtocolOutputs() {
   return { analysis, candidate, verification, certification };
 }
 
+function maximalFittedWireValue(schema, stringValue) {
+  if (Array.isArray(schema.enum)) {
+    return [...schema.enum].sort((left, right) => (
+      JSON.stringify(right).length - JSON.stringify(left).length
+    ))[0];
+  }
+  if (schema.type === "string") return stringValue(schema.maxLength ?? 1);
+  if (schema.type === "array") {
+    if (Array.isArray(schema.prefixItems)) {
+      return schema.prefixItems.map((item) => maximalFittedWireValue(item, stringValue));
+    }
+    return Array.from(
+      { length: schema.maxItems ?? schema.minItems ?? 0 },
+      () => maximalFittedWireValue(schema.items, stringValue),
+    );
+  }
+  if (schema.type === "object") {
+    return Object.fromEntries(schema.required.map((key) => (
+      [key, maximalFittedWireValue(schema.properties[key], stringValue)]
+    )));
+  }
+  if (schema.type === "boolean") return false;
+  throw new TypeError("The fitted-wire test received an unsupported JSON Schema shape.");
+}
+
+test("the exact production canary maximal dense wire retains pinned-Qwen output headroom", {
+  skip: TOKENIZER_FIXTURES_AVAILABLE ? false : "set the two LATTICE_*_TOKENIZER_JSON paths to run exact pinned-tokenizer checks",
+}, async () => {
+  const tokenizers = await pinnedTokenizers();
+  try {
+    const preflight = preflightLatticeInput(
+      "A visitor places a blue notebook on the desk, reads the first page, and closes it.",
+    );
+    const batch = preflight.batches[0];
+    let providerBody;
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      fetchImpl: async (_url, init) => {
+        providerBody = JSON.parse(init.body);
+        return new Response(JSON.stringify({
+          choices: [{
+            finish_reason: "stop",
+            message: { role: "assistant", content: JSON.stringify({ d: "instruction", p: [], q: [] }) },
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+    await adapter.analyze(Object.freeze({
+      batch,
+      sourceSpans: latticeSourceSpansForBatch(batch),
+      analysisAtomLimit: 12,
+      documentLedger: Object.freeze([]),
+      signal: new AbortController().signal,
+    }));
+
+    let state = 0x51f15e;
+    const denseHex = (length) => Array.from({ length }, () => {
+      state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+      return (state >>> 28).toString(16);
+    }).join("");
+    const schema = providerBody.response_format.json_schema.schema;
+    const maximalWire = JSON.stringify(maximalFittedWireValue(schema, denseHex));
+    const tokenCount = tokenizers.qwen.encode(maximalWire).length;
+    assert.ok(maximalWire.length < 4_900, `maximal wire used ${maximalWire.length} characters`);
+    assert.ok(tokenCount <= 2_765, `maximal wire used ${tokenCount} pinned-Qwen tokens`);
+    assert.ok(3_072 - tokenCount >= 300, `maximal wire left only ${3_072 - tokenCount} tokens`);
+  } finally {
+    tokenizers.dispose();
+  }
+});
+
+test("local analysis fitting preserves caller atom ceilings and bounds length failures", async () => {
+  const workerDescriptor = Object.getOwnPropertyDescriptor(globalThis, "Worker");
+  const operations = [];
+  let completionCount = 0;
+
+  class FakeWorker {
+    constructor() {
+      this.listeners = new Map();
+    }
+
+    addEventListener(type, listener) {
+      this.listeners.set(type, listener);
+    }
+
+    postMessage(request) {
+      operations.push(request);
+      queueMicrotask(() => {
+        this.listeners.get("message")?.({
+          data: latticeModelRpcStarted(request.id, request.operation),
+        });
+        if (request.operation === "token-count") {
+          this.listeners.get("message")?.({
+            data: latticeModelRpcSuccess(request.id, request.operation, 3_100),
+          });
+          return;
+        }
+        if (request.operation === "prepare") {
+          this.listeners.get("message")?.({
+            data: latticeModelRpcSuccess(request.id, request.operation, null),
+          });
+          return;
+        }
+        if (request.operation === "complete") {
+          completionCount += 1;
+          this.listeners.get("message")?.({
+            data: latticeModelRpcSuccess(request.id, request.operation, {
+              finishReason: completionCount === 1 ? "stop" : "length",
+              content: "{}",
+            }),
+          });
+        }
+      });
+    }
+
+    terminate() {}
+  }
+
+  const passage = Object.freeze({
+    id: "p0001",
+    text: "A short sentence.",
+    separatorBefore: "",
+    separatorAfter: "",
+  });
+  const request = Object.freeze({
+    batch: Object.freeze({
+      id: "b001",
+      passages: Object.freeze([passage]),
+      wordCount: 3,
+      characterCount: passage.text.length,
+    }),
+    sourceSpans: Object.freeze([Object.freeze({
+      passageId: passage.id,
+      spans: Object.freeze([Object.freeze({
+        id: `${passage.id}:s01`,
+        kind: "source",
+        text: passage.text,
+      })]),
+      literalAnnotations: Object.freeze([]),
+      directionFrames: Object.freeze([]),
+    })]),
+    context: null,
+    documentLedger: Object.freeze([]),
+    clarificationAnswers: Object.freeze([]),
+    allowClarification: false,
+    analysisAtomLimit: 3,
+  });
+
+  Object.defineProperty(globalThis, "Worker", { configurable: true, value: FakeWorker });
+  try {
+    const adapter = createLocalLatticeAdapter();
+    for (const analysisAtomLimit of [0, 25, 1.5, Number.NaN, "3", null]) {
+      await assert.rejects(
+        adapter.analyze(Object.freeze({ ...request, analysisAtomLimit })),
+        TypeError,
+      );
+    }
+    await assert.rejects(
+      adapter.analyze(Object.freeze({
+        ...request,
+        analysisAtomLimit: 1,
+        sourceSpans: Object.freeze([Object.freeze({
+          ...request.sourceSpans[0],
+          spans: Object.freeze(Array.from({ length: 4 }, (_, index) => Object.freeze({
+            id: `${passage.id}:s0${index + 1}`,
+            kind: "source",
+            text: `evidence ${index + 1}`,
+          }))),
+        })]),
+      })),
+      /below its evidence minimum/u,
+    );
+    assert.equal(operations.length, 0, "invalid ceilings fail before any model-worker request");
+
+    for (const schema of [ANALYSIS_SCHEMA, REANALYSIS_SCHEMA]) {
+      assert.match(LATTICE_SCHEMA_GUIDES.get(schema), /stated atom cap/u);
+      assert.doesNotMatch(LATTICE_SCHEMA_GUIDES.get(schema), /\bat most 24 atoms\b/iu);
+    }
+
+    const fitted = await adapter.analyze(request);
+    assert.deepEqual(fitted[LATTICE_FITTED_ANALYSIS_CONTEXT], {
+      analysisAtomLimit: 2,
+      documentLedgerAtomIds: [],
+    });
+    const firstCompletion = operations.find(({ operation }) => operation === "complete");
+    assert.equal(firstCompletion.payload.maxTokens, latticeAnalysisOutputTokenLimit(request.batch, 2));
+    assert.match(
+      firstCompletion.payload.messages.map(({ content }) => content).join("\n"),
+      /Use at most 2 atoms total/u,
+    );
+
+    await assert.rejects(
+      adapter.analyze(Object.freeze({ ...request, analysisAtomLimit: 2 })),
+      (error) => error?.code === "lattice-output-length",
+    );
+    const completions = operations.filter(({ operation }) => operation === "complete");
+    assert.equal(completions.length, 2, "a length finish cannot start an unbounded correction pass");
+    assert.ok(completions.every(({ payload }) => (
+      payload.maxTokens === latticeAnalysisOutputTokenLimit(request.batch, 2)
+    )));
+    const fittedInstructions = operations
+      .filter(({ operation }) => operation === "token-count")
+      .map(({ payload }) => payload.serialized.match(/Use at most (\d+) atoms total/u)?.[1])
+      .filter(Boolean)
+      .map(Number);
+    assert.ok(fittedInstructions.includes(3));
+    assert.ok(fittedInstructions.includes(2));
+    assert.equal(fittedInstructions.some((limit) => limit > request.analysisAtomLimit), false);
+  } finally {
+    discardLocalLatticeModel();
+    if (workerDescriptor) Object.defineProperty(globalThis, "Worker", workerDescriptor);
+    else delete globalThis.Worker;
+  }
+});
+
 test("pinned model output envelopes admit the largest compact protocol structures", {
   skip: TOKENIZER_FIXTURES_AVAILABLE ? false : "set the two LATTICE_*_TOKENIZER_JSON paths to run exact pinned-tokenizer checks",
 }, async () => {
@@ -777,7 +999,7 @@ test("one maximum public clarification fits every reachable 700-word analysis ba
       }
     }
     assert.ok(checked > 0);
-    assert.deepEqual(maximumReservedTokens, { qwen: 3_414, llama: 3_371 });
+    assert.deepEqual(maximumReservedTokens, { qwen: 3_411, llama: 3_369 });
     assert.equal(REANALYSIS_SCHEMA.properties.questions.maxItems, 0);
     assert.equal(VERIFICATION_SCHEMA.properties.questions.maxItems, 0);
   } finally {
