@@ -557,6 +557,7 @@ function fittedStringLength(schema) {
 }
 
 function maximalFittedWireValue(schema, stringValue) {
+  if (Object.hasOwn(schema, "const")) return schema.const;
   if (Array.isArray(schema.enum)) {
     return [...schema.enum].sort((left, right) => (
       JSON.stringify(right).length - JSON.stringify(left).length
@@ -572,7 +573,16 @@ function maximalFittedWireValue(schema, stringValue) {
   }
   if (schema.type === "array") {
     if (Array.isArray(schema.prefixItems)) {
-      return schema.prefixItems.map((item) => maximalFittedWireValue(item, stringValue));
+      const prefix = schema.prefixItems.map((item) => maximalFittedWireValue(item, stringValue));
+      const maximumLength = schema.maxItems ?? schema.minItems ?? prefix.length;
+      if (maximumLength <= prefix.length || !schema.items) return prefix;
+      return [
+        ...prefix,
+        ...Array.from(
+          { length: maximumLength - prefix.length },
+          () => maximalFittedWireValue(schema.items, stringValue),
+        ),
+      ];
     }
     return Array.from(
       { length: schema.maxItems ?? schema.minItems ?? 0 },

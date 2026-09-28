@@ -127,6 +127,16 @@ const QUESTION_WORD_SEGMENTER = typeof Intl !== "undefined" && typeof Intl.Segme
   : null;
 const ANALYSIS_DIAGNOSTIC_ORIGIN_SET = new Set(LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS);
 const ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
+const ANALYSIS_DECODER_FAILURE_CATEGORY_SET = new Set([
+  "response-shape",
+  "passage-coverage",
+  "capacity",
+  "evidence",
+  "relation",
+  "ambiguity",
+  "conformance",
+]);
+const ANALYSIS_DECODER_FAILURE_CATEGORIES = new WeakMap();
 const ANALYSIS_FAILURE_DIAGNOSTICS = new WeakMap();
 const ANALYSIS_VALIDATION_MESSAGE_CATEGORIES = Object.freeze([
   Object.freeze({
@@ -325,6 +335,19 @@ async function normalizeAnalysis(
   protocol(typeof revisionId === "string" && ANALYSIS_REVISION_ID_PATTERN.test(revisionId),
     "The host supplied an invalid atomization revision.");
   protocol(record(raw), "The atomizer returned an invalid response.");
+  const fittedContext = raw[LATTICE_FITTED_ANALYSIS_CONTEXT];
+  if (record(fittedContext) && Object.hasOwn(fittedContext, "decoderFailureCategory")) {
+    protocol(Number.isSafeInteger(fittedContext.analysisAtomLimit)
+      && fittedContext.analysisAtomLimit >= 1
+      && fittedContext.analysisAtomLimit <= LATTICE_BATCH_ATOM_LIMIT
+      && fittedContext.analysisAtomLimit <= analysisAtomLimit
+      && Array.isArray(fittedContext.documentLedgerAtomIds)
+      && ANALYSIS_DECODER_FAILURE_CATEGORY_SET.has(fittedContext.decoderFailureCategory),
+    "The atomizer response lost its fitted host context.");
+    const error = new LatticeProtocolError("The atomizer returned an invalid response.");
+    ANALYSIS_DECODER_FAILURE_CATEGORIES.set(error, fittedContext.decoderFailureCategory);
+    throw error;
+  }
   exactKeys(raw, ["documentKind", "passages", "questions"], "Atomization response");
   if (!allowClarification) {
     protocol(Array.isArray(raw.questions) && raw.questions.length === 0,
@@ -339,7 +362,6 @@ async function normalizeAnalysis(
     && analysisAtomLimit >= 1
     && analysisAtomLimit <= LATTICE_BATCH_ATOM_LIMIT,
     "The atomizer response lost its fitted host context.");
-  const fittedContext = raw[LATTICE_FITTED_ANALYSIS_CONTEXT];
   if (fittedContext !== undefined) {
     protocol(record(fittedContext)
       && Number.isSafeInteger(fittedContext.analysisAtomLimit)
@@ -1252,6 +1274,13 @@ function retryableStageFailure(error) {
 }
 
 function analysisValidationCategory(error) {
+  const decoderFailureCategory = (typeof error === "object" || typeof error === "function")
+    && error !== null
+    ? ANALYSIS_DECODER_FAILURE_CATEGORIES.get(error)
+    : undefined;
+  if (ANALYSIS_DECODER_FAILURE_CATEGORY_SET.has(decoderFailureCategory)) {
+    return decoderFailureCategory;
+  }
   if (error instanceof SyntaxError || ["lattice-json", "lattice-response"].includes(error?.code)) {
     return "response-shape";
   }
