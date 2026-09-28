@@ -102,6 +102,7 @@ export const LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT = 128_000;
 
 const REMOTE_ROLES = new Set(Object.keys(LATTICE_REMOTE_MODELS));
 const REQUESTED_MODES = new Set(["auto", "operative", "experiential"]);
+const RESPONSE_FORMATS = new Set(["json_object", "json_schema"]);
 const MALFORMED_SUBTYPE_SET = new Set(LATTICE_PROVIDER_MALFORMED_SUBTYPES);
 const FINISH_REASON_SET = new Set(LATTICE_PROVIDER_FINISH_REASONS);
 const SIZE_BUCKET_SET = new Set(LATTICE_PROVIDER_SIZE_BUCKETS);
@@ -196,7 +197,7 @@ const ANALYSIS_WIRE_SCHEMA = Object.freeze({
   required: Object.freeze(["d", "p", "q"]),
 });
 const ANALYSIS_WIRE_GUIDE = [
-  "Supply one complete private analysis instance as this function's arguments; the single-letter root keys and tuple positions are mandatory.",
+  "Return one complete private analysis instance as the structured response; the single-letter root keys and tuple positions are mandatory.",
   "The root has exactly d, p, and q: d is the document-kind enum string; p is the passage-tuple array; q is the empty array [].",
   "Passage tuple positions 0-9: [passage ID,discourse function,layer,disposition,rationale,atom tuples,ambiguity atom IDs,conformance criterion IDs,conformance evidence span IDs,conformance assertion tuples].",
   "Atom tuple positions 0-6: [atom ID,kind,value,priority,preservation,evidence span IDs,link tuples].",
@@ -204,7 +205,6 @@ const ANALYSIS_WIRE_GUIDE = [
   "Fill passage position 1 with the discourse function and position 4 with the rationale. Keep all free text concise. Do not put long field names, Markdown, explanations, or reasoning in assistant content.",
 ].join("\n");
 
-const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v1";
 const VERIFICATION_TOOL_NAME = "lattice_verification_v1";
 const CERTIFICATION_TOOL_NAME = "lattice_certification_v1";
 
@@ -217,13 +217,12 @@ const STAGES = Object.freeze({
     role: "generator",
     schema: ANALYSIS_WIRE_SCHEMA,
     schemaName: "lattice_analysis_wire_v1",
-    toolName: ANALYSIS_TOOL_NAME,
+    responseFormat: "json_schema",
     responseGuide: ANALYSIS_WIRE_GUIDE,
     messages: analysisWireMessages,
     maxTokens: 3_072,
     temperature: 0.7,
     topP: 0.8,
-    toolChoice: "auto",
   }),
   candidate: Object.freeze({
     role: "generator",
@@ -481,6 +480,26 @@ function jsonObjectMessages(messages, schemaName, schema, responseGuide) {
   }
   return Object.freeze(messages.map((message, index) => Object.freeze(index === systemIndex
     ? { ...message, content: `${message.content}\n${content}` }
+    : { ...message })));
+}
+
+function jsonSchemaMessages(messages, schemaName, responseGuide) {
+  const contract = [
+    `Response contract ${schemaName}: Return exactly one JSON object satisfying the supplied strict JSON Schema.`,
+    "Do not wrap the JSON object in Markdown or add text before or after it.",
+    ...(responseGuide ? [responseGuide] : []),
+  ].join("\n");
+  const systemIndex = messages.findIndex((message) => (
+    record(message) && message.role === "system" && typeof message.content === "string"
+  ));
+  if (systemIndex === -1) {
+    return Object.freeze([
+      Object.freeze({ role: "system", content: contract }),
+      ...messages.map((message) => Object.freeze({ ...message })),
+    ]);
+  }
+  return Object.freeze(messages.map((message, index) => Object.freeze(index === systemIndex
+    ? { ...message, content: `${message.content}\n${contract}` }
     : { ...message })));
 }
 
@@ -963,6 +982,7 @@ export async function requestHuggingFaceJson({
   schema,
   schemaName,
   responseGuide,
+  responseFormat,
   toolName,
   maxTokens,
   temperature,
@@ -977,9 +997,9 @@ export async function requestHuggingFaceJson({
   maximumRequestBytes = LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   maximumResponseBytes = LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
 }) {
-  const resolvedToolChoice = toolName === undefined
-    ? undefined
-    : toolChoice ?? (role === "generator" ? "auto" : "named");
+  const resolvedResponseFormat = toolName === undefined
+    ? responseFormat ?? "json_object"
+    : undefined;
   if (typeof token !== "string" || !token.trim()) {
     throw providerError("provider_not_configured", "The Lattice provider is not configured.");
   }
@@ -996,26 +1016,42 @@ export async function requestHuggingFaceJson({
       && (!Number.isFinite(presencePenalty) || presencePenalty < 0 || presencePenalty > 2))
     || (responseGuide !== undefined
       && (typeof responseGuide !== "string" || !responseGuide.trim() || responseGuide.length > 4_096))
+    || (responseFormat !== undefined && !RESPONSE_FORMATS.has(responseFormat))
+    || (responseFormat !== undefined && toolName !== undefined)
+    || (resolvedResponseFormat === "json_schema" && role !== "generator")
     || (toolName !== undefined
       && (typeof toolName !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(toolName)))
-    || (toolChoice !== undefined && toolChoice !== "auto" && toolChoice !== "named")
+    || (toolChoice !== undefined && toolChoice !== "named")
     || (toolChoice !== undefined && toolName === undefined)
-    || (resolvedToolChoice === "auto" && role !== "generator")
-    || (resolvedToolChoice === "named" && role !== "verifier")) {
+    || (toolName !== undefined && role !== "verifier")
+    || (toolName === undefined && role === "verifier")) {
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
-  // Nscale accepts only the string tool choices "auto" and "none". Analysis
-  // therefore supplies its one tool with "auto"; DeepInfra stages retain the
-  // named choice. The response parser fails closed unless exactly one matching
-  // structured call is returned in either case.
+  // Nscale's strict JSON Schema response channel makes analysis structure
+  // mandatory without relying on its optional `auto` tool selection. DeepInfra
+  // verifier stages retain an exact named tool call. Both paths fail closed.
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],
     messages: toolName === undefined
-      ? jsonObjectMessages(messages, schemaName, schema, responseGuide)
+      ? resolvedResponseFormat === "json_schema"
+        ? jsonSchemaMessages(messages, schemaName, responseGuide)
+        : jsonObjectMessages(messages, schemaName, schema, responseGuide)
       : forcedToolMessages(messages, toolName),
     ...(toolName === undefined
-      ? { response_format: { type: "json_object" } }
+      ? {
+        response_format: resolvedResponseFormat === "json_schema"
+          ? {
+            type: "json_schema",
+            json_schema: {
+              name: schemaName,
+              description: responseGuide ?? "Supply one complete structured response.",
+              schema,
+              strict: true,
+            },
+          }
+          : { type: "json_object" },
+      }
       : {
         tools: [{
           type: "function",
@@ -1025,12 +1061,10 @@ export async function requestHuggingFaceJson({
             parameters: schema,
           },
         }],
-        tool_choice: resolvedToolChoice === "auto"
-          ? "auto"
-          : {
-            type: "function",
-            function: { name: toolName },
-          },
+        tool_choice: {
+          type: "function",
+          function: { name: toolName },
+        },
       }),
     max_tokens: maxTokens,
     temperature,
@@ -1187,6 +1221,7 @@ export function createHuggingFaceLatticeAdapter({
         schema: stageName === "analysis" ? analysisWireSchemaForRequest(request) : stage.schema,
         schemaName: stage.schemaName,
         responseGuide: stage.responseGuide,
+        responseFormat: stage.responseFormat,
         toolName: stage.toolName,
         toolChoice: stage.toolChoice,
         maxTokens: stage.maxTokens,

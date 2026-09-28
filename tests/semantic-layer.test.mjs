@@ -987,14 +987,15 @@ test("project and Text to Lattice implementation provenance stays source-aligned
         analysis: {
           temperature: 0.7,
           topP: 0.8,
-          toolChoice: "auto",
+          responseFormat: "json_schema",
+          strict: true,
           maximumOutputTokens: 3_072,
         },
         candidate: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
         repair: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
       },
     },
-    inferenceSummary: "server-side structured completion through Hugging Face Inference Providers and Nscale; fixed seed 71903; non-thinking-only Qwen variant; bounded stage-specific output limits",
+    inferenceSummary: "server-side strict JSON Schema analysis through Hugging Face Inference Providers and Nscale; fixed seed 71903; non-thinking-only Qwen variant; bounded stage-specific output limits",
   };
   const expectedVerifier = {
     name: "Llama 3.1 8B Instruct server-side verifier",
@@ -1024,7 +1025,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     tokenizerName: "Provider-managed model tokenizer",
     tokenizerVersion: "provider-managed",
     tokenizerPackageUrl: "https://huggingface.co/docs/inference-providers/",
-    structuredOutputName: "Function-call and JSON-object generation with exact host-side closed-schema validation",
+    structuredOutputName: "Strict JSON Schema, function-call, and JSON-object generation with exact host-side closed-schema validation",
     structuredOutputVersion: "provider-managed",
     structuredOutputPackageUrl: "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
     structuredOutputRepository: "https://huggingface.co/docs/inference-providers/en/guides/function-calling",
