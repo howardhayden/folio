@@ -131,12 +131,12 @@ test("the remote adapter consumes the public server-side sampling contract", asy
       strict: true,
       maximumOutputTokens: 3_072,
     },
-    candidate: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
-    repair: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
+    candidate: { temperature: 0.45, topP: 0.9, responseFormat: "json_object", maximumOutputTokens: 800 },
+    repair: { temperature: 0.45, topP: 0.9, responseFormat: "json_object", maximumOutputTokens: 800 },
   });
   assert.deepEqual(textToLatticeContract.implementation.verifier.inference.stages, {
-    verification: { temperature: 0, topP: 1, maximumOutputTokens: 1_200 },
-    certification: { temperature: 0, topP: 1, maximumOutputTokens: 520 },
+    verification: { temperature: 0, topP: 1, responseFormat: "json_object", maximumOutputTokens: 1_200 },
+    certification: { temperature: 0, topP: 1, responseFormat: "json_object", maximumOutputTokens: 520 },
   });
   for (const [stage, maximumOutputTokens, temperature, topP] of [
     ["analysis", "3_072", "0.7", "0.8"],
