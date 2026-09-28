@@ -13,6 +13,7 @@ import {
   LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT,
   LATTICE_FITTED_ANALYSIS_CONTEXT,
   REANALYSIS_SCHEMA,
+  VERIFICATION_SCHEMA,
   analysisMessages,
 } from "../app/resume/lattice/promptContract.js";
 import {
@@ -74,8 +75,6 @@ const TEST_VISITOR_ID = "A".repeat(24);
 const TEST_VISITOR_COOKIE_VALUE = `v1.${TEST_VISITOR_ID}.${"B".repeat(43)}`;
 const TEST_VISITOR_SECRET = "test-only-independent-api-visitor-secret-value";
 const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v1";
-const VERIFICATION_TOOL_NAME = "lattice_verification_v1";
-const CERTIFICATION_TOOL_NAME = "lattice_certification_v1";
 const allowTransformation = async () => Object.freeze({
   allowed: true,
   retryAfterSeconds: null,
@@ -1343,17 +1342,14 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
   );
 });
 
-test("the adapter uses strict JSON Schema analysis and a named certification tool", async () => {
+test("the adapter uses strict JSON Schema analysis and JSON-object certification", async () => {
   assert.equal(LATTICE_PROVIDER_CALL_TIMEOUT_MS, 120_000);
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, init, body: JSON.parse(init.body) });
     return calls.length === 1
       ? successfulProviderResponse({ d: "instruction", p: [], q: [] })
-      : successfulProviderToolResponse(
-        { accepted: true },
-        { toolName: CERTIFICATION_TOOL_NAME, toolCallId: "call_lattice_certification" },
-      );
+      : successfulProviderResponse({ accepted: true });
   };
   const adapter = createHuggingFaceLatticeAdapter({
     token: "hf_server_only_token",
@@ -1403,11 +1399,7 @@ test("the adapter uses strict JSON Schema analysis and a named certification too
       "temperature",
       "top_p",
     ];
-    if (body.model === LATTICE_REMOTE_MODELS.generator) {
-      expectedKeys.push("response_format");
-    } else {
-      expectedKeys.push("tool_choice", "tools");
-    }
+    expectedKeys.push("response_format");
     assert.deepEqual(Object.keys(body).sort(), expectedKeys.sort());
     assert.equal(init.method, "POST");
     assert.equal(init.cache, "no-store");
@@ -1495,14 +1487,9 @@ test("the adapter uses strict JSON Schema analysis and a named certification too
   );
   assert.equal(passageTuple[9].items.prefixItems[1].maxItems, 1);
   assert.deepEqual(analysisParameters.properties.q, { type: "array", maxItems: 0 });
-  assert.equal(Object.hasOwn(calls[1].body, "response_format"), false);
-  assert.equal(calls[1].body.tools.length, 1);
-  assert.equal(calls[1].body.tools[0].function.name, CERTIFICATION_TOOL_NAME);
-  assert.deepEqual(calls[1].body.tools[0].function.parameters, DOCUMENT_CERTIFICATION_SCHEMA);
-  assert.deepEqual(calls[1].body.tool_choice, {
-    type: "function",
-    function: { name: CERTIFICATION_TOOL_NAME },
-  });
+  assert.deepEqual(calls[1].body.response_format, { type: "json_object" });
+  assert.equal(Object.hasOwn(calls[1].body, "tools"), false);
+  assert.equal(Object.hasOwn(calls[1].body, "tool_choice"), false);
   assert.equal(Object.hasOwn(calls[1].body, "parallel_tool_calls"), false);
   assert.equal(Object.hasOwn(calls[0].body, "chat_template_kwargs"), false);
   assert.equal(Object.hasOwn(calls[0].body, "top_k"), false);
@@ -1539,8 +1526,10 @@ test("the adapter uses strict JSON Schema analysis and a named certification too
     false,
   );
   assert.equal(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)), false);
-  assert.match(calls[1].body.messages[0].content, /Call this function exactly once/u);
-  assert.equal(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)), false);
+  assert.match(calls[1].body.messages[0].content, /Response contract lattice_certification_v1/u);
+  assert.match(calls[1].body.messages[0].content, /Return one complete document-certification record as the JSON object/u);
+  assert.doesNotMatch(calls[1].body.messages[0].content, /Call this function exactly once/u);
+  assert.equal(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)), true);
   for (const { body } of calls) {
     assert.equal(body.messages.slice(1).some(({ content }) => (
       typeof content === "string" && content.includes("LATTICE_RESPONSE_SCHEMA")
@@ -1737,14 +1726,8 @@ test("all five production stages use their exact provider response transport", a
   const responses = [
     successfulProviderResponse({ d: "instruction", p: [], q: [] }),
     successfulProviderResponse({ passages: [] }),
-    successfulProviderToolResponse(
-      { accepted: true },
-      { toolName: VERIFICATION_TOOL_NAME, toolCallId: "call_lattice_verification" },
-    ),
-    successfulProviderToolResponse(
-      { accepted: true },
-      { toolName: CERTIFICATION_TOOL_NAME, toolCallId: "call_lattice_certification" },
-    ),
+    successfulProviderResponse({ accepted: true }),
+    successfulProviderResponse({ accepted: true }),
     successfulProviderResponse({ passages: [] }),
   ];
   const adapter = createHuggingFaceLatticeAdapter({
@@ -1811,20 +1794,13 @@ test("all five production stages use their exact provider response transport", a
   assert.equal(calls[0].response_format.type, "json_schema");
   assert.equal(calls[0].response_format.json_schema.strict, true);
   assert.equal(calls[0].response_format.json_schema.name, ANALYSIS_TOOL_NAME);
-  for (const index of [1, 4]) {
+  for (const index of [1, 2, 3, 4]) {
     assert.deepEqual(calls[index].response_format, { type: "json_object" });
     assert.equal(Object.hasOwn(calls[index], "tools"), false);
     assert.equal(Object.hasOwn(calls[index], "tool_choice"), false);
   }
-  for (const [index, toolName] of [[2, VERIFICATION_TOOL_NAME], [3, CERTIFICATION_TOOL_NAME]]) {
-    assert.equal(Object.hasOwn(calls[index], "response_format"), false);
-    assert.equal(calls[index].tools.length, 1);
-    assert.equal(calls[index].tools[0].function.name, toolName);
-    assert.deepEqual(calls[index].tool_choice, {
-      type: "function",
-      function: { name: toolName },
-    });
-  }
+  assert.equal(calls[2].messages[0].content.includes(JSON.stringify(VERIFICATION_SCHEMA)), true);
+  assert.equal(calls[3].messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)), true);
   for (const body of calls) assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
 });
 
@@ -2051,6 +2027,105 @@ test("a direct JSON-object request prepends the trusted closed schema without ch
   assert.ok(body.messages[0].content.includes(JSON.stringify(options.schema)));
   assert.doesNotMatch(body.messages[0].content, /\/no_think/u);
   assert.deepEqual(body.messages[1], options.messages[0]);
+});
+
+test("the run 140 verifier envelope is accepted through explicit JSON-object transport", async () => {
+  let body;
+  let fetches = 0;
+  const responseGuide = "Return one complete verification record as the JSON object.";
+  const options = providerRequestOptions(async (_url, init) => {
+    fetches += 1;
+    body = JSON.parse(init.body);
+    return new Response(JSON.stringify({
+      choices: [{
+        finish_reason: "stop",
+        message: {
+          role: "assistant",
+          content: JSON.stringify({ accepted: true }),
+        },
+      }],
+      usage: { completion_tokens: 320 },
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }, {
+    role: "verifier",
+    responseFormat: "json_object",
+    responseGuide,
+  });
+
+  const result = await requestHuggingFaceJson(options);
+
+  assert.deepEqual(result, { accepted: true });
+  assert.equal(fetches, 1);
+  assert.deepEqual(body.response_format, { type: "json_object" });
+  assert.equal(Object.hasOwn(body, "tools"), false);
+  assert.equal(Object.hasOwn(body, "tool_choice"), false);
+  assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
+  assert.match(body.messages[0].content, /Response contract lattice_test_v1/u);
+  assert.match(body.messages[0].content, new RegExp(responseGuide.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+  assert.equal(body.messages[0].content.includes(JSON.stringify(options.schema)), true);
+});
+
+test("verifier JSON-object envelopes remain bounded and fail closed", async () => {
+  const privateMarker = "PRIVATE-VERIFIER-CONTENT-MUST-NOT-CROSS";
+  const cases = [
+    {
+      name: "output limit",
+      finishReason: "length",
+      message: { role: "assistant", content: privateMarker },
+      code: "provider_output_limit",
+    },
+    {
+      name: "tool finish reason",
+      finishReason: "tool_calls",
+      message: { role: "assistant", content: JSON.stringify({ accepted: true }) },
+      code: "provider_malformed_response",
+    },
+    {
+      name: "missing content",
+      finishReason: "stop",
+      message: { role: "assistant" },
+      code: "provider_malformed_response",
+    },
+    {
+      name: "invalid content JSON",
+      finishReason: "stop",
+      message: { role: "assistant", content: `${privateMarker} {` },
+      code: "provider_malformed_response",
+    },
+    {
+      name: "non-object content",
+      finishReason: "stop",
+      message: { role: "assistant", content: JSON.stringify([privateMarker]) },
+      code: "provider_malformed_response",
+    },
+    {
+      name: "wrong message role",
+      finishReason: "stop",
+      message: { role: "user", content: privateMarker },
+      code: "provider_malformed_response",
+    },
+  ];
+
+  for (const { name, finishReason, message, code } of cases) {
+    let fetches = 0;
+    await assert.rejects(
+      requestHuggingFaceJson(providerRequestOptions(async () => {
+        fetches += 1;
+        return providerChoiceResponse({ finish_reason: finishReason, message });
+      }, { role: "verifier", responseFormat: "json_object" })),
+      (error) => {
+        assert.ok(error instanceof LatticeProviderError, name);
+        assert.equal(error.code, code, name);
+        assert.equal(error.message.includes(privateMarker), false, name);
+        assert.equal(JSON.stringify(error).includes(privateMarker), false, name);
+        return true;
+      },
+    );
+    assert.equal(fetches, 1, name);
+  }
 });
 
 test("a direct strict JSON Schema request sends one authoritative schema without tool fields", async () => {

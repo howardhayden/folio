@@ -217,9 +217,6 @@ const ANALYSIS_WIRE_GUIDE = [
   "Use short local atom IDs and the smallest complete atom graph allowed by each fitted cap. Carry exact source text through cited evidence IDs instead of copying spans into values. Avoid redundant links and emit no extra prose.",
 ].join("\n");
 
-const VERIFICATION_TOOL_NAME = "lattice_verification_v1";
-const CERTIFICATION_TOOL_NAME = "lattice_certification_v1";
-
 function analysisWireMessages(request) {
   return analysisMessages(request, { responseDialect: "compact-wire-v1" });
 }
@@ -249,8 +246,8 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: VERIFICATION_SCHEMA,
     schemaName: "lattice_verification_v1",
-    toolName: VERIFICATION_TOOL_NAME,
-    responseGuide: "Supply one complete verification record as this function's arguments.",
+    responseFormat: "json_object",
+    responseGuide: "Return one complete verification record as the JSON object.",
     messages: verificationMessages,
     maxTokens: 1_200,
     temperature: 0,
@@ -260,8 +257,8 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: DOCUMENT_CERTIFICATION_SCHEMA,
     schemaName: "lattice_certification_v1",
-    toolName: CERTIFICATION_TOOL_NAME,
-    responseGuide: "Supply one complete document-certification record as this function's arguments.",
+    responseFormat: "json_object",
+    responseGuide: "Return one complete document-certification record as the JSON object.",
     messages: documentCertificationMessages,
     maxTokens: 520,
     temperature: 0,
@@ -1223,13 +1220,14 @@ export async function requestHuggingFaceJson({
     || (toolChoice !== undefined && toolChoice !== "named")
     || (toolChoice !== undefined && toolName === undefined)
     || (toolName !== undefined && role !== "verifier")
-    || (toolName === undefined && role === "verifier")) {
+    || (toolName === undefined && role === "verifier" && responseFormat !== "json_object")) {
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
-  // Nscale's strict JSON Schema response channel makes analysis structure
-  // mandatory without relying on its optional `auto` tool selection. DeepInfra
-  // verifier stages retain an exact named tool call. Both paths fail closed.
+  // Nscale analysis uses strict JSON Schema. Candidate and repair generation,
+  // plus DeepInfra verification and certification, use one JSON-object assistant
+  // channel with the closed schema in trusted instructions. Every path remains
+  // fail-closed under the same authoritative host validation.
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],
     messages: toolName === undefined
