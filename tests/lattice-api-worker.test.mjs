@@ -282,6 +282,7 @@ function fittedStringLength(schema) {
 }
 
 function maximalJsonSchemaValue(schema, stringValue = (length) => "x".repeat(length)) {
+  if (Object.hasOwn(schema, "const")) return schema.const;
   if (Array.isArray(schema.enum)) {
     return [...schema.enum].sort((left, right) => (
       JSON.stringify(right).length - JSON.stringify(left).length
@@ -291,7 +292,16 @@ function maximalJsonSchemaValue(schema, stringValue = (length) => "x".repeat(len
   if (schema.type === "integer") return schema.maximum ?? schema.minimum ?? 0;
   if (schema.type === "array") {
     if (Array.isArray(schema.prefixItems)) {
-      return schema.prefixItems.map((item) => maximalJsonSchemaValue(item, stringValue));
+      const prefix = schema.prefixItems.map((item) => maximalJsonSchemaValue(item, stringValue));
+      const maximumLength = schema.maxItems ?? schema.minItems ?? prefix.length;
+      if (maximumLength <= prefix.length || !schema.items) return prefix;
+      return [
+        ...prefix,
+        ...Array.from(
+          { length: maximumLength - prefix.length },
+          () => maximalJsonSchemaValue(schema.items, stringValue),
+        ),
+      ];
     }
     return Array.from(
       { length: schema.maxItems ?? schema.minItems ?? 0 },
@@ -1739,6 +1749,10 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
     analysisAtomLimit: 4,
     sourceSpans: latticeSourceSpansForBatch(oneWordBase.batch),
   });
+  const terminalOneWord = Object.freeze({
+    ...oneWord,
+    analysisAtomLimit: 1,
+  });
   const multipassageBase = minimalAnalysisRequest("One.\n\nTwo three four.");
   const [firstPassage, secondPassage] = multipassageBase.batch.passages;
   const evidenceRecord = (id, text) => Object.freeze({ id, kind: "source", text });
@@ -1784,10 +1798,11 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
   await adapter.analyze(multipassage);
   await adapter.analyze(skewed);
   await adapter.analyze(allLiteral);
+  await adapter.analyze(terminalOneWord);
 
   assert.deepEqual(
     bodies.map(({ max_tokens: maxTokens }) => maxTokens),
-    [1_024, 768, 768, 768, 768, 768],
+    [1_024, 768, 768, 768, 768, 768, 768],
   );
   const schemas = bodies.map(({ response_format: responseFormat }) => (
     responseFormat.json_schema.schema
@@ -1838,6 +1853,7 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
 
   const multiTuples = passageTuples[3];
   assert.deepEqual(multiTuples.map((tuple) => tuple[2].maxItems), [1, 2]);
+  assert.deepEqual(multiTuples.map((tuple) => tuple[2].minItems), [1, 2]);
   assert.deepEqual(
     multiTuples.map((tuple) => [
       tuple[2].items.prefixItems[2].minimum,
@@ -1866,6 +1882,15 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
     ],
     [0, 2],
   );
+  const terminalSchema = schemas.at(-1);
+  const terminalAtoms = terminalSchema.properties.p.prefixItems[0].prefixItems[2];
+  assert.equal(terminalAtoms.minItems, 1);
+  assert.equal(terminalAtoms.maxItems, 1);
+  assert.deepEqual(
+    terminalAtoms.prefixItems[0].prefixItems[3].prefixItems,
+    [{ const: 0 }],
+  );
+  assert.equal(terminalSchema.properties.l.maxItems, 0);
   assert.doesNotMatch(JSON.stringify(schemas[2]), /"maxItems":(?:24|60)/u);
 });
 
@@ -2532,7 +2557,7 @@ test("the private compact analysis wire format expands to the unchanged host sch
   ), false);
 });
 
-test("the private compact analysis decoder rejects invalid fitted positions and derived host fields", async () => {
+test("the private compact analysis decoder weakens safe overclaims and rejects invalid fitted data", async () => {
   const base = minimalAnalysisRequest(
     "A visitor places a blue notebook on the desk, reads the first page, and closes it.",
   );
@@ -2629,7 +2654,11 @@ test("the private compact analysis decoder rejects invalid fitted positions and 
       l: [],
     }),
   }).analyze(mixedEvidenceRequest);
-  assert.deepEqual(mixedExact, {}, "mixed passages cannot bypass the fitted exact-preservation enum");
+  assert.deepEqual(
+    mixedExact.passages[0].atoms.map(({ preservation }) => preservation),
+    ["equivalent", "exact"],
+    "ordinary evidence is conservatively downgraded while literal evidence remains exact",
+  );
 
   const literalOnlyRequest = Object.freeze({
     ...base,
@@ -2655,14 +2684,48 @@ test("the private compact analysis decoder rejects invalid fitted positions and 
   assert.equal(literalExact.passages[0].atoms[0].preservation, "exact");
   assert.equal(literalExact.passages[0].atoms[0].value, "`literal-only`");
 
+  const ordinaryExact = await analyzeWire(wire([atom(1, [0, 1, 2], 0)]));
+  assert.equal(ordinaryExact.passages[0].atoms[0].preservation, "equivalent");
+
+  const rewriteClaim = await analyzeWire(wire(
+    [atom()],
+    [],
+    ["100", "000", "000", "000", "000"],
+  ));
+  assert.equal(rewriteClaim.passages[0].disposition, "rewrite");
+  assert.deepEqual(rewriteClaim.passages[0].conformanceAssertions, []);
+
+  for (const masks of [
+    ["000", ...retainMasks.slice(1)],
+    ["100", "010", "100", "010", "110"],
+  ]) {
+    const weakenedRetain = await analyzeWire(wire(
+      [atom()],
+      [],
+      masks,
+      { disposition: 1 },
+    ));
+    assert.equal(weakenedRetain.passages[0].disposition, "rewrite");
+    assert.deepEqual(weakenedRetain.passages[0].conformanceAssertions, []);
+  }
+
+  const withoutSelfLink = await analyzeWire(wire([atom()], [[0, 1, 0]]));
+  assert.deepEqual(withoutSelfLink.passages[0].atoms[0].links, []);
+
+  const withoutDuplicateLink = await analyzeWire(wire(
+    [atom(), atom()],
+    [[0, 1, 1], [0, 1, 1]],
+  ));
+  assert.deepEqual(withoutDuplicateLink.passages[0].atoms[0].links, [
+    { relation: "patient", targetAtomId: "a1" },
+  ]);
+
   const tenAtoms = Array.from({ length: 10 }, (_value, index) => atom(1, [index % evidenceCount]));
   const cases = [
     ["coercive evidence position", wire([atom(1, [{ toString: null }, { toString: null }])])],
     ["duplicate evidence position", wire([atom(1, [0, 0])])],
     ["unknown evidence position", wire([atom(1, [0, 1, 3])])],
     ["incomplete evidence coverage", wire([atom(1, [0, 1])])],
-    ["ordinary evidence marked exact", wire([atom(1, [0, 1, 2], 0)])],
-    ["nonzero rewrite conformance", wire([atom()], [], ["100", "000", "000", "000", "000"])],
     [
       "retained conformance mask has the wrong width",
       wire([atom()], [], ["10", ...retainMasks.slice(1)], { disposition: 1 }),
@@ -2671,27 +2734,12 @@ test("the private compact analysis decoder rejects invalid fitted positions and 
       "retained conformance mask is not binary",
       wire([atom()], [], ["1x0", ...retainMasks.slice(1)], { disposition: 1 }),
     ],
-    [
-      "retained conformance criterion has no evidence",
-      wire([atom()], [], ["000", ...retainMasks.slice(1)], { disposition: 1 }),
-    ],
-    [
-      "retained conformance masks do not cover all evidence",
-      wire(
-        [atom()],
-        [],
-        ["100", "010", "100", "010", "110"],
-        { disposition: 1 },
-      ),
-    ],
-    ["self link", wire([atom()], [[0, 1, 0]])],
     ["unknown link source", wire([atom()], [[1, 1, 0]])],
     ["unknown link target", wire([atom()], [[0, 1, 11]])],
     ["unknown ledger link target", wire([atom()], [[0, 1, -1]])],
     ["malformed link tuple", wire([atom(), atom()], [[0, 1]])],
     ["noninteger link relation", wire([atom(), atom()], [[0, 1.5, 1]])],
     ["unknown link relation", wire([atom(), atom()], [[0, 24, 1]])],
-    ["duplicate typed link", wire([atom(), atom()], [[0, 1, 1], [0, 1, 1]])],
     [
       "more than eight links on one atom",
       wire(tenAtoms, Array.from({ length: 9 }, (_value, index) => [0, index, index + 1])),
@@ -2742,7 +2790,59 @@ test("the private compact analysis decoder rejects invalid fitted positions and 
     denseValid.passages[0].atoms.reduce((sum, { links }) => sum + links.length, 0),
     24,
   );
+  const redundantAfterCapacity = await analyzeDenseWire([
+    ...denseLinks.slice(0, 8),
+    denseLinks[0],
+    [0, 0, 0],
+  ]);
+  assert.equal(redundantAfterCapacity.passages[0].atoms[0].links.length, 8);
   assert.deepEqual(await analyzeDenseWire(denseLinks), {}, "more than twenty-four total links");
+});
+
+test("the terminal one-atom wire closes the run 147 schema and decoder seam", async () => {
+  const base = minimalAnalysisRequest("A");
+  const request = Object.freeze({
+    ...base,
+    sourceSpans: latticeSourceSpansForBatch(base.batch),
+    analysisAtomLimit: 1,
+  });
+  const wire = ({ evidence = [0], disposition = 0, masks = ["0", "0", "0", "0", "0"], links = [] } = {}) => ({
+    d: 2,
+    p: [[0, disposition, [[1, 0, 1, evidence]], masks]],
+    l: links,
+  });
+  let providerBody;
+  const analyze = async (value) => createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async (_url, init) => {
+      providerBody = JSON.parse(init.body);
+      return successfulProviderResponse(value);
+    },
+  }).analyze(request);
+
+  const cases = [
+    wire(),
+    wire({ evidence: [0, 0] }),
+    wire({ links: [[0, 0, 0]] }),
+    wire({ masks: ["1", "0", "0", "0", "0"] }),
+    wire({ disposition: 1 }),
+  ];
+  for (const value of cases) {
+    const analysis = await analyze(value);
+    assert.equal(analysis.documentKind, "instruction");
+    assert.equal(analysis.passages[0].disposition, "rewrite");
+    assert.deepEqual(analysis.passages[0].atoms[0].evidenceSpanIds, [
+      request.sourceSpans[0].spans[0].id,
+    ]);
+    assert.deepEqual(analysis.passages[0].atoms[0].links, []);
+  }
+
+  const schema = providerBody.response_format.json_schema.schema;
+  const atoms = schema.properties.p.prefixItems[0].prefixItems[2];
+  assert.equal(atoms.minItems, 1);
+  assert.equal(atoms.maxItems, 1);
+  assert.deepEqual(atoms.prefixItems[0].prefixItems[3].prefixItems, [{ const: 0 }]);
+  assert.equal(schema.properties.l.maxItems, 0);
 });
 
 test("the compact analysis host derivation truncates only at a grapheme boundary", async () => {
@@ -2829,6 +2929,55 @@ test("compact analysis ledger positions preserve their exact negative-index boun
     fetchImpl: async () => successfulProviderResponse(responseWire([-3])),
   }).analyze(request);
   assert.deepEqual(outsideLedger, {});
+
+  const singletonRequest = Object.freeze({
+    ...minimalAnalysisRequest("A"),
+    analysisAtomLimit: 1,
+    documentLedger: request.documentLedger,
+  });
+  let singletonProviderBody;
+  const singleton = await createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async (_url, init) => {
+      singletonProviderBody = JSON.parse(init.body);
+      return successfulProviderResponse({
+        d: 2,
+        p: [[0, 0, [[1, 0, 1, [0]]], ["0", "0", "0", "0", "0"]]],
+        l: [[0, 0, -1]],
+      });
+    },
+  }).analyze(singletonRequest);
+  assert.deepEqual(singleton.passages[0].atoms[0].links, [
+    { relation: "agent", targetAtomId: "r0" },
+  ]);
+  assert.deepEqual(
+    singletonProviderBody.response_format.json_schema.schema
+      .properties.l.items.prefixItems[2].enum,
+    [-1, -2],
+  );
+
+  for (const invalidIds of [["r0", "r0"], ["a0"]]) {
+    let calls = 0;
+    const invalidLedger = Object.freeze(invalidIds.map((id) => Object.freeze({
+      id,
+      passageId: "prior",
+      kind: "state",
+      value: "prior grounded state",
+      priority: "semantic",
+      links: Object.freeze([]),
+    })));
+    await assert.rejects(
+      createHuggingFaceLatticeAdapter({
+        token: "server-token",
+        fetchImpl: async () => {
+          calls += 1;
+          return successfulProviderResponse({});
+        },
+      }).analyze(Object.freeze({ ...singletonRequest, documentLedger: invalidLedger })),
+      /invalid analysis ledger identifiers/u,
+    );
+    assert.equal(calls, 0);
+  }
 });
 
 test("provider failures carry only an immutable allowlisted stage and bounded call ordinal", async () => {

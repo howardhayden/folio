@@ -148,7 +148,7 @@ test("an initial host-validation correction attributes malformed provider call t
   assert.equal(error.qualificationCompletionTokens, "none");
   assert.equal(error.qualificationAnalysisOrigin, "initial");
   assert.equal(error.qualificationAnalysisAttempt, "2");
-  assert.equal(error.qualificationPriorValidationCategory, "response-shape");
+  assert.equal(error.qualificationPriorValidationCategory, "passage-coverage");
   assert.equal(calls, 2);
   assertHiddenImmutableDiagnostics(error);
 
@@ -194,7 +194,7 @@ test("an initial host-validation correction attributes malformed provider call t
   );
   assert.doesNotMatch(firstBody.messages[0].content, /one bounded correction attempt/u);
   assert.match(correctedBody.messages[0].content, /one bounded correction attempt/u);
-  assert.match(correctedBody.messages[0].content, /Closed correction category: response-shape/u);
+  assert.match(correctedBody.messages[0].content, /Closed correction category: passage-coverage/u);
   assert.doesNotMatch(correctedBody.messages[1].content, /one bounded correction attempt/u);
 });
 
@@ -227,6 +227,105 @@ test("a malformed compact analysis tuple fails into the bounded host correction 
   assert.equal(error.qualificationPriorValidationCategory, "response-shape");
   assert.equal(calls, 2);
   assertHiddenImmutableDiagnostics(error);
+});
+
+test("compact analysis decoder failures preserve only their closed correction category", async () => {
+  const atom = [1, 0, 1, [0]];
+  const wire = ({ atoms = [atom], masks = ["000", "000", "000", "000", "000"], links = [] } = {}) => ({
+    d: 2,
+    p: [[0, 0, atoms, masks]],
+    l: links,
+  });
+  const cases = [
+    ["evidence", wire({ atoms: [[1, 0, 1, [99]]] })],
+    ["relation", wire({ links: [[99, 0, 0]] })],
+    ["conformance", wire({ masks: ["x00", "000", "000", "000", "000"] })],
+    ["capacity", wire({ atoms: Array.from({ length: 25 }, () => atom) })],
+    ["ambiguity", wire({
+      atoms: Array.from({ length: 9 }, (_value, index) => [18, 0, 1, [index % 3]]),
+    })],
+  ];
+
+  for (const [category, invalidWire] of cases) {
+    const providerBodies = [];
+    let calls = 0;
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      requestedMode: "operative",
+      fetchImpl: async (_url, init) => {
+        calls += 1;
+        providerBodies.push(init.body);
+        if (calls === 1) return analysisProviderResponse(invalidWire);
+        return analysisProviderResponse(undefined, { contentText: "not-json" });
+      },
+    });
+
+    const error = await captureFailure(runTextToLattice(SOURCE, {
+      adapter,
+      requestedMode: "operative",
+      allowClarification: false,
+    }));
+
+    assert.ok(error instanceof LatticeProviderError, category);
+    assert.equal(error.qualificationCallOrdinal, 2, category);
+    assert.equal(error.qualificationSubtype, "content_json", category);
+    assert.equal(error.qualificationPriorValidationCategory, category, category);
+    assert.equal(calls, 2, category);
+    assertHiddenImmutableDiagnostics(error);
+    const corrected = JSON.parse(providerBodies[1]);
+    assert.equal(
+      corrected.messages[0].content.includes(`Closed correction category: ${category}.`),
+      true,
+      category,
+    );
+    assert.doesNotMatch(
+      providerBodies.join("\n"),
+      /decoderFailureCategory|analysis-decoder-failure/u,
+      category,
+    );
+    assert.equal(JSON.stringify(error).includes(category), false, category);
+  }
+});
+
+test("an unsplittable decoder rejection reaches the terminal diagnostic without public detail", async () => {
+  const providerBodies = [];
+  let calls = 0;
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-test-token",
+    requestedMode: "operative",
+    fetchImpl: async (_url, init) => {
+      calls += 1;
+      providerBodies.push(init.body);
+      return analysisProviderResponse({
+        d: 2,
+        p: [[0, 0, [[1, 0, 1, [1]]], ["0", "0", "0", "0", "0"]]],
+        l: [],
+      });
+    },
+  });
+  const terminalDiagnostics = [];
+
+  const result = await runTextToLattice("A", {
+    adapter,
+    requestedMode: "operative",
+    allowClarification: false,
+    onAnalysisTerminalDiagnostic: (diagnostic) => terminalDiagnostics.push(diagnostic),
+  });
+
+  assert.equal(calls, 2);
+  assert.equal(result.status, "unable-to-attempt");
+  assert.deepEqual(terminalDiagnostics, [{
+    cause: "host-validation",
+    validationCategory: "evidence",
+    priorValidationCategory: "evidence",
+    origin: "initial",
+    attempt: "2",
+    atomLimit: "4",
+  }]);
+  assert.doesNotMatch(
+    `${JSON.stringify(result)}\n${providerBodies.join("\n")}`,
+    /decoderFailureCategory|analysis-decoder-failure/u,
+  );
 });
 
 test("a split-child output limit immediately starts a smaller first attempt", async () => {

@@ -117,6 +117,16 @@ const COMPLETION_TOKEN_BUCKET_SET = new Set(LATTICE_PROVIDER_COMPLETION_TOKEN_BU
 const ANALYSIS_ORIGIN_SET = new Set(LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS);
 const ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
 const PROVIDER_DIAGNOSTICS = new WeakMap();
+const ANALYSIS_DECODER_FAILURE_CATEGORY_SET = new Set([
+  "response-shape",
+  "passage-coverage",
+  "capacity",
+  "evidence",
+  "relation",
+  "ambiguity",
+  "conformance",
+]);
+const ANALYSIS_DECODER_FAILURES = new WeakMap();
 const JSON_HEADERS = Object.freeze({
   Accept: "application/json",
   "Content-Type": "application/json",
@@ -761,6 +771,7 @@ function analysisAtomAllocations(passages, evidenceIdsByPassage, atomLimit) {
   }
   return Object.freeze({
     analysisAtomLimit,
+    minimumAllocations: Object.freeze(minimums),
     allocations: Object.freeze(allocations),
   });
 }
@@ -793,6 +804,7 @@ function fitAnalysisRequest(request) {
     literalEvidenceIdsByPassage,
     evidenceRecordsByPassage,
     analysisAtomLimit: atomPlan.analysisAtomLimit,
+    minimumAtomAllocations: atomPlan.minimumAllocations,
     atomAllocations: atomPlan.allocations,
   });
 }
@@ -800,11 +812,17 @@ function fitAnalysisRequest(request) {
 function analysisWireSchemaForFit(fit) {
   const {
     request, passages, evidenceIdsByPassage, literalEvidenceIdsByPassage,
-    analysisAtomLimit, atomAllocations,
+    analysisAtomLimit, minimumAtomAllocations, atomAllocations,
   } = fit;
   const visibleLedgerIds = (request.documentLedger ?? []).map(({ id }) => id);
+  const reservedWireAtomIds = new Set(Array.from(
+    { length: analysisAtomLimit },
+    (_value, index) => `a${index.toString(36)}`,
+  ));
   if (visibleLedgerIds.length > LATTICE_PROVIDER_CALL_LIMIT * LATTICE_BATCH_ATOM_LIMIT
-    || visibleLedgerIds.some((id) => typeof id !== "string" || !id || id.length > 180)) {
+    || visibleLedgerIds.some((id) => typeof id !== "string" || !id || id.length > 180)
+    || new Set(visibleLedgerIds).size !== visibleLedgerIds.length
+    || visibleLedgerIds.some((id) => reservedWireAtomIds.has(id))) {
     throw new TypeError("The Lattice provider received invalid analysis ledger identifiers.");
   }
   const passageSchemas = passages.map((_passage, index) => {
@@ -830,9 +848,19 @@ function analysisWireSchemaForFit(fit) {
       preservationSchema,
       evidenceSchema,
     );
+    const requiredAtomSchemas = atomLimit === 1
+      ? Object.freeze([fixedTuple(
+        ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[0],
+        ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[1],
+        preservationSchema,
+        fixedTuple(...evidenceIds.map((_id, position) => Object.freeze({ const: position }))),
+      )])
+      : Object.freeze([]);
     const atomsSchema = Object.freeze({
       ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[2],
+      minItems: minimumAtomAllocations[index],
       maxItems: atomLimit,
+      ...(requiredAtomSchemas.length === 0 ? {} : { prefixItems: requiredAtomSchemas }),
       items: atomSchema,
     });
     const conformanceMaskSchema = analysisWireBitMaskSchema(evidenceIds.length);
@@ -852,13 +880,19 @@ function analysisWireSchemaForFit(fit) {
       conformanceMasksSchema,
     );
   });
+  const singletonLedgerTargets = analysisAtomLimit === 1 && visibleLedgerIds.length > 0
+    ? Object.freeze({
+      type: "integer",
+      enum: Object.freeze(visibleLedgerIds.map((_id, index) => -index - 1)),
+    })
+    : null;
   const linkSchema = fixedTuple(
     Object.freeze({
       ...ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[0],
       maximum: analysisAtomLimit - 1,
     }),
     ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[1],
-    Object.freeze({
+    singletonLedgerTargets ?? Object.freeze({
       ...ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[2],
       minimum: visibleLedgerIds.length > 0 ? -visibleLedgerIds.length : 0,
       maximum: analysisAtomLimit - 1,
@@ -876,7 +910,9 @@ function analysisWireSchemaForFit(fit) {
       }),
       l: Object.freeze({
         ...ANALYSIS_WIRE_SCHEMA.properties.l,
-        maxItems: Math.min(ANALYSIS_LINK_ITEM_LIMIT, analysisAtomLimit),
+        maxItems: analysisAtomLimit === 1 && visibleLedgerIds.length === 0
+          ? 0
+          : Math.min(ANALYSIS_LINK_ITEM_LIMIT, analysisAtomLimit),
         items: linkSchema,
       }),
     }),
@@ -1084,6 +1120,7 @@ function fittedStringLength(schema) {
 
 function maximalFittedSchemaValue(schema) {
   if (!record(schema)) throw new TypeError("The Lattice provider received an invalid fitted schema.");
+  if (Object.hasOwn(schema, "const")) return schema.const;
   if (Array.isArray(schema.enum)) {
     return [...schema.enum].sort((left, right) => (
       JSON.stringify(right).length - JSON.stringify(left).length
@@ -1098,7 +1135,18 @@ function maximalFittedSchemaValue(schema) {
     ))[0];
   }
   if (schema.type === "array") {
-    if (Array.isArray(schema.prefixItems)) return schema.prefixItems.map(maximalFittedSchemaValue);
+    if (Array.isArray(schema.prefixItems)) {
+      const prefix = schema.prefixItems.map(maximalFittedSchemaValue);
+      const maximumLength = schema.maxItems ?? schema.minItems ?? prefix.length;
+      if (maximumLength <= prefix.length || !record(schema.items)) return prefix;
+      return [
+        ...prefix,
+        ...Array.from(
+          { length: maximumLength - prefix.length },
+          () => maximalFittedSchemaValue(schema.items),
+        ),
+      ];
+    }
     if (!record(schema.items)) return [];
     return Array.from(
       { length: schema.maxItems ?? schema.minItems ?? 0 },
@@ -1138,13 +1186,14 @@ function wireMaskSelections(mask, values, { minimum = 0, maximum = values.length
   return selected.length >= minimum && selected.length <= maximum ? selected : null;
 }
 
-function wireIndexSelections(indices, values, { minimum = 0, maximum = values.length } = {}) {
+function wireIndexPositions(indices, valueCount, { minimum = 0, maximum = valueCount } = {}) {
   if (!Array.isArray(indices) || !Number.isSafeInteger(minimum) || !Number.isSafeInteger(maximum)
     || minimum < 0 || maximum < minimum || indices.length < minimum || indices.length > maximum
-    || new Set(indices).size !== indices.length || indices.some((index) => (
-      !Number.isSafeInteger(index) || index < 0 || index >= values.length
+    || indices.some((index) => (
+      !Number.isSafeInteger(index) || index < 0 || index >= valueCount
     ))) return null;
-  return indices.map((index) => values[index]);
+  const positions = [...new Set(indices)].sort((left, right) => left - right);
+  return positions.length >= minimum && positions.length <= maximum ? positions : null;
 }
 
 function derivedAnalysisAtomValue(records, kind) {
@@ -1173,13 +1222,29 @@ function derivedAnalysisRationale(layer) {
   return `Use the ${layer} layer to make cited source commitments legible without adding meaning.`;
 }
 
+function rejectedAnalysisWire(category) {
+  const result = {};
+  ANALYSIS_DECODER_FAILURES.set(
+    result,
+    ANALYSIS_DECODER_FAILURE_CATEGORY_SET.has(category) ? category : "response-shape",
+  );
+  return result;
+}
+
 function decodeAnalysisWire(value, fit) {
+  const ledgerIds = (fit?.request?.documentLedger ?? []).map(({ id }) => id);
   if (!fit || !exactKeys(value, ["d", "p", "l"])
-    || !Array.isArray(value.p) || value.p.length !== fit.passages.length
-    || !Array.isArray(value.l)
-    || value.l.length > Math.min(ANALYSIS_LINK_ITEM_LIMIT, fit.analysisAtomLimit)) return {};
+    || !Array.isArray(value.p) || !Array.isArray(value.l)) {
+    return rejectedAnalysisWire("response-shape");
+  }
+  if (value.p.length !== fit.passages.length) {
+    return rejectedAnalysisWire("passage-coverage");
+  }
+  if (value.l.length > Math.min(ANALYSIS_LINK_ITEM_LIMIT, fit.analysisAtomLimit)) {
+    return rejectedAnalysisWire("relation");
+  }
   const documentKind = wireEnumValue(value.d, ANALYSIS_DOCUMENT_KINDS);
-  if (documentKind === null) return {};
+  if (documentKind === null) return rejectedAnalysisWire("response-shape");
   const rawPassages = [];
   const flatAtoms = [];
   for (let passageIndex = 0; passageIndex < value.p.length; passageIndex += 1) {
@@ -1187,37 +1252,53 @@ function decodeAnalysisWire(value, fit) {
     const evidenceIds = fit.evidenceIdsByPassage[passageIndex];
     const evidenceRecords = fit.evidenceRecordsByPassage[passageIndex];
     if (!Array.isArray(passage) || passage.length !== 4
-      || !Array.isArray(passage[2]) || passage[2].length < 1
-      || passage[2].length > fit.atomAllocations[passageIndex]
-      || !Array.isArray(passage[3])
-      || passage[3].length !== ANALYSIS_CONFORMANCE_ITEM_LIMIT) return {};
+      || !Array.isArray(passage[2]) || !Array.isArray(passage[3])) {
+      return rejectedAnalysisWire("response-shape");
+    }
+    if (passage[2].length < fit.minimumAtomAllocations[passageIndex]) {
+      return rejectedAnalysisWire("evidence");
+    }
+    if (passage[2].length > fit.atomAllocations[passageIndex]) {
+      return rejectedAnalysisWire("capacity");
+    }
+    if (passage[3].length !== ANALYSIS_CONFORMANCE_ITEM_LIMIT) {
+      return rejectedAnalysisWire("conformance");
+    }
     const layer = wireEnumValue(passage[0], ANALYSIS_LAYERS);
     const disposition = wireEnumValue(passage[1], ANALYSIS_DISPOSITIONS);
-    if (layer === null || disposition === null) return {};
+    if (layer === null || disposition === null) {
+      return rejectedAnalysisWire("response-shape");
+    }
+    const conformanceSelections = passage[3].map((mask) => (
+      wireMaskSelections(mask, evidenceIds)
+    ));
+    if (conformanceSelections.some((selection) => selection === null)) {
+      return rejectedAnalysisWire("conformance");
+    }
     const atoms = [];
     for (const rawAtom of passage[2]) {
-      if (!Array.isArray(rawAtom) || rawAtom.length !== 4) return {};
+      if (!Array.isArray(rawAtom) || rawAtom.length !== 4) {
+        return rejectedAnalysisWire("response-shape");
+      }
       const kind = wireEnumValue(rawAtom[0], ANALYSIS_ATOM_KINDS);
       const priority = wireEnumValue(rawAtom[1], ANALYSIS_PRIORITIES);
-      const preservation = wireEnumValue(rawAtom[2], ANALYSIS_PRESERVATIONS);
-      const selectedEvidence = wireIndexSelections(rawAtom[3], evidenceIds, {
+      const rawPreservation = wireEnumValue(rawAtom[2], ANALYSIS_PRESERVATIONS);
+      const evidencePositions = wireIndexPositions(rawAtom[3], evidenceIds.length, {
         minimum: 1,
         maximum: 3,
       });
-      if (kind === null || priority === null || preservation === null
-        || selectedEvidence === null) return {};
-      const evidencePositions = [...rawAtom[3]].sort((left, right) => left - right);
+      if (kind === null || priority === null || rawPreservation === null) {
+        return rejectedAnalysisWire("response-shape");
+      }
+      if (evidencePositions === null) return rejectedAnalysisWire("evidence");
       const evidenceSpanIds = evidencePositions.map((evidenceIndex) => evidenceIds[evidenceIndex]);
       const selectedEvidenceRecords = evidencePositions.map((evidenceIndex) => (
         evidenceRecords[evidenceIndex]
       ));
-      if (preservation === "exact"
-        && (fit.literalEvidenceIdsByPassage[passageIndex].length !== evidenceIds.length
-          || !selectedEvidenceRecords.every(({ kind: evidenceKind }) => (
-            evidenceKind === "literal"
-          )))) {
-        return {};
-      }
+      const preservation = rawPreservation === "exact"
+        && !selectedEvidenceRecords.every(({ kind: evidenceKind }) => evidenceKind === "literal")
+        ? "equivalent"
+        : rawPreservation;
       const atom = {
         id: `a${flatAtoms.length.toString(36)}`,
         kind,
@@ -1237,25 +1318,30 @@ function decodeAnalysisWire(value, fit) {
       disposition,
       rationale: derivedAnalysisRationale(layer),
       atoms,
-      conformanceMasks: passage[3],
+      conformanceSelections,
       evidenceIds,
     });
   }
-  if (flatAtoms.length > fit.analysisAtomLimit) return {};
-  const ledgerIds = (fit.request.documentLedger ?? []).map(({ id }) => id);
+  if (flatAtoms.length > fit.analysisAtomLimit) return rejectedAnalysisWire("capacity");
   const linkKeys = new Set();
   for (const rawLink of value.l) {
     if (!Array.isArray(rawLink) || rawLink.length !== 3
-      || !Number.isSafeInteger(rawLink[0]) || !Number.isSafeInteger(rawLink[2])) return {};
+      || !Number.isSafeInteger(rawLink[0]) || !Number.isSafeInteger(rawLink[2])) {
+      return rejectedAnalysisWire("relation");
+    }
     const sourceAtom = flatAtoms[rawLink[0]];
     const relation = wireEnumValue(rawLink[1], ANALYSIS_RELATIONS);
     const targetAtomId = rawLink[2] >= 0
       ? flatAtoms[rawLink[2]]?.id
       : ledgerIds[-rawLink[2] - 1];
     const key = `${rawLink[0]}\u241f${relation}\u241f${targetAtomId}`;
-    if (!sourceAtom || relation === null || typeof targetAtomId !== "string"
-      || targetAtomId === sourceAtom.id || linkKeys.has(key)
-      || sourceAtom.links.length >= INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.links.maxItems) return {};
+    if (relation === null || !sourceAtom || typeof targetAtomId !== "string") {
+      return rejectedAnalysisWire("relation");
+    }
+    if (targetAtomId === sourceAtom.id || linkKeys.has(key)) continue;
+    if (sourceAtom.links.length >= INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.links.maxItems) {
+      return rejectedAnalysisWire("relation");
+    }
     linkKeys.add(key);
     sourceAtom.links.push({ relation, targetAtomId });
   }
@@ -1263,43 +1349,50 @@ function decodeAnalysisWire(value, fit) {
   for (const rawPassage of rawPassages) {
     const coveredEvidence = new Set(rawPassage.atoms.flatMap(({ evidenceSpanIds }) => evidenceSpanIds));
     if (coveredEvidence.size !== rawPassage.evidenceIds.length
-      || rawPassage.evidenceIds.some((id) => !coveredEvidence.has(id))) return {};
+      || rawPassage.evidenceIds.some((id) => !coveredEvidence.has(id))) {
+      return rejectedAnalysisWire("evidence");
+    }
     const ambiguityAtomIds = rawPassage.atoms
       .filter(({ kind }) => kind === "ambiguity" || kind === "uncertainty")
       .map(({ id }) => id);
     if (ambiguityAtomIds.length > INTERNAL_ANALYSIS_PASSAGE_SCHEMA
-      .properties.ambiguityAtomIds.maxItems) return {};
+      .properties.ambiguityAtomIds.maxItems) return rejectedAnalysisWire("ambiguity");
     let conformanceCriteria = [];
     let conformanceEvidenceSpanIds = [];
     let conformanceAssertions = [];
-    if (rawPassage.disposition === "retain-if-conformant") {
+    let disposition = rawPassage.disposition;
+    if (disposition === "retain-if-conformant") {
       conformanceCriteria = [
         ...LATTICE_CONFORMANCE_CRITERIA.universal,
         ...LATTICE_CONFORMANCE_CRITERIA[rawPassage.layer],
       ];
-      if (conformanceCriteria.length !== ANALYSIS_CONFORMANCE_ITEM_LIMIT) return {};
-      conformanceAssertions = rawPassage.conformanceMasks.map((mask, index) => {
-        const evidenceSpanIds = wireMaskSelections(mask, rawPassage.evidenceIds, { minimum: 1 });
-        return evidenceSpanIds === null ? null : {
+      if (conformanceCriteria.length !== ANALYSIS_CONFORMANCE_ITEM_LIMIT) {
+        return rejectedAnalysisWire("conformance");
+      }
+      conformanceAssertions = rawPassage.conformanceSelections.map((evidenceSpanIds, index) => (
+        evidenceSpanIds.length === 0 ? null : {
           criterion: conformanceCriteria[index],
           evidenceSpanIds,
-        };
-      });
-      if (conformanceAssertions.some((assertion) => assertion === null)) return {};
+        }
+      ));
       const assertedEvidence = new Set(
-        conformanceAssertions.flatMap(({ evidenceSpanIds }) => evidenceSpanIds),
+        conformanceAssertions.flatMap((assertion) => assertion?.evidenceSpanIds ?? []),
       );
-      if (assertedEvidence.size !== rawPassage.evidenceIds.length
-        || rawPassage.evidenceIds.some((id) => !assertedEvidence.has(id))) return {};
-      conformanceEvidenceSpanIds = [...rawPassage.evidenceIds];
-    } else if (rawPassage.conformanceMasks.some((mask) => (
-      mask !== "0".repeat(rawPassage.evidenceIds.length)
-    ))) return {};
+      if (conformanceAssertions.some((assertion) => assertion === null)
+        || assertedEvidence.size !== rawPassage.evidenceIds.length
+        || rawPassage.evidenceIds.some((id) => !assertedEvidence.has(id))) {
+        disposition = "rewrite";
+        conformanceCriteria = [];
+        conformanceAssertions = [];
+      } else {
+        conformanceEvidenceSpanIds = [...rawPassage.evidenceIds];
+      }
+    }
     passages.push({
       passageId: rawPassage.passageId,
       discourseFunction: rawPassage.discourseFunction,
       layer: rawPassage.layer,
-      disposition: rawPassage.disposition,
+      disposition,
       rationale: rawPassage.rationale,
       atoms: rawPassage.atoms,
       ambiguityAtomIds,
@@ -2090,6 +2183,7 @@ export function createHuggingFaceLatticeAdapter({
     }
     if (stageName === "analysis") {
       result = decodeAnalysisWire(result, analysisFit);
+      const decoderFailureCategory = ANALYSIS_DECODER_FAILURES.get(result);
       Object.defineProperty(result, LATTICE_FITTED_ANALYSIS_CONTEXT, {
         configurable: false,
         enumerable: false,
@@ -2097,6 +2191,7 @@ export function createHuggingFaceLatticeAdapter({
         value: Object.freeze({
           analysisAtomLimit: analysisFit.analysisAtomLimit,
           documentLedgerAtomIds: Object.freeze((request.documentLedger ?? []).map(({ id }) => id)),
+          ...(decoderFailureCategory === undefined ? {} : { decoderFailureCategory }),
         }),
       });
     } else if (stageName === "verification") {
