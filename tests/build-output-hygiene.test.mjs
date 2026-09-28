@@ -127,7 +127,8 @@ test("the remote adapter consumes the public server-side sampling contract", asy
     analysis: {
       temperature: 0.7,
       topP: 0.8,
-      toolChoice: "auto",
+      responseFormat: "json_schema",
+      strict: true,
       maximumOutputTokens: 3_072,
     },
     candidate: { temperature: 0.45, topP: 0.9, maximumOutputTokens: 800 },
@@ -153,7 +154,8 @@ test("the remote adapter consumes the public server-side sampling contract", asy
     adapter.indexOf("analysis: Object.freeze({"),
     adapter.indexOf("candidate: Object.freeze({"),
   );
-  assert.match(analysisStageSource, /toolChoice: "auto"/u);
+  assert.match(analysisStageSource, /responseFormat: "json_schema"/u);
+  assert.doesNotMatch(analysisStageSource, /toolChoice|toolName/u);
   assert.doesNotMatch(analysisStageSource, /topK|minP/u);
   assert.doesNotMatch(analysisStageSource, /presencePenalty/u);
   assert.match(adapter, /model: LATTICE_REMOTE_MODELS\[role\]/u);

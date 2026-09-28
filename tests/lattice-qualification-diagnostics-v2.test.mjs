@@ -48,18 +48,17 @@ function analysisToolCall({
 
 function analysisProviderResponse(value, {
   completionTokens,
-  argumentsText = JSON.stringify(value),
-  finishReason = "tool_calls",
+  contentText = JSON.stringify(value),
+  finishReason = "stop",
   message = {},
-  toolCalls,
 } = {}) {
   return new Response(JSON.stringify({
     choices: [{
       finish_reason: finishReason,
       message: {
         role: "assistant",
+        content: contentText,
         ...message,
-        tool_calls: toolCalls ?? [analysisToolCall({ argumentsText })],
       },
     }],
     ...(completionTokens === undefined ? {} : { usage: { completion_tokens: completionTokens } }),
@@ -170,24 +169,28 @@ test("an initial host-validation correction attributes malformed provider call t
     /Atomization did not cover every passage|matching every named field|Return the analysis schema\./iu,
   );
   for (const body of [firstBody, correctedBody]) {
-    assert.equal(Object.hasOwn(body, "response_format"), false);
+    assert.equal(body.response_format.type, "json_schema");
+    assert.equal(body.response_format.json_schema.name, ANALYSIS_TOOL_NAME);
+    assert.equal(typeof body.response_format.json_schema.description, "string");
+    assert.equal(body.response_format.json_schema.strict, true);
+    assert.equal(body.response_format.json_schema.schema.type, "object");
+    assert.deepEqual(body.response_format.json_schema.schema.required, ["d", "p", "q"]);
     assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
-    assert.equal(body.tool_choice, "auto");
-    assert.equal(body.tools.length, 1);
-    assert.equal(body.tools[0].type, "function");
-    assert.equal(body.tools[0].function.name, ANALYSIS_TOOL_NAME);
-    assert.equal(Object.hasOwn(body.tools[0].function, "strict"), false);
-    assert.equal(body.tools[0].function.parameters.type, "object");
+    assert.equal(Object.hasOwn(body, "tool_choice"), false);
+    assert.equal(Object.hasOwn(body, "tools"), false);
     const system = body.messages.find(({ role }) => role === "system")?.content ?? "";
     assert.match(system, /private d\/p\/q wire/u);
     assert.match(system, /Keep q empty/u);
-    assert.equal(system.includes(JSON.stringify(body.tools[0].function.parameters)), false);
+    assert.equal(
+      system.includes(JSON.stringify(body.response_format.json_schema.schema)),
+      false,
+    );
     assert.doesNotMatch(system, /LATTICE_RESPONSE_SCHEMA/u);
     assert.doesNotMatch(system, /Return the analysis schema\.|Return questions empty|affectedAtomIds/iu);
   }
   assert.deepEqual(
-    firstBody.tools[0].function.parameters,
-    correctedBody.tools[0].function.parameters,
+    firstBody.response_format.json_schema.schema,
+    correctedBody.response_format.json_schema.schema,
   );
   assert.doesNotMatch(firstBody.messages[0].content, /one bounded correction attempt/u);
   assert.match(correctedBody.messages[0].content, /one bounded correction attempt/u);
@@ -204,7 +207,7 @@ test("a malformed compact analysis tuple fails into the bounded host correction 
       if (calls === 1) {
         return analysisProviderResponse({ d: "instruction", p: [["too-short"]], q: [] });
       }
-      return analysisProviderResponse(undefined, { argumentsText: "not-json" });
+      return analysisProviderResponse(undefined, { contentText: "not-json" });
     },
   });
 
@@ -238,7 +241,7 @@ test("a split-child correction keeps split origin when global analysis call four
           finish_reason: "length",
           message: {
             role: "assistant",
-            tool_calls: [analysisToolCall({ argumentsText: "PRIVATE-TRUNCATED-CONTENT" })],
+            content: "PRIVATE-TRUNCATED-CONTENT",
           },
         }],
         usage: { completion_tokens: 3_072 },
@@ -283,7 +286,7 @@ test("malformed structured content carries only fixed subtype and coarse size me
     fetchImpl: async (_url, init) => {
       providerBody = init.body;
       return analysisProviderResponse(undefined, {
-        argumentsText: privateContent,
+        contentText: privateContent,
         completionTokens: 512,
       });
     },
@@ -298,7 +301,7 @@ test("malformed structured content carries only fixed subtype and coarse size me
   assert.ok(error instanceof LatticeProviderError);
   assert.equal(error.code, "provider_malformed_response");
   assert.equal(error.qualificationSubtype, "content_json");
-  assert.equal(error.qualificationFinishReason, "tool_calls");
+  assert.equal(error.qualificationFinishReason, "stop");
   assert.equal(error.qualificationRequestSize, "4097-16384");
   assert.equal(error.qualificationResponseSize, "1-4096");
   assert.equal(error.qualificationContentSize, "1-4096");
@@ -315,7 +318,7 @@ test("malformed structured content carries only fixed subtype and coarse size me
   assertHiddenImmutableDiagnostics(error);
 });
 
-test("an exact named analysis tool call remains authoritative over auxiliary provider fields", async () => {
+test("strict-schema assistant content remains authoritative over auxiliary provider fields", async () => {
   const authoritativeWire = Object.freeze({
     d: "instruction",
     p: Object.freeze([]),
@@ -324,8 +327,8 @@ test("an exact named analysis tool call remains authoritative over auxiliary pro
   const auxiliaryWire = JSON.stringify({ d: "other", p: [["PRIVATE-AUXILIARY"]], q: [] });
   const cases = [
     {
-      name: "nonempty assistant content",
-      message: { content: auxiliaryWire },
+      name: "tool calls",
+      message: { tool_calls: [analysisToolCall({ argumentsText: auxiliaryWire })] },
     },
     {
       name: "legacy function call",
@@ -339,7 +342,7 @@ test("an exact named analysis tool call remains authoritative over auxiliary pro
     {
       name: "both auxiliary fields",
       message: {
-        content: auxiliaryWire,
+        tool_calls: [analysisToolCall({ argumentsText: auxiliaryWire })],
         function_call: {
           name: "legacy_analysis",
           arguments: auxiliaryWire,
@@ -371,34 +374,38 @@ test("an exact named analysis tool call remains authoritative over auxiliary pro
   }
 });
 
-test("analysis never substitutes content-only output and still classifies non-object tool arguments", async () => {
+test("analysis never substitutes auxiliary tool calls for strict-schema content", async () => {
   const privateMarker = "PRIVATE-NONAUTHORITATIVE-ANALYSIS";
   const cases = [
     {
-      name: "content only",
-      subtype: "message_shape",
+      name: "non-object content",
+      subtype: "content_shape",
       finishReason: "stop",
-      response: () => jsonProviderEnvelope({
-        choices: [{
-          finish_reason: "stop",
-          message: {
-            role: "assistant",
-            content: JSON.stringify({ d: "instruction", p: [], q: [privateMarker] }),
-          },
-        }],
+      contentSize: "1-4096",
+      response: () => analysisProviderResponse(undefined, {
+        contentText: JSON.stringify([privateMarker]),
+        message: {
+          tool_calls: [analysisToolCall({
+            argumentsText: JSON.stringify({ d: "instruction", p: [], q: [] }),
+          })],
+        },
       }),
     },
     {
-      name: "non-object tool arguments",
-      subtype: "content_shape",
-      finishReason: "tool_calls",
+      name: "missing content",
+      subtype: "content_empty",
+      finishReason: "stop",
+      contentSize: "none",
       response: () => analysisProviderResponse(undefined, {
-        argumentsText: JSON.stringify([privateMarker]),
+        contentText: undefined,
+        message: {
+          tool_calls: [analysisToolCall({ argumentsText: privateMarker })],
+        },
       }),
     },
   ];
 
-  for (const { name, subtype, finishReason, response } of cases) {
+  for (const { name, subtype, finishReason, contentSize, response } of cases) {
     let fetches = 0;
     const adapter = createHuggingFaceLatticeAdapter({
       token: "server-test-token",
@@ -416,7 +423,7 @@ test("analysis never substitutes content-only output and still classifies non-ob
     assert.equal(error.qualificationFinishReason, finishReason, name);
     assert.equal(error.qualificationStage, "analysis", name);
     assert.equal(error.qualificationCallOrdinal, 1, name);
-    assert.equal(error.qualificationContentSize, "1-4096", name);
+    assert.equal(error.qualificationContentSize, contentSize, name);
     assert.equal(error.message.includes(privateMarker), false, name);
     assert.equal(JSON.stringify(error).includes(privateMarker), false, name);
     assert.equal(fetches, 1, name);
@@ -466,7 +473,7 @@ test("every remaining malformed-response branch maps to one fixed content-free s
           finish_reason: "content_filter",
           message: {
             role: "assistant",
-            tool_calls: [analysisToolCall({ argumentsText: privateMarker })],
+            content: privateMarker,
           },
         }],
       }),
@@ -475,8 +482,8 @@ test("every remaining malformed-response branch maps to one fixed content-free s
       subtype: "message_shape",
       response: () => jsonProviderEnvelope({
         choices: [{
-          finish_reason: "tool_calls",
-          message: { role: "assistant", tool_calls: [] },
+          finish_reason: "stop",
+          message: null,
         }],
       }),
     },
@@ -484,21 +491,21 @@ test("every remaining malformed-response branch maps to one fixed content-free s
       subtype: "message_role",
       response: () => jsonProviderEnvelope({
         choices: [{
-          finish_reason: "tool_calls",
+          finish_reason: "stop",
           message: {
             role: "user",
-            tool_calls: [analysisToolCall({ argumentsText: privateMarker })],
+            content: privateMarker,
           },
         }],
       }),
     },
     {
       subtype: "content_empty",
-      response: () => analysisProviderResponse(undefined, { argumentsText: "" }),
+      response: () => analysisProviderResponse(undefined, { contentText: "" }),
     },
     {
       subtype: "content_shape",
-      response: () => analysisProviderResponse(undefined, { argumentsText: "[]" }),
+      response: () => analysisProviderResponse(undefined, { contentText: "[]" }),
     },
     {
       subtype: "response_processing",
