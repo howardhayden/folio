@@ -547,14 +547,29 @@ function minifiedProtocolOutputs() {
   return { analysis, candidate, verification, certification };
 }
 
+function fittedStringLength(schema) {
+  const explicitLength = schema.maxLength ?? schema.minLength;
+  if (Number.isSafeInteger(explicitLength) && explicitLength >= 0) return explicitLength;
+  const binaryWidth = typeof schema.pattern === "string"
+    ? /^\^\[01\]\{([1-9]\d*)\}\$$/u.exec(schema.pattern)
+    : null;
+  return binaryWidth ? Number(binaryWidth[1]) : 1;
+}
+
 function maximalFittedWireValue(schema, stringValue) {
   if (Array.isArray(schema.enum)) {
     return [...schema.enum].sort((left, right) => (
       JSON.stringify(right).length - JSON.stringify(left).length
     ))[0];
   }
-  if (schema.type === "string") return stringValue(schema.maxLength ?? 1, schema);
-  if (schema.type === "integer") return schema.maximum ?? schema.minimum ?? 0;
+  if (schema.type === "string") return stringValue(fittedStringLength(schema), schema);
+  if (schema.type === "integer") {
+    const candidates = [schema.minimum, schema.maximum].filter(Number.isSafeInteger);
+    if (candidates.length === 0) return 0;
+    return candidates.sort((left, right) => (
+      JSON.stringify(right).length - JSON.stringify(left).length
+    ))[0];
+  }
   if (schema.type === "array") {
     if (Array.isArray(schema.prefixItems)) {
       return schema.prefixItems.map((item) => maximalFittedWireValue(item, stringValue));
@@ -728,7 +743,7 @@ test("the exact production canary maximal dense wire retains pinned-Qwen output 
         return new Response(JSON.stringify({
           choices: [{
             finish_reason: "stop",
-            message: { role: "assistant", content: JSON.stringify({ d: "instruction", p: [], q: [] }) },
+            message: { role: "assistant", content: JSON.stringify({ d: 2, p: [], l: [] }) },
           }],
         }), { status: 200, headers: { "Content-Type": "application/json" } });
       },
@@ -747,11 +762,123 @@ test("the exact production canary maximal dense wire retains pinned-Qwen output 
       return (state >>> 28).toString(16);
     }).join("");
     const schema = providerBody.response_format.json_schema.schema;
-    const maximalWire = JSON.stringify(maximalFittedWireValue(schema, denseHex));
+    const maximalValue = maximalFittedWireValue(
+      schema,
+      (length, fitted) => fitted.pattern?.includes("[01]")
+        ? "1".repeat(length)
+        : denseHex(length),
+    );
+    const maximalWire = JSON.stringify(maximalValue);
+    const prettyWire = JSON.stringify(maximalValue, null, 2);
     const tokenCount = tokenizers.qwen.encode(maximalWire).length;
-    assert.ok(maximalWire.length < 4_900, `maximal wire used ${maximalWire.length} characters`);
-    assert.ok(tokenCount <= 2_765, `maximal wire used ${tokenCount} pinned-Qwen tokens`);
-    assert.ok(3_072 - tokenCount >= 300, `maximal wire left only ${3_072 - tokenCount} tokens`);
+    const prettyTokenCount = tokenizers.qwen.encode(prettyWire).length;
+    const requestBytes = new TextEncoder().encode(JSON.stringify(providerBody)).byteLength;
+    assert.equal(providerBody.max_tokens, 1_024);
+    assert.ok(requestBytes < 10_000, `canary request used ${requestBytes} bytes`);
+    assert.ok(JSON.stringify(schema).length < 1_500, "canary schema regressed in size");
+    assert.ok(maximalWire.length < 500, `maximal wire used ${maximalWire.length} characters`);
+    assert.ok(tokenCount <= providerBody.max_tokens, `maximal wire used ${tokenCount} pinned-Qwen tokens`);
+    assert.ok(
+      prettyTokenCount <= providerBody.max_tokens,
+      `pretty maximal wire used ${prettyTokenCount} pinned-Qwen tokens`,
+    );
+    assert.ok(
+      providerBody.max_tokens - prettyTokenCount >= 300,
+      `pretty maximal wire left only ${providerBody.max_tokens - prettyTokenCount} tokens`,
+    );
+  } finally {
+    tokenizers.dispose();
+  }
+});
+
+test("the maximal reachable fitted analysis wire remains inside the hard Qwen cap", {
+  skip: TOKENIZER_FIXTURES_AVAILABLE ? false : "set the two LATTICE_*_TOKENIZER_JSON paths to run exact pinned-tokenizer checks",
+}, async () => {
+  const tokenizers = await pinnedTokenizers();
+  try {
+    const passages = Array.from({ length: 4 }, (_value, index) => ({
+      id: `p${index + 1}`,
+      text: `Passage ${index + 1}.`,
+      startUtf16: index * 12,
+      endUtf16: (index + 1) * 12,
+      wordCount: 2,
+      separatorBefore: index === 0 ? "" : "\n\n",
+      separatorAfter: index === 3 ? "" : "\n\n",
+    }));
+    const batch = Object.freeze({
+      id: "b-max-analysis-wire",
+      passages: Object.freeze(passages.map((passage) => Object.freeze(passage))),
+      wordCount: 8,
+      characterCount: passages.reduce((sum, { text }) => sum + text.length, 0),
+    });
+    const sourceSpans = Object.freeze(passages.map((passage, passageIndex) => {
+      const spans = Array.from({ length: 12 }, (_value, index) => Object.freeze({
+        id: `${passage.id}:s${index + 1}`,
+        kind: "source",
+        text: `s${passageIndex}-${index}`,
+      }));
+      const literalAnnotations = passageIndex === 3
+        ? Array.from({ length: 24 }, (_value, index) => Object.freeze({
+          id: `${passage.id}:l${index + 1}`,
+          kind: "literal",
+          literalType: "code",
+          startUtf16: index,
+          endUtf16: index + 1,
+          text: `l${index}`,
+        }))
+        : [];
+      return Object.freeze({
+        passageId: passage.id,
+        spans: Object.freeze(spans),
+        literalAnnotations: Object.freeze(literalAnnotations),
+      });
+    }));
+    const documentLedger = Object.freeze(Array.from({ length: 768 }, (_value, index) => Object.freeze({
+      id: `r001:a${index}`,
+      passageId: "prior",
+      kind: "state",
+      value: "prior grounded state",
+      priority: "semantic",
+      links: Object.freeze([]),
+    })));
+    let providerBody;
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      fetchImpl: async (_url, init) => {
+        providerBody = JSON.parse(init.body);
+        return new Response(JSON.stringify({
+          choices: [{
+            finish_reason: "stop",
+            message: { role: "assistant", content: JSON.stringify({ d: 2, p: [], l: [] }) },
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+    await adapter.analyze(Object.freeze({
+      batch,
+      sourceSpans,
+      analysisAtomLimit: 24,
+      documentLedger,
+      signal: new AbortController().signal,
+    }));
+
+    const schema = providerBody.response_format.json_schema.schema;
+    const maximalValue = maximalFittedWireValue(
+      schema,
+      (length, fitted) => fitted.pattern?.includes("[01]") ? "1".repeat(length) : "x".repeat(length),
+    );
+    const minifiedTokens = tokenizers.qwen.encode(JSON.stringify(maximalValue)).length;
+    const prettyTokens = tokenizers.qwen.encode(JSON.stringify(maximalValue, null, 2)).length;
+    assert.equal(providerBody.max_tokens, 2_048);
+    assert.deepEqual(
+      schema.properties.p.prefixItems.map(({ prefixItems }) => prefixItems[2].maxItems),
+      [4, 4, 4, 12],
+    );
+    assert.equal(schema.properties.l.maxItems, 24);
+    assert.equal(schema.properties.l.items.prefixItems[2].minimum, -768);
+    assert.ok(minifiedTokens <= 2_048, `maximal wire used ${minifiedTokens} pinned-Qwen tokens`);
+    assert.ok(prettyTokens <= 2_048, `pretty maximal wire used ${prettyTokens} pinned-Qwen tokens`);
+    assert.ok(2_048 - prettyTokens >= 150, `pretty maximal wire left only ${2_048 - prettyTokens} tokens`);
   } finally {
     tokenizers.dispose();
   }

@@ -129,17 +129,20 @@ test("the remote adapter consumes the public server-side sampling contract", asy
       topP: 0.8,
       responseFormat: "json_schema",
       strict: true,
-      maximumOutputTokens: 3_072,
+      maximumOutputTokens: 2_048,
     },
     candidate: { temperature: 0.45, topP: 0.9, responseFormat: "json_object", maximumOutputTokens: 800 },
     repair: { temperature: 0.45, topP: 0.9, responseFormat: "json_object", maximumOutputTokens: 800 },
   });
+  assert.match(adapter, /const ANALYSIS_MAX_OUTPUT_TOKENS = 2_048;/u);
+  assert.match(adapter, /const ANALYSIS_MIN_OUTPUT_TOKENS = 768;/u);
+  assert.match(adapter, /const ANALYSIS_OUTPUT_TOKEN_STEP = 256;/u);
   assert.deepEqual(textToLatticeContract.implementation.verifier.inference.stages, {
     verification: { temperature: 0, topP: 1, responseFormat: "json_object", maximumOutputTokens: 1_200 },
     certification: { temperature: 0, topP: 1, responseFormat: "json_object", maximumOutputTokens: 520 },
   });
   for (const [stage, maximumOutputTokens, temperature, topP] of [
-    ["analysis", "3_072", "0.7", "0.8"],
+    ["analysis", "ANALYSIS_MAX_OUTPUT_TOKENS", "0.7", "0.8"],
     ["candidate", "800", "0.45", "0.9"],
     ["repair", "800", "0.45", "0.9"],
     ["verification", "1_200", "0", "1"],
