@@ -19,6 +19,7 @@ import {
   documentCertificationMessages,
   verificationMessages,
 } from "../app/resume/lattice/promptContract.js";
+import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
 import {
   latticeSourceSpansForBatch,
   splitLatticePassage,
@@ -77,7 +78,7 @@ const validPayload = Object.freeze({
 const TEST_VISITOR_ID = "A".repeat(24);
 const TEST_VISITOR_COOKIE_VALUE = `v1.${TEST_VISITOR_ID}.${"B".repeat(43)}`;
 const TEST_VISITOR_SECRET = "test-only-independent-api-visitor-secret-value";
-const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v1";
+const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v2";
 const allowTransformation = async () => Object.freeze({
   allowed: true,
   retryAfterSeconds: null,
@@ -271,13 +272,23 @@ function providerToolCall({
   };
 }
 
+function fittedStringLength(schema) {
+  const explicitLength = schema.maxLength ?? schema.minLength;
+  if (Number.isSafeInteger(explicitLength) && explicitLength >= 0) return explicitLength;
+  const binaryWidth = typeof schema.pattern === "string"
+    ? /^\^\[01\]\{([1-9]\d*)\}\$$/u.exec(schema.pattern)
+    : null;
+  return binaryWidth ? Number(binaryWidth[1]) : 1;
+}
+
 function maximalJsonSchemaValue(schema, stringValue = (length) => "x".repeat(length)) {
   if (Array.isArray(schema.enum)) {
     return [...schema.enum].sort((left, right) => (
       JSON.stringify(right).length - JSON.stringify(left).length
     ))[0];
   }
-  if (schema.type === "string") return stringValue(schema.maxLength ?? 1);
+  if (schema.type === "string") return stringValue(fittedStringLength(schema), schema);
+  if (schema.type === "integer") return schema.maximum ?? schema.minimum ?? 0;
   if (schema.type === "array") {
     if (Array.isArray(schema.prefixItems)) {
       return schema.prefixItems.map((item) => maximalJsonSchemaValue(item, stringValue));
@@ -1389,10 +1400,10 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
   });
   const defaultHostMessages = analysisMessages(request);
   const explicitHostMessages = analysisMessages(request, { responseDialect: "host-schema" });
-  const compactMessages = analysisMessages(request, { responseDialect: "compact-wire-v1" });
+  const compactMessages = analysisMessages(request, { responseDialect: "compact-wire-v2" });
   const initialCompactMessages = analysisMessages(
     Object.freeze({ ...request, protocolFeedback: undefined }),
-    { responseDialect: "compact-wire-v1" },
+    { responseDialect: "compact-wire-v2" },
   );
   const privateCategory = "PRIVATE-HOST-CATEGORY-MUST-NOT-CROSS";
   const invalidCategoryMessages = analysisMessages(Object.freeze({
@@ -1401,7 +1412,7 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
       ...request.protocolFeedback,
       category: privateCategory,
     }),
-  }), { responseDialect: "compact-wire-v1" });
+  }), { responseDialect: "compact-wire-v2" });
   const host = JSON.stringify(defaultHostMessages);
   const compact = JSON.stringify(compactMessages);
   const inertPayload = (messages) => {
@@ -1416,11 +1427,11 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
   assert.match(host, /PRIVATE-HOST-VALIDATION-ISSUE/u);
   assert.match(host, /Host question|Host answer/u);
   assert.doesNotMatch(host, /private-analysis-wire-invalid/u);
-  assert.match(compact, /private d\/p\/q wire layout/u);
+  assert.match(compact, /private d\/p\/l index wire layout/u);
   assert.match(compact, /private-analysis-wire-invalid/u);
-  assert.match(compact, /exactly one p tuple for every supplied passage ID|exact tuple widths|covering every source span|valid link targets|Keep q empty/iu);
+  assert.match(compact, /exactly one p tuple for every supplied passage|exact tuple widths|evidence coverage|valid link positions/iu);
   assert.match(compact, /Closed correction category: evidence/u);
-  assert.match(compact, /exact only with exclusively literal evidence/u);
+  assert.match(compact, /exact only when every selectable record is literal/u);
   assert.doesNotMatch(compact, /Return the analysis schema\.|PRIVATE-HOST-VALIDATION-ISSUE|every named field|Return questions empty|affectedAtomIds|conformanceEvidenceSpanIds|Host question|Host answer/iu);
   assert.equal(inertPayload(compactMessages).retry, "private-analysis-wire-invalid");
   assert.equal(Object.hasOwn(inertPayload(compactMessages), "protocolFeedback"), false);
@@ -1549,7 +1560,7 @@ test("the adapter uses strict JSON Schema analysis and JSON-object certification
     LATTICE_REMOTE_MODELS.verifier,
     "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
   );
-  assert.deepEqual(calls.map(({ body }) => body.max_tokens), [3_072, 520]);
+  assert.deepEqual(calls.map(({ body }) => body.max_tokens), [768, 520]);
   assert.deepEqual(calls.map(({ body }) => body.temperature), [0.7, 0]);
   assert.deepEqual(calls.map(({ body }) => body.top_p), [0.8, 1]);
   assert.deepEqual(calls.map(({ body }) => body.seed), [71_903, 71_903]);
@@ -1588,69 +1599,46 @@ test("the adapter uses strict JSON Schema analysis and JSON-object certification
   assert.equal(Object.hasOwn(analysisBody, "tools"), false);
   assert.match(
     analysisContract.description,
-    /Return one complete private analysis instance as the structured response/u,
+    /Return one complete private fitted d\/p\/l analysis result/u,
   );
   assert.equal(analysisParameters.type, "object");
   assert.equal(analysisParameters.additionalProperties, false);
-  assert.deepEqual(analysisParameters.required, ["d", "p", "q"]);
-  assert.deepEqual(Object.keys(analysisParameters.properties).sort(), ["d", "p", "q"]);
+  assert.deepEqual(analysisParameters.required, ["d", "p", "l"]);
+  assert.deepEqual(Object.keys(analysisParameters.properties).sort(), ["d", "l", "p"]);
+  assert.deepEqual(
+    [analysisParameters.properties.d.minimum, analysisParameters.properties.d.maximum],
+    [0, 8],
+  );
   assert.equal(analysisParameters.properties.p.type, "array");
   assert.equal(analysisParameters.properties.p.minItems, 1);
   assert.equal(analysisParameters.properties.p.maxItems, 1);
   assert.equal(Object.hasOwn(analysisParameters.properties.p, "items"), false);
   assert.equal(analysisParameters.properties.p.prefixItems.length, 1);
   assert.equal(analysisParameters.properties.p.prefixItems[0].type, "array");
-  assert.equal(analysisParameters.properties.p.prefixItems[0].prefixItems.length, 10);
+  assert.equal(analysisParameters.properties.p.prefixItems[0].prefixItems.length, 4);
   const passageTuple = analysisParameters.properties.p.prefixItems[0].prefixItems;
-  assert.deepEqual(passageTuple[0].enum, [analysisRequest.batch.passages[0].id]);
+  assert.deepEqual([passageTuple[0].minimum, passageTuple[0].maximum], [0, 4]);
+  assert.deepEqual([passageTuple[1].minimum, passageTuple[1].maximum], [0, 1]);
+  assert.equal(passageTuple[2].maxItems, 4);
+  const atomTuple = passageTuple[2].items.prefixItems;
+  assert.equal(atomTuple.length, 4);
+  assert.deepEqual([atomTuple[0].minimum, atomTuple[0].maximum], [0, 19]);
+  assert.deepEqual([atomTuple[1].minimum, atomTuple[1].maximum], [0, 2]);
+  assert.deepEqual([atomTuple[2].minimum, atomTuple[2].maximum], [1, 2]);
   assert.deepEqual(
-    { minLength: passageTuple[0].minLength, maxLength: passageTuple[0].maxLength },
-    { minLength: 1, maxLength: 120 },
+    [atomTuple[3].minItems, atomTuple[3].maxItems, atomTuple[3].items.minimum, atomTuple[3].items.maximum],
+    [1, 3, 0, 0],
   );
-  assert.deepEqual(
-    { minLength: passageTuple[1].minLength, maxLength: passageTuple[1].maxLength },
-    {
-      minLength: 1,
-      maxLength: Math.min(160, Math.max(80, analysisRequest.batch.passages[0].text.length)),
-    },
-  );
-  assert.deepEqual(
-    { minLength: passageTuple[4].minLength, maxLength: passageTuple[4].maxLength },
-    {
-      minLength: 1,
-      maxLength: Math.min(
-        240,
-        Math.max(120, Math.ceil(1.75 * analysisRequest.batch.passages[0].text.length)),
-      ),
-    },
-  );
-  assert.equal(passageTuple[5].maxItems, 4);
-  const atomTuple = passageTuple[5].items.prefixItems;
-  assert.equal(atomTuple[0].maxLength, 8);
-  assert.equal(
-    atomTuple[2].maxLength,
-    Math.min(192, Math.max(96, analysisRequest.batch.passages[0].text.length)),
-  );
-  assert.deepEqual(atomTuple[4].enum, ["equivalent", "implicit"]);
-  assert.equal(atomTuple[5].items.maxLength, 160);
-  assert.deepEqual(atomTuple[5].items.enum, [`${analysisRequest.batch.passages[0].id}:s01`]);
-  assert.equal(atomTuple[5].maxItems, 1);
-  assert.equal(atomTuple[6].maxItems, 3);
-  assert.equal(atomTuple[6].items.prefixItems[1].maxLength, 8);
-  assert.equal(passageTuple[6].items.maxLength, 8);
-  assert.equal(passageTuple[6].maxItems, 4);
-  assert.equal(passageTuple[7].maxItems, 5);
-  assert.equal(passageTuple[8].items.maxLength, 160);
-  assert.deepEqual(passageTuple[8].items.enum, [`${analysisRequest.batch.passages[0].id}:s01`]);
-  assert.equal(passageTuple[8].maxItems, 1);
-  assert.equal(passageTuple[9].maxItems, 5);
-  assert.equal(passageTuple[9].items.prefixItems[1].items.maxLength, 160);
-  assert.deepEqual(
-    passageTuple[9].items.prefixItems[1].items.enum,
-    [`${analysisRequest.batch.passages[0].id}:s01`],
-  );
-  assert.equal(passageTuple[9].items.prefixItems[1].maxItems, 1);
-  assert.deepEqual(analysisParameters.properties.q, { type: "array", maxItems: 0 });
+  assert.equal(passageTuple[3].prefixItems.length, 5);
+  assert.deepEqual(passageTuple[3].prefixItems.map(({ pattern }) => pattern), Array(5).fill("^[01]{1}$"));
+  assert.equal(passageTuple[3].prefixItems.every((schema) => (
+    !Object.hasOwn(schema, "minLength") && !Object.hasOwn(schema, "maxLength")
+  )), true);
+  assert.equal(analysisParameters.properties.l.maxItems, 4);
+  const linkTuple = analysisParameters.properties.l.items.prefixItems;
+  assert.deepEqual([linkTuple[0].minimum, linkTuple[0].maximum], [0, 3]);
+  assert.deepEqual([linkTuple[1].minimum, linkTuple[1].maximum], [0, 23]);
+  assert.deepEqual([linkTuple[2].minimum, linkTuple[2].maximum], [0, 3]);
   assert.deepEqual(calls[1].body.response_format, { type: "json_object" });
   assert.equal(Object.hasOwn(calls[1].body, "tools"), false);
   assert.equal(Object.hasOwn(calls[1].body, "tool_choice"), false);
@@ -1663,15 +1651,13 @@ test("the adapter uses strict JSON Schema analysis and JSON-object certification
   assert.equal(Object.hasOwn(calls[1].body, "top_k"), false);
   assert.equal(Object.hasOwn(calls[1].body, "min_p"), false);
   assert.equal(Object.hasOwn(calls[1].body, "presence_penalty"), false);
-  assert.match(calls[0].body.messages[0].content, /Response contract lattice_analysis_wire_v1/u);
+  assert.match(calls[0].body.messages[0].content, /Response contract lattice_analysis_wire_v2/u);
   assert.doesNotMatch(calls[0].body.messages[0].content, /Call this function exactly once/u);
   assert.match(calls[0].body.messages[0].content, /Return exactly one JSON object satisfying the supplied strict JSON Schema/u);
-  assert.match(calls[0].body.messages[0].content, /private d\/p\/q wire layout/u);
+  assert.match(calls[0].body.messages[0].content, /private d\/p\/l index wire layout/u);
   assert.doesNotMatch(calls[0].body.messages[0].content, /Return the analysis schema\./u);
-  assert.ok(analysisContract.description.includes(
-    "The root has exactly d, p, and q: d is the document-kind enum string; p is the passage-tuple array; q is the empty array [].",
-  ));
-  assert.match(analysisContract.description, /smallest complete atom graph allowed by each fitted cap/u);
+  assert.equal(analysisContract.description, "Return one complete private fitted d/p/l analysis result.");
+  assert.match(calls[0].body.messages[0].content, /smallest complete atom graph allowed by the fitted cap/u);
   assert.doesNotMatch(
     calls[0].body.messages[0].content,
     /documentKind|passageId|discourseFunction|ambiguityAtomIds|conformanceCriteria|conformanceEvidenceSpanIds|conformanceAssertions|evidenceSpanIds|targetAtomId/u,
@@ -1679,11 +1665,11 @@ test("the adapter uses strict JSON Schema analysis and JSON-object certification
   assert.doesNotMatch(JSON.stringify(calls[0].body.messages), /LATTICE_RESPONSE_SCHEMA/u);
   assert.doesNotMatch(
     JSON.stringify(calls[0].body.messages),
-    /Return one (?:complete )?d\/p\/q analysis-result instance/u,
+    /Return one (?:complete )?d\/p analysis-result instance/u,
   );
   assert.equal(
     calls[0].body.messages[0].content.includes(analysisContract.description),
-    true,
+    false,
   );
   assert.equal(
     JSON.stringify(calls[0].body.messages).includes(JSON.stringify(analysisParameters)),
@@ -1801,7 +1787,7 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
 
   assert.deepEqual(
     bodies.map(({ max_tokens: maxTokens }) => maxTokens),
-    [3_072, 3_072, 3_072, 3_072, 3_072, 3_072],
+    [1_024, 768, 768, 768, 768, 768],
   );
   const schemas = bodies.map(({ response_format: responseFormat }) => (
     responseFormat.json_schema.schema
@@ -1809,88 +1795,76 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
   const passageTuples = schemas.map((schema) => (
     schema.properties.p.prefixItems.map(({ prefixItems }) => prefixItems)
   ));
-  assert.deepEqual(passageTuples.slice(0, 3).map(([tuple]) => tuple[5].maxItems), [12, 6, 4]);
+  assert.deepEqual(passageTuples.slice(0, 3).map(([tuple]) => tuple[2].maxItems), [12, 6, 4]);
   assert.deepEqual(
-    passageTuples.slice(0, 3).map(([tuple]) => tuple[5].items.prefixItems[5].maxItems),
-    [3, 2, 1],
+    passageTuples.slice(0, 3).map(([tuple]) => tuple[2].items.prefixItems[3].items.maximum),
+    [2, 1, 0],
   );
   assert.deepEqual(
-    passageTuples.slice(0, 3).map(([tuple]) => tuple[5].items.prefixItems[5].items.enum),
+    passageTuples.slice(0, 3).map(([tuple]) => tuple[3].prefixItems[0].pattern),
     [
-      canary.sourceSpans[0].spans.map(({ id }) => id),
-      splitCanaryChild.sourceSpans[0].spans.map(({ id }) => id),
-      oneWord.sourceSpans[0].spans.map(({ id }) => id),
+      "^[01]{3}$",
+      "^[01]{2}$",
+      "^[01]{1}$",
     ],
   );
   assert.deepEqual(
-    passageTuples.slice(0, 3).map(([tuple]) => tuple[5].items.prefixItems[4].enum),
+    passageTuples.slice(0, 3).map(([tuple]) => (
+      [tuple[2].items.prefixItems[2].minimum, tuple[2].items.prefixItems[2].maximum]
+    )),
     [
-      ["equivalent", "implicit"],
-      ["equivalent", "implicit"],
-      ["equivalent", "implicit"],
+      [1, 2],
+      [1, 2],
+      [1, 2],
     ],
   );
+  assert.deepEqual(schemas.slice(0, 3).map((schema) => schema.properties.l.maxItems), [12, 6, 4]);
   assert.deepEqual(
-    [
-      passageTuples[0][0][1].maxLength,
-      passageTuples[0][0][4].maxLength,
-      passageTuples[0][0][5].items.prefixItems[2].maxLength,
-      passageTuples[0][0][5].items.prefixItems[6].maxItems,
-    ],
-    [82, 144, 96, 4],
-  );
-  assert.deepEqual(
-    [
-      passageTuples[2][0][1].maxLength,
-      passageTuples[2][0][4].maxLength,
-      passageTuples[2][0][5].items.prefixItems[2].maxLength,
-      passageTuples[2][0][5].items.prefixItems[6].maxItems,
-    ],
-    [80, 120, 96, 3],
+    schemas.slice(0, 3).map((schema) => schema.properties.l.items.prefixItems[0].maximum),
+    [11, 5, 3],
   );
   let denseState = 0x51f15e;
   const denseHex = (length) => Array.from({ length }, () => {
     denseState = (Math.imul(denseState, 1_664_525) + 1_013_904_223) >>> 0;
     return (denseState >>> 28).toString(16);
   }).join("");
-  const maximalCanaryWire = JSON.stringify(maximalJsonSchemaValue(schemas[0], denseHex));
-  assert.ok(maximalCanaryWire.length < 4_900, maximalCanaryWire.length);
+  const maximalCanaryWire = JSON.stringify(maximalJsonSchemaValue(
+    schemas[0],
+    (length, schema) => schema.pattern?.includes("[01]") ? "1".repeat(length) : denseHex(length),
+  ));
+  assert.ok(maximalCanaryWire.length < 500, maximalCanaryWire.length);
   assert.equal(Object.hasOwn(schemas[0].properties.p, "items"), false);
   assert.equal(Object.hasOwn(schemas[1].properties.p, "items"), false);
 
   const multiTuples = passageTuples[3];
+  assert.deepEqual(multiTuples.map((tuple) => tuple[2].maxItems), [1, 2]);
   assert.deepEqual(
-    multiTuples.map((tuple) => tuple[0].enum),
-    [[firstPassage.id], [secondPassage.id]],
+    multiTuples.map((tuple) => [
+      tuple[2].items.prefixItems[2].minimum,
+      tuple[2].items.prefixItems[2].maximum,
+    ]),
+    [[1, 2], [1, 2]],
   );
-  assert.deepEqual(multiTuples.map((tuple) => tuple[5].maxItems), [1, 2]);
-  assert.deepEqual(
-    multiTuples.map((tuple) => tuple[5].items.prefixItems[4].enum),
-    [["equivalent", "implicit"], ["equivalent", "implicit"]],
-  );
-  assert.equal(multiTuples.reduce((sum, tuple) => sum + tuple[5].maxItems, 0), 3);
-  assert.deepEqual(
-    multiTuples.map((tuple) => tuple[5].items.prefixItems[6].maxItems),
-    [2, 2],
-  );
+  assert.equal(multiTuples.reduce((sum, tuple) => sum + tuple[2].maxItems, 0), 3);
+  assert.equal(schemas[3].properties.l.maxItems, 3);
   const secondEvidence = [
     `${secondPassage.id}:s01`,
     `${secondPassage.id}:s02`,
     `${secondPassage.id}:l01`,
     `${secondPassage.id}:l02`,
   ];
-  assert.deepEqual(multiTuples[1][5].items.prefixItems[5].items.enum, secondEvidence);
-  assert.equal(multiTuples[1][5].items.prefixItems[5].maxItems, 3);
-  assert.deepEqual(multiTuples[1][8].items.enum, secondEvidence);
-  assert.equal(multiTuples[1][8].maxItems, secondEvidence.length);
-  assert.deepEqual(multiTuples[1][9].items.prefixItems[1].items.enum, secondEvidence);
-  assert.equal(multiTuples[1][9].items.prefixItems[1].maxItems, secondEvidence.length);
-  assert.equal(multiTuples[1][7].maxItems, 5);
-  assert.equal(multiTuples[1][9].maxItems, 5);
-  assert.deepEqual(passageTuples[4].map((tuple) => tuple[5].maxItems), [2, 2]);
+  assert.equal(multiTuples[1][2].items.prefixItems[3].items.maximum, secondEvidence.length - 1);
+  assert.equal(multiTuples[1][3].prefixItems.length, 5);
+  assert.deepEqual(multiTuples[1][3].prefixItems.map(({ pattern }) => pattern), Array(5).fill(
+    `^[01]{${secondEvidence.length}}$`,
+  ));
+  assert.deepEqual(passageTuples[4].map((tuple) => tuple[2].maxItems), [2, 2]);
   assert.deepEqual(
-    passageTuples[5][0][5].items.prefixItems[4].enum,
-    ["exact", "equivalent", "implicit"],
+    [
+      passageTuples[5][0][2].items.prefixItems[2].minimum,
+      passageTuples[5][0][2].items.prefixItems[2].maximum,
+    ],
+    [0, 2],
   );
   assert.doesNotMatch(JSON.stringify(schemas[2]), /"maxItems":(?:24|60)/u);
 });
@@ -1943,7 +1917,7 @@ test("all five production stages use their exact provider response transport", a
     LATTICE_REMOTE_MODELS.verifier,
     LATTICE_REMOTE_MODELS.generator,
   ]);
-  assert.deepEqual(calls.map(({ max_tokens }) => max_tokens), [3_072, 800, 1_200, 520, 800]);
+  assert.deepEqual(calls.map(({ max_tokens }) => max_tokens), [768, 800, 1_200, 520, 800]);
   assert.equal(calls[0].response_format.type, "json_schema");
   assert.equal(calls[0].response_format.json_schema.strict, true);
   assert.equal(calls[0].response_format.json_schema.name, ANALYSIS_TOOL_NAME);
@@ -2075,28 +2049,19 @@ test("the production canary completes through the compact verifier wire", async 
       calls.push(body);
       if (calls.length === 1) {
         return successfulProviderResponse({
-          d: "instruction",
+          d: 2,
           p: [[
-            passageId,
-            "directs an ordered document task",
-            "operative",
-            "rewrite",
-            "make the supported sequence explicit",
+            0,
+            0,
             [[
-              "a1",
-              "action",
-              "open and review the document, then save the approved revision",
-              "hard",
-              "equivalent",
-              evidenceIds,
-              [],
+              1,
+              0,
+              1,
+              evidenceIds.map((_id, index) => index),
             ]],
-            [],
-            [],
-            [],
-            [],
+            Array(5).fill("0".repeat(evidenceIds.length)),
           ]],
-          q: [],
+          l: [],
         });
       }
       if (calls.length === 2) {
@@ -2142,7 +2107,7 @@ test("the production canary completes through the compact verifier wire", async 
   assert.equal(result.text, transformed);
   assert.equal(result.verificationPasses, 1);
   assert.equal(calls.length, 3);
-  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [3_072, 800, 1_200]);
+  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [768, 800, 1_200]);
   assert.deepEqual(calls[2].response_format, { type: "json_object" });
 });
 
@@ -2237,6 +2202,15 @@ test("malformed compact verifier and certifier wires fail closed after one provi
     signal: verificationRequest.signal,
   }), {});
   assert.equal(calls.length, 2);
+
+  const coerciveVerifier = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => successfulProviderResponse({
+      ...acceptingVerificationWire(verificationRequest),
+      i: [[{ toString: null }, -1]],
+    }),
+  });
+  assert.deepEqual(await coerciveVerifier.verify(verificationRequest), {});
 });
 
 test("oversized fitted verifier and certifier records fail before provider work", async () => {
@@ -2397,6 +2371,76 @@ test("invalid fitted analysis atom limits fail before provider work", async () =
     })),
     TypeError,
   );
+  await assert.rejects(
+    adapter.analyze(Object.freeze({
+      ...minimalAnalysisRequest(),
+      documentLedger: Object.freeze(Array.from(
+        { length: (LATTICE_PROVIDER_CALL_LIMIT * 24) + 1 },
+        (_value, index) => Object.freeze({ id: `r001:a${index}` }),
+      )),
+    })),
+    /invalid analysis ledger identifiers/u,
+  );
+  const oversizedPassageEvidenceRequest = minimalAnalysisRequest();
+  await assert.rejects(
+    adapter.analyze(Object.freeze({
+      ...oversizedPassageEvidenceRequest,
+      sourceSpans: Object.freeze([Object.freeze({
+        passageId: oversizedPassageEvidenceRequest.batch.passages[0].id,
+        spans: Object.freeze(Array.from({ length: 61 }, (_value, index) => Object.freeze({
+          id: `oversized:s${index}`,
+          kind: "source",
+          text: `evidence ${index}`,
+        }))),
+        literalAnnotations: Object.freeze([]),
+      })]),
+    })),
+    /oversized analysis evidence/u,
+  );
+  const oversizedTotalEvidenceRequest = minimalAnalysisRequest("One.\n\nTwo.");
+  assert.equal(oversizedTotalEvidenceRequest.batch.passages.length, 2);
+  await assert.rejects(
+    adapter.analyze(Object.freeze({
+      ...oversizedTotalEvidenceRequest,
+      sourceSpans: Object.freeze(oversizedTotalEvidenceRequest.batch.passages.map(
+        ({ id: passageId }, passageIndex) => Object.freeze({
+          passageId,
+          spans: Object.freeze(Array.from({ length: 37 }, (_value, index) => Object.freeze({
+            id: `${passageId}:oversized-${passageIndex}-${index}`,
+            kind: "source",
+            text: `evidence ${passageIndex}-${index}`,
+          }))),
+          literalAnnotations: Object.freeze([]),
+        }),
+      )),
+    })),
+    /oversized analysis evidence/u,
+  );
+  const overAtomCapacityRequest = minimalAnalysisRequest(
+    "One.\n\nTwo.\n\nThree.\n\nFour.",
+  );
+  assert.equal(overAtomCapacityRequest.batch.passages.length, 4);
+  await assert.rejects(
+    adapter.analyze(Object.freeze({
+      ...overAtomCapacityRequest,
+      analysisAtomLimit: 24,
+      sourceSpans: Object.freeze(overAtomCapacityRequest.batch.passages.map(
+        ({ id: passageId }, passageIndex) => Object.freeze({
+          passageId,
+          spans: Object.freeze(Array.from(
+            { length: passageIndex === 0 ? 19 : 18 },
+            (_value, index) => Object.freeze({
+              id: `${passageId}:capacity-${index}`,
+              kind: "source",
+              text: `evidence ${passageIndex}-${index}`,
+            }),
+          )),
+          literalAnnotations: Object.freeze([]),
+        }),
+      )),
+    })),
+    /analysis atom limit outside evidence capacity/u,
+  );
   assert.equal(fetches, 0);
 });
 
@@ -2404,23 +2448,17 @@ test("the private compact analysis wire format expands to the unchanged host sch
   const request = minimalAnalysisRequest();
   const passageId = request.batch.passages[0].id;
   const wire = {
-    d: "instruction",
+    d: 2,
     p: [[
-      passageId,
-      "directs a bounded action",
-      "operative",
-      "rewrite",
-      "make the supported sequence explicit",
+      0,
+      0,
       [
-        ["a1", "action", "review the document", "hard", "equivalent", ["s1"], [["patient", "a2"]]],
-        ["a2", "object", "the document", "semantic", "equivalent", ["s1"], []],
+        [1, 0, 1, [0]],
+        [2, 1, 1, [0]],
       ],
-      [],
-      ["semantic-coverage"],
-      ["s1"],
-      [["semantic-coverage", ["s1"]]],
+      ["0", "0", "0", "0", "0"],
     ]],
-    q: [],
+    l: [[0, 1, 1]],
   };
   let providerBody;
   const adapter = createHuggingFaceLatticeAdapter({
@@ -2436,31 +2474,31 @@ test("the private compact analysis wire format expands to the unchanged host sch
     documentKind: "instruction",
     passages: [{
       passageId,
-      discourseFunction: "directs a bounded action",
+      discourseFunction: "Preserve the passage's evidence-grounded operative function.",
       layer: "operative",
       disposition: "rewrite",
-      rationale: "make the supported sequence explicit",
+      rationale: "Use the operative layer to make cited source commitments legible without adding meaning.",
       atoms: [{
-        id: "a1",
+        id: "a0",
         kind: "action",
-        value: "review the document",
+        value: validPayload.text,
         priority: "hard",
         preservation: "equivalent",
-        evidenceSpanIds: ["s1"],
-        links: [{ relation: "patient", targetAtomId: "a2" }],
+        evidenceSpanIds: [`${passageId}:s01`],
+        links: [{ relation: "patient", targetAtomId: "a1" }],
       }, {
-        id: "a2",
+        id: "a1",
         kind: "object",
-        value: "the document",
+        value: validPayload.text,
         priority: "semantic",
         preservation: "equivalent",
-        evidenceSpanIds: ["s1"],
+        evidenceSpanIds: [`${passageId}:s01`],
         links: [],
       }],
       ambiguityAtomIds: [],
-      conformanceCriteria: ["semantic-coverage"],
-      conformanceEvidenceSpanIds: ["s1"],
-      conformanceAssertions: [{ criterion: "semantic-coverage", evidenceSpanIds: ["s1"] }],
+      conformanceCriteria: [],
+      conformanceEvidenceSpanIds: [],
+      conformanceAssertions: [],
     }],
     questions: [],
   };
@@ -2471,29 +2509,326 @@ test("the private compact analysis wire format expands to the unchanged host sch
   });
   assert.equal(Object.keys(result).includes(String(LATTICE_FITTED_ANALYSIS_CONTEXT)), false);
   assert.ok(JSON.stringify(wire).length < JSON.stringify(expected).length);
-  assert.match(
-    providerBody.response_format.json_schema.description,
-    /single-letter root keys and tuple positions are mandatory/u,
-  );
+  assert.match(providerBody.response_format.json_schema.description, /private fitted d\/p\/l analysis/u);
+  assert.match(providerBody.messages[0].content, /mandatory d\/p\/l index layout/u);
   assert.match(providerBody.messages[0].content, /Use at most 4 atoms total/u);
   assert.equal(
     providerBody.response_format.json_schema.schema.properties.p.prefixItems[0]
-      .prefixItems[5].maxItems,
+      .prefixItems[2].maxItems,
     result[LATTICE_FITTED_ANALYSIS_CONTEXT].analysisAtomLimit,
   );
-  assert.deepEqual(providerBody.response_format.json_schema.schema.required, ["d", "p", "q"]);
+  assert.deepEqual(providerBody.response_format.json_schema.schema.required, ["d", "p", "l"]);
   assert.equal(providerBody.response_format.json_schema.name, ANALYSIS_TOOL_NAME);
   assert.equal(providerBody.response_format.json_schema.strict, true);
   assert.equal(Object.hasOwn(providerBody, "tools"), false);
   assert.equal(Object.hasOwn(providerBody, "tool_choice"), false);
   assert.equal(
     providerBody.messages[0].content.includes(providerBody.response_format.json_schema.description),
-    true,
+    false,
   );
-  assert.equal(providerBody.messages[0].content.includes('"required":["d","p","q"]'), false);
+  assert.equal(providerBody.messages[0].content.includes('"required":["d","p","l"]'), false);
   assert.equal(providerBody.messages[0].content.includes(
     '"required":["documentKind","passages","questions"]',
   ), false);
+});
+
+test("the private compact analysis decoder rejects invalid fitted positions and derived host fields", async () => {
+  const base = minimalAnalysisRequest(
+    "A visitor places a blue notebook on the desk, reads the first page, and closes it.",
+  );
+  const sourceSpans = latticeSourceSpansForBatch(base.batch);
+  const evidenceCount = sourceSpans[0].spans.length
+    + (sourceSpans[0].literalAnnotations?.length ?? 0);
+  assert.equal(evidenceCount, 3);
+  const request = Object.freeze({
+    ...base,
+    sourceSpans,
+    analysisAtomLimit: 12,
+  });
+  const zeroMasks = () => Array(5).fill("0".repeat(evidenceCount));
+  const atom = (kind = 1, evidence = [0, 1, 2], preservation = 1) => (
+    [kind, 0, preservation, evidence]
+  );
+  const wire = (
+    atoms = [atom()],
+    links = [],
+    masks = zeroMasks(),
+    { layer = 0, disposition = 0 } = {},
+  ) => ({
+    d: 2,
+    p: [[layer, disposition, atoms, masks]],
+    l: links,
+  });
+  const analyzeWire = async (value) => createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => successfulProviderResponse(value),
+  }).analyze(request);
+
+  const valid = await analyzeWire(wire());
+  assert.equal(valid.documentKind, "instruction");
+  assert.equal(valid.passages[0].atoms[0].value, request.batch.passages[0].text);
+  assert.deepEqual(valid.passages[0].atoms[0].evidenceSpanIds, [
+    ...sourceSpans[0].spans.map(({ id }) => id),
+    ...(sourceSpans[0].literalAnnotations ?? []).map(({ id }) => id),
+  ]);
+  const reordered = await analyzeWire(wire([atom(1, [2, 0, 1])]));
+  assert.equal(reordered.passages[0].atoms[0].value, valid.passages[0].atoms[0].value);
+  assert.deepEqual(
+    reordered.passages[0].atoms[0].evidenceSpanIds,
+    valid.passages[0].atoms[0].evidenceSpanIds,
+  );
+
+  const retainMasks = ["100", "010", "001", "111", "101"];
+  const retained = await analyzeWire(wire(
+    [atom()],
+    [],
+    retainMasks,
+    { disposition: 1 },
+  ));
+  assert.deepEqual(retained.passages[0].conformanceCriteria, [
+    ...LATTICE_CONFORMANCE_CRITERIA.universal,
+    ...LATTICE_CONFORMANCE_CRITERIA.operative,
+  ]);
+  assert.deepEqual(
+    retained.passages[0].conformanceEvidenceSpanIds,
+    valid.passages[0].atoms[0].evidenceSpanIds,
+  );
+  assert.deepEqual(
+    retained.passages[0].conformanceAssertions.map(({ evidenceSpanIds }) => evidenceSpanIds),
+    retainMasks.map((mask) => valid.passages[0].atoms[0].evidenceSpanIds
+      .filter((_id, index) => mask[index] === "1")),
+  );
+
+  const mixedEvidenceRequest = Object.freeze({
+    ...base,
+    sourceSpans: Object.freeze([Object.freeze({
+      passageId: base.batch.passages[0].id,
+      spans: Object.freeze([Object.freeze({
+        id: `${base.batch.passages[0].id}:source`,
+        kind: "source",
+        text: "ordinary source",
+      })]),
+      literalAnnotations: Object.freeze([Object.freeze({
+        id: `${base.batch.passages[0].id}:literal`,
+        kind: "literal",
+        text: "`literal`",
+      })]),
+    })]),
+    analysisAtomLimit: 2,
+  });
+  const mixedExact = await createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => successfulProviderResponse({
+      d: 2,
+      p: [[
+        0,
+        0,
+        [[1, 0, 1, [0]], [2, 0, 0, [1]]],
+        ["00", "00", "00", "00", "00"],
+      ]],
+      l: [],
+    }),
+  }).analyze(mixedEvidenceRequest);
+  assert.deepEqual(mixedExact, {}, "mixed passages cannot bypass the fitted exact-preservation enum");
+
+  const literalOnlyRequest = Object.freeze({
+    ...base,
+    sourceSpans: Object.freeze([Object.freeze({
+      passageId: base.batch.passages[0].id,
+      spans: Object.freeze([]),
+      literalAnnotations: Object.freeze([Object.freeze({
+        id: `${base.batch.passages[0].id}:literal-only`,
+        kind: "literal",
+        text: "`literal-only`",
+      })]),
+    })]),
+    analysisAtomLimit: 1,
+  });
+  const literalExact = await createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => successfulProviderResponse({
+      d: 2,
+      p: [[0, 0, [[2, 0, 0, [0]]], ["0", "0", "0", "0", "0"]]],
+      l: [],
+    }),
+  }).analyze(literalOnlyRequest);
+  assert.equal(literalExact.passages[0].atoms[0].preservation, "exact");
+  assert.equal(literalExact.passages[0].atoms[0].value, "`literal-only`");
+
+  const tenAtoms = Array.from({ length: 10 }, (_value, index) => atom(1, [index % evidenceCount]));
+  const cases = [
+    ["coercive evidence position", wire([atom(1, [{ toString: null }, { toString: null }])])],
+    ["duplicate evidence position", wire([atom(1, [0, 0])])],
+    ["unknown evidence position", wire([atom(1, [0, 1, 3])])],
+    ["incomplete evidence coverage", wire([atom(1, [0, 1])])],
+    ["ordinary evidence marked exact", wire([atom(1, [0, 1, 2], 0)])],
+    ["nonzero rewrite conformance", wire([atom()], [], ["100", "000", "000", "000", "000"])],
+    [
+      "retained conformance mask has the wrong width",
+      wire([atom()], [], ["10", ...retainMasks.slice(1)], { disposition: 1 }),
+    ],
+    [
+      "retained conformance mask is not binary",
+      wire([atom()], [], ["1x0", ...retainMasks.slice(1)], { disposition: 1 }),
+    ],
+    [
+      "retained conformance criterion has no evidence",
+      wire([atom()], [], ["000", ...retainMasks.slice(1)], { disposition: 1 }),
+    ],
+    [
+      "retained conformance masks do not cover all evidence",
+      wire(
+        [atom()],
+        [],
+        ["100", "010", "100", "010", "110"],
+        { disposition: 1 },
+      ),
+    ],
+    ["self link", wire([atom()], [[0, 1, 0]])],
+    ["unknown link source", wire([atom()], [[1, 1, 0]])],
+    ["unknown link target", wire([atom()], [[0, 1, 11]])],
+    ["unknown ledger link target", wire([atom()], [[0, 1, -1]])],
+    ["malformed link tuple", wire([atom(), atom()], [[0, 1]])],
+    ["noninteger link relation", wire([atom(), atom()], [[0, 1.5, 1]])],
+    ["unknown link relation", wire([atom(), atom()], [[0, 24, 1]])],
+    ["duplicate typed link", wire([atom(), atom()], [[0, 1, 1], [0, 1, 1]])],
+    [
+      "more than eight links on one atom",
+      wire(tenAtoms, Array.from({ length: 9 }, (_value, index) => [0, index, index + 1])),
+    ],
+    [
+      "more than eight derived ambiguity atoms",
+      wire(Array.from({ length: 9 }, (_value, index) => atom(7, [index % evidenceCount]))),
+    ],
+  ];
+  for (const [name, invalidWire] of cases) {
+    assert.deepEqual(await analyzeWire(invalidWire), {}, name);
+  }
+
+  const denseEvidence = Array.from({ length: 6 }, (_value, index) => Object.freeze({
+    id: `${base.batch.passages[0].id}:dense-${index}`,
+    kind: "source",
+    text: `evidence ${index}`,
+  }));
+  const denseRequest = Object.freeze({
+    ...base,
+    sourceSpans: Object.freeze([Object.freeze({
+      passageId: base.batch.passages[0].id,
+      spans: Object.freeze(denseEvidence),
+      literalAnnotations: Object.freeze([]),
+    })]),
+    analysisAtomLimit: 24,
+  });
+  const denseAtoms = Array.from(
+    { length: 13 },
+    (_value, index) => [1, 0, 1, [index % denseEvidence.length]],
+  );
+  const denseLinks = [
+    ...Array.from({ length: 8 }, (_value, index) => [0, 0, index + 1]),
+    ...Array.from({ length: 8 }, (_value, index) => [1, 1, index + 2]),
+    ...Array.from({ length: 8 }, (_value, index) => [2, 2, index + 3]),
+    [3, 3, 4],
+  ];
+  const analyzeDenseWire = async (links) => createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => successfulProviderResponse({
+      d: 2,
+      p: [[0, 0, denseAtoms, Array(5).fill("000000")]],
+      l: links,
+    }),
+  }).analyze(denseRequest);
+  const denseValid = await analyzeDenseWire(denseLinks.slice(0, 24));
+  assert.equal(
+    denseValid.passages[0].atoms.reduce((sum, { links }) => sum + links.length, 0),
+    24,
+  );
+  assert.deepEqual(await analyzeDenseWire(denseLinks), {}, "more than twenty-four total links");
+});
+
+test("the compact analysis host derivation truncates only at a grapheme boundary", async () => {
+  const base = minimalAnalysisRequest("A bounded source passage.");
+  const passageId = base.batch.passages[0].id;
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => successfulProviderResponse({
+      d: 2,
+      p: [[0, 0, [[1, 0, 1, [0]]], ["0", "0", "0", "0", "0"]]],
+      l: [],
+    }),
+  });
+  const derive = async (text) => adapter.analyze(Object.freeze({
+    ...base,
+    analysisAtomLimit: 1,
+    sourceSpans: Object.freeze([Object.freeze({
+      passageId,
+      spans: Object.freeze([Object.freeze({
+        id: `${passageId}:s01`,
+        kind: "source",
+        text,
+      })]),
+      literalAnnotations: Object.freeze([]),
+    })]),
+  }));
+  const combining = await derive(`${"x".repeat(179)}e\u0301tail`);
+  assert.equal(combining.passages[0].atoms[0].value, "x".repeat(179));
+  assert.doesNotMatch(combining.passages[0].atoms[0].value, /\p{M}$/u);
+
+  const joinedEmoji = await derive(`${"x".repeat(178)}👨‍👩‍👧‍👦tail`);
+  assert.equal(joinedEmoji.passages[0].atoms[0].value, "x".repeat(178));
+  assert.doesNotMatch(joinedEmoji.passages[0].atoms[0].value, /\u200d$/u);
+
+  const isolated = await derive(`\u2066${"a".repeat(200)}\u2069 suffix.`);
+  assert.equal(hasInvalidLatticeBidiIsolates(isolated.passages[0].atoms[0].value), false);
+  assert.equal(isolated.passages[0].atoms[0].value.startsWith("\u2066"), true);
+  assert.equal(isolated.passages[0].atoms[0].value.endsWith("\u2069"), true);
+});
+
+test("compact analysis ledger positions preserve their exact negative-index boundary", async () => {
+  const request = Object.freeze({
+    ...minimalAnalysisRequest(),
+    analysisAtomLimit: 2,
+    documentLedger: Object.freeze(["r0", "r1"].map((id) => Object.freeze({
+      id,
+      passageId: "prior",
+      kind: "state",
+      value: "prior grounded state",
+      priority: "semantic",
+      links: Object.freeze([]),
+    }))),
+  });
+  const responseWire = (targetPositions) => ({
+    d: 2,
+    p: [[
+      0,
+      0,
+      [[1, 0, 1, [0]], [2, 0, 1, [0]]],
+      ["0", "0", "0", "0", "0"],
+    ]],
+    l: targetPositions.map((target, index) => [0, index, target]),
+  });
+  let providerBody;
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async (_url, init) => {
+      providerBody = JSON.parse(init.body);
+      return successfulProviderResponse(responseWire([-1, -2]));
+    },
+  });
+  const result = await adapter.analyze(request);
+  assert.deepEqual(result.passages[0].atoms[0].links, [
+    { relation: "agent", targetAtomId: "r0" },
+    { relation: "patient", targetAtomId: "r1" },
+  ]);
+  assert.equal(
+    providerBody.response_format.json_schema.schema.properties.l.items.prefixItems[2].minimum,
+    -2,
+  );
+
+  const outsideLedger = await createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => successfulProviderResponse(responseWire([-3])),
+  }).analyze(request);
+  assert.deepEqual(outsideLedger, {});
 });
 
 test("provider failures carry only an immutable allowlisted stage and bounded call ordinal", async () => {

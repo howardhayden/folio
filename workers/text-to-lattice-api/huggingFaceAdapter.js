@@ -20,6 +20,7 @@ import {
   LITERAL_BATCH_SPAN_LIMIT,
   MODEL_SOURCE_SPAN_LIMIT,
   SOURCE_SPAN_LIMIT,
+  graphemeExcerpt,
 } from "../../app/resume/lattice/segments.js";
 
 export const HUGGING_FACE_CHAT_COMPLETIONS_URL =
@@ -121,9 +122,11 @@ const JSON_HEADERS = Object.freeze({
   "Content-Type": "application/json",
 });
 const PROVIDER_JSON_CONTENT_TYPE = /^application\/json(?:\s*;.*)?$/iu;
-const ANALYSIS_LOCAL_ID_CHARACTER_LIMIT = 8;
 const ANALYSIS_CONFORMANCE_ITEM_LIMIT = 5;
-const ANALYSIS_LINK_ITEM_LIMIT = 4;
+const ANALYSIS_LINK_ITEM_LIMIT = LATTICE_BATCH_ATOM_LIMIT;
+const ANALYSIS_MAX_OUTPUT_TOKENS = 2_048;
+const ANALYSIS_MIN_OUTPUT_TOKENS = 768;
+const ANALYSIS_OUTPUT_TOKEN_STEP = 256;
 // Certification identifiers are host-generated ASCII. Bounding the complete
 // worst-case wire below the 520-token cap prevents an echoed binding record
 // from consuming the certifier's entire response budget.
@@ -139,97 +142,96 @@ function fixedTuple(...items) {
   });
 }
 
-function boundedString(schema, maxLength) {
-  return Object.freeze({
-    ...schema,
-    minLength: 1,
-    maxLength,
-  });
-}
-
-function boundedStringArray(schema, maxLength) {
-  return Object.freeze({
-    ...schema,
-    items: boundedString(schema.items, maxLength),
-  });
-}
-
 const INTERNAL_ANALYSIS_PASSAGE_SCHEMA = REANALYSIS_SCHEMA.properties.passages.items;
 const INTERNAL_ANALYSIS_ATOM_SCHEMA = INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.atoms.items;
 const INTERNAL_ANALYSIS_LINK_SCHEMA = INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.links.items;
 const INTERNAL_ANALYSIS_ASSERTION_SCHEMA =
   INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceAssertions.items;
+const ANALYSIS_DOCUMENT_KINDS = Object.freeze([
+  ...REANALYSIS_SCHEMA.properties.documentKind.enum,
+]);
+const ANALYSIS_LAYERS = Object.freeze([
+  ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.layer.enum,
+]);
+const ANALYSIS_DISPOSITIONS = Object.freeze([
+  ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.disposition.enum,
+]);
+const ANALYSIS_ATOM_KINDS = Object.freeze([
+  ...INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.kind.enum,
+]);
+const ANALYSIS_PRIORITIES = Object.freeze([
+  ...INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.priority.enum,
+]);
+const ANALYSIS_PRESERVATIONS = Object.freeze([
+  ...INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.preservation.enum,
+]);
+const ANALYSIS_RELATIONS = Object.freeze([
+  ...INTERNAL_ANALYSIS_LINK_SCHEMA.properties.relation.enum,
+]);
+function wireEnumIndexSchema(values) {
+  return Object.freeze({ type: "integer", minimum: 0, maximum: values.length - 1 });
+}
 const ANALYSIS_WIRE_LINK_SCHEMA = fixedTuple(
-  INTERNAL_ANALYSIS_LINK_SCHEMA.properties.relation,
-  boundedString(INTERNAL_ANALYSIS_LINK_SCHEMA.properties.targetAtomId, 180),
+  Object.freeze({ type: "integer", minimum: 0 }),
+  wireEnumIndexSchema(ANALYSIS_RELATIONS),
+  Object.freeze({ type: "integer" }),
 );
 const ANALYSIS_WIRE_ATOM_SCHEMA = fixedTuple(
-  boundedString(INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.id, ANALYSIS_LOCAL_ID_CHARACTER_LIMIT),
-  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.kind,
-  boundedString(INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.value, 600),
-  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.priority,
-  INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.preservation,
-  boundedStringArray(INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.evidenceSpanIds, 160),
+  wireEnumIndexSchema(ANALYSIS_ATOM_KINDS),
+  wireEnumIndexSchema(ANALYSIS_PRIORITIES),
+  wireEnumIndexSchema(ANALYSIS_PRESERVATIONS),
   Object.freeze({
-    ...INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.links,
-    items: ANALYSIS_WIRE_LINK_SCHEMA,
+    type: "array",
+    minItems: 1,
+    maxItems: 3,
+    items: Object.freeze({ type: "integer", minimum: 0 }),
   }),
 );
-const ANALYSIS_WIRE_ASSERTION_SCHEMA = fixedTuple(
-  INTERNAL_ANALYSIS_ASSERTION_SCHEMA.properties.criterion,
-  boundedStringArray(INTERNAL_ANALYSIS_ASSERTION_SCHEMA.properties.evidenceSpanIds, 160),
-);
 const ANALYSIS_WIRE_PASSAGE_SCHEMA = fixedTuple(
-  boundedString(INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.passageId, 120),
-  boundedString(INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.discourseFunction, 300),
-  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.layer,
-  INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.disposition,
-  boundedString(INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.rationale, 600),
+  wireEnumIndexSchema(ANALYSIS_LAYERS),
+  wireEnumIndexSchema(ANALYSIS_DISPOSITIONS),
   Object.freeze({
     ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.atoms,
     items: ANALYSIS_WIRE_ATOM_SCHEMA,
   }),
-  boundedStringArray(
-    INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.ambiguityAtomIds,
-    ANALYSIS_LOCAL_ID_CHARACTER_LIMIT,
-  ),
   Object.freeze({
-    ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceCriteria,
+    type: "array",
+    minItems: ANALYSIS_CONFORMANCE_ITEM_LIMIT,
     maxItems: ANALYSIS_CONFORMANCE_ITEM_LIMIT,
-  }),
-  boundedStringArray(INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceEvidenceSpanIds, 160),
-  Object.freeze({
-    ...INTERNAL_ANALYSIS_PASSAGE_SCHEMA.properties.conformanceAssertions,
-    maxItems: ANALYSIS_CONFORMANCE_ITEM_LIMIT,
-    items: ANALYSIS_WIRE_ASSERTION_SCHEMA,
+    items: Object.freeze({ type: "string", minLength: 1 }),
   }),
 );
 const ANALYSIS_WIRE_SCHEMA = Object.freeze({
   type: "object",
   additionalProperties: false,
   properties: Object.freeze({
-    d: REANALYSIS_SCHEMA.properties.documentKind,
+    d: wireEnumIndexSchema(ANALYSIS_DOCUMENT_KINDS),
     p: Object.freeze({
       ...REANALYSIS_SCHEMA.properties.passages,
       items: ANALYSIS_WIRE_PASSAGE_SCHEMA,
     }),
-    q: Object.freeze({ type: "array", maxItems: 0 }),
+    l: Object.freeze({
+      type: "array",
+      maxItems: ANALYSIS_LINK_ITEM_LIMIT,
+      items: ANALYSIS_WIRE_LINK_SCHEMA,
+    }),
   }),
-  required: Object.freeze(["d", "p", "q"]),
+  required: Object.freeze(["d", "p", "l"]),
 });
 const ANALYSIS_WIRE_GUIDE = [
-  "Return one complete private analysis instance as the structured response; the single-letter root keys and tuple positions are mandatory.",
-  "The root has exactly d, p, and q: d is the document-kind enum string; p is the passage-tuple array; q is the empty array [].",
-  "Passage tuple positions 0-9: [passage ID,discourse function,layer,disposition,rationale,atom tuples,ambiguity atom IDs,conformance criterion IDs,conformance evidence span IDs,conformance assertion tuples].",
-  "Atom tuple positions 0-6: [atom ID,kind,value,priority,preservation,evidence span IDs,link tuples].",
-  "Link tuple positions 0-1: [relation,target atom ID]. Conformance assertion tuple positions 0-1: [criterion,evidence span IDs].",
-  "Fill passage position 1 with the discourse function and position 4 with the rationale. Keep all free text concise. Do not put long field names, Markdown, explanations, or reasoning in assistant content.",
-  "Ordinary source spans use equivalent or implicit preservation; exact is available only when every selectable evidence record is literal. A rewrite uses empty arrays at passage positions 7, 8, and 9. Ambiguity IDs name emitted ambiguity or uncertainty atoms, and links name emitted non-self targets or supplied ledger atoms only.",
-  "Use short local atom IDs and the smallest complete atom graph allowed by each fitted cap. Carry exact source text through cited evidence IDs instead of copying spans into values. Avoid redundant links and emit no extra prose.",
+  "Return one minified private analysis instance using only the mandatory d/p/l index layout; never echo the schema.",
+  `Root d is the zero-based document-kind index [${ANALYSIS_DOCUMENT_KINDS.join(",")}]. Root p contains one passage tuple per supplied passage in supplied order. Root l contains the document link tuples. Passage and atom IDs are host-generated and must not be emitted.`,
+  `Passage tuple positions 0-3: [layer index,disposition index,atom tuples,criterion evidence masks]. Layer indices are [${ANALYSIS_LAYERS.join(",")}]; disposition indices are [${ANALYSIS_DISPOSITIONS.join(",")}]. The host derives bounded discourse and rationale text from the selected layer and evidence.`,
+  `Atom tuple positions 0-3: [kind index,priority index,preservation index,evidence positions]. Kind indices are [${ANALYSIS_ATOM_KINDS.join(",")}]; priority indices are [${ANALYSIS_PRIORITIES.join(",")}]; preservation indices are [${ANALYSIS_PRESERVATIONS.join(",")}]. The host derives each atom value from its selected source evidence.`,
+  `Each l tuple is [source atom position,relation index,target position]. Atom positions use global passage/atom order. Relation indices are [${ANALYSIS_RELATIONS.join(",")}]. Nonnegative targets select emitted atoms; -1 selects the first supplied ledger atom, -2 the second, and so on. Select only existing non-self positions and never repeat a typed link.`,
+  "Evidence positions are zero-based in exact supplied evidence order. List each atom's one to three unique positions in ascending order, and cover every supplied evidence position across the passage's atoms.",
+  "The five criterion masks use this order: the four universal criteria followed by the selected layer criterion. Each mask is a fitted binary string in evidence order. A rewrite uses five all-zero masks. A retain-if-conformant plan gives every criterion a nonempty selection and the five masks jointly cover every evidence position.",
+  "Ordinary evidence uses equivalent or implicit preservation; exact is available only when every selectable evidence record is literal. Ambiguity membership is derived from emitted ambiguity or uncertainty kinds.",
+  "Use the smallest complete atom graph allowed by the fitted cap. Carry source meaning through evidence positions. Emit no identifiers, free text, long field names, Markdown, explanations, schema text, or prose outside the object.",
 ].join("\n");
 
 function analysisWireMessages(request) {
-  return analysisMessages(request, { responseDialect: "compact-wire-v1" });
+  return analysisMessages(request, { responseDialect: "compact-wire-v2" });
 }
 
 const INTERNAL_VERIFICATION_PASSAGE_SCHEMA = VERIFICATION_SCHEMA.properties.passages.items;
@@ -257,6 +259,21 @@ function wireBitMaskSchema(width, { requireSelection = false } = {}) {
     minLength: width,
     maxLength: width,
     pattern: requireSelection ? `^(?=[01]*1)[01]{${width}}$` : `^[01]{${width}}$`,
+  });
+}
+
+function analysisWireBitMaskSchema(width) {
+  if (!Number.isSafeInteger(width) || width < 1) {
+    throw new TypeError("The Lattice provider received an invalid analysis wire-mask width.");
+  }
+  // Nscale's structured-output backend may route strict schemas through
+  // XGrammar. Keep the provider-facing analysis mask to the exact-width
+  // pattern alone: some XGrammar versions reject a pattern combined with
+  // minLength/maxLength. decodeAnalysisWire independently enforces the same
+  // width and binary alphabet before the value can reach the host schema.
+  return Object.freeze({
+    type: "string",
+    pattern: `^[01]{${width}}$`,
   });
 }
 const VERIFICATION_WIRE_CRITERION_SCHEMA = fixedTuple(
@@ -357,11 +374,12 @@ const STAGES = Object.freeze({
   analysis: Object.freeze({
     role: "generator",
     schema: ANALYSIS_WIRE_SCHEMA,
-    schemaName: "lattice_analysis_wire_v1",
+    schemaName: "lattice_analysis_wire_v2",
     responseFormat: "json_schema",
     responseGuide: ANALYSIS_WIRE_GUIDE,
+    schemaDescription: "Return one complete private fitted d/p/l analysis result.",
     messages: analysisWireMessages,
-    maxTokens: 3_072,
+    maxTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
     temperature: 0.7,
     topP: 0.8,
   }),
@@ -681,7 +699,8 @@ function analysisEvidenceIdsForRequest(request, passages) {
   // Keep this fallback identical to sourcePassagesForModel so direct adapter
   // callers receive one fitted schema and prompt view of the same evidence.
   if (request?.sourceSpans === undefined) {
-    return passages.map(({ id }) => Object.freeze({
+    return passages.map(({ id, text }) => Object.freeze({
+      records: Object.freeze([Object.freeze({ id: `${id}:s01`, kind: "source", text })]),
       ids: Object.freeze([`${id}:s01`]),
       literalIds: Object.freeze([]),
     }));
@@ -704,6 +723,7 @@ function analysisEvidenceIdsForRequest(request, passages) {
       throw new TypeError("The Lattice provider received invalid analysis evidence.");
     }
     groups.set(group.passageId, Object.freeze({
+      records: Object.freeze(records.map((span) => Object.freeze({ ...span }))),
       ids: Object.freeze(ids),
       literalIds: Object.freeze(records
         .filter((span) => span?.kind === "literal")
@@ -745,22 +765,6 @@ function analysisAtomAllocations(passages, evidenceIdsByPassage, atomLimit) {
   });
 }
 
-function fittedEvidenceArraySchema(schema, evidenceIds, maximum) {
-  return Object.freeze({
-    ...schema,
-    maxItems: Math.min(maximum, evidenceIds.length),
-    items: Object.freeze({
-      ...schema.items,
-      enum: Object.freeze([...evidenceIds]),
-    }),
-  });
-}
-
-function fittedAnalysisTextLimit(passage, minimum, maximum, multiplier) {
-  const characterCount = passage.text.length;
-  return Math.min(maximum, Math.max(minimum, Math.ceil(multiplier * characterCount)));
-}
-
 function fitAnalysisRequest(request) {
   const passages = analysisPassagesForRequest(request);
   const evidenceByPassage = analysisEvidenceIdsForRequest(request, passages);
@@ -768,6 +772,14 @@ function fitAnalysisRequest(request) {
   const literalEvidenceIdsByPassage = Object.freeze(
     evidenceByPassage.map(({ literalIds }) => literalIds),
   );
+  const evidenceRecordsByPassage = Object.freeze(
+    evidenceByPassage.map(({ records }) => records),
+  );
+  const maximumEvidence = (SOURCE_SPAN_LIMIT * passages.length) + (2 * LITERAL_BATCH_SPAN_LIMIT);
+  if (evidenceIdsByPassage.some((ids) => ids.length > MODEL_SOURCE_SPAN_LIMIT)
+    || evidenceIdsByPassage.reduce((sum, ids) => sum + ids.length, 0) > maximumEvidence) {
+    throw new TypeError("The Lattice provider received oversized analysis evidence.");
+  }
   const requestedAtomLimit = analysisAtomLimitForRequest(request);
   const atomPlan = analysisAtomAllocations(
     passages,
@@ -779,6 +791,7 @@ function fitAnalysisRequest(request) {
     passages,
     evidenceIdsByPassage,
     literalEvidenceIdsByPassage,
+    evidenceRecordsByPassage,
     analysisAtomLimit: atomPlan.analysisAtomLimit,
     atomAllocations: atomPlan.allocations,
   });
@@ -790,96 +803,67 @@ function analysisWireSchemaForFit(fit) {
     analysisAtomLimit, atomAllocations,
   } = fit;
   const visibleLedgerIds = (request.documentLedger ?? []).map(({ id }) => id);
-  if (visibleLedgerIds.some((id) => typeof id !== "string" || !id || id.length > 180)) {
+  if (visibleLedgerIds.length > LATTICE_PROVIDER_CALL_LIMIT * LATTICE_BATCH_ATOM_LIMIT
+    || visibleLedgerIds.some((id) => typeof id !== "string" || !id || id.length > 180)) {
     throw new TypeError("The Lattice provider received invalid analysis ledger identifiers.");
   }
-  const linkTargetLimit = Math.max(
-    ANALYSIS_LOCAL_ID_CHARACTER_LIMIT,
-    ...visibleLedgerIds.map((id) => id.length),
-  );
-  const passageSchemas = passages.map((passage, index) => {
+  const passageSchemas = passages.map((_passage, index) => {
     const evidenceIds = evidenceIdsByPassage[index];
     const literalEvidenceIds = literalEvidenceIdsByPassage[index];
     const atomLimit = atomAllocations[index];
-    const discourseLimit = fittedAnalysisTextLimit(passage, 80, 160, 1);
-    const rationaleLimit = fittedAnalysisTextLimit(passage, 120, 240, 1.75);
-    const atomValueLimit = fittedAnalysisTextLimit(passage, 96, 192, 1);
-    const linkLimit = Math.min(
-      ANALYSIS_LINK_ITEM_LIMIT,
-      Math.max(0, analysisAtomLimit - 1 + visibleLedgerIds.length),
-    );
-    const evidenceSchema = fittedEvidenceArraySchema(
-      ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[5],
-      evidenceIds,
-      3,
-    );
+    const evidenceSchema = Object.freeze({
+      ...ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[3],
+      items: Object.freeze({
+        ...ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[3].items,
+        maximum: evidenceIds.length - 1,
+      }),
+    });
     const preservationSchema = literalEvidenceIds.length === evidenceIds.length
-      ? ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[4]
+      ? ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[2]
       : Object.freeze({
-        ...ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[4],
-        enum: Object.freeze(
-          ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[4].enum.filter((value) => value !== "exact"),
-        ),
+        ...ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[2],
+        minimum: ANALYSIS_PRESERVATIONS.indexOf("equivalent"),
       });
-    const linkSchema = fixedTuple(
-      ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[0],
-      boundedString(ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[1], linkTargetLimit),
-    );
     const atomSchema = fixedTuple(
       ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[0],
       ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[1],
-      boundedString(ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[2], atomValueLimit),
-      ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[3],
       preservationSchema,
       evidenceSchema,
-      Object.freeze({
-        ...ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[6],
-        maxItems: linkLimit,
-        items: linkSchema,
-      }),
     );
     const atomsSchema = Object.freeze({
-      ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[5],
+      ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[2],
       maxItems: atomLimit,
       items: atomSchema,
     });
-    const ambiguityIdsSchema = Object.freeze({
-      ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[6],
-      maxItems: Math.min(ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[6].maxItems, atomLimit),
-    });
-    const conformanceEvidenceSchema = fittedEvidenceArraySchema(
-      ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[8],
-      evidenceIds,
-      evidenceIds.length,
-    );
-    const assertionSchema = fixedTuple(
-      ANALYSIS_WIRE_ASSERTION_SCHEMA.prefixItems[0],
-      fittedEvidenceArraySchema(
-        ANALYSIS_WIRE_ASSERTION_SCHEMA.prefixItems[1],
-        evidenceIds,
-        evidenceIds.length,
-      ),
-    );
-    const assertionsSchema = Object.freeze({
-      ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[9],
-      items: assertionSchema,
+    const conformanceMaskSchema = analysisWireBitMaskSchema(evidenceIds.length);
+    const conformanceMasksSchema = Object.freeze({
+      type: "array",
+      minItems: ANALYSIS_CONFORMANCE_ITEM_LIMIT,
+      maxItems: ANALYSIS_CONFORMANCE_ITEM_LIMIT,
+      prefixItems: Object.freeze(Array.from(
+        { length: ANALYSIS_CONFORMANCE_ITEM_LIMIT },
+        () => conformanceMaskSchema,
+      )),
     });
     return fixedTuple(
-      Object.freeze({
-        ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[0],
-        enum: Object.freeze([passage.id]),
-      }),
-      boundedString(ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[1], discourseLimit),
-      ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[2],
-      ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[3],
-      boundedString(ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[4], rationaleLimit),
+      ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[0],
+      ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[1],
       atomsSchema,
-      ambiguityIdsSchema,
-      ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[7],
-      conformanceEvidenceSchema,
-      assertionsSchema,
+      conformanceMasksSchema,
     );
   });
+  const linkSchema = fixedTuple(
+    Object.freeze({
+      ...ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[0],
+      maximum: analysisAtomLimit - 1,
+    }),
+    ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[1],
+    Object.freeze({
+      ...ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[2],
+      minimum: visibleLedgerIds.length > 0 ? -visibleLedgerIds.length : 0,
+      maximum: analysisAtomLimit - 1,
+    }),
+  );
   return Object.freeze({
     ...ANALYSIS_WIRE_SCHEMA,
     properties: Object.freeze({
@@ -889,6 +873,11 @@ function analysisWireSchemaForFit(fit) {
         minItems: passageSchemas.length,
         maxItems: passageSchemas.length,
         prefixItems: Object.freeze(passageSchemas),
+      }),
+      l: Object.freeze({
+        ...ANALYSIS_WIRE_SCHEMA.properties.l,
+        maxItems: Math.min(ANALYSIS_LINK_ITEM_LIMIT, analysisAtomLimit),
+        items: linkSchema,
       }),
     }),
   });
@@ -1082,58 +1071,57 @@ function exactKeys(value, keys) {
     && actual.every((key, index) => key === expected[index]);
 }
 
-function decodeAnalysisWire(value) {
-  if (!exactKeys(value, ["d", "p", "q"])
-    || !Array.isArray(value.p)
-    || !Array.isArray(value.q)) return {};
-  const passages = [];
-  for (const passage of value.p) {
-    if (!Array.isArray(passage) || passage.length !== 10 || !Array.isArray(passage[5])) return {};
-    const atoms = [];
-    for (const atom of passage[5]) {
-      if (!Array.isArray(atom) || atom.length !== 7 || !Array.isArray(atom[6])) return {};
-      const links = [];
-      for (const link of atom[6]) {
-        if (!Array.isArray(link) || link.length !== 2) return {};
-        links.push({ relation: link[0], targetAtomId: link[1] });
-      }
-      atoms.push({
-        id: atom[0],
-        kind: atom[1],
-        value: atom[2],
-        priority: atom[3],
-        preservation: atom[4],
-        evidenceSpanIds: atom[5],
-        links,
-      });
-    }
-    if (!Array.isArray(passage[9])) return {};
-    const conformanceAssertions = [];
-    for (const assertion of passage[9]) {
-      if (!Array.isArray(assertion) || assertion.length !== 2) return {};
-      conformanceAssertions.push({
-        criterion: assertion[0],
-        evidenceSpanIds: assertion[1],
-      });
-    }
-    passages.push({
-      passageId: passage[0],
-      discourseFunction: passage[1],
-      layer: passage[2],
-      disposition: passage[3],
-      rationale: passage[4],
-      atoms,
-      ambiguityAtomIds: passage[6],
-      conformanceCriteria: passage[7],
-      conformanceEvidenceSpanIds: passage[8],
-      conformanceAssertions,
-    });
+function fittedStringLength(schema) {
+  const explicitLength = schema.maxLength ?? schema.minLength;
+  if (Number.isSafeInteger(explicitLength) && explicitLength >= 0) return explicitLength;
+  const binaryWidth = typeof schema.pattern === "string"
+    ? /^\^\[01\]\{([1-9]\d*)\}\$$/u.exec(schema.pattern)
+    : null;
+  const parsedWidth = binaryWidth ? Number(binaryWidth[1]) : null;
+  if (Number.isSafeInteger(parsedWidth)) return parsedWidth;
+  return 1;
+}
+
+function maximalFittedSchemaValue(schema) {
+  if (!record(schema)) throw new TypeError("The Lattice provider received an invalid fitted schema.");
+  if (Array.isArray(schema.enum)) {
+    return [...schema.enum].sort((left, right) => (
+      JSON.stringify(right).length - JSON.stringify(left).length
+    ))[0];
   }
-  return {
-    documentKind: value.d,
-    passages,
-    questions: value.q,
-  };
+  if (schema.type === "string") return "1".repeat(fittedStringLength(schema));
+  if (schema.type === "integer") {
+    const candidates = [schema.minimum, schema.maximum].filter(Number.isSafeInteger);
+    if (candidates.length === 0) return 0;
+    return candidates.sort((left, right) => (
+      JSON.stringify(right).length - JSON.stringify(left).length
+    ))[0];
+  }
+  if (schema.type === "array") {
+    if (Array.isArray(schema.prefixItems)) return schema.prefixItems.map(maximalFittedSchemaValue);
+    if (!record(schema.items)) return [];
+    return Array.from(
+      { length: schema.maxItems ?? schema.minItems ?? 0 },
+      () => maximalFittedSchemaValue(schema.items),
+    );
+  }
+  if (schema.type === "object" && Array.isArray(schema.required)) {
+    return Object.fromEntries(schema.required.map((key) => (
+      [key, maximalFittedSchemaValue(schema.properties[key])]
+    )));
+  }
+  if (schema.type === "boolean") return false;
+  throw new TypeError("The Lattice provider received an unsupported fitted schema.");
+}
+
+function analysisOutputTokenLimitForSchema(schema) {
+  const canonicalCharacters = JSON.stringify(maximalFittedSchemaValue(schema)).length;
+  if (canonicalCharacters > ANALYSIS_MAX_OUTPUT_TOKENS) {
+    throw new TypeError("The Lattice provider received an oversized fitted analysis wire.");
+  }
+  const fitted = Math.max(ANALYSIS_MIN_OUTPUT_TOKENS, 2 * canonicalCharacters);
+  const rounded = Math.ceil(fitted / ANALYSIS_OUTPUT_TOKEN_STEP) * ANALYSIS_OUTPUT_TOKEN_STEP;
+  return Math.min(ANALYSIS_MAX_OUTPUT_TOKENS, rounded);
 }
 
 function wireEnumValue(index, values) {
@@ -1148,6 +1136,179 @@ function wireMaskSelections(mask, values, { minimum = 0, maximum = values.length
     || minimum < 0 || maximum < minimum) return null;
   const selected = values.filter((_value, index) => mask[index] === "1");
   return selected.length >= minimum && selected.length <= maximum ? selected : null;
+}
+
+function wireIndexSelections(indices, values, { minimum = 0, maximum = values.length } = {}) {
+  if (!Array.isArray(indices) || !Number.isSafeInteger(minimum) || !Number.isSafeInteger(maximum)
+    || minimum < 0 || maximum < minimum || indices.length < minimum || indices.length > maximum
+    || new Set(indices).size !== indices.length || indices.some((index) => (
+      !Number.isSafeInteger(index) || index < 0 || index >= values.length
+    ))) return null;
+  return indices.map((index) => values[index]);
+}
+
+function derivedAnalysisAtomValue(records, kind) {
+  const sourceText = records.map((record) => (
+    typeof record?.text === "string" ? record.text : ""
+  )).join(" ").replace(/\s+/gu, " ").trim();
+  const excerpt = graphemeExcerpt(sourceText, "start", 180).trim();
+  let isolateDepth = 0;
+  for (const character of excerpt) {
+    const codePoint = character.codePointAt(0);
+    if (codePoint >= 0x2066 && codePoint <= 0x2068) isolateDepth += 1;
+    else if (codePoint === 0x2069) isolateDepth -= 1;
+    if (isolateDepth < 0 || isolateDepth > 8) return `Evidence-grounded ${kind}`;
+  }
+  const balancedExcerpt = isolateDepth > 0
+    ? `${excerpt}${"\u2069".repeat(isolateDepth)}`
+    : excerpt;
+  return balancedExcerpt || `Evidence-grounded ${kind}`;
+}
+
+function derivedAnalysisDiscourse(layer) {
+  return `Preserve the passage's evidence-grounded ${layer} function.`;
+}
+
+function derivedAnalysisRationale(layer) {
+  return `Use the ${layer} layer to make cited source commitments legible without adding meaning.`;
+}
+
+function decodeAnalysisWire(value, fit) {
+  if (!fit || !exactKeys(value, ["d", "p", "l"])
+    || !Array.isArray(value.p) || value.p.length !== fit.passages.length
+    || !Array.isArray(value.l)
+    || value.l.length > Math.min(ANALYSIS_LINK_ITEM_LIMIT, fit.analysisAtomLimit)) return {};
+  const documentKind = wireEnumValue(value.d, ANALYSIS_DOCUMENT_KINDS);
+  if (documentKind === null) return {};
+  const rawPassages = [];
+  const flatAtoms = [];
+  for (let passageIndex = 0; passageIndex < value.p.length; passageIndex += 1) {
+    const passage = value.p[passageIndex];
+    const evidenceIds = fit.evidenceIdsByPassage[passageIndex];
+    const evidenceRecords = fit.evidenceRecordsByPassage[passageIndex];
+    if (!Array.isArray(passage) || passage.length !== 4
+      || !Array.isArray(passage[2]) || passage[2].length < 1
+      || passage[2].length > fit.atomAllocations[passageIndex]
+      || !Array.isArray(passage[3])
+      || passage[3].length !== ANALYSIS_CONFORMANCE_ITEM_LIMIT) return {};
+    const layer = wireEnumValue(passage[0], ANALYSIS_LAYERS);
+    const disposition = wireEnumValue(passage[1], ANALYSIS_DISPOSITIONS);
+    if (layer === null || disposition === null) return {};
+    const atoms = [];
+    for (const rawAtom of passage[2]) {
+      if (!Array.isArray(rawAtom) || rawAtom.length !== 4) return {};
+      const kind = wireEnumValue(rawAtom[0], ANALYSIS_ATOM_KINDS);
+      const priority = wireEnumValue(rawAtom[1], ANALYSIS_PRIORITIES);
+      const preservation = wireEnumValue(rawAtom[2], ANALYSIS_PRESERVATIONS);
+      const selectedEvidence = wireIndexSelections(rawAtom[3], evidenceIds, {
+        minimum: 1,
+        maximum: 3,
+      });
+      if (kind === null || priority === null || preservation === null
+        || selectedEvidence === null) return {};
+      const evidencePositions = [...rawAtom[3]].sort((left, right) => left - right);
+      const evidenceSpanIds = evidencePositions.map((evidenceIndex) => evidenceIds[evidenceIndex]);
+      const selectedEvidenceRecords = evidencePositions.map((evidenceIndex) => (
+        evidenceRecords[evidenceIndex]
+      ));
+      if (preservation === "exact"
+        && (fit.literalEvidenceIdsByPassage[passageIndex].length !== evidenceIds.length
+          || !selectedEvidenceRecords.every(({ kind: evidenceKind }) => (
+            evidenceKind === "literal"
+          )))) {
+        return {};
+      }
+      const atom = {
+        id: `a${flatAtoms.length.toString(36)}`,
+        kind,
+        value: derivedAnalysisAtomValue(selectedEvidenceRecords, kind),
+        priority,
+        preservation,
+        evidenceSpanIds,
+        links: [],
+      };
+      atoms.push(atom);
+      flatAtoms.push(atom);
+    }
+    rawPassages.push({
+      passageId: fit.passages[passageIndex].id,
+      discourseFunction: derivedAnalysisDiscourse(layer),
+      layer,
+      disposition,
+      rationale: derivedAnalysisRationale(layer),
+      atoms,
+      conformanceMasks: passage[3],
+      evidenceIds,
+    });
+  }
+  if (flatAtoms.length > fit.analysisAtomLimit) return {};
+  const ledgerIds = (fit.request.documentLedger ?? []).map(({ id }) => id);
+  const linkKeys = new Set();
+  for (const rawLink of value.l) {
+    if (!Array.isArray(rawLink) || rawLink.length !== 3
+      || !Number.isSafeInteger(rawLink[0]) || !Number.isSafeInteger(rawLink[2])) return {};
+    const sourceAtom = flatAtoms[rawLink[0]];
+    const relation = wireEnumValue(rawLink[1], ANALYSIS_RELATIONS);
+    const targetAtomId = rawLink[2] >= 0
+      ? flatAtoms[rawLink[2]]?.id
+      : ledgerIds[-rawLink[2] - 1];
+    const key = `${rawLink[0]}\u241f${relation}\u241f${targetAtomId}`;
+    if (!sourceAtom || relation === null || typeof targetAtomId !== "string"
+      || targetAtomId === sourceAtom.id || linkKeys.has(key)
+      || sourceAtom.links.length >= INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.links.maxItems) return {};
+    linkKeys.add(key);
+    sourceAtom.links.push({ relation, targetAtomId });
+  }
+  const passages = [];
+  for (const rawPassage of rawPassages) {
+    const coveredEvidence = new Set(rawPassage.atoms.flatMap(({ evidenceSpanIds }) => evidenceSpanIds));
+    if (coveredEvidence.size !== rawPassage.evidenceIds.length
+      || rawPassage.evidenceIds.some((id) => !coveredEvidence.has(id))) return {};
+    const ambiguityAtomIds = rawPassage.atoms
+      .filter(({ kind }) => kind === "ambiguity" || kind === "uncertainty")
+      .map(({ id }) => id);
+    if (ambiguityAtomIds.length > INTERNAL_ANALYSIS_PASSAGE_SCHEMA
+      .properties.ambiguityAtomIds.maxItems) return {};
+    let conformanceCriteria = [];
+    let conformanceEvidenceSpanIds = [];
+    let conformanceAssertions = [];
+    if (rawPassage.disposition === "retain-if-conformant") {
+      conformanceCriteria = [
+        ...LATTICE_CONFORMANCE_CRITERIA.universal,
+        ...LATTICE_CONFORMANCE_CRITERIA[rawPassage.layer],
+      ];
+      if (conformanceCriteria.length !== ANALYSIS_CONFORMANCE_ITEM_LIMIT) return {};
+      conformanceAssertions = rawPassage.conformanceMasks.map((mask, index) => {
+        const evidenceSpanIds = wireMaskSelections(mask, rawPassage.evidenceIds, { minimum: 1 });
+        return evidenceSpanIds === null ? null : {
+          criterion: conformanceCriteria[index],
+          evidenceSpanIds,
+        };
+      });
+      if (conformanceAssertions.some((assertion) => assertion === null)) return {};
+      const assertedEvidence = new Set(
+        conformanceAssertions.flatMap(({ evidenceSpanIds }) => evidenceSpanIds),
+      );
+      if (assertedEvidence.size !== rawPassage.evidenceIds.length
+        || rawPassage.evidenceIds.some((id) => !assertedEvidence.has(id))) return {};
+      conformanceEvidenceSpanIds = [...rawPassage.evidenceIds];
+    } else if (rawPassage.conformanceMasks.some((mask) => (
+      mask !== "0".repeat(rawPassage.evidenceIds.length)
+    ))) return {};
+    passages.push({
+      passageId: rawPassage.passageId,
+      discourseFunction: rawPassage.discourseFunction,
+      layer: rawPassage.layer,
+      disposition: rawPassage.disposition,
+      rationale: rawPassage.rationale,
+      atoms: rawPassage.atoms,
+      ambiguityAtomIds,
+      conformanceCriteria,
+      conformanceEvidenceSpanIds,
+      conformanceAssertions,
+    });
+  }
+  return { documentKind, passages, questions: [] };
 }
 
 function wireAtomStatuses(statuses, atomIds) {
@@ -1233,9 +1394,11 @@ function decodeVerificationWire(value, fit) {
     if (!Array.isArray(issue) || issue.length !== 2
       || !Number.isSafeInteger(issue[1]) || issue[1] < -1
       || issue[1] >= fit.passages.length) return {};
-    const check = wireEnumValue(issue[0], VERIFICATION_ISSUE_CHECKS);
-    const issueKey = `${issue[0]}:${issue[1]}`;
-    if (check === null || issueKeys.has(issueKey)) return {};
+    const checkIndex = issue[0];
+    const check = wireEnumValue(checkIndex, VERIFICATION_ISSUE_CHECKS);
+    if (check === null) return {};
+    const issueKey = `${checkIndex}:${issue[1]}`;
+    if (issueKeys.has(issueKey)) return {};
     issueKeys.add(issueKey);
     issues.push({
       id: `wire-issue-${index + 1}`,
@@ -1645,6 +1808,7 @@ export async function requestHuggingFaceJson({
   schema,
   schemaName,
   responseGuide,
+  schemaDescription,
   responseFormat,
   toolName,
   maxTokens,
@@ -1679,6 +1843,10 @@ export async function requestHuggingFaceJson({
       && (!Number.isFinite(presencePenalty) || presencePenalty < 0 || presencePenalty > 2))
     || (responseGuide !== undefined
       && (typeof responseGuide !== "string" || !responseGuide.trim() || responseGuide.length > 4_096))
+    || (schemaDescription !== undefined
+      && (typeof schemaDescription !== "string" || !schemaDescription.trim()
+        || schemaDescription.length > 256))
+    || (schemaDescription !== undefined && resolvedResponseFormat !== "json_schema")
     || (responseFormat !== undefined && !RESPONSE_FORMATS.has(responseFormat))
     || (responseFormat !== undefined && toolName !== undefined)
     || (resolvedResponseFormat === "json_schema" && role !== "generator")
@@ -1709,7 +1877,9 @@ export async function requestHuggingFaceJson({
             type: "json_schema",
             json_schema: {
               name: schemaName,
-              description: responseGuide ?? "Supply one complete structured response.",
+              description: schemaDescription
+                ?? responseGuide
+                ?? "Supply one complete structured response.",
               schema,
               strict: true,
             },
@@ -1899,10 +2069,13 @@ export function createHuggingFaceLatticeAdapter({
         schema: fittedSchema,
         schemaName: stage.schemaName,
         responseGuide: stage.responseGuide,
+        schemaDescription: stage.schemaDescription,
         responseFormat: stage.responseFormat,
         toolName: stage.toolName,
         toolChoice: stage.toolChoice,
-        maxTokens: stage.maxTokens,
+        maxTokens: analysisFit
+          ? analysisOutputTokenLimitForSchema(fittedSchema)
+          : stage.maxTokens,
         temperature: stage.temperature,
         topP: stage.topP,
         presencePenalty: stage.presencePenalty,
@@ -1916,7 +2089,7 @@ export function createHuggingFaceLatticeAdapter({
       throw withQualificationDiagnostic(error, stageName, callOrdinal, analysisContext);
     }
     if (stageName === "analysis") {
-      result = decodeAnalysisWire(result);
+      result = decodeAnalysisWire(result, analysisFit);
       Object.defineProperty(result, LATTICE_FITTED_ANALYSIS_CONTEXT, {
         configurable: false,
         enumerable: false,

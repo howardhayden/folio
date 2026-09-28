@@ -989,13 +989,13 @@ test("project and Text to Lattice implementation provenance stays source-aligned
           topP: 0.8,
           responseFormat: "json_schema",
           strict: true,
-          maximumOutputTokens: 3_072,
+          maximumOutputTokens: 2_048,
         },
         candidate: { temperature: 0.45, topP: 0.9, responseFormat: "json_object", maximumOutputTokens: 800 },
         repair: { temperature: 0.45, topP: 0.9, responseFormat: "json_object", maximumOutputTokens: 800 },
       },
     },
-    inferenceSummary: "server-side strict JSON Schema analysis through Hugging Face Inference Providers and Nscale; fixed seed 71903; non-thinking-only Qwen variant; bounded stage-specific output limits",
+    inferenceSummary: "server-side strict JSON Schema analysis through Hugging Face Inference Providers and Nscale; fixed seed 71903; non-thinking-only Qwen variant; request-fitted analysis output limits from 768 through 2048 tokens in 256-token steps; bounded stage-specific output limits",
   };
   const expectedVerifier = {
     name: "Llama 3.1 8B Instruct server-side verifier",

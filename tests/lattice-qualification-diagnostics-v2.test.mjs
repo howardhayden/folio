@@ -15,7 +15,7 @@ import {
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 
 const SOURCE = "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
-const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v1";
+const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v2";
 const QUALIFICATION_FIELDS = Object.freeze([
   "qualificationStage",
   "qualificationCallOrdinal",
@@ -70,9 +70,9 @@ function analysisProviderResponse(value, {
 
 function invalidAnalysisResponse() {
   return analysisProviderResponse({
-    d: "instruction",
+    d: 2,
     p: [],
-    q: [],
+    l: [],
   });
 }
 
@@ -148,7 +148,7 @@ test("an initial host-validation correction attributes malformed provider call t
   assert.equal(error.qualificationCompletionTokens, "none");
   assert.equal(error.qualificationAnalysisOrigin, "initial");
   assert.equal(error.qualificationAnalysisAttempt, "2");
-  assert.equal(error.qualificationPriorValidationCategory, "passage-coverage");
+  assert.equal(error.qualificationPriorValidationCategory, "response-shape");
   assert.equal(calls, 2);
   assertHiddenImmutableDiagnostics(error);
 
@@ -163,7 +163,7 @@ test("an initial host-validation correction attributes malformed provider call t
   const correctedSerialized = JSON.stringify(correctedBody);
   assert.doesNotMatch(firstSerialized, /private-analysis-wire-invalid/u);
   assert.match(correctedSerialized, /private-analysis-wire-invalid/u);
-  assert.match(correctedSerialized, /exactly one p tuple for every supplied passage ID|exact tuple widths|covering every source span|valid link targets|Keep q empty/iu);
+  assert.match(correctedSerialized, /exactly one p tuple for every supplied passage|exact tuple widths|evidence coverage|valid link positions/iu);
   assert.doesNotMatch(
     correctedSerialized,
     /Atomization did not cover every passage|matching every named field|Return the analysis schema\./iu,
@@ -174,13 +174,13 @@ test("an initial host-validation correction attributes malformed provider call t
     assert.equal(typeof body.response_format.json_schema.description, "string");
     assert.equal(body.response_format.json_schema.strict, true);
     assert.equal(body.response_format.json_schema.schema.type, "object");
-    assert.deepEqual(body.response_format.json_schema.schema.required, ["d", "p", "q"]);
+    assert.deepEqual(body.response_format.json_schema.schema.required, ["d", "p", "l"]);
     assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
     assert.equal(Object.hasOwn(body, "tool_choice"), false);
     assert.equal(Object.hasOwn(body, "tools"), false);
     const system = body.messages.find(({ role }) => role === "system")?.content ?? "";
-    assert.match(system, /private d\/p\/q wire/u);
-    assert.match(system, /Keep q empty/u);
+    assert.match(system, /private d\/p\/l index wire/u);
+    assert.match(system, /never ask a public question/u);
     assert.equal(
       system.includes(JSON.stringify(body.response_format.json_schema.schema)),
       false,
@@ -194,7 +194,7 @@ test("an initial host-validation correction attributes malformed provider call t
   );
   assert.doesNotMatch(firstBody.messages[0].content, /one bounded correction attempt/u);
   assert.match(correctedBody.messages[0].content, /one bounded correction attempt/u);
-  assert.match(correctedBody.messages[0].content, /Closed correction category: passage-coverage/u);
+  assert.match(correctedBody.messages[0].content, /Closed correction category: response-shape/u);
   assert.doesNotMatch(correctedBody.messages[1].content, /one bounded correction attempt/u);
 });
 
@@ -206,7 +206,7 @@ test("a malformed compact analysis tuple fails into the bounded host correction 
     fetchImpl: async () => {
       calls += 1;
       if (calls === 1) {
-        return analysisProviderResponse({ d: "instruction", p: [["too-short"]], q: [] });
+        return analysisProviderResponse({ d: 2, p: [["too-short"]] });
       }
       return analysisProviderResponse(undefined, { contentText: "not-json" });
     },
@@ -329,11 +329,16 @@ test("malformed structured content carries only fixed subtype and coarse size me
 
 test("strict-schema assistant content remains authoritative over auxiliary provider fields", async () => {
   const authoritativeWire = Object.freeze({
-    d: "instruction",
-    p: Object.freeze([]),
-    q: Object.freeze([]),
+    d: 2,
+    p: Object.freeze([Object.freeze([
+      0,
+      0,
+      Object.freeze([Object.freeze([1, 0, 1, Object.freeze([0])])]),
+      Object.freeze(["0", "0", "0", "0", "0"]),
+    ])]),
+    l: Object.freeze([]),
   });
-  const auxiliaryWire = JSON.stringify({ d: "other", p: [["PRIVATE-AUXILIARY"]], q: [] });
+  const auxiliaryWire = JSON.stringify({ d: 8, p: [["PRIVATE-AUXILIARY"]] });
   const cases = [
     {
       name: "tool calls",
@@ -376,7 +381,7 @@ test("strict-schema assistant content remains authoritative over auxiliary provi
 
     const result = await adapter.analyze(minimalAnalysisRequest());
     assert.equal(result.documentKind, "instruction", name);
-    assert.deepEqual(result.passages, [], name);
+    assert.equal(result.passages.length, 1, name);
     assert.deepEqual(result.questions, [], name);
     assert.equal(JSON.stringify(result).includes("PRIVATE-AUXILIARY"), false, name);
     assert.equal(fetches, 1, name);
@@ -395,7 +400,7 @@ test("analysis never substitutes auxiliary tool calls for strict-schema content"
         contentText: JSON.stringify([privateMarker]),
         message: {
           tool_calls: [analysisToolCall({
-            argumentsText: JSON.stringify({ d: "instruction", p: [], q: [] }),
+            argumentsText: JSON.stringify({ d: 2, p: [] }),
           })],
         },
       }),
