@@ -10,7 +10,7 @@
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `9a848812fe801c5627e33fb337680b0bec9c5fb9e882c36a8f7488a7baac7ed8`
+**Qualified source-set SHA-256:** `f90025c18574a28079354c289a3a5465fa1b22ac543544152ba03fe1171cad33`
 
 **Artifact-set projection SHA-256:** `68ca4e0a4438f0789ff1fa318de26152416e05849de57f3a269e350695475313`
 
@@ -25,6 +25,8 @@ Run #150 retained held Pages artifact `github-pages` (artifact ID `10964127627`,
 The preceding held-publication [run #149](https://github.com/howardhayden/folio/actions/runs/36409940140) used the same commit and attempted source-set digest. Build job `108887556521` passed the full 823-test suite and release boundary. It retained held Pages artifact ID `10963813827` (SHA-256 `7f514e47b376736a3a2773b02ace37cd5ff44ea5cb7e32ecb7214097126b3b5a`). Held-enforcement job `108888093898` deployed held API version `48e336d4-b20e-4415-9a46-bf4845bdcef2` in deployment `6614407a-9db2-4c8e-a706-288ca2615b77`, verified it at `2026-09-28T10:31:11.666Z`, and retained artifact ID `10964017944` (SHA-256 `504998b4829d104874529ae993705801008e3effce75be5dfdce3b8f43db4080`). Its three probes returned the same bounded held response and headers. Run #149 did not attempt or prove a successful transformation.
 
 Runs #149 and #150 exercised the JSON-object verifier/certifier transport in commit `6dfd43372f50ad5e12a1e2714a4787143cfd5394`. They are historical evidence and do not establish live provider behavior for the current forced named-tool candidate.
+
+Source-only qualification hardening now binds one sanitized canary profile to both verification and required whole-document certification while preserving one content request, one quota claim, and the existing provider, model, prompt, limit, retry, privacy, and topology boundaries. A Worker-level regression exercises canonical named responses through both stages. The live verifier retains only the canary identifier, certification requirement, closed result metadata, and explicit non-retention flags; a later successful receipt would prove the source-required request path, not whether DeepInfra returned the canonical tool envelope or the narrowly accepted compatibility envelope. Reviewed model-repository tokenizer bytes place the fitted argument records within their configured caps, but do not establish provider-managed tokenizer, chat-template, wrapper, or live completion accounting. This remains undeployed source evidence and closes no release gate.
 
 Earlier bounded qualification [run #147](https://github.com/howardhayden/folio/actions/runs/36406676797) exercised main commit `43e70d05c1b5783ecf26f0b784541bfffa5217c1` and attempted source-set digest `5fca1bc272cfaf5ef16bce29f3c4d96d9ff741683aad3d6c24adf5c49a320b18`. Service job `108877517980` reached analysis call 9, then the synthetic canary failed to reach a non-error terminal result with `class=pre-candidate-analysis-contract`, `terminal_cause=host-validation`, `validation=response-shape`, `prior_validation=response-shape`, `analysis_origin=split`, `analysis_attempt=2`, `atom_limit=1`, `batch_count=0`, `verification_passes=0`, and `finding_count=1`. No provider body or result content was retained, so the exact provider-selected wire is not claimed. The run produced no successful transformation and closed none of GATE-02, GATE-03, or GATE-06.
 

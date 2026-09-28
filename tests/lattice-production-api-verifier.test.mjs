@@ -8,6 +8,7 @@ import test from "node:test";
 import { LATTICE_RESULT_VERSION } from "../app/resume/lattice/remoteProtocol.js";
 import {
   LATTICE_PRODUCTION_EVIDENCE_SCHEMA,
+  LATTICE_PRODUCTION_CANARY_TEXT,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS,
   LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA,
@@ -330,6 +331,11 @@ test("the production verifier establishes one bodyless visitor session before ex
   assert.equal(fixture.canaryRequests, 1);
   assert.equal(evidence.transformation_canary.request_count, 1);
   assert.equal(evidence.transformation_canary.automatic_retry, false);
+  assert.equal(
+    evidence.transformation_canary.input_id,
+    "synthetic-notebook-certification-v2",
+  );
+  assert.equal(evidence.transformation_canary.input_requires_document_certification, true);
   assert.equal(evidence.transformation_canary.strict_result_valid, true);
   assert.equal(evidence.transformation_canary.terminal_status, "translated");
   assert.equal(evidence.transformation_canary.result_content_recorded, false);
@@ -403,7 +409,7 @@ test("the production verifier establishes one bodyless visitor session before ex
   });
 
   const serializedEvidence = JSON.stringify(evidence);
-  assert.ok(fixture.canaryText.length > 0);
+  assert.equal(fixture.canaryText, LATTICE_PRODUCTION_CANARY_TEXT);
   assert.equal(serializedEvidence.includes(fixture.canaryText), false);
   assert.equal(serializedEvidence.includes(validResult().text), false);
   assert.doesNotMatch(serializedEvidence, /synthetic-credential|lattice-live-negative-canary/u);

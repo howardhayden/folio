@@ -75,8 +75,8 @@ export const LATTICE_PRODUCTION_READINESS_CONTRACT = Object.freeze({
   requiredConsecutiveActiveSamples: 3,
 });
 const SYNTHETIC_NEGATIVE_MARKER = "lattice-live-negative-canary-2026-09-14";
-const SYNTHETIC_CANARY_TEXT =
-  "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
+export const LATTICE_PRODUCTION_CANARY_TEXT =
+  "A visitor places a blue notebook on the desk, reads the first page, and closes it.\n";
 const UNABLE_CANARY_CLASSES = new Map([
   ["atomization-unavailable", "pre-candidate-analysis-contract"],
   ["generation-context-unavailable", "pre-candidate-generation-context"],
@@ -835,7 +835,7 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   const response = await fetchOnce(
     fetchImpl,
     `${origin}${LATTICE_API_PATH}`,
-    withVisitorCookie(apiPost(exactPayload(SYNTHETIC_CANARY_TEXT), {
+    withVisitorCookie(apiPost(exactPayload(LATTICE_PRODUCTION_CANARY_TEXT), {
       headers: {
         [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
           LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -1002,7 +1002,8 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     automatic_retry: false,
     elapsed_ms: elapsedMilliseconds(startedAt, monotonicNow, label),
     response_bytes: bytes.byteLength,
-    input_id: "synthetic-notebook-v1",
+    input_id: "synthetic-notebook-certification-v2",
+    input_requires_document_certification: true,
     input_content_recorded: false,
     result_content_recorded: false,
     http_status: response.status,
@@ -1146,7 +1147,7 @@ export async function verifyTextToLatticeApiProduction({
     visitorSession.requestHeader.indexOf("=") + 1,
   );
   const serializedPreflightEvidence = JSON.stringify(preflightEvidence);
-  if (serializedPreflightEvidence.includes(SYNTHETIC_CANARY_TEXT)
+  if (serializedPreflightEvidence.includes(LATTICE_PRODUCTION_CANARY_TEXT)
     || serializedPreflightEvidence.includes(SYNTHETIC_NEGATIVE_MARKER)
     || serializedPreflightEvidence.includes("synthetic-credential")
     || serializedPreflightEvidence.includes(visitorSession.requestHeader)
@@ -1169,7 +1170,7 @@ export async function verifyTextToLatticeApiProduction({
     transformation_canary: transformationCanary,
   });
 
-  if (JSON.stringify(evidence).includes(SYNTHETIC_CANARY_TEXT)
+  if (JSON.stringify(evidence).includes(LATTICE_PRODUCTION_CANARY_TEXT)
     || JSON.stringify(evidence).includes(SYNTHETIC_NEGATIVE_MARKER)
     || JSON.stringify(evidence).includes("synthetic-credential")
     || JSON.stringify(evidence).includes(visitorSession.requestHeader)

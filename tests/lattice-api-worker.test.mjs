@@ -62,6 +62,9 @@ import {
   qualificationWindowAllowsRequests,
 } from "../workers/text-to-lattice-api/worker.js";
 import {
+  LATTICE_PRODUCTION_CANARY_TEXT,
+} from "../scripts/verify-text-to-lattice-api-production.mjs";
+import {
   LATTICE_API_VISITOR_COOKIE_NAME,
   LATTICE_API_VISITOR_COOKIE_PATH,
   LatticeApiVisitorCookieError,
@@ -1910,11 +1913,17 @@ test("all five production stages use their exact provider response transport", a
   const responses = [
     successfulProviderResponse({ d: "instruction", p: [], q: [] }),
     successfulProviderResponse({ passages: [] }),
-    successfulProviderResponse(acceptingVerificationWire(base)),
-    successfulProviderResponse(acceptingCertificationWire(
+    successfulProviderToolResponse(acceptingVerificationWire(base), {
+      toolName: VERIFICATION_TOOL_NAME,
+      toolCallId: "call_lattice_verification",
+    }),
+    successfulProviderToolResponse(acceptingCertificationWire(
       "certificate:transport-matrix",
       ["document:whole"],
-    )),
+    ), {
+      toolName: CERTIFICATION_TOOL_NAME,
+      toolCallId: "call_lattice_certification",
+    }),
     successfulProviderResponse({ passages: [] }),
   ];
   const adapter = createHuggingFaceLatticeAdapter({
@@ -2114,7 +2123,7 @@ test("the production canary completes through the compact verifier wire", async 
         });
       }
       if (calls.length === 3) {
-        return successfulProviderResponse({
+        return successfulProviderToolResponse({
           d: 0,
           g: "0".repeat(11),
           p: [[
@@ -2128,6 +2137,9 @@ test("the production canary completes through the compact verifier wire", async 
             [false, "0".repeat(evidenceIds.length), []],
           ]],
           i: [],
+        }, {
+          toolName: VERIFICATION_TOOL_NAME,
+          toolCallId: "call_lattice_verification",
         });
       }
       return assert.fail("the single-passage canary must not require document certification");
@@ -2147,6 +2159,112 @@ test("the production canary completes through the compact verifier wire", async 
   assert.equal(calls.length, 3);
   assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [768, 800, 1_200]);
   forcedToolSchema(calls[2], VERIFICATION_TOOL_NAME);
+});
+
+test("the API Worker completes verification and required document certification through named tool calls", async () => {
+  const source = LATTICE_PRODUCTION_CANARY_TEXT;
+  const preflight = preflightLatticeInput(source);
+  assert.equal(preflight.batches.length, 1);
+  assert.equal(preflight.batches[0].passages.length, 1);
+  assert.equal(preflight.batches[0].passages[0].separatorAfter, "\n");
+  const { batch, sourceSpans } = minimalVerificationRequest(source);
+  const passageId = batch.passages[0].id;
+  const evidenceIds = [
+    ...sourceSpans[0].spans,
+    ...(sourceSpans[0].literalAnnotations ?? []),
+  ].map(({ id }) => id);
+  const transformed = "First, open and review the document; then save the approved revision.";
+  const calls = [];
+  const worker = createLatticeApiWorker({
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      calls.push(body);
+      if (calls.length === 1) {
+        return successfulProviderResponse({
+          d: 2,
+          p: [[
+            0,
+            0,
+            [[
+              1,
+              0,
+              1,
+              evidenceIds.map((_id, index) => index),
+            ]],
+            Array(5).fill("0".repeat(evidenceIds.length)),
+          ]],
+          l: [],
+        });
+      }
+      if (calls.length === 2) {
+        const analysisAtomId = inertModelPayload(body).analysis[1][0][5][0][0];
+        return successfulProviderResponse({
+          passages: [{
+            passageId,
+            layer: "operative",
+            text: transformed,
+            preservedAtomIds: [analysisAtomId],
+          }],
+        });
+      }
+      if (calls.length === 3) {
+        return successfulProviderToolResponse({
+          d: 0,
+          g: "0".repeat(11),
+          p: [[
+            "1",
+            false,
+            "0".repeat(evidenceIds.length),
+            "0".repeat(9),
+            0,
+            "1",
+            "1".repeat(evidenceIds.length),
+            [false, "0".repeat(evidenceIds.length), []],
+          ]],
+          i: [],
+        }, {
+          toolName: VERIFICATION_TOOL_NAME,
+          toolCallId: "call_lattice_verification",
+        });
+      }
+      if (calls.length === 4) {
+        return successfulProviderToolResponse(acceptingCertificationWire(
+          "certificate:document",
+          ["document:whole"],
+        ), {
+          toolName: CERTIFICATION_TOOL_NAME,
+          toolCallId: "call_lattice_certification",
+        });
+      }
+      return assert.fail("the one-passage certification canary exceeded its four expected provider calls");
+    },
+  });
+
+  const response = await worker.fetch(apiRequest({ ...validPayload, text: source }), {
+    HF_TOKEN: "server-token",
+  });
+  const envelope = await json(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(envelope.schema_version, 1);
+  assert.equal(envelope.result.status, "translated");
+  assert.equal(envelope.result.text, `${transformed}\n`);
+  assert.equal(envelope.result.verificationPasses, 1);
+  assert.equal(calls.length, 4);
+  assert.deepEqual(calls.map(({ model }) => model), [
+    LATTICE_REMOTE_MODELS.generator,
+    LATTICE_REMOTE_MODELS.generator,
+    LATTICE_REMOTE_MODELS.verifier,
+    LATTICE_REMOTE_MODELS.verifier,
+  ]);
+  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [1_024, 800, 1_200, 520]);
+  forcedToolSchema(calls[2], VERIFICATION_TOOL_NAME);
+  const certificationSchema = forcedToolSchema(calls[3], CERTIFICATION_TOOL_NAME);
+  assert.deepEqual(certificationSchema.properties.c.enum, ["certificate:document"]);
+  assert.deepEqual(
+    certificationSchema.properties.o.prefixItems.map(({ enum: values }) => values[0]),
+    ["document:whole"],
+  );
 });
 
 test("the compact verifier preserves retained-conformance evidence and every independent layer", async () => {
