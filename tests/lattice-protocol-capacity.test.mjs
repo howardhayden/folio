@@ -553,7 +553,8 @@ function maximalFittedWireValue(schema, stringValue) {
       JSON.stringify(right).length - JSON.stringify(left).length
     ))[0];
   }
-  if (schema.type === "string") return stringValue(schema.maxLength ?? 1);
+  if (schema.type === "string") return stringValue(schema.maxLength ?? 1, schema);
+  if (schema.type === "integer") return schema.maximum ?? schema.minimum ?? 0;
   if (schema.type === "array") {
     if (Array.isArray(schema.prefixItems)) {
       return schema.prefixItems.map((item) => maximalFittedWireValue(item, stringValue));
@@ -571,6 +572,144 @@ function maximalFittedWireValue(schema, stringValue) {
   if (schema.type === "boolean") return false;
   throw new TypeError("The fitted-wire test received an unsupported JSON Schema shape.");
 }
+
+test("maximal fitted verifier and certifier wires remain inside their live output caps", {
+  skip: TOKENIZER_FIXTURES_AVAILABLE ? false : "set the two LATTICE_*_TOKENIZER_JSON paths to run exact pinned-tokenizer checks",
+}, async () => {
+  const tokenizers = await pinnedTokenizers();
+  try {
+    const { batch } = manualLiteralBatch();
+    const sourceSpans = batch.passages.map((passage, passageIndex) => ({
+      passageId: passage.id,
+      spans: Array.from({ length: 12 }, (_, spanIndex) => ({
+        id: `${passage.id}:s${String(spanIndex + 1).padStart(2, "0")}`,
+        kind: "source",
+        text: `s${passageIndex.toString(36)}${spanIndex.toString(36)}`,
+      })),
+      literalAnnotations: Array.from({ length: 12 }, (_, annotationIndex) => ({
+        id: `${passage.id}:n${String(annotationIndex + 1).padStart(2, "0")}`,
+        kind: "literal",
+        literalType: "code",
+        startUtf16: annotationIndex,
+        endUtf16: annotationIndex + 1,
+        text: `n${annotationIndex.toString(36)}`,
+      })),
+    }));
+    const baseAnalysis = analysisFor(batch, sourceSpans);
+    const conformanceCriteria = [
+      ...LATTICE_CONFORMANCE_CRITERIA.universal,
+      ...LATTICE_CONFORMANCE_CRITERIA.interpretive,
+    ];
+    const analysis = {
+      ...baseAnalysis,
+      passages: baseAnalysis.passages.map((passage, index) => ({
+        ...passage,
+        disposition: "retain-if-conformant",
+        conformanceCriteria: [...conformanceCriteria],
+        conformanceEvidenceSpanIds: sourceSpans[index].spans.map(({ id }) => id),
+        conformanceAssertions: conformanceCriteria.map((criterion) => ({
+          criterion,
+          evidenceSpanIds: sourceSpans[index].spans.map(({ id }) => id),
+        })),
+      })),
+    };
+    const candidate = candidateFor(batch, analysis);
+    const bodies = [];
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      fetchImpl: async (_url, init) => {
+        bodies.push(JSON.parse(init.body));
+        return new Response(JSON.stringify({
+          choices: [{
+            finish_reason: "stop",
+            message: { role: "assistant", content: "{}" },
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+    const signal = new AbortController().signal;
+    await adapter.verify({
+      batch,
+      sourceSpans,
+      context: null,
+      documentLedger: [],
+      analysis,
+      candidate,
+      deterministicFindings: [],
+      documentFindings: [],
+      signal,
+    });
+    await adapter.certify({
+      scope: "relations",
+      certificateId: "certificate:relations:e0001-e0024",
+      obligationIds: Array.from({ length: 24 }, (_, index) => (
+        `e${String(index + 1).padStart(4, "0")}`
+      )),
+      relations: [],
+      endpointPassages: [],
+      signal,
+    });
+
+    const fittedSchema = (body) => {
+      const content = body.messages.find(({ role }) => role === "system")?.content ?? "";
+      const opening = "<LATTICE_RESPONSE_SCHEMA>";
+      const closing = "</LATTICE_RESPONSE_SCHEMA>";
+      const start = content.indexOf(opening);
+      const end = content.indexOf(closing, start + opening.length);
+      assert.ok(start >= 0 && end > start);
+      return JSON.parse(content.slice(start + opening.length, end));
+    };
+    const [verificationSchema, certificationSchema] = bodies.map(fittedSchema);
+    assert.deepEqual(verificationSchema.required, ["d", "g", "p", "i"]);
+    assert.deepEqual(certificationSchema.required, ["c", "o", "d", "k", "i"]);
+    assert.equal(verificationSchema.properties.p.prefixItems.length, batch.passages.length);
+    assert.equal(certificationSchema.properties.o.prefixItems.length, 24);
+
+    let state = 0x51f15e;
+    const denseMask = (length) => {
+      let value = "";
+      for (let index = 0; index < length; index += 1) {
+        state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+        value += index === 0 ? "1" : String(state >>> 31);
+      }
+      return value;
+    };
+    const maximalVerificationValue = maximalFittedWireValue(
+      verificationSchema,
+      denseMask,
+    );
+    const maximalCertificationValue = maximalFittedWireValue(
+      certificationSchema,
+      denseMask,
+    );
+    const verificationWire = JSON.stringify(maximalVerificationValue);
+    const certificationWire = JSON.stringify(maximalCertificationValue);
+    const prettyVerificationWire = JSON.stringify(maximalVerificationValue, null, 2);
+    const prettyCertificationWire = JSON.stringify(maximalCertificationValue, null, 2);
+    const verificationTokens = tokenizers.llama.encode(verificationWire).length;
+    const certificationTokens = tokenizers.llama.encode(certificationWire).length;
+    const prettyVerificationTokens = tokenizers.llama.encode(prettyVerificationWire).length;
+    const prettyCertificationTokens = tokenizers.llama.encode(prettyCertificationWire).length;
+    assert.ok(
+      verificationTokens <= 1_200,
+      `maximal fitted verifier wire used ${verificationTokens} pinned-Llama tokens`,
+    );
+    assert.ok(
+      certificationTokens <= 520,
+      `maximal fitted certifier wire used ${certificationTokens} pinned-Llama tokens`,
+    );
+    assert.ok(
+      prettyVerificationTokens <= 1_200,
+      `pretty maximal fitted verifier wire used ${prettyVerificationTokens} pinned-Llama tokens`,
+    );
+    assert.ok(
+      prettyCertificationTokens <= 520,
+      `pretty maximal fitted certifier wire used ${prettyCertificationTokens} pinned-Llama tokens`,
+    );
+  } finally {
+    tokenizers.dispose();
+  }
+});
 
 test("the exact production canary maximal dense wire retains pinned-Qwen output headroom", {
   skip: TOKENIZER_FIXTURES_AVAILABLE ? false : "set the two LATTICE_*_TOKENIZER_JSON paths to run exact pinned-tokenizer checks",
