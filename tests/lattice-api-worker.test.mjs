@@ -26,10 +26,14 @@ import {
 } from "../app/resume/lattice/segments.js";
 import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
+  LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT,
   LATTICE_PROVIDER_CALL_TIMEOUT_MS,
   LATTICE_PROVIDER_CALL_LIMIT,
   LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT,
   LATTICE_PROVIDER_FAILURE_CLASSES,
+  LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
+  LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL,
+  LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
   LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   LATTICE_REMOTE_MODELS,
   LATTICE_PROVIDER_STAGES,
@@ -2030,7 +2034,7 @@ test("all five production stages use their exact provider response transport", a
     LATTICE_REMOTE_MODELS.verifier,
     LATTICE_REMOTE_MODELS.generator,
   ]);
-  assert.deepEqual(calls.map(({ max_tokens }) => max_tokens), [768, 800, 1_200, 520, 800]);
+  assert.deepEqual(calls.map(({ max_tokens }) => max_tokens), [768, 800, 1_536, 520, 800]);
   assert.equal(calls[0].response_format.type, "json_schema");
   assert.equal(calls[0].response_format.json_schema.strict, true);
   assert.equal(calls[0].response_format.json_schema.name, ANALYSIS_TOOL_NAME);
@@ -2134,7 +2138,7 @@ test("compact verifier and certifier wires expand to the unchanged host schemas"
   assert.equal(verificationTuple[6].minLength, evidenceIds.length);
   assert.deepEqual(verificationTuple[7].prefixItems[0].enum, [false]);
   assert.deepEqual(verificationTuple[7].prefixItems[1].enum, ["0".repeat(evidenceIds.length)]);
-  assert.equal(calls[0].max_tokens, 1_200);
+  assert.equal(calls[0].max_tokens, 1_536);
   assert.equal(calls[0].messages[0].content.includes(JSON.stringify(VERIFICATION_SCHEMA)), false);
 
   const certificationSchema = forcedToolSchema(calls[1], CERTIFICATION_TOOL_NAME);
@@ -2227,7 +2231,7 @@ test("the production canary completes through the compact verifier wire", async 
   assert.equal(result.text, transformed);
   assert.equal(result.verificationPasses, 1);
   assert.equal(calls.length, 3);
-  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [768, 800, 1_200]);
+  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [768, 800, 1_536]);
   forcedToolSchema(calls[2], VERIFICATION_TOOL_NAME);
 });
 
@@ -2327,7 +2331,7 @@ test("the API Worker completes verification and required document certification 
     LATTICE_REMOTE_MODELS.verifier,
     LATTICE_REMOTE_MODELS.verifier,
   ]);
-  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [1_024, 800, 1_200, 520]);
+  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [1_024, 800, 1_536, 520]);
   assert.equal(inertModelPayload(calls[0]).requestedMode, "operative");
   assert.match(calls[0].messages[0].content, /never ask a public question/u);
   forcedToolSchema(calls[2], VERIFICATION_TOOL_NAME);
@@ -3949,6 +3953,35 @@ test("a named-tool completion that reaches the output limit fails after one fetc
   assert.equal(fetches, 1);
 });
 
+test("the configured verification cap still fails closed on a length finish without retry", async () => {
+  let fetches = 0;
+  let body;
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async (_url, init) => {
+      fetches += 1;
+      body = JSON.parse(init.body);
+      return providerChoiceResponse({
+        finish_reason: "length",
+        message: {
+          role: "assistant",
+          tool_calls: [providerToolCall({ argumentsValue: '{"private":"truncated"' })],
+        },
+      });
+    },
+  });
+
+  await assert.rejects(
+    adapter.verify(minimalVerificationRequest()),
+    (error) => error instanceof LatticeProviderError
+      && error.code === "provider_output_limit"
+      && !error.message.includes("private")
+      && !JSON.stringify(error).includes("truncated"),
+  );
+  assert.equal(body.max_tokens, 1_536);
+  assert.equal(fetches, 1);
+});
+
 test("unsupported provider request extensions fail closed before external fetch", async () => {
   let fetches = 0;
   const fetchImpl = async () => {
@@ -4015,6 +4048,25 @@ test("a provider output limit fails after one fetch without retry", async () => 
       && !error.message.includes("private truncated output"),
   );
   assert.equal(fetches, 1);
+});
+
+test("provider output-token exposure stays explicit and bounded by admission", () => {
+  assert.deepEqual(LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS, {
+    analysis: 2_048,
+    candidate: 800,
+    verification: 1_536,
+    certification: 520,
+    repair: 800,
+  });
+  assert.equal(Object.isFrozen(LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS), true);
+  assert.equal(LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL, 2_048);
+  assert.equal(LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT, 440);
+  assert.equal(LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST, 65_536);
+  assert.equal(
+    LATTICE_TRANSFORMATIONS_PER_UTC_DAY
+      * LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
+    1_966_080,
+  );
 });
 
 test("the immutable 32-call adapter budget blocks a 33rd provider fetch", async () => {

@@ -363,9 +363,21 @@ test("the production verifier establishes one bodyless visitor session before ex
     provider_request_bytes: 1_048_576,
     provider_response_bytes: 262_144,
     provider_calls_per_request: 32,
+    provider_stage_max_output_tokens: {
+      analysis: 2_048,
+      candidate: 800,
+      verification: 1_536,
+      certification: 520,
+      repair: 800,
+    },
+    maximum_requested_output_tokens_per_provider_call: 2_048,
+    maximum_requested_output_tokens_per_admitted_request: 65_536,
     accepted_transformations_per_utc_day: 30,
     accepted_transformations_per_cooperating_ordinary_persistent_browser_cookie_jar_utc_day: 3,
     maximum_provider_calls_from_accepted_transformations_per_utc_day: 960,
+    maximum_requested_output_tokens_from_accepted_transformations_per_utc_day: 1_966_080,
+    maximum_requested_output_tokens_from_one_cooperating_ordinary_persistent_browser_cookie_jar_per_utc_day:
+      196_608,
   });
   assert.equal(
     fixture.calls.length,

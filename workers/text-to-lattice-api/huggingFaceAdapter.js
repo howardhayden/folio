@@ -22,6 +22,9 @@ import {
   SOURCE_SPAN_LIMIT,
   graphemeExcerpt,
 } from "../../app/resume/lattice/segments.js";
+import { LATTICE_PROVIDER_CALL_LIMIT } from "../../app/resume/lattice/remoteProtocol.js";
+
+export { LATTICE_PROVIDER_CALL_LIMIT };
 
 export const HUGGING_FACE_CHAT_COMPLETIONS_URL =
   "https://router.huggingface.co/v1/chat/completions";
@@ -102,7 +105,6 @@ export const LATTICE_PROVIDER_ANALYSIS_ATTEMPTS = Object.freeze([
 ]);
 
 export const LATTICE_PROVIDER_CALL_TIMEOUT_MS = 120_000;
-export const LATTICE_PROVIDER_CALL_LIMIT = 32;
 export const LATTICE_PROVIDER_REQUEST_BYTE_LIMIT = 1_048_576;
 export const LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT = 262_144;
 export const LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT = 128_000;
@@ -137,10 +139,35 @@ const ANALYSIS_LINK_ITEM_LIMIT = LATTICE_BATCH_ATOM_LIMIT;
 const ANALYSIS_MAX_OUTPUT_TOKENS = 2_048;
 const ANALYSIS_MIN_OUTPUT_TOKENS = 768;
 const ANALYSIS_OUTPUT_TOKEN_STEP = 256;
-// Certification identifiers are host-generated ASCII. Bounding the complete
-// worst-case wire below the 520-token cap prevents an echoed binding record
-// from consuming the certifier's entire response budget.
-const CERTIFICATION_WIRE_CHARACTER_LIMIT = 440;
+const CANDIDATE_MAX_OUTPUT_TOKENS = 800;
+// The end-to-end production contract reaches 4 passages, 72 words, 24 literal
+// records, 64 evidence records, and 24 atoms. Its measured production-reachable
+// rejecting wire is 1,154 ASCII characters, 475 pinned-tokenizer tokens
+// minified, 901 with two-space serialization, and 914 in the native-tool-output
+// sensitivity wrapper. A separate conservative decoder/schema fixture measures
+// 1,430 ASCII characters, 539 tokens minified, 965 pretty, and 978 in that
+// native-tool wrapper; the fitted-schema character ceiling is 1,453.
+// The 1,536-token limit is the smallest 256-token step above that ceiling and
+// retains more than 50 percent over the production-reachable native-tool fixture.
+const VERIFICATION_MAX_OUTPUT_TOKENS = 1_536;
+const CERTIFICATION_MAX_OUTPUT_TOKENS = 520;
+const REPAIR_MAX_OUTPUT_TOKENS = 800;
+export const LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS = Object.freeze({
+  analysis: ANALYSIS_MAX_OUTPUT_TOKENS,
+  candidate: CANDIDATE_MAX_OUTPUT_TOKENS,
+  verification: VERIFICATION_MAX_OUTPUT_TOKENS,
+  certification: CERTIFICATION_MAX_OUTPUT_TOKENS,
+  repair: REPAIR_MAX_OUTPUT_TOKENS,
+});
+export const LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL = Math.max(
+  ...Object.values(LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS),
+);
+export const LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST =
+  LATTICE_PROVIDER_CALL_LIMIT * LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL;
+// Certification identifiers are host-generated ASCII. This conservative
+// adapter-boundary guard also covers valid fitted requests that the production
+// orchestrator does not generate, without consuming the full 520-token budget.
+export const LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT = 440;
 const CERTIFICATION_WIRE_ID_PATTERN = /^[A-Za-z0-9:._-]+$/u;
 
 function fixedTuple(...items) {
@@ -405,7 +432,7 @@ const STAGES = Object.freeze({
     schema: CANDIDATE_SCHEMA,
     schemaName: "lattice_candidate_v1",
     messages: candidateMessages,
-    maxTokens: 800,
+    maxTokens: CANDIDATE_MAX_OUTPUT_TOKENS,
     temperature: 0.45,
     topP: 0.9,
   }),
@@ -418,7 +445,7 @@ const STAGES = Object.freeze({
     allowStoppedToolContent: true,
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
-    maxTokens: 1_200,
+    maxTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
     temperature: 0,
     topP: 1,
   }),
@@ -431,7 +458,7 @@ const STAGES = Object.freeze({
     allowStoppedToolContent: true,
     responseGuide: CERTIFICATION_WIRE_GUIDE,
     messages: certificationWireMessages,
-    maxTokens: 520,
+    maxTokens: CERTIFICATION_MAX_OUTPUT_TOKENS,
     temperature: 0,
     topP: 1,
   }),
@@ -440,7 +467,7 @@ const STAGES = Object.freeze({
     schema: CANDIDATE_SCHEMA,
     schemaName: "lattice_repair_v1",
     messages: repairMessages,
-    maxTokens: 800,
+    maxTokens: REPAIR_MAX_OUTPUT_TOKENS,
     temperature: 0.45,
     topP: 0.9,
   }),
@@ -1082,7 +1109,7 @@ function fitCertificationRequest(request) {
       (_value, index) => CERTIFICATION_CHECK_NAMES.length - 1 - index,
     ),
   });
-  if (maximalWire.length > CERTIFICATION_WIRE_CHARACTER_LIMIT) {
+  if (maximalWire.length > LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT) {
     throw new TypeError("The Lattice provider received oversized certification identifiers.");
   }
   return Object.freeze({ certificateId, obligationIds: Object.freeze([...obligationIds]) });

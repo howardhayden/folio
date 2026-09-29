@@ -185,6 +185,11 @@ test("the release register honestly holds the remote capability and preserves hi
   );
   assert.ok(register.publicClient.heldBoundary.allow.length > 0);
   assert.ok(register.publicClient.heldBoundary.deny.some((item) => item.includes("/api/lattice")));
+  assert.match(
+    register.publicClient.reason,
+    /run #152[\s\S]*forced named-tool transport was sent[\s\S]*current measured-budget candidate[\s\S]*undeployed/iu,
+  );
+  assert.doesNotMatch(register.publicClient.reason, /run #150 supplied the newest/iu);
   assert.equal(register.ownerDisposition.status, "hold-directed");
   assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
   assert.deepEqual(
@@ -199,6 +204,11 @@ test("the release register honestly holds the remote capability and preserves hi
       "GATE-05": "accepted-residual-risk",
       "GATE-06": "open-release-blocker",
     },
+  );
+  const workflowGate = register.gates.find(({ id }) => id === "GATE-01");
+  assert.match(
+    workflowGate.currentEvidence,
+    /run #152[\s\S]*859-test suite[\s\S]*forced named-tool request was deployed and sent[\s\S]*undeployed 1,536-token measured-budget candidate/iu,
   );
 
   const capability = register.artifactSet.activeCapability;
@@ -296,6 +306,23 @@ test("the release register honestly holds the remote capability and preserves hi
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-4B-Instruct-2507:nscale");
   assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.1-8B-Instruct:deepinfra");
+  assert.deepEqual(capability.provider.stageMaximumOutputTokens, {
+    analysis: 2_048,
+    candidate: 800,
+    verification: 1_536,
+    certification: 520,
+    repair: 800,
+  });
+  assert.equal(capability.provider.maximumRequestedOutputTokensPerCall, 2_048);
+  assert.equal(capability.provider.maximumRequestedOutputTokensPerAdmittedRequest, 65_536);
+  assert.equal(
+    capability.provider.maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay,
+    1_966_080,
+  );
+  assert.equal(
+    capability.provider.maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay,
+    196_608,
+  );
   assert.equal(capability.provider.historicalByteEquivalenceEstablished, false);
   assert.equal(register.artifactSet.historicalBrowserLocalArtifacts.status, "historical-inactive");
   assert.deepEqual(register.artifactSet.llamaTerms.active, {

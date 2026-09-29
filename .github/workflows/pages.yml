@@ -36,6 +36,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Verify the measured Text to Lattice output budget
+        env:
+          LATTICE_REQUIRE_ACTIVE_VERIFIER_CAPACITY: "1"
+        run: >-
+          node scripts/fetch-lattice-tokenizers.mjs --verifier-only &&
+          node --test tests/lattice-protocol-capacity.test.mjs
       - name: Enforce Text to Lattice network privacy boundary
         run: >-
           node --test
@@ -93,6 +99,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-current-main-sha.mjs
       - run: npm ci --ignore-scripts
+      - name: Verify the measured Text to Lattice output budget
+        env:
+          LATTICE_REQUIRE_ACTIVE_VERIFIER_CAPACITY: "1"
+        run: >-
+          node scripts/fetch-lattice-tokenizers.mjs --verifier-only &&
+          node --test tests/lattice-protocol-capacity.test.mjs
       - name: Enforce Text to Lattice network privacy boundary
         run: >-
           node --test

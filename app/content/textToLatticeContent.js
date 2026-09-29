@@ -1,6 +1,5 @@
 import { LOCAL_LATTICE_MODEL as HISTORICAL_LOCAL_LATTICE_MODEL } from "../resume/lattice/modelContract.js";
 import {
-  LATTICE_COMPLETION_CALL_LIMIT,
   LATTICE_FORMAT_CONTROL_LIMIT,
   LATTICE_GRAPHEME_CODE_POINT_LIMIT,
   LATTICE_INPUT_SAFETY_LIMIT,
@@ -8,6 +7,7 @@ import {
   LATTICE_TOKEN_CODE_POINT_LIMIT,
   LATTICE_WORD_LIMIT,
 } from "../resume/lattice/inputPolicy.js";
+import { LATTICE_PROVIDER_CALL_LIMIT } from "../resume/lattice/remoteProtocol.js";
 import { LATTICE_BATCH_LIMIT, LATTICE_PASSAGE_LIMIT } from "../resume/lattice/segments.js";
 import { LATTICE_USAGE_POLICY as HISTORICAL_LATTICE_USAGE_POLICY } from "../resume/lattice/usagePolicy.js";
 
@@ -95,7 +95,7 @@ export const textToLatticeContract = Object.freeze({
             responseTransport: "forced_named_tool",
             toolName: "lattice_verification_wire_v1",
             stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
-            maximumOutputTokens: 1_200,
+            maximumOutputTokens: 1_536,
           }),
           certification: Object.freeze({
             temperature: 0,
@@ -143,7 +143,8 @@ export const textToLatticeContract = Object.freeze({
         `${LATTICE_WORD_LIMIT} source words, ${LATTICE_INPUT_SAFETY_LIMIT.toLocaleString("en-US")} source UTF-16 code units, and ${LATTICE_INPUT_UTF8_LIMIT.toLocaleString("en-US")} encoded bytes`,
         `${LATTICE_PASSAGE_LIMIT} passages and ${LATTICE_BATCH_LIMIT} model work groups`,
         `${LATTICE_GRAPHEME_CODE_POINT_LIMIT} Unicode code points in any grapheme, ${LATTICE_TOKEN_CODE_POINT_LIMIT} in any word-like token, and ${LATTICE_FORMAT_CONTROL_LIMIT} format controls in an entry`,
-        `${LATTICE_COMPLETION_CALL_LIMIT} protocol-level model completions across initial, correction, repair, re-atomization, and certification work, additionally bounded by the shorter request and provider deadlines`,
+        `${LATTICE_PROVIDER_CALL_LIMIT} provider calls across analysis, candidate generation, verification, certification, correction, repair, and re-atomization work, bounded further by the request and per-call deadlines`,
+        "2,048 requested output tokens per provider call, 65,536 requested output tokens across the 32-call ceiling of one admitted request, 196,608 across the 3-admission ceiling of one cooperating ordinary persistent browser cookie jar per UTC day, and 1,966,080 across the 30-admission global UTC-day ceiling",
         "65,536 request bytes, 120 seconds per provider call, 240 seconds for the complete API request, 262,144 provider-response bytes, and a bounded client response envelope",
         "30 accepted transformation requests globally per UTC day and 3 from one ordinary persistent browser cookie jar per UTC day",
       ]),
