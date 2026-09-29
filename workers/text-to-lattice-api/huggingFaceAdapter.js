@@ -105,6 +105,7 @@ export const LATTICE_PROVIDER_ANALYSIS_ATTEMPTS = Object.freeze([
 ]);
 
 export const LATTICE_PROVIDER_CALL_TIMEOUT_MS = 120_000;
+const LATTICE_PROVIDER_VERIFICATION_CALL_TIMEOUT_MS = 180_000;
 export const LATTICE_PROVIDER_REQUEST_BYTE_LIMIT = 1_048_576;
 export const LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT = 262_144;
 export const LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT = 128_000;
@@ -140,15 +141,15 @@ const ANALYSIS_MAX_OUTPUT_TOKENS = 2_048;
 const ANALYSIS_MIN_OUTPUT_TOKENS = 768;
 const ANALYSIS_OUTPUT_TOKEN_STEP = 256;
 const CANDIDATE_MAX_OUTPUT_TOKENS = 800;
-// The end-to-end production contract reaches 4 passages, 72 words, 24 literal
-// records, 64 evidence records, and 24 atoms. Its measured production-reachable
-// rejecting wire is 1,154 ASCII characters, 475 pinned-tokenizer tokens
-// minified, 901 with two-space serialization, and 914 in the native-tool-output
-// sensitivity wrapper. A separate conservative decoder/schema fixture measures
-// 1,430 ASCII characters, 539 tokens minified, 965 pretty, and 978 in that
-// native-tool wrapper; the fitted-schema character ceiling is 1,453.
-// The 1,536-token limit is the smallest 256-token step above that ceiling and
-// retains more than 50 percent over the production-reachable native-tool fixture.
+// Exhaustive allocation of the supported 4-passage, 24-atom, 72-evidence,
+// 5-conformance-check, 24-issue production contract measures at most 479
+// reviewed-tokenizer tokens minified, 492 in compact native-tool form, 905
+// with conventional two-space formatting, and 918 in pretty native-tool form.
+// The 1,536-token limit is the smallest 256-token step that retains at least
+// 50 percent over that production maximum. A broader decoder-valid sensitivity
+// fixture measures 978 native-tool tokens, but is not production-reachable or
+// a sizing input. The margin also responds to the live 1,200-token truncation
+// without claiming that every legal compact object mathematically requires it.
 const VERIFICATION_MAX_OUTPUT_TOKENS = 1_536;
 const CERTIFICATION_MAX_OUTPUT_TOKENS = 520;
 const REPAIR_MAX_OUTPUT_TOKENS = 800;
@@ -424,6 +425,7 @@ const STAGES = Object.freeze({
     schemaDescription: "Return one complete private fitted d/p/l analysis result.",
     messages: analysisWireMessages,
     maxTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+    callTimeoutMs: LATTICE_PROVIDER_CALL_TIMEOUT_MS,
     temperature: 0.7,
     topP: 0.8,
   }),
@@ -433,6 +435,7 @@ const STAGES = Object.freeze({
     schemaName: "lattice_candidate_v1",
     messages: candidateMessages,
     maxTokens: CANDIDATE_MAX_OUTPUT_TOKENS,
+    callTimeoutMs: LATTICE_PROVIDER_CALL_TIMEOUT_MS,
     temperature: 0.45,
     topP: 0.9,
   }),
@@ -446,6 +449,7 @@ const STAGES = Object.freeze({
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
     maxTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
+    callTimeoutMs: LATTICE_PROVIDER_VERIFICATION_CALL_TIMEOUT_MS,
     temperature: 0,
     topP: 1,
   }),
@@ -459,6 +463,7 @@ const STAGES = Object.freeze({
     responseGuide: CERTIFICATION_WIRE_GUIDE,
     messages: certificationWireMessages,
     maxTokens: CERTIFICATION_MAX_OUTPUT_TOKENS,
+    callTimeoutMs: LATTICE_PROVIDER_CALL_TIMEOUT_MS,
     temperature: 0,
     topP: 1,
   }),
@@ -468,12 +473,21 @@ const STAGES = Object.freeze({
     schemaName: "lattice_repair_v1",
     messages: repairMessages,
     maxTokens: REPAIR_MAX_OUTPUT_TOKENS,
+    callTimeoutMs: LATTICE_PROVIDER_CALL_TIMEOUT_MS,
     temperature: 0.45,
     topP: 0.9,
   }),
 });
 
 export const LATTICE_PROVIDER_STAGES = Object.freeze(Object.keys(STAGES));
+export const LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS = Object.freeze(
+  Object.fromEntries(
+    Object.entries(STAGES).map(([stageName, stage]) => [stageName, stage.callTimeoutMs]),
+  ),
+);
+export const LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS = Math.max(
+  ...Object.values(LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS),
+);
 
 export class LatticeProviderError extends Error {
   constructor(code, message, { status = null, retryAfterSeconds = null, cause } = {}) {
@@ -2182,7 +2196,7 @@ export function createHuggingFaceLatticeAdapter({
   token,
   requestedMode = "auto",
   fetchImpl = globalThis.fetch,
-  callTimeoutMs = LATTICE_PROVIDER_CALL_TIMEOUT_MS,
+  callTimeoutMs,
   maximumRequestBytes = LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   maximumResponseBytes = LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
 } = {}) {
@@ -2238,7 +2252,7 @@ export function createHuggingFaceLatticeAdapter({
         presencePenalty: stage.presencePenalty,
         signal: fittedRequest.signal,
         fetchImpl,
-        callTimeoutMs,
+        callTimeoutMs: callTimeoutMs === undefined ? stage.callTimeoutMs : callTimeoutMs,
         maximumRequestBytes,
         maximumResponseBytes,
       });

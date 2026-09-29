@@ -182,13 +182,14 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     /(?:without refund|never refunded)/iu,
     /no IP address/iu,
     /browser fingerprint/iu,
-    /bounds each provider call to 120 seconds/iu,
+    /analysis, candidate, certification, and repair calls have 120-second ceilings; verification has a 180-second ceiling/iu,
+    /240-second (?:whole-|outer )?request/iu,
     /32 provider calls/iu,
     /960/iu,
     /1,536-token verifier/iu,
     /520-token certifier/iu,
-    /65,536 requested output tokens per admitted request/iu,
-    /1,966,080 requested output tokens.*UTC day/iu,
+    /requested-output exposure[^.]*65,536(?: requested output tokens)? per admitted request/iu,
+    /requested-output exposure[^.]*1,966,080(?: requested output tokens)? across[^.]*UTC day/iu,
     /path-scoped (?:Worker )?rate limiter/iu,
     /response (?:bytes|size)/iu,
     /provider (?:quota|rate|retention|availability|cost)/iu,
@@ -629,6 +630,14 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || activeProvider?.endpoint !== "https://router.huggingface.co/v1/chat/completions"
     || activeProvider?.generatorModel !== "Qwen/Qwen3-4B-Instruct-2507:nscale"
     || activeProvider?.verifierModel !== "meta-llama/Llama-3.1-8B-Instruct:deepinfra"
+    || JSON.stringify(activeProvider?.stageCallTimeoutsMs) !== JSON.stringify({
+      analysis: 120_000,
+      candidate: 120_000,
+      verification: 180_000,
+      certification: 120_000,
+      repair: 120_000,
+    })
+    || activeProvider?.maximumCallTimeoutMs !== 180_000
     || JSON.stringify(activeProvider?.stageMaximumOutputTokens) !== JSON.stringify({
       analysis: 2_048,
       candidate: 800,
