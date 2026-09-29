@@ -32,6 +32,11 @@ import {
 import {
   LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
 } from "../app/resume/lattice/promptContract.js";
+import { countLatticeWords } from "../app/resume/lattice/inputPolicy.js";
+import {
+  deterministicDocumentReview,
+  materiallyDifferent,
+} from "../app/resume/lattice/validators.js";
 import {
   LATTICE_API_ORIGIN,
   LATTICE_API_REQUEST_BYTE_LIMIT,
@@ -54,6 +59,15 @@ import {
 import {
   TEXT_TO_LATTICE_DOCUMENT_POLICY,
 } from "../workers/text-to-lattice-response-policy/worker.js";
+import {
+  LATTICE_PRODUCTION_CANARY_REQUEST,
+  LATTICE_PRODUCTION_CANARY_TEXT,
+} from "./text-to-lattice-production-canary.mjs";
+
+export {
+  LATTICE_PRODUCTION_CANARY_REQUEST,
+  LATTICE_PRODUCTION_CANARY_TEXT,
+} from "./text-to-lattice-production-canary.mjs";
 
 export const LATTICE_PRODUCTION_EVIDENCE_SCHEMA =
   "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE";
@@ -75,8 +89,6 @@ export const LATTICE_PRODUCTION_READINESS_CONTRACT = Object.freeze({
   requiredConsecutiveActiveSamples: 3,
 });
 const SYNTHETIC_NEGATIVE_MARKER = "lattice-live-negative-canary-2026-09-14";
-export const LATTICE_PRODUCTION_CANARY_TEXT =
-  "A visitor places a blue notebook on the desk, reads the first page, and closes it.\n";
 const CERTIFICATION_CANARY_STATUS_SET = new Set([
   "translated",
   "conformant-for-context",
@@ -839,7 +851,7 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   const response = await fetchOnce(
     fetchImpl,
     `${origin}${LATTICE_API_PATH}`,
-    withVisitorCookie(apiPost(exactPayload(LATTICE_PRODUCTION_CANARY_TEXT), {
+    withVisitorCookie(apiPost(LATTICE_PRODUCTION_CANARY_REQUEST, {
       headers: {
         [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
           LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -1006,8 +1018,39 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   }
   const resultTextWithoutTerminalLineFeed = envelope.result.text.slice(0, -1);
   if (!envelope.result.text.endsWith("\n")
-    || /[\r\n]$/u.test(resultTextWithoutTerminalLineFeed)) {
+    || /[\r\n\u2028\u2029]$/u.test(resultTextWithoutTerminalLineFeed)) {
     fail(`${label} did not preserve its required terminal document boundary`);
+  }
+  if (deterministicDocumentReview(
+    LATTICE_PRODUCTION_CANARY_TEXT,
+    envelope.result.text,
+  ).length !== 0) {
+    fail(`${label} did not preserve its required document invariants`);
+  }
+  if (envelope.result.wordCount !== countLatticeWords(LATTICE_PRODUCTION_CANARY_TEXT)) {
+    fail(`${label} did not preserve its exact source word count`);
+  }
+  if (envelope.result.batchCount !== envelope.result.passageCount) {
+    fail(`${label} did not account for every supported canary passage batch`);
+  }
+  if (envelope.result.verificationPasses < 1
+    || envelope.result.verificationPasses > 2) {
+    fail(`${label} did not complete a supported verification pass count`);
+  }
+  if (envelope.result.findings.length !== 0) {
+    fail(`${label} returned unresolved certification findings`);
+  }
+  if (envelope.result.status === "translated") {
+    if (!materiallyDifferent(LATTICE_PRODUCTION_CANARY_TEXT, envelope.result.text)
+      || envelope.result.revisedPassageCount < 1
+      || envelope.result.revisedPassageCount + envelope.result.retainedPassageCount
+        !== envelope.result.passageCount) {
+      fail(`${label} did not prove a materially revised accounted result`);
+    }
+  } else if (envelope.result.text !== LATTICE_PRODUCTION_CANARY_TEXT
+    || envelope.result.revisedPassageCount !== 0
+    || envelope.result.retainedPassageCount !== envelope.result.passageCount) {
+    fail(`${label} did not prove an unchanged conformant accounted result`);
   }
   return Object.freeze({
     request_count: 1,
@@ -1026,6 +1069,10 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     layers_used: Object.freeze([...envelope.result.layersUsed]),
     word_count: envelope.result.wordCount,
     passage_count: envelope.result.passageCount,
+    revised_passage_count: envelope.result.revisedPassageCount,
+    retained_passage_count: envelope.result.retainedPassageCount,
+    batch_count: envelope.result.batchCount,
+    verification_passes: envelope.result.verificationPasses,
     finding_count: envelope.result.findings.length,
     question_count: envelope.result.questions.length,
     strict_result_valid: true,

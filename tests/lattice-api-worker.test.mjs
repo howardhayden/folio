@@ -62,8 +62,9 @@ import {
   qualificationWindowAllowsRequests,
 } from "../workers/text-to-lattice-api/worker.js";
 import {
+  LATTICE_PRODUCTION_CANARY_REQUEST,
   LATTICE_PRODUCTION_CANARY_TEXT,
-} from "../scripts/verify-text-to-lattice-api-production.mjs";
+} from "../scripts/text-to-lattice-production-canary.mjs";
 import {
   LATTICE_API_VISITOR_COOKIE_NAME,
   LATTICE_API_VISITOR_COOKIE_PATH,
@@ -406,6 +407,75 @@ function acceptingCertificationWire(certificateId, obligationIds) {
     k: Object.freeze(Array.from({ length: 10 }, () => true)),
     i: Object.freeze([]),
   });
+}
+
+function canaryAnalysisWire(body, { retain = false } = {}) {
+  const payload = inertModelPayload(body);
+  assert.equal(payload.requestedMode, "operative");
+  assert.equal(Object.hasOwn(payload, "clarificationAnswers"), false);
+  assert.match(body.messages[0].content, /never ask a public question/u);
+  assert.equal(payload.passages.length, 1);
+  const evidenceIds = [
+    ...payload.passages[0][1],
+    ...payload.passages[0][2],
+  ].map(([id]) => id);
+  const conformanceMasks = retain
+    ? ["100", "010", "001", "111", "101"]
+    : Array(5).fill("0".repeat(evidenceIds.length));
+  if (retain) assert.equal(evidenceIds.length, 3);
+  return {
+    d: 2,
+    p: [[
+      0,
+      retain ? 1 : 0,
+      [[1, 0, 1, evidenceIds.map((_id, index) => index)]],
+      conformanceMasks,
+    ]],
+    l: [],
+  };
+}
+
+function canaryCandidateFromProviderBody(body, text) {
+  const payload = inertModelPayload(body);
+  const [analysisPassage] = payload.analysis[1];
+  return {
+    passages: [{
+      passageId: analysisPassage[0],
+      layer: "operative",
+      text,
+      preservedAtomIds: analysisPassage[5].map(([atomId]) => atomId),
+    }],
+  };
+}
+
+function canaryVerificationWire(body, { retain = false } = {}) {
+  const payload = inertModelPayload(body);
+  const atomCount = payload.analysisClaims[1][0][5].length;
+  const evidenceCount = payload.sourcePassages[0][1].length
+    + payload.sourcePassages[0][2].length;
+  const evidenceMask = "1".repeat(evidenceCount);
+  const conformance = retain
+    ? [
+      true,
+      evidenceMask,
+      payload.analysisClaims[1][0][7].map(() => [true, evidenceMask]),
+    ]
+    : [false, "0".repeat(evidenceCount), []];
+  return {
+    d: 0,
+    g: "0".repeat(11),
+    p: [[
+      "1".repeat(atomCount),
+      false,
+      "0".repeat(evidenceCount),
+      "0".repeat(9),
+      0,
+      "1".repeat(atomCount),
+      evidenceMask,
+      conformance,
+    ]],
+    i: [],
+  };
 }
 
 function forcedToolSchema(body, expectedName) {
@@ -2240,7 +2310,7 @@ test("the API Worker completes verification and required document certification 
     },
   });
 
-  const response = await worker.fetch(apiRequest({ ...validPayload, text: source }), {
+  const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), {
     HF_TOKEN: "server-token",
   });
   const envelope = await json(response);
@@ -2258,6 +2328,8 @@ test("the API Worker completes verification and required document certification 
     LATTICE_REMOTE_MODELS.verifier,
   ]);
   assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [1_024, 800, 1_200, 520]);
+  assert.equal(inertModelPayload(calls[0]).requestedMode, "operative");
+  assert.match(calls[0].messages[0].content, /never ask a public question/u);
   forcedToolSchema(calls[2], VERIFICATION_TOOL_NAME);
   const certificationSchema = forcedToolSchema(calls[3], CERTIFICATION_TOOL_NAME);
   assert.deepEqual(certificationSchema.properties.c.enum, ["certificate:document"]);
@@ -2265,6 +2337,176 @@ test("the API Worker completes verification and required document certification 
     certificationSchema.properties.o.prefixItems.map(({ enum: values }) => values[0]),
     ["document:whole"],
   );
+  assert.deepEqual(inertModelPayload(calls[3]), {
+    version: "public-lattice-registers.v2",
+    certificateId: "certificate:document",
+    obligationIds: ["document:whole"],
+    source,
+    candidate: `${transformed}\n`,
+    analysisClaims: inertModelPayload(calls[3]).analysisClaims,
+  });
+  assert.equal(inertModelPayload(calls[3]).analysisClaims[1].length, 1);
+  assert.equal(inertModelPayload(calls[3]).analysisClaims[1][0][0], passageId);
+});
+
+test("the API Worker adaptively splits a production-canary output limit and still certifies", async () => {
+  const calls = [];
+  let analysisCalls = 0;
+  const transformedByPassage = new Map([
+    ["p0001a", "A guest sets a blue notebook on the"],
+    ["p0001b", "desk, reviews the first page, then shuts it."],
+  ]);
+  const worker = createLatticeApiWorker({
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      calls.push(body);
+      if (body.response_format?.type === "json_schema") {
+        analysisCalls += 1;
+        if (analysisCalls === 1) {
+          return providerChoiceResponse({
+            finish_reason: "length",
+            message: { role: "assistant", content: "{" },
+          });
+        }
+        return successfulProviderResponse(canaryAnalysisWire(body));
+      }
+      if (body.response_format?.type === "json_object") {
+        const passageId = inertModelPayload(body).analysis[1][0][0];
+        assert.equal(transformedByPassage.has(passageId), true);
+        return successfulProviderResponse(canaryCandidateFromProviderBody(
+          body,
+          transformedByPassage.get(passageId),
+        ));
+      }
+      const toolName = body.tool_choice?.function?.name;
+      if (toolName === VERIFICATION_TOOL_NAME) {
+        return successfulProviderToolResponse(canaryVerificationWire(body), {
+          toolName,
+          toolCallId: `call_lattice_verification_${calls.length}`,
+        });
+      }
+      if (toolName === CERTIFICATION_TOOL_NAME) {
+        const payload = inertModelPayload(body);
+        return successfulProviderToolResponse(acceptingCertificationWire(
+          payload.certificateId,
+          payload.obligationIds,
+        ), {
+          toolName,
+          toolCallId: "call_lattice_certification",
+        });
+      }
+      return assert.fail("the adaptive canary used an undeclared provider stage");
+    },
+  });
+
+  const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), {
+    HF_TOKEN: "server-token",
+  });
+  const envelope = await json(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(envelope.result.status, "translated");
+  assert.equal(envelope.result.text,
+    "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.\n");
+  assert.equal(envelope.result.wordCount, 16);
+  assert.equal(envelope.result.passageCount, 2);
+  assert.equal(envelope.result.batchCount, 2);
+  assert.equal(envelope.result.revisedPassageCount, 2);
+  assert.equal(envelope.result.retainedPassageCount, 0);
+  assert.equal(envelope.result.verificationPasses, 1);
+  assert.deepEqual(envelope.result.findings, []);
+  assert.equal(calls.length, 8);
+  assert.deepEqual(calls.map((body) => (
+    body.response_format?.type ?? body.tool_choice.function.name
+  )), [
+    "json_schema",
+    "json_schema",
+    "json_schema",
+    "json_object",
+    "json_object",
+    VERIFICATION_TOOL_NAME,
+    VERIFICATION_TOOL_NAME,
+    CERTIFICATION_TOOL_NAME,
+  ]);
+  const certificationPayload = inertModelPayload(calls[7]);
+  assert.equal(certificationPayload.certificateId, "certificate:document");
+  assert.deepEqual(certificationPayload.obligationIds, ["document:whole"]);
+  assert.equal(certificationPayload.source, LATTICE_PRODUCTION_CANARY_TEXT);
+  assert.equal(certificationPayload.candidate, envelope.result.text);
+  assert.deepEqual(
+    certificationPayload.analysisClaims[1].map(([passageId]) => passageId),
+    ["p0001a", "p0001b"],
+  );
+  const candidatePayloads = calls.slice(3, 5).map(inertModelPayload);
+  assert.deepEqual(certificationPayload.analysisClaims, [
+    candidatePayloads[0].analysis[0],
+    candidatePayloads.map(({ analysis }) => analysis[1][0]),
+  ]);
+  assert.equal(Object.hasOwn(certificationPayload, "retainConformanceRequired"), false);
+});
+
+test("the API Worker certifies the exact production canary before conformant success", async () => {
+  const calls = [];
+  const worker = createLatticeApiWorker({
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      calls.push(body);
+      if (body.response_format?.type === "json_schema") {
+        return successfulProviderResponse(canaryAnalysisWire(body, { retain: true }));
+      }
+      if (body.response_format?.type === "json_object") {
+        return successfulProviderResponse(canaryCandidateFromProviderBody(
+          body,
+          LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1),
+        ));
+      }
+      const toolName = body.tool_choice?.function?.name;
+      if (toolName === VERIFICATION_TOOL_NAME) {
+        return successfulProviderToolResponse(canaryVerificationWire(body, { retain: true }), {
+          toolName,
+          toolCallId: "call_lattice_verification",
+        });
+      }
+      if (toolName === CERTIFICATION_TOOL_NAME) {
+        const payload = inertModelPayload(body);
+        return successfulProviderToolResponse(acceptingCertificationWire(
+          payload.certificateId,
+          payload.obligationIds,
+        ), {
+          toolName,
+          toolCallId: "call_lattice_certification",
+        });
+      }
+      return assert.fail("the conformant canary used an undeclared provider stage");
+    },
+  });
+
+  const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), {
+    HF_TOKEN: "server-token",
+  });
+  const envelope = await json(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(envelope.result.status, "conformant-for-context");
+  assert.equal(envelope.result.text, LATTICE_PRODUCTION_CANARY_TEXT);
+  assert.equal(envelope.result.wordCount, 16);
+  assert.equal(envelope.result.passageCount, 1);
+  assert.equal(envelope.result.batchCount, 1);
+  assert.equal(envelope.result.revisedPassageCount, 0);
+  assert.equal(envelope.result.retainedPassageCount, 1);
+  assert.equal(envelope.result.verificationPasses, 1);
+  assert.deepEqual(envelope.result.findings, []);
+  assert.equal(calls.length, 4);
+  const certificationPayload = inertModelPayload(calls[3]);
+  assert.equal(certificationPayload.certificateId, "certificate:document");
+  assert.deepEqual(certificationPayload.obligationIds, ["document:whole"]);
+  assert.equal(certificationPayload.source, LATTICE_PRODUCTION_CANARY_TEXT);
+  assert.equal(certificationPayload.candidate, LATTICE_PRODUCTION_CANARY_TEXT);
+  assert.equal(certificationPayload.analysisClaims[1].length, 1);
+  assert.equal(certificationPayload.analysisClaims[1][0][0], "p0001");
+  assert.equal(certificationPayload.analysisClaims[1][0][3], "retain-if-conformant");
+  assert.deepEqual(certificationPayload.analysisClaims, inertModelPayload(calls[1]).analysis);
+  assert.equal(certificationPayload.retainConformanceRequired, true);
 });
 
 test("the compact verifier preserves retained-conformance evidence and every independent layer", async () => {

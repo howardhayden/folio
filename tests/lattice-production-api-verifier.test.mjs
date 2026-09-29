@@ -8,7 +8,6 @@ import test from "node:test";
 import { LATTICE_RESULT_VERSION } from "../app/resume/lattice/remoteProtocol.js";
 import {
   LATTICE_PRODUCTION_EVIDENCE_SCHEMA,
-  LATTICE_PRODUCTION_CANARY_TEXT,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS,
   LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA,
@@ -19,6 +18,10 @@ import {
   verifyTextToLatticeApiProduction,
   writeLatticeProductionEvidenceReceipt,
 } from "../scripts/verify-text-to-lattice-api-production.mjs";
+import {
+  LATTICE_PRODUCTION_CANARY_REQUEST,
+  LATTICE_PRODUCTION_CANARY_TEXT,
+} from "../scripts/text-to-lattice-production-canary.mjs";
 import {
   LATTICE_HELD_API_READINESS_CONTRACT,
   verifyTextToLatticeHeldApi,
@@ -111,7 +114,7 @@ function validResult() {
     version: LATTICE_RESULT_VERSION,
     status: "translated",
     text: "The notebook rests on the desk. The visitor reads its first page, then closes it.\n",
-    wordCount: 14,
+    wordCount: 16,
     primaryLayer: "operative",
     layerId: "operative",
     layerLabel: "Operative layer",
@@ -338,6 +341,13 @@ test("the production verifier establishes one bodyless visitor session before ex
   assert.equal(evidence.transformation_canary.input_requires_document_certification, true);
   assert.equal(evidence.transformation_canary.strict_result_valid, true);
   assert.equal(evidence.transformation_canary.terminal_status, "translated");
+  assert.equal(evidence.transformation_canary.word_count, 16);
+  assert.equal(evidence.transformation_canary.passage_count, 1);
+  assert.equal(evidence.transformation_canary.revised_passage_count, 1);
+  assert.equal(evidence.transformation_canary.retained_passage_count, 0);
+  assert.equal(evidence.transformation_canary.batch_count, 1);
+  assert.equal(evidence.transformation_canary.verification_passes, 1);
+  assert.equal(evidence.transformation_canary.finding_count, 0);
   assert.equal(evidence.transformation_canary.result_content_recorded, false);
   assert.equal(evidence.transformation_canary.browser_quota_cookie_sent, true);
   assert.equal(evidence.transformation_canary.browser_quota_cookie_value_recorded, false);
@@ -387,12 +397,30 @@ test("the production verifier establishes one bodyless visitor session before ex
   assert.equal(Object.keys(setupCall.init.headers).some((name) => name.toLowerCase() === "cookie"), false);
 
   const canaryCall = fixture.calls.at(-1);
-  assert.match(canaryCall.init.headers.Cookie, /^__Secure-hah-lattice-api-visitor=v1\./u);
-  assert.equal(canaryCall.init.headers.Cookie.includes(";"), false);
-  assert.equal(
-    canaryCall.init.headers[LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER],
-    LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
-  );
+  const expectedCanaryRequest = {
+    text: "A visitor places a blue notebook on the desk, reads the first page, and closes it.\n",
+    requested_mode: "operative",
+    schema_version: 1,
+  };
+  assert.deepEqual(LATTICE_PRODUCTION_CANARY_REQUEST, expectedCanaryRequest);
+  assert.equal(Object.isFrozen(LATTICE_PRODUCTION_CANARY_REQUEST), true);
+  assert.equal(canaryCall.url, "https://hah.dev/api/lattice");
+  assert.equal(canaryCall.init.method, "POST");
+  assert.deepEqual(canaryCall.init.headers, {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    Origin: "https://hah.dev",
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
+      LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+    Cookie: quotaSetCookie.split(";", 1)[0],
+  });
+  assert.equal(canaryCall.init.body, JSON.stringify(expectedCanaryRequest));
+  assert.equal(canaryCall.init.cache, "no-store");
+  assert.equal(canaryCall.init.credentials, "omit");
+  assert.equal(canaryCall.init.redirect, "error");
+  assert.equal(canaryCall.init.referrerPolicy, "no-referrer");
+  assert.ok(canaryCall.init.signal instanceof AbortSignal);
+  assert.equal(canaryCall.init.signal.aborted, false);
 
   const missingSessionCall = fixture.calls[
     negativeProbeStartIndex
@@ -459,6 +487,16 @@ test("the certification canary rejects an unaccepted status or an inexact termin
       { ...base, text: `${base.text}\n` },
       /did not preserve its required terminal document boundary/u,
     ],
+    [
+      "terminal Unicode line separator",
+      { ...base, text: `${base.text.slice(0, -1)}\u2028\n` },
+      /did not preserve its required terminal document boundary/u,
+    ],
+    [
+      "terminal Unicode paragraph separator",
+      { ...base, text: `${base.text.slice(0, -1)}\u2029\n` },
+      /did not preserve its required terminal document boundary/u,
+    ],
   ];
 
   for (const [name, result, expectedFailure] of cases) {
@@ -482,12 +520,39 @@ test("the certification canary rejects an unaccepted status or an inexact termin
   }
 });
 
-test("the certification canary accepts either certified terminal status", async (contextTest) => {
-  for (const status of ["translated", "conformant-for-context"]) {
-    await contextTest.test(status, async () => {
+test("the certification canary accepts supported no-split and adaptive-split outcomes", async (contextTest) => {
+  const cases = [
+    ["translated without a split", validResult()],
+    ["translated after an adaptive split", {
+      ...validResult(),
+      passageCount: 2,
+      revisedPassageCount: 2,
+      batchCount: 2,
+      verificationPasses: 2,
+    }],
+    ["conformant without a split", {
+      ...validResult(),
+      status: "conformant-for-context",
+      text: LATTICE_PRODUCTION_CANARY_TEXT,
+      revisedPassageCount: 0,
+      retainedPassageCount: 1,
+    }],
+    ["conformant after an adaptive split", {
+      ...validResult(),
+      status: "conformant-for-context",
+      text: LATTICE_PRODUCTION_CANARY_TEXT,
+      passageCount: 2,
+      revisedPassageCount: 0,
+      retainedPassageCount: 2,
+      batchCount: 2,
+      verificationPasses: 2,
+    }],
+  ];
+  for (const [name, result] of cases) {
+    await contextTest.test(name, async () => {
       const fixture = successfulFixture({
         canaryResponse: apiJson({
-          result: { ...validResult(), status },
+          result,
           schema_version: 1,
         }, 200),
       });
@@ -497,10 +562,146 @@ test("the certification canary accepts either certified terminal status", async 
         now: fixedNow,
         wait: noWait,
       });
-      assert.equal(evidence.transformation_canary.terminal_status, status);
+      assert.equal(evidence.transformation_canary.terminal_status, result.status);
       assert.equal(fixture.canaryRequests, 1);
       assert.equal(fixture.setupRequests, 1);
       assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+    });
+  }
+});
+
+test("the certification canary rejects deterministic document-invariant drift", async (contextTest) => {
+  const base = validResult();
+  const cases = [
+    ["internal line boundary", { ...base, text: base.text.replace(". The", ".\nThe") }],
+    ["disallowed control", { ...base, text: base.text.replace("notebook", "note\u0000book") }],
+  ];
+  for (const [name, result] of cases) {
+    await contextTest.test(name, async () => {
+      const fixture = successfulFixture({
+        canaryResponse: apiJson({ result, schema_version: 1 }, 200),
+      });
+      await assert.rejects(
+        verifyTextToLatticeApiProduction({
+          fetchImpl: fixture.fetchImpl,
+          context,
+          now: fixedNow,
+          wait: noWait,
+        }),
+        /did not preserve its required document invariants/u,
+      );
+    });
+  }
+});
+
+test("the certification canary rejects count, pass, finding, and status-accounting drift", async (contextTest) => {
+  const base = validResult();
+  const finding = {
+    id: "document-certification",
+    passageId: "",
+    atomIds: [],
+    message: "Certification did not accept the candidate.",
+  };
+  const cases = [
+    ["source word count", { ...base, wordCount: 15 }, /exact source word count/u],
+    ["passage batch count", { ...base, batchCount: 0 }, /every supported canary passage batch/u],
+    ["verification pass count", { ...base, verificationPasses: 0 }, /supported verification pass count/u],
+    ["unresolved finding", { ...base, findings: [finding] }, /unresolved certification findings/u],
+    [
+      "unmodified translated result",
+      { ...base, text: LATTICE_PRODUCTION_CANARY_TEXT },
+      /materially revised accounted result/u,
+    ],
+    [
+      "presentation-only translated result",
+      { ...base, text: LATTICE_PRODUCTION_CANARY_TEXT.toUpperCase() },
+      /materially revised accounted result/u,
+    ],
+    [
+      "translated revision accounting",
+      { ...base, passageCount: 2, batchCount: 2 },
+      /materially revised accounted result/u,
+    ],
+    [
+      "modified conformant result",
+      {
+        ...base,
+        status: "conformant-for-context",
+        revisedPassageCount: 0,
+        retainedPassageCount: 1,
+      },
+      /unchanged conformant accounted result/u,
+    ],
+    [
+      "conformant revision accounting",
+      {
+        ...base,
+        status: "conformant-for-context",
+        text: LATTICE_PRODUCTION_CANARY_TEXT,
+      },
+      /unchanged conformant accounted result/u,
+    ],
+  ];
+  for (const [name, result, expectedFailure] of cases) {
+    await contextTest.test(name, async () => {
+      const fixture = successfulFixture({
+        canaryResponse: apiJson({ result, schema_version: 1 }, 200),
+      });
+      await assert.rejects(
+        verifyTextToLatticeApiProduction({
+          fetchImpl: fixture.fetchImpl,
+          context,
+          now: fixedNow,
+          wait: noWait,
+        }),
+        expectedFailure,
+      );
+    });
+  }
+});
+
+test("certification failure diagnostics never reflect candidate or finding content", async (contextTest) => {
+  const marker = "PRIVATE-CANARY-RESULT-MUST-NOT-CROSS";
+  const base = validResult();
+  const cases = [
+    {
+      name: "candidate",
+      result: { ...base, text: `${marker}\u0000\n` },
+      expectedFailure: /required document invariants/u,
+    },
+    {
+      name: "finding",
+      result: {
+        ...base,
+        findings: [{
+          id: "document-certification",
+          passageId: "",
+          atomIds: [],
+          message: marker,
+        }],
+      },
+      expectedFailure: /unresolved certification findings/u,
+    },
+  ];
+  for (const { name, result, expectedFailure } of cases) {
+    await contextTest.test(name, async () => {
+      const fixture = successfulFixture({
+        canaryResponse: apiJson({ result, schema_version: 1 }, 200),
+      });
+      await assert.rejects(
+        verifyTextToLatticeApiProduction({
+          fetchImpl: fixture.fetchImpl,
+          context,
+          now: fixedNow,
+          wait: noWait,
+        }),
+        (error) => {
+          assert.match(error.message, expectedFailure);
+          assert.equal(error.message.includes(marker), false);
+          assert.equal(JSON.stringify(error).includes(marker), false);
+          return true;
+        },
+      );
     });
   }
 });
