@@ -138,8 +138,22 @@ test("the remote adapter consumes the public server-side sampling contract", asy
   assert.match(adapter, /const ANALYSIS_MIN_OUTPUT_TOKENS = 768;/u);
   assert.match(adapter, /const ANALYSIS_OUTPUT_TOKEN_STEP = 256;/u);
   assert.deepEqual(textToLatticeContract.implementation.verifier.inference.stages, {
-    verification: { temperature: 0, topP: 1, responseFormat: "json_object", maximumOutputTokens: 1_200 },
-    certification: { temperature: 0, topP: 1, responseFormat: "json_object", maximumOutputTokens: 520 },
+    verification: {
+      temperature: 0,
+      topP: 1,
+      responseTransport: "forced_named_tool",
+      toolName: "lattice_verification_wire_v1",
+      stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
+      maximumOutputTokens: 1_200,
+    },
+    certification: {
+      temperature: 0,
+      topP: 1,
+      responseTransport: "forced_named_tool",
+      toolName: "lattice_certification_wire_v1",
+      stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
+      maximumOutputTokens: 520,
+    },
   });
   for (const [stage, maximumOutputTokens, temperature, topP] of [
     ["analysis", "ANALYSIS_MAX_OUTPUT_TOKENS", "0.7", "0.8"],
@@ -161,6 +175,22 @@ test("the remote adapter consumes the public server-side sampling contract", asy
   assert.doesNotMatch(analysisStageSource, /toolChoice|toolName/u);
   assert.doesNotMatch(analysisStageSource, /topK|minP/u);
   assert.doesNotMatch(analysisStageSource, /presencePenalty/u);
+  const verificationStageSource = adapter.slice(
+    adapter.indexOf("verification: Object.freeze({"),
+    adapter.indexOf("certification: Object.freeze({"),
+  );
+  const certificationStageSource = adapter.slice(
+    adapter.indexOf("certification: Object.freeze({"),
+    adapter.indexOf("repair: Object.freeze({"),
+  );
+  assert.match(verificationStageSource, /toolName: VERIFICATION_TOOL_NAME/u);
+  assert.match(verificationStageSource, /toolChoice: "named"/u);
+  assert.match(verificationStageSource, /allowStoppedToolContent: true/u);
+  assert.doesNotMatch(verificationStageSource, /responseFormat/u);
+  assert.match(certificationStageSource, /toolName: CERTIFICATION_TOOL_NAME/u);
+  assert.match(certificationStageSource, /toolChoice: "named"/u);
+  assert.match(certificationStageSource, /allowStoppedToolContent: true/u);
+  assert.doesNotMatch(certificationStageSource, /responseFormat/u);
   assert.match(adapter, /model: LATTICE_REMOTE_MODELS\[role\]/u);
   assert.doesNotMatch(adapter, /CreateMLCEngine|latticeWebllm\.worker/u);
 });

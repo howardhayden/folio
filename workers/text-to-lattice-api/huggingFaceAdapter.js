@@ -380,6 +380,13 @@ function certificationWireMessages(request) {
   return documentCertificationMessages(request, { responseDialect: "compact-wire-v1" });
 }
 
+const VERIFICATION_TOOL_NAME = "lattice_verification_wire_v1";
+const CERTIFICATION_TOOL_NAME = "lattice_certification_wire_v1";
+const STOPPED_TOOL_CONTENT_NAMES = new Set([
+  VERIFICATION_TOOL_NAME,
+  CERTIFICATION_TOOL_NAME,
+]);
+
 const STAGES = Object.freeze({
   analysis: Object.freeze({
     role: "generator",
@@ -406,7 +413,9 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: VERIFICATION_WIRE_SCHEMA,
     schemaName: "lattice_verification_wire_v1",
-    responseFormat: "json_object",
+    toolName: VERIFICATION_TOOL_NAME,
+    toolChoice: "named",
+    allowStoppedToolContent: true,
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
     maxTokens: 1_200,
@@ -417,7 +426,9 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: CERTIFICATION_WIRE_SCHEMA,
     schemaName: "lattice_certification_wire_v1",
-    responseFormat: "json_object",
+    toolName: CERTIFICATION_TOOL_NAME,
+    toolChoice: "named",
+    allowStoppedToolContent: true,
     responseGuide: CERTIFICATION_WIRE_GUIDE,
     messages: certificationWireMessages,
     maxTokens: 520,
@@ -1660,7 +1671,7 @@ async function boundedResponseText(response, maximumBytes, signal) {
   }
 }
 
-function parsedProviderContent(body, responseSize, toolName) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -1741,11 +1752,44 @@ function parsedProviderContent(body, responseSize, toolName) {
     );
   }
   if (toolName !== undefined) {
-    // Some OpenAI-compatible providers retain auxiliary assistant content or a
-    // legacy function_call while also returning the authoritative tool_calls
-    // entry. Ignore those fields: they are never interpreted, exposed, or used as a
-    // fallback, and the exact single named tool call below remains mandatory.
-    if (!Array.isArray(choice.message.tool_calls) || choice.message.tool_calls.length !== 1) {
+    const toolCalls = choice.message.tool_calls;
+    let content;
+    if (Array.isArray(toolCalls) && toolCalls.length === 1) {
+      // A single exact named call is authoritative. Auxiliary assistant content
+      // and a legacy function_call are ignored and never interpreted.
+      const toolCall = toolCalls[0];
+      if (!record(toolCall)
+        || typeof toolCall.id !== "string"
+        || !toolCall.id.trim()
+        || toolCall.id.length > 256
+        || toolCall.type !== "function"
+        || !record(toolCall.function)
+        || toolCall.function.name !== toolName
+        || typeof toolCall.function.arguments !== "string") {
+        throw withProviderDiagnostic(
+          providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
+          {
+            subtype: "message_shape",
+            finishReason: providerFinishReason,
+            responseSize,
+            contentSize: providerContentSize,
+            completionTokens,
+          },
+        );
+      }
+      content = toolCall.function.arguments;
+    } else if (allowStoppedToolContent
+      && choice.finish_reason === "stop"
+      && !Object.hasOwn(choice.message, "tool_calls")
+      && !Object.hasOwn(choice.message, "function_call")
+      && Object.keys(choice.message).every((key) => key === "role" || key === "content")
+      && typeof choice.message.content === "string") {
+      // Normalize only the explicitly enabled, minimal stopped-content
+      // compatibility envelope. Parsing and the production stage's closed wire
+      // decoder remain mandatory; null/empty tool fields, legacy calls, extra
+      // message fields, and length-limited content never enter this path.
+      content = choice.message.content;
+    } else {
       throw withProviderDiagnostic(
         providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
         {
@@ -1757,27 +1801,6 @@ function parsedProviderContent(body, responseSize, toolName) {
         },
       );
     }
-    const toolCall = choice.message.tool_calls[0];
-    if (!record(toolCall)
-      || typeof toolCall.id !== "string"
-      || !toolCall.id.trim()
-      || toolCall.id.length > 256
-      || toolCall.type !== "function"
-      || !record(toolCall.function)
-      || toolCall.function.name !== toolName
-      || typeof toolCall.function.arguments !== "string") {
-      throw withProviderDiagnostic(
-        providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
-        {
-          subtype: "message_shape",
-          finishReason: providerFinishReason,
-          responseSize,
-          contentSize: providerContentSize,
-          completionTokens,
-        },
-      );
-    }
-    const content = toolCall.function.arguments;
     const contentSize = sizeBucket(content.length);
     if (!content.trim()) {
       throw withProviderDiagnostic(
@@ -1910,6 +1933,7 @@ export async function requestHuggingFaceJson({
   topK: unsupportedTopK,
   minP: unsupportedMinP,
   toolChoice,
+  allowStoppedToolContent = false,
   presencePenalty,
   signal,
   fetchImpl = globalThis.fetch,
@@ -1947,15 +1971,22 @@ export async function requestHuggingFaceJson({
       && (typeof toolName !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(toolName)))
     || (toolChoice !== undefined && toolChoice !== "named")
     || (toolChoice !== undefined && toolName === undefined)
+    || typeof allowStoppedToolContent !== "boolean"
+    || (allowStoppedToolContent
+      && (role !== "verifier"
+        || toolChoice !== "named"
+        || !STOPPED_TOOL_CONTENT_NAMES.has(toolName)))
     || (toolName !== undefined && role !== "verifier")
     || (toolName === undefined && role === "verifier" && responseFormat !== "json_object")) {
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
-  // Nscale analysis uses strict JSON Schema. Candidate and repair generation,
-  // plus DeepInfra verification and certification, use one JSON-object assistant
-  // channel with the closed schema in trusted instructions. Every path remains
-  // fail-closed under the same authoritative host validation.
+  // Nscale analysis uses strict JSON Schema. Candidate and repair generation use
+  // one JSON-object assistant channel with the closed schema in trusted
+  // instructions. DeepInfra verification and certification use forced named tools;
+  // an explicit stage-only compatibility path narrowly normalizes a minimal
+  // content-only stopped envelope before the exact wire decoder and authoritative
+  // host validation.
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],
     messages: toolName === undefined
@@ -2074,7 +2105,12 @@ export async function requestHuggingFaceJson({
         );
       }
       const boundedBody = await boundedResponseText(response, maximumResponseBytes, deadline.signal);
-      return parsedProviderContent(boundedBody.text, boundedBody.responseSize, toolName);
+      return parsedProviderContent(
+        boundedBody.text,
+        boundedBody.responseSize,
+        toolName,
+        allowStoppedToolContent,
+      );
     } catch (error) {
       if (deadline.didTimeOut()) {
         throw providerError("provider_timeout", "The Lattice provider timed out.", { cause: error });
@@ -2166,6 +2202,7 @@ export function createHuggingFaceLatticeAdapter({
         responseFormat: stage.responseFormat,
         toolName: stage.toolName,
         toolChoice: stage.toolChoice,
+        allowStoppedToolContent: stage.allowStoppedToolContent,
         maxTokens: analysisFit
           ? analysisOutputTokenLimitForSchema(fittedSchema)
           : stage.maxTokens,

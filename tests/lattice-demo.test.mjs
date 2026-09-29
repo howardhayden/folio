@@ -57,6 +57,10 @@ import {
   deterministicPassageReview,
   materiallyDifferent,
 } from "../app/resume/lattice/validators.js";
+import {
+  LATTICE_PRODUCTION_CANARY_REQUEST,
+  LATTICE_PRODUCTION_CANARY_TEXT,
+} from "../scripts/text-to-lattice-production-canary.mjs";
 
 const opaqueWords = (count, prefix = "u") => Array.from(
   { length: count },
@@ -933,6 +937,65 @@ test("analysis output limits split immediately without an unchanged correction c
       code,
     );
   }
+});
+
+test("the production canary still reaches document certification after an adaptive output-limit split", async () => {
+  const analysisRequests = [];
+  const certificationRequests = [];
+  const adapter = scriptedAdapter({
+    analyze(request, count) {
+      analysisRequests.push(request);
+      if (count === 1) {
+        const error = new Error("synthetic bounded output limit");
+        error.code = "provider_output_limit";
+        throw error;
+      }
+      return rawAnalysis(request, { layer: "operative" });
+    },
+    certify(request) {
+      certificationRequests.push(request);
+      return {
+        certificateId: request.certificateId,
+        obligationIds: request.obligationIds,
+        decision: "accept",
+        checks: Object.fromEntries(
+          LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, true]),
+        ),
+        issues: [],
+      };
+    },
+  });
+  const result = await runTextToLattice(LATTICE_PRODUCTION_CANARY_REQUEST.text, {
+    adapter,
+    requestedMode: LATTICE_PRODUCTION_CANARY_REQUEST.requested_mode,
+    allowClarification: false,
+    signal: new AbortController().signal,
+  });
+
+  assert.equal(result.status, "translated");
+  assert.equal(result.wordCount, 16);
+  assert.equal(result.passageCount, 2);
+  assert.equal(result.batchCount, 2);
+  assert.equal(result.revisedPassageCount, 2);
+  assert.equal(result.retainedPassageCount, 0);
+  assert.equal(result.verificationPasses, 1);
+  assert.deepEqual(result.findings, []);
+  assert.equal(deterministicDocumentReview(LATTICE_PRODUCTION_CANARY_TEXT, result.text).length, 0);
+  assert.deepEqual(analysisRequests.map(({ batch }) => batch.id), ["b001", "b001a", "b001b"]);
+  assert.ok(analysisRequests.every(({ requestedMode }) => requestedMode === "operative"));
+  assert.ok(analysisRequests.every(({ allowClarification }) => allowClarification === false));
+  assert.equal(certificationRequests.length, 1);
+  const [certification] = certificationRequests;
+  assert.equal(certification.certificateId, "certificate:document");
+  assert.deepEqual(certification.obligationIds, ["document:whole"]);
+  assert.equal(certification.source, LATTICE_PRODUCTION_CANARY_TEXT);
+  assert.equal(certification.candidate, result.text);
+  assert.equal(certification.retainConformanceRequired, false);
+  assert.equal(certification.analysis.passages.length, 2);
+  assert.deepEqual(
+    certification.analysis.passages.map(({ passageId }) => passageId),
+    ["p0001a", "p0001b"],
+  );
 });
 
 test("the production canary carries its fitted atom budget through host-validation splitting", async () => {
@@ -2586,6 +2649,61 @@ test("unchanged text is allowed only with complete positive source-bound conform
   assert.equal(result.status, "conformant-for-context");
   assert.equal(result.text, source);
   assert.equal(result.revisedPassageCount, 0);
+});
+
+test("the exact production canary reaches document certification before conformant success", async () => {
+  const analysisRequests = [];
+  const certificationRequests = [];
+  const adapter = scriptedAdapter({
+    analyze(request) {
+      analysisRequests.push(request);
+      return rawAnalysis(request, {
+        disposition: "retain-if-conformant",
+        layer: "operative",
+      });
+    },
+    certify(request) {
+      certificationRequests.push(request);
+      return {
+        certificateId: request.certificateId,
+        obligationIds: request.obligationIds,
+        decision: "accept",
+        checks: Object.fromEntries(
+          LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, true]),
+        ),
+        issues: [],
+      };
+    },
+  });
+  const result = await runTextToLattice(LATTICE_PRODUCTION_CANARY_REQUEST.text, {
+    adapter,
+    requestedMode: LATTICE_PRODUCTION_CANARY_REQUEST.requested_mode,
+    allowClarification: false,
+    signal: new AbortController().signal,
+  });
+
+  assert.equal(result.status, "conformant-for-context");
+  assert.equal(result.text, LATTICE_PRODUCTION_CANARY_TEXT);
+  assert.equal(result.wordCount, 16);
+  assert.equal(result.passageCount, 1);
+  assert.equal(result.batchCount, 1);
+  assert.equal(result.revisedPassageCount, 0);
+  assert.equal(result.retainedPassageCount, 1);
+  assert.equal(result.verificationPasses, 1);
+  assert.deepEqual(result.findings, []);
+  assert.equal(analysisRequests.length, 1);
+  assert.equal(analysisRequests[0].requestedMode, "operative");
+  assert.equal(analysisRequests[0].allowClarification, false);
+  assert.equal(certificationRequests.length, 1);
+  const [certification] = certificationRequests;
+  assert.equal(certification.certificateId, "certificate:document");
+  assert.deepEqual(certification.obligationIds, ["document:whole"]);
+  assert.equal(certification.source, LATTICE_PRODUCTION_CANARY_TEXT);
+  assert.equal(certification.candidate, LATTICE_PRODUCTION_CANARY_TEXT);
+  assert.equal(certification.retainConformanceRequired, true);
+  assert.equal(certification.analysis.passages.length, 1);
+  assert.equal(certification.analysis.passages[0].passageId, "p0001");
+  assert.equal(certification.analysis.passages[0].disposition, "retain-if-conformant");
 });
 
 test("positive conformance requires every supplied lossless span", async (context) => {

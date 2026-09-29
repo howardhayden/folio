@@ -57,11 +57,29 @@ import {
   preflightLatticeInput,
   validateLatticeClarificationAnswer,
 } from "../app/resume/latticeDemo.js";
+import { LATTICE_PRODUCTION_CANARY_TEXT } from "../scripts/verify-text-to-lattice-api-production.mjs";
 import { createHuggingFaceLatticeAdapter } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 
 const QWEN_TOKENIZER_PATH = process.env.LATTICE_QWEN_TOKENIZER_JSON ?? "/tmp/qwen3-lattice-tokenizer.json";
 const LLAMA_TOKENIZER_PATH = process.env.LATTICE_LLAMA_TOKENIZER_JSON ?? "/tmp/llama32-lattice-tokenizer.json";
+const ACTIVE_QWEN_REPOSITORY_TOKENIZER_PATH =
+  process.env.LATTICE_QWEN_2507_REPOSITORY_TOKENIZER_JSON ?? QWEN_TOKENIZER_PATH;
+const ACTIVE_LLAMA_REPOSITORY_TOKENIZER_PATH =
+  process.env.LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON ?? LLAMA_TOKENIZER_PATH;
 const TOKENIZER_FIXTURES_AVAILABLE = existsSync(QWEN_TOKENIZER_PATH) && existsSync(LLAMA_TOKENIZER_PATH);
+const ACTIVE_GENERATOR_TOKENIZER_FIXTURE_AVAILABLE = existsSync(ACTIVE_QWEN_REPOSITORY_TOKENIZER_PATH);
+const ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE = existsSync(ACTIVE_LLAMA_REPOSITORY_TOKENIZER_PATH);
+const REVIEWED_QWEN_2507_REPOSITORY_TOKENIZER = Object.freeze({
+  revision: "cdbee75f17c01a7cc42f958dc650907174af0554",
+  bytes: 11_422_654,
+  sha256: "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+});
+const REVIEWED_LLAMA_3_1_REPOSITORY_TOKENIZER = Object.freeze({
+  revision: "0e9e39f249a16976918f6564b8830bc894c89659",
+  gitBlob: "5cc5f00a5b203e90a27a3bd60d1ec393b07971e8",
+  bytes: 9_085_657,
+  sha256: "79e3e522635f3171300913bb421464a87de6222182a0570b9b2ccba2a964b2b4",
+});
 test("the production adapter exposes an immutable live completion-capacity snapshot", () => {
   const completionBudget = { used: 17, limit: 512 };
   const adapter = createLocalLatticeAdapter(undefined, { completionBudget });
@@ -283,6 +301,41 @@ async function pinnedTokenizers() {
       llama.dispose();
     },
   };
+}
+
+async function reviewedActiveVerifierRepositoryTokenizer() {
+  const Tokenizer = await tokenizerRuntime();
+  const bytes = await readFile(ACTIVE_LLAMA_REPOSITORY_TOKENIZER_PATH);
+  // The reusable historical fixture is accepted only because its content address
+  // is identical to tokenizer.json at the reviewed Llama 3.1 repository revision.
+  // This repository-file comparator does not identify DeepInfra's managed
+  // tokenizer, chat template, or tool-call wrapper accounting.
+  assert.equal(bytes.byteLength, REVIEWED_LLAMA_3_1_REPOSITORY_TOKENIZER.bytes);
+  assert.equal(
+    createHash("sha256").update(bytes).digest("hex"),
+    REVIEWED_LLAMA_3_1_REPOSITORY_TOKENIZER.sha256,
+  );
+  assert.equal(
+    createHash("sha1")
+      .update(`blob ${bytes.byteLength}\0`)
+      .update(bytes)
+      .digest("hex"),
+    REVIEWED_LLAMA_3_1_REPOSITORY_TOKENIZER.gitBlob,
+  );
+  return Tokenizer.fromJSON(bufferArray(bytes));
+}
+
+async function reviewedActiveGeneratorRepositoryTokenizer() {
+  const Tokenizer = await tokenizerRuntime();
+  const bytes = await readFile(ACTIVE_QWEN_REPOSITORY_TOKENIZER_PATH);
+  // This binds the reviewed Qwen repository file only, not Nscale's managed
+  // tokenizer, chat template, or structured-output token accounting.
+  assert.equal(bytes.byteLength, REVIEWED_QWEN_2507_REPOSITORY_TOKENIZER.bytes);
+  assert.equal(
+    createHash("sha256").update(bytes).digest("hex"),
+    REVIEWED_QWEN_2507_REPOSITORY_TOKENIZER.sha256,
+  );
+  return Tokenizer.fromJSON(bufferArray(bytes));
 }
 
 let runtimeDirectory;
@@ -598,10 +651,12 @@ function maximalFittedWireValue(schema, stringValue) {
   throw new TypeError("The fitted-wire test received an unsupported JSON Schema shape.");
 }
 
-test("maximal fitted verifier and certifier wires remain inside their live output caps", {
-  skip: TOKENIZER_FIXTURES_AVAILABLE ? false : "set the two LATTICE_*_TOKENIZER_JSON paths to run exact pinned-tokenizer checks",
+test("maximal fitted verifier and certifier argument wires fit configured caps under the reviewed Llama 3.1 repository tokenizer", {
+  skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
+    ? false
+    : "set LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
 }, async () => {
-  const tokenizers = await pinnedTokenizers();
+  const tokenizer = await reviewedActiveVerifierRepositoryTokenizer();
   try {
     const { batch } = manualLiteralBatch();
     const sourceSpans = batch.passages.map((passage, passageIndex) => ({
@@ -676,13 +731,14 @@ test("maximal fitted verifier and certifier wires remain inside their live outpu
     });
 
     const fittedSchema = (body) => {
-      const content = body.messages.find(({ role }) => role === "system")?.content ?? "";
-      const opening = "<LATTICE_RESPONSE_SCHEMA>";
-      const closing = "</LATTICE_RESPONSE_SCHEMA>";
-      const start = content.indexOf(opening);
-      const end = content.indexOf(closing, start + opening.length);
-      assert.ok(start >= 0 && end > start);
-      return JSON.parse(content.slice(start + opening.length, end));
+      assert.equal(Object.hasOwn(body, "response_format"), false);
+      assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
+      assert.equal(body.tools.length, 1);
+      assert.deepEqual(body.tool_choice, {
+        type: "function",
+        function: { name: body.tools[0].function.name },
+      });
+      return body.tools[0].function.parameters;
     };
     const [verificationSchema, certificationSchema] = bodies.map(fittedSchema);
     assert.deepEqual(verificationSchema.required, ["d", "g", "p", "i"]);
@@ -711,39 +767,61 @@ test("maximal fitted verifier and certifier wires remain inside their live outpu
     const certificationWire = JSON.stringify(maximalCertificationValue);
     const prettyVerificationWire = JSON.stringify(maximalVerificationValue, null, 2);
     const prettyCertificationWire = JSON.stringify(maximalCertificationValue, null, 2);
-    const verificationTokens = tokenizers.llama.encode(verificationWire).length;
-    const certificationTokens = tokenizers.llama.encode(certificationWire).length;
-    const prettyVerificationTokens = tokenizers.llama.encode(prettyVerificationWire).length;
-    const prettyCertificationTokens = tokenizers.llama.encode(prettyCertificationWire).length;
+    const verificationTokens = tokenizer.encode(verificationWire).length;
+    const certificationTokens = tokenizer.encode(certificationWire).length;
+    const prettyVerificationTokens = tokenizer.encode(prettyVerificationWire).length;
+    const prettyCertificationTokens = tokenizer.encode(prettyCertificationWire).length;
+    assert.deepEqual({
+      verificationTokens,
+      prettyVerificationTokens,
+      certificationTokens,
+      prettyCertificationTokens,
+    }, {
+      verificationTokens: 539,
+      prettyVerificationTokens: 965,
+      certificationTokens: 142,
+      prettyCertificationTokens: 243,
+    });
     assert.ok(
       verificationTokens <= 1_200,
-      `maximal fitted verifier wire used ${verificationTokens} pinned-Llama tokens`,
+      `maximal fitted verifier arguments used ${verificationTokens} reviewed-repository-tokenizer tokens`,
     );
     assert.ok(
       certificationTokens <= 520,
-      `maximal fitted certifier wire used ${certificationTokens} pinned-Llama tokens`,
+      `maximal fitted certifier arguments used ${certificationTokens} reviewed-repository-tokenizer tokens`,
     );
     assert.ok(
       prettyVerificationTokens <= 1_200,
-      `pretty maximal fitted verifier wire used ${prettyVerificationTokens} pinned-Llama tokens`,
+      `pretty maximal fitted verifier arguments used ${prettyVerificationTokens} reviewed-repository-tokenizer tokens`,
     );
     assert.ok(
       prettyCertificationTokens <= 520,
-      `pretty maximal fitted certifier wire used ${prettyCertificationTokens} pinned-Llama tokens`,
+      `pretty maximal fitted certifier arguments used ${prettyCertificationTokens} reviewed-repository-tokenizer tokens`,
+    );
+    assert.ok(
+      1_200 - prettyVerificationTokens >= 200,
+      "the maximal pretty verifier arguments must retain at least 200 reviewed-repository-tokenizer tokens of argument headroom",
+    );
+    assert.ok(
+      520 - prettyCertificationTokens >= 200,
+      "the maximal pretty certifier arguments must retain at least 200 reviewed-repository-tokenizer tokens of argument headroom",
     );
   } finally {
-    tokenizers.dispose();
+    tokenizer.dispose();
   }
 });
 
-test("the exact production canary maximal dense wire retains pinned-Qwen output headroom", {
-  skip: TOKENIZER_FIXTURES_AVAILABLE ? false : "set the two LATTICE_*_TOKENIZER_JSON paths to run exact pinned-tokenizer checks",
+test("the exact production canary maximal dense wire fits its configured cap under the reviewed Qwen repository tokenizer", {
+  skip: ACTIVE_GENERATOR_TOKENIZER_FIXTURE_AVAILABLE
+    ? false
+    : "set LATTICE_QWEN_2507_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
 }, async () => {
-  const tokenizers = await pinnedTokenizers();
+  const tokenizer = await reviewedActiveGeneratorRepositoryTokenizer();
   try {
-    const preflight = preflightLatticeInput(
-      "A visitor places a blue notebook on the desk, reads the first page, and closes it.",
-    );
+    const preflight = preflightLatticeInput(LATTICE_PRODUCTION_CANARY_TEXT);
+    assert.equal(preflight.batches.length, 1);
+    assert.equal(preflight.batches[0].passages.length, 1);
+    assert.equal(preflight.batches[0].passages[0].separatorAfter, "\n");
     const batch = preflight.batches[0];
     let providerBody;
     const adapter = createHuggingFaceLatticeAdapter({
@@ -780,24 +858,27 @@ test("the exact production canary maximal dense wire retains pinned-Qwen output 
     );
     const maximalWire = JSON.stringify(maximalValue);
     const prettyWire = JSON.stringify(maximalValue, null, 2);
-    const tokenCount = tokenizers.qwen.encode(maximalWire).length;
-    const prettyTokenCount = tokenizers.qwen.encode(prettyWire).length;
+    const tokenCount = tokenizer.encode(maximalWire).length;
+    const prettyTokenCount = tokenizer.encode(prettyWire).length;
     const requestBytes = new TextEncoder().encode(JSON.stringify(providerBody)).byteLength;
     assert.equal(providerBody.max_tokens, 1_024);
     assert.ok(requestBytes < 10_000, `canary request used ${requestBytes} bytes`);
     assert.ok(JSON.stringify(schema).length < 1_500, "canary schema regressed in size");
     assert.ok(maximalWire.length < 500, `maximal wire used ${maximalWire.length} characters`);
-    assert.ok(tokenCount <= providerBody.max_tokens, `maximal wire used ${tokenCount} pinned-Qwen tokens`);
+    assert.ok(
+      tokenCount <= providerBody.max_tokens,
+      `maximal wire used ${tokenCount} reviewed-repository-tokenizer tokens`,
+    );
     assert.ok(
       prettyTokenCount <= providerBody.max_tokens,
-      `pretty maximal wire used ${prettyTokenCount} pinned-Qwen tokens`,
+      `pretty maximal wire used ${prettyTokenCount} reviewed-repository-tokenizer tokens`,
     );
     assert.ok(
       providerBody.max_tokens - prettyTokenCount >= 300,
       `pretty maximal wire left only ${providerBody.max_tokens - prettyTokenCount} tokens`,
     );
   } finally {
-    tokenizers.dispose();
+    tokenizer.dispose();
   }
 });
 
