@@ -5,7 +5,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type FormEvent,
   type MouseEvent as ReactMouseEvent,
   type Ref,
@@ -18,13 +17,6 @@ import {
   validateLatticeInput,
 } from "./lattice/inputPolicy.js";
 import {
-  RovingStateTabs,
-} from "./lattice/diagramInfrastructure";
-import {
-  latticeHeldResponsePresentation,
-  latticeModalPresentation,
-} from "./lattice/modalPresentation.js";
-import {
   LLAMA_3_1_PUBLIC_TERMS,
 } from "./lattice/publicTerms.js";
 import {
@@ -35,7 +27,6 @@ import { mayRevealLatticeOutput } from "./lattice/outputProtection.js";
 import { projects } from "./projects.js";
 import ProjectDescriptionDisclosure from "./ProjectDescriptionDisclosure";
 import ProjectResources from "./ProjectResources";
-import TextToLatticeEvidence from "./lattice/TextToLatticeEvidence";
 
 type ProjectIconName =
   | "airplane-engines"
@@ -307,14 +298,6 @@ export function ResumeProjectCard({
 
 type LatticeResult = Awaited<ReturnType<typeof requestRemoteLattice>>;
 type LatticePhase = "idle" | "ready" | "validating" | "submitting" | "processing" | "success" | "canceling" | "error";
-type LatticeMilestonePhase = Exclude<LatticePhase, "canceling" | "error">;
-type LatticeView = "try" | "evidence";
-type LatticePresentationDisposition = "canceled" | "held" | "rejected" | "unavailable";
-
-const LATTICE_MODAL_VIEWS = Object.freeze([
-  { id: "try", label: "Try" },
-  { id: "evidence", label: "Evidence" },
-]);
 
 function latticeOutcomeLabel(result: LatticeResult | null) {
   if (!result) return "";
@@ -363,8 +346,6 @@ function latticeInputFailureMessage(error: unknown) {
 
 function latticeFailureMessage(error: unknown) {
   if (isLatticeInputFailure(error)) return latticeInputFailureMessage(error);
-  const held = latticeHeldResponsePresentation(error);
-  if (held) return held.message;
   if (error instanceof LatticeRemoteError) {
     if (error.code === "visitor_session_required") {
       return "The external provider did not receive your text because hah.dev could not establish its private daily-limit cookie. Allow site cookies for hah.dev, then submit again only if you choose.";
@@ -389,18 +370,18 @@ function latticeFailureMessage(error: unknown) {
   return "Text to Lattice could not finish. The request may have reached the configured external service; hah.dev does not retain your sample or result.";
 }
 
-function latticeFailureDisposition(error: unknown): LatticePresentationDisposition | null {
-  if (isLatticeInputFailure(error)) return "rejected";
-  const held = latticeHeldResponsePresentation(error);
-  if (held) return held.disposition;
-  if (!(error instanceof LatticeRemoteError)) return null;
-  if ([
-    "visitor_session_required",
-    "invalid_request",
-    "input_too_large",
-    "rate_limited",
-  ].includes(error.code)) return "rejected";
-  return "unavailable";
+function latticeProgressText(phase: LatticePhase) {
+  const labels: Record<LatticePhase, string> = {
+    idle: "",
+    ready: "",
+    validating: "Validating source",
+    submitting: "Submitting to hah.dev",
+    processing: "Processing with the external service",
+    success: "",
+    canceling: "Canceling",
+    error: "",
+  };
+  return labels[phase];
 }
 
 function latticeFindingMessage(finding: { id: string }) {
@@ -436,15 +417,12 @@ function latticeVisibleFindings(result: LatticeResult): string[] {
 
 export default function ResumeProjects() {
   const [latticeOpen, setLatticeOpen] = useState(false);
-  const [latticeView, setLatticeView] = useState<LatticeView>("try");
   const [latticeInput, setLatticeInput] = useState("");
   const [latticeUseConfirmed, setLatticeUseConfirmed] = useState(false);
   const [latticeError, setLatticeError] = useState("");
   const [latticeInputInvalid, setLatticeInputInvalid] = useState(false);
   const [latticeResult, setLatticeResult] = useState<LatticeResult | null>(null);
   const [latticePhase, setLatticePhase] = useState<LatticePhase>("idle");
-  const [latticeLastObservedPhase, setLatticeLastObservedPhase] = useState<LatticeMilestonePhase>("idle");
-  const [latticePresentationDisposition, setLatticePresentationDisposition] = useState<LatticePresentationDisposition | null>(null);
   const latticeDialogRef = useRef<HTMLDivElement>(null);
   const latticeInputRef = useRef<HTMLTextAreaElement>(null);
   const latticeOutputRef = useRef<HTMLElement>(null);
@@ -456,24 +434,14 @@ export default function ResumeProjects() {
   const latticeAbortRef = useRef<AbortController | null>(null);
   const latticeJobRef = useRef(0);
   const latticeMountedRef = useRef(true);
-  const latticeViewRef = useRef<LatticeView>(latticeView);
   const latticePhaseRef = useRef<LatticePhase>(latticePhase);
   const latticeResultRef = useRef<LatticeResult | null>(latticeResult);
   const wordCount = countLatticeWords(latticeInput);
   const busy = ["validating", "submitting", "processing", "canceling"].includes(latticePhase);
   const taskContinuesWhileClosed = busy;
   const overLimit = wordCount > LATTICE_WORD_LIMIT;
-  const progress = latticeModalPresentation({
-    phase: latticePhase,
-    lastObservedPhase: latticeLastObservedPhase,
-    resultStatus: latticePhase === "success" && latticeResult ? latticeResult.status : null,
-    disposition: latticePresentationDisposition,
-  });
+  const progressText = latticeProgressText(latticePhase);
   const primaryUnavailable = busy || latticeInputInvalid || wordCount === 0 || overLimit || !latticeUseConfirmed;
-
-  useEffect(() => {
-    latticeViewRef.current = latticeView;
-  }, [latticeView]);
 
   useEffect(() => {
     latticePhaseRef.current = latticePhase;
@@ -535,22 +503,18 @@ export default function ResumeProjects() {
     ].join(",");
     const focusableElements = () => Array.from(
       dialog?.querySelectorAll<HTMLElement>(focusableSelector) ?? [],
-    ).filter((element) => !element.closest("[hidden], [aria-hidden='true'], [inert]"));
+    ).filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
     let containmentFrame = 0;
     const preferredFocusTarget = () => {
       const phase = latticePhaseRef.current;
       const result = latticeResultRef.current;
-      const activeView = latticeViewRef.current;
-      if (activeView !== "try") {
-        return dialog?.querySelector<HTMLElement>(`#lattice-demo-view-${activeView}-tab`) ?? dialog;
-      }
       if (["validating", "submitting", "processing", "canceling"].includes(phase)) {
         const cancel = latticeCancelButtonRef.current;
-        if (cancel?.isConnected && !cancel.disabled && !cancel.closest("[hidden], [aria-hidden='true'], [inert]")) return cancel;
+        if (cancel?.isConnected && !cancel.disabled) return cancel;
       }
-      if (result && latticeOutputRef.current && !latticeOutputRef.current.closest("[hidden], [aria-hidden='true'], [inert]")) return latticeOutputRef.current;
+      if (result && latticeOutputRef.current) return latticeOutputRef.current;
       const input = latticeInputRef.current;
-      if (input && !input.disabled && !input.closest("[hidden], [aria-hidden='true'], [inert]")) return input;
+      if (input && !input.disabled) return input;
       return dialog;
     };
     const containFocus = () => {
@@ -558,8 +522,7 @@ export default function ResumeProjects() {
       const active = document.activeElement;
       const activeIsUsable = active instanceof HTMLElement
         && dialog.contains(active)
-        && !active.matches(":disabled, [tabindex='-1']")
-        && !active.closest("[hidden], [aria-hidden='true'], [inert]");
+        && !active.matches(":disabled, [hidden], [aria-hidden='true'], [tabindex='-1']");
       const preferred = preferredFocusTarget();
       if (activeIsUsable) return;
       preferred?.focus({ preventScroll: true });
@@ -611,7 +574,7 @@ export default function ResumeProjects() {
     if (dialog) {
       focusObserver.observe(dialog, {
         attributes: true,
-        attributeFilter: ["aria-hidden", "disabled", "hidden", "inert", "tabindex"],
+        attributeFilter: ["aria-hidden", "disabled", "hidden", "tabindex"],
         childList: true,
         subtree: true,
       });
@@ -731,17 +694,8 @@ export default function ResumeProjects() {
 
   const openLattice = useCallback((trigger: HTMLAnchorElement) => {
     latticeTriggerRef.current = trigger;
-    latticeViewRef.current = "try";
-    setLatticeView("try");
     setLatticeOpen(true);
     setLatticePhase((current) => current === "idle" ? "ready" : current);
-    setLatticeLastObservedPhase((current) => current === "idle" ? "ready" : current);
-  }, []);
-
-  const selectLatticeView = useCallback((id: string) => {
-    if (id !== "try" && id !== "evidence") return;
-    latticeViewRef.current = id;
-    setLatticeView(id);
   }, []);
 
   const launchLattice = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
@@ -782,9 +736,7 @@ export default function ResumeProjects() {
       setLatticeResult(null);
       setLatticeError(`Keep the source to ${LATTICE_INPUT_SAFETY_LIMIT.toLocaleString("en-US")} characters or fewer.`);
       setLatticeInputInvalid(true);
-      setLatticePresentationDisposition("rejected");
       setLatticePhase("ready");
-      setLatticeLastObservedPhase("ready");
       return;
     }
     setLatticeInput(value);
@@ -800,9 +752,7 @@ export default function ResumeProjects() {
     }
     setLatticeError(validationError);
     setLatticeInputInvalid(Boolean(validationError));
-    setLatticePresentationDisposition(validationError ? "rejected" : null);
     setLatticePhase("ready");
-    setLatticeLastObservedPhase("ready");
   };
 
   const executeLattice = async () => {
@@ -810,7 +760,6 @@ export default function ResumeProjects() {
     if (!latticeUseConfirmed) {
       setLatticeError(LATTICE_USE_CONFIRMATION_ERROR);
       setLatticeInputInvalid(false);
-      setLatticePresentationDisposition("rejected");
       return;
     }
     const jobId = latticeJobRef.current + 1;
@@ -818,9 +767,7 @@ export default function ResumeProjects() {
     const controller = new AbortController();
     latticeAbortRef.current = controller;
     try {
-      setLatticePresentationDisposition(null);
       setLatticePhase("validating");
-      setLatticeLastObservedPhase("validating");
       validateLatticeInput(latticeInput);
       setLatticeResult(null);
       setLatticeError("");
@@ -828,21 +775,18 @@ export default function ResumeProjects() {
       const result = await requestRemoteLattice(latticeInput, {
         requestedMode: "auto",
         signal: controller.signal,
-        onState: (phase: LatticeMilestonePhase) => {
+        onState: (phase: LatticePhase) => {
           if (!latticeMountedRef.current || latticeJobRef.current !== jobId) return;
           setLatticePhase(phase);
-          setLatticeLastObservedPhase(phase);
         },
       });
       if (!latticeMountedRef.current || latticeJobRef.current !== jobId || controller.signal.aborted) return;
       setLatticeResult(result);
-      setLatticePresentationDisposition(null);
       setLatticePhase("success");
-      setLatticeLastObservedPhase("success");
       window.requestAnimationFrame(() => {
         const output = latticeOutputRef.current;
         const modal = output?.closest(".modal");
-        if (!output || modal?.hasAttribute("hidden") || output.closest("[hidden], [aria-hidden='true'], [inert]")) return;
+        if (!output || modal?.hasAttribute("hidden")) return;
         latticeOutputRefreshRef.current?.();
         output.scrollIntoView({ block: "nearest" });
         output.focus({ preventScroll: true });
@@ -853,14 +797,12 @@ export default function ResumeProjects() {
         setLatticeResult(null);
         setLatticeError("Canceled. The request may already have reached the configured external service. hah.dev does not retain your sample or result.");
         setLatticeInputInvalid(false);
-        setLatticePresentationDisposition("canceled");
         setLatticePhase("ready");
         return;
       }
       setLatticeResult(null);
       setLatticeError(latticeFailureMessage(error));
       setLatticeInputInvalid(isLatticeInputFailure(error));
-      setLatticePresentationDisposition(latticeFailureDisposition(error));
       setLatticePhase("error");
     } finally {
       if (latticeJobRef.current === jobId) latticeAbortRef.current = null;
@@ -875,9 +817,7 @@ export default function ResumeProjects() {
   const startLatticeOver = () => {
     updateLatticeInput("");
     setLatticeUseConfirmed(false);
-    setLatticePresentationDisposition(null);
     setLatticePhase("ready");
-    setLatticeLastObservedPhase("ready");
     window.requestAnimationFrame(() => latticeInputRef.current?.focus({ preventScroll: true }));
   };
 
@@ -931,31 +871,12 @@ export default function ResumeProjects() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="lattice-demo-title"
-          aria-describedby={latticeView === "try"
-            ? "lattice-demo-description lattice-external-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"
-            : "lattice-demo-evidence-description"}
+          aria-describedby="lattice-demo-description lattice-external-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"
           aria-keyshortcuts="Escape"
           tabIndex={-1}
         >
           <h3 id="lattice-demo-title">Text to Lattice</h3>
 
-          <RovingStateTabs
-            className="chromebook-view-tabs lattice-mode-tabs"
-            idPrefix="lattice-demo-view"
-            items={LATTICE_MODAL_VIEWS}
-            label="Text to Lattice modal views"
-            onSelect={selectLatticeView}
-            panelId="lattice-demo-view-panel"
-            selected={latticeView}
-          />
-
-          <div
-            className="lattice-mode-panel"
-            id="lattice-demo-view-panel"
-            role="tabpanel"
-            aria-labelledby={`lattice-demo-view-${latticeView}-tab`}
-          >
-          <div className="lattice-try-view" hidden={latticeView !== "try"}>
           <div className="lattice-modal-introduction">
             <p id="lattice-demo-description" className="lattice-modal-description">
               Enter up to {LATTICE_WORD_LIMIT} words. Meaning remains binding; register may change.
@@ -1020,10 +941,7 @@ export default function ResumeProjects() {
                 onChange={(event) => {
                   const confirmed = event.currentTarget.checked;
                   setLatticeUseConfirmed(confirmed);
-                  if (confirmed && latticeError === LATTICE_USE_CONFIRMATION_ERROR) {
-                    setLatticeError("");
-                    setLatticePresentationDisposition(null);
-                  }
+                  if (confirmed && latticeError === LATTICE_USE_CONFIRMATION_ERROR) setLatticeError("");
                 }}
               />
               <label className="lattice-use-confirmation-label" htmlFor="lattice-use-confirmation">
@@ -1038,33 +956,11 @@ export default function ResumeProjects() {
                 {latticeError}{!latticeInputInvalid ? <> <a href="/projects/lattice/text-to-lattice/">Tool details</a>.</> : null}
               </p>
             ) : null}
-            <div
-              className={`lattice-progress teaching-manifest-entry--${progress.tone}`}
-              data-lifecycle-phase={latticePhase}
-              data-successful={progress.successful ? "true" : "false"}
-            >
-              <div className="lattice-progress-heading" aria-live="polite" role="status">
-                <span>{progress.label}</span>
-                <span className="teaching-manifest-percent signal-fuzz">{progress.percent}%</span>
+            {progressText ? (
+              <div className="lattice-progress">
+                <span aria-live="polite" role="status">{progressText}</span>
               </div>
-              <div
-                className="teaching-manifest-track"
-                role="progressbar"
-                aria-label="Mapped request lifecycle"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={progress.percent}
-                aria-valuetext={`${progress.label}, ${progress.percent} percent of the mapped interface lifecycle`}
-              >
-                <span
-                  className="teaching-manifest-fill"
-                  style={{ "--teaching-support": `${progress.percent}%` } as CSSProperties}
-                >
-                  <span className="teaching-manifest-caret" aria-hidden="true" />
-                </span>
-              </div>
-              <small>Mapped interface lifecycle; not elapsed provider work.</small>
-            </div>
+            ) : null}
             <div className="lattice-actions">
               <button className="lattice-run-button" type="submit" disabled={primaryUnavailable}>
                 Process with external service
@@ -1143,21 +1039,6 @@ export default function ResumeProjects() {
             )}
             <p className="lattice-output-privacy-curtain" aria-hidden="true">Return to this window to view the result.</p>
           </section>
-          </div>
-          <div className="lattice-evidence-view" hidden={latticeView !== "evidence"}>
-            <TextToLatticeEvidence instanceId="lattice-demo" />
-            <div className="lattice-actions lattice-evidence-actions">
-              <button
-                className="lattice-cancel-button"
-                type="button"
-                onClick={closeLattice}
-                aria-label={taskContinuesWhileClosed ? "Close Evidence; current task continues" : "Close Evidence"}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-          </div>
         </div>
       </div>
     </>

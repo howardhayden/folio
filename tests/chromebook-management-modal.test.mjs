@@ -17,13 +17,9 @@ import {
 import { projects } from "../app/resume/projects.js";
 
 const readSource = (relativePath) => readFile(new URL(relativePath, import.meta.url), "utf8");
-const readDiagramInfrastructure = () => readSource("../app/resume/lattice/diagramInfrastructure.tsx");
 
 test("models every operating condition as evidence to ordered action and outcome", async () => {
-  const [component, infrastructure] = await Promise.all([
-    readSource("../app/resume/ChromebookManagementViews.tsx"),
-    readDiagramInfrastructure(),
-  ]);
+  const component = await readSource("../app/resume/ChromebookManagementViews.tsx");
   assert.deepEqual(chromebookActionPaths.map(({ id }) => id), [
     "normal-return",
     "overdue-unreturned",
@@ -54,16 +50,12 @@ test("models every operating condition as evidence to ordered action and outcome
   for (const { diagram } of Object.values(chromebookStateFlows)) {
     assert.ok(Math.max(...diagram.split("\n").map((line) => line.length)) <= 36, "the colored-text flow fits a phone at a readable size without horizontal panning");
   }
-  assert.match(component, /<StateFlowFigure[\s\S]*?description=\{stateFlow\.description\}[\s\S]*?diagram=\{stateFlow\.diagram\}/u);
-  assert.match(infrastructure, /role="img"[\s\S]*?aria-label=\{description\}/u);
-  assert.match(infrastructure, /<pre className="tools-card-accent signal-fuzz" aria-hidden="true">[\s\S]*?\{diagram\}/u);
+  assert.match(component, /role="img"[\s\S]*?aria-label=\{stateFlow\.description\}/u);
+  assert.match(component, /<pre className="tools-card-accent signal-fuzz" aria-hidden="true">[\s\S]*?\{stateFlow\.diagram\}/u);
 });
 
 test("nests the exception lifecycle inside the four keyboard-operable modal lenses", async () => {
-  const [component, infrastructure] = await Promise.all([
-    readSource("../app/resume/ChromebookManagementViews.tsx"),
-    readDiagramInfrastructure(),
-  ]);
+  const component = await readSource("../app/resume/ChromebookManagementViews.tsx");
   assert.deepEqual(chromebookManagementViews, [
     { id: "flow", label: "State Flow" },
     { id: "skills", label: "Skill Map" },
@@ -79,14 +71,13 @@ test("nests the exception lifecycle inside the four keyboard-operable modal lens
     { id: "late-return", label: "Returned late" },
   ]);
 
-  assert.match(component, /RovingStateTabs/u);
-  assert.match(infrastructure, /function RovingStateTabs/u);
-  assert.match(infrastructure, /className="button-reset resume-search-close chromebook-state-tab signal-fuzz"/u);
-  assert.match(infrastructure, /role="tablist" aria-label=\{label\}/u);
-  assert.match(infrastructure, /role="tab"[\s\S]*?aria-controls=\{panelId\}[\s\S]*?aria-selected=\{isSelected\}/u);
-  assert.match(infrastructure, /tabIndex=\{isSelected \? 0 : -1\}/u);
+  assert.match(component, /function RovingStateTabs/u);
+  assert.match(component, /className="button-reset resume-search-close chromebook-state-tab signal-fuzz"/u);
+  assert.match(component, /role="tablist" aria-label=\{label\}/u);
+  assert.match(component, /role="tab"[\s\S]*?aria-controls=\{panelId\}[\s\S]*?aria-selected=\{isSelected\}/u);
+  assert.match(component, /tabIndex=\{isSelected \? 0 : -1\}/u);
   for (const key of ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", "Home", "End"]) {
-    assert.match(infrastructure, new RegExp(`event\\.key === "${key}"`, "u"), `${key} is handled`);
+    assert.match(component, new RegExp(`event\\.key === "${key}"`, "u"), `${key} is handled`);
   }
   assert.match(component, /items=\{chromebookPathStates\}[\s\S]*?label="Return path"/u);
   assert.match(component, /className="chromebook-condition-navigation" role="group" aria-label="Selected operating condition"/u);
@@ -97,28 +88,26 @@ test("nests the exception lifecycle inside the four keyboard-operable modal lens
 });
 
 test("reuses Resume Search frost and fade for one persistent modal-state surface", async () => {
-  const [component, infrastructure, css] = await Promise.all([
+  const [component, css] = await Promise.all([
     readSource("../app/resume/ChromebookManagementViews.tsx"),
-    readDiagramInfrastructure(),
     readSource("../app/globals.css"),
   ]);
 
-  assert.match(infrastructure, /type FrostedStatePhase = "stable" \| "outgoing" \| "incoming"/u);
+  assert.match(component, /type TransitionPhase = "stable" \| "outgoing" \| "incoming"/u);
   assert.equal(FROSTED_STATE_DURATION_MS, 180);
-  assert.match(infrastructure, /createFrostedStateTransition\(\{/u);
+  assert.match(component, /createFrostedStateTransition\(\{/u);
   for (const query of [
     "(prefers-reduced-motion: reduce)",
     "(prefers-reduced-transparency: reduce)",
     "(forced-colors: active)",
   ]) {
-    assert.ok(infrastructure.includes(`"${query}"`), `${query} disables timed replacement`);
+    assert.ok(component.includes(`"${query}"`), `${query} disables timed replacement`);
   }
-  assert.match(infrastructure, /controller\.dispose\(\)[\s\S]*?controllerRef\.current = null/u);
-  assert.match(infrastructure, /resume-search-surface resume-search-results--replacing chromebook-state-surface/u);
-  assert.match(infrastructure, /frosted \? " resume-search-surface--frosted"/u);
-  assert.match(infrastructure, /aria-busy=\{transitioning\}[\s\S]*?aria-hidden=\{transitioning \? "true" : undefined\}[\s\S]*?inert=\{transitioning \? true : undefined\}/u);
-  assert.match(infrastructure, /data-transition-phase=\{phase\}[\s\S]*?tabIndex=\{0\}/u);
-  assert.match(component, /<FrostedStateStage[\s\S]*?frosted=\{state\.frosted\}[\s\S]*?phase=\{state\.phase\}[\s\S]*?transitioning=\{state\.transitioning\}/u);
+  assert.match(component, /controller\.dispose\(\)[\s\S]*?controllerRef\.current = null/u);
+  assert.match(component, /resume-search-surface resume-search-results--replacing chromebook-state-surface/u);
+  assert.match(component, /state\.frosted \? " resume-search-surface--frosted"/u);
+  assert.match(component, /aria-busy=\{state\.transitioning\}[\s\S]*?aria-hidden=\{state\.transitioning \? "true" : undefined\}[\s\S]*?inert=\{state\.transitioning \? true : undefined\}/u);
+  assert.match(component, /data-transition-phase=\{state\.phase\}[\s\S]*?tabIndex=\{0\}/u);
   assert.match(css, /\.resume-search-surface \{[\s\S]*?transition: filter \.5s ease, opacity \.5s ease/u);
   assert.match(css, /\.resume-search-results--replacing \{[\s\S]*?transition-duration: \.18s/u);
   assert.match(css, /\.chromebook-state-surface\.resume-search-surface--frosted \{[\s\S]*?opacity: 0/u);
@@ -250,28 +239,20 @@ test("keeps one responsive pastel skill map and lets the technologies stand on t
 });
 
 test("shows one selected reconciliation case instead of a six-column scenario dump", async () => {
-  const [component, infrastructure] = await Promise.all([
-    readSource("../app/resume/ChromebookManagementViews.tsx"),
-    readDiagramInfrastructure(),
-  ]);
+  const component = await readSource("../app/resume/ChromebookManagementViews.tsx");
   assert.match(component, /function ReconciliationMatrixView[\s\S]*?find\(\(\{ id \}\) => id === conditionId\)/u);
-  assert.match(component, /<ReconciliationTable/u);
-  assert.match(infrastructure, /<table className="chromebook-evidence-table">/u);
+  assert.match(component, /<table className="chromebook-evidence-table">/u);
   for (const heading of ["Physical evidence", "Sierra ILS", "Endpoint context", "Interpretation", "Action sequence", "Operational result"]) {
-    assert.match(component, new RegExp(`label: "${heading}"`, "u"));
+    assert.match(component, new RegExp(`<th scope="row">${heading}<\\/th>`, "u"));
   }
-  assert.match(infrastructure, /<th scope="row">\{row\.label\}<\/th>/u);
-  assert.match(component, /value: actionPath\.physicalEvidence[\s\S]*?value: actionPath\.sierraEvidence[\s\S]*?value: actionPath\.endpointEvidence/u);
-  assert.match(component, /className: `chromebook-matrix-action teaching-manifest-entry--\$\{actionPath\.tone\}`[\s\S]*?value: <ActionSequence value=\{actionPath\.actions\.join\(" → "\)\}/u);
+  assert.match(component, /\{actionPath\.physicalEvidence\}[\s\S]*?\{actionPath\.sierraEvidence\}[\s\S]*?\{actionPath\.endpointEvidence\}/u);
+  assert.match(component, /chromebook-matrix-action teaching-manifest-entry--\$\{actionPath\.tone\}[\s\S]*?<ActionSequence value=\{actionPath\.actions\.join\(" → "\)\}/u);
   assert.doesNotMatch(component, /chromebookActionPaths\.map[\s\S]*?<tr/u, "all scenarios are not rendered as adjacent matrix rows");
   assert.match(component, /Every physical return proceeds through <ReadableSequence value="Wipe → Verify" \/>/u);
 });
 
 test("renders one vertical blueprint while retaining the full late-return exception history", async () => {
-  const [component, infrastructure] = await Promise.all([
-    readSource("../app/resume/ChromebookManagementViews.tsx"),
-    readDiagramInfrastructure(),
-  ]);
+  const component = await readSource("../app/resume/ChromebookManagementViews.tsx");
   assert.deepEqual(chromebookServiceBlueprints["normal-return"].map(({ lane }) => lane), [
     "Trigger",
     "Physical custody",
@@ -293,19 +274,17 @@ test("renders one vertical blueprint while retaining the full late-return except
     chromebookServiceBlueprints["late-return"].find(({ lane }) => lane === "Action sequence")?.value,
     "Lock → Await physical return → Unlock → Wipe → Verify",
   );
-  assert.match(component, /<ServiceBlueprint actionTone=\{actionPath\.tone\} steps=\{blueprint\} \/>/u);
-  assert.match(infrastructure, /<dl className="timeline-manifest chromebook-blueprint-lanes">/u);
-  assert.match(infrastructure, /steps\.map\(\(step, index\)/u);
-  assert.match(infrastructure, /step\.lane[\s\S]*?step\.value/u);
-  assert.match(infrastructure, /<ReadableSequence value=\{step\.value\} \/>/u, "every non-action arrow sequence has a spoken equivalent");
+  assert.match(component, /<dl className="timeline-manifest chromebook-blueprint-lanes">/u);
+  assert.match(component, /blueprint\.map\(\(step, index\)/u);
+  assert.match(component, /step\.lane[\s\S]*?step\.value/u);
+  assert.match(component, /<ReadableSequence value=\{step\.value\} \/>/u, "every non-action arrow sequence has a spoken equivalent");
   assert.doesNotMatch(component, /chromebook-blueprint-table/u, "normal and exception blueprints are not parallel table columns");
   assert.match(component, /selected phase retains the earlier lock so the full exception lifecycle remains legible/u);
 });
 
 test("keeps action speech portable, claims bounded, and integration Chromebook-only", async () => {
-  const [component, infrastructure, disclosure, resumeProjects, heldProjects, projectsPage] = await Promise.all([
+  const [component, disclosure, resumeProjects, heldProjects, projectsPage] = await Promise.all([
     readSource("../app/resume/ChromebookManagementViews.tsx"),
-    readDiagramInfrastructure(),
     readSource("../app/resume/ProjectDescriptionDisclosure.tsx"),
     readSource("../app/resume/ResumeProjects.tsx"),
     readSource("../app/resume/ResumeProjectsHeld.tsx"),
@@ -314,7 +293,7 @@ test("keeps action speech portable, claims bounded, and integration Chromebook-o
   const chromebook = projects.find(({ id }) => id === "chromebook-management");
   assert.ok(chromebook);
 
-  assert.match(infrastructure, /function ActionSequence[\s\S]*?aria-hidden="true"[\s\S]*?className="chromebook-visually-hidden"[\s\S]*?value\.replaceAll\(" → ", ", then "\)/u);
+  assert.match(component, /function ActionSequence[\s\S]*?aria-hidden="true"[\s\S]*?className="chromebook-visually-hidden"[\s\S]*?value\.replaceAll\(" → ", ", then "\)/u);
   const artifact = [
     JSON.stringify(chromebookActionPaths),
     JSON.stringify(chromebookServiceBlueprints),
@@ -322,7 +301,6 @@ test("keeps action speech portable, claims bounded, and integration Chromebook-o
     JSON.stringify(chromebook.summary),
     JSON.stringify(chromebook.capabilities),
     component,
-    infrastructure,
   ].join("\n");
   assert.doesNotMatch(artifact, /\b\d+\s*[-–—]?\s*(?:hours?|days?|weeks?|months?)\b/iu);
   assert.doesNotMatch(artifact, /\b(?:automatic(?:ally)?|automation|synchroni[sz](?:e|ed|es|ing|ation)|write[- ]?back|API calls?|alerts?|logs?|policy)\b/iu);

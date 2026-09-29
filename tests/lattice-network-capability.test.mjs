@@ -15,12 +15,6 @@ import {
   makeLatticeRequest,
   requestRemoteLattice,
 } from "../app/resume/lattice/remoteRequest.js";
-import {
-  LATTICE_MODAL_HELD_CONTENT_MESSAGE,
-  LATTICE_MODAL_HELD_SETUP_MESSAGE,
-  latticeHeldResponsePresentation,
-  latticeModalPresentation,
-} from "../app/resume/lattice/modalPresentation.js";
 
 const ORIGIN = "https://hah.dev";
 const words = (count) => Array.from({ length: count }, (_, index) => `word${index}`).join(" ");
@@ -51,12 +45,6 @@ function jsonResponse(body, status = 200, headers = {}) {
 
 function visitorSessionResponse(headers = {}) {
   return new Response(null, { status: 204, headers });
-}
-
-function heldApiResponse() {
-  return jsonResponse({ error: "upstream_unavailable" }, 503, {
-    "Cache-Control": "no-store",
-  });
 }
 
 function afterVisitorSession(transform) {
@@ -487,89 +475,6 @@ test("visitor-session setup failure sends no content request and is bounded for 
   assert.deepEqual(requests[0].init.headers, { Accept: LATTICE_VISITOR_SESSION_ACCEPT });
   assert.equal(Object.prototype.hasOwnProperty.call(requests[0].init, "body"), false);
   assert.equal(Object.prototype.hasOwnProperty.call(requests[0].init.headers, "Content-Type"), false);
-});
-
-test("a held API 503 maps both real client paths to the held modal presentation", async () => {
-  const paths = [
-    {
-      expectedCode: "visitor_session_required",
-      fetchImpl: () => heldApiResponse(),
-      expectedCalls: 1,
-      expectedStates: ["validating", "submitting"],
-      expectedPercent: 45,
-      expectedMessage: LATTICE_MODAL_HELD_SETUP_MESSAGE,
-    },
-    {
-      expectedCode: "upstream_unavailable",
-      fetchImpl: afterVisitorSession(() => heldApiResponse()),
-      expectedCalls: 2,
-      expectedStates: ["validating", "submitting", "processing"],
-      expectedPercent: 75,
-      expectedMessage: LATTICE_MODAL_HELD_CONTENT_MESSAGE,
-    },
-  ];
-
-  for (const {
-    expectedCode,
-    fetchImpl,
-    expectedCalls,
-    expectedStates,
-    expectedPercent,
-    expectedMessage,
-  } of paths) {
-    let calls = 0;
-    let failure;
-    const states = [];
-    await assert.rejects(
-      requestRemoteLattice("Held release integration source", {
-        baseOrigin: ORIGIN,
-        onState: (state) => states.push(state),
-        fetchImpl: async (...args) => {
-          calls += 1;
-          return fetchImpl(...args);
-        },
-      }),
-      (error) => {
-        failure = error;
-        return error instanceof LatticeRemoteError
-          && error.code === expectedCode
-          && error.status === 503;
-      },
-    );
-
-    const held = latticeHeldResponsePresentation(failure);
-    assert.deepEqual(held, {
-      disposition: "held",
-      message: expectedMessage,
-    });
-    if (expectedCode === "visitor_session_required") {
-      assert.match(held.message, /Your text was not sent to the configured external service/u);
-      assert.doesNotMatch(held.message, /may have reached/u);
-    } else {
-      assert.match(held.message, /may have reached the configured external service/u);
-      assert.match(held.message, /hah\.dev does not retain your sample or result/u);
-    }
-    assert.deepEqual(states, expectedStates, expectedCode);
-    assert.deepEqual(latticeModalPresentation({
-      phase: "error",
-      lastObservedPhase: states.at(-1),
-      disposition: held.disposition,
-    }), {
-      label: "Interactive release held",
-      percent: expectedPercent,
-      tone: "storm-gray",
-      terminal: true,
-      successful: false,
-    });
-    assert.equal(calls, expectedCalls, expectedCode);
-  }
-
-  for (const error of [
-    new LatticeRemoteError("visitor_session_required", { status: 428 }),
-    new LatticeRemoteError("upstream_unavailable", { status: 502 }),
-  ]) {
-    assert.equal(latticeHeldResponsePresentation(error), null, `${error.status} ${error.code}`);
-  }
 });
 
 test("a missing setup cookie is rejected once before provider processing without duplicating content", async () => {

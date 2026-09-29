@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
-import { extname, relative, resolve } from "node:path";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { extname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -46,12 +47,41 @@ const retiredBrowserRuntimeBindings = Object.freeze([
 async function filesBelow(directory) {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
+    // rsync's partial-transfer directory is transient, not a built artifact.
+    if (entry.isDirectory() && entry.name === ".rsync-tmp") continue;
     const pathname = resolve(directory, entry.name);
     if (entry.isDirectory()) files.push(...await filesBelow(pathname));
     else files.push(pathname);
   }
   return files;
 }
+
+test("artifact scanning excludes only rsync partial-transfer directories at any depth", async (context) => {
+  const fixtureDirectory = await mkdtemp(join(tmpdir(), "lattice-built-worker-"));
+  context.after(() => rm(fixtureDirectory, { recursive: true, force: true }));
+
+  const normalDirectory = join(fixtureDirectory, "normal", "deep");
+  const rootPartialDirectory = join(fixtureDirectory, ".rsync-tmp");
+  const nestedPartialDirectory = join(fixtureDirectory, "normal", ".rsync-tmp");
+  const similarDirectory = join(fixtureDirectory, ".rsync-tmp-kept");
+  await Promise.all([
+    mkdir(normalDirectory, { recursive: true }),
+    mkdir(rootPartialDirectory, { recursive: true }),
+    mkdir(nestedPartialDirectory, { recursive: true }),
+    mkdir(similarDirectory, { recursive: true }),
+  ]);
+  await Promise.all([
+    writeFile(join(normalDirectory, "visible.js"), "normal"),
+    writeFile(join(rootPartialDirectory, "ignored.js"), "partial"),
+    writeFile(join(nestedPartialDirectory, "ignored.js"), "partial"),
+    writeFile(join(similarDirectory, "visible.js"), "similar"),
+  ]);
+
+  const observed = (await filesBelow(fixtureDirectory))
+    .map((pathname) => relative(fixtureDirectory, pathname).split("\\").join("/"))
+    .sort();
+  assert.deepEqual(observed, [".rsync-tmp-kept/visible.js", "normal/deep/visible.js"]);
+});
 
 test("the production build excludes the retired browser-local model worker and provider assets", async () => {
   const files = await filesBelow(staticDirectory);
