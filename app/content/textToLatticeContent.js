@@ -95,7 +95,7 @@ export const textToLatticeContract = Object.freeze({
             responseTransport: "forced_named_tool",
             toolName: "lattice_verification_wire_v1",
             stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
-            maximumOutputTokens: 1_536,
+            maximumOutputTokens: 2_048,
           }),
           certification: Object.freeze({
             temperature: 0,

@@ -689,6 +689,7 @@ export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate
     "without refund",
     "no IP address",
     "browser fingerprint",
+    `${LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.certification.toLocaleString("en-US")}-token certifier`,
     "32 provider calls",
     "960",
     "rate limiter",
@@ -699,6 +700,16 @@ export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate
     "no availability",
   ]) {
     if (!gate03.toLowerCase().includes(required.toLowerCase())) fail(`GATE-03 omits the remote capacity atom ${required}.`);
+  }
+  for (const required of [
+    /analysis, candidate, certification, and repair calls have 120-second ceilings; verification has a 180-second ceiling/iu,
+    /(?:2,048-token verifier|verifier (?:stage )?maximum[^.]*2,048 tokens|verification[^.]*2,048-token)/iu,
+    /requested-output exposure[^.]*2,048(?: requested output tokens)? per (?:provider )?call/iu,
+    /requested-output exposure[^.]*65,536(?: requested output tokens)? per admitted request/iu,
+    /requested-output exposure[^.]*196,608(?: requested output tokens)? per cooperating (?:ordinary persistent )?browser cookie jar per UTC day/iu,
+    /requested-output exposure[^.]*1,966,080(?: requested output tokens)? (?:global(?:ly)?|across[^.]*global)[^.]*UTC day/iu,
+  ]) {
+    if (!required.test(gate03)) fail(`GATE-03 omits the exact stage-budget or aggregate-exposure boundary ${required}.`);
   }
 
   const gate06 = activeGateText(productionLifecycleGate);
@@ -1177,8 +1188,10 @@ async function verifyQualificationDossier(register) {
     || !/historical inactive[\s\S]{0,300}(?:WebLLM|lease)/iu.test(source)) {
     fail("release qualification must disclose the remote capability, fixed provider, finite failure policy, provider-managed provenance, and historical inactive browser-local record.");
   }
-  if (releaseState.held && !/no remote production evidence/iu.test(source)) {
-    fail("held release qualification must disclose that no remote production evidence is claimed.");
+  if (releaseState.held
+    && (!/remote production evidence is failure-only/iu.test(source)
+      || !/no successful production transformation/iu.test(source))) {
+    fail("held release qualification must distinguish retained failure evidence from the absence of a successful production transformation.");
   }
   if (releaseState.qualificationPending
     && (!/qualification[- ]pending/iu.test(source)

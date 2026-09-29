@@ -1018,7 +1018,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
           responseTransport: "forced_named_tool",
           toolName: "lattice_verification_wire_v1",
           stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
-          maximumOutputTokens: 1_536,
+          maximumOutputTokens: 2_048,
         },
         certification: {
           temperature: 0,
