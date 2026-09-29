@@ -30,12 +30,13 @@ import { projectBySlug } from "../app/resume/projects.js";
 import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
   LATTICE_PROVIDER_CALL_LIMIT,
-  LATTICE_PROVIDER_CALL_TIMEOUT_MS,
   LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT,
+  LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS,
   LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
   LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL,
   LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
   LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
+  LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS,
   LATTICE_REMOTE_MODELS,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
@@ -1072,6 +1073,9 @@ async function verifyQualificationDossier(register) {
     String(artifacts.activeCapability.admission.globalPerUtcDay),
     String(artifacts.activeCapability.admission.perOrdinaryPersistentBrowserCookieJarPerUtcDay),
     String(artifacts.activeCapability.admission.maximumProviderCallsFromAdmittedRequestsPerUtcDay),
+    ...Object.values(artifacts.activeCapability.provider.stageCallTimeoutsMs)
+      .map((value) => value.toLocaleString("en-US")),
+    artifacts.activeCapability.provider.maximumCallTimeoutMs.toLocaleString("en-US"),
     ...Object.values(artifacts.activeCapability.provider.stageMaximumOutputTokens)
       .map((value) => value.toLocaleString("en-US")),
     artifacts.activeCapability.provider.maximumRequestedOutputTokensPerCall
@@ -1279,7 +1283,9 @@ function verifyArtifactSet(register) {
     || capability.provider.endpoint !== HUGGING_FACE_CHAT_COMPLETIONS_URL
     || capability.provider.generatorModel !== LATTICE_REMOTE_MODELS.generator
     || capability.provider.verifierModel !== LATTICE_REMOTE_MODELS.verifier
-    || capability.provider.callTimeoutMs !== LATTICE_PROVIDER_CALL_TIMEOUT_MS
+    || JSON.stringify(capability.provider.stageCallTimeoutsMs)
+      !== JSON.stringify(LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS)
+    || capability.provider.maximumCallTimeoutMs !== LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS
     || capability.provider.callLimit !== LATTICE_PROVIDER_CALL_LIMIT
     || JSON.stringify(capability.provider.stageMaximumOutputTokens)
       !== JSON.stringify(LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS)

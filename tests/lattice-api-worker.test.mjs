@@ -31,11 +31,13 @@ import {
   LATTICE_PROVIDER_CALL_LIMIT,
   LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT,
   LATTICE_PROVIDER_FAILURE_CLASSES,
+  LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS,
   LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
   LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL,
   LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
   LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   LATTICE_REMOTE_MODELS,
+  LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS,
   LATTICE_PROVIDER_STAGES,
   LatticeProviderError,
   createHuggingFaceLatticeAdapter,
@@ -57,6 +59,7 @@ import {
   LATTICE_API_ORIGIN,
   LATTICE_API_PATH,
   LATTICE_API_RATE_LIMIT_KEY,
+  LATTICE_API_REQUEST_TIMEOUT_MS,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
@@ -1613,6 +1616,15 @@ test("compact verifier and certifier dialects replace host-shape output and priv
 
 test("the adapter uses strict JSON Schema analysis and forced-tool certification", async () => {
   assert.equal(LATTICE_PROVIDER_CALL_TIMEOUT_MS, 120_000);
+  assert.deepEqual(LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS, {
+    analysis: 120_000,
+    candidate: 120_000,
+    verification: 180_000,
+    certification: 120_000,
+    repair: 120_000,
+  });
+  assert.equal(Object.isFrozen(LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS), true);
+  assert.equal(LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS, 180_000);
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, init, body: JSON.parse(init.body) });
@@ -1982,6 +1994,8 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
 
 test("all five production stages use their exact provider response transport", async () => {
   const calls = [];
+  const scheduledProviderDeadlines = [];
+  const originalSetTimeout = globalThis.setTimeout;
   const base = minimalVerificationRequest();
   const { analysis, candidate } = base;
   const responses = [
@@ -2014,18 +2028,26 @@ test("all five production stages use their exact provider response transport", a
     issues: Object.freeze([]),
   });
 
-  await adapter.analyze(base);
-  await adapter.generate(Object.freeze({ ...base, analysis }));
-  await adapter.verify(Object.freeze({ ...base, analysis, candidate }));
-  await adapter.certify({
-    certificateId: "certificate:transport-matrix",
-    obligationIds: Object.freeze(["document:whole"]),
-    source: "Original source.",
-    candidate: "Candidate source.",
-    analysis,
-    signal: base.signal,
-  });
-  await adapter.repair(Object.freeze({ ...base, analysis, candidate, verification }));
+  globalThis.setTimeout = (callback, milliseconds, ...args) => {
+    scheduledProviderDeadlines.push(milliseconds);
+    return originalSetTimeout(callback, milliseconds, ...args);
+  };
+  try {
+    await adapter.analyze(base);
+    await adapter.generate(Object.freeze({ ...base, analysis }));
+    await adapter.verify(Object.freeze({ ...base, analysis, candidate }));
+    await adapter.certify({
+      certificateId: "certificate:transport-matrix",
+      obligationIds: Object.freeze(["document:whole"]),
+      source: "Original source.",
+      candidate: "Candidate source.",
+      analysis,
+      signal: base.signal,
+    });
+    await adapter.repair(Object.freeze({ ...base, analysis, candidate, verification }));
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
 
   assert.deepEqual(calls.map(({ model }) => model), [
     LATTICE_REMOTE_MODELS.generator,
@@ -2033,6 +2055,13 @@ test("all five production stages use their exact provider response transport", a
     LATTICE_REMOTE_MODELS.verifier,
     LATTICE_REMOTE_MODELS.verifier,
     LATTICE_REMOTE_MODELS.generator,
+  ]);
+  assert.deepEqual(scheduledProviderDeadlines, [
+    LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS.analysis,
+    LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS.candidate,
+    LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS.verification,
+    LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS.certification,
+    LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS.repair,
   ]);
   assert.deepEqual(calls.map(({ max_tokens }) => max_tokens), [768, 800, 1_536, 520, 800]);
   assert.equal(calls[0].response_format.type, "json_schema");
@@ -4153,6 +4182,53 @@ test("a provider response that resolves after timeout has its unread body cancel
   assert.equal(bodyCanceled, true);
 });
 
+test("a verifier-local timeout keeps sanitized verification metadata and discards a late body without retry", async () => {
+  const base = minimalVerificationRequest();
+  let fetches = 0;
+  let resolveVerification;
+  let bodyCanceled = false;
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    callTimeoutMs: 10,
+    fetchImpl: async () => {
+      fetches += 1;
+      if (fetches === 1) {
+        return successfulProviderResponse({ d: "instruction", p: [], q: [] });
+      }
+      if (fetches === 2) return successfulProviderResponse({ passages: [] });
+      return new Promise((resolve) => { resolveVerification = resolve; });
+    },
+  });
+
+  await adapter.analyze(base);
+  await adapter.generate(Object.freeze({ ...base, analysis: base.analysis }));
+  await assert.rejects(
+    adapter.verify(base),
+    (error) => {
+      assert.ok(error instanceof LatticeProviderError);
+      assert.equal(error.code, "provider_timeout");
+      assert.equal(error.qualificationStage, "verification");
+      assert.equal(error.qualificationCallOrdinal, 3);
+      assert.equal(Object.keys(error).includes("qualificationStage"), false);
+      assert.equal(Object.keys(error).includes("qualificationCallOrdinal"), false);
+      return true;
+    },
+  );
+  assert.equal(fetches, 3);
+
+  resolveVerification(new Response(new ReadableStream({
+    cancel() {
+      bodyCanceled = true;
+    },
+  }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  }));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(bodyCanceled, true);
+  assert.equal(fetches, 3);
+});
+
 test("provider timeout is not extended by a response stream whose cancel never settles", async () => {
   const never = () => new Promise(() => {});
   const responseStream = new ReadableStream({
@@ -5130,6 +5206,78 @@ test("the whole-request deadline bounds a pipeline that ignores abort", async ()
   const response = await worker.fetch(apiRequest(), { HF_TOKEN: "unused" });
   assert.equal(response.status, 504);
   assert.deepEqual(await json(response), { error: "upstream_timeout" });
+});
+
+test("the whole-request deadline preempts the verifier's longer default deadline", async () => {
+  let scheduledOuterDeadline;
+  let providerCalls = 0;
+  let providerSignal;
+  let providerStartedResolve;
+  const providerStarted = new Promise((resolve) => { providerStartedResolve = resolve; });
+  const providerDeadlines = [];
+  const originalSetTimeout = globalThis.setTimeout;
+  const worker = createLatticeApiWorker({
+    requestTimeoutMs: 25,
+    scheduleTimeout(callback, milliseconds) {
+      scheduledOuterDeadline = { callback, milliseconds, canceled: false };
+      return scheduledOuterDeadline;
+    },
+    cancelTimeout(deadline) {
+      assert.equal(deadline, scheduledOuterDeadline);
+      deadline.canceled = true;
+    },
+    fetchImpl: async (_url, init) => {
+      providerCalls += 1;
+      providerSignal = init.signal;
+      providerStartedResolve();
+      return new Promise((_resolve, reject) => {
+        init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true });
+      });
+    },
+    runTextToLatticeImpl: async (_text, { adapter, signal }) => adapter.verify(Object.freeze({
+      ...minimalVerificationRequest(),
+      signal,
+    })),
+  });
+
+  globalThis.setTimeout = (callback, milliseconds, ...args) => {
+    providerDeadlines.push(milliseconds);
+    return originalSetTimeout(callback, milliseconds, ...args);
+  };
+  let response;
+  try {
+    const pendingResponse = worker.fetch(apiRequest(), { HF_TOKEN: "server-token" });
+    await providerStarted;
+    assert.equal(scheduledOuterDeadline.milliseconds, 25);
+    assert.equal(providerSignal.aborted, false);
+    scheduledOuterDeadline.callback();
+    response = await pendingResponse;
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
+
+  assert.equal(response.status, 504);
+  assert.deepEqual(await json(response), { error: "upstream_timeout" });
+  assert.deepEqual(providerDeadlines, [LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS.verification]);
+  assert.equal(providerSignal.aborted, true);
+  assert.equal(providerCalls, 1);
+  assert.equal(scheduledOuterDeadline.canceled, true);
+});
+
+test("the live canary deadline remains outside the bounded request and provider deadlines", async () => {
+  const verifierSource = await readFile(
+    new URL("../scripts/verify-text-to-lattice-api-production.mjs", import.meta.url),
+    "utf8",
+  );
+  const canaryTimeoutMatch = verifierSource.match(/const CANARY_TIMEOUT_MS = ([\d_]+);/u);
+  assert.ok(canaryTimeoutMatch);
+  const canaryTimeoutMs = Number(canaryTimeoutMatch[1].replaceAll("_", ""));
+
+  assert.equal(LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS, 180_000);
+  assert.equal(LATTICE_API_REQUEST_TIMEOUT_MS, 240_000);
+  assert.equal(canaryTimeoutMs, 255_000);
+  assert.ok(LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS < LATTICE_API_REQUEST_TIMEOUT_MS);
+  assert.ok(LATTICE_API_REQUEST_TIMEOUT_MS < canaryTimeoutMs);
 });
 
 test("the whole-request deadline is not extended by request-body cancellation", async () => {

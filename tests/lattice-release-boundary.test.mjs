@@ -187,8 +187,9 @@ test("the release register honestly holds the remote capability and preserves hi
   assert.ok(register.publicClient.heldBoundary.deny.some((item) => item.includes("/api/lattice")));
   assert.match(
     register.publicClient.reason,
-    /run #152[\s\S]*forced named-tool transport was sent[\s\S]*current measured-budget candidate[\s\S]*undeployed/iu,
+    /run #154[\s\S]*deployed 1,536-token forced named-tool verifier request[\s\S]*current undeployed candidate[\s\S]*verification's per-call ceiling to 180 seconds/iu,
   );
+  assert.match(register.publicClient.reason, /Run #152 remains earlier evidence[\s\S]*1,200-token verifier ceiling/iu);
   assert.doesNotMatch(register.publicClient.reason, /run #150 supplied the newest/iu);
   assert.equal(register.ownerDisposition.status, "hold-directed");
   assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
@@ -208,8 +209,9 @@ test("the release register honestly holds the remote capability and preserves hi
   const workflowGate = register.gates.find(({ id }) => id === "GATE-01");
   assert.match(
     workflowGate.currentEvidence,
-    /run #152[\s\S]*859-test suite[\s\S]*forced named-tool request was deployed and sent[\s\S]*undeployed 1,536-token measured-budget candidate/iu,
+    /run #154[\s\S]*848 passing tests[\s\S]*23 of 23 tests[\s\S]*deployed 1,536-token forced named-tool verifier request[\s\S]*current undeployed verification-only 180-second timeout candidate/iu,
   );
+  assert.match(workflowGate.currentEvidence, /Run #152 remains earlier[\s\S]*1,200-token length-failure history/iu);
 
   const capability = register.artifactSet.activeCapability;
   assert.deepEqual(
@@ -306,6 +308,14 @@ test("the release register honestly holds the remote capability and preserves hi
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-4B-Instruct-2507:nscale");
   assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.1-8B-Instruct:deepinfra");
+  assert.deepEqual(capability.provider.stageCallTimeoutsMs, {
+    analysis: 120_000,
+    candidate: 120_000,
+    verification: 180_000,
+    certification: 120_000,
+    repair: 120_000,
+  });
+  assert.equal(capability.provider.maximumCallTimeoutMs, 180_000);
   assert.deepEqual(capability.provider.stageMaximumOutputTokens, {
     analysis: 2_048,
     candidate: 800,
