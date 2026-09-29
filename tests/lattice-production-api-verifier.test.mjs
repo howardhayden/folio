@@ -373,7 +373,7 @@ test("the production verifier establishes one bodyless visitor session before ex
     provider_stage_max_output_tokens: {
       analysis: 2_048,
       candidate: 800,
-      verification: 1_536,
+      verification: 2_048,
       certification: 520,
       repair: 800,
     },

@@ -36,7 +36,7 @@ test("the documentation generator binds current remote evidence and preserves in
   assert.match(builder, /post-deployment verification only after GATE-02 and GATE-03 are satisfied in production/u);
   assert.match(builder, /deployed only for immediate canonical-browser qualification and is not qualified/u);
   assert.match(builder, /Current active evidence:[\s\S]{0,240}Historical inactive classification:/u);
-  assert.match(builder, /no remote production evidence/u);
+  assert.match(builder, /Run #156 is bounded remote production failure evidence[^]{0,160}no successful production transformation/u);
   assert.match(releaseVerifier, /import \{ verifyBrowserEvidenceBundle \} from "\.\/verify-text-to-lattice-browser-evidence\.mjs"/u);
   assert.match(releaseVerifier, /await verifyBrowserEvidenceAuthority\(register, releaseState\)/u);
   assert.match(releaseVerifier, /bundle = await verifyBundle\(resolvedPath\.absolute\)/u);
@@ -160,7 +160,7 @@ test("the atlas models the held remote capability without promoting historical e
     const gate = releaseRegister.gates.find((candidate) => candidate.id === id);
     assert.equal(gate.historicalInactiveRecord.status, "historical-inactive");
     assert.deepEqual(gate.historicalInactiveRecord.appliesToFields, ["currentEvidence", "evidence"]);
-    assert.match(gate.activeCurrentEvidence, /No retained production|have not been observed|No canonical production/iu);
+    assert.match(gate.activeCurrentEvidence, /No retained production|have not been observed|remain unobserved|No canonical production/iu);
     assert.ok(gate.activeEvidence.length > 0);
     assert.doesNotMatch(`${gate.label} ${gate.requirement} ${gate.activeCurrentEvidence} ${gate.evidenceNeeded} ${gate.activeEvidence.join(" ")} ${gate.safeguards.join(" ")} ${gate.followUp} ${gate.rollbackCondition}`, /Turnstile|Siteverify|verify\.hah\.dev|WebGPU|WebLLM|\/api\/text-to-lattice\/lease|\blease\b|\battestation\b/iu);
   }
@@ -173,7 +173,7 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /^# Text to Lattice release qualification — held remote candidate/u);
   assert.match(dossier, /\*\*Decision:\*\* hold the interactive client; publish the method, implementation record, and documentation only\./u);
   assert.match(dossier, /Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence\./u);
-  assert.match(dossier, /no remote production evidence/iu);
+  assert.match(dossier, /remote production evidence is failure-only[^]{0,160}no successful production transformation/iu);
   assert.match(dossier, /same-origin `\/api\/lattice`[\s\S]{0,240}bodyless `POST \/api\/lattice`/u);
   assert.match(dossier, /application\/vnd\.hah\.text-to-lattice-visitor-session\.v1\+json/u);
   assert.match(dossier, /bodyless/u);
@@ -190,7 +190,21 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /no alternate provider or model fallback/iu);
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
   assert.match(dossier, /Historical inactive WebLLM and lease appendix/u);
-  assert.match(dossier, /2bbbb9eaa19173c0a28b8829bb4555cd31826b4be87c3e942325f367ef1c81c9/u);
+  assert.match(dossier, /https:\/\/github\.com\/howardhayden\/folio\/actions\/runs\/36589409202/u);
+  assert.match(dossier, /0750ce7fde7d3a3d7dc5defd3a6dc23bb7367f70/u);
+  assert.match(dossier, /b31ff7917d118bdc4d2dc3d7ca7364d547d4c296c0989b31cb91751b30d78577/u);
+  assert.match(dossier, /build job `109478331469`[\s\S]{0,300}868 tests/iu);
+  assert.match(dossier, /service job `109479062158`/iu);
+  assert.match(dossier, /`call_ordinal=4`[\s\S]{0,300}`finish_reason=length`/iu);
+  assert.match(dossier, /1,536-token verifier/iu);
+  assert.match(dossier, /2,048-token (?:verifier|trial)/iu);
+  assert.match(dossier, /current undeployed[\s\S]{0,240}(?:2,048-token|2,048 tokens)/iu);
+  assert.match(dossier, /artifact ID `11043072405`[\s\S]{0,240}`6c507c2c6a4e437c41e9fa5d437e0f373720deda5236b7efc80539ebe6908706`/u);
+  assert.match(dossier, /partial deployment-evidence artifact ID `11042927757`[\s\S]{0,240}`23f1571acc0fd80b801c6dcec4c644098fc9915d07e03cfbe96216b8f1e521b4`/u);
+  assert.match(dossier, /final held-enforcement job `109479903525`[\s\S]{0,480}`9ccc48bb-bf84-4b55-9bf4-7a775db141f5`[\s\S]{0,240}`a662856d-11b2-4a18-9843-7f5f98bc46aa`[\s\S]{0,300}artifact ID `11043845974`[\s\S]{0,240}`35cf551aa023719f4006076b5127e284fdef9543a6642bd6cc35c0bcc93adc54`/u);
+  assert.match(dossier, /run #154[\s\S]{0,300}(?:retained as history|earlier)/iu);
+  assert.match(dossier, /preceding bounded qualification,[\s\S]{0,100}run #152/iu);
+  assert.match(dossier, /cd3ead3efa5910d951bae94e4db8dba2a70e49bd268ceda10153938e68c951ef/u);
   assert.match(dossier, /workflow run 34325228788[\s\S]{0,300}9ab26b95cc1f9a94697118c0fc20a849db8f6ad2/u);
   assert.match(dossier, /266db6b8264a0aa42ac16916ddf696554c846b239960e7d19fc002917d843950/u);
 });
@@ -329,7 +343,7 @@ test("interactive editions remain complete, self-contained, accessible, and exec
 
   const index = await readText(publicRoot, "index.html");
   assert.match(index, /held and documentation-only/iu);
-  assert.match(index, /no remote production evidence/iu);
+  assert.match(index, /remote production failure evidence[^]{0,200}no successful production transformation/iu);
   assert.match(index, /Historical WebLLM, Turnstile, and lease records remain inactive/u);
   for (const { html, markdown } of atlas.artifacts) {
     assert.ok(index.includes(`href="${html}"`));
@@ -361,7 +375,7 @@ test("interactive editions remain complete, self-contained, accessible, and exec
     const historicalIndex = artifact.indexOf("Historical inactive evidence");
     assert.ok(activeIndex >= 0 && historicalIndex > activeIndex, "active remote evidence renders before historical inactive evidence");
     assert.match(artifact, /same-origin POST \/api\/lattice/iu);
-    assert.match(artifact, /no remote production evidence/iu);
+    assert.match(artifact, /remote production failure evidence[^]{0,200}no successful production transformation/iu);
     assert.match(artifact, /not byte-pinned/iu);
   }
 });

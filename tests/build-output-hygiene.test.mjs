@@ -168,7 +168,7 @@ test("the remote adapter consumes the public server-side sampling contract", asy
   assert.match(adapter, /const ANALYSIS_MIN_OUTPUT_TOKENS = 768;/u);
   assert.match(adapter, /const ANALYSIS_OUTPUT_TOKEN_STEP = 256;/u);
   assert.match(adapter, /const CANDIDATE_MAX_OUTPUT_TOKENS = 800;/u);
-  assert.match(adapter, /const VERIFICATION_MAX_OUTPUT_TOKENS = 1_536;/u);
+  assert.match(adapter, /const VERIFICATION_MAX_OUTPUT_TOKENS = 2_048;/u);
   assert.match(adapter, /const CERTIFICATION_MAX_OUTPUT_TOKENS = 520;/u);
   assert.match(adapter, /const REPAIR_MAX_OUTPUT_TOKENS = 800;/u);
   assert.deepEqual(textToLatticeContract.implementation.verifier.inference.stages, {
@@ -178,7 +178,7 @@ test("the remote adapter consumes the public server-side sampling contract", asy
       responseTransport: "forced_named_tool",
       toolName: "lattice_verification_wire_v1",
       stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
-      maximumOutputTokens: 1_536,
+      maximumOutputTokens: 2_048,
     },
     certification: {
       temperature: 0,

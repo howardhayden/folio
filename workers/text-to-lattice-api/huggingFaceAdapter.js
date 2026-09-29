@@ -145,12 +145,17 @@ const CANDIDATE_MAX_OUTPUT_TOKENS = 800;
 // 5-conformance-check, 24-issue production contract measures at most 479
 // reviewed-tokenizer tokens minified, 492 in compact native-tool form, 905
 // with conventional two-space formatting, and 918 in pretty native-tool form.
-// The 1,536-token limit is the smallest 256-token step that retains at least
-// 50 percent over that production maximum. A broader decoder-valid sensitivity
-// fixture measures 978 native-tool tokens, but is not production-reachable or
-// a sizing input. The margin also responds to the live 1,200-token truncation
-// without claiming that every legal compact object mathematically requires it.
-const VERIFICATION_MAX_OUTPUT_TOKENS = 1_536;
+// A bounded live 1,536-token trial returned finish_reason=length, so the host
+// rejected it without accepting or exposing a complete legal verifier-arguments
+// object. That does not increase the 918-token legal maximum or identify the
+// provider-managed completion accounting. It establishes that a 50-percent
+// repository-tokenizer margin was operationally
+// insufficient. The 2,048-token limit is the smallest 256-token step retaining a
+// full additional 918-token margin: ceil((2 * 918) / 256) * 256. It leaves 1,130
+// repository-tokenizer tokens above the legal maximum and 512 above the observed
+// insufficient cap. A broader decoder-valid sensitivity fixture measures 978
+// native-tool tokens, but is not production-reachable or a sizing input.
+const VERIFICATION_MAX_OUTPUT_TOKENS = 2_048;
 const CERTIFICATION_MAX_OUTPUT_TOKENS = 520;
 const REPAIR_MAX_OUTPUT_TOKENS = 800;
 export const LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS = Object.freeze({

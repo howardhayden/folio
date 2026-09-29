@@ -2063,7 +2063,7 @@ test("all five production stages use their exact provider response transport", a
     LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS.certification,
     LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS.repair,
   ]);
-  assert.deepEqual(calls.map(({ max_tokens }) => max_tokens), [768, 800, 1_536, 520, 800]);
+  assert.deepEqual(calls.map(({ max_tokens }) => max_tokens), [768, 800, 2_048, 520, 800]);
   assert.equal(calls[0].response_format.type, "json_schema");
   assert.equal(calls[0].response_format.json_schema.strict, true);
   assert.equal(calls[0].response_format.json_schema.name, ANALYSIS_TOOL_NAME);
@@ -2167,7 +2167,7 @@ test("compact verifier and certifier wires expand to the unchanged host schemas"
   assert.equal(verificationTuple[6].minLength, evidenceIds.length);
   assert.deepEqual(verificationTuple[7].prefixItems[0].enum, [false]);
   assert.deepEqual(verificationTuple[7].prefixItems[1].enum, ["0".repeat(evidenceIds.length)]);
-  assert.equal(calls[0].max_tokens, 1_536);
+  assert.equal(calls[0].max_tokens, 2_048);
   assert.equal(calls[0].messages[0].content.includes(JSON.stringify(VERIFICATION_SCHEMA)), false);
 
   const certificationSchema = forcedToolSchema(calls[1], CERTIFICATION_TOOL_NAME);
@@ -2260,7 +2260,7 @@ test("the production canary completes through the compact verifier wire", async 
   assert.equal(result.text, transformed);
   assert.equal(result.verificationPasses, 1);
   assert.equal(calls.length, 3);
-  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [768, 800, 1_536]);
+  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [768, 800, 2_048]);
   forcedToolSchema(calls[2], VERIFICATION_TOOL_NAME);
 });
 
@@ -2360,7 +2360,7 @@ test("the API Worker completes verification and required document certification 
     LATTICE_REMOTE_MODELS.verifier,
     LATTICE_REMOTE_MODELS.verifier,
   ]);
-  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [1_024, 800, 1_536, 520]);
+  assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [1_024, 800, 2_048, 520]);
   assert.equal(inertModelPayload(calls[0]).requestedMode, "operative");
   assert.match(calls[0].messages[0].content, /never ask a public question/u);
   forcedToolSchema(calls[2], VERIFICATION_TOOL_NAME);
@@ -3804,6 +3804,23 @@ test("a named verifier-tool request accepts only its exact returned tool call", 
   }
 });
 
+test("a named-tool envelope accepts the exact 256-code-unit call-id boundary", async () => {
+  const toolCallId = "x".repeat(256);
+  const result = await requestHuggingFaceJson(providerRequestOptions(async () => (
+    successfulProviderToolResponse(
+      { accepted: true },
+      { toolCallId },
+    )
+  ), {
+    role: "verifier",
+    toolName: ANALYSIS_TOOL_NAME,
+    responseGuide: "Return the accepted decision through the named function.",
+  }));
+
+  assert.equal(toolCallId.length, 256);
+  assert.deepEqual(result, { accepted: true });
+});
+
 test("named-tool envelopes fail closed for missing, extra, or malformed calls", async () => {
   const validToolCall = providerToolCall();
   const cases = [
@@ -4007,8 +4024,102 @@ test("the configured verification cap still fails closed on a length finish with
       && !error.message.includes("private")
       && !JSON.stringify(error).includes("truncated"),
   );
-  assert.equal(body.max_tokens, 1_536);
+  assert.equal(body.max_tokens, 2_048);
   assert.equal(fetches, 1);
+});
+
+test("every supported correction history preserves the verifier cap and sanitized terminal length at global call four", async (t) => {
+  const base = minimalVerificationRequest();
+  const correctionFeedback = Object.freeze({
+    stage: "test-correction",
+    attempt: 2,
+    issue: "PRIVATE-HOST-CORRECTION-MUST-NOT-CROSS",
+    instruction: "Return the closed fitted response.",
+  });
+  const analysisRequest = minimalAnalysisRequest();
+  const candidateRequest = Object.freeze({ ...base, analysis: base.analysis });
+  const correctedAnalysisRequest = Object.freeze({
+    ...analysisRequest,
+    protocolFeedback: correctionFeedback,
+  });
+  const correctedCandidateRequest = Object.freeze({
+    ...candidateRequest,
+    protocolFeedback: correctionFeedback,
+  });
+  const correctedVerificationRequest = Object.freeze({
+    ...base,
+    protocolFeedback: correctionFeedback,
+  });
+  const histories = [
+    ["analysis correction", async (adapter) => {
+      await adapter.analyze(analysisRequest);
+      await adapter.analyze(correctedAnalysisRequest);
+      await adapter.generate(candidateRequest);
+    }],
+    ["candidate correction", async (adapter) => {
+      await adapter.analyze(analysisRequest);
+      await adapter.generate(candidateRequest);
+      await adapter.generate(correctedCandidateRequest);
+    }],
+    ["verifier host-normalization correction", async (adapter) => {
+      await adapter.analyze(analysisRequest);
+      await adapter.generate(candidateRequest);
+      assert.deepEqual(await adapter.verify(base), {});
+    }],
+  ];
+
+  for (const [name, arrange] of histories) {
+    await t.test(name, async () => {
+      const privatePrefix = `PRIVATE-TRUNCATED-${name}`;
+      const calls = [];
+      const adapter = createHuggingFaceLatticeAdapter({
+        token: "server-token",
+        fetchImpl: async (_url, init) => {
+          const body = JSON.parse(init.body);
+          calls.push(body);
+          if (calls.length === 4) {
+            return providerChoiceResponse({
+              finish_reason: "length",
+              message: {
+                role: "assistant",
+                tool_calls: [providerToolCall({
+                  name: VERIFICATION_TOOL_NAME,
+                  argumentsValue: `{"partial":"${privatePrefix}"}`,
+                })],
+              },
+            });
+          }
+          if (body.response_format?.type === "json_schema") {
+            return successfulProviderResponse({ d: "instruction", p: [], q: [] });
+          }
+          if (body.response_format?.type === "json_object") {
+            return successfulProviderResponse({ passages: [] });
+          }
+          return successfulProviderToolResponse({}, {
+            toolName: VERIFICATION_TOOL_NAME,
+            toolCallId: "call_invalid_verification_for_host_normalization",
+          });
+        },
+      });
+
+      await arrange(adapter);
+      await assert.rejects(
+        adapter.verify(correctedVerificationRequest),
+        (error) => {
+          assert.ok(error instanceof LatticeProviderError);
+          assert.equal(error.code, "provider_output_limit");
+          assert.equal(error.qualificationStage, "verification");
+          assert.equal(error.qualificationCallOrdinal, 4);
+          assert.equal(error.message.includes(privatePrefix), false);
+          assert.equal(JSON.stringify(error).includes(privatePrefix), false);
+          return true;
+        },
+      );
+      assert.equal(calls.length, 4, "a terminal length finish must not retry");
+      assert.equal(calls[3].max_tokens, 2_048);
+      forcedToolSchema(calls[3], VERIFICATION_TOOL_NAME);
+    });
+  }
 });
 
 test("unsupported provider request extensions fail closed before external fetch", async () => {
@@ -4083,7 +4194,7 @@ test("provider output-token exposure stays explicit and bounded by admission", (
   assert.deepEqual(LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS, {
     analysis: 2_048,
     candidate: 800,
-    verification: 1_536,
+    verification: 2_048,
     certification: 520,
     repair: 800,
   });

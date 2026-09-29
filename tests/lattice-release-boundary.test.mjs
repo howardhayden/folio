@@ -185,11 +185,11 @@ test("the release register honestly holds the remote capability and preserves hi
   );
   assert.ok(register.publicClient.heldBoundary.allow.length > 0);
   assert.ok(register.publicClient.heldBoundary.deny.some((item) => item.includes("/api/lattice")));
-  assert.match(
-    register.publicClient.reason,
-    /run #154[\s\S]*deployed 1,536-token forced named-tool verifier request[\s\S]*current undeployed candidate[\s\S]*verification's per-call ceiling to 180 seconds/iu,
-  );
-  assert.match(register.publicClient.reason, /Run #152 remains earlier evidence[\s\S]*1,200-token verifier ceiling/iu);
+  assert.match(register.publicClient.reason, /run #156[\s\S]*1,536-token forced named-tool verifier/iu);
+  assert.match(register.publicClient.reason, /deployed 180-second verification deadline[\s\S]*finish_reason=length[\s\S]*call_ordinal=4/iu);
+  assert.match(register.publicClient.reason, /current undeployed candidate[\s\S]*verifier maximum to 2,048 tokens/iu);
+  assert.match(register.publicClient.reason, /Run #154 remains earlier[\s\S]*1,536-token timeout evidence/iu);
+  assert.match(register.publicClient.reason, /Run #152 remains earlier[\s\S]*1,200-token length evidence/iu);
   assert.doesNotMatch(register.publicClient.reason, /run #150 supplied the newest/iu);
   assert.equal(register.ownerDisposition.status, "hold-directed");
   assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
@@ -209,9 +209,40 @@ test("the release register honestly holds the remote capability and preserves hi
   const workflowGate = register.gates.find(({ id }) => id === "GATE-01");
   assert.match(
     workflowGate.currentEvidence,
-    /run #154[\s\S]*848 passing tests[\s\S]*23 of 23 tests[\s\S]*deployed 1,536-token forced named-tool verifier request[\s\S]*current undeployed verification-only 180-second timeout candidate/iu,
+    /run #156[\s\S]*full 868-test declaration[\s\S]*1,536-token forced named-tool verifier[\s\S]*180-second verification deadline[\s\S]*verification call ordinal 4[\s\S]*current undeployed 2,048-token verifier candidate/iu,
   );
-  assert.match(workflowGate.currentEvidence, /Run #152 remains earlier[\s\S]*1,200-token length-failure history/iu);
+  assert.match(workflowGate.currentEvidence, /Run #154 remains earlier[\s\S]*1,536-token timeout history/iu);
+  assert.match(workflowGate.currentEvidence, /Run #152 remains earlier[\s\S]*1,200-token length history/iu);
+
+  const activeRemoteEvidence = [
+    register.publicClient.reason,
+    ...register.gates.flatMap((gate) => [gate.activeCurrentEvidence, ...(gate.activeEvidence ?? [])]),
+  ].join(" ");
+  for (const exactEvidence of [
+    "https://github.com/howardhayden/folio/actions/runs/36589409202",
+    "0750ce7fde7d3a3d7dc5defd3a6dc23bb7367f70",
+    "b31ff7917d118bdc4d2dc3d7ca7364d547d4c296c0989b31cb91751b30d78577",
+    "build job 109478331469",
+    "artifact ID 11043072405",
+    "SHA-256 6c507c2c6a4e437c41e9fa5d437e0f373720deda5236b7efc80539ebe6908706",
+    "service job 109479062158",
+    "ce48f180b4fbef8cf9f3578223073de3fed4e554a62df9c68eabeaca1f6a4506",
+    "4cf7bbf2-90fb-458b-a648-264c81bf5bfc",
+    "0bb46221-e7bf-4cc0-ad9c-10bbdf94d833",
+    "artifact ID 11042927757",
+    "SHA-256 23f1571acc0fd80b801c6dcec4c644098fc9915d07e03cfbe96216b8f1e521b4",
+    "72207ee4-ad72-4c0a-be9c-bef654dd5cd3",
+    "26bb1e0e-13e1-4e38-a9b6-79a4cc24f10d",
+    "final held-enforcement job 109479903525",
+    "9ccc48bb-bf84-4b55-9bf4-7a775db141f5",
+    "a662856d-11b2-4a18-9843-7f5f98bc46aa",
+    "artifact ID 11043845974",
+    "SHA-256 35cf551aa023719f4006076b5127e284fdef9543a6642bd6cc35c0bcc93adc54",
+  ]) assert.ok(activeRemoteEvidence.includes(exactEvidence), `active evidence includes ${exactEvidence}`);
+  assert.match(
+    activeRemoteEvidence,
+    /run #156 sanitized canary record(?: at [^:]+)?:[^\n]*outer HTTP 502[^\n]*malformed_upstream_response[^\n]*failure_class=provider_output_limit[^\n]*stage=verification[^\n]*call_ordinal=4[^\n]*finish_reason=length[^\n]*completion_tokens=1024-2047/iu,
+  );
 
   const capability = register.artifactSet.activeCapability;
   assert.deepEqual(
@@ -319,7 +350,7 @@ test("the release register honestly holds the remote capability and preserves hi
   assert.deepEqual(capability.provider.stageMaximumOutputTokens, {
     analysis: 2_048,
     candidate: 800,
-    verification: 1_536,
+    verification: 2_048,
     certification: 520,
     repair: 800,
   });

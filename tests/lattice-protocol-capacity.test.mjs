@@ -83,6 +83,7 @@ const ACTIVE_VERIFIER_CAPACITY_REQUIRED =
 const PRODUCTION_REACHABLE_VERIFIER_PRETTY_TOKENS = 901;
 const PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS = 914;
 const PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS = 918;
+const OBSERVED_INSUFFICIENT_VERIFIER_CAP = 1_536;
 if (ACTIVE_VERIFIER_CAPACITY_REQUIRED && !ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE) {
   throw new Error(
     "The mandatory active-verifier capacity gate requires the digest-pinned tokenizer fixture.",
@@ -709,14 +710,18 @@ function nativeToolCompletion(toolName, prettyArguments) {
   return `<|python_tag|>{"name":"${toolName}","parameters":${prettyArguments}}<|eom_id|>`;
 }
 
-function representativeSerializedProviderEnvelope(toolName, prettyArguments) {
+function representativeSerializedProviderEnvelope(
+  toolName,
+  prettyArguments,
+  toolCallId = "call_lattice_structured_output",
+) {
   return JSON.stringify({
     choices: [{
       finish_reason: "tool_calls",
       message: {
         role: "assistant",
         tool_calls: [{
-          id: "call_lattice_structured_output",
+          id: toolCallId,
           type: "function",
           function: { name: toolName, arguments: prettyArguments },
         }],
@@ -993,8 +998,8 @@ test("a production-reachable verifier boundary wire fits the bounded budget unde
     assert.ok(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
         - PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS
-        >= Math.ceil(PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS * 0.5),
-      "the verifier cap must retain at least 50 percent over the production-reachable native-tool-output sensitivity fixture",
+        >= PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS,
+      "the verifier cap must retain a full additional production-reachable native-tool-output margin",
     );
 
   } finally {
@@ -1428,13 +1433,18 @@ test("the complete legal production verifier allocation has an exhaustive pinned
     assert.equal(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification,
       Math.ceil(
-        Math.ceil(exhaustiveMaximum.prettyNativeToolTokens * 1.5) / 256,
+        Math.ceil(exhaustiveMaximum.prettyNativeToolTokens * 2) / 256,
       ) * 256,
     );
     assert.equal(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
         - exhaustiveMaximum.prettyNativeToolTokens,
-      618,
+      1_130,
+    );
+    assert.equal(
+      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
+        - OBSERVED_INSUFFICIENT_VERIFIER_CAP,
+      512,
     );
   } finally {
     tokenizer.dispose();
@@ -2316,6 +2326,13 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       "lattice_verification_wire_v1",
       prettyVerificationWire,
     )).length;
+    const acceptedMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens = tokenizer.encode(
+      representativeSerializedProviderEnvelope(
+        "lattice_verification_wire_v1",
+        prettyVerificationWire,
+        "x".repeat(256),
+      ),
+    ).length;
     const representativeSerializedCertificationEnvelopeTokens = tokenizer.encode(representativeSerializedProviderEnvelope(
       "lattice_certification_wire_v1",
       prettyCertificationWire,
@@ -2335,6 +2352,7 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       nativeCertificationToolTokens,
       nativeAdversarialCertificationToolTokens,
       representativeSerializedVerificationEnvelopeTokens,
+      acceptedMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens,
       representativeSerializedCertificationEnvelopeTokens,
       representativeSerializedAdversarialCertificationEnvelopeTokens,
       verificationWireCharacters: verificationWire.length,
@@ -2351,6 +2369,7 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       nativeCertificationToolTokens: 257,
       nativeAdversarialCertificationToolTokens: 440,
       representativeSerializedVerificationEnvelopeTokens: 1_290,
+      acceptedMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens: 1_316,
       representativeSerializedCertificationEnvelopeTokens: 342,
       representativeSerializedAdversarialCertificationEnvelopeTokens: 503,
       verificationWireCharacters: 1_430,
@@ -2378,9 +2397,19 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
     assert.ok(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
         === Math.ceil(
-          Math.ceil(PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS * 1.5) / 256,
+          Math.ceil(PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS * 2) / 256,
         ) * 256,
-      "the verifier cap must be the smallest 256-token step retaining at least 50 percent over the pinned-tokenizer maximum for a complete legal production verifier object",
+      "the verifier cap must be the smallest 256-token step retaining a full additional pinned-tokenizer maximum over a complete legal production verifier object",
+    );
+    assert.equal(
+      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
+        - PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS,
+      1_130,
+    );
+    assert.equal(
+      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
+        - OBSERVED_INSUFFICIENT_VERIFIER_CAP,
+      512,
     );
     assert.ok(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.certification

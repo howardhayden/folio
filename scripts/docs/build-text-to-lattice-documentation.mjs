@@ -186,10 +186,10 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     /240-second (?:whole-|outer )?request/iu,
     /32 provider calls/iu,
     /960/iu,
-    /1,536-token verifier/iu,
+    /(?:2,048-token verifier|verifier (?:stage )?maximum[^.]*2,048 tokens|verification[^.]*2,048-token)/iu,
     /520-token certifier/iu,
     /requested-output exposure[^.]*65,536(?: requested output tokens)? per admitted request/iu,
-    /requested-output exposure[^.]*1,966,080(?: requested output tokens)? across[^.]*UTC day/iu,
+    /requested-output exposure[^.]*1,966,080(?: requested output tokens)? (?:global(?:ly)?|across[^.]*global)[^.]*UTC day/iu,
     /path-scoped (?:Worker )?rate limiter/iu,
     /response (?:bytes|size)/iu,
     /provider (?:quota|rate|retention|availability|cost)/iu,
@@ -244,7 +244,7 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
   for (const gate of [productionBoundaryGate, providerCapacityGate, productionLifecycleGate]) {
     const activeEvidenceText = `${gate.activeCurrentEvidence} ${gate.activeEvidence.join(" ")}`;
     if (gate.status === "open-release-blocker"
-      && !/(?:No retained production|have not been observed|No canonical production)/iu.test(activeEvidenceText)) {
+      && !/(?:No retained production|have not been observed|remain unobserved|No canonical production)/iu.test(activeEvidenceText)) {
       fail(`release gate ${gate.id} is open but its active evidence does not state the missing current production proof.`);
     }
     if (gate.status === "satisfied-in-production") {
@@ -641,7 +641,7 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || JSON.stringify(activeProvider?.stageMaximumOutputTokens) !== JSON.stringify({
       analysis: 2_048,
       candidate: 800,
-      verification: 1_536,
+      verification: 2_048,
       certification: 520,
       repair: 800,
     })
@@ -778,7 +778,7 @@ function lifecycleGateNarrative(productionLifecycleGate) {
   if (productionLifecycleGate.status === "post-deployment-verification") {
     return "The interactive client is deployed only for immediate canonical-browser qualification and is not qualified. GATE-02 and GATE-03 carry current production evidence; GATE-06 remains in post-deployment verification until the required structured browser evidence passes. Any failed, incomplete, or delayed qualification requires immediate rollback to the held documentation-only artifact.";
   }
-  return "The public client remains held and documentation-only. GATE-06 has source and test evidence for the explicit-submit bodyless content-free same-origin POST /api/lattice setup followed after its accepted 204 under the same origin-wide Web Lock by exactly one content-bearing POST /api/lattice, fixed server targets, bounded response, cancellation, no-retry, no-fallback, and application nonretention contracts, but no remote production evidence or successful canonical-browser remote transformation. Historical WebLLM, Turnstile, lease, and two-origin traces remain preserved as inactive evidence for their own deployed revisions and cannot satisfy the current gate.";
+  return "The public client remains held and documentation-only. GATE-06 has source and test evidence for the explicit-submit bodyless content-free same-origin POST /api/lattice setup followed after its accepted 204 under the same origin-wide Web Lock by exactly one content-bearing POST /api/lattice, fixed server targets, bounded response, cancellation, no-retry, no-fallback, and application nonretention contracts. Run #156 is bounded remote production failure evidence, but there is no successful production transformation or canonical-browser remote trace. Historical WebLLM, Turnstile, lease, and two-origin traces remain preserved as inactive evidence for their own deployed revisions and cannot satisfy the current gate.";
 }
 
 function sourceMapFor(data) {
@@ -1713,7 +1713,7 @@ function indexHtml(data, releaseRegister) {
   const productionLifecycleSatisfied = releaseRegister.gates
     .some(({ id, status }) => id === "GATE-06" && status === "satisfied-in-production");
   const releaseSummary = releaseRegister.overallStatus === "held"
-    ? "The remote interactive client is held and documentation-only because GATE-02, GATE-03, and GATE-06 remain open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face router with Nscale and DeepInfra targets, but there is no remote production evidence. Historical WebLLM, Turnstile, and lease records remain inactive."
+    ? "The remote interactive client is held and documentation-only because GATE-02, GATE-03, and GATE-06 remain open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face router with Nscale and DeepInfra targets. Run #156 is bounded remote production failure evidence, but there is no successful production transformation or current canonical-browser trace. Historical WebLLM, Turnstile, and lease records remain inactive."
     : releaseRegister.overallStatus === "qualification-pending"
       ? "The interactive client is deployed only for immediate canonical-browser qualification and is not qualified. GATE-06 remains in post-deployment verification; failed, incomplete, or delayed structured browser evidence requires immediate rollback to the held documentation-only artifact."
     : productionLifecycleSatisfied
@@ -1754,7 +1754,7 @@ function validateGeneratedMarkdown(filename, markdown, data, expectedIds, releas
       if (!markdown.includes(requirement)) fail(`${filename} omits the current-versus-historical remote qualification boundary: ${requirement}.`);
     }
     const phaseRequirements = {
-      held: ["no remote production evidence"],
+      held: ["no successful production transformation"],
       "qualification-pending": ["post-deployment verification", "not qualified", "immediate rollback"],
       qualified: ["structured browser evidence"],
     }[releasePhase];
@@ -1811,7 +1811,7 @@ function validateGeneratedHtml(filename, html, {
       if (!html.includes(requirement)) fail(`${filename} omits the current-versus-historical remote qualification boundary: ${requirement}.`);
     }
     const phaseRequirements = {
-      held: ["no remote production evidence"],
+      held: ["no successful production transformation"],
       "qualification-pending": ["post-deployment verification", "not qualified", "immediate rollback"],
       qualified: ["structured browser evidence"],
     }[releasePhase];
