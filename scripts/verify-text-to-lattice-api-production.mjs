@@ -23,6 +23,9 @@ import {
   LATTICE_PROVIDER_FAILURE_CLASSES,
   LATTICE_PROVIDER_FINISH_REASONS,
   LATTICE_PROVIDER_MALFORMED_SUBTYPES,
+  LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
+  LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL,
+  LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
   LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
   LATTICE_REMOTE_MODELS,
@@ -1173,11 +1176,22 @@ export async function verifyTextToLatticeApiProduction({
       provider_request_bytes: LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
       provider_response_bytes: LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
       provider_calls_per_request: LATTICE_PROVIDER_CALL_LIMIT,
+      provider_stage_max_output_tokens: LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
+      maximum_requested_output_tokens_per_provider_call:
+        LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL,
+      maximum_requested_output_tokens_per_admitted_request:
+        LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
       accepted_transformations_per_utc_day: LATTICE_TRANSFORMATIONS_PER_UTC_DAY,
       accepted_transformations_per_cooperating_ordinary_persistent_browser_cookie_jar_utc_day:
         LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY,
       maximum_provider_calls_from_accepted_transformations_per_utc_day:
         LATTICE_TRANSFORMATIONS_PER_UTC_DAY * LATTICE_PROVIDER_CALL_LIMIT,
+      maximum_requested_output_tokens_from_accepted_transformations_per_utc_day:
+        LATTICE_TRANSFORMATIONS_PER_UTC_DAY
+          * LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
+      maximum_requested_output_tokens_from_one_cooperating_ordinary_persistent_browser_cookie_jar_per_utc_day:
+        LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY
+          * LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
     }),
     document_policy: Object.freeze({
       exact_connect_src: Object.freeze(["'self'"]),

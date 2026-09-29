@@ -106,7 +106,10 @@ test("the held Resume client bundle excludes the interactive Lattice executable 
 });
 
 test("Pages CI verifies the remote privacy boundary before the held build", async () => {
-  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  const [workflow, tokenizerFetcher] = await Promise.all([
+    readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/fetch-lattice-tokenizers.mjs", import.meta.url), "utf8"),
+  ]);
   const boundarySteps = [
     "tests/lattice-network-capability.test.mjs",
     "tests/lattice-network-governance.test.mjs",
@@ -114,7 +117,34 @@ test("Pages CI verifies the remote privacy boundary before the held build", asyn
   ].map((marker) => workflow.indexOf(marker));
   const testStep = workflow.indexOf("npm test");
   assert.ok(boundarySteps.every((step) => step >= 0 && step < testStep));
-  assert.doesNotMatch(workflow, /fetch-lattice-tokenizers|fetch-lattice-wasm/u);
+  const tokenizerFetchSteps = [...workflow.matchAll(
+    /node scripts\/fetch-lattice-tokenizers\.mjs --verifier-only/gu,
+  )].map(({ index }) => index);
+  const mandatoryCapacityFlags = [...workflow.matchAll(
+    /LATTICE_REQUIRE_ACTIVE_VERIFIER_CAPACITY: "1"/gu,
+  )].map(({ index }) => index);
+  const measuredCapacitySteps = [...workflow.matchAll(
+    /node --test tests\/lattice-protocol-capacity\.test\.mjs/gu,
+  )].map(({ index }) => index);
+  const fullTestSteps = [...workflow.matchAll(/- run: npm test/gu)].map(({ index }) => index);
+  assert.equal(tokenizerFetchSteps.length, 2);
+  assert.equal(mandatoryCapacityFlags.length, 2);
+  assert.equal(measuredCapacitySteps.length, 2);
+  assert.equal(fullTestSteps.length, 2);
+  for (let index = 0; index < fullTestSteps.length; index += 1) {
+    assert.ok(mandatoryCapacityFlags[index] < tokenizerFetchSteps[index]);
+    assert.ok(tokenizerFetchSteps[index] < measuredCapacitySteps[index]);
+    assert.ok(measuredCapacitySteps[index] < fullTestSteps[index]);
+  }
+  assert.doesNotMatch(workflow, /fetch-lattice-wasm/u);
+  assert.match(tokenizerFetcher, /TOKENIZER_FETCH_TIMEOUT_MS = 30_000/u);
+  assert.match(tokenizerFetcher, /TOKENIZER_FETCH_BYTE_LIMIT = 12_000_000/u);
+  assert.match(tokenizerFetcher, /attempt <= 3/u);
+  assert.match(tokenizerFetcher, /credentials: "omit"/u);
+  assert.match(tokenizerFetcher, /referrerPolicy: "no-referrer"/u);
+  assert.match(tokenizerFetcher, /expectedBytes: 9_085_657/u);
+  assert.match(tokenizerFetcher, /"\/tmp\/llama32-lattice-tokenizer\.json"/u);
+  assert.doesNotMatch(tokenizerFetcher, /(?:public|site)\/.*tokenizer/iu);
 });
 
 test("the remote adapter consumes the public server-side sampling contract", async () => {
@@ -137,6 +167,10 @@ test("the remote adapter consumes the public server-side sampling contract", asy
   assert.match(adapter, /const ANALYSIS_MAX_OUTPUT_TOKENS = 2_048;/u);
   assert.match(adapter, /const ANALYSIS_MIN_OUTPUT_TOKENS = 768;/u);
   assert.match(adapter, /const ANALYSIS_OUTPUT_TOKEN_STEP = 256;/u);
+  assert.match(adapter, /const CANDIDATE_MAX_OUTPUT_TOKENS = 800;/u);
+  assert.match(adapter, /const VERIFICATION_MAX_OUTPUT_TOKENS = 1_536;/u);
+  assert.match(adapter, /const CERTIFICATION_MAX_OUTPUT_TOKENS = 520;/u);
+  assert.match(adapter, /const REPAIR_MAX_OUTPUT_TOKENS = 800;/u);
   assert.deepEqual(textToLatticeContract.implementation.verifier.inference.stages, {
     verification: {
       temperature: 0,
@@ -144,7 +178,7 @@ test("the remote adapter consumes the public server-side sampling contract", asy
       responseTransport: "forced_named_tool",
       toolName: "lattice_verification_wire_v1",
       stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
-      maximumOutputTokens: 1_200,
+      maximumOutputTokens: 1_536,
     },
     certification: {
       temperature: 0,
@@ -157,10 +191,10 @@ test("the remote adapter consumes the public server-side sampling contract", asy
   });
   for (const [stage, maximumOutputTokens, temperature, topP] of [
     ["analysis", "ANALYSIS_MAX_OUTPUT_TOKENS", "0.7", "0.8"],
-    ["candidate", "800", "0.45", "0.9"],
-    ["repair", "800", "0.45", "0.9"],
-    ["verification", "1_200", "0", "1"],
-    ["certification", "520", "0", "1"],
+    ["candidate", "CANDIDATE_MAX_OUTPUT_TOKENS", "0.45", "0.9"],
+    ["repair", "REPAIR_MAX_OUTPUT_TOKENS", "0.45", "0.9"],
+    ["verification", "VERIFICATION_MAX_OUTPUT_TOKENS", "0", "1"],
+    ["certification", "CERTIFICATION_MAX_OUTPUT_TOKENS", "0", "1"],
   ]) {
     assert.match(
       adapter,

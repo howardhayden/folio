@@ -23,6 +23,7 @@ import {
   latticeModelRpcStarted,
   latticeModelRpcSuccess,
 } from "../app/resume/lattice/modelRpc.js";
+import { textToLatticeContract } from "../app/content/textToLatticeContent.js";
 import { LATTICE_TOKENIZER_SHA256 } from "../app/resume/lattice/modelContract.js";
 import {
   ANALYSIS_SCHEMA,
@@ -55,10 +56,16 @@ import {
   LATTICE_CLARIFICATION_SERIALIZED_UTF8_LIMIT,
   LATTICE_CLARIFICATION_UTF8_LIMIT,
   preflightLatticeInput,
+  runTextToLattice,
   validateLatticeClarificationAnswer,
 } from "../app/resume/latticeDemo.js";
 import { LATTICE_PRODUCTION_CANARY_TEXT } from "../scripts/verify-text-to-lattice-api-production.mjs";
-import { createHuggingFaceLatticeAdapter } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
+import {
+  LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT,
+  LATTICE_REMOTE_MODELS,
+  LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
+  createHuggingFaceLatticeAdapter,
+} from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 
 const QWEN_TOKENIZER_PATH = process.env.LATTICE_QWEN_TOKENIZER_JSON ?? "/tmp/qwen3-lattice-tokenizer.json";
 const LLAMA_TOKENIZER_PATH = process.env.LATTICE_LLAMA_TOKENIZER_JSON ?? "/tmp/llama32-lattice-tokenizer.json";
@@ -69,6 +76,15 @@ const ACTIVE_LLAMA_REPOSITORY_TOKENIZER_PATH =
 const TOKENIZER_FIXTURES_AVAILABLE = existsSync(QWEN_TOKENIZER_PATH) && existsSync(LLAMA_TOKENIZER_PATH);
 const ACTIVE_GENERATOR_TOKENIZER_FIXTURE_AVAILABLE = existsSync(ACTIVE_QWEN_REPOSITORY_TOKENIZER_PATH);
 const ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE = existsSync(ACTIVE_LLAMA_REPOSITORY_TOKENIZER_PATH);
+const ACTIVE_VERIFIER_CAPACITY_REQUIRED =
+  process.env.LATTICE_REQUIRE_ACTIVE_VERIFIER_CAPACITY === "1";
+const PRODUCTION_REACHABLE_VERIFIER_PRETTY_TOKENS = 901;
+const PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS = 914;
+if (ACTIVE_VERIFIER_CAPACITY_REQUIRED && !ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE) {
+  throw new Error(
+    "The mandatory active-verifier capacity gate requires the digest-pinned tokenizer fixture.",
+  );
+}
 const REVIEWED_QWEN_2507_REPOSITORY_TOKENIZER = Object.freeze({
   revision: "cdbee75f17c01a7cc42f958dc650907174af0554",
   bytes: 11_422_654,
@@ -651,11 +667,966 @@ function maximalFittedWireValue(schema, stringValue) {
   throw new TypeError("The fitted-wire test received an unsupported JSON Schema shape.");
 }
 
-test("maximal fitted verifier and certifier argument wires fit configured caps under the reviewed Llama 3.1 repository tokenizer", {
+function productionReachableCapacitySource() {
+  const wordBlock = () => `${Array.from(
+    { length: 6 },
+    (_value, index) => `a${index < 2 ? "<!---->" : ""}`,
+  ).join(" ")} `;
+  const characterBlock = "~".repeat(96);
+  const passage = (layout) => [...layout]
+    .map((part) => part === "C" ? characterBlock : wordBlock())
+    .join("")
+    .trimEnd();
+  return [
+    passage("CWCWW"),
+    passage("CWWW"),
+    passage("CWWW"),
+    passage("CWWW"),
+  ].join("\n\n");
+}
+
+function nativeToolCompletion(toolName, prettyArguments) {
+  return `<|python_tag|>{"name":"${toolName}","parameters":${prettyArguments}}<|eom_id|>`;
+}
+
+function representativeSerializedProviderEnvelope(toolName, prettyArguments) {
+  return JSON.stringify({
+    choices: [{
+      finish_reason: "tool_calls",
+      message: {
+        role: "assistant",
+        tool_calls: [{
+          id: "call_lattice_structured_output",
+          type: "function",
+          function: { name: toolName, arguments: prettyArguments },
+        }],
+      },
+    }],
+  });
+}
+
+test("a production-reachable verifier boundary wire fits the bounded budget under the reviewed Llama 3.1 repository tokenizer", {
   skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
     ? false
     : "set LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
 }, async () => {
+  const tokenizer = await reviewedActiveVerifierRepositoryTokenizer();
+  try {
+    const source = productionReachableCapacitySource();
+    const preflight = preflightLatticeInput(source);
+    assert.equal(source.length, 794);
+    assert.equal(preflight.wordCount, 72);
+    assert.equal(preflight.passages.length, 4);
+    assert.equal(preflight.batches.length, 1);
+    assert.equal(preflight.batches[0].characterCount, 788);
+
+    let capturedVerificationRequest;
+    let fittedVerificationSchema;
+    let analyzerCalls = 0;
+    let generatorCalls = 0;
+    let verifierCalls = 0;
+    let certifierCalls = 0;
+    const remoteVerifier = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      fetchImpl: async (_url, init) => {
+        verifierCalls += 1;
+        const body = JSON.parse(init.body);
+        fittedVerificationSchema = body.tools[0].function.parameters;
+        const value = {
+          d: 0,
+          g: "0".repeat(11),
+          p: fittedVerificationSchema.properties.p.prefixItems.map((passageSchema) => {
+            const atomCount = passageSchema.prefixItems[0].maxLength;
+            const evidenceCount = passageSchema.prefixItems[2].maxLength;
+            const criterionCount =
+              passageSchema.prefixItems[7].prefixItems[2].prefixItems.length;
+            return [
+              "1".repeat(atomCount),
+              false,
+              "0".repeat(evidenceCount),
+              "0".repeat(9),
+              2,
+              "1".repeat(atomCount),
+              "1".repeat(evidenceCount),
+              [
+                true,
+                "1".repeat(evidenceCount),
+                Array.from(
+                  { length: criterionCount },
+                  () => [true, "1".repeat(evidenceCount)],
+                ),
+              ],
+            ];
+          }),
+          i: [],
+        };
+        return new Response(JSON.stringify({
+          choices: [{
+            finish_reason: "tool_calls",
+            message: {
+              role: "assistant",
+              tool_calls: [{
+                id: "call_reachable_capacity",
+                type: "function",
+                function: {
+                  name: "lattice_verification_wire_v1",
+                  arguments: JSON.stringify(value),
+                },
+              }],
+            },
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+    const conformanceCriteria = [
+      ...LATTICE_CONFORMANCE_CRITERIA.universal,
+      ...LATTICE_CONFORMANCE_CRITERIA.interpretive,
+    ];
+    const adapter = {
+      async analyze(request) {
+        analyzerCalls += 1;
+        const evidenceCounts = request.sourceSpans.map((group) => (
+          group.spans.length + (group.literalAnnotations?.length ?? 0)
+        ));
+        assert.deepEqual(evidenceCounts, [16, 16, 16, 16]);
+        assert.equal(request.sourceSpans.reduce((sum, group) => (
+          sum
+          + group.spans.filter(({ kind }) => kind === "literal").length
+          + (group.literalAnnotations?.length ?? 0)
+        ), 0), 24);
+        assert.equal(request.analysisAtomLimit, 24);
+        let atomSerial = 0;
+        return {
+          documentKind: "other",
+          passages: request.batch.passages.map((sourcePassage, passageIndex) => {
+            const evidence = [
+              ...request.sourceSpans[passageIndex].spans,
+              ...(request.sourceSpans[passageIndex].literalAnnotations ?? []),
+            ];
+            const evidenceChunks = [];
+            for (let offset = 0; offset < evidence.length; offset += 3) {
+              evidenceChunks.push(evidence.slice(offset, offset + 3));
+            }
+            assert.equal(evidenceChunks.length, 6);
+            const evidenceSpanIds = evidence.map(({ id }) => id);
+            return {
+              passageId: sourcePassage.id,
+              discourseFunction: `capacity-${passageIndex + 1}`,
+              layer: "interpretive",
+              disposition: "retain-if-conformant",
+              rationale: "Retain the exact source when every fitted check passes.",
+              atoms: evidenceChunks.map((chunk) => ({
+                id: `a${atomSerial += 1}`,
+                kind: "state",
+                value: sourcePassage.text.slice(0, 120),
+                priority: "semantic",
+                preservation: "equivalent",
+                evidenceSpanIds: chunk.map(({ id }) => id),
+                links: [],
+              })),
+              ambiguityAtomIds: [],
+              conformanceCriteria: [...conformanceCriteria],
+              conformanceEvidenceSpanIds: [...evidenceSpanIds],
+              conformanceAssertions: conformanceCriteria.map((criterion) => ({
+                criterion,
+                evidenceSpanIds: [...evidenceSpanIds],
+              })),
+            };
+          }),
+          questions: [],
+        };
+      },
+      async generate(request) {
+        generatorCalls += 1;
+        return {
+          passages: request.batch.passages.map((sourcePassage, passageIndex) => ({
+            passageId: sourcePassage.id,
+            layer: "interpretive",
+            text: sourcePassage.text,
+            preservedAtomIds: request.analysis.passages[passageIndex].atoms.map(({ id }) => id),
+          })),
+        };
+      },
+      async verify(request) {
+        capturedVerificationRequest = request;
+        return remoteVerifier.verify(request);
+      },
+      async certify(request) {
+        certifierCalls += 1;
+        return {
+          certificateId: request.certificateId,
+          obligationIds: [...request.obligationIds],
+          decision: "accept",
+          checks: Object.fromEntries(
+            DOCUMENT_CERTIFICATION_SCHEMA.properties.checks.required.map((name) => [name, true]),
+          ),
+          issues: [],
+        };
+      },
+      async repair() {
+        throw new Error("The production-reachable capacity fixture must not repair.");
+      },
+    };
+    const result = await runTextToLattice(source, {
+      adapter,
+      allowClarification: false,
+    });
+    assert.deepEqual({
+      status: result.status,
+      passageCount: result.passageCount,
+      batchCount: result.batchCount,
+      retainedPassageCount: result.retainedPassageCount,
+      verificationPasses: result.verificationPasses,
+      findings: result.findings,
+    }, {
+      status: "conformant-for-context",
+      passageCount: 4,
+      batchCount: 1,
+      retainedPassageCount: 4,
+      verificationPasses: 1,
+      findings: [],
+    });
+    assert.deepEqual(
+      { analyzerCalls, generatorCalls, verifierCalls, certifierCalls },
+      { analyzerCalls: 1, generatorCalls: 1, verifierCalls: 1, certifierCalls: 1 },
+    );
+
+    const issues = [];
+    for (let check = 0; issues.length < 24; check += 1) {
+      for (
+        let passageIndex = -1;
+        passageIndex < 4 && issues.length < 24;
+        passageIndex += 1
+      ) issues.push([check, passageIndex]);
+    }
+    const maximalReachableRejection = {
+      d: 2,
+      g: "1".repeat(11),
+      p: fittedVerificationSchema.properties.p.prefixItems.map((passageSchema) => {
+        const atomCount = passageSchema.prefixItems[0].maxLength;
+        const evidenceCount = passageSchema.prefixItems[2].maxLength;
+        const criterionCount = passageSchema.prefixItems[7].prefixItems[2].prefixItems.length;
+        return [
+          "2".repeat(atomCount),
+          false,
+          `${"1".repeat(12)}${"0".repeat(evidenceCount - 12)}`,
+          "1".repeat(9),
+          4,
+          "1".repeat(atomCount),
+          "1".repeat(evidenceCount),
+          [
+            false,
+            "0".repeat(evidenceCount),
+            Array.from(
+              { length: criterionCount },
+              () => [false, "1".repeat(evidenceCount)],
+            ),
+          ],
+        ];
+      }),
+      i: issues,
+    };
+    const maximalReachableWire = JSON.stringify(maximalReachableRejection);
+    const prettyMaximalReachableWire = JSON.stringify(maximalReachableRejection, null, 2);
+    const rejectingAdapter = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      fetchImpl: async () => new Response(JSON.stringify({
+        choices: [{
+          finish_reason: "tool_calls",
+          message: {
+            role: "assistant",
+            tool_calls: [{
+              id: "call_reachable_rejection",
+              type: "function",
+              function: {
+                name: "lattice_verification_wire_v1",
+                arguments: maximalReachableWire,
+              },
+            }],
+          },
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    });
+    const decodedRejection = await rejectingAdapter.verify(capturedVerificationRequest);
+    assert.equal(decodedRejection.issues.length, 24);
+    assert.deepEqual({
+      minifiedCharacters: maximalReachableWire.length,
+      prettyCharacters: prettyMaximalReachableWire.length,
+      minifiedTokens: tokenizer.encode(maximalReachableWire).length,
+      prettyTokens: tokenizer.encode(prettyMaximalReachableWire).length,
+      nativeToolTokens: tokenizer.encode(nativeToolCompletion(
+        "lattice_verification_wire_v1",
+        prettyMaximalReachableWire,
+      )).length,
+      representativeEnvelopeTokens: tokenizer.encode(representativeSerializedProviderEnvelope(
+        "lattice_verification_wire_v1",
+        prettyMaximalReachableWire,
+      )).length,
+    }, {
+      minifiedCharacters: 1_154,
+      prettyCharacters: 3_149,
+      minifiedTokens: 475,
+      prettyTokens: PRODUCTION_REACHABLE_VERIFIER_PRETTY_TOKENS,
+      nativeToolTokens: PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS,
+      representativeEnvelopeTokens: 1_226,
+    });
+    assert.ok(
+      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
+        - PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS
+        >= Math.ceil(PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS * 0.5),
+      "the verifier cap must retain at least 50 percent over the production-reachable native-tool-output sensitivity fixture",
+    );
+
+  } finally {
+    tokenizer.dispose();
+  }
+});
+
+test("the production-reachable maximum-token relation certifier wire fits the bounded budget under the reviewed Llama 3.1 repository tokenizer", {
+  skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
+    ? false
+    : "set LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
+}, async () => {
+  const tokenizer = await reviewedActiveVerifierRepositoryTokenizer();
+  try {
+    const source = "a\n\na";
+    const preflight = preflightLatticeInput(source);
+    assert.equal(preflight.wordCount, 2);
+    assert.equal(preflight.passages.length, 2);
+    assert.equal(preflight.batches.length, 1);
+
+    let capturedRelationCertificationRequest;
+    let verifierCalls = 0;
+    let certifierCalls = 0;
+    const remoteVerifier = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      fetchImpl: async (_url, init) => {
+        verifierCalls += 1;
+        const body = JSON.parse(init.body);
+        const schema = body.tools[0].function.parameters;
+        const value = {
+          d: 0,
+          g: "0".repeat(11),
+          p: schema.properties.p.prefixItems.map((passageSchema) => {
+            const atomCount = passageSchema.prefixItems[0].maxLength;
+            const evidenceCount = passageSchema.prefixItems[2].maxLength;
+            const criterionCount =
+              passageSchema.prefixItems[7].prefixItems[2].prefixItems.length;
+            return [
+              "1".repeat(atomCount),
+              false,
+              "0".repeat(evidenceCount),
+              "0".repeat(9),
+              2,
+              "1".repeat(atomCount),
+              "1".repeat(evidenceCount),
+              [
+                true,
+                "1".repeat(evidenceCount),
+                Array.from(
+                  { length: criterionCount },
+                  () => [true, "1".repeat(evidenceCount)],
+                ),
+              ],
+            ];
+          }),
+          i: [],
+        };
+        return new Response(JSON.stringify({
+          choices: [{
+            finish_reason: "tool_calls",
+            message: {
+              role: "assistant",
+              tool_calls: [{
+                id: "call_reachable_relation_verification",
+                type: "function",
+                function: {
+                  name: "lattice_verification_wire_v1",
+                  arguments: JSON.stringify(value),
+                },
+              }],
+            },
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+    const conformanceCriteria = [
+      ...LATTICE_CONFORMANCE_CRITERIA.universal,
+      ...LATTICE_CONFORMANCE_CRITERIA.interpretive,
+    ];
+    const adapter = {
+      async analyze(request) {
+        assert.equal(request.analysisAtomLimit, 8);
+        assert.deepEqual(request.sourceSpans.map((group) => (
+          group.spans.length + (group.literalAnnotations?.length ?? 0)
+        )), [1, 1]);
+        let atomSerial = 0;
+        return {
+          documentKind: "other",
+          passages: request.batch.passages.map((sourcePassage, passageIndex) => {
+            const evidence = [
+              ...request.sourceSpans[passageIndex].spans,
+              ...(request.sourceSpans[passageIndex].literalAnnotations ?? []),
+            ];
+            const evidenceSpanIds = evidence.map(({ id }) => id);
+            return {
+              passageId: sourcePassage.id,
+              discourseFunction: `relation-${passageIndex + 1}`,
+              layer: "interpretive",
+              disposition: "retain-if-conformant",
+              rationale: "Exercise the bounded cross-passage relation certificate.",
+              atoms: Array.from({ length: 4 }, (_value, atomIndex) => {
+              atomSerial += 1;
+              const links = atomSerial === 1
+                ? ["goal", "agent"].flatMap((relation) => (
+                    Array.from({ length: 4 }, (_item, targetIndex) => ({
+                      relation,
+                      targetAtomId: `${targetIndex + 5}`,
+                    }))
+                  ))
+                : atomSerial === 2
+                  ? Array.from({ length: 4 }, (_item, targetIndex) => ({
+                      relation: "cause",
+                      targetAtomId: `${targetIndex + 5}`,
+                    }))
+                  : [];
+              return {
+                id: `${atomSerial}`,
+                kind: "unit",
+                value: sourcePassage.text.slice(0, 1),
+                priority: "hard",
+                preservation: "implicit",
+                evidenceSpanIds: [evidence[atomIndex % evidence.length].id],
+                links,
+              };
+            }),
+              ambiguityAtomIds: [],
+              conformanceCriteria: [...conformanceCriteria],
+              conformanceEvidenceSpanIds: [...evidenceSpanIds],
+              conformanceAssertions: conformanceCriteria.map((criterion) => ({
+                criterion,
+                evidenceSpanIds: [...evidenceSpanIds],
+              })),
+            };
+          }),
+          questions: [],
+        };
+      },
+      async generate(request) {
+        return {
+          passages: request.batch.passages.map((sourcePassage, passageIndex) => ({
+            passageId: sourcePassage.id,
+            layer: "interpretive",
+            text: sourcePassage.text,
+            preservedAtomIds: request.analysis.passages[passageIndex].atoms.map(({ id }) => id),
+          })),
+        };
+      },
+      async verify(request) {
+        return remoteVerifier.verify(request);
+      },
+      async certify(request) {
+        certifierCalls += 1;
+        if (request.certificateId === "certificate:document") {
+          const error = new Error("The flat document fixture exceeds its fitted context.");
+          error.code = "lattice-context";
+          throw error;
+        }
+        if (request.scope === "relations"
+          && (!capturedRelationCertificationRequest
+            || request.obligationIds.length
+              > capturedRelationCertificationRequest.obligationIds.length)) {
+          capturedRelationCertificationRequest = request;
+        }
+        return {
+          certificateId: request.certificateId,
+          obligationIds: [...request.obligationIds],
+          decision: "accept",
+          checks: Object.fromEntries(
+            DOCUMENT_CERTIFICATION_SCHEMA.properties.checks.required.map((name) => [name, true]),
+          ),
+          issues: [],
+        };
+      },
+      async repair() {
+        throw new Error("The production-reachable certification fixture must not repair.");
+      },
+      async certificationFits() {
+        return true;
+      },
+    };
+    const result = await runTextToLattice(source, {
+      adapter,
+      allowClarification: false,
+    });
+    assert.deepEqual({
+      status: result.status,
+      passageCount: result.passageCount,
+      batchCount: result.batchCount,
+      verificationPasses: result.verificationPasses,
+      findings: result.findings,
+      verifierCalls,
+      certifierCalls,
+    }, {
+      status: "conformant-for-context",
+      passageCount: 2,
+      batchCount: 1,
+      verificationPasses: 1,
+      findings: [],
+      verifierCalls: 1,
+      certifierCalls: 5,
+    });
+    assert.equal(capturedRelationCertificationRequest.certificateId, "certificate:relations:e0001-e0009");
+    assert.deepEqual(
+      capturedRelationCertificationRequest.obligationIds,
+      Array.from({ length: 9 }, (_, index) => `e${String(index + 1).padStart(4, "0")}`),
+    );
+    const optimisticEndpoint = () => ({
+      id: "r001:a0",
+      passageId: "p0001",
+      kind: "unit",
+      value: "",
+      priority: "hard",
+      preservation: "exact",
+      ambiguity: false,
+      evidence: [{
+        passageId: "p0001",
+        startUtf16: 0,
+        endUtf16: 1,
+        text: "",
+      }],
+      independentlyVerified: true,
+    });
+    const optimisticRelation = () => ({
+      id: "e0001",
+      relation: "goal",
+      sourceAtomId: "r001:a0",
+      targetAtomId: "r001:a0",
+      sourcePassageId: "p0001",
+      targetPassageId: "p0001",
+      sourceAtom: optimisticEndpoint(),
+      targetAtom: optimisticEndpoint(),
+    });
+    const optimisticTenRelationPayload = JSON.stringify({
+      relations: Array.from({ length: 10 }, optimisticRelation),
+      documents: [],
+    });
+    assert.equal(JSON.stringify(optimisticRelation()).length, 606);
+    assert.equal(optimisticTenRelationPayload.length, 6_100);
+    assert.ok(optimisticTenRelationPayload.length > 6_000);
+    const orchestrationSource = await readFile(
+      new URL("../app/resume/latticeDemo.js", import.meta.url),
+      "utf8",
+    );
+    assert.match(
+      orchestrationSource,
+      /const RELATION_CERTIFICATION_CHARACTER_TARGET = 6_000;/u,
+    );
+
+    const maximalReachableCertification = {
+      c: capturedRelationCertificationRequest.certificateId,
+      o: [...capturedRelationCertificationRequest.obligationIds],
+      d: 1,
+      k: Array.from({ length: 10 }, () => false),
+      i: [9, 8, 7, 6, 5, 4],
+    };
+    const maximalReachableWire = JSON.stringify(maximalReachableCertification);
+    const prettyMaximalReachableWire = JSON.stringify(maximalReachableCertification, null, 2);
+    const remoteCertifier = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      fetchImpl: async () => new Response(JSON.stringify({
+        choices: [{
+          finish_reason: "tool_calls",
+          message: {
+            role: "assistant",
+            tool_calls: [{
+              id: "call_reachable_relation_certification",
+              type: "function",
+              function: {
+                name: "lattice_certification_wire_v1",
+                arguments: maximalReachableWire,
+              },
+            }],
+          },
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    });
+    const decoded = await remoteCertifier.certify(capturedRelationCertificationRequest);
+    assert.equal(decoded.issues.length, 6);
+    assert.deepEqual({
+      minifiedCharacters: maximalReachableWire.length,
+      prettyCharacters: prettyMaximalReachableWire.length,
+      minifiedTokens: tokenizer.encode(maximalReachableWire).length,
+      prettyTokens: tokenizer.encode(prettyMaximalReachableWire).length,
+      nativeToolTokens: tokenizer.encode(nativeToolCompletion(
+        "lattice_certification_wire_v1",
+        prettyMaximalReachableWire,
+      )).length,
+      representativeEnvelopeTokens: tokenizer.encode(representativeSerializedProviderEnvelope(
+        "lattice_certification_wire_v1",
+        prettyMaximalReachableWire,
+      )).length,
+    }, {
+      minifiedCharacters: 209,
+      prettyCharacters: 364,
+      minifiedTokens: 82,
+      prettyTokens: 153,
+      nativeToolTokens: 167,
+      representativeEnvelopeTokens: 237,
+    });
+    assert.ok(
+      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.certification - 167 >= 300,
+      "the certifier cap must retain at least 300 pinned-tokenizer tokens over the production-reachable native-tool-output sensitivity fixture",
+    );
+  } finally {
+    tokenizer.dispose();
+  }
+});
+
+test("the production-reachable maximum-character split-window certifier wire is bounded exactly", {
+  skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
+    ? false
+    : "set LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
+}, async () => {
+  const tokenizer = await reviewedActiveVerifierRepositoryTokenizer();
+  try {
+    const source = [
+      ["a", 200],
+      ["b", 100],
+      ["c", 50],
+      ["d", 25],
+      ["e", 12],
+    ].map(([character, length]) => character.repeat(length)).join(" ");
+    const preflight = preflightLatticeInput(source);
+    assert.deepEqual({
+      characters: source.length,
+      words: preflight.wordCount,
+      passages: preflight.passages.length,
+      batches: preflight.batches.length,
+    }, {
+      characters: 391,
+      words: 5,
+      passages: 1,
+      batches: 1,
+    });
+
+    const response = (choice) => new Response(JSON.stringify({ choices: [choice] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+    const contentResponse = (value) => response({
+      finish_reason: "stop",
+      message: { role: "assistant", content: JSON.stringify(value) },
+    });
+    const toolResponse = (name, value, ordinal) => response({
+      finish_reason: "tool_calls",
+      message: {
+        role: "assistant",
+        tool_calls: [{
+          id: `call_reachable_split_${ordinal}`,
+          type: "function",
+          function: { name, arguments: JSON.stringify(value) },
+        }],
+      },
+    });
+
+    const outputLimitedAnalysisCalls = new Set([1, 3, 5, 7]);
+    const analysisPassageIds = [];
+    const successfulPassageIds = [];
+    const certificationPayloads = [];
+    let analysisCalls = 0;
+    let candidateCalls = 0;
+    let verifierCalls = 0;
+    let certifierCalls = 0;
+    let providerCalls = 0;
+    let preCertificationCalls = null;
+    let maximalReachableWire = null;
+    const maximalPassageId = "p0001bbba";
+    const maximalCertificateId = `certificate:passage:${maximalPassageId}`;
+
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      fetchImpl: async (_url, init) => {
+        providerCalls += 1;
+        const body = JSON.parse(init.body);
+        if (body.response_format?.type === "json_schema") {
+          analysisCalls += 1;
+          const payload = inertPayload(body.messages);
+          const passageIds = payload.passages.map(([passageId]) => passageId);
+          assert.equal(passageIds.length, 1);
+          analysisPassageIds.push(...passageIds);
+          if (outputLimitedAnalysisCalls.has(analysisCalls)) {
+            return response({
+              finish_reason: "length",
+              message: { role: "assistant", content: "{" },
+            });
+          }
+          successfulPassageIds.push(...passageIds);
+          const schema = body.response_format.json_schema.schema;
+          const passages = schema.properties.p.prefixItems.map((passageSchema) => {
+            const atomCount = passageSchema.prefixItems[2].minItems;
+            const maskPattern = passageSchema.prefixItems[3].prefixItems[0].pattern;
+            const widthMatch = /\{([1-9]\d*)\}/u.exec(maskPattern);
+            assert.ok(widthMatch);
+            const evidenceCount = Number(widthMatch[1]);
+            const selectors = [];
+            for (let offset = 0; offset < evidenceCount; offset += 3) {
+              selectors.push(Array.from(
+                { length: Math.min(3, evidenceCount - offset) },
+                (_value, index) => offset + index,
+              ));
+            }
+            while (selectors.length < atomCount) {
+              selectors.push([selectors.length % evidenceCount]);
+            }
+            assert.equal(selectors.length, atomCount);
+            return [
+              2,
+              1,
+              selectors.map((selection) => [3, 1, 1, selection]),
+              Array.from({ length: 5 }, () => "1".repeat(evidenceCount)),
+            ];
+          });
+          return contentResponse({ d: 8, p: passages, l: [] });
+        }
+        if (body.response_format?.type === "json_object") {
+          candidateCalls += 1;
+          const payload = inertPayload(body.messages);
+          return contentResponse({
+            passages: payload.passages.map((sourcePassage, passageIndex) => {
+              const analysisPassage = payload.analysis[1][passageIndex];
+              return {
+                passageId: sourcePassage[0],
+                layer: analysisPassage[2],
+                text: sourcePassage[1].map((span) => span.at(-1)).join(""),
+                preservedAtomIds: analysisPassage[5].map((atom) => atom[0]),
+              };
+            }),
+          });
+        }
+
+        const toolName = body.tool_choice?.function?.name;
+        if (toolName === "lattice_verification_wire_v1") {
+          verifierCalls += 1;
+          const schema = body.tools[0].function.parameters;
+          const passages = schema.properties.p.prefixItems.map((passageSchema) => {
+            const atomCount = passageSchema.prefixItems[0].maxLength;
+            const evidenceCount = passageSchema.prefixItems[2].maxLength;
+            const criterionCount = passageSchema.prefixItems[7].prefixItems[2].prefixItems.length;
+            return [
+              "1".repeat(atomCount),
+              false,
+              "0".repeat(evidenceCount),
+              "0".repeat(9),
+              2,
+              "1".repeat(atomCount),
+              "1".repeat(evidenceCount),
+              [
+                true,
+                "1".repeat(evidenceCount),
+                Array.from(
+                  { length: criterionCount },
+                  () => [true, "1".repeat(evidenceCount)],
+                ),
+              ],
+            ];
+          });
+          return toolResponse(toolName, {
+            d: 0,
+            g: "0".repeat(11),
+            p: passages,
+            i: [],
+          }, providerCalls);
+        }
+        if (toolName === "lattice_certification_wire_v1") {
+          if (certifierCalls === 0) preCertificationCalls = providerCalls - 1;
+          certifierCalls += 1;
+          const payload = inertPayload(body.messages);
+          certificationPayloads.push(payload);
+          const checkCount = body.tools[0].function.parameters.properties.k.prefixItems.length;
+          assert.equal(checkCount, 10);
+          const rejecting = payload.certificateId === maximalCertificateId;
+          const value = {
+            c: payload.certificateId,
+            o: [...payload.obligationIds],
+            d: rejecting ? 1 : 0,
+            k: Array.from({ length: checkCount }, () => !rejecting),
+            i: rejecting ? [9, 8, 7, 6, 5, 4] : [],
+          };
+          if (rejecting) maximalReachableWire = JSON.stringify(value);
+          return toolResponse(toolName, value, providerCalls);
+        }
+        return assert.fail("the split-window capacity fixture used an undeclared provider stage");
+      },
+    });
+    const initialCapacity = adapter.completionCapacity();
+    assert.deepEqual(initialCapacity, { used: 0, limit: 32, remaining: 32 });
+    const result = await runTextToLattice(source, {
+      adapter,
+      allowClarification: false,
+    });
+
+    assert.deepEqual({
+      status: result.status,
+      passageCount: result.passageCount,
+      batchCount: result.batchCount,
+    }, {
+      status: "unable-to-attempt",
+      passageCount: 5,
+      batchCount: 5,
+    });
+    assert.deepEqual(analysisPassageIds, [
+      "p0001",
+      "p0001a",
+      "p0001b",
+      "p0001ba",
+      "p0001bb",
+      "p0001bba",
+      "p0001bbb",
+      "p0001bbba",
+      "p0001bbbb",
+    ]);
+    assert.deepEqual(successfulPassageIds, [
+      "p0001a",
+      "p0001ba",
+      "p0001bba",
+      "p0001bbba",
+      "p0001bbbb",
+    ]);
+    assert.deepEqual(
+      successfulPassageIds.map((passageId) => passageId.length - "p0001".length),
+      [1, 2, 3, 4, 4],
+    );
+    assert.deepEqual({
+      analysisCalls,
+      candidateCalls,
+      verifierCalls,
+      certifierCalls,
+      providerCalls,
+      preCertificationCalls,
+    }, {
+      analysisCalls: 9,
+      candidateCalls: 5,
+      verifierCalls: 5,
+      certifierCalls: 5,
+      providerCalls: 24,
+      preCertificationCalls: 19,
+    });
+    assert.deepEqual(adapter.completionCapacity(), { used: 24, limit: 32, remaining: 8 });
+    assert.equal(certificationPayloads.length, 5);
+    assert.ok(certificationPayloads.every(({ scope }) => scope === "window"));
+    assert.equal(
+      certificationPayloads.some(({ certificateId }) => certificateId === "certificate:document"),
+      false,
+    );
+
+    const deepestSplit = 4;
+    const leafCountAtDepth = deepestSplit + 1;
+    const minimumPreCertificationCalls = deepestSplit + (3 * leafCountAtDepth);
+    const windowCorrectionReservation = 2 * leafCountAtDepth;
+    const minimumCallsThroughReservedWindows = (depth) => (
+      depth + (3 * (depth + 1)) + (2 * (depth + 1))
+    );
+    assert.equal(minimumPreCertificationCalls, 19);
+    assert.equal(windowCorrectionReservation, 10);
+    assert.equal(initialCapacity.limit - minimumPreCertificationCalls, 13);
+    assert.ok(13 >= windowCorrectionReservation);
+    assert.ok(13 < windowCorrectionReservation + 4);
+    assert.equal(Math.floor((initialCapacity.limit - 5) / 6), deepestSplit);
+    assert.equal(minimumCallsThroughReservedWindows(deepestSplit), 29);
+    assert.equal(minimumCallsThroughReservedWindows(deepestSplit + 1), 35);
+    assert.ok(minimumCallsThroughReservedWindows(deepestSplit + 1) > initialCapacity.limit);
+    assert.ok(
+      minimumCallsThroughReservedWindows(deepestSplit) + 5 > initialCapacity.limit,
+      "one extra passage needs at least analysis, generation, verification, and two reserved window calls",
+    );
+
+    const expectedObligationIds = [
+      "passage:p0001bbba",
+      "boundary:p0001bba:p0001bbba",
+      "boundary:p0001bbba:p0001bbbb",
+    ];
+    const maximalPayload = certificationPayloads.find(
+      ({ certificateId }) => certificateId === maximalCertificateId,
+    );
+    assert.deepEqual(maximalPayload.obligationIds, expectedObligationIds);
+    assert.equal(maximalReachableWire,
+      "{\"c\":\"certificate:passage:p0001bbba\",\"o\":[\"passage:p0001bbba\",\"boundary:p0001bba:p0001bbba\",\"boundary:p0001bbba:p0001bbbb\"],\"d\":1,\"k\":[false,false,false,false,false,false,false,false,false,false],\"i\":[9,8,7,6,5,4]}");
+
+    const maximalWindowWire = (passageIds, index) => JSON.stringify({
+      c: `certificate:passage:${passageIds[index]}`,
+      o: [
+        `passage:${passageIds[index]}`,
+        ...(index > 0 ? [`boundary:${passageIds[index - 1]}:${passageIds[index]}`] : []),
+        ...(index + 1 < passageIds.length
+          ? [`boundary:${passageIds[index]}:${passageIds[index + 1]}`]
+          : []),
+      ],
+      d: 1,
+      k: Array.from({ length: 10 }, () => false),
+      i: [9, 8, 7, 6, 5, 4],
+    });
+    const orderedLeafPaths = (leafCount) => {
+      if (leafCount === 1) return [[""]];
+      const shapes = [];
+      for (let leftCount = 1; leftCount < leafCount; leftCount += 1) {
+        for (const left of orderedLeafPaths(leftCount)) {
+          for (const right of orderedLeafPaths(leafCount - leftCount)) {
+            shapes.push([
+              ...left.map((path) => `a${path}`),
+              ...right.map((path) => `b${path}`),
+            ]);
+          }
+        }
+      }
+      return shapes;
+    };
+    const fiveLeafShapes = orderedLeafPaths(leafCountAtDepth);
+    assert.equal(fiveLeafShapes.length, 14);
+    const fiveLeafWindowWires = fiveLeafShapes.flatMap((paths) => {
+      const passageIds = paths.map((path) => `p0001${path}`);
+      return passageIds.map((_passageId, index) => maximalWindowWire(passageIds, index));
+    });
+    const baseInteriorWire = maximalWindowWire(["p0001", "p0002", "p0003"], 1);
+    assert.equal(baseInteriorWire.length, 191);
+    assert.equal(191 + (4 * 3) + 3 + 3, 209);
+    assert.equal(Math.max(...fiveLeafWindowWires.map((wire) => wire.length)), 214);
+    assert.ok(fiveLeafWindowWires.includes(maximalReachableWire));
+
+    const prettyMaximalReachableWire = JSON.stringify(JSON.parse(maximalReachableWire), null, 2);
+    assert.deepEqual({
+      minifiedCharacters: maximalReachableWire.length,
+      prettyCharacters: prettyMaximalReachableWire.length,
+      minifiedTokens: tokenizer.encode(maximalReachableWire).length,
+      prettyTokens: tokenizer.encode(prettyMaximalReachableWire).length,
+      conservativeGuard: LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT,
+      guardHeadroom: LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT - maximalReachableWire.length,
+    }, {
+      minifiedCharacters: 214,
+      prettyCharacters: 339,
+      minifiedTokens: 77,
+      prettyTokens: 136,
+      conservativeGuard: 440,
+      guardHeadroom: 226,
+    });
+  } finally {
+    tokenizer.dispose();
+  }
+});
+
+test("conservative decoder-valid verifier and certifier argument wires fit configured caps under the reviewed Llama 3.1 repository tokenizer", {
+  skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
+    ? false
+    : "set LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
+}, async () => {
+  assert.equal(
+    REVIEWED_LLAMA_3_1_REPOSITORY_TOKENIZER.revision,
+    textToLatticeContract.implementation.verifier.reviewedSourceRevision,
+  );
+  assert.equal(
+    LATTICE_REMOTE_MODELS.verifier,
+    textToLatticeContract.implementation.verifier.modelId,
+  );
   const tokenizer = await reviewedActiveVerifierRepositoryTokenizer();
   try {
     const { batch } = manualLiteralBatch();
@@ -708,7 +1679,7 @@ test("maximal fitted verifier and certifier argument wires fit configured caps u
       },
     });
     const signal = new AbortController().signal;
-    await adapter.verify({
+    const verificationRequest = {
       batch,
       sourceSpans,
       context: null,
@@ -718,7 +1689,16 @@ test("maximal fitted verifier and certifier argument wires fit configured caps u
       deterministicFindings: [],
       documentFindings: [],
       signal,
-    });
+    };
+    const adversarialCertificationRequest = {
+      scope: "relations",
+      certificateId: "A0".repeat(40),
+      obligationIds: ["B1".repeat(80), "C2".repeat(45)],
+      relations: [],
+      endpointPassages: [],
+      signal,
+    };
+    await adapter.verify(verificationRequest);
     await adapter.certify({
       scope: "relations",
       certificateId: "certificate:relations:e0001-e0024",
@@ -729,6 +1709,7 @@ test("maximal fitted verifier and certifier argument wires fit configured caps u
       endpointPassages: [],
       signal,
     });
+    await adapter.certify(adversarialCertificationRequest);
 
     const fittedSchema = (body) => {
       assert.equal(Object.hasOwn(body, "response_format"), false);
@@ -740,7 +1721,7 @@ test("maximal fitted verifier and certifier argument wires fit configured caps u
       });
       return body.tools[0].function.parameters;
     };
-    const [verificationSchema, certificationSchema] = bodies.map(fittedSchema);
+    const [verificationSchema, certificationSchema, adversarialCertificationSchema] = bodies.map(fittedSchema);
     assert.deepEqual(verificationSchema.required, ["d", "g", "p", "i"]);
     assert.deepEqual(certificationSchema.required, ["c", "o", "d", "k", "i"]);
     assert.equal(verificationSchema.properties.p.prefixItems.length, batch.passages.length);
@@ -755,56 +1736,213 @@ test("maximal fitted verifier and certifier argument wires fit configured caps u
       }
       return value;
     };
-    const maximalVerificationValue = maximalFittedWireValue(
+    const maximalFittedVerificationValue = maximalFittedWireValue(
       verificationSchema,
       denseMask,
     );
-    const maximalCertificationValue = maximalFittedWireValue(
-      certificationSchema,
-      denseMask,
+    const maximalVerificationIssues = [
+      [10, -1],
+      ...[10, 11, 12, 13].flatMap((check) => (
+        [0, 1, 2, 3].map((passage) => [check, passage])
+      )),
+      ...[0, 1, 2, 3, 4, 5, 6].map((check) => [check, -1]),
+    ];
+    const maximalVerificationPassage = () => [
+      "2".repeat(6),
+      false,
+      `${"1".repeat(12)}${"0".repeat(12)}`,
+      "1".repeat(9),
+      4,
+      "1".repeat(6),
+      "1".repeat(24),
+      [
+        false,
+        "0".repeat(24),
+        Array.from({ length: 5 }, () => [false, "1".repeat(24)]),
+      ],
+    ];
+    const maximalVerificationValue = {
+      d: maximalFittedVerificationValue.d,
+      g: "1".repeat(11),
+      p: Array.from({ length: 4 }, maximalVerificationPassage),
+      i: maximalVerificationIssues,
+    };
+    const maximalCertificationValue = {
+      ...maximalFittedWireValue(certificationSchema, denseMask),
+      i: [9, 8, 7, 6, 5, 4],
+    };
+    const adversarialCertificationValue = {
+      c: "A0".repeat(40),
+      o: ["B1".repeat(80), "C2".repeat(45)],
+      d: 1,
+      k: Array.from({ length: 10 }, () => false),
+      i: [9, 8, 7, 6, 5, 4],
+    };
+    assert.deepEqual(adversarialCertificationSchema.properties.c.enum, [adversarialCertificationValue.c]);
+    assert.deepEqual(
+      adversarialCertificationSchema.properties.o.prefixItems.map(({ enum: values }) => values[0]),
+      adversarialCertificationValue.o,
     );
     const verificationWire = JSON.stringify(maximalVerificationValue);
     const certificationWire = JSON.stringify(maximalCertificationValue);
     const prettyVerificationWire = JSON.stringify(maximalVerificationValue, null, 2);
     const prettyCertificationWire = JSON.stringify(maximalCertificationValue, null, 2);
+    const adversarialCertificationWire = JSON.stringify(adversarialCertificationValue);
+    const prettyAdversarialCertificationWire = JSON.stringify(
+      adversarialCertificationValue,
+      null,
+      2,
+    );
+    const legalWireResponses = [
+      ["lattice_verification_wire_v1", verificationWire],
+      ["lattice_certification_wire_v1", adversarialCertificationWire],
+    ];
+    const legalWireAdapter = createHuggingFaceLatticeAdapter({
+      token: "server-test-token",
+      fetchImpl: async () => {
+        const [toolName, argumentsValue] = legalWireResponses.shift();
+        return new Response(JSON.stringify({
+          choices: [{
+            finish_reason: "tool_calls",
+            message: {
+              role: "assistant",
+              tool_calls: [{
+                id: "call_capacity_measurement",
+                type: "function",
+                function: { name: toolName, arguments: argumentsValue },
+              }],
+            },
+          }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+    const decodedVerification = await legalWireAdapter.verify(verificationRequest);
+    const decodedAdversarialCertification = await legalWireAdapter.certify(
+      adversarialCertificationRequest,
+    );
+    assert.equal(decodedVerification.issues.length, 24);
+    assert.equal(decodedAdversarialCertification.certificateId, adversarialCertificationValue.c);
+    assert.deepEqual(
+      decodedAdversarialCertification.obligationIds,
+      adversarialCertificationValue.o,
+    );
+    assert.equal(decodedAdversarialCertification.issues.length, 6);
+    assert.equal(legalWireResponses.length, 0);
     const verificationTokens = tokenizer.encode(verificationWire).length;
     const certificationTokens = tokenizer.encode(certificationWire).length;
     const prettyVerificationTokens = tokenizer.encode(prettyVerificationWire).length;
     const prettyCertificationTokens = tokenizer.encode(prettyCertificationWire).length;
+    const adversarialCertificationTokens = tokenizer.encode(adversarialCertificationWire).length;
+    const prettyAdversarialCertificationTokens = tokenizer.encode(
+      prettyAdversarialCertificationWire,
+    ).length;
+    // These wrappers are sensitivity checks around the canonical argument
+    // object. They do not claim how DeepInfra counts provider-managed chat
+    // templates or tool control tokens. The serialized response envelope also
+    // contains gateway metadata, so it is representative and is not part of
+    // the model-output budget proof.
+    const nativeVerificationToolTokens = tokenizer.encode(nativeToolCompletion(
+      "lattice_verification_wire_v1",
+      prettyVerificationWire,
+    )).length;
+    const nativeCertificationToolTokens = tokenizer.encode(nativeToolCompletion(
+      "lattice_certification_wire_v1",
+      prettyCertificationWire,
+    )).length;
+    const nativeAdversarialCertificationToolTokens = tokenizer.encode(nativeToolCompletion(
+      "lattice_certification_wire_v1",
+      prettyAdversarialCertificationWire,
+    )).length;
+    const representativeSerializedVerificationEnvelopeTokens = tokenizer.encode(representativeSerializedProviderEnvelope(
+      "lattice_verification_wire_v1",
+      prettyVerificationWire,
+    )).length;
+    const representativeSerializedCertificationEnvelopeTokens = tokenizer.encode(representativeSerializedProviderEnvelope(
+      "lattice_certification_wire_v1",
+      prettyCertificationWire,
+    )).length;
+    const representativeSerializedAdversarialCertificationEnvelopeTokens = tokenizer.encode(
+      representativeSerializedProviderEnvelope(
+        "lattice_certification_wire_v1",
+        prettyAdversarialCertificationWire,
+      ),
+    ).length;
     assert.deepEqual({
       verificationTokens,
       prettyVerificationTokens,
       certificationTokens,
       prettyCertificationTokens,
+      nativeVerificationToolTokens,
+      nativeCertificationToolTokens,
+      nativeAdversarialCertificationToolTokens,
+      representativeSerializedVerificationEnvelopeTokens,
+      representativeSerializedCertificationEnvelopeTokens,
+      representativeSerializedAdversarialCertificationEnvelopeTokens,
+      verificationWireCharacters: verificationWire.length,
+      fittedVerificationSchemaWireCharacters: JSON.stringify(maximalFittedVerificationValue).length,
+      adversarialCertificationWireCharacters: adversarialCertificationWire.length,
+      adversarialCertificationTokens,
+      prettyAdversarialCertificationTokens,
     }, {
       verificationTokens: 539,
       prettyVerificationTokens: 965,
       certificationTokens: 142,
       prettyCertificationTokens: 243,
+      nativeVerificationToolTokens: 978,
+      nativeCertificationToolTokens: 257,
+      nativeAdversarialCertificationToolTokens: 440,
+      representativeSerializedVerificationEnvelopeTokens: 1_290,
+      representativeSerializedCertificationEnvelopeTokens: 342,
+      representativeSerializedAdversarialCertificationEnvelopeTokens: 503,
+      verificationWireCharacters: 1_430,
+      fittedVerificationSchemaWireCharacters: 1_453,
+      adversarialCertificationWireCharacters: 440,
+      adversarialCertificationTokens: 369,
+      prettyAdversarialCertificationTokens: 426,
     });
     assert.ok(
-      verificationTokens <= 1_200,
-      `maximal fitted verifier arguments used ${verificationTokens} reviewed-repository-tokenizer tokens`,
+      verificationTokens <= LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification,
+      `conservative decoder-valid verifier arguments used ${verificationTokens} reviewed-repository-tokenizer tokens`,
     );
     assert.ok(
-      certificationTokens <= 520,
-      `maximal fitted certifier arguments used ${certificationTokens} reviewed-repository-tokenizer tokens`,
+      certificationTokens <= LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.certification,
+      `conservative decoder-valid certifier arguments used ${certificationTokens} reviewed-repository-tokenizer tokens`,
     );
     assert.ok(
-      prettyVerificationTokens <= 1_200,
-      `pretty maximal fitted verifier arguments used ${prettyVerificationTokens} reviewed-repository-tokenizer tokens`,
+      prettyVerificationTokens <= LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification,
+      `pretty conservative decoder-valid verifier arguments used ${prettyVerificationTokens} reviewed-repository-tokenizer tokens`,
     );
     assert.ok(
-      prettyCertificationTokens <= 520,
-      `pretty maximal fitted certifier arguments used ${prettyCertificationTokens} reviewed-repository-tokenizer tokens`,
+      prettyCertificationTokens <= LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.certification,
+      `pretty conservative decoder-valid certifier arguments used ${prettyCertificationTokens} reviewed-repository-tokenizer tokens`,
     );
     assert.ok(
-      1_200 - prettyVerificationTokens >= 200,
-      "the maximal pretty verifier arguments must retain at least 200 reviewed-repository-tokenizer tokens of argument headroom",
+      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
+        === Math.ceil(Math.max(
+          verificationWire.length,
+          JSON.stringify(maximalFittedVerificationValue).length,
+          Math.ceil(PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS * 1.5),
+        ) / 256) * 256,
+      "the verifier cap must be the smallest 256-token step above the conservative decoder-valid ASCII ceiling while retaining at least 50 percent over the production-reachable native-tool-output sensitivity fixture",
     );
     assert.ok(
-      520 - prettyCertificationTokens >= 200,
-      "the maximal pretty certifier arguments must retain at least 200 reviewed-repository-tokenizer tokens of argument headroom",
+      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.certification
+        - prettyAdversarialCertificationTokens >= 90,
+      "the unchanged certifier cap must retain at least 90 pinned-tokenizer tokens over an adversarial valid 440-character binding record",
+    );
+    assert.ok(
+      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.certification
+        - nativeAdversarialCertificationToolTokens >= 80,
+      "the unchanged certifier cap must retain at least 80 pinned-tokenizer tokens over the adversarial native-tool sensitivity fixture",
+    );
+    assert.equal(
+      adversarialCertificationWire.length,
+      LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT,
+    );
+    assert.ok(
+      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.certification
+        - LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT >= 80,
+      "the certifier cap must exceed the absolute minified ASCII-character ceiling by at least 80 tokens",
     );
   } finally {
     tokenizer.dispose();

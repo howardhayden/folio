@@ -19,6 +19,7 @@ import {
 import {
   LOCAL_LATTICE_MODEL as HISTORICAL_LOCAL_LATTICE_MODEL,
 } from "../app/resume/lattice/modelContract.js";
+import { LATTICE_PROVIDER_CALL_LIMIT } from "../app/resume/lattice/remoteProtocol.js";
 import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
   LATTICE_REMOTE_MODELS,
@@ -1017,7 +1018,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
           responseTransport: "forced_named_tool",
           toolName: "lattice_verification_wire_v1",
           stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
-          maximumOutputTokens: 1_200,
+          maximumOutputTokens: 1_536,
         },
         certification: {
           temperature: 0,
@@ -1052,6 +1053,14 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   assert.deepEqual(textToLatticeContract.implementation.generator, expectedGenerator);
   assert.deepEqual(textToLatticeContract.implementation.verifier, expectedVerifier);
   assert.deepEqual(textToLatticeContract.implementation.runtime, expectedRuntime);
+  const publishedLimits = textToLatticeContract.securityAndPrivacy.inputHardening.limits;
+  assert.ok(publishedLimits.includes(
+    `${LATTICE_PROVIDER_CALL_LIMIT} provider calls across analysis, candidate generation, verification, certification, correction, repair, and re-atomization work, bounded further by the request and per-call deadlines`,
+  ));
+  assert.equal(
+    publishedLimits.some((limit) => /512 protocol-level model completions/iu.test(limit)),
+    false,
+  );
   const historicalRuntime = textToLatticeContract.implementation.historicalLocalRuntime;
   assert.equal(historicalRuntime.status, "inactive");
   assert.equal(historicalRuntime.generatorModelId, HISTORICAL_LOCAL_LATTICE_MODEL.models[0].id);

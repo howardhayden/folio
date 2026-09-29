@@ -32,6 +32,9 @@ import {
   LATTICE_PROVIDER_CALL_LIMIT,
   LATTICE_PROVIDER_CALL_TIMEOUT_MS,
   LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT,
+  LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
+  LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL,
+  LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
   LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
   LATTICE_REMOTE_MODELS,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
@@ -1069,6 +1072,17 @@ async function verifyQualificationDossier(register) {
     String(artifacts.activeCapability.admission.globalPerUtcDay),
     String(artifacts.activeCapability.admission.perOrdinaryPersistentBrowserCookieJarPerUtcDay),
     String(artifacts.activeCapability.admission.maximumProviderCallsFromAdmittedRequestsPerUtcDay),
+    ...Object.values(artifacts.activeCapability.provider.stageMaximumOutputTokens)
+      .map((value) => value.toLocaleString("en-US")),
+    artifacts.activeCapability.provider.maximumRequestedOutputTokensPerCall
+      .toLocaleString("en-US"),
+    artifacts.activeCapability.provider.maximumRequestedOutputTokensPerAdmittedRequest
+      .toLocaleString("en-US"),
+    artifacts.activeCapability.provider.maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay
+      .toLocaleString("en-US"),
+    artifacts.activeCapability.provider
+      .maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay
+      .toLocaleString("en-US"),
     artifacts.activeCapability.provider.endpoint,
     artifacts.activeCapability.provider.generatorModel,
     artifacts.activeCapability.provider.verifierModel,
@@ -1267,6 +1281,18 @@ function verifyArtifactSet(register) {
     || capability.provider.verifierModel !== LATTICE_REMOTE_MODELS.verifier
     || capability.provider.callTimeoutMs !== LATTICE_PROVIDER_CALL_TIMEOUT_MS
     || capability.provider.callLimit !== LATTICE_PROVIDER_CALL_LIMIT
+    || JSON.stringify(capability.provider.stageMaximumOutputTokens)
+      !== JSON.stringify(LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS)
+    || capability.provider.maximumRequestedOutputTokensPerCall
+      !== LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL
+    || capability.provider.maximumRequestedOutputTokensPerAdmittedRequest
+      !== LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST
+    || capability.provider.maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay
+      !== LATTICE_TRANSFORMATIONS_PER_UTC_DAY
+        * LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST
+    || capability.provider.maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay
+      !== LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY
+        * LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST
     || capability.provider.responseByteLimit !== LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT
     || capability.provider.contentCharacterLimit !== LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT
     || capability.provider.revisionStatus !== "provider-managed-not-byte-pinned"

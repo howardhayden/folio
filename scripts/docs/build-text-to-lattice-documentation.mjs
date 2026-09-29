@@ -185,6 +185,10 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     /bounds each provider call to 120 seconds/iu,
     /32 provider calls/iu,
     /960/iu,
+    /1,536-token verifier/iu,
+    /520-token certifier/iu,
+    /65,536 requested output tokens per admitted request/iu,
+    /1,966,080 requested output tokens.*UTC day/iu,
     /path-scoped (?:Worker )?rate limiter/iu,
     /response (?:bytes|size)/iu,
     /provider (?:quota|rate|retention|availability|cost)/iu,
@@ -625,6 +629,18 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || activeProvider?.endpoint !== "https://router.huggingface.co/v1/chat/completions"
     || activeProvider?.generatorModel !== "Qwen/Qwen3-4B-Instruct-2507:nscale"
     || activeProvider?.verifierModel !== "meta-llama/Llama-3.1-8B-Instruct:deepinfra"
+    || JSON.stringify(activeProvider?.stageMaximumOutputTokens) !== JSON.stringify({
+      analysis: 2_048,
+      candidate: 800,
+      verification: 1_536,
+      certification: 520,
+      repair: 800,
+    })
+    || activeProvider?.maximumRequestedOutputTokensPerCall !== 2_048
+    || activeProvider?.maximumRequestedOutputTokensPerAdmittedRequest !== 65_536
+    || activeProvider?.maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay !== 1_966_080
+    || activeProvider?.maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay
+      !== 196_608
     || activeProvider?.revisionStatus !== "provider-managed-not-byte-pinned"
     || activeProvider?.historicalByteEquivalenceEstablished !== false
     || activeCapability?.automaticRetry !== false
