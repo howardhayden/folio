@@ -77,6 +77,10 @@ export const LATTICE_PRODUCTION_READINESS_CONTRACT = Object.freeze({
 const SYNTHETIC_NEGATIVE_MARKER = "lattice-live-negative-canary-2026-09-14";
 export const LATTICE_PRODUCTION_CANARY_TEXT =
   "A visitor places a blue notebook on the desk, reads the first page, and closes it.\n";
+const CERTIFICATION_CANARY_STATUS_SET = new Set([
+  "translated",
+  "conformant-for-context",
+]);
 const UNABLE_CANARY_CLASSES = new Map([
   ["atomization-unavailable", "pre-candidate-analysis-contract"],
   ["generation-context-unavailable", "pre-candidate-generation-context"],
@@ -996,6 +1000,14 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   }
   if (terminalDiagnostic !== null) {
     fail(`${label} returned a terminal analysis diagnostic on success`);
+  }
+  if (!CERTIFICATION_CANARY_STATUS_SET.has(envelope.result.status)) {
+    fail(`${label} did not prove an accepted certified result`);
+  }
+  const resultTextWithoutTerminalLineFeed = envelope.result.text.slice(0, -1);
+  if (!envelope.result.text.endsWith("\n")
+    || /[\r\n]$/u.test(resultTextWithoutTerminalLineFeed)) {
+    fail(`${label} did not preserve its required terminal document boundary`);
   }
   return Object.freeze({
     request_count: 1,

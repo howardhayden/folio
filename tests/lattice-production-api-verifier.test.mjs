@@ -110,7 +110,7 @@ function validResult() {
   return {
     version: LATTICE_RESULT_VERSION,
     status: "translated",
-    text: "The notebook rests on the desk. The visitor reads its first page, then closes it.",
+    text: "The notebook rests on the desk. The visitor reads its first page, then closes it.\n",
     wordCount: 14,
     primaryLayer: "operative",
     layerId: "operative",
@@ -434,6 +434,75 @@ test("the production verifier establishes one bodyless visitor session before ex
     createHash("sha256").update(serialized.serialized).digest("hex"),
   );
   assert.deepEqual(JSON.parse(serialized.serialized), evidence);
+});
+
+test("the certification canary rejects an unaccepted status or an inexact terminal document boundary", async (contextTest) => {
+  const base = validResult();
+  const cases = [
+    [
+      "review-required",
+      { ...base, status: "review-required" },
+      /did not prove an accepted certified result/u,
+    ],
+    [
+      "missing terminal line feed",
+      { ...base, text: base.text.slice(0, -1) },
+      /did not preserve its required terminal document boundary/u,
+    ],
+    [
+      "carriage-return line feed",
+      { ...base, text: `${base.text.slice(0, -1)}\r\n` },
+      /did not preserve its required terminal document boundary/u,
+    ],
+    [
+      "multiple terminal line feeds",
+      { ...base, text: `${base.text}\n` },
+      /did not preserve its required terminal document boundary/u,
+    ],
+  ];
+
+  for (const [name, result, expectedFailure] of cases) {
+    await contextTest.test(name, async () => {
+      const fixture = successfulFixture({
+        canaryResponse: apiJson({ result, schema_version: 1 }, 200),
+      });
+      await assert.rejects(
+        verifyTextToLatticeApiProduction({
+          fetchImpl: fixture.fetchImpl,
+          context,
+          now: fixedNow,
+          wait: noWait,
+        }),
+        expectedFailure,
+      );
+      assert.equal(fixture.canaryRequests, 1);
+      assert.equal(fixture.setupRequests, 1);
+      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+    });
+  }
+});
+
+test("the certification canary accepts either certified terminal status", async (contextTest) => {
+  for (const status of ["translated", "conformant-for-context"]) {
+    await contextTest.test(status, async () => {
+      const fixture = successfulFixture({
+        canaryResponse: apiJson({
+          result: { ...validResult(), status },
+          schema_version: 1,
+        }, 200),
+      });
+      const evidence = await verifyTextToLatticeApiProduction({
+        fetchImpl: fixture.fetchImpl,
+        context,
+        now: fixedNow,
+        wait: noWait,
+      });
+      assert.equal(evidence.transformation_canary.terminal_status, status);
+      assert.equal(fixture.canaryRequests, 1);
+      assert.equal(fixture.setupRequests, 1);
+      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+    });
+  }
 });
 
 test("the sanitized preflight callback completes before any transformation canary", async () => {

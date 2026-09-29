@@ -414,6 +414,8 @@
           "scripts/bootstrap-text-to-lattice-api-secrets.mjs",
           "scripts/build-text-to-lattice-deployment-evidence.mjs",
           "scripts/verify-text-to-lattice-api-production.mjs",
+          "the live certification canary qualifies only a strict translated or conformant-for-context result that preserves exactly one terminal line feed; review-required, unable-to-attempt, missing-boundary, CRLF, and extra-terminal-newline results remain non-qualifying; retained evidence remains content-free",
+          "tests/lattice-production-api-verifier.test.mjs",
           "tests/lattice-network-capability.test.mjs",
           "tests/lattice-network-governance.test.mjs",
           "tests/lattice-api-worker.test.mjs",
