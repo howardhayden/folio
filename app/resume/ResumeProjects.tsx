@@ -21,6 +21,7 @@ import {
   RovingStateTabs,
 } from "./lattice/diagramInfrastructure";
 import {
+  latticeHeldResponsePresentation,
   latticeModalPresentation,
 } from "./lattice/modalPresentation.js";
 import {
@@ -362,6 +363,8 @@ function latticeInputFailureMessage(error: unknown) {
 
 function latticeFailureMessage(error: unknown) {
   if (isLatticeInputFailure(error)) return latticeInputFailureMessage(error);
+  const held = latticeHeldResponsePresentation(error);
+  if (held) return held.message;
   if (error instanceof LatticeRemoteError) {
     if (error.code === "visitor_session_required") {
       return "The external provider did not receive your text because hah.dev could not establish its private daily-limit cookie. Allow site cookies for hah.dev, then submit again only if you choose.";
@@ -388,6 +391,8 @@ function latticeFailureMessage(error: unknown) {
 
 function latticeFailureDisposition(error: unknown): LatticePresentationDisposition | null {
   if (isLatticeInputFailure(error)) return "rejected";
+  const held = latticeHeldResponsePresentation(error);
+  if (held) return held.disposition;
   if (!(error instanceof LatticeRemoteError)) return null;
   if ([
     "visitor_session_required",

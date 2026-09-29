@@ -1,6 +1,11 @@
+import { LatticeRemoteError } from "./remoteRequest.js";
+
 const STORM_GRAY = "storm-gray";
 const BLUE_GREEN = "blue-green";
 const RED_ORANGE = "red-orange";
+
+export const LATTICE_MODAL_HELD_SETUP_MESSAGE = "The Text to Lattice interactive release is held. Your text was not sent to the configured external service. Submit again only after the release is available.";
+export const LATTICE_MODAL_HELD_CONTENT_MESSAGE = "The Text to Lattice interactive release is held. The request may have reached the configured external service. hah.dev does not retain your sample or result. Submit again only after the release is available.";
 
 export const LATTICE_MODAL_MILESTONE_PERCENTAGES = Object.freeze({
   idle: 0,
@@ -56,6 +61,30 @@ const LATTICE_RESULT_TEMPLATES = Object.freeze({
 
 function own(record, key) {
   return Object.prototype.hasOwnProperty.call(record, key);
+}
+
+/**
+ * Identify the two client-observable forms of the held API's bounded 503.
+ *
+ * The bodyless visitor-session setup intentionally maps every non-204 response
+ * to `visitor_session_required`, while a 503 received after setup retains the
+ * API's `upstream_unavailable` code. Status and code are both required so an
+ * ordinary 428 cookie rejection or 502 provider failure is never called held.
+ *
+ * @param {unknown} error
+ */
+export function latticeHeldResponsePresentation(error) {
+  if (!(error instanceof LatticeRemoteError)
+    || error.status !== 503
+    || !["visitor_session_required", "upstream_unavailable"].includes(error.code)) {
+    return null;
+  }
+  return Object.freeze({
+    disposition: "held",
+    message: error.code === "visitor_session_required"
+      ? LATTICE_MODAL_HELD_SETUP_MESSAGE
+      : LATTICE_MODAL_HELD_CONTENT_MESSAGE,
+  });
 }
 
 function atObservedMilestone(state, lastObservedPhase) {
