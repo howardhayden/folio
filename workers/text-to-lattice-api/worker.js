@@ -53,7 +53,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v5";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v6";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
@@ -89,6 +89,10 @@ export const LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS = Object
   attempt: "X-Lattice-Qualification-Withheld-Attempt",
   validationCategory: "X-Lattice-Qualification-Withheld-Validation",
   priorValidationCategory: "X-Lattice-Qualification-Withheld-Prior-Validation",
+  rejectionBoundary: "X-Lattice-Qualification-Withheld-Rejection-Boundary",
+  rejectionCategory: "X-Lattice-Qualification-Withheld-Rejection-Category",
+  priorRejectionBoundary: "X-Lattice-Qualification-Withheld-Prior-Rejection-Boundary",
+  priorRejectionCategory: "X-Lattice-Qualification-Withheld-Prior-Rejection-Category",
   callsUsed: "X-Lattice-Qualification-Withheld-Calls-Used",
 });
 

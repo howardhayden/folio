@@ -67,6 +67,11 @@ import {
   materiallyDifferent,
 } from "./lattice/validators.js";
 import { isClosedWithheldTrace } from "./lattice/qualificationDiagnostics.js";
+import {
+  rejectedResultDiagnostic,
+  rememberRejectedError,
+  rejectedErrorDiagnostic,
+} from "./lattice/rejectionDiagnostics.js";
 
 export {
   LATTICE_CLARIFICATION_SAFETY_LIMIT,
@@ -1325,6 +1330,12 @@ function stageValidationCategory(error) {
 function rememberStageFailureDiagnostic(error, stage, attempt, firstError) {
   try {
     if ((typeof error !== "object" && typeof error !== "function") || error === null) return;
+    const rejection = rejectedErrorDiagnostic(error);
+    const priorRejection = attempt === 1 ? null : rejectedErrorDiagnostic(firstError);
+    const hostValidation = retryableStageFailure(error)
+      && !["lattice-context", "lattice-output-length", "provider_output_limit"].includes(error.code);
+    const priorHostValidation = attempt > 1 && retryableStageFailure(firstError)
+      && !["lattice-context", "lattice-output-length", "provider_output_limit"].includes(firstError?.code);
     STAGE_FAILURE_DIAGNOSTICS.set(error, Object.freeze({
       failureCause: error.code === "lattice-context" ? "context-capacity"
         : ["lattice-output-length", "provider_output_limit"].includes(error.code) ? "output-limit"
@@ -1333,6 +1344,10 @@ function rememberStageFailureDiagnostic(error, stage, attempt, firstError) {
       attempt: `${attempt}`,
       validationCategory: stageValidationCategory(error),
       priorValidationCategory: attempt === 1 || firstError === null ? "none" : stageValidationCategory(firstError),
+      rejectionBoundary: rejection?.boundary ?? (hostValidation ? "unknown" : "none"),
+      rejectionCategory: rejection?.category ?? (hostValidation ? "other" : "none"),
+      priorRejectionBoundary: priorRejection?.boundary ?? (priorHostValidation ? "unknown" : "none"),
+      priorRejectionCategory: priorRejection?.category ?? (priorHostValidation ? "other" : "none"),
     }));
   } catch {
     // Diagnostic bookkeeping must preserve the original stage outcome.
@@ -1417,7 +1432,23 @@ async function callNormalizedStage({
       analysisDiagnosticOrigin,
     );
     try {
-      return await normalize(await invoke(currentRequest), currentRequest);
+      const raw = await invoke(currentRequest);
+      try {
+        return await normalize(raw, currentRequest);
+      } catch (error) {
+        // This catch surrounds normalization only. Decoder observations are
+        // identity-bound; their absence never establishes successful decoding.
+        try {
+          if (error instanceof LatticeProtocolError) {
+            rememberRejectedError(error, rejectedResultDiagnostic(raw) ?? Object.freeze({
+              boundary: "host-normalizer", category: "other",
+            }));
+          }
+        } catch {
+          // Bookkeeping must preserve the original normalization failure.
+        }
+        throw error;
+      }
     } catch (error) {
       throwIfAborted(signal);
       const priorValidationCategory = attempt === 1 || firstError === null
@@ -3042,6 +3073,10 @@ function resultFromState({
         attempt: absentFailure,
         validationCategory: absentFailure,
         priorValidationCategory: absentFailure,
+        rejectionBoundary: absentFailure,
+        rejectionCategory: absentFailure,
+        priorRejectionBoundary: absentFailure,
+        priorRejectionCategory: absentFailure,
       });
       const verificationStates = new Set(finalReviews.map((entry) => (
         entry.verification.available === false ? "unavailable"

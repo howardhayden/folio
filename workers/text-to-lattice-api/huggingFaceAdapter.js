@@ -24,6 +24,7 @@ import {
   graphemeExcerpt,
 } from "../../app/resume/lattice/segments.js";
 import { LATTICE_PROVIDER_CALL_LIMIT } from "../../app/resume/lattice/remoteProtocol.js";
+import { rememberRejectedResult } from "../../app/resume/lattice/rejectionDiagnostics.js";
 
 export { LATTICE_PROVIDER_CALL_LIMIT };
 
@@ -1508,25 +1509,52 @@ function wireAtomStatuses(statuses, atomIds) {
   });
 }
 
+function rejectedPrivateWire(category) {
+  return rememberRejectedResult({}, category);
+}
+
+function rejectedFieldSetCategory(value) {
+  return record(value) ? "field-set" : "object-type";
+}
+
+function rejectedEnumCategory(value) {
+  return typeof value === "number" ? "value-domain" : "value-type";
+}
+
+function rejectedMaskCategory(mask, values, { minimum = 0, maximum = values.length } = {}) {
+  try {
+    if (typeof mask !== "string") return "value-type";
+    if (mask.length !== values.length || !/^[01]+$/u.test(mask)) return "value-domain";
+    const selectedCount = values.filter((_value, index) => mask[index] === "1").length;
+    if (selectedCount < minimum) return "coverage";
+    if (selectedCount > maximum) return "collection-bound";
+    return "other";
+  } catch {
+    return "other";
+  }
+}
+
 function decodeVerificationWire(value, fit) {
   const passageKeys = fit?.passages?.map((_passage, index) => String(index));
-  if (!fit || !exactKeys(value, ["d", "g", "p", "i"])
-    || !exactKeys(value.p, passageKeys)
-    || !Array.isArray(value.i)
-    || value.i.length > VERIFICATION_SCHEMA.properties.issues.maxItems) return {};
+  if (!fit) return rejectedPrivateWire("other");
+  if (!exactKeys(value, ["d", "g", "p", "i"])) return rejectedPrivateWire(rejectedFieldSetCategory(value));
+  if (!exactKeys(value.p, passageKeys)) return rejectedPrivateWire(rejectedFieldSetCategory(value.p));
+  if (!Array.isArray(value.i)) return rejectedPrivateWire("value-type");
+  if (value.i.length > VERIFICATION_SCHEMA.properties.issues.maxItems) return rejectedPrivateWire("collection-bound");
   const decision = wireEnumValue(value.d, VERIFICATION_DECISIONS);
   const failedGates = wireMaskSelections(value.g, VERIFICATION_GATES);
-  if (decision === null || failedGates === null) return {};
+  if (decision === null) return rejectedPrivateWire(rejectedEnumCategory(value.d));
+  if (failedGates === null) return rejectedPrivateWire(rejectedMaskCategory(value.g, VERIFICATION_GATES));
   const passages = [];
   for (let index = 0; index < fit.passages.length; index += 1) {
     const passage = value.p[String(index)];
     const plan = fit.plans[index];
     const evidenceIds = fit.evidenceByPassage[index].ids;
-    if (!exactKeys(passage, ["a", "u", "s", "f", "l", "x", "y", "c"])
-      || typeof passage.u !== "boolean"
-      || !exactKeys(passage.c, ["v", "s", "k"])
-      || typeof passage.c.v !== "boolean"
-      || !Array.isArray(passage.c.k)) return {};
+    if (!exactKeys(passage, ["a", "u", "s", "f", "l", "x", "y", "c"])) return rejectedPrivateWire(rejectedFieldSetCategory(passage));
+    if (typeof passage.u !== "boolean") return rejectedPrivateWire("value-type");
+    if (!exactKeys(passage.c, ["v", "s", "k"])) return rejectedPrivateWire(rejectedFieldSetCategory(passage.c));
+    if (typeof passage.c.v !== "boolean") return rejectedPrivateWire("value-type");
+    if (!Array.isArray(passage.c.k)) return rejectedPrivateWire("value-type");
     const atomStatuses = wireAtomStatuses(passage.a, plan.atomIds);
     const unmodeledSpanIds = wireMaskSelections(passage.s, evidenceIds, { maximum: 12 });
     const failedChecks = wireMaskSelections(passage.f, VERIFICATION_PASSAGE_CHECKS);
@@ -1534,25 +1562,30 @@ function decodeVerificationWire(value, fit) {
     const layerEvidenceAtomIds = wireMaskSelections(passage.x, plan.atomIds, { minimum: 1 });
     const layerEvidenceSpanIds = wireMaskSelections(passage.y, evidenceIds, { minimum: 1 });
     const conformanceEvidenceSpanIds = wireMaskSelections(passage.c.s, evidenceIds);
-    if (atomStatuses === null || unmodeledSpanIds === null || failedChecks === null
-      || independentLayer === null || layerEvidenceAtomIds === null
-      || layerEvidenceSpanIds === null || conformanceEvidenceSpanIds === null) return {};
+    if (atomStatuses === null) return rejectedPrivateWire(typeof passage.a === "string" ? "value-domain" : "value-type");
+    if (unmodeledSpanIds === null) return rejectedPrivateWire(rejectedMaskCategory(passage.s, evidenceIds, { maximum: 12 }));
+    if (failedChecks === null) return rejectedPrivateWire(rejectedMaskCategory(passage.f, VERIFICATION_PASSAGE_CHECKS));
+    if (independentLayer === null) return rejectedPrivateWire(rejectedEnumCategory(passage.l));
+    if (layerEvidenceAtomIds === null) return rejectedPrivateWire(rejectedMaskCategory(passage.x, plan.atomIds, { minimum: 1 }));
+    if (layerEvidenceSpanIds === null) return rejectedPrivateWire(rejectedMaskCategory(passage.y, evidenceIds, { minimum: 1 }));
+    if (conformanceEvidenceSpanIds === null) return rejectedPrivateWire(rejectedMaskCategory(passage.c.s, evidenceIds));
     const rewrite = plan.disposition === "rewrite";
     const rawCriterionChecks = passage.c.k;
     if (rewrite) {
       if (passage.c.v !== false || conformanceEvidenceSpanIds.length !== 0
-        || rawCriterionChecks.length !== 0) return {};
+        || rawCriterionChecks.length !== 0) return rejectedPrivateWire("consistency");
     } else if (rawCriterionChecks.length !== plan.conformanceCriteria.length) {
-      return {};
+      return rejectedPrivateWire("coverage");
     }
     const criterionChecks = [];
     for (let criterionIndex = 0; criterionIndex < rawCriterionChecks.length; criterionIndex += 1) {
       const check = rawCriterionChecks[criterionIndex];
-      if (!exactKeys(check, ["v", "s"]) || typeof check.v !== "boolean") return {};
+      if (!exactKeys(check, ["v", "s"])) return rejectedPrivateWire(rejectedFieldSetCategory(check));
+      if (typeof check.v !== "boolean") return rejectedPrivateWire("value-type");
       const evidenceSpanIds = wireMaskSelections(check.s, evidenceIds, {
         minimum: check.v ? 1 : 0,
       });
-      if (evidenceSpanIds === null) return {};
+      if (evidenceSpanIds === null) return rejectedPrivateWire(rejectedMaskCategory(check.s, evidenceIds, { minimum: check.v ? 1 : 0 }));
       criterionChecks.push({
         criterion: plan.conformanceCriteria[criterionIndex],
         passed: check.v,
@@ -1580,14 +1613,14 @@ function decodeVerificationWire(value, fit) {
   const issueKeys = new Set();
   for (let index = 0; index < value.i.length; index += 1) {
     const issue = value.i[index];
-    if (!exactKeys(issue, ["c", "p"])
-      || !Number.isSafeInteger(issue.p) || issue.p < -1
-      || issue.p >= fit.passages.length) return {};
+    if (!exactKeys(issue, ["c", "p"])) return rejectedPrivateWire(rejectedFieldSetCategory(issue));
+    if (!Number.isSafeInteger(issue.p)) return rejectedPrivateWire(rejectedEnumCategory(issue.p));
+    if (issue.p < -1 || issue.p >= fit.passages.length) return rejectedPrivateWire("reference");
     const checkIndex = issue.c;
     const check = wireEnumValue(checkIndex, VERIFICATION_ISSUE_CHECKS);
-    if (check === null) return {};
+    if (check === null) return rejectedPrivateWire(rejectedEnumCategory(checkIndex));
     const issueKey = `${checkIndex}:${issue.p}`;
-    if (issueKeys.has(issueKey)) return {};
+    if (issueKeys.has(issueKey)) return rejectedPrivateWire("duplicate");
     issueKeys.add(issueKey);
     issues.push({
       id: `wire-issue-${index + 1}`,
@@ -1607,22 +1640,26 @@ function decodeVerificationWire(value, fit) {
 }
 
 function decodeCertificationWire(value, fit) {
-  if (!fit || !exactKeys(value, ["c", "o", "d", "k", "i"])
-    || value.c !== fit.certificateId
-    || !Array.isArray(value.o) || value.o.length !== fit.obligationIds.length
-    || value.o.some((id, index) => id !== fit.obligationIds[index])
-    || !Array.isArray(value.k) || value.k.length !== CERTIFICATION_CHECK_NAMES.length
-    || value.k.some((check) => typeof check !== "boolean")
-    || !Array.isArray(value.i)
-    || value.i.length > DOCUMENT_CERTIFICATION_SCHEMA.properties.issues.maxItems) return {};
+  if (!fit) return rejectedPrivateWire("other");
+  if (!exactKeys(value, ["c", "o", "d", "k", "i"])) return rejectedPrivateWire(rejectedFieldSetCategory(value));
+  if (value.c !== fit.certificateId) return rejectedPrivateWire("reference");
+  if (!Array.isArray(value.o)) return rejectedPrivateWire("value-type");
+  if (value.o.length !== fit.obligationIds.length) return rejectedPrivateWire("coverage");
+  if (value.o.some((id, index) => id !== fit.obligationIds[index])) return rejectedPrivateWire("reference");
+  if (!Array.isArray(value.k)) return rejectedPrivateWire("value-type");
+  if (value.k.length !== CERTIFICATION_CHECK_NAMES.length) return rejectedPrivateWire("collection-bound");
+  if (value.k.some((check) => typeof check !== "boolean")) return rejectedPrivateWire("value-type");
+  if (!Array.isArray(value.i)) return rejectedPrivateWire("value-type");
+  if (value.i.length > DOCUMENT_CERTIFICATION_SCHEMA.properties.issues.maxItems) return rejectedPrivateWire("collection-bound");
   const decision = wireEnumValue(value.d, CERTIFICATION_DECISIONS);
-  if (decision === null) return {};
+  if (decision === null) return rejectedPrivateWire(rejectedEnumCategory(value.d));
   const issueIndices = new Set();
   const issues = [];
   for (let index = 0; index < value.i.length; index += 1) {
     const checkIndex = value.i[index];
     const check = wireEnumValue(checkIndex, CERTIFICATION_CHECK_NAMES);
-    if (check === null || issueIndices.has(checkIndex)) return {};
+    if (check === null) return rejectedPrivateWire(rejectedEnumCategory(checkIndex));
+    if (issueIndices.has(checkIndex)) return rejectedPrivateWire("duplicate");
     issueIndices.add(checkIndex);
     issues.push({
       id: `wire-issue-${index + 1}`,

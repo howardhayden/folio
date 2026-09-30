@@ -187,6 +187,12 @@ test("the release register honestly holds the remote capability and preserves hi
   assert.ok(register.publicClient.heldBoundary.allow.length > 0);
   assert.ok(register.publicClient.heldBoundary.deny.some((item) => item.includes("/api/lattice")));
   assert.equal(register.revision, "2026-09-30");
+  assert.match(register.qualificationScope, /last pulled hah\.dev deployment and ancestry baseline/u);
+  assert.match(register.publicClient.reason, /run #162[\s\S]{0,140}diagnostic revision 5 merged by PR #51/iu);
+  assert.match(register.publicClient.reason, /terminal_failure=host-validation, stage=verification, attempt=2, validation=response-shape, prior_validation=response-shape, calls_used=5, batch_count=1, verification_passes=0, and finding_count=1/u);
+  assert.match(register.publicClient.reason, /aggregate calls_used=5 is not a failure-call ordinal/u);
+  assert.match(register.publicClient.reason, /No exact invalid private structure or decoding-versus-host-normalization rejection origin was retained/u);
+  assert.match(register.publicClient.reason, /diagnostic correction, revision 6[\s\S]{0,180}source-only until separately deployed and observed/iu);
   assert.match(register.publicClient.reason, /run #160 exercised the merged correction/iu);
   assert.match(register.publicClient.reason, /run #158 supplied earlier partial, non-qualifying production failure/iu);
   assert.match(register.publicClient.reason, /verification under the 2,048-token ceiling[\s\S]*finish_reason=length[\s\S]*call_ordinal=3/iu);
@@ -233,6 +239,28 @@ test("the release register honestly holds the remote capability and preserves hi
     ...register.gates.flatMap((gate) => [gate.activeCurrentEvidence, ...(gate.activeEvidence ?? [])]),
   ].join(" ");
   for (const exactEvidence of [
+    "https://github.com/howardhayden/folio/actions/runs/36725067719",
+    "be20fab7dbf312deef5ccc77997932f077b21f6e",
+    "2a7130b71189bb790f84ff8809b51542b6baf056",
+    "7419de535c9d3b35b74a7455e11dad52073618403c874d33631759d04f119ca2",
+    "d642e6f1bd47b5cdd92a139ea1653f7fe931fc84f9558f5f427626b53ebb5663",
+    "c462dbefa7c781cfd1d68fb80cc10fe57ad55511e0ff616cfb3b1601492b97d9",
+    "2026-09-30T13:58:37.984Z",
+    "revision=coherent, deterministic=blocked, verification=unavailable, certification=not-reached",
+    "terminal_failure=host-validation, stage=verification, attempt=2, validation=response-shape, prior_validation=response-shape, calls_used=5",
+    "calls_used=5 is aggregate provider-call usage, not a failure-call ordinal",
+    "44b459f6-b828-4aa0-8ad3-687347c17cfb",
+    "83f5b124-ded8-45ea-a148-c43b5f15f5bf",
+    "2026-09-30T13:58:48.168Z",
+    "69c38fbd-1cd0-4d72-911d-3bcd5b087962",
+    "7496d68f-29dd-4373-b078-0ab9b09942fa",
+    "2026-09-30T13:59:14.894Z",
+    "artifact ID 11101749025",
+    "2759e725a3b66ed2aa25ad69254eeb4c54957702e0bb682cc11c988354045571",
+    "artifact ID 11102479909",
+    "d98087260e75f8cf60714b0b2d975e422902fa9be33dc0af11bc4c57fc129f60",
+    "artifact ID 11101164549",
+    "32c80e168a87a93e084ce60237f34c2052cc63ac4fe34b3af19bbc812a3bde19",
     "https://github.com/howardhayden/folio/actions/runs/36716298072",
     "94fba0deb97748f3a91693a3bae15296b0ef3699",
     "d483b0124f2d7fb8c76cf028f8667b7ffb264299630b3cba7736f8cb8cac37a6",

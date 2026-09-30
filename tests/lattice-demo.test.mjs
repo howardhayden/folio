@@ -10,6 +10,7 @@ import {
   LATTICE_INPUT_SAFETY_LIMIT,
   LATTICE_PROVENANCE_DIGEST_TIMEOUT_MS,
   LATTICE_WORD_LIMIT,
+  LatticeProtocolError,
   countLatticeWords,
   preflightLatticeInput,
   runTextToLattice,
@@ -52,6 +53,7 @@ import {
 } from "../app/resume/lattice/segments.js";
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
 import { latticeProtectedLiteralMatches } from "../app/resume/lattice/protectedSpans.js";
+import { rememberRejectedResult } from "../app/resume/lattice/rejectionDiagnostics.js";
 import {
   deterministicDocumentReview,
   deterministicPassageReview,
@@ -3050,6 +3052,8 @@ test("withheld qualification observations distinguish final host conditions with
     ["private decoder or response shape", source, { verify: () => ({}) }, {
       verification: "unavailable", failureCause: "host-validation", stage: "verification",
       attempt: "2", validationCategory: "response-shape", priorValidationCategory: "response-shape",
+      rejectionBoundary: "host-normalizer", rejectionCategory: "other",
+      priorRejectionBoundary: "host-normalizer", priorRejectionCategory: "other",
     }],
     ["negative decision contradicts positive checks", source, {
       verify: (request) => rawVerification(request, { decision: "reject" }),
@@ -3101,6 +3105,43 @@ test("withheld qualification observations distinguish final host conditions with
   }
 });
 
+test("terminal rejection breadcrumbs preserve actual current and prior boundary identities", async () => {
+  const source = opaqueWords(12);
+  const behavior = { verify(_request, count) {
+    return count === 1 ? rememberRejectedResult({}, "field-set") : {};
+  } };
+  const baselineAdapter = scriptedAdapter(behavior);
+  const baseline = await runTextToLattice(source, { adapter: baselineAdapter });
+  const adapter = scriptedAdapter(behavior);
+  let trace;
+  const result = await runTextToLattice(source, {
+    adapter, onCandidateWithheldDiagnostic(value) { trace = value; },
+  });
+  assert.deepEqual(result, baseline);
+  assert.deepEqual(adapter.calls, baselineAdapter.calls);
+  assert.equal(adapter.calls.verify, 2);
+  assert.equal(trace.rejectionBoundary, "host-normalizer");
+  assert.equal(trace.rejectionCategory, "other");
+  assert.equal(trace.priorRejectionBoundary, "wire-decoder");
+  assert.equal(trace.priorRejectionCategory, "field-set");
+  assert.equal(JSON.stringify(result).includes("rejectionBoundary"), false);
+});
+
+test("an adapter exception is never attributed to host normalization", async () => {
+  const adapter = scriptedAdapter({ verify() { throw new LatticeProtocolError("PRIVATE-ADAPTER-FAILURE"); } });
+  let trace;
+  const result = await runTextToLattice(opaqueWords(12), {
+    adapter, onCandidateWithheldDiagnostic(value) { trace = value; },
+  });
+  assertCandidateWithheld(result);
+  assert.equal(adapter.calls.verify, 2);
+  assert.equal(trace.rejectionBoundary, "unknown");
+  assert.equal(trace.rejectionCategory, "other");
+  assert.equal(trace.priorRejectionBoundary, "unknown");
+  assert.equal(trace.priorRejectionCategory, "other");
+  assert.equal(JSON.stringify(trace).includes("PRIVATE-ADAPTER-FAILURE"), false);
+});
+
 test("withheld observations omit recovered failures and tolerate observer exceptions", async () => {
   const source = `${opaqueWords(12)}\n`;
   let certificateCalls = 0;
@@ -3108,7 +3149,7 @@ test("withheld observations omit recovered failures and tolerate observer except
   const result = await runTextToLattice(source, {
     adapter: scriptedAdapter({ certify(request) {
       certificateCalls += 1;
-      if (certificateCalls === 1) return {};
+      if (certificateCalls === 1) return rememberRejectedResult({}, "value-type");
       return {
         certificateId: request.certificateId, obligationIds: request.obligationIds, decision: "reject",
         checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, name !== "boundaryFidelity"])),
@@ -3120,6 +3161,10 @@ test("withheld observations omit recovered failures and tolerate observer except
   assertCandidateWithheld(result);
   assert.equal(trace.failureCause, "none");
   assert.equal(trace.stage, "none");
+  assert.equal(trace.rejectionBoundary, "none");
+  assert.equal(trace.rejectionCategory, "none");
+  assert.equal(trace.priorRejectionBoundary, "none");
+  assert.equal(trace.priorRejectionCategory, "none");
   assert.equal(trace.certification, "performed-not-accepted");
   const behavior = { verify: () => ({}) };
   const baselineAdapter = scriptedAdapter(behavior);
