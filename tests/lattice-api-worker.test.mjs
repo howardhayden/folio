@@ -66,6 +66,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_EXPIRES_AT_BINDING,
   createLatticeApiWorker as createProductionLatticeApiWorker,
   qualificationWindowAllowsRequests,
@@ -4840,7 +4841,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
 });
 
 test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
-  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v4");
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v5");
   const diagnosticHeaders = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
       LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -5047,7 +5048,7 @@ test("the terminal analysis diagnostic is all-or-none, bounded, and qualificatio
   }
 });
 
-test("the v4 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v5 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -5737,4 +5738,90 @@ test("server sources store only aggregate capacity, with no content logging, fal
   assert.match(visitorCookieSource, /Path=\$\{LATTICE_API_VISITOR_COOKIE_PATH\}; Secure; HttpOnly; SameSite=Strict/u);
   assert.doesNotMatch(visitorCookieSource, /Domain=/u);
   assert.match(adapterSource, /LATTICE_PROVIDER_REQUEST_BYTE_LIMIT\s*=\s*1_048_576/u);
+});
+
+test("withheld diagnostics are immutable closed observations confined to marked qualification results", async (contextTest) => {
+  const privateMarker = "PRIVATE-WITHHELD-TRACE-MUST-NOT-CROSS";
+  const baseTrace = {
+    revision: "coherent", deterministic: "clear", verification: "unavailable", certification: "not-reached",
+    failureCause: "host-validation", stage: "verification", attempt: "2",
+    validationCategory: "response-shape", priorValidationCategory: "evidence",
+  };
+  const trace = Object.freeze(baseTrace);
+  const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE };
+  const env = { HF_TOKEN: "server_only_token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
+  const result = unableLatticeResult("candidate-withheld");
+  const makeWorker = ({ value = trace, resultValue = result, count = 1, capacity = { used: 4 }, fail = false } = {}) => createLatticeApiWorker({
+    createAdapter: () => ({ completionCapacity: () => capacity }),
+    runTextToLatticeImpl: async (_text, options) => {
+      for (let index = 0; index < count; index += 1) options.onCandidateWithheldDiagnostic?.(value);
+      if (fail) throw new Error(privateMarker);
+      return resultValue;
+    },
+  });
+  const response = await makeWorker().fetch(apiRequest(validPayload, { headers }), env);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await json(response), { result, schema_version: 1 });
+  for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS)) {
+    assert.equal(response.headers.get(header), { ...trace, callsUsed: "4" }[field], field);
+  }
+  for (const header of [...Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS),
+    ...Object.values(LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS)]) {
+    assert.equal(response.headers.has(header), false, header);
+  }
+  let getterReads = 0;
+  const getterTrace = { ...baseTrace };
+  Object.defineProperty(getterTrace, "validationCategory", { enumerable: true,
+    get() { getterReads += 1; return getterReads === 1 ? "evidence" : privateMarker; } });
+  Object.freeze(getterTrace);
+  const hiddenTrace = { ...baseTrace };
+  Object.defineProperty(hiddenTrace, "stage", { enumerable: false, value: "verification" });
+  Object.freeze(hiddenTrace);
+  const { proxy, revoke } = Proxy.revocable(trace, {});
+  revoke();
+  const hostileTraceCases = [
+    ["unfrozen", { ...baseTrace }],
+    ["getter", getterTrace],
+    ["non-enumerable", hiddenTrace],
+    ["symbol", Object.freeze({ ...baseTrace, [Symbol("private")]: privateMarker })],
+    ["extra field", Object.freeze({ ...baseTrace, detail: privateMarker })],
+    ["foreign prototype", Object.freeze(Object.assign(Object.create({}), baseTrace))],
+    ["revoked proxy", proxy],
+    ["hostile enum", Object.freeze({ ...baseTrace, validationCategory: privateMarker })],
+    ["none provenance mismatch", Object.freeze({ ...baseTrace, failureCause: "none" })],
+    ["multiple provenance mismatch", Object.freeze({ ...baseTrace, failureCause: "multiple" })],
+    ["first attempt prior", Object.freeze({ ...baseTrace, failureCause: "context-capacity", attempt: "1", validationCategory: "capacity" })],
+    ["second attempt absent prior", Object.freeze({ ...baseTrace, priorValidationCategory: "none" })],
+    ["initial exhausted verifier validation", Object.freeze({ ...baseTrace, attempt: "1", priorValidationCategory: "none" })],
+    ["capacity category mismatch", Object.freeze({ ...baseTrace, failureCause: "context-capacity" })],
+  ];
+  const cases = [
+    ...hostileTraceCases.map(([name, value]) => [name, makeWorker({ value }), env, headers, 200]),
+    ["duplicate observer", makeWorker({ count: 2 }), env, headers, 200],
+    ["ordinary runtime", makeWorker(), { HF_TOKEN: "server_only_token" }, headers, 200],
+    ["unmarked", makeWorker(), env, {}, 200],
+    ["old diagnostic version", makeWorker(), env, { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v4" }, 200],
+    ["translated", makeWorker({ resultValue: validLatticeResult() }), env, headers, 200],
+    ["analysis unable", makeWorker({ resultValue: unableLatticeResult() }), env, headers, 200],
+    ["zero capacity", makeWorker({ capacity: { used: 0 } }), env, headers, 200],
+    ["excess capacity", makeWorker({ capacity: { used: LATTICE_PROVIDER_CALL_LIMIT + 1 } }), env, headers, 200],
+    ["array capacity", makeWorker({ capacity: Object.assign([], { used: 4 }) }), env, headers, 200],
+    ["function capacity", makeWorker({ capacity: Object.assign(() => {}, { used: 4 }) }), env, headers, 200],
+    ["error after observation", makeWorker({ fail: true }), env, headers, 500],
+    ["expired qualification", makeWorker(), { ...env, [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2020-09-17T12:00:00.000Z" }, headers, 503],
+  ];
+  for (const [name, worker, caseEnv, caseHeaders, status] of cases) {
+    await contextTest.test(name, async () => {
+      const actual = await worker.fetch(apiRequest(validPayload, { headers: caseHeaders }), caseEnv);
+      assert.equal(actual.status, status);
+      for (const header of Object.values(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS)) {
+        assert.equal(actual.headers.has(header), false, header);
+      }
+      const body = await actual.text();
+      assert.equal(JSON.stringify([...actual.headers]).includes(privateMarker), false);
+      assert.equal(body.includes(privateMarker), false);
+      if (status === 200) assert.equal(body.includes("validationCategory"), false);
+    });
+  }
+  assert.equal(getterReads, 0);
 });

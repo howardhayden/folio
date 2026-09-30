@@ -50,7 +50,12 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
+import {
+  LATTICE_WITHHELD_TRACE_FIELDS,
+  isClosedWithheldTrace,
+} from "../app/resume/lattice/qualificationDiagnostics.js";
 import {
   LATTICE_TRANSFORMATIONS_PER_UTC_DAY,
   LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY,
@@ -967,10 +972,37 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
       callOrdinal: ordinal,
     });
   }
+  const withheldValues = Object.fromEntries(
+    Object.entries(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS)
+      .map(([field, header]) => [field, response.headers.get(header)]),
+  );
+  const withheldPresent = Object.values(withheldValues).filter((value) => value !== null).length;
+  const withheldFieldCount = Object.keys(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS).length;
+  if (withheldPresent !== 0 && withheldPresent !== withheldFieldCount) {
+    fail(`${label} returned an incomplete withheld diagnostic`);
+  }
+  let withheldDiagnostic = null;
+  if (withheldPresent === withheldFieldCount) {
+    const trace = Object.freeze(Object.fromEntries(LATTICE_WITHHELD_TRACE_FIELDS
+      .map((field) => [field, withheldValues[field]])));
+    const callsUsed = Number(withheldValues.callsUsed);
+    if (!isClosedWithheldTrace(trace)
+      || !/^(?:[1-9]|[12]\d|3[0-2])$/u.test(withheldValues.callsUsed)
+      || !Number.isSafeInteger(callsUsed) || callsUsed < 1 || callsUsed > LATTICE_PROVIDER_CALL_LIMIT) {
+      fail(`${label} returned an invalid withheld diagnostic`);
+    }
+    withheldDiagnostic = Object.freeze({ ...trace, callsUsed });
+  }
+  if (terminalDiagnostic !== null && withheldDiagnostic !== null) {
+    fail(`${label} returned incompatible terminal diagnostics`);
+  }
   if (response.status !== 200) {
     const code = isLatticeApiError(envelope) ? envelope.error : "invalid_response";
     if (terminalDiagnostic !== null) {
       fail(`${label} returned a terminal analysis diagnostic on a non-success response`);
+    }
+    if (withheldDiagnostic !== null) {
+      fail(`${label} returned a withheld diagnostic on a non-success response`);
     }
     if (diagnostic === null) {
       fail(`${label} returned HTTP ${response.status} (${code}) without a qualification diagnostic`);
@@ -1001,6 +1033,9 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   }
   if (envelope.result.status === "unable-to-attempt") {
     const unableClass = unableCanaryClass(envelope.result);
+    if (withheldDiagnostic !== null && unableClass !== "post-candidate-withheld") {
+      fail(`${label} returned a withheld diagnostic on an incompatible unable result`);
+    }
     if (unableClass === "pre-candidate-analysis-contract") {
       if (terminalDiagnostic === null) {
         fail(`${label} returned a pre-candidate analysis failure without a terminal analysis diagnostic`);
@@ -1021,6 +1056,17 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     if (terminalDiagnostic !== null) {
       fail(`${label} returned a terminal analysis diagnostic on an incompatible unable result`);
     }
+    if (unableClass === "post-candidate-withheld") {
+      if (withheldDiagnostic === null) fail(`${label} returned a withheld result without a withheld diagnostic`);
+      fail(`${label} did not reach a non-error terminal transformation result (`
+        + `class=${unableClass}; revision=${withheldDiagnostic.revision}; `
+        + `deterministic=${withheldDiagnostic.deterministic}; verification=${withheldDiagnostic.verification}; `
+        + `certification=${withheldDiagnostic.certification}; terminal_failure=${withheldDiagnostic.failureCause}; `
+        + `stage=${withheldDiagnostic.stage}; attempt=${withheldDiagnostic.attempt}; `
+        + `validation=${withheldDiagnostic.validationCategory}; prior_validation=${withheldDiagnostic.priorValidationCategory}; `
+        + `calls_used=${withheldDiagnostic.callsUsed}; batch_count=${envelope.result.batchCount}; `
+        + `verification_passes=${envelope.result.verificationPasses}; finding_count=${envelope.result.findings.length})`);
+    }
     fail(`${label} did not reach a non-error terminal transformation result (`
       + `class=${unableClass}; `
       + `batch_count=${envelope.result.batchCount}; `
@@ -1030,6 +1076,7 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   if (terminalDiagnostic !== null) {
     fail(`${label} returned a terminal analysis diagnostic on success`);
   }
+  if (withheldDiagnostic !== null) fail(`${label} returned a withheld diagnostic on success`);
   if (!CERTIFICATION_CANARY_STATUS_SET.has(envelope.result.status)) {
     fail(`${label} did not prove an accepted certified result`);
   }
