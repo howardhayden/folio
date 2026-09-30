@@ -71,6 +71,7 @@ import {
   rejectedResultDiagnostic,
   rememberRejectedError,
   rejectedErrorDiagnostic,
+  deterministicFindingRule,
 } from "./lattice/rejectionDiagnostics.js";
 
 export {
@@ -1346,8 +1347,10 @@ function rememberStageFailureDiagnostic(error, stage, attempt, firstError) {
       priorValidationCategory: attempt === 1 || firstError === null ? "none" : stageValidationCategory(firstError),
       rejectionBoundary: rejection?.boundary ?? (hostValidation ? "unknown" : "none"),
       rejectionCategory: rejection?.category ?? (hostValidation ? "other" : "none"),
+      rejectionRule: rejection?.rule ?? (hostValidation ? "unknown" : "none"),
       priorRejectionBoundary: priorRejection?.boundary ?? (priorHostValidation ? "unknown" : "none"),
       priorRejectionCategory: priorRejection?.category ?? (priorHostValidation ? "other" : "none"),
+      priorRejectionRule: priorRejection?.rule ?? (priorHostValidation ? "unknown" : "none"),
     }));
   } catch {
     // Diagnostic bookkeeping must preserve the original stage outcome.
@@ -1441,7 +1444,7 @@ async function callNormalizedStage({
         try {
           if (error instanceof LatticeProtocolError) {
             rememberRejectedError(error, rejectedResultDiagnostic(raw) ?? Object.freeze({
-              boundary: "host-normalizer", category: "other",
+              boundary: "host-normalizer", category: "other", rule: "unknown",
             }));
           }
         } catch {
@@ -3075,8 +3078,10 @@ function resultFromState({
         priorValidationCategory: absentFailure,
         rejectionBoundary: absentFailure,
         rejectionCategory: absentFailure,
+        rejectionRule: absentFailure,
         priorRejectionBoundary: absentFailure,
         priorRejectionCategory: absentFailure,
+        priorRejectionRule: absentFailure,
       });
       const verificationStates = new Set(finalReviews.map((entry) => (
         entry.verification.available === false ? "unavailable"
@@ -3085,11 +3090,19 @@ function resultFromState({
       )));
       if (finalReviews.length !== analyses.length) verificationStates.add("missing");
       if (verificationStates.size > 1) verificationStates.delete("accepted");
+      // Use the surviving terminal candidate lineage, including original
+      // candidates restored after a failed reverification. This first finding
+      // is independent of current/prior decoder failures on discarded repairs.
+      const candidateDeterministic = finalCandidates.flatMap((entry) => entry.deterministicFindings);
+      const documentDeterministic = candidateDeterministic.length === 0 && assembledText !== null
+        ? deterministicDocumentReview(source, assembledText) : [];
+      const firstDeterministic = candidateDeterministic[0] ?? documentDeterministic[0];
+      const deterministicClear = candidateDeterministic.length === 0 && assembledText !== null
+        && documentDeterministic.length === 0;
       const trace = Object.freeze({
         revision: revisionCoherentAssembly ? "coherent" : "incomplete",
-        deterministic: hasNoDeterministicFindings(finalCandidates)
-          && assembledText !== null && deterministicDocumentReview(source, assembledText).length === 0
-          ? "clear" : "blocked",
+        deterministic: deterministicClear ? "clear" : "blocked",
+        firstDeterministicRule: deterministicClear ? "none" : deterministicFindingRule(firstDeterministic),
         verification: verificationStates.size > 1 ? "mixed" : [...verificationStates][0] ?? "missing",
         certification: wholeDocumentCertification === null
           ? requiresWholeDocumentCertification ? "not-reached" : "not-required"

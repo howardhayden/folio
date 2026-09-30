@@ -10,6 +10,7 @@ import {
   LATTICE_FORMAT_CONTROL_LIMIT,
   LATTICE_INPUT_SAFETY_LIMIT,
 } from "./inputPolicy.js";
+import { rememberDeterministicFinding } from "./rejectionDiagnostics.js";
 import { latticeProtectedLiteralMatches } from "./protectedSpans.js";
 const URL = /https?:\/\/[^\s<>"'`]+/gu;
 const EMAIL = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/gu;
@@ -510,8 +511,59 @@ export function materiallyDifferent(source, candidate) {
     && normalizedWithoutPresentationCharacters(source) !== normalizedWithoutPresentationCharacters(candidate);
 }
 
+const DETERMINISTIC_FINDING_RULES = Object.freeze({
+  "deterministic-protected-literal": "D00",
+  "deterministic-protected-literal-order": "D01",
+  "candidate-empty": "D02",
+  "candidate-expanded": "D03",
+  "candidate-controls": "D04",
+  "candidate-bidi-isolates": "D05",
+  "candidate-invisible-structure": "D06",
+  "candidate-bidi-sequence": "D07",
+  "candidate-boundaries": "D08",
+  "candidate-boundary-anchor": "D09",
+  "candidate-speech-act": "D10",
+  "candidate-word-growth": "D11",
+  "candidate-layer": "D12",
+  "candidate-atom-claim": "D13",
+  "candidate-not-material": "D14",
+  "candidate-retained-changed": "D15",
+  "candidate-coverage": "D16",
+  "candidate-passage-missing": "D17",
+  "candidate-document-size": "D18",
+  "document-empty": "D19",
+  "document-size": "D20",
+  "document-unicode": "D21",
+  "document-unicode-bounds": "D22",
+  "document-bidi-isolates": "D23",
+  "document-invisible-structure": "D24",
+  "document-bidi-sequence": "D25",
+  "document-boundaries": "D26",
+  "document-boundary-anchor": "D27",
+  "document-speech-act": "D28",
+  "document-word-growth": "D29",
+  "candidate-exact-atom": "D30",
+  "deterministic-url": "D31",
+  "deterministic-url-boundary": "D32",
+  "deterministic-email": "D33",
+  "deterministic-email-boundary": "D34",
+  "deterministic-phone": "D35",
+  "deterministic-phone-boundary": "D36",
+  "deterministic-markdown-link": "D37",
+  "deterministic-markdown-link-boundary": "D38",
+  "deterministic-inline-code": "D39",
+  "deterministic-inline-code-boundary": "D40",
+  "deterministic-markup": "D41",
+  "deterministic-markup-boundary": "D42",
+  "deterministic-quantity": "D43",
+  "deterministic-quantity-boundary": "D44",
+  "deterministic-formal-identifier": "D45",
+  "deterministic-formal-identifier-boundary": "D46",
+});
+
 function finding(id, passageId, message, atomIds = []) {
-  return Object.freeze({ id, passageId, message, atomIds: Object.freeze(atomIds) });
+  const result = Object.freeze({ id, passageId, message, atomIds: Object.freeze(atomIds) });
+  return rememberDeterministicFinding(result, DETERMINISTIC_FINDING_RULES[id] ?? "unknown");
 }
 
 function literalCount(value, literal) {

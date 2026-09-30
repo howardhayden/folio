@@ -1,11 +1,15 @@
 import { LATTICE_ANALYSIS_VALIDATION_CATEGORIES } from "./promptContract.js";
-import { LATTICE_REJECTION_BOUNDARIES, LATTICE_REJECTION_CATEGORIES } from "./rejectionDiagnostics.js";
+import {
+  LATTICE_REJECTION_BOUNDARIES, LATTICE_REJECTION_CATEGORIES, LATTICE_REJECTION_RULES,
+  LATTICE_DETERMINISTIC_RULES, rejectionRuleIsConsistent,
+} from "./rejectionDiagnostics.js";
 
 // These independent host observations describe a withheld terminal result. They
 // do not identify a unique cause or retain any transformation content.
 export const LATTICE_WITHHELD_TRACE_VALUES = Object.freeze({
   revision: Object.freeze(["coherent", "incomplete"]),
   deterministic: Object.freeze(["clear", "blocked"]),
+  firstDeterministicRule: Object.freeze(["none", ...LATTICE_DETERMINISTIC_RULES]),
   verification: Object.freeze([
     "accepted", "review-only-rejection", "semantic-rejection", "unavailable", "missing", "mixed",
   ]),
@@ -25,8 +29,10 @@ export const LATTICE_WITHHELD_TRACE_VALUES = Object.freeze({
   priorValidationCategory: Object.freeze([...LATTICE_ANALYSIS_VALIDATION_CATEGORIES, "decision-consistency", "multiple"]),
   rejectionBoundary: Object.freeze(["none", "multiple", "unknown", ...LATTICE_REJECTION_BOUNDARIES]),
   rejectionCategory: Object.freeze(["none", "multiple", ...LATTICE_REJECTION_CATEGORIES]),
+  rejectionRule: Object.freeze(["none", "multiple", ...LATTICE_REJECTION_RULES]),
   priorRejectionBoundary: Object.freeze(["none", "multiple", "unknown", ...LATTICE_REJECTION_BOUNDARIES]),
   priorRejectionCategory: Object.freeze(["none", "multiple", ...LATTICE_REJECTION_CATEGORIES]),
+  priorRejectionRule: Object.freeze(["none", "multiple", ...LATTICE_REJECTION_RULES]),
 });
 export const LATTICE_WITHHELD_TRACE_FIELDS = Object.freeze(Object.keys(LATTICE_WITHHELD_TRACE_VALUES));
 const VALUE_SETS = Object.fromEntries(Object.entries(LATTICE_WITHHELD_TRACE_VALUES)
@@ -34,10 +40,12 @@ const VALUE_SETS = Object.fromEntries(Object.entries(LATTICE_WITHHELD_TRACE_VALU
 const FAILURE_FIELDS = Object.freeze([
   "failureCause", "stage", "attempt", "validationCategory", "priorValidationCategory",
   "rejectionBoundary", "rejectionCategory", "priorRejectionBoundary", "priorRejectionCategory",
+  "rejectionRule", "priorRejectionRule",
 ]);
 
 export function withheldTraceIsConsistent(trace) {
   if (!LATTICE_WITHHELD_TRACE_FIELDS.every((field) => VALUE_SETS[field].has(trace?.[field]))) return false;
+  if ((trace.deterministic === "clear") !== (trace.firstDeterministicRule === "none")) return false;
   if (trace.failureCause === "none" || trace.failureCause === "multiple") {
     return FAILURE_FIELDS.every((field) => trace[field] === trace.failureCause);
   }
@@ -51,14 +59,20 @@ export function withheldTraceIsConsistent(trace) {
       && !["document-window-certification", "document-relation-certification"].includes(trace.stage))
     || (["context-capacity", "output-limit"].includes(trace.failureCause)
       && trace.validationCategory !== "capacity")) return false;
-  for (const [boundary, category] of [
-    [trace.rejectionBoundary, trace.rejectionCategory],
-    [trace.priorRejectionBoundary, trace.priorRejectionCategory],
+  for (const [boundary, category, rule] of [
+    [trace.rejectionBoundary, trace.rejectionCategory, trace.rejectionRule],
+    [trace.priorRejectionBoundary, trace.priorRejectionCategory, trace.priorRejectionRule],
   ]) {
-    if (boundary === "multiple" || category === "multiple"
+    if (boundary === "multiple" || category === "multiple" || rule === "multiple"
       || (boundary === "none") !== (category === "none")
-      || (boundary === "unknown" && category !== "other")) return false;
+      || (boundary === "none") !== (rule === "none")
+      || (boundary === "unknown" && (category !== "other" || rule !== "unknown"))
+      || (boundary !== "none" && !rejectionRuleIsConsistent(boundary, category, rule))) return false;
+    if ((rule.startsWith("V") && !["verification", "reverification"].includes(trace.stage))
+      || (rule.startsWith("C") && !["document-certification", "document-window-certification", "document-relation-certification"].includes(trace.stage))) return false;
   }
+  if (["context-capacity", "output-limit"].includes(trace.failureCause)
+    && trace.rejectionRule !== "none") return false;
   if (trace.attempt === "1"
     && (trace.priorRejectionBoundary !== "none" || trace.priorRejectionCategory !== "none")) return false;
   return true;
