@@ -113,11 +113,11 @@ function terminalAnalysisDiagnosticHeaders(overrides = {}) {
 
 function withheldDiagnosticHeaders(overrides = {}) {
   const values = {
-    revision: "coherent", deterministic: "clear", verification: "unavailable", certification: "not-reached",
+    revision: "coherent", deterministic: "clear", firstDeterministicRule: "none", verification: "unavailable", certification: "not-reached",
     failureCause: "host-validation", stage: "verification", attempt: "2",
     validationCategory: "response-shape", priorValidationCategory: "evidence", callsUsed: "4",
-    rejectionBoundary: "wire-decoder", rejectionCategory: "field-set",
-    priorRejectionBoundary: "host-normalizer", priorRejectionCategory: "other",
+    rejectionBoundary: "wire-decoder", rejectionCategory: "field-set", rejectionRule: "V01F",
+    priorRejectionBoundary: "host-normalizer", priorRejectionCategory: "other", priorRejectionRule: "unknown",
     ...overrides,
   };
   return Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS)
@@ -1268,7 +1268,7 @@ test("an unable canary reports only an allowlisted homogeneous failure class and
           /class=pre-candidate-analysis-contract; terminal_cause=host-validation; validation=evidence; prior_validation=passage-coverage; analysis_origin=split; analysis_attempt=2; atom_limit=6; call_ordinal=4; batch_count=2; verification_passes=0; finding_count=2/u,
         );
       } else if (findingId === "candidate-withheld") {
-        assert.match(failure.message, /class=post-candidate-withheld; revision=coherent; deterministic=clear; verification=unavailable; certification=not-reached; terminal_failure=host-validation; stage=verification; attempt=2; validation=response-shape; prior_validation=evidence; rejection_boundary=wire-decoder; rejection_category=field-set; prior_rejection_boundary=host-normalizer; prior_rejection_category=other; calls_used=4; batch_count=2; verification_passes=0; finding_count=2/u);
+        assert.match(failure.message, /class=post-candidate-withheld; revision=coherent; deterministic=clear; verification=unavailable; first_deterministic_rule=none; certification=not-reached; terminal_failure=host-validation; stage=verification; attempt=2; validation=response-shape; prior_validation=evidence; rejection_boundary=wire-decoder; rejection_category=field-set; rejection_rule=V01F; prior_rejection_boundary=host-normalizer; prior_rejection_category=other; prior_rejection_rule=unknown; calls_used=4; batch_count=2; verification_passes=0; finding_count=2/u);
       } else {
         assert.match(
           failure.message,
@@ -1903,13 +1903,19 @@ test("withheld canary diagnostics fail closed on missing, hostile, or incompatib
   const body = { result: unableResult([{ id: "candidate-withheld", passageId: "", atomIds: [], message: privateMarker }]), schema_version: 1 };
   const exact = withheldDiagnosticHeaders();
   const cases = [
-    ["valid terminal observation", body, 200, exact, /terminal_failure=host-validation; stage=verification; attempt=2; validation=response-shape; prior_validation=evidence; rejection_boundary=wire-decoder; rejection_category=field-set; prior_rejection_boundary=host-normalizer; prior_rejection_category=other; calls_used=4/u],
-    ["simultaneous blockers", body, 200, withheldDiagnosticHeaders({ revision: "incomplete", deterministic: "blocked", verification: "mixed", certification: "performed-not-accepted", failureCause: "multiple", stage: "multiple", attempt: "multiple", validationCategory: "multiple", priorValidationCategory: "multiple", rejectionBoundary: "multiple", rejectionCategory: "multiple", priorRejectionBoundary: "multiple", priorRejectionCategory: "multiple" }), /revision=incomplete; deterministic=blocked; verification=mixed; certification=performed-not-accepted; terminal_failure=multiple; stage=multiple/u],
-    ["legitimate checks without contract failure", body, 200, withheldDiagnosticHeaders({ verification: "semantic-rejection", failureCause: "none", stage: "none", attempt: "none", validationCategory: "none", priorValidationCategory: "none", rejectionBoundary: "none", rejectionCategory: "none", priorRejectionBoundary: "none", priorRejectionCategory: "none" }), /verification=semantic-rejection; certification=not-reached; terminal_failure=none; stage=none/u],
+    ["valid terminal observation", body, 200, exact, /terminal_failure=host-validation; stage=verification; attempt=2; validation=response-shape; prior_validation=evidence; rejection_boundary=wire-decoder; rejection_category=field-set; rejection_rule=V01F; prior_rejection_boundary=host-normalizer; prior_rejection_category=other; prior_rejection_rule=unknown; calls_used=4/u],
+    ["simultaneous blockers", body, 200, withheldDiagnosticHeaders({ revision: "incomplete", deterministic: "blocked", firstDeterministicRule: "unknown", verification: "mixed", certification: "performed-not-accepted", failureCause: "multiple", stage: "multiple", attempt: "multiple", validationCategory: "multiple", priorValidationCategory: "multiple", rejectionBoundary: "multiple", rejectionCategory: "multiple", rejectionRule: "multiple", priorRejectionRule: "multiple", priorRejectionBoundary: "multiple", priorRejectionCategory: "multiple" }), /revision=incomplete; deterministic=blocked; verification=mixed; first_deterministic_rule=unknown; certification=performed-not-accepted; terminal_failure=multiple; stage=multiple/u],
+    ["legitimate checks without contract failure", body, 200, withheldDiagnosticHeaders({ verification: "semantic-rejection", failureCause: "none", stage: "none", attempt: "none", validationCategory: "none", priorValidationCategory: "none", rejectionBoundary: "none", rejectionCategory: "none", rejectionRule: "none", priorRejectionRule: "none", priorRejectionBoundary: "none", priorRejectionCategory: "none" }), /verification=semantic-rejection; first_deterministic_rule=none; certification=not-reached; terminal_failure=none; stage=none/u],
     ["absent", body, 200, {}, /without a withheld diagnostic/u],
     ["partial", body, 200, { [LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS.stage]: "verification" }, /incomplete withheld diagnostic/u],
     ["hostile field", body, 200, withheldDiagnosticHeaders({ validationCategory: privateMarker }), /invalid withheld diagnostic/u],
     ["hostile rejection", body, 200, withheldDiagnosticHeaders({ rejectionCategory: privateMarker }), /invalid withheld diagnostic/u],
+    ["hostile rule", body, 200, withheldDiagnosticHeaders({ rejectionRule: privateMarker }), /invalid withheld diagnostic/u],
+    ["impossible predicate", body, 200, withheldDiagnosticHeaders({ rejectionCategory: "coverage", rejectionRule: "V06M" }), /invalid withheld diagnostic/u],
+    ["wrong decoder stage", body, 200, withheldDiagnosticHeaders({ stage: "repair" }), /invalid withheld diagnostic/u],
+    ["wrong decoder family", body, 200, withheldDiagnosticHeaders({ rejectionRule: "C01F" }), /invalid withheld diagnostic/u],
+    ["clear with deterministic finding", body, 200, withheldDiagnosticHeaders({ firstDeterministicRule: "D14" }), /invalid withheld diagnostic/u],
+    ["blocked without deterministic finding", body, 200, withheldDiagnosticHeaders({ deterministic: "blocked" }), /invalid withheld diagnostic/u],
     ["unknown specific rejection", body, 200, withheldDiagnosticHeaders({ rejectionBoundary: "unknown" }), /invalid withheld diagnostic/u],
     ["absent rejection mismatch", body, 200, withheldDiagnosticHeaders({ rejectionBoundary: "none" }), /invalid withheld diagnostic/u],
     ["inconsistent none", body, 200, withheldDiagnosticHeaders({ failureCause: "none" }), /invalid withheld diagnostic/u],

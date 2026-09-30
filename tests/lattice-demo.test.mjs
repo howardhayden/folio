@@ -53,7 +53,7 @@ import {
 } from "../app/resume/lattice/segments.js";
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
 import { latticeProtectedLiteralMatches } from "../app/resume/lattice/protectedSpans.js";
-import { rememberRejectedResult } from "../app/resume/lattice/rejectionDiagnostics.js";
+import { rememberRejectedResult, deterministicFindingRule } from "../app/resume/lattice/rejectionDiagnostics.js";
 import {
   deterministicDocumentReview,
   deterministicPassageReview,
@@ -3053,7 +3053,7 @@ test("withheld qualification observations distinguish final host conditions with
       verification: "unavailable", failureCause: "host-validation", stage: "verification",
       attempt: "2", validationCategory: "response-shape", priorValidationCategory: "response-shape",
       rejectionBoundary: "host-normalizer", rejectionCategory: "other",
-      priorRejectionBoundary: "host-normalizer", priorRejectionCategory: "other",
+      priorRejectionBoundary: "host-normalizer", priorRejectionCategory: "other", priorRejectionRule: "unknown",
     }],
     ["negative decision contradicts positive checks", source, {
       verify: (request) => rawVerification(request, { decision: "reject" }),
@@ -3125,6 +3125,60 @@ test("terminal rejection breadcrumbs preserve actual current and prior boundary 
   assert.equal(trace.priorRejectionBoundary, "wire-decoder");
   assert.equal(trace.priorRejectionCategory, "field-set");
   assert.equal(JSON.stringify(result).includes("rejectionBoundary"), false);
+});
+
+test("terminal deterministic rule retains original candidate provenance when failed reverification discards repair", async () => {
+  const source = opaqueWords(12);
+  const repairRules = [];
+  const behavior = {
+    generate: (request) => rawCandidate(request, { identity: true }),
+    repair(request) {
+      const candidate = rawCandidate(request);
+      candidate.passages[0].text += "?";
+      repairRules.push(deterministicFindingRule(deterministicPassageReview(
+        request.batch.passages[0], request.analysis.passages[0], candidate.passages[0],
+      )[0]));
+      return candidate;
+    },
+    verify(request, count) {
+      if (count === 1) return rawVerification(request, { passage: { semanticFidelity: false } });
+      return count === 2 ? rememberRejectedResult({}, "coverage", "V16M")
+        : rememberRejectedResult({}, "value-domain", "V12L");
+    },
+  };
+  const baselineAdapter = scriptedAdapter(behavior);
+  const baseline = await runTextToLattice(source, { adapter: baselineAdapter });
+  const adapter = scriptedAdapter(behavior);
+  let trace;
+  const result = await runTextToLattice(source, { adapter, onCandidateWithheldDiagnostic(value) { trace = value; } });
+  assert.deepEqual(result, baseline);
+  assert.deepEqual(adapter.calls, baselineAdapter.calls);
+  assertCandidateWithheld(result);
+  assert.equal(adapter.calls.verify, 3);
+  assert.equal(trace.stage, "reverification");
+  assert.equal(trace.verification, "semantic-rejection");
+  assert.equal(trace.firstDeterministicRule, "D14");
+  assert.deepEqual(repairRules, ["D10", "D10"]);
+  assert.equal(trace.rejectionRule, "V12L");
+  assert.equal(trace.priorRejectionRule, "V16M");
+  assert.equal(JSON.stringify(result).includes("D14"), false);
+  assert.equal(JSON.stringify(result).includes("V12L"), false);
+});
+
+test("deterministic finding codes require original host identity and preserve findings if observation fails", () => {
+  const findings = deterministicDocumentReview("Original source.", "");
+  assert.equal(deterministicFindingRule(findings[0]), "D19");
+  assert.equal(deterministicFindingRule({ ...findings[0] }), "unknown");
+  assert.equal(deterministicFindingRule(Object.freeze({ id: "document-empty" })), "unknown");
+  assert.equal(deterministicFindingRule(new Proxy({}, { get() { throw new Error("private getter"); } })), "unknown");
+  const originalSet = WeakMap.prototype.set;
+  let unstored;
+  try {
+    WeakMap.prototype.set = () => { throw new Error("private observer failure"); };
+    unstored = deterministicDocumentReview("Original source.", "");
+  } finally { WeakMap.prototype.set = originalSet; }
+  assert.deepEqual(unstored, findings);
+  assert.equal(deterministicFindingRule(unstored[0]), "unknown");
 });
 
 test("an adapter exception is never attributed to host normalization", async () => {

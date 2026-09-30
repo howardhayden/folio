@@ -53,7 +53,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v6";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v7";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
@@ -82,6 +82,7 @@ export const LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS
 export const LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   revision: "X-Lattice-Qualification-Withheld-Revision",
   deterministic: "X-Lattice-Qualification-Withheld-Deterministic",
+  firstDeterministicRule: "X-Lattice-Qualification-Withheld-First-Deterministic-Rule",
   verification: "X-Lattice-Qualification-Withheld-Verification",
   certification: "X-Lattice-Qualification-Withheld-Certification",
   failureCause: "X-Lattice-Qualification-Withheld-Failure-Cause",
@@ -91,8 +92,10 @@ export const LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS = Object
   priorValidationCategory: "X-Lattice-Qualification-Withheld-Prior-Validation",
   rejectionBoundary: "X-Lattice-Qualification-Withheld-Rejection-Boundary",
   rejectionCategory: "X-Lattice-Qualification-Withheld-Rejection-Category",
+  rejectionRule: "X-Lattice-Qualification-Withheld-Rejection-Rule",
   priorRejectionBoundary: "X-Lattice-Qualification-Withheld-Prior-Rejection-Boundary",
   priorRejectionCategory: "X-Lattice-Qualification-Withheld-Prior-Rejection-Category",
+  priorRejectionRule: "X-Lattice-Qualification-Withheld-Prior-Rejection-Rule",
   callsUsed: "X-Lattice-Qualification-Withheld-Calls-Used",
 });
 
