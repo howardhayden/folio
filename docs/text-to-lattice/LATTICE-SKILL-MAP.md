@@ -1,6 +1,6 @@
 ---
 title: Lattice system skill map
-revision: 2026-09-29
+revision: 2026-09-30
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---

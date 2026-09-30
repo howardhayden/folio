@@ -8,6 +8,7 @@ import {
   LATTICE_BATCH_ATOM_LIMIT,
   LATTICE_CONFORMANCE_CRITERIA,
   LATTICE_FITTED_ANALYSIS_CONTEXT,
+  LATTICE_STAGE_DIAGNOSTIC_CONTEXT,
   REANALYSIS_SCHEMA,
   VERIFICATION_SCHEMA,
   analysisMessages,
@@ -142,19 +143,16 @@ const ANALYSIS_MIN_OUTPUT_TOKENS = 768;
 const ANALYSIS_OUTPUT_TOKEN_STEP = 256;
 const CANDIDATE_MAX_OUTPUT_TOKENS = 800;
 // Exhaustive allocation of the supported 4-passage, 24-atom, 72-evidence,
-// 5-conformance-check, 24-issue production contract measures at most 479
-// reviewed-tokenizer tokens minified, 492 in compact native-tool form, 905
-// with conventional two-space formatting, and 918 in pretty native-tool form.
-// A bounded live 1,536-token trial returned finish_reason=length, so the host
-// rejected it without accepting or exposing a complete legal verifier-arguments
-// object. That does not increase the 918-token legal maximum or identify the
-// provider-managed completion accounting. It establishes that a 50-percent
-// repository-tokenizer margin was operationally
-// insufficient. The 2,048-token limit is the smallest 256-token step retaining a
-// full additional 918-token margin: ceil((2 * 918) / 256) * 256. It leaves 1,130
-// repository-tokenizer tokens above the legal maximum and 512 above the observed
-// insufficient cap. A broader decoder-valid sensitivity fixture measures 978
-// native-tool tokens, but is not production-reachable or a sizing input.
+// 5-conformance-check, 24-issue production contract measures at most 729
+// reviewed-tokenizer tokens minified, 742 in compact native-tool form, 1,313
+// with conventional two-space formatting, and 1,326 in pretty native-tool form.
+// The 2,048-token limit is the smallest 256-token step retaining at least a
+// 50-percent margin over that complete legal maximum:
+// ceil((1.5 * 1,326) / 256) * 256. It leaves 722 repository-tokenizer tokens
+// (54.45 percent) above the legal maximum. A retained predecessor-wire live run
+// at 2,048 tokens ended with finish_reason=length without a complete legal
+// arguments object, so it does not size this wire. A broader decoder-valid but
+// nonproduction sensitivity fixture measures 1,386 pretty native-tool tokens.
 const VERIFICATION_MAX_OUTPUT_TOKENS = 2_048;
 const CERTIFICATION_MAX_OUTPUT_TOKENS = 520;
 const REPAIR_MAX_OUTPUT_TOKENS = 800;
@@ -301,7 +299,17 @@ function wireBitMaskSchema(width, { requireSelection = false } = {}) {
     type: "string",
     minLength: width,
     maxLength: width,
-    pattern: requireSelection ? `^(?=[01]*1)[01]{${width}}$` : `^[01]{${width}}$`,
+    pattern: requireSelection ? "^[01]*1[01]*$" : `^[01]{${width}}$`,
+  });
+}
+
+function closedWireObject(properties) {
+  const frozenProperties = Object.freeze(properties);
+  return Object.freeze({
+    type: "object",
+    additionalProperties: false,
+    properties: frozenProperties,
+    required: Object.freeze(Object.keys(frozenProperties)),
   });
 }
 
@@ -319,42 +327,40 @@ function analysisWireBitMaskSchema(width) {
     pattern: `^[01]{${width}}$`,
   });
 }
-const VERIFICATION_WIRE_CRITERION_SCHEMA = fixedTuple(
-  INTERNAL_VERIFICATION_CRITERION_SCHEMA.properties.passed,
-  WIRE_MASK_PLACEHOLDER_SCHEMA,
-);
-const VERIFICATION_WIRE_PASSAGE_SCHEMA = fixedTuple(
-  WIRE_MASK_PLACEHOLDER_SCHEMA,
-  Object.freeze({ type: "boolean" }),
-  WIRE_MASK_PLACEHOLDER_SCHEMA,
-  wireBitMaskSchema(VERIFICATION_PASSAGE_CHECKS.length),
-  Object.freeze({ type: "integer", minimum: 0, maximum: VERIFICATION_LAYERS.length - 1 }),
-  WIRE_MASK_PLACEHOLDER_SCHEMA,
-  WIRE_MASK_PLACEHOLDER_SCHEMA,
-  fixedTuple(
-    INTERNAL_VERIFICATION_PASSAGE_SCHEMA.properties.conformanceConfirmed,
-    WIRE_MASK_PLACEHOLDER_SCHEMA,
-    Object.freeze({ type: "array", items: VERIFICATION_WIRE_CRITERION_SCHEMA }),
-  ),
-);
-const VERIFICATION_WIRE_ISSUE_SCHEMA = fixedTuple(
-  Object.freeze({ type: "integer", minimum: 0, maximum: VERIFICATION_ISSUE_CHECKS.length - 1 }),
-  Object.freeze({
+const VERIFICATION_WIRE_CRITERION_SCHEMA = closedWireObject({
+  v: INTERNAL_VERIFICATION_CRITERION_SCHEMA.properties.passed,
+  s: WIRE_MASK_PLACEHOLDER_SCHEMA,
+});
+const VERIFICATION_WIRE_CONFORMANCE_SCHEMA = closedWireObject({
+  v: INTERNAL_VERIFICATION_PASSAGE_SCHEMA.properties.conformanceConfirmed,
+  s: WIRE_MASK_PLACEHOLDER_SCHEMA,
+  k: Object.freeze({ type: "array", items: VERIFICATION_WIRE_CRITERION_SCHEMA }),
+});
+const VERIFICATION_WIRE_PASSAGE_SCHEMA = closedWireObject({
+  a: WIRE_MASK_PLACEHOLDER_SCHEMA,
+  u: Object.freeze({ type: "boolean" }),
+  s: WIRE_MASK_PLACEHOLDER_SCHEMA,
+  f: wireBitMaskSchema(VERIFICATION_PASSAGE_CHECKS.length),
+  l: Object.freeze({ type: "integer", minimum: 0, maximum: VERIFICATION_LAYERS.length - 1 }),
+  x: WIRE_MASK_PLACEHOLDER_SCHEMA,
+  y: WIRE_MASK_PLACEHOLDER_SCHEMA,
+  c: VERIFICATION_WIRE_CONFORMANCE_SCHEMA,
+});
+const VERIFICATION_WIRE_ISSUE_SCHEMA = closedWireObject({
+  c: Object.freeze({ type: "integer", minimum: 0, maximum: VERIFICATION_ISSUE_CHECKS.length - 1 }),
+  p: Object.freeze({
     type: "integer",
     minimum: -1,
     maximum: VERIFICATION_SCHEMA.properties.passages.maxItems - 1,
   }),
-);
+});
 const VERIFICATION_WIRE_SCHEMA = Object.freeze({
   type: "object",
   additionalProperties: false,
   properties: Object.freeze({
     d: Object.freeze({ type: "integer", minimum: 0, maximum: VERIFICATION_DECISIONS.length - 1 }),
     g: wireBitMaskSchema(VERIFICATION_GATES.length),
-    p: Object.freeze({
-      ...VERIFICATION_SCHEMA.properties.passages,
-      items: VERIFICATION_WIRE_PASSAGE_SCHEMA,
-    }),
+    p: closedWireObject({}),
     i: Object.freeze({
       ...VERIFICATION_SCHEMA.properties.issues,
       items: VERIFICATION_WIRE_ISSUE_SCHEMA,
@@ -365,16 +371,15 @@ const VERIFICATION_WIRE_SCHEMA = Object.freeze({
 const VERIFICATION_WIRE_GUIDE = [
   "Return one minified private verification instance using only the mandatory d/g/p/i layout; never echo the schema.",
   `Root d is the zero-based decision index [${VERIFICATION_DECISIONS.join(",")}]. Root g is the ${VERIFICATION_GATES.length}-character failed-gate bit string in this order: [${VERIFICATION_GATES.join(",")}].`,
-  "Root p contains one passage tuple per supplied passage in supplied order. Root i contains only necessary [zero-based failed-check index,zero-based passage index] tuples; passage index -1 means document-wide.",
-  "Passage tuple positions 0-7: [atom-status digits,unsupported-meaning boolean,unmodeled-span bit string,failed-check bit string,independent-layer index,layer-evidence atom bit string,layer-evidence span bit string,conformance tuple].",
+  "Root p is the fitted object whose numeric keys are supplied passage positions. Each passage is {a,u,s,f,l,x,y,c}: atom-status digits, unsupported-meaning boolean, unmodeled-span bit string, failed-check bit string, independent-layer index, layer-evidence atom bit string, layer-evidence span bit string, and conformance object.",
   `Atom-status digits use supplied atom order: 1 checked, 2 missing, 0 unaccounted. Failed-check mask order: [${VERIFICATION_PASSAGE_CHECKS.join(",")}]. Layer indices are zero-based in this order: [${VERIFICATION_LAYERS.join(",")}].`,
-  "Every bit string uses supplied order and exact fitted width; 1 selects an item. The conformance tuple is [confirmed,conformance-span bit string,criterion tuples], with each criterion tuple [passed,evidence-span bit string] in the fitted criterion order. Rewrites use [false,all-zero span mask,[]].",
-  "The unmodeled-span mask selects at most 12 positions. Every passed criterion selects at least one evidence bit. Root i contains no duplicate tuple.",
-  `Issue check index order: [${VERIFICATION_ISSUE_CHECKS.join(",")}]. Keep i empty when g or a passage tuple already records the failure. Emit no source identifiers, long-form host field names, explanations, schema text, or whitespace after the closing brace.`,
+  "Every bit string uses supplied order and exact fitted width; 1 selects an item. Conformance c is {v,s,k}: confirmed, conformance-span bit string, and criterion checks in fitted order. Each criterion check is {v,s}: passed and evidence-span bit string. Rewrites use {v:false,s:all-zero,k:[]}.",
+  "The unmodeled-span mask selects at most 12 positions. Every passed criterion selects at least one evidence bit. Root i contains only necessary {c,p} objects: c is the zero-based failed-check index and p is the zero-based passage position, or -1 for document-wide. Root i contains no duplicate {c,p} pair.",
+  `Issue check index order: [${VERIFICATION_ISSUE_CHECKS.join(",")}]. Keep i empty when g or a passage record already records the failure. Emit no source identifiers, long-form host field names, explanations, schema text, or whitespace after the closing brace.`,
 ].join("\n");
 
 function verificationWireMessages(request) {
-  return verificationMessages(request, { responseDialect: "compact-wire-v1" });
+  return verificationMessages(request, { responseDialect: "compact-wire-v2" });
 }
 
 const CERTIFICATION_CHECK_NAMES = Object.freeze([
@@ -383,9 +388,12 @@ const CERTIFICATION_CHECK_NAMES = Object.freeze([
 const CERTIFICATION_DECISIONS = Object.freeze([
   ...DOCUMENT_CERTIFICATION_SCHEMA.properties.decision.enum,
 ]);
-const CERTIFICATION_WIRE_CHECKS_SCHEMA = fixedTuple(
-  ...CERTIFICATION_CHECK_NAMES.map(() => Object.freeze({ type: "boolean" })),
-);
+const CERTIFICATION_WIRE_CHECKS_SCHEMA = Object.freeze({
+  type: "array",
+  minItems: CERTIFICATION_CHECK_NAMES.length,
+  maxItems: CERTIFICATION_CHECK_NAMES.length,
+  items: Object.freeze({ type: "boolean" }),
+});
 const CERTIFICATION_WIRE_SCHEMA = Object.freeze({
   type: "object",
   additionalProperties: false,
@@ -404,17 +412,17 @@ const CERTIFICATION_WIRE_SCHEMA = Object.freeze({
 });
 const CERTIFICATION_WIRE_GUIDE = [
   "Return one minified private document-certification instance using only the mandatory c/o/d/k/i layout; never echo the schema.",
-  `Root c is the exact certificate ID, o contains every exact obligation ID once in supplied order, d is the zero-based decision index [${CERTIFICATION_DECISIONS.join(",")}], k is the fixed boolean check tuple, and i lists only zero-based failed-check indices.`,
-  `Check tuple order: [${CERTIFICATION_CHECK_NAMES.join(",")}].`,
+  `Root c is the exact certificate ID, o contains every exact obligation ID once in supplied order, d is the zero-based decision index [${CERTIFICATION_DECISIONS.join(",")}], k is the fixed-length boolean check array, and i lists only zero-based failed-check indices.`,
+  `Check array order: [${CERTIFICATION_CHECK_NAMES.join(",")}].`,
   "Root i contains no duplicate index, and every listed index points to false in k. Keep i empty on acceptance. Emit no long-form host field names, explanations, issue prose, schema text, or whitespace after the closing brace.",
 ].join("\n");
 
 function certificationWireMessages(request) {
-  return documentCertificationMessages(request, { responseDialect: "compact-wire-v1" });
+  return documentCertificationMessages(request, { responseDialect: "compact-wire-v2" });
 }
 
-const VERIFICATION_TOOL_NAME = "lattice_verification_wire_v1";
-const CERTIFICATION_TOOL_NAME = "lattice_certification_wire_v1";
+const VERIFICATION_TOOL_NAME = "lattice_verification_wire_v2";
+const CERTIFICATION_TOOL_NAME = "lattice_certification_wire_v2";
 const STOPPED_TOOL_CONTENT_NAMES = new Set([
   VERIFICATION_TOOL_NAME,
   CERTIFICATION_TOOL_NAME,
@@ -447,7 +455,7 @@ const STAGES = Object.freeze({
   verification: Object.freeze({
     role: "verifier",
     schema: VERIFICATION_WIRE_SCHEMA,
-    schemaName: "lattice_verification_wire_v1",
+    schemaName: "lattice_verification_wire_v2",
     toolName: VERIFICATION_TOOL_NAME,
     toolChoice: "named",
     allowStoppedToolContent: true,
@@ -461,7 +469,7 @@ const STAGES = Object.freeze({
   certification: Object.freeze({
     role: "verifier",
     schema: CERTIFICATION_WIRE_SCHEMA,
-    schemaName: "lattice_certification_wire_v1",
+    schemaName: "lattice_certification_wire_v2",
     toolName: CERTIFICATION_TOOL_NAME,
     toolChoice: "named",
     allowStoppedToolContent: true,
@@ -579,7 +587,32 @@ function analysisQualificationDiagnostic(stage, context) {
   });
 }
 
-function withQualificationDiagnostic(error, stage, callOrdinal, analysisContext) {
+function stageQualificationDiagnostic(context) {
+  if (!record(context)
+    || !Object.isFrozen(context)
+    || Object.getPrototypeOf(context) !== Object.prototype
+    || Reflect.ownKeys(context).length !== 2
+    || !Object.prototype.hasOwnProperty.call(context, "attempt")
+    || !Object.prototype.hasOwnProperty.call(context, "priorValidationCategory")
+    || !["initial", "correction"].includes(context.attempt)
+    || !ANALYSIS_VALIDATION_CATEGORY_SET.has(context.priorValidationCategory)
+    || (context.attempt === "initial" && context.priorValidationCategory !== "none")
+    || (context.attempt === "correction" && context.priorValidationCategory === "none")) {
+    return Object.freeze({ attempt: "none", priorValidationCategory: "none" });
+  }
+  return Object.freeze({
+    attempt: context.attempt,
+    priorValidationCategory: context.priorValidationCategory,
+  });
+}
+
+function withQualificationDiagnostic(
+  error,
+  stage,
+  callOrdinal,
+  stageContext,
+  analysisContext,
+) {
   if (!(error instanceof LatticeProviderError)
     || !LATTICE_PROVIDER_STAGES.includes(stage)
     || !Number.isSafeInteger(callOrdinal)
@@ -595,6 +628,7 @@ function withQualificationDiagnostic(error, stage, callOrdinal, analysisContext)
     contentSize: "none",
     completionTokens: "none",
   });
+  const stageDiagnostic = stageQualificationDiagnostic(stageContext);
   const analysisDiagnostic = analysisQualificationDiagnostic(stage, analysisContext);
   Object.defineProperties(error, {
     qualificationStage: {
@@ -645,6 +679,12 @@ function withQualificationDiagnostic(error, stage, callOrdinal, analysisContext)
       value: providerDiagnostic.completionTokens,
       writable: false,
     },
+    qualificationStageAttempt: {
+      configurable: false,
+      enumerable: false,
+      value: stageDiagnostic.attempt,
+      writable: false,
+    },
     qualificationAnalysisOrigin: {
       configurable: false,
       enumerable: false,
@@ -660,7 +700,7 @@ function withQualificationDiagnostic(error, stage, callOrdinal, analysisContext)
     qualificationPriorValidationCategory: {
       configurable: false,
       enumerable: false,
-      value: analysisDiagnostic.priorValidationCategory,
+      value: stageDiagnostic.priorValidationCategory,
       writable: false,
     },
   });
@@ -1045,57 +1085,55 @@ function verificationWireSchemaForFit(fit) {
     const rewrite = plan.disposition === "rewrite";
     const criteria = rewrite ? Object.freeze([]) : plan.conformanceCriteria;
     const evidenceMask = wireBitMaskSchema(evidenceCount);
-    const criterionSchemas = criteria.map(() => fixedTuple(
-      VERIFICATION_WIRE_CRITERION_SCHEMA.prefixItems[0],
-      evidenceMask,
-    ));
-    const conformanceSchema = fixedTuple(
-      rewrite
+    const criterionSchema = closedWireObject({
+      v: VERIFICATION_WIRE_CRITERION_SCHEMA.properties.v,
+      s: evidenceMask,
+    });
+    const conformanceSchema = closedWireObject({
+      v: rewrite
         ? Object.freeze({ type: "boolean", enum: Object.freeze([false]) })
-        : VERIFICATION_WIRE_PASSAGE_SCHEMA.prefixItems[7].prefixItems[0],
-      rewrite
+        : VERIFICATION_WIRE_CONFORMANCE_SCHEMA.properties.v,
+      s: rewrite
         ? Object.freeze({ ...evidenceMask, enum: Object.freeze(["0".repeat(evidenceCount)]) })
         : evidenceMask,
-      Object.freeze({
+      k: Object.freeze({
         type: "array",
-        minItems: criterionSchemas.length,
-        maxItems: criterionSchemas.length,
-        prefixItems: Object.freeze(criterionSchemas),
+        minItems: criteria.length,
+        maxItems: criteria.length,
+        items: criterionSchema,
       }),
-    );
-    return fixedTuple(
-      Object.freeze({
+    });
+    return closedWireObject({
+      a: Object.freeze({
         type: "string",
         minLength: atomCount,
         maxLength: atomCount,
         pattern: `^[012]{${atomCount}}$`,
       }),
-      VERIFICATION_WIRE_PASSAGE_SCHEMA.prefixItems[1],
-      evidenceMask,
-      VERIFICATION_WIRE_PASSAGE_SCHEMA.prefixItems[3],
-      VERIFICATION_WIRE_PASSAGE_SCHEMA.prefixItems[4],
-      wireBitMaskSchema(atomCount, { requireSelection: true }),
-      wireBitMaskSchema(evidenceCount, { requireSelection: true }),
-      conformanceSchema,
-    );
+      u: VERIFICATION_WIRE_PASSAGE_SCHEMA.properties.u,
+      s: evidenceMask,
+      f: VERIFICATION_WIRE_PASSAGE_SCHEMA.properties.f,
+      l: VERIFICATION_WIRE_PASSAGE_SCHEMA.properties.l,
+      x: wireBitMaskSchema(atomCount, { requireSelection: true }),
+      y: wireBitMaskSchema(evidenceCount, { requireSelection: true }),
+      c: conformanceSchema,
+    });
   });
-  const issueSchema = fixedTuple(
-    VERIFICATION_WIRE_ISSUE_SCHEMA.prefixItems[0],
-    Object.freeze({
-      ...VERIFICATION_WIRE_ISSUE_SCHEMA.prefixItems[1],
+  const issueSchema = closedWireObject({
+    c: VERIFICATION_WIRE_ISSUE_SCHEMA.properties.c,
+    p: Object.freeze({
+      ...VERIFICATION_WIRE_ISSUE_SCHEMA.properties.p,
       maximum: fit.passages.length - 1,
     }),
+  });
+  const passageProperties = Object.fromEntries(
+    passageSchemas.map((schema, index) => [String(index), schema]),
   );
   return Object.freeze({
     ...VERIFICATION_WIRE_SCHEMA,
     properties: Object.freeze({
       ...VERIFICATION_WIRE_SCHEMA.properties,
-      p: Object.freeze({
-        type: "array",
-        minItems: passageSchemas.length,
-        maxItems: passageSchemas.length,
-        prefixItems: Object.freeze(passageSchemas),
-      }),
+      p: closedWireObject(passageProperties),
       i: Object.freeze({
         ...VERIFICATION_WIRE_SCHEMA.properties.i,
         items: issueSchema,
@@ -1147,10 +1185,10 @@ function certificationWireSchemaForFit(fit) {
         type: "array",
         minItems: fit.obligationIds.length,
         maxItems: fit.obligationIds.length,
-        prefixItems: Object.freeze(fit.obligationIds.map((id) => Object.freeze({
+        items: Object.freeze({
           ...CERTIFICATION_WIRE_SCHEMA.properties.o.items,
-          enum: Object.freeze([id]),
-        }))),
+          enum: fit.obligationIds,
+        }),
       }),
     }),
   });
@@ -1471,37 +1509,38 @@ function wireAtomStatuses(statuses, atomIds) {
 }
 
 function decodeVerificationWire(value, fit) {
+  const passageKeys = fit?.passages?.map((_passage, index) => String(index));
   if (!fit || !exactKeys(value, ["d", "g", "p", "i"])
-    || !Array.isArray(value.p) || value.p.length !== fit.passages.length
+    || !exactKeys(value.p, passageKeys)
     || !Array.isArray(value.i)
     || value.i.length > VERIFICATION_SCHEMA.properties.issues.maxItems) return {};
   const decision = wireEnumValue(value.d, VERIFICATION_DECISIONS);
   const failedGates = wireMaskSelections(value.g, VERIFICATION_GATES);
   if (decision === null || failedGates === null) return {};
   const passages = [];
-  for (let index = 0; index < value.p.length; index += 1) {
-    const passage = value.p[index];
+  for (let index = 0; index < fit.passages.length; index += 1) {
+    const passage = value.p[String(index)];
     const plan = fit.plans[index];
     const evidenceIds = fit.evidenceByPassage[index].ids;
-    if (!Array.isArray(passage) || passage.length !== 8
-      || typeof passage[1] !== "boolean"
-      || !Array.isArray(passage[7]) || passage[7].length !== 3
-      || typeof passage[7][0] !== "boolean"
-      || !Array.isArray(passage[7][2])) return {};
-    const atomStatuses = wireAtomStatuses(passage[0], plan.atomIds);
-    const unmodeledSpanIds = wireMaskSelections(passage[2], evidenceIds, { maximum: 12 });
-    const failedChecks = wireMaskSelections(passage[3], VERIFICATION_PASSAGE_CHECKS);
-    const independentLayer = wireEnumValue(passage[4], VERIFICATION_LAYERS);
-    const layerEvidenceAtomIds = wireMaskSelections(passage[5], plan.atomIds, { minimum: 1 });
-    const layerEvidenceSpanIds = wireMaskSelections(passage[6], evidenceIds, { minimum: 1 });
-    const conformanceEvidenceSpanIds = wireMaskSelections(passage[7][1], evidenceIds);
+    if (!exactKeys(passage, ["a", "u", "s", "f", "l", "x", "y", "c"])
+      || typeof passage.u !== "boolean"
+      || !exactKeys(passage.c, ["v", "s", "k"])
+      || typeof passage.c.v !== "boolean"
+      || !Array.isArray(passage.c.k)) return {};
+    const atomStatuses = wireAtomStatuses(passage.a, plan.atomIds);
+    const unmodeledSpanIds = wireMaskSelections(passage.s, evidenceIds, { maximum: 12 });
+    const failedChecks = wireMaskSelections(passage.f, VERIFICATION_PASSAGE_CHECKS);
+    const independentLayer = wireEnumValue(passage.l, VERIFICATION_LAYERS);
+    const layerEvidenceAtomIds = wireMaskSelections(passage.x, plan.atomIds, { minimum: 1 });
+    const layerEvidenceSpanIds = wireMaskSelections(passage.y, evidenceIds, { minimum: 1 });
+    const conformanceEvidenceSpanIds = wireMaskSelections(passage.c.s, evidenceIds);
     if (atomStatuses === null || unmodeledSpanIds === null || failedChecks === null
       || independentLayer === null || layerEvidenceAtomIds === null
       || layerEvidenceSpanIds === null || conformanceEvidenceSpanIds === null) return {};
     const rewrite = plan.disposition === "rewrite";
-    const rawCriterionChecks = passage[7][2];
+    const rawCriterionChecks = passage.c.k;
     if (rewrite) {
-      if (passage[7][0] !== false || conformanceEvidenceSpanIds.length !== 0
+      if (passage.c.v !== false || conformanceEvidenceSpanIds.length !== 0
         || rawCriterionChecks.length !== 0) return {};
     } else if (rawCriterionChecks.length !== plan.conformanceCriteria.length) {
       return {};
@@ -1509,14 +1548,14 @@ function decodeVerificationWire(value, fit) {
     const criterionChecks = [];
     for (let criterionIndex = 0; criterionIndex < rawCriterionChecks.length; criterionIndex += 1) {
       const check = rawCriterionChecks[criterionIndex];
-      if (!Array.isArray(check) || check.length !== 2 || typeof check[0] !== "boolean") return {};
-      const evidenceSpanIds = wireMaskSelections(check[1], evidenceIds, {
-        minimum: check[0] ? 1 : 0,
+      if (!exactKeys(check, ["v", "s"]) || typeof check.v !== "boolean") return {};
+      const evidenceSpanIds = wireMaskSelections(check.s, evidenceIds, {
+        minimum: check.v ? 1 : 0,
       });
       if (evidenceSpanIds === null) return {};
       criterionChecks.push({
         criterion: plan.conformanceCriteria[criterionIndex],
-        passed: check[0],
+        passed: check.v,
         evidenceSpanIds,
       });
     }
@@ -1524,12 +1563,12 @@ function decodeVerificationWire(value, fit) {
       passageId: plan.passageId,
       checkedAtomIds: atomStatuses.checked,
       missingAtomIds: atomStatuses.missing,
-      unsupportedClaims: passage[1]
+      unsupportedClaims: passage.u
         ? [{ claim: "The candidate contains unsupported meaning.", evidence: "" }]
         : [],
       unmodeledSpanIds,
       failedChecks,
-      conformanceConfirmed: passage[7][0],
+      conformanceConfirmed: passage.c.v,
       conformanceEvidenceSpanIds,
       independentLayer,
       layerEvidenceAtomIds,
@@ -1541,19 +1580,19 @@ function decodeVerificationWire(value, fit) {
   const issueKeys = new Set();
   for (let index = 0; index < value.i.length; index += 1) {
     const issue = value.i[index];
-    if (!Array.isArray(issue) || issue.length !== 2
-      || !Number.isSafeInteger(issue[1]) || issue[1] < -1
-      || issue[1] >= fit.passages.length) return {};
-    const checkIndex = issue[0];
+    if (!exactKeys(issue, ["c", "p"])
+      || !Number.isSafeInteger(issue.p) || issue.p < -1
+      || issue.p >= fit.passages.length) return {};
+    const checkIndex = issue.c;
     const check = wireEnumValue(checkIndex, VERIFICATION_ISSUE_CHECKS);
     if (check === null) return {};
-    const issueKey = `${checkIndex}:${issue[1]}`;
+    const issueKey = `${checkIndex}:${issue.p}`;
     if (issueKeys.has(issueKey)) return {};
     issueKeys.add(issueKey);
     issues.push({
       id: `wire-issue-${index + 1}`,
       check,
-      passageId: issue[1] === -1 ? "" : fit.passages[issue[1]].id,
+      passageId: issue.p === -1 ? "" : fit.passages[issue.p].id,
       atomIds: [],
       message: "The independent check did not clear a required condition.",
     });
@@ -2218,6 +2257,7 @@ export function createHuggingFaceLatticeAdapter({
     budget.used += 1;
     const callOrdinal = budget.used;
     const stage = STAGES[stageName];
+    const stageContext = request?.[LATTICE_STAGE_DIAGNOSTIC_CONTEXT];
     const analysisContext = stageName === "analysis"
       ? request?.[LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT]
       : null;
@@ -2262,7 +2302,13 @@ export function createHuggingFaceLatticeAdapter({
         maximumResponseBytes,
       });
     } catch (error) {
-      throw withQualificationDiagnostic(error, stageName, callOrdinal, analysisContext);
+      throw withQualificationDiagnostic(
+        error,
+        stageName,
+        callOrdinal,
+        stageContext,
+        analysisContext,
+      );
     }
     if (stageName === "analysis") {
       result = decodeAnalysisWire(result, analysisFit);

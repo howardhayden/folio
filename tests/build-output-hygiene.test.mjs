@@ -147,22 +147,16 @@ test("Pages CI verifies the remote privacy boundary before the held build", asyn
   assert.doesNotMatch(tokenizerFetcher, /(?:public|site)\/.*tokenizer/iu);
 });
 
-test("the remote adapter consumes the public server-side sampling contract", async () => {
+test("the public model contract retains bounded stages without publishing private inference settings", async () => {
   const [adapter, { textToLatticeContract }] = await Promise.all([
     readFile(new URL("../workers/text-to-lattice-api/huggingFaceAdapter.js", import.meta.url), "utf8"),
     import("../app/content/textToLatticeContent.js"),
   ]);
 
   assert.deepEqual(textToLatticeContract.implementation.generator.inference.stages, {
-    analysis: {
-      temperature: 0.7,
-      topP: 0.8,
-      responseFormat: "json_schema",
-      strict: true,
-      maximumOutputTokens: 2_048,
-    },
-    candidate: { temperature: 0.45, topP: 0.9, responseFormat: "json_object", maximumOutputTokens: 800 },
-    repair: { temperature: 0.45, topP: 0.9, responseFormat: "json_object", maximumOutputTokens: 800 },
+    analysis: { maximumOutputTokens: 2_048 },
+    candidate: { maximumOutputTokens: 800 },
+    repair: { maximumOutputTokens: 800 },
   });
   assert.match(adapter, /const ANALYSIS_MAX_OUTPUT_TOKENS = 2_048;/u);
   assert.match(adapter, /const ANALYSIS_MIN_OUTPUT_TOKENS = 768;/u);
@@ -173,22 +167,49 @@ test("the remote adapter consumes the public server-side sampling contract", asy
   assert.match(adapter, /const REPAIR_MAX_OUTPUT_TOKENS = 800;/u);
   assert.deepEqual(textToLatticeContract.implementation.verifier.inference.stages, {
     verification: {
-      temperature: 0,
-      topP: 1,
-      responseTransport: "forced_named_tool",
-      toolName: "lattice_verification_wire_v1",
-      stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
       maximumOutputTokens: 2_048,
     },
     certification: {
-      temperature: 0,
-      topP: 1,
-      responseTransport: "forced_named_tool",
-      toolName: "lattice_certification_wire_v1",
-      stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
       maximumOutputTokens: 520,
     },
   });
+  const publicContract = JSON.stringify(textToLatticeContract);
+  for (const privateMarker of [
+    "lattice_verification_wire_v1",
+    "lattice_verification_wire_v2",
+    "lattice_certification_wire_v1",
+    "lattice_certification_wire_v2",
+    "forced_named_tool",
+    "responseTransport",
+    "toolName",
+    "stoppedContentCompatibility",
+    "only_when_tool_calls_and_function_call_are_absent",
+  ]) assert.equal(publicContract.includes(privateMarker), false, `${privateMarker} is not public contract data`);
+  for (const privateProperty of [
+    "seed",
+    "thinking",
+    "temperature",
+    "topP",
+    "responseFormat",
+    "strict",
+  ]) {
+    assert.doesNotMatch(
+      publicContract,
+      new RegExp(`"${privateProperty}":`, "u"),
+      `${privateProperty} is not public contract data`,
+    );
+  }
+  for (const privateDetail of [
+    /71903/u,
+    /request-fitted analysis output limits/iu,
+    /768 through 2048/u,
+    /256-token steps/iu,
+    /non-thinking/iu,
+  ]) assert.doesNotMatch(publicContract, privateDetail);
+  assert.match(
+    textToLatticeContract.securityAndPrivacy.huggingFace.protections.join(" "),
+    /deterministically validates every returned object[\s\S]*invalid, incomplete, or unknown data fails closed/iu,
+  );
   for (const [stage, maximumOutputTokens, temperature, topP] of [
     ["analysis", "ANALYSIS_MAX_OUTPUT_TOKENS", "0.7", "0.8"],
     ["candidate", "CANDIDATE_MAX_OUTPUT_TOKENS", "0.45", "0.9"],

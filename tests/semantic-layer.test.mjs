@@ -982,21 +982,13 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     licenseName: "Apache License 2.0",
     licenseUrl: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/blob/cdbee75f17c01a7cc42f958dc650907174af0554/LICENSE",
     inference: {
-      seed: 71_903,
-      thinking: false,
       stages: {
-        analysis: {
-          temperature: 0.7,
-          topP: 0.8,
-          responseFormat: "json_schema",
-          strict: true,
-          maximumOutputTokens: 2_048,
-        },
-        candidate: { temperature: 0.45, topP: 0.9, responseFormat: "json_object", maximumOutputTokens: 800 },
-        repair: { temperature: 0.45, topP: 0.9, responseFormat: "json_object", maximumOutputTokens: 800 },
+        analysis: { maximumOutputTokens: 2_048 },
+        candidate: { maximumOutputTokens: 800 },
+        repair: { maximumOutputTokens: 800 },
       },
     },
-    inferenceSummary: "server-side strict JSON Schema analysis through Hugging Face Inference Providers and Nscale; fixed seed 71903; non-thinking-only Qwen variant; request-fitted analysis output limits from 768 through 2048 tokens in 256-token steps; bounded stage-specific output limits",
+    inferenceSummary: "server-side bounded structured analysis and drafting through Hugging Face Inference Providers and Nscale; returned objects undergo deterministic closed-contract validation, and invalid or incomplete output fails closed; bounded stage-specific output limits",
   };
   const expectedVerifier = {
     name: "Llama 3.1 8B Instruct server-side verifier",
@@ -1010,22 +1002,11 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     licenseUrl: "https://developer.meta.com/ai/llama3_1/license/",
     acceptableUseUrl: "https://developer.meta.com/ai/llama3_1/use-policy/",
     inference: {
-      seed: 71_903,
       stages: {
         verification: {
-          temperature: 0,
-          topP: 1,
-          responseTransport: "forced_named_tool",
-          toolName: "lattice_verification_wire_v1",
-          stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
           maximumOutputTokens: 2_048,
         },
         certification: {
-          temperature: 0,
-          topP: 1,
-          responseTransport: "forced_named_tool",
-          toolName: "lattice_certification_wire_v1",
-          stoppedContentCompatibility: "only_when_tool_calls_and_function_call_are_absent",
           maximumOutputTokens: 520,
         },
       },
@@ -1040,7 +1021,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     tokenizerName: "Provider-managed model tokenizer",
     tokenizerVersion: "provider-managed",
     tokenizerPackageUrl: "https://huggingface.co/docs/inference-providers/",
-    structuredOutputName: "Strict JSON Schema, JSON-object, and forced named-tool generation with exact host-side closed-schema validation",
+    structuredOutputName: "Bounded structured output with exact host-side closed-schema validation",
     structuredOutputVersion: "provider-managed",
     structuredOutputPackageUrl: "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
     structuredOutputRepository: "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
@@ -1094,10 +1075,45 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   assert.deepEqual(application[hah("runtime")], expectedRuntime);
   assert.deepEqual(application[hah("securityAndPrivacy")], textToLatticeContract.securityAndPrivacy);
 
-  const [toolHtml, latticeMarkdown, completeText] = await Promise.all([
+  const privateVerifierMarkers = [
+    /lattice_(?:verification|certification)_wire_v\d+/u,
+    /forced_named_tool/u,
+    /responseTransport/u,
+    /toolName/u,
+    /stoppedContentCompatibility/u,
+    /only_when_tool_calls_and_function_call_are_absent/u,
+    /tool_calls and function_call/iu,
+  ];
+  const privateInferenceMarkers = [
+    /"(?:seed|thinking|temperature|topP|responseFormat|strict)":/u,
+    /71903/u,
+    /request seed/iu,
+    /fixed seed/iu,
+    /non-thinking/iu,
+    /request-fitted analysis output limits/iu,
+    /768 through 2048/u,
+    /256-token steps/iu,
+    /strict JSON Schema analysis/iu,
+    /JSON-object candidate/iu,
+  ];
+  for (const [label, body] of [
+    ["public contract", JSON.stringify(textToLatticeContract)],
+    ["public knowledge graph", JSON.stringify(knowledgeGraph)],
+    ["public project Markdown projection", renderProjectMarkdown("lattice")],
+  ]) {
+    for (const marker of privateVerifierMarkers) {
+      assert.doesNotMatch(body, marker, `${label} excludes ${marker}`);
+    }
+    for (const marker of privateInferenceMarkers) {
+      assert.doesNotMatch(body, marker, `${label} excludes ${marker}`);
+    }
+  }
+
+  const [toolHtml, latticeMarkdown, completeText, noticesHtml] = await Promise.all([
     request(textToLatticeContract.canonicalPath, "text/html").then((response) => response.text()),
     readFile(staticFileUrl("content/projects/lattice.md"), "utf8"),
     readFile(staticFileUrl("llms-full.txt"), "utf8"),
+    readFile(staticFileUrl("third-party-notices/index.html"), "utf8"),
   ]);
   const machineValueLabel = (value) => {
     const words = value.replaceAll("-", " ");
@@ -1109,7 +1125,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     assert.ok(body.includes(`Publication mode: ${machineValueLabel(application[hah("publicationMode")])}`));
     assert.match(body, /interactive client is not included in the public bundle|public interactive client is held/iu);
   }
-  const publicProvenance = [authoredDocument(toolHtml), latticeMarkdown];
+  const publicProvenance = [authoredDocument(toolHtml), authoredDocument(noticesHtml), latticeMarkdown];
   for (const body of publicProvenance) {
     for (const value of [
       expectedGenerator.name, expectedGenerator.revision, expectedGenerator.repository,
@@ -1119,6 +1135,12 @@ test("project and Text to Lattice implementation provenance stays source-aligned
       expectedRuntime.tokenizerVersion, expectedRuntime.structuredOutputName,
       expectedRuntime.structuredOutputVersion,
     ]) assert.ok(body.includes(value), `public tool provenance includes ${value}`);
+    for (const marker of privateVerifierMarkers) {
+      assert.doesNotMatch(body, marker, `public site provenance excludes ${marker}`);
+    }
+    for (const marker of privateInferenceMarkers) {
+      assert.doesNotMatch(body, marker, `public site provenance excludes ${marker}`);
+    }
   }
   for (const body of [decodedText(toolHtml), latticeMarkdown, completeText]) {
     assert.match(body, /Text to Lattice/u);

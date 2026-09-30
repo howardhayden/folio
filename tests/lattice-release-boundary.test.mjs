@@ -185,11 +185,17 @@ test("the release register honestly holds the remote capability and preserves hi
   );
   assert.ok(register.publicClient.heldBoundary.allow.length > 0);
   assert.ok(register.publicClient.heldBoundary.deny.some((item) => item.includes("/api/lattice")));
-  assert.match(register.publicClient.reason, /run #156[\s\S]*1,536-token forced named-tool verifier/iu);
-  assert.match(register.publicClient.reason, /deployed 180-second verification deadline[\s\S]*finish_reason=length[\s\S]*call_ordinal=4/iu);
-  assert.match(register.publicClient.reason, /current undeployed candidate[\s\S]*verifier maximum to 2,048 tokens/iu);
-  assert.match(register.publicClient.reason, /Run #154 remains earlier[\s\S]*1,536-token timeout evidence/iu);
-  assert.match(register.publicClient.reason, /Run #152 remains earlier[\s\S]*1,200-token length evidence/iu);
+  assert.equal(register.revision, "2026-09-30");
+  assert.match(register.publicClient.reason, /run #158 supplied the newest partial, non-qualifying production failure/iu);
+  assert.match(register.publicClient.reason, /verification under the 2,048-token ceiling[\s\S]*finish_reason=length[\s\S]*call_ordinal=3/iu);
+  assert.match(register.publicClient.reason, /current undeployed correction changes the private verifier and certifier representation/iu);
+  assert.match(register.publicClient.reason, /2,048-token verifier cap, 520-token certifier cap[\s\S]*remain unchanged/iu);
+  assert.match(register.publicClient.reason, /complete legal verifier output at 1,326 tokens[\s\S]*722 tokens or 54\.45 percent/iu);
+  assert.match(register.publicClient.reason, /conservative accepted legal maximum is 440 tokens[\s\S]*80 under its 520-token cap/iu);
+  assert.match(register.publicClient.reason, /correction remains unqualified and has no successful remote transformation or canonical-browser trace/iu);
+  assert.match(register.publicClient.reason, /do not prove prior-call outcomes, the size or validity of a discarded object, or provider-managed token accounting/iu);
+  assert.match(register.publicClient.reason, /Attempt 1 did not reach the live request boundary or provider canary and remains inconclusive transport evidence/iu);
+  assert.doesNotMatch(register.publicClient.reason, /run #158[^.]{0,200}(?:proves|establishes)[^.]{0,100}(?:insufficient|budget is too small)/iu);
   assert.doesNotMatch(register.publicClient.reason, /run #150 supplied the newest/iu);
   assert.equal(register.ownerDisposition.status, "hold-directed");
   assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
@@ -209,42 +215,54 @@ test("the release register honestly holds the remote capability and preserves hi
   const workflowGate = register.gates.find(({ id }) => id === "GATE-01");
   assert.match(
     workflowGate.currentEvidence,
-    /run #156[\s\S]*full 868-test declaration[\s\S]*1,536-token forced named-tool verifier[\s\S]*180-second verification deadline[\s\S]*verification call ordinal 4[\s\S]*current undeployed 2,048-token verifier candidate/iu,
+    /run #158 built merged main commit 66c34fd4775efa8de6cf35110f8d623f4418210f[\s\S]*verification call ordinal 3[\s\S]*predecessor private representation[\s\S]*does not establish a complete legal verifier object, successful transformation, or qualification of the current undeployed private-representation correction/iu,
   );
-  assert.match(workflowGate.currentEvidence, /Run #154 remains earlier[\s\S]*1,536-token timeout history/iu);
-  assert.match(workflowGate.currentEvidence, /Run #152 remains earlier[\s\S]*1,200-token length history/iu);
+  assert.match(workflowGate.currentEvidence, /Runs #156, #154, #152, #150, #147[^.]*remain earlier held-publication history/iu);
 
   const activeRemoteEvidence = [
     register.publicClient.reason,
     ...register.gates.flatMap((gate) => [gate.activeCurrentEvidence, ...(gate.activeEvidence ?? [])]),
   ].join(" ");
   for (const exactEvidence of [
+    "https://github.com/howardhayden/folio/actions/runs/36595292369",
+    "66c34fd4775efa8de6cf35110f8d623f4418210f",
+    "2677c607d748582348930f1b90087e09455fff9773ce2eca203a4a7474ab7a8a",
+    "artifact ID 11046285940",
+    "SHA-256 3bbf85126def25c4e71436015ca1d0ffc8f5b2e0cc8f99dd50016891dfd949ae",
+    "1b32ab5c9fab139bd534a0e0ff6f2fbb89500bd37a1d8ed4150fbedbcdfb84ce",
+    "artifact ID 11045708140",
+    "SHA-256 55c8523d0fa64ae76435c30923ff5b9dfe87520578c6ad63f96b7e211abd88a0",
+    "5c0a5749-0de2-4bd8-9494-7fa09ed38064",
+    "b63929e2-e8f2-4c36-8555-ffa38312b32d",
+    "64231b70-01b4-4b3f-be63-a1aed0600f97",
+    "1fce513a-1059-424e-8175-8553e3d5c88e",
+    "artifact ID 11046432393",
+    "SHA-256 65983a6970b8ad8993ad4e47c3bf4b9c8b61adcaf7860655f87abedbaf0da6a2",
     "https://github.com/howardhayden/folio/actions/runs/36589409202",
-    "0750ce7fde7d3a3d7dc5defd3a6dc23bb7367f70",
-    "b31ff7917d118bdc4d2dc3d7ca7364d547d4c296c0989b31cb91751b30d78577",
-    "build job 109478331469",
-    "artifact ID 11043072405",
-    "SHA-256 6c507c2c6a4e437c41e9fa5d437e0f373720deda5236b7efc80539ebe6908706",
-    "service job 109479062158",
-    "ce48f180b4fbef8cf9f3578223073de3fed4e554a62df9c68eabeaca1f6a4506",
-    "4cf7bbf2-90fb-458b-a648-264c81bf5bfc",
-    "0bb46221-e7bf-4cc0-ad9c-10bbdf94d833",
-    "artifact ID 11042927757",
-    "SHA-256 23f1571acc0fd80b801c6dcec4c644098fc9915d07e03cfbe96216b8f1e521b4",
-    "72207ee4-ad72-4c0a-be9c-bef654dd5cd3",
-    "26bb1e0e-13e1-4e38-a9b6-79a4cc24f10d",
-    "final held-enforcement job 109479903525",
-    "9ccc48bb-bf84-4b55-9bf4-7a775db141f5",
-    "a662856d-11b2-4a18-9843-7f5f98bc46aa",
-    "artifact ID 11043845974",
-    "SHA-256 35cf551aa023719f4006076b5127e284fdef9543a6642bd6cc35c0bcc93adc54",
+    "run #156 is retained as predecessor-representation bounded failure and fail-closed rollback history",
   ]) assert.ok(activeRemoteEvidence.includes(exactEvidence), `active evidence includes ${exactEvidence}`);
   assert.match(
     activeRemoteEvidence,
-    /run #156 sanitized canary record(?: at [^:]+)?:[^\n]*outer HTTP 502[^\n]*malformed_upstream_response[^\n]*failure_class=provider_output_limit[^\n]*stage=verification[^\n]*call_ordinal=4[^\n]*finish_reason=length[^\n]*completion_tokens=1024-2047/iu,
+    /run #158 attempt 2 canary[^\n]*outer HTTP 502[^\n]*malformed_upstream_response[^\n]*failure_class=provider_output_limit[^\n]*stage=verification[^\n]*call_ordinal=3[^\n]*finish_reason=length[^\n]*completion_tokens=2048-3071/iu,
   );
 
   const capability = register.artifactSet.activeCapability;
+  assert.deepEqual(Object.keys(capability).sort(), [
+    "status", "route", "method", "schemaVersion", "requestFields", "requestedModes",
+    "trigger", "secretBindingNames", "visitorSessionSetup", "contentRequest",
+    "browserQuotaCookie", "admission", "provider", "applicationRetention",
+    "providerRetentionBoundary", "automaticRetry", "alternateProviderFallback",
+    "responseCachePolicy",
+  ].sort(), "the public capability cannot carry undeclared private wire fields");
+  assert.deepEqual(Object.keys(capability.provider).sort(), [
+    "endpoint", "generatorModel", "verifierModel", "stageCallTimeoutsMs",
+    "maximumCallTimeoutMs", "callLimit", "stageMaximumOutputTokens",
+    "maximumRequestedOutputTokensPerCall", "maximumRequestedOutputTokensPerAdmittedRequest",
+    "maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay",
+    "maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay",
+    "responseByteLimit", "contentCharacterLimit", "revisionStatus",
+    "historicalByteEquivalenceEstablished",
+  ].sort(), "the public provider contract cannot carry undeclared private wire fields");
   assert.deepEqual(
     {
       status: capability.status,

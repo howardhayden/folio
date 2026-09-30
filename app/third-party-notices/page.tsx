@@ -73,7 +73,7 @@ export default function ThirdPartyNoticesPage() {
           <h2>Text to Lattice implementation</h2>
           <dl className="paper-meta">
             <div className="paper-meta-item"><dt>Generator</dt><dd><a href={generator.repository}>{generator.name}</a>, model <code>{generator.modelId}</code>; {generator.revision}; {generator.inferenceSummary}</dd></div>
-            <div className="paper-meta-item"><dt>Verifier</dt><dd><a href={verifier.repository}>{verifier.name}</a>, model <code>{verifier.modelId}</code>; {verifier.revision}; configured request seed {verifier.inference.seed}</dd></div>
+            <div className="paper-meta-item"><dt>Verifier</dt><dd><a href={verifier.repository}>{verifier.name}</a>, model <code>{verifier.modelId}</code>; {verifier.revision}; bounded verification and certification output</dd></div>
             <div className="paper-meta-item"><dt>Runtime</dt><dd><a href={runtime.packageUrl}>{runtime.name} {runtime.version}</a>; {runtime.tokenizerName} {runtime.tokenizerVersion}; {runtime.structuredOutputName} {runtime.structuredOutputVersion}</dd></div>
           </dl>
           <p>{String(interactiveRelease) === "held"
