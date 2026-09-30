@@ -10,6 +10,10 @@ export const LATTICE_FITTED_ANALYSIS_CONTEXT = Symbol("lattice-fitted-analysis-c
 // It is consumed by bounded qualification diagnostics and never enters model
 // messages, public protocol objects, or retained transformation results.
 export const LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT = Symbol("lattice-analysis-diagnostic-context");
+// Host-only attempt provenance attached non-enumerably to every normalized
+// stage request. It is consumed by bounded qualification diagnostics and never
+// enters model messages, public protocol objects, or retained results.
+export const LATTICE_STAGE_DIAGNOSTIC_CONTEXT = Symbol("lattice-stage-diagnostic-context");
 export const LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS = Object.freeze([
   "initial", "split", "reanalysis",
 ]);
@@ -29,8 +33,8 @@ export const LATTICE_ANALYSIS_VALIDATION_CATEGORIES = Object.freeze([
   "other",
 ]);
 const ANALYSIS_RESPONSE_DIALECTS = new Set(["host-schema", "compact-wire-v2"]);
-const VERIFICATION_RESPONSE_DIALECTS = new Set(["host-schema", "compact-wire-v1"]);
-const CERTIFICATION_RESPONSE_DIALECTS = new Set(["host-schema", "compact-wire-v1"]);
+const VERIFICATION_RESPONSE_DIALECTS = new Set(["host-schema", "compact-wire-v2"]);
+const CERTIFICATION_RESPONSE_DIALECTS = new Set(["host-schema", "compact-wire-v2"]);
 const COMPACT_ANALYSIS_RETRY_CODE = "private-analysis-wire-invalid";
 const COMPACT_VERIFICATION_RETRY_CODE = "private-verification-wire-invalid";
 const COMPACT_CERTIFICATION_RETRY_CODE = "private-certification-wire-invalid";
@@ -968,7 +972,7 @@ export function verificationMessages(request, { responseDialect = "host-schema" 
   if (!VERIFICATION_RESPONSE_DIALECTS.has(responseDialect)) {
     throw new TypeError("Text to Lattice received an invalid verification response dialect.");
   }
-  const compactWire = responseDialect === "compact-wire-v1";
+  const compactWire = responseDialect === "compact-wire-v2";
   return messages(
     "Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.",
     {
@@ -993,8 +997,8 @@ export function verificationMessages(request, { responseDialect = "host-schema" 
         : {}),
     },
     `${compactWire
-      ? `Supply one verification-result instance using only the private fitted d/g/p/i index-and-mask wire layout through the required response channel. Never return or copy a schema definition, source identifiers, long-form host field names, or explanatory prose. Use the smallest complete result and never repeat a failure in i when g or the passage tuple already represents it.${request.protocolFeedback ? " This is the one bounded correction attempt; replace the entire invalid wire result and follow every fitted width, index, mask, tuple, and enum constraint." : ""}`
-      : "Return the verification schema;"} ${compactWire ? "Select supplied spans only through their fitted bit positions; never emit their IDs." : "Cite only supplied span IDs."} Source groups are [passage ID, lossless spans, nested literal annotations].${directionFrameInstruction(request)} Source boundaries are passage-order gaps [before first, between pairs, after last], encoded as exact [unit,count] runs or host-preserved repeat/summary; check line, paragraph, and stanza assignment. Analysis claims are [document kind, passage tuples]. Passage tuples contain [ID, function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria/spans/assertions]; atoms contain [ID, kind, value, priority, preservation, evidence IDs, links]. Candidates contain [ID, layer, text, preserved atom IDs]. assembledContext separates source/candidate excerpts. Bounded protectedExact is full text; oversized adjacent text is hostAttestedExact [UTF-16 length, scalar count, fingerprint] with inert edges; distant text is attestation only. Attestations prove preservation, never meaning; do not infer omitted text. Independently re-derive meaning and layer before consulting claims. For each passage return the selected layer and ${compactWire ? "select nonempty supporting atom/span masks whose atom evidence grounds the selected spans" : "nonempty supporting atom/span IDs; cited atoms must ground the spans"}. Check identity, roles, coreference, attribution, order, cause, relationship, modality, polarity, ambiguity, exact annotations, and context. Include boundaryFidelity ${compactWire ? "in the fitted failed-check mask" : "in failedChecks"} when meaning or an unchanged item crosses a corresponding line, paragraph, or stanza boundary despite equal separator types/counts. A rewrite must materially serve its discourse function. ${compactWire ? "Each i tuple indexes a failed gate/check and a passage position, or -1 for document-wide" : "Each issue names its failed gate/check"}. Report unmodeled spans/annotations, missing atoms, unsupported meaning, layer mismatch, and deterministic findings ${compactWire ? "through their fitted digits, booleans, masks, and indices" : ""}. For unchanged retained text, separately verify every required universal/layer criterion and ${compactWire ? "select all supporting spans/annotations through the fitted conformance tuple" : "cite all spans/annotations across criterionChecks and conformanceEvidenceSpanIds"}. Rewrites ${compactWire ? "use the fitted negative empty conformance tuple" : "leave those fields empty and conformanceConfirmed false"}. ${compactWire ? "Unresolved ambiguity is rejection, never clarification" : "Return questions: []; unresolved ambiguity is rejection, never clarification"}. Accept only when every gate, check, atom, material rewrite, and boundary passes with no omission/addition.`,
+      ? `Supply one verification-result instance using only the private fitted d/g/p/i index-and-mask wire layout through the required response channel. Never return or copy a schema definition, source identifiers, long-form host field names, or explanatory prose. Use the smallest complete result and never repeat a failure in i when g or the passage record already represents it.${request.protocolFeedback ? " This is the one bounded correction attempt; replace the entire invalid wire result and follow every fitted width, index, mask, object, array, and enum constraint." : ""}`
+      : "Return the verification schema;"} ${compactWire ? "Select supplied spans only through their fitted bit positions; never emit their IDs." : "Cite only supplied span IDs."} Source groups are [passage ID, lossless spans, nested literal annotations].${directionFrameInstruction(request)} Source boundaries are passage-order gaps [before first, between pairs, after last], encoded as exact [unit,count] runs or host-preserved repeat/summary; check line, paragraph, and stanza assignment. Analysis claims are [document kind, passage tuples]. Passage tuples contain [ID, function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria/spans/assertions]; atoms contain [ID, kind, value, priority, preservation, evidence IDs, links]. Candidates contain [ID, layer, text, preserved atom IDs]. assembledContext separates source/candidate excerpts. Bounded protectedExact is full text; oversized adjacent text is hostAttestedExact [UTF-16 length, scalar count, fingerprint] with inert edges; distant text is attestation only. Attestations prove preservation, never meaning; do not infer omitted text. Independently re-derive meaning and layer before consulting claims. For each passage return the selected layer and ${compactWire ? "select nonempty supporting atom/span masks whose atom evidence grounds the selected spans" : "nonempty supporting atom/span IDs; cited atoms must ground the spans"}. Check identity, roles, coreference, attribution, order, cause, relationship, modality, polarity, ambiguity, exact annotations, and context. Include boundaryFidelity ${compactWire ? "in the fitted failed-check mask" : "in failedChecks"} when meaning or an unchanged item crosses a corresponding line, paragraph, or stanza boundary despite equal separator types/counts. A rewrite must materially serve its discourse function. ${compactWire ? "Each i object uses c for a failed gate/check index and p for a passage position, or -1 for document-wide" : "Each issue names its failed gate/check"}. Report unmodeled spans/annotations, missing atoms, unsupported meaning, layer mismatch, and deterministic findings ${compactWire ? "through their fitted digits, booleans, masks, and indices" : ""}. For unchanged retained text, separately verify every required universal/layer criterion and ${compactWire ? "select all supporting spans/annotations through the fitted conformance object" : "cite all spans/annotations across criterionChecks and conformanceEvidenceSpanIds"}. Rewrites ${compactWire ? "use the fitted negative empty conformance object" : "leave those fields empty and conformanceConfirmed false"}. ${compactWire ? "Unresolved ambiguity is rejection, never clarification" : "Return questions: []; unresolved ambiguity is rejection, never clarification"}. Accept only when every gate, check, atom, material rewrite, and boundary passes with no omission/addition.`,
   );
 }
 
@@ -1002,13 +1006,13 @@ export function documentCertificationMessages(request, { responseDialect = "host
   if (!CERTIFICATION_RESPONSE_DIALECTS.has(responseDialect)) {
     throw new TypeError("Text to Lattice received an invalid certification response dialect.");
   }
-  const compactWire = responseDialect === "compact-wire-v1";
+  const compactWire = responseDialect === "compact-wire-v2";
   const windowed = request.scope === "window";
   const relational = request.scope === "relations";
   const protectedWindow = windowed && typeof request.protectedExactSource === "string";
   const protectedAttestedWindow = protectedWindow && request.hostAttestedOnly === true;
   const resultLead = compactWire
-    ? `Supply one document-certification result using only the private c/o/d/k/i wire layout through the required response channel. Never return or copy a schema definition. Echo the certificate ID in c and every obligation ID exactly once in supplied order in o. d and the failed checks in i use zero-based indices. k is the fixed boolean tuple [${LATTICE_DOCUMENT_CERTIFICATION_CHECKS.join(",")}]. Use one minified result with no prose.${request.protocolFeedback ? " This is the one bounded correction attempt; replace the entire invalid wire result and follow every fitted index, tuple, and enum constraint." : ""}`
+    ? `Supply one document-certification result using only the private c/o/d/k/i wire layout through the required response channel. Never return or copy a schema definition. Echo the certificate ID in c and every obligation ID exactly once in supplied order in o. d and the failed checks in i use zero-based indices. k is the fixed-length boolean array [${LATTICE_DOCUMENT_CERTIFICATION_CHECKS.join(",")}]. Use one minified result with no prose.${request.protocolFeedback ? " This is the one bounded correction attempt; replace the entire invalid wire result and follow every fitted index, array, and enum constraint." : ""}`
     : "Return the document-certification schema, echoing certificateId and every obligationId exactly once.";
   const emptyIssues = compactWire ? "i is empty" : "issues is empty";
   return messages(

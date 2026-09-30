@@ -52,7 +52,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v3";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v4";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
@@ -64,6 +64,7 @@ export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   responseSize: "X-Lattice-Qualification-Response-Size",
   contentSize: "X-Lattice-Qualification-Content-Size",
   completionTokens: "X-Lattice-Qualification-Completion-Tokens",
+  stageAttempt: "X-Lattice-Qualification-Stage-Attempt",
   analysisOrigin: "X-Lattice-Qualification-Analysis-Origin",
   analysisAttempt: "X-Lattice-Qualification-Analysis-Attempt",
   priorValidationCategory: "X-Lattice-Qualification-Prior-Validation",
@@ -127,6 +128,7 @@ const LATTICE_PROVIDER_COMPLETION_TOKEN_BUCKET_SET = new Set(
 const LATTICE_PROVIDER_ANALYSIS_ORIGIN_SET = new Set(LATTICE_PROVIDER_ANALYSIS_ORIGINS);
 const LATTICE_PROVIDER_ANALYSIS_ATTEMPT_SET = new Set(LATTICE_PROVIDER_ANALYSIS_ATTEMPTS);
 const LATTICE_PROVIDER_ACTIVE_ANALYSIS_ATTEMPT_SET = new Set(["1", "2"]);
+const LATTICE_PROVIDER_STAGE_ATTEMPT_SET = new Set(["initial", "correction"]);
 const LATTICE_ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
 const LATTICE_TERMINAL_ANALYSIS_CAUSE_SET = new Set([
   "planning",
@@ -220,6 +222,18 @@ function cancelReader(reader, reason) {
     }
   } catch {
     // Cancellation is best-effort and must not extend the public deadline.
+  }
+}
+
+function cancelRequestBody(request) {
+  try {
+    if (!request.body || typeof request.body.cancel !== "function") return;
+    const cancellation = request.body.cancel();
+    if (cancellation && typeof cancellation.catch === "function") {
+      cancellation.catch(() => {});
+    }
+  } catch {
+    // Header rejection must not wait on or expose request-body cancellation.
   }
 }
 
@@ -337,9 +351,11 @@ async function boundedRequestText(request, maximumBytes, signal) {
   const claimedLength = request.headers.get("content-length");
   if (claimedLength !== null) {
     if (!/^\d+$/u.test(claimedLength)) {
+      cancelRequestBody(request);
       throw apiError(400, "invalid_request");
     }
     if (Number(claimedLength) > maximumBytes) {
+      cancelRequestBody(request);
       throw apiError(413, "input_too_large");
     }
   }
@@ -445,6 +461,7 @@ function qualificationProviderDiagnostic(error) {
   const responseSize = error.qualificationResponseSize;
   const contentSize = error.qualificationContentSize;
   const completionTokens = error.qualificationCompletionTokens;
+  const stageAttempt = error.qualificationStageAttempt;
   const analysisOrigin = error.qualificationAnalysisOrigin;
   const analysisAttempt = error.qualificationAnalysisAttempt;
   const priorValidationCategory = error.qualificationPriorValidationCategory;
@@ -460,22 +477,24 @@ function qualificationProviderDiagnostic(error) {
     || !LATTICE_PROVIDER_SIZE_BUCKET_SET.has(responseSize)
     || !LATTICE_PROVIDER_SIZE_BUCKET_SET.has(contentSize)
     || !LATTICE_PROVIDER_COMPLETION_TOKEN_BUCKET_SET.has(completionTokens)
+    || !LATTICE_PROVIDER_STAGE_ATTEMPT_SET.has(stageAttempt)
     || !LATTICE_PROVIDER_ANALYSIS_ORIGIN_SET.has(analysisOrigin)
     || !LATTICE_PROVIDER_ANALYSIS_ATTEMPT_SET.has(analysisAttempt)
     || !LATTICE_ANALYSIS_VALIDATION_CATEGORY_SET.has(priorValidationCategory)
     || (failureClass === "provider_malformed_response" && subtype === "none")
     || (failureClass !== "provider_malformed_response" && subtype !== "none")
     || (failureClass === "provider_output_limit" && finishReason !== "length")
+    || (stageAttempt === "initial" && priorValidationCategory !== "none")
+    || (stageAttempt === "correction" && priorValidationCategory === "none")
     || (stage === "analysis" && (
       analysisOrigin === "none"
       || !LATTICE_PROVIDER_ACTIVE_ANALYSIS_ATTEMPT_SET.has(analysisAttempt)
-      || (analysisAttempt === "1" && priorValidationCategory !== "none")
-      || (analysisAttempt === "2" && priorValidationCategory === "none")
+      || (analysisAttempt === "1" && stageAttempt !== "initial")
+      || (analysisAttempt === "2" && stageAttempt !== "correction")
     ))
     || (stage !== "analysis" && (
       analysisOrigin !== "none"
       || analysisAttempt !== "none"
-      || priorValidationCategory !== "none"
     ))) {
     return null;
   }
@@ -490,6 +509,7 @@ function qualificationProviderDiagnostic(error) {
     responseSize,
     contentSize,
     completionTokens,
+    stageAttempt,
     analysisOrigin,
     analysisAttempt,
     priorValidationCategory,

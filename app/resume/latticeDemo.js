@@ -54,6 +54,7 @@ import {
   LATTICE_PASSAGE_VERIFICATION_CHECKS,
   LATTICE_PRESERVATION_MODES,
   LATTICE_REQUEST_MODES,
+  LATTICE_STAGE_DIAGNOSTIC_CONTEXT,
   LATTICE_VERIFICATION_DECISIONS,
   LATTICE_VERIFICATION_GATES,
   LATTICE_VERIFICATION_ISSUE_CHECKS,
@@ -1301,29 +1302,44 @@ function analysisFailureDiagnostic(error) {
   return ANALYSIS_FAILURE_DIAGNOSTICS.get(error) ?? null;
 }
 
-function analysisDiagnosticRequest(request, origin, stage, attempt, lastError) {
-  if (!ANALYSIS_DIAGNOSTIC_ORIGIN_SET.has(origin) || ![1, 2].includes(attempt)) {
-    throw new TypeError("Text to Lattice received invalid analysis diagnostic context.");
+function stageDiagnosticRequest(request, stage, attempt, lastError, analysisOrigin) {
+  if (![1, 2].includes(attempt)
+    || (analysisOrigin !== null && !ANALYSIS_DIAGNOSTIC_ORIGIN_SET.has(analysisOrigin))) {
+    throw new TypeError("Text to Lattice received invalid stage diagnostic context.");
   }
+  const priorValidationCategory = attempt === 1
+    ? "none"
+    : analysisValidationCategory(lastError);
   const currentRequest = {
     ...request,
     ...(attempt === 1 ? {} : {
       protocolFeedback: Object.freeze({
         ...stageFeedback(stage, lastError, attempt),
-        category: analysisValidationCategory(lastError),
+        ...(analysisOrigin === null ? {} : { category: priorValidationCategory }),
       }),
     }),
   };
-  Object.defineProperty(currentRequest, LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT, {
+  Object.defineProperty(currentRequest, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
     configurable: false,
     enumerable: false,
     writable: false,
     value: Object.freeze({
-      origin,
-      attempt,
-      priorValidationCategory: attempt === 1 ? "none" : analysisValidationCategory(lastError),
+      attempt: attempt === 1 ? "initial" : "correction",
+      priorValidationCategory,
     }),
   });
+  if (analysisOrigin !== null) {
+    Object.defineProperty(currentRequest, LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT, {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: Object.freeze({
+        origin: analysisOrigin,
+        attempt,
+        priorValidationCategory,
+      }),
+    });
+  }
   return Object.freeze(currentRequest);
 }
 
@@ -1349,11 +1365,13 @@ async function callNormalizedStage({
   let firstError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     throwIfAborted(signal);
-    const currentRequest = analysisDiagnosticOrigin === null
-      ? attempt === 1
-        ? request
-        : Object.freeze({ ...request, protocolFeedback: stageFeedback(stage, lastError, attempt) })
-      : analysisDiagnosticRequest(request, analysisDiagnosticOrigin, stage, attempt, lastError);
+    const currentRequest = stageDiagnosticRequest(
+      request,
+      stage,
+      attempt,
+      lastError,
+      analysisDiagnosticOrigin,
+    );
     try {
       return await normalize(await invoke(currentRequest), currentRequest);
     } catch (error) {

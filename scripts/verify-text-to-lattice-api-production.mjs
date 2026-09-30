@@ -112,6 +112,7 @@ const PROVIDER_COMPLETION_TOKEN_BUCKET_SET = new Set(LATTICE_PROVIDER_COMPLETION
 const PROVIDER_ANALYSIS_ORIGIN_SET = new Set(LATTICE_PROVIDER_ANALYSIS_ORIGINS);
 const PROVIDER_ANALYSIS_ATTEMPT_SET = new Set(LATTICE_PROVIDER_ANALYSIS_ATTEMPTS);
 const PROVIDER_ACTIVE_ANALYSIS_ATTEMPT_SET = new Set(["1", "2"]);
+const PROVIDER_STAGE_ATTEMPT_SET = new Set(["initial", "correction"]);
 const ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
 const TERMINAL_ANALYSIS_CAUSE_SET = new Set([
   "planning",
@@ -369,9 +370,16 @@ const NEGATIVE_PROBES = Object.freeze([
     error: "input_too_large",
   }),
   Object.freeze({
-    id: "request-byte-limit",
+    id: "request-byte-limit-exact",
     pathname: LATTICE_API_PATH,
-    init: apiPost(exactPayload("x".repeat(66_000))),
+    init: apiPost("x".repeat(LATTICE_API_REQUEST_BYTE_LIMIT), { raw: true }),
+    status: 400,
+    error: "invalid_request",
+  }),
+  Object.freeze({
+    id: "request-byte-limit-plus-one",
+    pathname: LATTICE_API_PATH,
+    init: apiPost("x".repeat(LATTICE_API_REQUEST_BYTE_LIMIT + 1), { raw: true }),
     status: 413,
     error: "input_too_large",
   }),
@@ -894,6 +902,7 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
       || !PROVIDER_SIZE_BUCKET_SET.has(diagnosticValues.responseSize)
       || !PROVIDER_SIZE_BUCKET_SET.has(diagnosticValues.contentSize)
       || !PROVIDER_COMPLETION_TOKEN_BUCKET_SET.has(diagnosticValues.completionTokens)
+      || !PROVIDER_STAGE_ATTEMPT_SET.has(diagnosticValues.stageAttempt)
       || !PROVIDER_ANALYSIS_ORIGIN_SET.has(diagnosticValues.analysisOrigin)
       || !PROVIDER_ANALYSIS_ATTEMPT_SET.has(diagnosticValues.analysisAttempt)
       || !ANALYSIS_VALIDATION_CATEGORY_SET.has(diagnosticValues.priorValidationCategory)
@@ -903,18 +912,21 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
         && diagnosticValues.subtype !== "none")
       || (diagnosticValues.failureClass === "provider_output_limit"
         && diagnosticValues.finishReason !== "length")
+      || (diagnosticValues.stageAttempt === "initial"
+        && diagnosticValues.priorValidationCategory !== "none")
+      || (diagnosticValues.stageAttempt === "correction"
+        && diagnosticValues.priorValidationCategory === "none")
       || (diagnosticValues.stage === "analysis" && (
         diagnosticValues.analysisOrigin === "none"
         || !PROVIDER_ACTIVE_ANALYSIS_ATTEMPT_SET.has(diagnosticValues.analysisAttempt)
         || (diagnosticValues.analysisAttempt === "1"
-          && diagnosticValues.priorValidationCategory !== "none")
+          && diagnosticValues.stageAttempt !== "initial")
         || (diagnosticValues.analysisAttempt === "2"
-          && diagnosticValues.priorValidationCategory === "none")
+          && diagnosticValues.stageAttempt !== "correction")
       ))
       || (diagnosticValues.stage !== "analysis" && (
         diagnosticValues.analysisOrigin !== "none"
         || diagnosticValues.analysisAttempt !== "none"
-        || diagnosticValues.priorValidationCategory !== "none"
       ))) {
       fail(`${label} returned an invalid qualification diagnostic`);
     }
@@ -974,6 +986,7 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
       + `response_size=${diagnostic.responseSize}; `
       + `content_size=${diagnostic.contentSize}; `
       + `completion_tokens=${diagnostic.completionTokens}; `
+      + `stage_attempt=${diagnostic.stageAttempt}; `
       + `analysis_origin=${diagnostic.analysisOrigin}; `
       + `analysis_attempt=${diagnostic.analysisAttempt}; `
       + `prior_validation=${diagnostic.priorValidationCategory}`);

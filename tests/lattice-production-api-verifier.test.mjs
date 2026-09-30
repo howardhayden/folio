@@ -83,6 +83,7 @@ function qualificationDiagnosticHeaders(overrides = {}) {
     responseSize: "none",
     contentSize: "none",
     completionTokens: "none",
+    stageAttempt: "initial",
     analysisOrigin: "initial",
     analysisAttempt: "1",
     priorValidationCategory: "none",
@@ -273,6 +274,7 @@ test("the production verifier establishes one bodyless visitor session before ex
     LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS,
   );
   assert.equal(evidence.negative_probes.count, LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.length);
+  assert.equal(evidence.negative_probes.count, 24);
   assert.equal(evidence.negative_probes.all_rejected, true);
   assert.ok(evidence.negative_probes.outcomes.every(({ elapsed_ms: elapsed, response_bytes: bytes }) => (
     Number.isSafeInteger(elapsed) && elapsed >= 0 && Number.isSafeInteger(bytes) && bytes > 0
@@ -454,6 +456,17 @@ test("the production verifier establishes one bodyless visitor session before ex
     requested_mode: "operative",
     schema_version: 1,
   });
+
+  const exactRequestBoundaryCall = fixture.calls[
+    negativeProbeStartIndex
+      + LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.indexOf("request-byte-limit-exact")
+  ];
+  const plusOneRequestBoundaryCall = fixture.calls[
+    negativeProbeStartIndex
+      + LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.indexOf("request-byte-limit-plus-one")
+  ];
+  assert.equal(new TextEncoder().encode(exactRequestBoundaryCall.init.body).byteLength, 65_536);
+  assert.equal(new TextEncoder().encode(plusOneRequestBoundaryCall.init.body).byteLength, 65_537);
 
   const serializedEvidence = JSON.stringify(evidence);
   assert.equal(fixture.canaryText, LATTICE_PRODUCTION_CANARY_TEXT);
@@ -1023,7 +1036,7 @@ test("a failed transformation canary retains only sanitized non-qualifying prefl
         await writeLatticeProductionEvidenceReceipt(preflightPath, evidence);
       },
     }),
-    /synthetic transformation canary returned HTTP 502 \(upstream_unavailable\); failure_class=provider_http_error; upstream_status=503; stage=analysis; call_ordinal=1; subtype=none; finish_reason=none; request_size=4097-16384; response_size=none; content_size=none; completion_tokens=none; analysis_origin=initial; analysis_attempt=1; prior_validation=none/u,
+    /synthetic transformation canary returned HTTP 502 \(upstream_unavailable\); failure_class=provider_http_error; upstream_status=503; stage=analysis; call_ordinal=1; subtype=none; finish_reason=none; request_size=4097-16384; response_size=none; content_size=none; completion_tokens=none; stage_attempt=initial; analysis_origin=initial; analysis_attempt=1; prior_validation=none/u,
   );
   assert.equal(fixture.canaryRequests, 1);
   assert.equal(fixture.setupRequests, 1);
@@ -1104,6 +1117,24 @@ test("the canary rejects absent, partial, malformed, or success diagnostics with
       502,
     ],
     [
+      "stage attempt",
+      qualificationDiagnosticHeaders({ stageAttempt: "retry" }),
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
+      "initial attempt prior validation",
+      qualificationDiagnosticHeaders({ priorValidationCategory: "response-shape" }),
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
+      "correction attempt missing prior validation",
+      qualificationDiagnosticHeaders({ stageAttempt: "correction" }),
+      /invalid qualification diagnostic/u,
+      502,
+    ],
+    [
       "analysis attempt",
       qualificationDiagnosticHeaders({ analysisAttempt: "3" }),
       /invalid qualification diagnostic/u,
@@ -1111,7 +1142,10 @@ test("the canary rejects absent, partial, malformed, or success diagnostics with
     ],
     [
       "missing prior validation",
-      qualificationDiagnosticHeaders({ analysisAttempt: "2" }),
+      qualificationDiagnosticHeaders({
+        stageAttempt: "correction",
+        analysisAttempt: "2",
+      }),
       /invalid qualification diagnostic/u,
       502,
     ],
@@ -1125,7 +1159,29 @@ test("the canary rejects absent, partial, malformed, or success diagnostics with
       502,
     ],
     [
-      "non-analysis context",
+      "non-analysis initial attempt",
+      qualificationDiagnosticHeaders({
+        stage: "candidate",
+        analysisOrigin: "none",
+        analysisAttempt: "none",
+      }),
+      /returned HTTP 502 \(upstream_unavailable\); .*stage=candidate; .*stage_attempt=initial; analysis_origin=none; analysis_attempt=none; prior_validation=none/u,
+      502,
+    ],
+    [
+      "non-analysis correction attempt",
+      qualificationDiagnosticHeaders({
+        stage: "verification",
+        stageAttempt: "correction",
+        analysisOrigin: "none",
+        analysisAttempt: "none",
+        priorValidationCategory: "response-shape",
+      }),
+      /returned HTTP 502 \(upstream_unavailable\); .*stage=verification; .*stage_attempt=correction; analysis_origin=none; analysis_attempt=none; prior_validation=response-shape/u,
+      502,
+    ],
+    [
+      "non-analysis analysis origin",
       qualificationDiagnosticHeaders({ stage: "candidate" }),
       /invalid qualification diagnostic/u,
       502,

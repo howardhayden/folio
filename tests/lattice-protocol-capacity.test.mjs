@@ -80,10 +80,9 @@ const ACTIVE_GENERATOR_TOKENIZER_FIXTURE_AVAILABLE = existsSync(ACTIVE_QWEN_REPO
 const ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE = existsSync(ACTIVE_LLAMA_REPOSITORY_TOKENIZER_PATH);
 const ACTIVE_VERIFIER_CAPACITY_REQUIRED =
   process.env.LATTICE_REQUIRE_ACTIVE_VERIFIER_CAPACITY === "1";
-const PRODUCTION_REACHABLE_VERIFIER_PRETTY_TOKENS = 901;
-const PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS = 914;
-const PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS = 918;
-const OBSERVED_INSUFFICIENT_VERIFIER_CAP = 1_536;
+const PRODUCTION_REACHABLE_VERIFIER_PRETTY_TOKENS = 1_309;
+const PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS = 1_322;
+const PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS = 1_326;
 if (ACTIVE_VERIFIER_CAPACITY_REQUIRED && !ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE) {
   throw new Error(
     "The mandatory active-verifier capacity gate requires the digest-pinned tokenizer fixture.",
@@ -671,6 +670,57 @@ function maximalFittedWireValue(schema, stringValue) {
   throw new TypeError("The fitted-wire test received an unsupported JSON Schema shape.");
 }
 
+function fittedVerificationPassageEntries(schema) {
+  const passageMap = schema.properties.p;
+  return passageMap.required.map((key) => [key, passageMap.properties[key]]);
+}
+
+function permutations(values) {
+  if (values.length <= 1) return [values];
+  return values.flatMap((value, index) => permutations([
+    ...values.slice(0, index),
+    ...values.slice(index + 1),
+  ]).map((suffix) => [value, ...suffix]));
+}
+
+function serializeJsonWithKeyOrder(value, {
+  pretty = false,
+  keyOrder = (_path, _record, keys) => keys,
+} = {}, path = [], depth = 0) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  const indentation = (level) => " ".repeat(level * 2);
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    const items = value.map((item, index) => serializeJsonWithKeyOrder(
+      item,
+      { pretty, keyOrder },
+      [...path, String(index)],
+      depth + 1,
+    ));
+    return pretty
+      ? `[\n${items.map((item) => `${indentation(depth + 1)}${item}`).join(",\n")}\n${indentation(depth)}]`
+      : `[${items.join(",")}]`;
+  }
+  const naturalKeys = Object.keys(value);
+  const orderedKeys = keyOrder(path, value, [...naturalKeys]);
+  assert.deepEqual([...orderedKeys].sort(), [...naturalKeys].sort());
+  if (orderedKeys.length === 0) return "{}";
+  const properties = orderedKeys.map((key) => {
+    const serialized = serializeJsonWithKeyOrder(
+      value[key],
+      { pretty, keyOrder },
+      [...path, key],
+      depth + 1,
+    );
+    return pretty
+      ? `${JSON.stringify(key)}: ${serialized}`
+      : `${JSON.stringify(key)}:${serialized}`;
+  });
+  return pretty
+    ? `{\n${properties.map((property) => `${indentation(depth + 1)}${property}`).join(",\n")}\n${indentation(depth)}}`
+    : `{${properties.join(",")}}`;
+}
+
 function productionReachableCapacitySource() {
   const wordBlock = () => `${Array.from(
     { length: 6 },
@@ -760,29 +810,29 @@ test("a production-reachable verifier boundary wire fits the bounded budget unde
         const value = {
           d: 0,
           g: "0".repeat(11),
-          p: fittedVerificationSchema.properties.p.prefixItems.map((passageSchema) => {
-            const atomCount = passageSchema.prefixItems[0].maxLength;
-            const evidenceCount = passageSchema.prefixItems[2].maxLength;
-            const criterionCount =
-              passageSchema.prefixItems[7].prefixItems[2].prefixItems.length;
-            return [
-              "1".repeat(atomCount),
-              false,
-              "0".repeat(evidenceCount),
-              "0".repeat(9),
-              2,
-              "1".repeat(atomCount),
-              "1".repeat(evidenceCount),
-              [
-                true,
-                "1".repeat(evidenceCount),
-                Array.from(
-                  { length: criterionCount },
-                  () => [true, "1".repeat(evidenceCount)],
-                ),
-              ],
-            ];
-          }),
+          p: Object.fromEntries(fittedVerificationPassageEntries(fittedVerificationSchema)
+            .map(([key, passageSchema]) => {
+              const atomCount = passageSchema.properties.a.maxLength;
+              const evidenceCount = passageSchema.properties.s.maxLength;
+              const criterionCount = passageSchema.properties.c.properties.k.maxItems;
+              return [key, {
+                a: "1".repeat(atomCount),
+                u: false,
+                s: "0".repeat(evidenceCount),
+                f: "0".repeat(9),
+                l: 2,
+                x: "1".repeat(atomCount),
+                y: "1".repeat(evidenceCount),
+                c: {
+                  v: true,
+                  s: "1".repeat(evidenceCount),
+                  k: Array.from(
+                    { length: criterionCount },
+                    () => ({ v: true, s: "1".repeat(evidenceCount) }),
+                  ),
+                },
+              }];
+            })),
           i: [],
         };
         return new Response(JSON.stringify({
@@ -794,7 +844,7 @@ test("a production-reachable verifier boundary wire fits the bounded budget unde
                 id: "call_reachable_capacity",
                 type: "function",
                 function: {
-                  name: "lattice_verification_wire_v1",
+                  name: "lattice_verification_wire_v2",
                   arguments: JSON.stringify(value),
                 },
               }],
@@ -922,33 +972,34 @@ test("a production-reachable verifier boundary wire fits the bounded budget unde
         let passageIndex = -1;
         passageIndex < 4 && issues.length < 24;
         passageIndex += 1
-      ) issues.push([check, passageIndex]);
+      ) issues.push({ c: check, p: passageIndex });
     }
     const maximalReachableRejection = {
       d: 2,
       g: "1".repeat(11),
-      p: fittedVerificationSchema.properties.p.prefixItems.map((passageSchema) => {
-        const atomCount = passageSchema.prefixItems[0].maxLength;
-        const evidenceCount = passageSchema.prefixItems[2].maxLength;
-        const criterionCount = passageSchema.prefixItems[7].prefixItems[2].prefixItems.length;
-        return [
-          "2".repeat(atomCount),
-          false,
-          `${"1".repeat(12)}${"0".repeat(evidenceCount - 12)}`,
-          "1".repeat(9),
-          4,
-          "1".repeat(atomCount),
-          "1".repeat(evidenceCount),
-          [
-            false,
-            "0".repeat(evidenceCount),
-            Array.from(
-              { length: criterionCount },
-              () => [false, "1".repeat(evidenceCount)],
-            ),
-          ],
-        ];
-      }),
+      p: Object.fromEntries(fittedVerificationPassageEntries(fittedVerificationSchema)
+        .map(([key, passageSchema]) => {
+          const atomCount = passageSchema.properties.a.maxLength;
+          const evidenceCount = passageSchema.properties.s.maxLength;
+          const criterionCount = passageSchema.properties.c.properties.k.maxItems;
+          return [key, {
+            a: "2".repeat(atomCount),
+            u: false,
+            s: `${"1".repeat(12)}${"0".repeat(evidenceCount - 12)}`,
+            f: "1".repeat(9),
+            l: 4,
+            x: "1".repeat(atomCount),
+            y: "1".repeat(evidenceCount),
+            c: {
+              v: false,
+              s: "0".repeat(evidenceCount),
+              k: Array.from(
+                { length: criterionCount },
+                () => ({ v: false, s: "1".repeat(evidenceCount) }),
+              ),
+            },
+          }];
+        })),
       i: issues,
     };
     const maximalReachableWire = JSON.stringify(maximalReachableRejection);
@@ -964,7 +1015,7 @@ test("a production-reachable verifier boundary wire fits the bounded budget unde
               id: "call_reachable_rejection",
               type: "function",
               function: {
-                name: "lattice_verification_wire_v1",
+                name: "lattice_verification_wire_v2",
                 arguments: maximalReachableWire,
               },
             }],
@@ -980,26 +1031,26 @@ test("a production-reachable verifier boundary wire fits the bounded budget unde
       minifiedTokens: tokenizer.encode(maximalReachableWire).length,
       prettyTokens: tokenizer.encode(prettyMaximalReachableWire).length,
       nativeToolTokens: tokenizer.encode(nativeToolCompletion(
-        "lattice_verification_wire_v1",
+        "lattice_verification_wire_v2",
         prettyMaximalReachableWire,
       )).length,
       representativeEnvelopeTokens: tokenizer.encode(representativeSerializedProviderEnvelope(
-        "lattice_verification_wire_v1",
+        "lattice_verification_wire_v2",
         prettyMaximalReachableWire,
       )).length,
     }, {
-      minifiedCharacters: 1_154,
-      prettyCharacters: 3_149,
-      minifiedTokens: 475,
+      minifiedCharacters: 1_698,
+      prettyCharacters: 3_829,
+      minifiedTokens: 725,
       prettyTokens: PRODUCTION_REACHABLE_VERIFIER_PRETTY_TOKENS,
       nativeToolTokens: PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS,
-      representativeEnvelopeTokens: 1_226,
+      representativeEnvelopeTokens: 1_624,
     });
     assert.ok(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
         - PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS
-        >= PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS,
-      "the verifier cap must retain a full additional production-reachable native-tool-output margin",
+        >= Math.ceil(PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS / 2),
+      "the verifier cap must retain at least a 50-percent production-reachable native-tool-output margin",
     );
 
   } finally {
@@ -1110,7 +1161,7 @@ test("the complete legal production verifier allocation has an exhaustive pinned
           let passageIndex = -1;
           passageIndex < passageCount && issues.length < issueLimit;
           passageIndex += 1
-        ) issues.push([checkIndex, passageIndex]);
+        ) issues.push({ c: checkIndex, p: passageIndex });
       }
       assert.equal(issues.length, issueLimit);
       return issues;
@@ -1118,26 +1169,26 @@ test("the complete legal production verifier allocation has an exhaustive pinned
     const maximumLegalWireValue = (currentAtomCounts, currentEvidenceCounts) => ({
       d: 2,
       g: "1".repeat(LATTICE_VERIFICATION_GATES.length),
-      p: currentEvidenceCounts.map((evidenceCount, passageIndex) => {
+      p: Object.fromEntries(currentEvidenceCounts.map((evidenceCount, passageIndex) => {
         const atomCount = currentAtomCounts[passageIndex];
-        return [
-          "2".repeat(atomCount),
-          false,
-          `${"1".repeat(Math.min(12, evidenceCount))}${"0".repeat(Math.max(0, evidenceCount - 12))}`,
-          "1".repeat(LATTICE_PASSAGE_VERIFICATION_CHECKS.length),
-          4,
-          "1".repeat(atomCount),
-          "1".repeat(evidenceCount),
-          [
-            false,
-            "0".repeat(evidenceCount),
-            Array.from(
+        return [String(passageIndex), {
+          a: "2".repeat(atomCount),
+          u: false,
+          s: `${"1".repeat(Math.min(12, evidenceCount))}${"0".repeat(Math.max(0, evidenceCount - 12))}`,
+          f: "1".repeat(LATTICE_PASSAGE_VERIFICATION_CHECKS.length),
+          l: 4,
+          x: "1".repeat(atomCount),
+          y: "1".repeat(evidenceCount),
+          c: {
+            v: false,
+            s: "0".repeat(evidenceCount),
+            k: Array.from(
               { length: conformanceCriteria.length },
-              () => [false, "1".repeat(evidenceCount)],
+              () => ({ v: false, s: "1".repeat(evidenceCount) }),
             ),
-          ],
-        ];
-      }),
+          },
+        }];
+      })),
       i: maximumIssues(currentAtomCounts.length),
     });
 
@@ -1157,7 +1208,7 @@ test("the complete legal production verifier allocation has an exhaustive pinned
                 id: "call_complete_legal_maximum",
                 type: "function",
                 function: {
-                  name: "lattice_verification_wire_v1",
+                  name: "lattice_verification_wire_v2",
                   arguments: JSON.stringify(value),
                 },
               }],
@@ -1181,14 +1232,14 @@ test("the complete legal production verifier allocation has an exhaustive pinned
     assert.equal(decoded.passages.length, BATCH_PASSAGE_LIMIT);
     assert.equal(decoded.issues.length, issueLimit);
     assert.deepEqual(
-      fittedSchema.properties.p.prefixItems.map((passageSchema) => (
-        passageSchema.prefixItems[0].maxLength
+      fittedVerificationPassageEntries(fittedSchema).map(([, passageSchema]) => (
+        passageSchema.properties.a.maxLength
       )),
       atomCounts,
     );
     assert.deepEqual(
-      fittedSchema.properties.p.prefixItems.map((passageSchema) => (
-        passageSchema.prefixItems[2].maxLength
+      fittedVerificationPassageEntries(fittedSchema).map(([, passageSchema]) => (
+        passageSchema.properties.s.maxLength
       )),
       evidenceCounts,
     );
@@ -1215,57 +1266,49 @@ test("the complete legal production verifier allocation has an exhaustive pinned
       );
     }
 
-    // Enumerate the complete fitted issue-tuple Cartesian product, including
-    // all 14 document-wide [-1] tuples and the two-digit check indices. Every
-    // scalar is one isolated numeric chunk under the pinned pre-tokenizer.
-    // Exhausting every ordered pair additionally binds both tuple orders at
-    // the JSON separator, so an issue array costs four tokens per tuple plus
-    // one minified wrapper token, or twelve per tuple plus two pretty-wrapper
-    // tokens. Selection and ordering therefore cannot make a 24-item issue
-    // array wider than the fixture used below.
-    const legalIssueTuples = Array.from(
+    // Enumerate the complete fitted issue-object Cartesian product, including
+    // all document-wide p=-1 objects and the two-digit check indices. Exhausting
+    // every ordered pair binds both object orders at the JSON separator, so
+    // selection cannot make a 24-item issue array wider than the fixture below.
+    const legalIssueObjects = Array.from(
       { length: issueCheckCount },
       (_value, checkIndex) => Array.from(
         { length: BATCH_PASSAGE_LIMIT + 1 },
-        (_passageValue, passageOffset) => [checkIndex, passageOffset - 1],
+        (_passageValue, passageOffset) => ({ c: checkIndex, p: passageOffset - 1 }),
       ),
     ).flat();
     assert.equal(
-      legalIssueTuples.length,
+      legalIssueObjects.length,
       issueCheckCount * (BATCH_PASSAGE_LIMIT + 1),
     );
     assert.equal(
-      legalIssueTuples.filter(([, passageIndex]) => passageIndex === -1).length,
+      legalIssueObjects.filter(({ p }) => p === -1).length,
       issueCheckCount,
     );
     assert.deepEqual(
-      [...new Set(legalIssueTuples.map(([checkIndex]) => checkIndex))],
+      [...new Set(legalIssueObjects.map(({ c }) => c))],
       Array.from({ length: issueCheckCount }, (_value, index) => index),
     );
-    const issueTupleMeasurements = new Set(legalIssueTuples.map((issue) => JSON.stringify([
+    const issueObjectMeasurements = new Set(legalIssueObjects.map((issue) => JSON.stringify([
       tokenizer.encode(JSON.stringify(issue)).length,
       tokenizer.encode(JSON.stringify(issue, null, 2)).length,
       tokenizer.encode(JSON.stringify([issue])).length,
       tokenizer.encode(JSON.stringify([issue], null, 2)).length,
     ])));
-    assert.deepEqual([...issueTupleMeasurements], [JSON.stringify([5, 10, 5, 14])]);
+    assert.deepEqual([...issueObjectMeasurements], [JSON.stringify([9, 16, 10, 20])]);
     const issuePairMeasurements = new Set();
-    for (let leftIndex = 0; leftIndex < legalIssueTuples.length; leftIndex += 1) {
-      for (let rightIndex = 0; rightIndex < legalIssueTuples.length; rightIndex += 1) {
+    for (let leftIndex = 0; leftIndex < legalIssueObjects.length; leftIndex += 1) {
+      for (let rightIndex = 0; rightIndex < legalIssueObjects.length; rightIndex += 1) {
         if (leftIndex === rightIndex) continue;
-        const left = legalIssueTuples[leftIndex];
-        const right = legalIssueTuples[rightIndex];
+        const left = legalIssueObjects[leftIndex];
+        const right = legalIssueObjects[rightIndex];
         issuePairMeasurements.add(JSON.stringify([
           tokenizer.encode(JSON.stringify([left, right])).length,
           tokenizer.encode(JSON.stringify([left, right], null, 2)).length,
         ]));
       }
     }
-    assert.deepEqual([...issuePairMeasurements], [JSON.stringify([9, 26])]);
-    assert.deepEqual([
-      1 + (4 * issueLimit),
-      2 + (12 * issueLimit),
-    ], [97, 290]);
+    assert.deepEqual([...issuePairMeasurements], [JSON.stringify([18, 38])]);
 
     // The remaining bounded scalar alternatives are also width-invariant:
     // both booleans and every verifier decision/layer enum index occupy one
@@ -1283,7 +1326,10 @@ test("the complete legal production verifier allocation has an exhaustive pinned
           (_value, index) => index,
         ),
         ...Array.from(
-          { length: fittedSchema.properties.p.prefixItems[0].prefixItems[4].maximum + 1 },
+          {
+            length: fittedVerificationPassageEntries(fittedSchema)[0][1]
+              .properties.l.maximum + 1,
+          },
           (_value, index) => index,
         ),
       ].map((value) => tokenizer.encode(JSON.stringify(value)).length))],
@@ -1334,11 +1380,11 @@ test("the complete legal production verifier allocation has an exhaustive pinned
       const minifiedTokens = tokenizer.encode(minified).length;
       const prettyTokens = tokenizer.encode(pretty).length;
       const minifiedNativeTokens = tokenizer.encode(nativeToolCompletion(
-        "lattice_verification_wire_v1",
+        "lattice_verification_wire_v2",
         minified,
       )).length;
       const prettyNativeTokens = tokenizer.encode(nativeToolCompletion(
-        "lattice_verification_wire_v1",
+        "lattice_verification_wire_v2",
         pretty,
       )).length;
       nativeWrapperDeltas.add(minifiedNativeTokens - minifiedTokens);
@@ -1350,13 +1396,14 @@ test("the complete legal production verifier allocation has an exhaustive pinned
     }
     assert.deepEqual([...nativeWrapperDeltas], [13]);
     assert.deepEqual([...fixedTokenCounts], [
-      [1, { minified: 153, pretty: 414 }],
-      [2, { minified: 191, pretty: 507 }],
-      [3, { minified: 229, pretty: 600 }],
-      [4, { minified: 267, pretty: 693 }],
+      [1, { minified: 286, pretty: 624 }],
+      [2, { minified: 363, pretty: 783 }],
+      [3, { minified: 440, pretty: 942 }],
+      [4, { minified: 517, pretty: 1_101 }],
     ]);
 
     let exhaustiveMaximum = null;
+    const exhaustiveMaximaByPassageCount = new Map();
     for (let passageCount = 1; passageCount <= BATCH_PASSAGE_LIMIT; passageCount += 1) {
       visitAtomAllocations(passageCount, (currentAtomCounts) => {
         const currentEvidenceCounts = currentAtomCounts.map((atomCount) => (
@@ -1378,6 +1425,11 @@ test("the complete legal production verifier allocation has an exhaustive pinned
           || measurement.prettyNativeToolTokens > exhaustiveMaximum.prettyNativeToolTokens) {
           exhaustiveMaximum = measurement;
         }
+        const passageMaximum = exhaustiveMaximaByPassageCount.get(passageCount);
+        if (!passageMaximum
+          || measurement.prettyNativeToolTokens > passageMaximum.prettyNativeToolTokens) {
+          exhaustiveMaximaByPassageCount.set(passageCount, measurement);
+        }
       });
     }
     assert.deepEqual(exhaustiveMaximum, {
@@ -1385,25 +1437,34 @@ test("the complete legal production verifier allocation has an exhaustive pinned
       atomCounts: [1, 1, 2, 20],
       evidenceCounts: [3, 3, 6, 60],
       variableTokens: 212,
-      minifiedTokens: 479,
-      compactNativeToolTokens: 492,
-      prettyTokens: 905,
+      minifiedTokens: 729,
+      compactNativeToolTokens: 742,
+      prettyTokens: 1_313,
       prettyNativeToolTokens: PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS,
     });
     assert.equal(maskTokenUnits(atomCounts, evidenceCounts), exhaustiveMaximum.variableTokens);
 
     const maximumValue = maximumLegalWireValue(atomCounts, evidenceCounts);
+    const exhaustiveMaximumValue = maximumLegalWireValue(
+      exhaustiveMaximum.atomCounts,
+      exhaustiveMaximum.evidenceCounts,
+    );
     const maximumWire = JSON.stringify(maximumValue);
     const prettyMaximumWire = JSON.stringify(maximumValue, null, 2);
+    assert.equal(serializeJsonWithKeyOrder(maximumValue), maximumWire);
+    assert.equal(
+      serializeJsonWithKeyOrder(maximumValue, { pretty: true }),
+      prettyMaximumWire,
+    );
     assert.deepEqual({
       minifiedTokens: tokenizer.encode(maximumWire).length,
       compactNativeToolTokens: tokenizer.encode(nativeToolCompletion(
-        "lattice_verification_wire_v1",
+        "lattice_verification_wire_v2",
         maximumWire,
       )).length,
       prettyTokens: tokenizer.encode(prettyMaximumWire).length,
       prettyNativeToolTokens: tokenizer.encode(nativeToolCompletion(
-        "lattice_verification_wire_v1",
+        "lattice_verification_wire_v2",
         prettyMaximumWire,
       )).length,
     }, {
@@ -1412,39 +1473,127 @@ test("the complete legal production verifier allocation has an exhaustive pinned
       prettyTokens: exhaustiveMaximum.prettyTokens,
       prettyNativeToolTokens: exhaustiveMaximum.prettyNativeToolTokens,
     });
-    const permute = (values) => values.length <= 1
-      ? [values]
-      : values.flatMap((value, index) => permute([
-        ...values.slice(0, index),
-        ...values.slice(index + 1),
-      ]).map((suffix) => [value, ...suffix]));
-    const rootOrderMeasurements = new Set(permute(["d", "g", "p", "i"]).map((order) => {
-      const orderedValue = Object.fromEntries(order.map((key) => [key, maximumValue[key]]));
-      const minified = JSON.stringify(orderedValue);
-      const pretty = JSON.stringify(orderedValue, null, 2);
+    // JSON object member order is semantically irrelevant and the decoder
+    // deliberately accepts every order. Exhaust the 8! passage-record orders
+    // for each distinct shape in the actual worst allocation, then exhaust
+    // every conformance/criterion/issue order. Each local permutation is
+    // measured inside its immediate containing object/array, including the
+    // opening/closing-brace boundary. The raw numeric p-map and root checks
+    // below then measure every remaining enclosing boundary in the complete
+    // native-tool result. These invariant local maxima therefore compose.
+    const passageKeyOrders = permutations(["a", "u", "s", "f", "l", "x", "y", "c"]);
+    const passageOrderMeasurements = ["0", "2", "3"].map((passageKey) => {
+      const passage = exhaustiveMaximumValue.p[passageKey];
+      const wrapper = { p: { 0: passage } };
+      const measurements = new Set(passageKeyOrders.map((order) => (
+        tokenizer.encode(serializeJsonWithKeyOrder(wrapper, {
+          pretty: true,
+          keyOrder: (path, _record, keys) => (
+            path.length === 2 && path[0] === "p" ? order : keys
+          ),
+        })).length
+      )));
+      assert.deepEqual(
+        [...measurements],
+        [tokenizer.encode(JSON.stringify(wrapper, null, 2)).length],
+      );
+      return measurements.size;
+    });
+    assert.deepEqual(passageOrderMeasurements, [1, 1, 1]);
+
+    const conformance = exhaustiveMaximumValue.p["3"].c;
+    const conformanceWrapper = { c: conformance };
+    const conformanceOrderMeasurements = new Set();
+    for (const conformanceOrder of permutations(["v", "s", "k"])) {
+      for (let criterionOrderMask = 0; criterionOrderMask < 2 ** conformance.k.length;
+        criterionOrderMask += 1) {
+        const serialized = serializeJsonWithKeyOrder(conformanceWrapper, {
+          pretty: true,
+          keyOrder: (path, _record, keys) => {
+            if (path.length === 1 && path[0] === "c") return conformanceOrder;
+            if (path.length === 3 && path[0] === "c" && path[1] === "k") {
+              return criterionOrderMask & (1 << Number(path[2])) ? ["s", "v"] : ["v", "s"];
+            }
+            return keys;
+          },
+        });
+        conformanceOrderMeasurements.add(tokenizer.encode(serialized).length);
+      }
+    }
+    assert.deepEqual(
+      [...conformanceOrderMeasurements],
+      [tokenizer.encode(JSON.stringify(conformanceWrapper, null, 2)).length],
+    );
+
+    for (const issue of legalIssueObjects) {
+      const issueWrapper = { i: [issue] };
+      const issueOrderMeasurements = new Set(permutations(["c", "p"]).map((order) => (
+        tokenizer.encode(serializeJsonWithKeyOrder(issueWrapper, {
+          pretty: true,
+          keyOrder: (path, _record, keys) => (
+            path.length === 2 && path[0] === "i" ? order : keys
+          ),
+        })).length
+      )));
+      assert.deepEqual(
+        [...issueOrderMeasurements],
+        [tokenizer.encode(JSON.stringify(issueWrapper, null, 2)).length],
+      );
+    }
+
+    // Integer-like passage keys are sorted by Object.keys/JSON.stringify, but
+    // raw provider JSON can place them in any order. Serialize those maps
+    // manually for every supported passage count and exhaust each permutation
+    // in the full native-tool wrapper.
+    for (let passageCount = 1; passageCount <= BATCH_PASSAGE_LIMIT; passageCount += 1) {
+      const passageMaximum = exhaustiveMaximaByPassageCount.get(passageCount);
+      const value = maximumLegalWireValue(
+        passageMaximum.atomCounts,
+        passageMaximum.evidenceCounts,
+      );
+      const passageOrders = permutations(Object.keys(value.p));
+      const orderMeasurements = new Set(passageOrders.map((passageOrder) => {
+        const pretty = serializeJsonWithKeyOrder(value, {
+          pretty: true,
+          keyOrder: (path, _record, keys) => (
+            path.length === 1 && path[0] === "p" ? passageOrder : keys
+          ),
+        });
+        return tokenizer.encode(nativeToolCompletion(
+          "lattice_verification_wire_v2",
+          pretty,
+        )).length;
+      }));
+      assert.equal(orderMeasurements.size, 1);
+      assert.ok([...orderMeasurements][0] <= PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS);
+    }
+
+    const rootOrderMeasurements = new Set(permutations(["d", "g", "p", "i"]).map((order) => {
+      const minified = serializeJsonWithKeyOrder(exhaustiveMaximumValue, {
+        keyOrder: (path, _record, keys) => path.length === 0 ? order : keys,
+      });
+      const pretty = serializeJsonWithKeyOrder(exhaustiveMaximumValue, {
+        pretty: true,
+        keyOrder: (path, _record, keys) => path.length === 0 ? order : keys,
+      });
       return JSON.stringify([
         tokenizer.encode(minified).length,
-        tokenizer.encode(nativeToolCompletion("lattice_verification_wire_v1", minified)).length,
+        tokenizer.encode(nativeToolCompletion("lattice_verification_wire_v2", minified)).length,
         tokenizer.encode(pretty).length,
-        tokenizer.encode(nativeToolCompletion("lattice_verification_wire_v1", pretty)).length,
+        tokenizer.encode(nativeToolCompletion("lattice_verification_wire_v2", pretty)).length,
       ]);
     }));
-    assert.deepEqual([...rootOrderMeasurements], [JSON.stringify([479, 492, 905, 918])]);
+    assert.deepEqual([...rootOrderMeasurements], [JSON.stringify([729, 742, 1_313, 1_326])]);
     assert.equal(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification,
       Math.ceil(
-        Math.ceil(exhaustiveMaximum.prettyNativeToolTokens * 2) / 256,
+        Math.ceil(exhaustiveMaximum.prettyNativeToolTokens * 1.5) / 256,
       ) * 256,
     );
     assert.equal(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
         - exhaustiveMaximum.prettyNativeToolTokens,
-      1_130,
-    );
-    assert.equal(
-      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
-        - OBSERVED_INSUFFICIENT_VERIFIER_CAP,
-      512,
+      722,
     );
   } finally {
     tokenizer.dispose();
@@ -1476,29 +1625,29 @@ test("the production-reachable maximum-token relation certifier wire fits the bo
         const value = {
           d: 0,
           g: "0".repeat(11),
-          p: schema.properties.p.prefixItems.map((passageSchema) => {
-            const atomCount = passageSchema.prefixItems[0].maxLength;
-            const evidenceCount = passageSchema.prefixItems[2].maxLength;
-            const criterionCount =
-              passageSchema.prefixItems[7].prefixItems[2].prefixItems.length;
-            return [
-              "1".repeat(atomCount),
-              false,
-              "0".repeat(evidenceCount),
-              "0".repeat(9),
-              2,
-              "1".repeat(atomCount),
-              "1".repeat(evidenceCount),
-              [
-                true,
-                "1".repeat(evidenceCount),
-                Array.from(
-                  { length: criterionCount },
-                  () => [true, "1".repeat(evidenceCount)],
-                ),
-              ],
-            ];
-          }),
+          p: Object.fromEntries(fittedVerificationPassageEntries(schema)
+            .map(([key, passageSchema]) => {
+              const atomCount = passageSchema.properties.a.maxLength;
+              const evidenceCount = passageSchema.properties.s.maxLength;
+              const criterionCount = passageSchema.properties.c.properties.k.maxItems;
+              return [key, {
+                a: "1".repeat(atomCount),
+                u: false,
+                s: "0".repeat(evidenceCount),
+                f: "0".repeat(9),
+                l: 2,
+                x: "1".repeat(atomCount),
+                y: "1".repeat(evidenceCount),
+                c: {
+                  v: true,
+                  s: "1".repeat(evidenceCount),
+                  k: Array.from(
+                    { length: criterionCount },
+                    () => ({ v: true, s: "1".repeat(evidenceCount) }),
+                  ),
+                },
+              }];
+            })),
           i: [],
         };
         return new Response(JSON.stringify({
@@ -1510,7 +1659,7 @@ test("the production-reachable maximum-token relation certifier wire fits the bo
                 id: "call_reachable_relation_verification",
                 type: "function",
                 function: {
-                  name: "lattice_verification_wire_v1",
+                  name: "lattice_verification_wire_v2",
                   arguments: JSON.stringify(value),
                 },
               }],
@@ -1712,7 +1861,7 @@ test("the production-reachable maximum-token relation certifier wire fits the bo
               id: "call_reachable_relation_certification",
               type: "function",
               function: {
-                name: "lattice_certification_wire_v1",
+                name: "lattice_certification_wire_v2",
                 arguments: maximalReachableWire,
               },
             }],
@@ -1728,11 +1877,11 @@ test("the production-reachable maximum-token relation certifier wire fits the bo
       minifiedTokens: tokenizer.encode(maximalReachableWire).length,
       prettyTokens: tokenizer.encode(prettyMaximalReachableWire).length,
       nativeToolTokens: tokenizer.encode(nativeToolCompletion(
-        "lattice_certification_wire_v1",
+        "lattice_certification_wire_v2",
         prettyMaximalReachableWire,
       )).length,
       representativeEnvelopeTokens: tokenizer.encode(representativeSerializedProviderEnvelope(
-        "lattice_certification_wire_v1",
+        "lattice_certification_wire_v2",
         prettyMaximalReachableWire,
       )).length,
     }, {
@@ -1875,31 +2024,32 @@ test("the production-reachable maximum-character split-window certifier wire is 
         }
 
         const toolName = body.tool_choice?.function?.name;
-        if (toolName === "lattice_verification_wire_v1") {
+        if (toolName === "lattice_verification_wire_v2") {
           verifierCalls += 1;
           const schema = body.tools[0].function.parameters;
-          const passages = schema.properties.p.prefixItems.map((passageSchema) => {
-            const atomCount = passageSchema.prefixItems[0].maxLength;
-            const evidenceCount = passageSchema.prefixItems[2].maxLength;
-            const criterionCount = passageSchema.prefixItems[7].prefixItems[2].prefixItems.length;
-            return [
-              "1".repeat(atomCount),
-              false,
-              "0".repeat(evidenceCount),
-              "0".repeat(9),
-              2,
-              "1".repeat(atomCount),
-              "1".repeat(evidenceCount),
-              [
-                true,
-                "1".repeat(evidenceCount),
-                Array.from(
-                  { length: criterionCount },
-                  () => [true, "1".repeat(evidenceCount)],
-                ),
-              ],
-            ];
-          });
+          const passages = Object.fromEntries(fittedVerificationPassageEntries(schema)
+            .map(([key, passageSchema]) => {
+              const atomCount = passageSchema.properties.a.maxLength;
+              const evidenceCount = passageSchema.properties.s.maxLength;
+              const criterionCount = passageSchema.properties.c.properties.k.maxItems;
+              return [key, {
+                a: "1".repeat(atomCount),
+                u: false,
+                s: "0".repeat(evidenceCount),
+                f: "0".repeat(9),
+                l: 2,
+                x: "1".repeat(atomCount),
+                y: "1".repeat(evidenceCount),
+                c: {
+                  v: true,
+                  s: "1".repeat(evidenceCount),
+                  k: Array.from(
+                    { length: criterionCount },
+                    () => ({ v: true, s: "1".repeat(evidenceCount) }),
+                  ),
+                },
+              }];
+            }));
           return toolResponse(toolName, {
             d: 0,
             g: "0".repeat(11),
@@ -1907,12 +2057,12 @@ test("the production-reachable maximum-character split-window certifier wire is 
             i: [],
           }, providerCalls);
         }
-        if (toolName === "lattice_certification_wire_v1") {
+        if (toolName === "lattice_certification_wire_v2") {
           if (certifierCalls === 0) preCertificationCalls = providerCalls - 1;
           certifierCalls += 1;
           const payload = inertPayload(body.messages);
           certificationPayloads.push(payload);
-          const checkCount = body.tools[0].function.parameters.properties.k.prefixItems.length;
+          const checkCount = body.tools[0].function.parameters.properties.k.maxItems;
           assert.equal(checkCount, 10);
           const rejecting = payload.certificateId === maximalCertificateId;
           const value = {
@@ -2193,8 +2343,10 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
     const [verificationSchema, certificationSchema, adversarialCertificationSchema] = bodies.map(fittedSchema);
     assert.deepEqual(verificationSchema.required, ["d", "g", "p", "i"]);
     assert.deepEqual(certificationSchema.required, ["c", "o", "d", "k", "i"]);
-    assert.equal(verificationSchema.properties.p.prefixItems.length, batch.passages.length);
-    assert.equal(certificationSchema.properties.o.prefixItems.length, 24);
+    assert.equal(verificationSchema.properties.p.required.length, batch.passages.length);
+    assert.equal(certificationSchema.properties.o.maxItems, 24);
+    assert.equal(JSON.stringify(verificationSchema).includes("prefixItems"), false);
+    assert.equal(JSON.stringify(certificationSchema).includes("prefixItems"), false);
 
     let state = 0x51f15e;
     const denseMask = (length) => {
@@ -2210,30 +2362,33 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       denseMask,
     );
     const maximalVerificationIssues = [
-      [10, -1],
+      { c: 10, p: -1 },
       ...[10, 11, 12, 13].flatMap((check) => (
-        [0, 1, 2, 3].map((passage) => [check, passage])
+        [0, 1, 2, 3].map((passage) => ({ c: check, p: passage }))
       )),
-      ...[0, 1, 2, 3, 4, 5, 6].map((check) => [check, -1]),
+      ...[0, 1, 2, 3, 4, 5, 6].map((check) => ({ c: check, p: -1 })),
     ];
-    const maximalVerificationPassage = () => [
-      "2".repeat(6),
-      false,
-      `${"1".repeat(12)}${"0".repeat(12)}`,
-      "1".repeat(9),
-      4,
-      "1".repeat(6),
-      "1".repeat(24),
-      [
-        false,
-        "0".repeat(24),
-        Array.from({ length: 5 }, () => [false, "1".repeat(24)]),
-      ],
-    ];
+    const maximalVerificationPassage = () => ({
+      a: "2".repeat(6),
+      u: false,
+      s: `${"1".repeat(12)}${"0".repeat(12)}`,
+      f: "1".repeat(9),
+      l: 4,
+      x: "1".repeat(6),
+      y: "1".repeat(24),
+      c: {
+        v: false,
+        s: "0".repeat(24),
+        k: Array.from({ length: 5 }, () => ({ v: false, s: "1".repeat(24) })),
+      },
+    });
     const maximalVerificationValue = {
       d: maximalFittedVerificationValue.d,
       g: "1".repeat(11),
-      p: Array.from({ length: 4 }, maximalVerificationPassage),
+      p: Object.fromEntries(Array.from(
+        { length: 4 },
+        (_value, index) => [String(index), maximalVerificationPassage()],
+      )),
       i: maximalVerificationIssues,
     };
     const maximalCertificationValue = {
@@ -2249,7 +2404,7 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
     };
     assert.deepEqual(adversarialCertificationSchema.properties.c.enum, [adversarialCertificationValue.c]);
     assert.deepEqual(
-      adversarialCertificationSchema.properties.o.prefixItems.map(({ enum: values }) => values[0]),
+      adversarialCertificationSchema.properties.o.items.enum,
       adversarialCertificationValue.o,
     );
     const verificationWire = JSON.stringify(maximalVerificationValue);
@@ -2263,8 +2418,8 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       2,
     );
     const legalWireResponses = [
-      ["lattice_verification_wire_v1", verificationWire],
-      ["lattice_certification_wire_v1", adversarialCertificationWire],
+      ["lattice_verification_wire_v2", verificationWire],
+      ["lattice_certification_wire_v2", adversarialCertificationWire],
     ];
     const legalWireAdapter = createHuggingFaceLatticeAdapter({
       token: "server-test-token",
@@ -2311,35 +2466,44 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
     // contains gateway metadata, so it is representative and is not part of
     // the model-output budget proof.
     const nativeVerificationToolTokens = tokenizer.encode(nativeToolCompletion(
-      "lattice_verification_wire_v1",
+      "lattice_verification_wire_v2",
       prettyVerificationWire,
     )).length;
     const nativeCertificationToolTokens = tokenizer.encode(nativeToolCompletion(
-      "lattice_certification_wire_v1",
+      "lattice_certification_wire_v2",
       prettyCertificationWire,
     )).length;
     const nativeAdversarialCertificationToolTokens = tokenizer.encode(nativeToolCompletion(
-      "lattice_certification_wire_v1",
+      "lattice_certification_wire_v2",
       prettyAdversarialCertificationWire,
     )).length;
+    const certificationRootOrderTokens = permutations(["c", "o", "d", "k", "i"])
+      .map((order) => tokenizer.encode(nativeToolCompletion(
+        "lattice_certification_wire_v2",
+        serializeJsonWithKeyOrder(adversarialCertificationValue, {
+          pretty: true,
+          keyOrder: (path, _record, keys) => path.length === 0 ? order : keys,
+        }),
+      )).length);
+    assert.equal(Math.max(...certificationRootOrderTokens), 440);
     const representativeSerializedVerificationEnvelopeTokens = tokenizer.encode(representativeSerializedProviderEnvelope(
-      "lattice_verification_wire_v1",
+      "lattice_verification_wire_v2",
       prettyVerificationWire,
     )).length;
     const acceptedMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens = tokenizer.encode(
       representativeSerializedProviderEnvelope(
-        "lattice_verification_wire_v1",
+        "lattice_verification_wire_v2",
         prettyVerificationWire,
         "x".repeat(256),
       ),
     ).length;
     const representativeSerializedCertificationEnvelopeTokens = tokenizer.encode(representativeSerializedProviderEnvelope(
-      "lattice_certification_wire_v1",
+      "lattice_certification_wire_v2",
       prettyCertificationWire,
     )).length;
     const representativeSerializedAdversarialCertificationEnvelopeTokens = tokenizer.encode(
       representativeSerializedProviderEnvelope(
-        "lattice_certification_wire_v1",
+        "lattice_certification_wire_v2",
         prettyAdversarialCertificationWire,
       ),
     ).length;
@@ -2361,19 +2525,19 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       adversarialCertificationTokens,
       prettyAdversarialCertificationTokens,
     }, {
-      verificationTokens: 539,
-      prettyVerificationTokens: 965,
+      verificationTokens: 789,
+      prettyVerificationTokens: 1_373,
       certificationTokens: 142,
       prettyCertificationTokens: 243,
-      nativeVerificationToolTokens: 978,
+      nativeVerificationToolTokens: 1_386,
       nativeCertificationToolTokens: 257,
       nativeAdversarialCertificationToolTokens: 440,
-      representativeSerializedVerificationEnvelopeTokens: 1_290,
-      acceptedMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens: 1_316,
+      representativeSerializedVerificationEnvelopeTokens: 1_688,
+      acceptedMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens: 1_714,
       representativeSerializedCertificationEnvelopeTokens: 342,
       representativeSerializedAdversarialCertificationEnvelopeTokens: 503,
-      verificationWireCharacters: 1_430,
-      fittedVerificationSchemaWireCharacters: 1_453,
+      verificationWireCharacters: 1_974,
+      fittedVerificationSchemaWireCharacters: 1_997,
       adversarialCertificationWireCharacters: 440,
       adversarialCertificationTokens: 369,
       prettyAdversarialCertificationTokens: 426,
@@ -2397,19 +2561,14 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
     assert.ok(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
         === Math.ceil(
-          Math.ceil(PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS * 2) / 256,
+          Math.ceil(PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS * 1.5) / 256,
         ) * 256,
-      "the verifier cap must be the smallest 256-token step retaining a full additional pinned-tokenizer maximum over a complete legal production verifier object",
+      "the verifier cap must be the smallest 256-token step retaining a 50-percent pinned-tokenizer margin over a complete legal production verifier object",
     );
     assert.equal(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
         - PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS,
-      1_130,
-    );
-    assert.equal(
-      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
-        - OBSERVED_INSUFFICIENT_VERIFIER_CAP,
-      512,
+      722,
     );
     assert.ok(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.certification

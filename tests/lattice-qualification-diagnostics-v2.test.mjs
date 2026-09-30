@@ -7,6 +7,7 @@ import {
 } from "../app/resume/latticeDemo.js";
 import {
   LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT,
+  LATTICE_STAGE_DIAGNOSTIC_CONTEXT,
 } from "../app/resume/lattice/promptContract.js";
 import {
   LATTICE_PROVIDER_MALFORMED_SUBTYPES,
@@ -25,6 +26,7 @@ const QUALIFICATION_FIELDS = Object.freeze([
   "qualificationResponseSize",
   "qualificationContentSize",
   "qualificationCompletionTokens",
+  "qualificationStageAttempt",
   "qualificationAnalysisOrigin",
   "qualificationAnalysisAttempt",
   "qualificationPriorValidationCategory",
@@ -146,6 +148,7 @@ test("an initial host-validation correction attributes malformed provider call t
   assert.equal(error.qualificationResponseSize, "1-4096");
   assert.equal(error.qualificationContentSize, "none");
   assert.equal(error.qualificationCompletionTokens, "none");
+  assert.equal(error.qualificationStageAttempt, "correction");
   assert.equal(error.qualificationAnalysisOrigin, "initial");
   assert.equal(error.qualificationAnalysisAttempt, "2");
   assert.equal(error.qualificationPriorValidationCategory, "passage-coverage");
@@ -155,7 +158,7 @@ test("an initial host-validation correction attributes malformed provider call t
   for (const body of providerBodies) {
     assert.doesNotMatch(
       body,
-      /lattice-analysis-diagnostic-context|analysisOrigin|analysisAttempt|priorValidationCategory/u,
+      /lattice-(?:analysis|stage)-diagnostic-context|stageAttempt|analysisOrigin|analysisAttempt|priorValidationCategory/u,
     );
   }
   const [firstBody, correctedBody] = providerBodies.map((body) => JSON.parse(body));
@@ -222,6 +225,7 @@ test("a malformed compact analysis tuple fails into the bounded host correction 
   assert.equal(error.code, "provider_malformed_response");
   assert.equal(error.qualificationCallOrdinal, 2);
   assert.equal(error.qualificationSubtype, "content_json");
+  assert.equal(error.qualificationStageAttempt, "correction");
   assert.equal(error.qualificationAnalysisOrigin, "initial");
   assert.equal(error.qualificationAnalysisAttempt, "2");
   assert.equal(error.qualificationPriorValidationCategory, "response-shape");
@@ -409,6 +413,7 @@ test("malformed structured content carries only fixed subtype and coarse size me
   assert.ok(error instanceof LatticeProviderError);
   assert.equal(error.code, "provider_malformed_response");
   assert.equal(error.qualificationSubtype, "content_json");
+  assert.equal(error.qualificationStageAttempt, "initial");
   assert.equal(error.qualificationFinishReason, "stop");
   assert.equal(error.qualificationRequestSize, "4097-16384");
   assert.equal(error.qualificationResponseSize, "1-4096");
@@ -421,7 +426,7 @@ test("malformed structured content carries only fixed subtype and coarse size me
   assert.equal(JSON.stringify(error).includes(privateContent), false);
   assert.doesNotMatch(
     providerBody,
-    /lattice-analysis-diagnostic-context|analysisOrigin|analysisAttempt|priorValidationCategory/u,
+    /lattice-(?:analysis|stage)-diagnostic-context|stageAttempt|analysisOrigin|analysisAttempt|priorValidationCategory/u,
   );
   assertHiddenImmutableDiagnostics(error);
 });
@@ -740,24 +745,32 @@ test("re-analysis correction context remains hidden and preserves its logical or
   const source = Array.from({ length: 8 }, (_, index) => `u${index}`).join(" ");
   const contexts = [];
   const requests = [];
+  const stageContexts = [];
+  const captureStageContext = (stage, request) => {
+    stageContexts.push({ stage, request, context: request[LATTICE_STAGE_DIAGNOSTIC_CONTEXT] });
+  };
   const stop = new Error("stop after observing re-analysis correction context");
   let reanalysisCalls = 0;
   const adapter = {
     async analyze(request) {
       requests.push(request);
       contexts.push(request[LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT]);
+      captureStageContext(request.reanalysisFeedback ? "re-atomization" : "atomization", request);
       if (!request.reanalysisFeedback) return validRawAnalysis(request);
       reanalysisCalls += 1;
       if (reanalysisCalls === 1) return { ...validRawAnalysis(request), extra: true };
       throw stop;
     },
     async generate(request) {
+      captureStageContext("generation", request);
       return validRawCandidate(request);
     },
     async verify(request) {
+      captureStageContext("verification", request);
       return structuralFailure(request);
     },
     async repair(request) {
+      captureStageContext("repair", request);
       return validRawCandidate(request);
     },
   };
@@ -774,6 +787,27 @@ test("re-analysis correction context remains hidden and preserves its logical or
     { origin: "reanalysis", attempt: 1, priorValidationCategory: "none" },
     { origin: "reanalysis", attempt: 2, priorValidationCategory: "response-shape" },
   ]);
+  assert.deepEqual(stageContexts.map(({ stage, context }) => ({ stage, ...context })), [
+    { stage: "atomization", attempt: "initial", priorValidationCategory: "none" },
+    { stage: "generation", attempt: "initial", priorValidationCategory: "none" },
+    { stage: "verification", attempt: "initial", priorValidationCategory: "none" },
+    { stage: "re-atomization", attempt: "initial", priorValidationCategory: "none" },
+    { stage: "re-atomization", attempt: "correction", priorValidationCategory: "response-shape" },
+  ]);
+
+  for (const { request, context } of stageContexts) {
+    const descriptor = Object.getOwnPropertyDescriptor(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT);
+    assert.ok(descriptor);
+    assert.equal(descriptor.enumerable, false);
+    assert.equal(descriptor.configurable, false);
+    assert.equal(descriptor.writable, false);
+    assert.equal(Object.isFrozen(context), true);
+    assert.equal(Object.isFrozen(request), true);
+    assert.doesNotMatch(
+      JSON.stringify(request),
+      /stageAttempt|priorValidationCategory|lattice-stage-diagnostic-context/u,
+    );
+  }
 
   for (let index = 0; index < requests.length; index += 1) {
     const descriptor = Object.getOwnPropertyDescriptor(
@@ -789,6 +823,65 @@ test("re-analysis correction context remains hidden and preserves its logical or
     assert.doesNotMatch(
       JSON.stringify(requests[index]),
       /analysisOrigin|analysisAttempt|priorValidationCategory|lattice-analysis-diagnostic-context/u,
+    );
+  }
+});
+
+test("non-analysis correction diagnostics preserve generator and repair feedback payloads", async () => {
+  const generationRequests = [];
+  const recoveryRequests = [];
+  const stop = new Error("stop after observing generation recovery correction context");
+  const adapter = {
+    async analyze(request) {
+      return validRawAnalysis(request);
+    },
+    async generate(request) {
+      generationRequests.push(request);
+      return {};
+    },
+    async verify() {
+      assert.fail("invalid generation must not reach verification");
+    },
+    async repair(request) {
+      recoveryRequests.push(request);
+      if (recoveryRequests.length === 1) return {};
+      throw stop;
+    },
+  };
+
+  const error = await captureFailure(runTextToLattice(SOURCE, {
+    adapter,
+    requestedMode: "operative",
+    allowClarification: false,
+  }));
+  assert.equal(error, stop);
+  assert.equal(generationRequests.length, 2);
+  assert.equal(recoveryRequests.length, 2);
+
+  for (const [stage, requests] of [
+    ["generation", generationRequests],
+    ["generation-recovery", recoveryRequests],
+  ]) {
+    assert.deepEqual(
+      requests.map((request) => ({ ...request[LATTICE_STAGE_DIAGNOSTIC_CONTEXT] })),
+      [
+        { attempt: "initial", priorValidationCategory: "none" },
+        { attempt: "correction", priorValidationCategory: "response-shape" },
+      ],
+      stage,
+    );
+    const correctionFeedback = requests[1].protocolFeedback;
+    assert.deepEqual(
+      Object.keys(correctionFeedback).sort(),
+      ["attempt", "instruction", "issue", "stage"],
+      stage,
+    );
+    assert.equal(correctionFeedback.stage, stage);
+    assert.equal(correctionFeedback.attempt, 2);
+    assert.equal(Object.hasOwn(correctionFeedback, "category"), false);
+    assert.doesNotMatch(
+      JSON.stringify(requests),
+      /lattice-stage-diagnostic-context|priorValidationCategory|stageAttempt/u,
     );
   }
 });
