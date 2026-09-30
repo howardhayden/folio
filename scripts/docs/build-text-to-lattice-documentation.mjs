@@ -778,7 +778,7 @@ function lifecycleGateNarrative(productionLifecycleGate) {
   if (productionLifecycleGate.status === "post-deployment-verification") {
     return "The interactive client is deployed only for immediate canonical-browser qualification and is not qualified. GATE-02 and GATE-03 carry current production evidence; GATE-06 remains in post-deployment verification until the required structured browser evidence passes. Any failed, incomplete, or delayed qualification requires immediate rollback to the held documentation-only artifact.";
   }
-  return "The public client remains held and documentation-only. GATE-06 has source and test evidence for the explicit-submit bodyless content-free same-origin POST /api/lattice setup followed after its accepted 204 under the same origin-wide Web Lock by exactly one content-bearing POST /api/lattice, fixed server targets, bounded response, cancellation, no-retry, no-fallback, and application nonretention contracts. Run #156 is bounded remote production failure evidence, but there is no successful production transformation or canonical-browser remote trace. Historical WebLLM, Turnstile, lease, and two-origin traces remain preserved as inactive evidence for their own deployed revisions and cannot satisfy the current gate.";
+  return "The public client remains held and documentation-only. GATE-06 has source and test evidence for the explicit-submit bodyless content-free same-origin POST /api/lattice setup followed after its accepted 204 under the same origin-wide Web Lock by exactly one content-bearing POST /api/lattice, fixed server targets, bounded response, cancellation, no-retry, no-fallback, and application nonretention contracts. Required production qualification remains incomplete; current bounded evidence is recorded in the release register. Historical WebLLM, Turnstile, lease, and two-origin traces remain preserved as inactive evidence for their own deployed revisions and cannot satisfy the current gate.";
 }
 
 function sourceMapFor(data) {
@@ -1713,7 +1713,7 @@ function indexHtml(data, releaseRegister) {
   const productionLifecycleSatisfied = releaseRegister.gates
     .some(({ id, status }) => id === "GATE-06" && status === "satisfied-in-production");
   const releaseSummary = releaseRegister.overallStatus === "held"
-    ? "The remote interactive client is held and documentation-only because GATE-02, GATE-03, and GATE-06 remain open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face router with Nscale and DeepInfra targets. Run #156 is bounded remote production failure evidence, but there is no successful production transformation or current canonical-browser trace. Historical WebLLM, Turnstile, and lease records remain inactive."
+    ? "The remote interactive client is held and documentation-only because GATE-02, GATE-03, and GATE-06 remain open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face router with Nscale and DeepInfra targets. Required production qualification remains incomplete; current bounded evidence is recorded in the release register. Historical WebLLM, Turnstile, and lease records remain inactive."
     : releaseRegister.overallStatus === "qualification-pending"
       ? "The interactive client is deployed only for immediate canonical-browser qualification and is not qualified. GATE-06 remains in post-deployment verification; failed, incomplete, or delayed structured browser evidence requires immediate rollback to the held documentation-only artifact."
     : productionLifecycleSatisfied

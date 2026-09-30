@@ -36,7 +36,7 @@ test("the documentation generator binds current remote evidence and preserves in
   assert.match(builder, /post-deployment verification only after GATE-02 and GATE-03 are satisfied in production/u);
   assert.match(builder, /deployed only for immediate canonical-browser qualification and is not qualified/u);
   assert.match(builder, /Current active evidence:[\s\S]{0,240}Historical inactive classification:/u);
-  assert.match(builder, /Run #156 is bounded remote production failure evidence[^]{0,160}no successful production transformation/u);
+  assert.match(builder, /Required production qualification remains incomplete; current bounded evidence is recorded in the release register/u);
   assert.match(releaseVerifier, /import \{ verifyBrowserEvidenceBundle \} from "\.\/verify-text-to-lattice-browser-evidence\.mjs"/u);
   assert.match(releaseVerifier, /await verifyBrowserEvidenceAuthority\(register, releaseState\)/u);
   assert.match(releaseVerifier, /bundle = await verifyBundle\(resolvedPath\.absolute\)/u);
@@ -173,7 +173,7 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /^# Text to Lattice release qualification — held remote candidate/u);
   assert.match(dossier, /\*\*Decision:\*\* hold the interactive client; publish the method, implementation record, and documentation only\./u);
   assert.match(dossier, /Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence\./u);
-  assert.match(dossier, /remote production evidence is failure-only[^]{0,160}no successful production transformation/iu);
+  assert.match(dossier, /Neither closes GATE-02, GATE-03, or GATE-06/u);
   assert.match(dossier, /same-origin `\/api\/lattice`[\s\S]{0,240}bodyless `POST \/api\/lattice`/u);
   assert.match(dossier, /application\/vnd\.hah\.text-to-lattice-visitor-session\.v1\+json/u);
   assert.match(dossier, /bodyless/u);
@@ -191,7 +191,16 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
   assert.match(dossier, /Historical inactive WebLLM and lease appendix/u);
   assert.match(dossier, /\*\*Qualification date:\*\* 2026-09-30/u);
-  assert.match(dossier, /newest bounded qualification,[\s\S]{0,120}run #158[\s\S]{0,180}attempt 2[\s\S]{0,100}`66c34fd4775efa8de6cf35110f8d623f4418210f`/iu);
+  assert.match(dossier, /preceding bounded qualification,[\s\S]{0,120}run #158[\s\S]{0,180}attempt 2[\s\S]{0,100}`66c34fd4775efa8de6cf35110f8d623f4418210f`/iu);
+  assert.match(dossier, /bounded qualification,[\s\S]{0,120}run #160[\s\S]{0,280}`94fba0deb97748f3a91693a3bae15296b0ef3699`/iu);
+  assert.match(dossier, /deployed source-set digest `d483b0124f2d7fb8c76cf028f8667b7ffb264299630b3cba7736f8cb8cac37a6`/u);
+  assert.match(dossier, /881 tests: 865 passed, 16 expected tokenizer-fixture skips, and 0 failures/u);
+  assert.match(dossier, /run #160 attempt 1[\s\S]{0,120}HTTP 502 upstream_unavailable[\s\S]{0,160}upstream_status=504[\s\S]{0,180}stage_attempt=initial[\s\S]{0,80}prior_validation=none/iu);
+  assert.match(dossier, /run #160 attempt 2[\s\S]{0,600}post-candidate-withheld with batch_count=1, verification_passes=0, and finding_count=1/iu);
+  assert.match(dossier, /retained summary does not identify the exact internal cause/iu);
+  assert.match(dossier, /6118ad58-8448-4d10-b564-ecee5538e0b8[\s\S]{0,100}f24b2a69-a426-456e-99c5-cb1020f02e4a[\s\S]{0,80}2026-09-30T12:56:33\.469Z/u);
+  assert.match(dossier, /qualification-only diagnostic correction[\s\S]{0,180}source-only until separately deployed and observed/iu);
+  assert.match(dossier, /exact 65,536-byte boundary returned HTTP 400 invalid_request; 65,537 bytes returned HTTP 413 input_too_large/u);
   assert.match(dossier, /https:\/\/github\.com\/howardhayden\/folio\/actions\/runs\/36595292369/u);
   assert.match(dossier, /deployed source-set digest `2677c607d748582348930f1b90087e09455fff9773ce2eca203a4a7474ab7a8a`/u);
   assert.match(dossier, /run #158 attempt-2 synthetic canary[\s\S]{0,280}`call_ordinal=3`[\s\S]{0,100}`finish_reason=length`[\s\S]{0,220}`completion_tokens=2048-3071`/iu);
@@ -199,10 +208,10 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /current closed representation is 1,326 tokens[\s\S]{0,200}unchanged 2,048-token verification ceiling/iu);
   assert.match(dossier, /722 tokens, or 54\.45 percent/iu);
   assert.match(dossier, /Certification remains capped at 520 tokens[\s\S]{0,160}maximum is 440 pinned-tokenizer tokens[\s\S]{0,80}80 tokens of margin/iu);
-  assert.match(dossier, /current undeployed correction changes the private verifier and certifier representation/iu);
+  assert.match(dossier, /correction merged by PR #50 and deployed by run #160 changes the private verifier and certifier representation/iu);
   assert.match(dossier, /output ceilings, timeouts, retries, admission, privacy, retention, and deployment topology remain unchanged/iu);
   assert.match(dossier, /source and pinned-tokenizer controls, not live evidence that the correction succeeds/iu);
-  assert.match(dossier, /current correction keeps the 180-second verification ceiling and 2,048-token budget[\s\S]{0,240}closes no release gate until deployment succeeds/iu);
+  assert.match(dossier, /current correction keeps the 180-second verification ceiling and 2,048-token budget[\s\S]{0,240}closes no release gate until the required production qualification succeeds/iu);
   assert.match(dossier, /artifact ID `11046285940`[\s\S]{0,120}`3bbf85126def25c4e71436015ca1d0ffc8f5b2e0cc8f99dd50016891dfd949ae`/u);
   assert.match(dossier, /deployment-evidence artifact ID `11045708140`[\s\S]{0,120}`55c8523d0fa64ae76435c30923ff5b9dfe87520578c6ad63f96b7e211abd88a0`/u);
   assert.match(dossier, /held API version `1fce513a-1059-424e-8175-8553e3d5c88e`[\s\S]{0,100}`64231b70-01b4-4b3f-be63-a1aed0600f97`[\s\S]{0,200}artifact ID `11046432393`[\s\S]{0,120}`65983a6970b8ad8993ad4e47c3bf4b9c8b61adcaf7860655f87abedbaf0da6a2`/u);
@@ -354,7 +363,7 @@ test("interactive editions remain complete, self-contained, accessible, and exec
 
   const index = await readText(publicRoot, "index.html");
   assert.match(index, /held and documentation-only/iu);
-  assert.match(index, /remote production failure evidence[^]{0,200}no successful production transformation/iu);
+  assert.match(index, /Required production qualification remains incomplete; current bounded evidence is recorded in the release register/u);
   assert.match(index, /Historical WebLLM, Turnstile, and lease records remain inactive/u);
   for (const { html, markdown } of atlas.artifacts) {
     assert.ok(index.includes(`href="${html}"`));
@@ -386,7 +395,7 @@ test("interactive editions remain complete, self-contained, accessible, and exec
     const historicalIndex = artifact.indexOf("Historical inactive evidence");
     assert.ok(activeIndex >= 0 && historicalIndex > activeIndex, "active remote evidence renders before historical inactive evidence");
     assert.match(artifact, /same-origin POST \/api\/lattice/iu);
-    assert.match(artifact, /remote production failure evidence[^]{0,200}no successful production transformation/iu);
+    assert.match(artifact, /Required production qualification remains incomplete; current bounded evidence is recorded in the release register/u);
     assert.match(artifact, /not byte-pinned/iu);
   }
 });

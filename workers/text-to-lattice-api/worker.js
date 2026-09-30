@@ -32,6 +32,7 @@ import {
 import {
   LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
 } from "../../app/resume/lattice/promptContract.js";
+import { isClosedWithheldTrace } from "../../app/resume/lattice/qualificationDiagnostics.js";
 import {
   claimGlobalLatticeTransformation,
 } from "./capacityClient.js";
@@ -52,7 +53,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v4";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v5";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
@@ -77,6 +78,18 @@ export const LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS
   attempt: "X-Lattice-Qualification-Terminal-Analysis-Attempt",
   atomLimit: "X-Lattice-Qualification-Terminal-Analysis-Atom-Limit",
   callOrdinal: "X-Lattice-Qualification-Terminal-Analysis-Call-Ordinal",
+});
+export const LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
+  revision: "X-Lattice-Qualification-Withheld-Revision",
+  deterministic: "X-Lattice-Qualification-Withheld-Deterministic",
+  verification: "X-Lattice-Qualification-Withheld-Verification",
+  certification: "X-Lattice-Qualification-Withheld-Certification",
+  failureCause: "X-Lattice-Qualification-Withheld-Failure-Cause",
+  stage: "X-Lattice-Qualification-Withheld-Stage",
+  attempt: "X-Lattice-Qualification-Withheld-Attempt",
+  validationCategory: "X-Lattice-Qualification-Withheld-Validation",
+  priorValidationCategory: "X-Lattice-Qualification-Withheld-Prior-Validation",
+  callsUsed: "X-Lattice-Qualification-Withheld-Calls-Used",
 });
 
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset=utf-8)?$/iu;
@@ -589,6 +602,30 @@ function withQualificationTerminalAnalysisDiagnostic(response, result, diagnosti
   return response;
 }
 
+function qualificationWithheldDiagnostic(trace, adapter) {
+  try {
+    if (!isClosedWithheldTrace(trace) || typeof adapter?.completionCapacity !== "function") return null;
+    const capacity = adapter.completionCapacity();
+    if (capacity === null || typeof capacity !== "object" || Array.isArray(capacity)) return null;
+    const used = capacity?.used;
+    if (!Number.isSafeInteger(used) || used < 1 || used > LATTICE_PROVIDER_CALL_LIMIT) return null;
+    return Object.freeze({ ...trace, callsUsed: `${used}` });
+  } catch {
+    return null;
+  }
+}
+
+function withQualificationWithheldDiagnostic(response, result, diagnostic, enabled) {
+  if (!enabled || diagnostic === null || result.status !== "unable-to-attempt"
+    || result.findings.length === 0 || !result.findings.every(({ id }) => id === "candidate-withheld")) {
+    return response;
+  }
+  for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS)) {
+    response.headers.set(header, diagnostic[field]);
+  }
+  return response;
+}
+
 export async function enforceLatticeApiRateLimit(binding) {
   if (!binding || typeof binding.limit !== "function") {
     throw apiError(500, "internal_error");
@@ -832,6 +869,17 @@ export function createLatticeApiWorker({
             qualificationTerminalAnalysisDiagnosticRejected = true;
           }
         };
+        let qualificationWithheldDiagnosticValue = null;
+        let qualificationWithheldDiagnosticRejected = false;
+        const captureWithheldDiagnostic = (trace) => {
+          if (qualificationWithheldDiagnosticRejected || qualificationWithheldDiagnosticValue !== null) {
+            qualificationWithheldDiagnosticValue = null;
+            qualificationWithheldDiagnosticRejected = true;
+            return;
+          }
+          qualificationWithheldDiagnosticValue = qualificationWithheldDiagnostic(trace, adapter);
+          if (qualificationWithheldDiagnosticValue === null) qualificationWithheldDiagnosticRejected = true;
+        };
         assertRequestPhaseOpen(deadline, qualificationWindow, now());
         const runOptions = {
           adapter,
@@ -842,6 +890,7 @@ export function createLatticeApiWorker({
         };
         if (qualificationDiagnosticRequested) {
           runOptions.onAnalysisTerminalDiagnostic = captureTerminalAnalysisDiagnostic;
+          runOptions.onCandidateWithheldDiagnostic = captureWithheldDiagnostic;
         }
         const result = await raceAbort(runTextToLatticeImpl(payload.text, runOptions), deadline.signal);
         if (!isLatticeApiResult(result)) {
@@ -860,6 +909,13 @@ export function createLatticeApiWorker({
           new Response(responseBody, { status: 200, headers: RESPONSE_HEADERS }),
           result,
           qualificationTerminalAnalysisDiagnosticValue,
+          qualificationDiagnosticRequested
+            && qualificationWindowAllowsOutput(qualificationWindow, responseTime),
+        );
+        response = withQualificationWithheldDiagnostic(
+          response,
+          result,
+          qualificationWithheldDiagnosticValue,
           qualificationDiagnosticRequested
             && qualificationWindowAllowsOutput(qualificationWindow, responseTime),
         );

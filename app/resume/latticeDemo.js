@@ -66,6 +66,7 @@ import {
   foldLatticePresentationLetters,
   materiallyDifferent,
 } from "./lattice/validators.js";
+import { isClosedWithheldTrace } from "./lattice/qualificationDiagnostics.js";
 
 export {
   LATTICE_CLARIFICATION_SAFETY_LIMIT,
@@ -139,6 +140,9 @@ const ANALYSIS_DECODER_FAILURE_CATEGORY_SET = new Set([
 ]);
 const ANALYSIS_DECODER_FAILURE_CATEGORIES = new WeakMap();
 const ANALYSIS_FAILURE_DIAGNOSTICS = new WeakMap();
+const STAGE_FAILURE_DIAGNOSTICS = new WeakMap();
+const FINDING_STAGE_FAILURE_DIAGNOSTICS = new WeakMap();
+const REVIEW_STAGE_FAILURE_DIAGNOSTICS = new WeakMap();
 const ANALYSIS_VALIDATION_MESSAGE_CATEGORIES = Object.freeze([
   Object.freeze({
     category: "provenance",
@@ -1302,6 +1306,46 @@ function analysisFailureDiagnostic(error) {
   return ANALYSIS_FAILURE_DIAGNOSTICS.get(error) ?? null;
 }
 
+function stageValidationCategory(error) {
+  if (["lattice-context", "provider_output_limit"].includes(error?.code)) return "capacity";
+  const category = analysisValidationCategory(error);
+  if (category !== "other") return category;
+  if (!(error instanceof LatticeProtocolError) || typeof error.message !== "string") return "other";
+  // Match only host-owned validation conditions; the error text is never retained.
+  if (/^(?:The verifier returned an invalid (?:decision|passage result)\.|The document certifier returned an invalid decision\.|The document certifier returned invalid checks\.)$/u.test(error.message)) return "response-shape";
+  if (/^(?:The verifier returned .+ without a failed gate, passage check, issue, or unresolved question\.|The verifier accepted while reporting a failed check, issue, or question\.|A verifier issue must identify a failed gate or passage check\.|A document certification issue must identify a failed check\.|The document certification decision contradicts its checks or issues\.)$/u.test(error.message)) return "decision-consistency";
+  if (/^(?:The document certifier returned a mismatched certificate identifier\.|The document certifier did not cover every requested obligation exactly once\.)$/u.test(error.message)) return "provenance";
+  if (/^(?:The verifier referenced an unknown passage\.|Verification .*(?:did not cover every passage|did not match the requested passages)\.)$/u.test(error.message)) return "passage-coverage";
+  if (/^(?:The verifier referenced an unknown atom in .+\.|The verifier both checked and omitted an atom in .+\.|A verifier issue references an unknown (?:atom|passage)\.)$/u.test(error.message)) return "identifier";
+  if (/^(?:Verifier .*(?:evidence|spans).*\.|.+ references an unknown or cross-passage source span\.)$/u.test(error.message)) return "evidence";
+  if (/^(?:Verifier (?:conformance|criterion|rewrite).*\.)$/u.test(error.message)) return "conformance";
+  return "other";
+}
+
+function rememberStageFailureDiagnostic(error, stage, attempt, firstError) {
+  try {
+    if ((typeof error !== "object" && typeof error !== "function") || error === null) return;
+    STAGE_FAILURE_DIAGNOSTICS.set(error, Object.freeze({
+      failureCause: error.code === "lattice-context" ? "context-capacity"
+        : ["lattice-output-length", "provider_output_limit"].includes(error.code) ? "output-limit"
+          : retryableStageFailure(error) ? "host-validation" : "unclassified",
+      stage,
+      attempt: `${attempt}`,
+      validationCategory: stageValidationCategory(error),
+      priorValidationCategory: attempt === 1 || firstError === null ? "none" : stageValidationCategory(firstError),
+    }));
+  } catch {
+    // Diagnostic bookkeeping must preserve the original stage outcome.
+  }
+}
+
+function stageFailureFinding(finding, error) {
+  const frozen = Object.freeze(finding);
+  const diagnostic = STAGE_FAILURE_DIAGNOSTICS.get(error);
+  if (diagnostic) FINDING_STAGE_FAILURE_DIAGNOSTICS.set(frozen, diagnostic);
+  return frozen;
+}
+
 function stageDiagnosticRequest(request, stage, attempt, lastError, analysisOrigin) {
   if (![1, 2].includes(attempt)
     || (analysisOrigin !== null && !ANALYSIS_DIAGNOSTIC_ORIGIN_SET.has(analysisOrigin))) {
@@ -1380,6 +1424,7 @@ async function callNormalizedStage({
         ? "none"
         : analysisValidationCategory(firstError);
       if (error?.code === "lattice-context") {
+        rememberStageFailureDiagnostic(error, stage, attempt, firstError);
         if (analysisDiagnosticOrigin !== null) {
           rememberAnalysisFailureDiagnostic(error, {
             cause: "context-capacity",
@@ -1393,6 +1438,7 @@ async function callNormalizedStage({
       }
       if (analysisDiagnosticOrigin !== null
         && ["lattice-output-length", "provider_output_limit"].includes(error?.code)) {
+        rememberStageFailureDiagnostic(error, stage, attempt, firstError);
         rememberAnalysisFailureDiagnostic(error, {
           cause: "output-limit",
           validationCategory: "capacity",
@@ -1402,11 +1448,15 @@ async function callNormalizedStage({
         });
         throw error;
       }
-      if (!retryableStageFailure(error)) throw error;
+      if (!retryableStageFailure(error)) {
+        rememberStageFailureDiagnostic(error, stage, attempt, firstError);
+        throw error;
+      }
       if (firstError === null) firstError = error;
       lastError = error;
     }
   }
+  if (lastError !== null) rememberStageFailureDiagnostic(lastError, stage, attempts, firstError);
   if (analysisDiagnosticOrigin !== null && lastError !== null) {
     rememberAnalysisFailureDiagnostic(lastError, {
       cause: "host-validation",
@@ -2046,7 +2096,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
       }
     } catch (error) {
       throwIfAborted(signal);
-      findings.push(Object.freeze({
+      findings.push(stageFailureFinding({
         id: error?.code === "lattice-context"
           ? "document-certification-window-context"
           : "document-certification-window-unavailable",
@@ -2055,7 +2105,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
         message: error?.code === "lattice-context"
           ? "A required lossless document window did not fit the independent check."
           : "A required lossless document window did not return a valid independent check.",
-      }));
+      }, error));
     }
     activeCertificationProgress(onProgress, modelIndex + 1, modelPassageIndexes.length, request.window.id);
   }
@@ -2142,7 +2192,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
           queue.unshift({ obligations: left }, { obligations: right });
           continue;
         }
-        findings.push(Object.freeze({
+        findings.push(stageFailureFinding({
           id: capacityFailure
             ? "document-certification-relation-context"
             : "document-certification-relation-unavailable",
@@ -2151,7 +2201,7 @@ async function certifyDocumentWindows({ source, candidate: assembledCandidate, p
           message: capacityFailure
             ? "A required cross-passage relation obligation did not fit the independent check."
             : "A required cross-passage relation obligation did not return a valid independent check.",
-        }));
+        }, error));
       }
       if (findings.length > 0) break;
     }
@@ -2347,14 +2397,14 @@ async function certifyWholeDocument({
       accepted: false,
       required: true,
       performed: false,
-      findings: Object.freeze([Object.freeze({
+      findings: Object.freeze([stageFailureFinding({
         id: contextFailure ? "document-certification-context" : "document-certification-unavailable",
         passageId: "",
         atomIds: Object.freeze([]),
         message: contextFailure
           ? "The complete source and candidate did not fit the required independent document check."
           : "The required independent document check did not return a valid result after its bounded attempts.",
-      })]),
+      }, error)]),
     });
   }
   if (certification.accepted) {
@@ -2878,6 +2928,7 @@ function resultFromState({
   verificationPasses,
   documentFindings = [],
   wholeDocumentCertification = null,
+  onCandidateWithheldDiagnostic,
 }) {
   const replaceablePassages = passages.filter((passage) => passage.protected !== true);
   const protectedPassages = passages.filter((passage) => passage.protected === true);
@@ -2976,6 +3027,46 @@ function resultFromState({
       ? assembledText
       : null;
   const candidateSuppressed = text === null && finalCandidates.length > 0;
+  if (candidateSuppressed && typeof onCandidateWithheldDiagnostic === "function") {
+    try {
+      const failures = [
+        ...finalReviews.filter((entry) => entry.verification.available === false)
+          .map((entry) => REVIEW_STAGE_FAILURE_DIAGNOSTICS.get(entry.verification)),
+        ...documentFindings.map((finding) => FINDING_STAGE_FAILURE_DIAGNOSTICS.get(finding)),
+      ].filter(Boolean);
+      const distinctFailures = [...new Map(failures.map((failure) => [JSON.stringify(failure), failure])).values()];
+      const absentFailure = distinctFailures.length > 1 ? "multiple" : "none";
+      const failure = distinctFailures.length === 1 ? distinctFailures[0] : Object.freeze({
+        failureCause: absentFailure,
+        stage: absentFailure,
+        attempt: absentFailure,
+        validationCategory: absentFailure,
+        priorValidationCategory: absentFailure,
+      });
+      const verificationStates = new Set(finalReviews.map((entry) => (
+        entry.verification.available === false ? "unavailable"
+          : !verificationSemanticallySafe(entry) ? "semantic-rejection"
+            : !entry.verification.accepted ? "review-only-rejection" : "accepted"
+      )));
+      if (finalReviews.length !== analyses.length) verificationStates.add("missing");
+      if (verificationStates.size > 1) verificationStates.delete("accepted");
+      const trace = Object.freeze({
+        revision: revisionCoherentAssembly ? "coherent" : "incomplete",
+        deterministic: hasNoDeterministicFindings(finalCandidates)
+          && assembledText !== null && deterministicDocumentReview(source, assembledText).length === 0
+          ? "clear" : "blocked",
+        verification: verificationStates.size > 1 ? "mixed" : [...verificationStates][0] ?? "missing",
+        certification: wholeDocumentCertification === null
+          ? requiresWholeDocumentCertification ? "not-reached" : "not-required"
+          : wholeDocumentCertification.accepted ? "accepted"
+            : wholeDocumentCertification.performed ? "performed-not-accepted" : "not-performed",
+        ...failure,
+      });
+      if (isClosedWithheldTrace(trace)) onCandidateWithheldDiagnostic(trace);
+    } catch {
+      // Qualification observation cannot affect the fail-closed public result.
+    }
+  }
   const internalFindings = deduplicateFindings([
     ...documentFindings,
     ...finalReviews.flatMap((entry) => batchFindings(entry.batch, entry.deterministicFindings, entry.verification)),
@@ -3043,6 +3134,12 @@ export async function runTextToLattice(value, options = {}) {
     && typeof onAnalysisTerminalDiagnostic !== "function") {
     throw new TypeError("Text to Lattice received an invalid terminal diagnostic observer.");
   }
+  const onCandidateWithheldDiagnostic = options.onCandidateWithheldDiagnostic;
+  if (onCandidateWithheldDiagnostic !== undefined
+    && typeof onCandidateWithheldDiagnostic !== "function") {
+    throw new TypeError("Text to Lattice received an invalid withheld diagnostic observer.");
+  }
+  const terminalResult = (state) => resultFromState({ ...state, onCandidateWithheldDiagnostic });
   const clarificationAnswers = clarificationAnswersPayload(options.clarificationAnswers);
   if (!allowClarification && clarificationAnswers.length > 0) {
     throw new TypeError("Text to Lattice cannot accept clarification answers when clarification is disabled.");
@@ -3087,7 +3184,7 @@ export async function runTextToLattice(value, options = {}) {
         // fail-closed transformation result.
       }
     }
-    return resultFromState({
+    return terminalResult({
       source,
       wordCount,
       passages,
@@ -3215,7 +3312,7 @@ export async function runTextToLattice(value, options = {}) {
 
   const analysisQuestions = analyses.flatMap(({ analysis }) => analysis.questions);
   if (analysisQuestions.length > 0) {
-    return resultFromState({
+    return terminalResult({
       source, wordCount, passages, analyses, finalCandidates: [], finalReviews: [],
       status: "needs-clarification", questions: analysisQuestions.slice(0, 1), verificationPasses: 0,
     });
@@ -3242,7 +3339,7 @@ export async function runTextToLattice(value, options = {}) {
     } catch (generationError) {
       if (!retryableStageFailure(generationError)) throw generationError;
       if (generationError?.code === "lattice-context") {
-        return resultFromState({
+        return terminalResult({
           source,
           wordCount,
           passages,
@@ -3251,12 +3348,12 @@ export async function runTextToLattice(value, options = {}) {
           finalReviews: [],
           status: "unable-to-attempt",
           verificationPasses: 0,
-          documentFindings: [Object.freeze({
+          documentFindings: [stageFailureFinding({
             id: "generation-context-unavailable",
             passageId: request.batch.passages[0]?.id ?? "",
             atomIds: Object.freeze([]),
             message: "This passage and its required structured output exceeded the model context even after the cross-passage ledger was reduced. No source text was presented as transformed output.",
-          })],
+          }, generationError)],
         });
       }
       const identityCandidate = Object.freeze({
@@ -3292,7 +3389,7 @@ export async function runTextToLattice(value, options = {}) {
         });
       } catch (recoveryError) {
         if (!retryableStageFailure(recoveryError)) throw recoveryError;
-        return resultFromState({
+        return terminalResult({
           source,
           wordCount,
           passages,
@@ -3301,12 +3398,12 @@ export async function runTextToLattice(value, options = {}) {
           finalReviews: [],
           status: "unable-to-attempt",
           verificationPasses: 0,
-          documentFindings: [Object.freeze({
+          documentFindings: [stageFailureFinding({
             id: "generation-unavailable",
             passageId: request.batch.passages[0]?.id ?? "",
             atomIds: Object.freeze([]),
             message: "The bounded drafting attempts did not produce a valid material candidate. No source text was presented as transformed output.",
-          })],
+          }, recoveryError)],
         });
       }
     }
@@ -3371,6 +3468,8 @@ export async function runTextToLattice(value, options = {}) {
         request.analysis,
         "The independent verifier did not return a valid bounded check after two attempts.",
       );
+      const failure = STAGE_FAILURE_DIAGNOSTICS.get(error);
+      if (failure) REVIEW_STAGE_FAILURE_DIAGNOSTICS.set(verification, failure);
     }
     reviews.push(Object.freeze({ ...verificationRequest, verification }));
     progress(onProgress, "verifying", index + 1, candidates.length, request.batch.id);
@@ -3378,7 +3477,7 @@ export async function runTextToLattice(value, options = {}) {
 
   const firstQuestions = reviews.flatMap((entry) => entry.verification.questions);
   if (firstQuestions.length > 0) {
-    return resultFromState({
+    return terminalResult({
       source, wordCount, passages, analyses, finalCandidates: candidates, finalReviews: reviews,
       status: "needs-clarification", questions: firstQuestions.slice(0, 1), verificationPasses: 1,
       documentFindings: assembly.documentFindings,
@@ -3415,7 +3514,7 @@ export async function runTextToLattice(value, options = {}) {
     const status = certification.accepted
       ? acceptedStatus(true, assembly.text, analyses)
       : materiallyDifferent(source, assembly.text) ? "review-required" : "unable-to-attempt";
-    return resultFromState({
+    return terminalResult({
       source, wordCount, passages, analyses, finalCandidates: candidates, finalReviews: reviews,
       status, verificationPasses: 1,
       documentFindings: [...assembly.documentFindings, ...certification.findings],
@@ -3512,7 +3611,7 @@ export async function runTextToLattice(value, options = {}) {
     } catch (error) {
       throwIfAborted(signal);
       if (!retryableAnalysisFailure(error)) throw error;
-      retryNotes.push(Object.freeze({ id: "reanalysis-unavailable", passageId: entry.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The bounded re-atomization pass did not produce a valid replacement graph." }));
+      retryNotes.push(stageFailureFinding({ id: "reanalysis-unavailable", passageId: entry.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The bounded re-atomization pass did not produce a valid replacement graph." }, error));
     }
     progress(onProgress, "reatomizing", index + 1, structurallyFailed.length, entry.batch.id);
   }
@@ -3520,7 +3619,7 @@ export async function runTextToLattice(value, options = {}) {
   const provisionalAnalyses = analyses.map((entry) => reanalyzedByBatch.get(entry.batch.id) ?? entry);
   const reanalysisQuestions = [...reanalyzedByBatch.values()].flatMap(({ analysis }) => analysis.questions);
   if (reanalysisQuestions.length > 0) {
-    return resultFromState({
+    return terminalResult({
       source, wordCount, passages, analyses: provisionalAnalyses, finalCandidates: candidates, finalReviews: reviews,
       status: "needs-clarification", questions: reanalysisQuestions.slice(0, 1), verificationPasses: 1,
       documentFindings: [...assembly.documentFindings, ...retryNotes],
@@ -3562,7 +3661,7 @@ export async function runTextToLattice(value, options = {}) {
     } catch (error) {
       throwIfAborted(signal);
       if (!retryableStageFailure(error)) throw error;
-      retryNotes.push(Object.freeze({ id: "candidate-retry-unavailable", passageId: original.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The bounded candidate retry did not produce a valid draft." }));
+      retryNotes.push(stageFailureFinding({ id: "candidate-retry-unavailable", passageId: original.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The bounded candidate retry did not produce a valid draft." }, error));
     }
     progress(onProgress, structuralIds.has(original.batch.id) ? "regenerating" : "repairing", index + 1, actionableFailures.length, original.batch.id);
   }
@@ -3612,7 +3711,7 @@ export async function runTextToLattice(value, options = {}) {
       throwIfAborted(signal);
       if (!retryableStageFailure(error)) throw error;
       retryCandidateByBatch.delete(request.batch.id);
-      retryNotes.push(Object.freeze({ id: "reverification-unavailable", passageId: request.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The independent recheck did not complete with a valid result." }));
+      retryNotes.push(stageFailureFinding({ id: "reverification-unavailable", passageId: request.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The independent recheck did not complete with a valid result." }, error));
     }
     progress(onProgress, "reverifying", index + 1, retriedCandidates.length, request.batch.id);
   }
@@ -3629,7 +3728,7 @@ export async function runTextToLattice(value, options = {}) {
   assembly = assemble(tentativeCandidates);
   const secondQuestions = secondReviews.flatMap((entry) => entry.verification.questions);
   if (secondQuestions.length > 0) {
-    return resultFromState({
+    return terminalResult({
       source, wordCount, passages, analyses, finalCandidates: tentativeCandidates, finalReviews,
       status: "needs-clarification", questions: secondQuestions.slice(0, 1), verificationPasses: 2,
       documentFindings: [...assembly.documentFindings, ...retryNotes],
@@ -3666,7 +3765,7 @@ export async function runTextToLattice(value, options = {}) {
   const finalStatus = !accepted && !materiallyDifferent(source, assembly.text)
     ? "unable-to-attempt"
     : acceptedStatus(accepted, assembly.text, analyses);
-  return resultFromState({
+  return terminalResult({
     source, wordCount, passages, analyses, finalCandidates: tentativeCandidates, finalReviews,
     status: finalStatus, verificationPasses: retriedCandidates.length ? 2 : 1,
     documentFindings: [...assembly.documentFindings, ...retryNotes, ...certificationFindings],

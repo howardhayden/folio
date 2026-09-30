@@ -3044,6 +3044,101 @@ test("withheld candidates expose one constant projection across divergent privat
   assertCandidateWithheld(semantic);
 });
 
+test("withheld qualification observations distinguish final host conditions without changing the public result", async (context) => {
+  const source = opaqueWords(12);
+  const cases = [
+    ["private decoder or response shape", source, { verify: () => ({}) }, {
+      verification: "unavailable", failureCause: "host-validation", stage: "verification",
+      attempt: "2", validationCategory: "response-shape", priorValidationCategory: "response-shape",
+    }],
+    ["negative decision contradicts positive checks", source, {
+      verify: (request) => rawVerification(request, { decision: "reject" }),
+    }, { verification: "unavailable", stage: "verification", validationCategory: "decision-consistency" }],
+    ["semantic check", source, {
+      verify: (request) => rawVerification(request, { passage: { semanticFidelity: false } }),
+    }, { verification: "semantic-rejection", failureCause: "none", stage: "none" }],
+    ["deterministic and semantic checks", source, {
+      generate: (request) => rawCandidate(request, { identity: true }),
+      repair: (request) => rawCandidate(request, { identity: true }),
+    }, { deterministic: "blocked", verification: "semantic-rejection", failureCause: "none" }],
+    ["certificate contract", `${source}\n`, { certify: () => ({}) }, {
+      verification: "accepted", certification: "not-performed", stage: "document-certification",
+      failureCause: "host-validation", validationCategory: "response-shape",
+    }],
+    ["certificate rejection", `${source}\n`, {
+      certify: (request) => ({
+        certificateId: request.certificateId,
+        obligationIds: request.obligationIds,
+        decision: "reject",
+        checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, name !== "boundaryFidelity"])),
+        issues: [],
+      }),
+    }, { verification: "accepted", certification: "performed-not-accepted", failureCause: "none" }],
+    ["terminal re-atomization contract", source, {
+      analyze: (request, count) => count === 1 ? rawAnalysis(request) : {},
+      verify: (request) => rawVerification(request, { gates: { sourceCoverage: false } }),
+    }, { verification: "semantic-rejection", stage: "re-atomization", failureCause: "host-validation" }],
+    ["terminal recheck contract", source, {
+      verify: (request, count) => count === 1
+        ? rawVerification(request, { passage: { semanticFidelity: false } }) : {},
+    }, { verification: "semantic-rejection", stage: "reverification", failureCause: "host-validation" }],
+  ];
+  for (const [name, text, behavior, expected] of cases) {
+    await context.test(name, async () => {
+      const baselineAdapter = scriptedAdapter(behavior);
+      const baseline = await runTextToLattice(text, { adapter: baselineAdapter });
+      const adapter = scriptedAdapter(behavior);
+      const traces = [];
+      const result = await runTextToLattice(text, { adapter, onCandidateWithheldDiagnostic: (trace) => traces.push(trace) });
+      assert.deepEqual(result, baseline);
+      assert.deepEqual(adapter.calls, baselineAdapter.calls);
+      assertCandidateWithheld(result);
+      assert.equal(traces.length, 1);
+      assert.equal(Object.isFrozen(traces[0]), true);
+      for (const [field, value] of Object.entries(expected)) assert.equal(traces[0][field], value, field);
+      assert.equal(JSON.stringify(result).includes("validationCategory"), false);
+    });
+  }
+});
+
+test("withheld observations omit recovered failures and tolerate observer exceptions", async () => {
+  const source = `${opaqueWords(12)}\n`;
+  let certificateCalls = 0;
+  let trace;
+  const result = await runTextToLattice(source, {
+    adapter: scriptedAdapter({ certify(request) {
+      certificateCalls += 1;
+      if (certificateCalls === 1) return {};
+      return {
+        certificateId: request.certificateId, obligationIds: request.obligationIds, decision: "reject",
+        checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, name !== "boundaryFidelity"])),
+        issues: [],
+      };
+    } }),
+    onCandidateWithheldDiagnostic(value) { trace = value; },
+  });
+  assertCandidateWithheld(result);
+  assert.equal(trace.failureCause, "none");
+  assert.equal(trace.stage, "none");
+  assert.equal(trace.certification, "performed-not-accepted");
+  const behavior = { verify: () => ({}) };
+  const baselineAdapter = scriptedAdapter(behavior);
+  const baseline = await runTextToLattice(source, { adapter: baselineAdapter });
+  const observedAdapter = scriptedAdapter(behavior);
+  const observed = await runTextToLattice(source, {
+    adapter: observedAdapter,
+    onCandidateWithheldDiagnostic() { throw new Error("PRIVATE-OBSERVER-ERROR"); },
+  });
+  assert.deepEqual(observed, baseline);
+  assert.deepEqual(observedAdapter.calls, baselineAdapter.calls);
+  let emitted = false;
+  const success = await runTextToLattice(source, {
+    adapter: scriptedAdapter(), onCandidateWithheldDiagnostic() { emitted = true; },
+  });
+  assert.equal(success.status, "translated");
+  assert.equal(emitted, false);
+});
+
 test("a local context failure is not retried or routed through repair", async () => {
   const adapter = scriptedAdapter({
     generate() {

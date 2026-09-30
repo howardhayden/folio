@@ -31,6 +31,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
 import {
   TEXT_TO_LATTICE_DOCUMENT_POLICY,
@@ -108,6 +109,17 @@ function terminalAnalysisDiagnosticHeaders(overrides = {}) {
   return Object.fromEntries(Object.entries(
     LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   ).map(([field, header]) => [header, values[field]]));
+}
+
+function withheldDiagnosticHeaders(overrides = {}) {
+  const values = {
+    revision: "coherent", deterministic: "clear", verification: "unavailable", certification: "not-reached",
+    failureCause: "host-validation", stage: "verification", attempt: "2",
+    validationCategory: "response-shape", priorValidationCategory: "evidence", callsUsed: "4",
+    ...overrides,
+  };
+  return Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS)
+    .map(([field, header]) => [header, values[field]]));
 }
 
 function validResult() {
@@ -1234,7 +1246,7 @@ test("an unable canary reports only an allowlisted homogeneous failure class and
           schema_version: 1,
         }, 200, findingId === "atomization-unavailable"
           ? terminalAnalysisDiagnosticHeaders()
-          : {}),
+          : findingId === "candidate-withheld" ? withheldDiagnosticHeaders() : {}),
       });
       let failure;
       try {
@@ -1253,6 +1265,8 @@ test("an unable canary reports only an allowlisted homogeneous failure class and
           failure.message,
           /class=pre-candidate-analysis-contract; terminal_cause=host-validation; validation=evidence; prior_validation=passage-coverage; analysis_origin=split; analysis_attempt=2; atom_limit=6; call_ordinal=4; batch_count=2; verification_passes=0; finding_count=2/u,
         );
+      } else if (findingId === "candidate-withheld") {
+        assert.match(failure.message, /class=post-candidate-withheld; revision=coherent; deterministic=clear; verification=unavailable; certification=not-reached; terminal_failure=host-validation; stage=verification; attempt=2; validation=response-shape; prior_validation=evidence; calls_used=4; batch_count=2; verification_passes=0; finding_count=2/u);
       } else {
         assert.match(
           failure.message,
@@ -1880,4 +1894,41 @@ test("the held entry preserves the Durable Object export and has no provider pat
   assert.match(source, /"Cache-Control": "no-store"/u);
   assert.match(source, /"X-Content-Type-Options": "nosniff"/u);
   assert.doesNotMatch(source, /huggingface|HF_TOKEN|globalThis\.fetch|await\s+fetch/iu);
+});
+
+test("withheld canary diagnostics fail closed on missing, hostile, or incompatible terminal observations", async (contextTest) => {
+  const privateMarker = "PRIVATE-WITHHELD-DIAGNOSTIC-MUST-NOT-CROSS";
+  const body = { result: unableResult([{ id: "candidate-withheld", passageId: "", atomIds: [], message: privateMarker }]), schema_version: 1 };
+  const exact = withheldDiagnosticHeaders();
+  const cases = [
+    ["valid terminal observation", body, 200, exact, /terminal_failure=host-validation; stage=verification; attempt=2; validation=response-shape; prior_validation=evidence; calls_used=4/u],
+    ["simultaneous blockers", body, 200, withheldDiagnosticHeaders({ revision: "incomplete", deterministic: "blocked", verification: "mixed", certification: "performed-not-accepted", failureCause: "multiple", stage: "multiple", attempt: "multiple", validationCategory: "multiple", priorValidationCategory: "multiple" }), /revision=incomplete; deterministic=blocked; verification=mixed; certification=performed-not-accepted; terminal_failure=multiple; stage=multiple/u],
+    ["legitimate checks without contract failure", body, 200, withheldDiagnosticHeaders({ verification: "semantic-rejection", failureCause: "none", stage: "none", attempt: "none", validationCategory: "none", priorValidationCategory: "none" }), /verification=semantic-rejection; certification=not-reached; terminal_failure=none; stage=none/u],
+    ["absent", body, 200, {}, /without a withheld diagnostic/u],
+    ["partial", body, 200, { [LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS.stage]: "verification" }, /incomplete withheld diagnostic/u],
+    ["hostile field", body, 200, withheldDiagnosticHeaders({ validationCategory: privateMarker }), /invalid withheld diagnostic/u],
+    ["inconsistent none", body, 200, withheldDiagnosticHeaders({ failureCause: "none" }), /invalid withheld diagnostic/u],
+    ["inconsistent multiple", body, 200, withheldDiagnosticHeaders({ failureCause: "multiple" }), /invalid withheld diagnostic/u],
+    ["first exhausted host verifier", body, 200, withheldDiagnosticHeaders({ attempt: "1", priorValidationCategory: "none" }), /invalid withheld diagnostic/u],
+    ["missing prior validation", body, 200, withheldDiagnosticHeaders({ priorValidationCategory: "none" }), /invalid withheld diagnostic/u],
+    ["capacity category mismatch", body, 200, withheldDiagnosticHeaders({ failureCause: "context-capacity" }), /invalid withheld diagnostic/u],
+    ["unbounded calls", body, 200, withheldDiagnosticHeaders({ callsUsed: "33" }), /invalid withheld diagnostic/u],
+    ["zero calls", body, 200, withheldDiagnosticHeaders({ callsUsed: "0" }), /invalid withheld diagnostic/u],
+    ["incompatible analysis trace", body, 200, { ...exact, ...terminalAnalysisDiagnosticHeaders() }, /incompatible terminal diagnostics/u],
+    ["different unable finding", { result: unableResult([{ id: "generation-unavailable", passageId: "", atomIds: [], message: privateMarker }]), schema_version: 1 }, 200, exact, /withheld diagnostic on an incompatible unable result/u],
+    ["accepted result", { result: validResult(), schema_version: 1 }, 200, exact, /withheld diagnostic on success/u],
+    ["HTTP failure", { error: "upstream_unavailable", schema_version: 1 }, 502, exact, /withheld diagnostic on a non-success response/u],
+  ];
+  for (const [name, resultBody, status, headers, expected] of cases) {
+    await contextTest.test(name, async () => {
+      const fixture = successfulFixture({ canaryResponse: apiJson(resultBody, status, headers) });
+      await assert.rejects(verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait }), (error) => {
+        assert.match(error.message, expected);
+        assert.equal(error.message.includes(privateMarker), false);
+        return true;
+      });
+      assert.equal(fixture.canaryRequests, 1);
+      assert.equal(fixture.setupRequests, 1);
+    });
+  }
 });

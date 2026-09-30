@@ -170,13 +170,14 @@ test("qualified source trees ignore only Wrangler's reserved local residue", asy
 });
 
 test("the release register honestly holds the remote capability and preserves historical evidence", async () => {
-  const [register, view, held, search, workflow, validatorSource] = await Promise.all([
+  const [register, view, held, search, workflow, validatorSource, dossier] = await Promise.all([
     releaseRegister(),
     readFile(join(root, "app/resume/ResumeView.tsx"), "utf8"),
     readFile(join(root, "app/resume/ResumeProjectsHeld.tsx"), "utf8"),
     readFile(join(root, "app/resume/ResumeSearch.tsx"), "utf8"),
     readFile(join(root, ".github/workflows/pages.yml"), "utf8"),
     readFile(validator, "utf8"),
+    readFile(join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"), "utf8"),
   ]);
   assert.equal(register.overallStatus, "held");
   assert.deepEqual(
@@ -186,9 +187,17 @@ test("the release register honestly holds the remote capability and preserves hi
   assert.ok(register.publicClient.heldBoundary.allow.length > 0);
   assert.ok(register.publicClient.heldBoundary.deny.some((item) => item.includes("/api/lattice")));
   assert.equal(register.revision, "2026-09-30");
-  assert.match(register.publicClient.reason, /run #158 supplied the newest partial, non-qualifying production failure/iu);
+  assert.match(register.publicClient.reason, /run #160 exercised the merged correction/iu);
+  assert.match(register.publicClient.reason, /run #158 supplied earlier partial, non-qualifying production failure/iu);
   assert.match(register.publicClient.reason, /verification under the 2,048-token ceiling[\s\S]*finish_reason=length[\s\S]*call_ordinal=3/iu);
-  assert.match(register.publicClient.reason, /current undeployed correction changes the private verifier and certifier representation/iu);
+  assert.match(register.publicClient.reason, /correction merged by PR #50 changes the private verifier and certifier representation/iu);
+  const reviewedBaseline = dossier.match(/^\*\*Reviewed baseline:\*\* `([a-f0-9]{40})`$/mu)?.[1];
+  assert.equal(reviewedBaseline, register.implementationBaselineRevision, "the dossier binds the current register baseline");
+  assert.match(register.publicClient.reason, /merged by PR #50 was deployed for bounded qualification by run #160 but remains unqualified/iu);
+  assert.match(register.publicClient.reason, /qualification-only diagnostic correction[\s\S]{0,180}source-only until separately deployed and observed/iu);
+  assert.ok(register.publicClient.heldBoundary.deny.some((item) => /production-verified or qualified/iu.test(item)));
+  assert.ok(register.publicClient.heldBoundary.deny.some((item) => /public client is activated/iu.test(item)));
+  assert.ok(register.publicClient.heldBoundary.deny.every((item) => !/candidate is deployed/iu.test(item)));
   assert.match(register.publicClient.reason, /2,048-token verifier cap, 520-token certifier cap[\s\S]*remain unchanged/iu);
   assert.match(register.publicClient.reason, /complete legal verifier output at 1,326 tokens[\s\S]*722 tokens or 54\.45 percent/iu);
   assert.match(register.publicClient.reason, /conservative accepted legal maximum is 440 tokens[\s\S]*80 under its 520-token cap/iu);
@@ -215,7 +224,7 @@ test("the release register honestly holds the remote capability and preserves hi
   const workflowGate = register.gates.find(({ id }) => id === "GATE-01");
   assert.match(
     workflowGate.currentEvidence,
-    /run #158 built merged main commit 66c34fd4775efa8de6cf35110f8d623f4418210f[\s\S]*verification call ordinal 3[\s\S]*predecessor private representation[\s\S]*does not establish a complete legal verifier object, successful transformation, or qualification of the current undeployed private-representation correction/iu,
+    /run #158 built merged main commit 66c34fd4775efa8de6cf35110f8d623f4418210f[\s\S]*verification call ordinal 3[\s\S]*predecessor private representation[\s\S]*does not establish a complete legal verifier object, successful transformation, or qualification of the later private-representation correction/iu,
   );
   assert.match(workflowGate.currentEvidence, /Runs #156, #154, #152, #150, #147[^.]*remain earlier held-publication history/iu);
 
@@ -224,6 +233,21 @@ test("the release register honestly holds the remote capability and preserves hi
     ...register.gates.flatMap((gate) => [gate.activeCurrentEvidence, ...(gate.activeEvidence ?? [])]),
   ].join(" ");
   for (const exactEvidence of [
+    "https://github.com/howardhayden/folio/actions/runs/36716298072",
+    "94fba0deb97748f3a91693a3bae15296b0ef3699",
+    "d483b0124f2d7fb8c76cf028f8667b7ffb264299630b3cba7736f8cb8cac37a6",
+    "artifact ID 11096801240",
+    "b9a44b22b8f61d607ea09ef4c8662fe776eec2410bafa972939c19778d638696",
+    "stage_attempt=initial",
+    "upstream_status=504",
+    "prior_validation=none",
+    "post-candidate-withheld with batch_count=1, verification_passes=0, and finding_count=1",
+    "retained summary does not identify the exact internal cause",
+    "6118ad58-8448-4d10-b564-ecee5538e0b8",
+    "f24b2a69-a426-456e-99c5-cb1020f02e4a",
+    "2026-09-30T12:56:33.469Z",
+    "artifact ID 11097350508",
+    "58c5d4dbaf2f715e316e2b0e3814e6036de7c5cdf9088115e0771dc9a5e6e446",
     "https://github.com/howardhayden/folio/actions/runs/36595292369",
     "66c34fd4775efa8de6cf35110f8d623f4418210f",
     "2677c607d748582348930f1b90087e09455fff9773ce2eca203a4a7474ab7a8a",
