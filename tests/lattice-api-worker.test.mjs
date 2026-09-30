@@ -22,6 +22,13 @@ import {
 } from "../app/resume/lattice/promptContract.js";
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
 import {
+  LATTICE_REJECTION_CATEGORIES,
+  rejectedErrorDiagnostic,
+  rejectedResultDiagnostic,
+  rememberRejectedError,
+  rememberRejectedResult,
+} from "../app/resume/lattice/rejectionDiagnostics.js";
+import {
   latticeSourceSpansForBatch,
   splitLatticePassage,
 } from "../app/resume/lattice/segments.js";
@@ -2709,6 +2716,221 @@ test("the compact verifier preserves retained-conformance evidence and every ind
   })));
 });
 
+test("private rejection observations stay finite, detached, and exception isolated", () => {
+  const result = Object.freeze({});
+  assert.equal(rememberRejectedResult(result, "field-set"), result);
+  const diagnostic = rejectedResultDiagnostic(result);
+  assert.deepEqual(diagnostic, { boundary: "wire-decoder", category: "field-set" });
+  assert.equal(Object.isFrozen(diagnostic), true);
+  assert.deepEqual(Reflect.ownKeys(result), []);
+  assert.equal(JSON.stringify(result), "{}");
+  assert.equal(rejectedResultDiagnostic({}), null);
+  assert.equal(rejectedResultDiagnostic(null), null);
+  assert.equal(rememberRejectedResult("unchanged", "field-set"), "unchanged");
+  assert.equal(rejectedResultDiagnostic(rememberRejectedResult({}, "untrusted-source-fragment")), null);
+
+  const error = new Error("host-owned validation condition");
+  assert.equal(rememberRejectedError(error, diagnostic), error);
+  assert.deepEqual(rejectedErrorDiagnostic(error), diagnostic);
+  assert.notEqual(rejectedErrorDiagnostic(error), diagnostic);
+  assert.deepEqual(Reflect.ownKeys(error), ["stack", "message"]);
+  const hostError = new Error("host-owned validation condition");
+  rememberRejectedError(hostError, Object.freeze({ boundary: "host-normalizer", category: "consistency" }));
+  assert.deepEqual(rejectedErrorDiagnostic(hostError), { boundary: "host-normalizer", category: "consistency" });
+
+  let getterReads = 0;
+  const getterDiagnostic = Object.freeze({
+    boundary: "wire-decoder",
+    get category() { getterReads += 1; return "field-set"; },
+  });
+  const hostile = [
+    { boundary: "wire-decoder", category: "field-set" },
+    Object.freeze({ boundary: "wire-decoder", category: "unknown" }),
+    Object.freeze({ boundary: "unknown", category: "field-set" }),
+    Object.freeze({ boundary: "wire-decoder", category: "field-set", extra: "unretained" }),
+    Object.freeze({ boundary: "wire-decoder", category: "field-set", [Symbol("extra")]: true }),
+    Object.freeze(Object.assign(Object.create(null), { boundary: "wire-decoder", category: "field-set" })),
+    getterDiagnostic,
+    new Proxy({}, { isExtensible() { throw new Error("unretained trap"); } }),
+  ];
+  for (const candidate of hostile) {
+    const original = new Error("original outcome");
+    assert.equal(rememberRejectedError(original, candidate), original);
+    assert.equal(rejectedErrorDiagnostic(original), null);
+  }
+  assert.equal(getterReads, 0);
+  assert.equal(rejectedErrorDiagnostic(null), null);
+  assert.equal(rememberRejectedError(null, diagnostic), null);
+  const originalSet = WeakMap.prototype.set;
+  const unstoredResult = {};
+  const unstoredError = new Error("original outcome");
+  try {
+    WeakMap.prototype.set = () => { throw new Error("unretained observer failure"); };
+    assert.equal(rememberRejectedResult(unstoredResult, "field-set"), unstoredResult);
+    assert.equal(rememberRejectedError(unstoredError, diagnostic), unstoredError);
+  } finally {
+    WeakMap.prototype.set = originalSet;
+  }
+  assert.equal(rejectedResultDiagnostic(unstoredResult), null);
+  assert.equal(rejectedErrorDiagnostic(unstoredError), null);
+  assert.deepEqual(LATTICE_REJECTION_CATEGORIES, [
+    "object-type", "field-set", "value-type", "value-domain", "collection-bound",
+    "coverage", "reference", "duplicate", "consistency", "other",
+  ]);
+});
+
+test("private verifier rejection observations identify the first failed structural condition without changing calls", async () => {
+  const request = minimalVerificationRequest();
+  const accepted = acceptingVerificationWire(request);
+  const passage = accepted.p["0"];
+  const withPassage = (replacement) => ({ ...accepted, p: { 0: replacement } });
+  const cases = [
+    [{ ...accepted, extra: "unretained" }, "field-set"],
+    [{ ...accepted, p: [] }, "object-type"],
+    [{ ...accepted, p: {} }, "field-set"],
+    [{ ...accepted, i: false }, "value-type"],
+    [{ ...accepted, i: Array(25).fill({ c: 0, p: -1 }) }, "collection-bound"],
+    [{ ...accepted, d: false }, "value-type"],
+    [{ ...accepted, d: 3 }, "value-domain"],
+    [{ ...accepted, d: 3, g: false }, "value-domain"],
+    [{ ...accepted, g: false }, "value-type"],
+    [{ ...accepted, g: "x".repeat(11) }, "value-domain"],
+    [withPassage([]), "object-type"],
+    [withPassage({ ...passage, u: 0 }), "value-type"],
+    [withPassage({ ...passage, c: [] }), "object-type"],
+    [withPassage({ ...passage, c: { ...passage.c, v: 0 } }), "value-type"],
+    [withPassage({ ...passage, c: { ...passage.c, k: false } }), "value-type"],
+    [withPassage({ ...passage, a: false }), "value-type"],
+    [withPassage({ ...passage, a: "3".repeat(passage.a.length) }), "value-domain"],
+    [withPassage({ ...passage, s: false }), "value-type"],
+    [withPassage({ ...passage, f: "x".repeat(9) }), "value-domain"],
+    [withPassage({ ...passage, l: 5 }), "value-domain"],
+    [withPassage({ ...passage, x: "0".repeat(passage.x.length) }), "coverage"],
+    [withPassage({ ...passage, y: "0".repeat(passage.y.length) }), "coverage"],
+    [withPassage({ ...passage, c: { ...passage.c, s: false } }), "value-type"],
+    [withPassage({ ...passage, c: { ...passage.c, v: true } }), "consistency"],
+    [{ ...accepted, i: [{ c: 0 }] }, "field-set"],
+    [{ ...accepted, i: [{ c: 0, p: false }] }, "value-type"],
+    [{ ...accepted, i: [{ c: 0, p: 1 }] }, "reference"],
+    [{ ...accepted, i: [{ c: false, p: -1 }] }, "value-type"],
+    [{ ...accepted, i: [{ c: 0, p: -1 }, { c: 0, p: -1 }] }, "duplicate"],
+  ];
+  for (const [wire, category] of cases) {
+    let fetches = 0;
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-token",
+      fetchImpl: async () => { fetches += 1; return successfulProviderResponse(wire); },
+    });
+    const result = await adapter.verify(request);
+    assert.deepEqual(result, {});
+    assert.deepEqual(Reflect.ownKeys(result), []);
+    assert.deepEqual(rejectedResultDiagnostic(result), { boundary: "wire-decoder", category });
+    assert.equal(fetches, 1);
+    assert.equal(adapter.completionCapacity().used, 1);
+  }
+  const successful = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => successfulProviderResponse(accepted),
+  });
+  const result = await successful.verify(request);
+  assert.equal(result.decision, "accept");
+  assert.equal(rejectedResultDiagnostic(result), null);
+  assert.equal(successful.completionCapacity().used, 1);
+});
+
+test("private retained-conformance rejection observations preserve evidence obligations", async () => {
+  const base = minimalVerificationRequest();
+  const plan = base.analysis.passages[0];
+  const criteria = [
+    ...LATTICE_CONFORMANCE_CRITERIA.universal,
+    ...LATTICE_CONFORMANCE_CRITERIA.operative,
+  ];
+  const request = {
+    ...base,
+    analysis: {
+      ...base.analysis,
+      passages: [{ ...plan, disposition: "retain-if-conformant", conformanceCriteria: criteria }],
+    },
+  };
+  const accepted = acceptingVerificationWire(request);
+  const passage = accepted.p["0"];
+  const [first, ...remaining] = passage.c.k;
+  const withChecks = (k) => ({ ...accepted, p: { 0: { ...passage, c: { ...passage.c, k } } } });
+  const cases = [
+    [withChecks(remaining), "coverage"],
+    [withChecks([null, ...remaining]), "object-type"],
+    [withChecks([{ ...first, extra: false }, ...remaining]), "field-set"],
+    [withChecks([{ ...first, v: 1 }, ...remaining]), "value-type"],
+    [withChecks([{ ...first, s: false }, ...remaining]), "value-type"],
+    [withChecks([{ ...first, s: "x".repeat(first.s.length) }, ...remaining]), "value-domain"],
+    [withChecks([{ ...first, s: "0".repeat(first.s.length) }, ...remaining]), "coverage"],
+  ];
+  for (const [wire, category] of cases) {
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-token", fetchImpl: async () => successfulProviderResponse(wire),
+    });
+    const result = await adapter.verify(request);
+    assert.deepEqual(result, {});
+    assert.deepEqual(rejectedResultDiagnostic(result), { boundary: "wire-decoder", category });
+    assert.equal(adapter.completionCapacity().used, 1);
+  }
+  const rejectingCriterion = withChecks([{ ...first, v: false, s: "0".repeat(first.s.length) }, ...remaining]);
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token", fetchImpl: async () => successfulProviderResponse(rejectingCriterion),
+  });
+  const result = await adapter.verify(request);
+  assert.equal(result.passages[0].criterionChecks[0].passed, false);
+  assert.equal(rejectedResultDiagnostic(result), null);
+});
+
+test("private certifier rejection observations identify the first failed structural condition without changing calls", async () => {
+  const request = Object.freeze({
+    certificateId: "certificate:private-observation",
+    obligationIds: Object.freeze(["document:whole", "boundary:0"]),
+    source: "Original source.", candidate: "Candidate source.",
+    signal: new AbortController().signal,
+  });
+  const accepted = acceptingCertificationWire(request.certificateId, request.obligationIds);
+  const cases = [
+    [{ ...accepted, extra: "unretained" }, "field-set"],
+    [{ ...accepted, c: "certificate:other" }, "reference"],
+    [{ ...accepted, o: false }, "value-type"],
+    [{ ...accepted, o: [] }, "coverage"],
+    [{ ...accepted, o: [...accepted.o].reverse() }, "reference"],
+    [{ ...accepted, k: false }, "value-type"],
+    [{ ...accepted, k: accepted.k.slice(1) }, "collection-bound"],
+    [{ ...accepted, k: [0, ...accepted.k.slice(1)] }, "value-type"],
+    [{ ...accepted, i: false }, "value-type"],
+    [{ ...accepted, i: Array(11).fill(0) }, "collection-bound"],
+    [{ ...accepted, d: false }, "value-type"],
+    [{ ...accepted, d: 2 }, "value-domain"],
+    [{ ...accepted, i: [false] }, "value-type"],
+    [{ ...accepted, i: [10] }, "value-domain"],
+    [{ ...accepted, i: [0, 0] }, "duplicate"],
+  ];
+  for (const [wire, category] of cases) {
+    let fetches = 0;
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-token",
+      fetchImpl: async () => { fetches += 1; return successfulProviderResponse(wire); },
+    });
+    const result = await adapter.certify(request);
+    assert.deepEqual(result, {});
+    assert.deepEqual(Reflect.ownKeys(result), []);
+    assert.deepEqual(rejectedResultDiagnostic(result), { boundary: "wire-decoder", category });
+    assert.equal(fetches, 1);
+    assert.equal(adapter.completionCapacity().used, 1);
+  }
+  const successful = createHuggingFaceLatticeAdapter({
+    token: "server-token",
+    fetchImpl: async () => successfulProviderResponse(accepted),
+  });
+  const result = await successful.certify(request);
+  assert.equal(result.decision, "accept");
+  assert.equal(rejectedResultDiagnostic(result), null);
+  assert.equal(successful.completionCapacity().used, 1);
+});
+
 test("malformed compact verifier and certifier wires fail closed after one provider call", async () => {
   const verificationRequest = minimalVerificationRequest();
   const calls = [];
@@ -4841,7 +5063,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
 });
 
 test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
-  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v5");
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v6");
   const diagnosticHeaders = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
       LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -5048,7 +5270,7 @@ test("the terminal analysis diagnostic is all-or-none, bounded, and qualificatio
   }
 });
 
-test("the v5 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v6 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -5746,6 +5968,8 @@ test("withheld diagnostics are immutable closed observations confined to marked 
     revision: "coherent", deterministic: "clear", verification: "unavailable", certification: "not-reached",
     failureCause: "host-validation", stage: "verification", attempt: "2",
     validationCategory: "response-shape", priorValidationCategory: "evidence",
+    rejectionBoundary: "wire-decoder", rejectionCategory: "field-set",
+    priorRejectionBoundary: "host-normalizer", priorRejectionCategory: "other",
   };
   const trace = Object.freeze(baseTrace);
   const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE };
@@ -5788,6 +6012,10 @@ test("withheld diagnostics are immutable closed observations confined to marked 
     ["foreign prototype", Object.freeze(Object.assign(Object.create({}), baseTrace))],
     ["revoked proxy", proxy],
     ["hostile enum", Object.freeze({ ...baseTrace, validationCategory: privateMarker })],
+    ["hostile rejection", Object.freeze({ ...baseTrace, rejectionCategory: privateMarker })],
+    ["partial rejection", Object.freeze(Object.fromEntries(Object.entries(baseTrace).filter(([field]) => field !== "rejectionBoundary")))],
+    ["unknown specific rejection", Object.freeze({ ...baseTrace, rejectionBoundary: "unknown" })],
+    ["absent rejection mismatch", Object.freeze({ ...baseTrace, rejectionBoundary: "none" })],
     ["none provenance mismatch", Object.freeze({ ...baseTrace, failureCause: "none" })],
     ["multiple provenance mismatch", Object.freeze({ ...baseTrace, failureCause: "multiple" })],
     ["first attempt prior", Object.freeze({ ...baseTrace, failureCause: "context-capacity", attempt: "1", validationCategory: "capacity" })],

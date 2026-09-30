@@ -1,4 +1,5 @@
 import { LATTICE_ANALYSIS_VALIDATION_CATEGORIES } from "./promptContract.js";
+import { LATTICE_REJECTION_BOUNDARIES, LATTICE_REJECTION_CATEGORIES } from "./rejectionDiagnostics.js";
 
 // These independent host observations describe a withheld terminal result. They
 // do not identify a unique cause or retain any transformation content.
@@ -22,12 +23,17 @@ export const LATTICE_WITHHELD_TRACE_VALUES = Object.freeze({
   attempt: Object.freeze(["none", "multiple", "1", "2"]),
   validationCategory: Object.freeze([...LATTICE_ANALYSIS_VALIDATION_CATEGORIES, "decision-consistency", "multiple"]),
   priorValidationCategory: Object.freeze([...LATTICE_ANALYSIS_VALIDATION_CATEGORIES, "decision-consistency", "multiple"]),
+  rejectionBoundary: Object.freeze(["none", "multiple", "unknown", ...LATTICE_REJECTION_BOUNDARIES]),
+  rejectionCategory: Object.freeze(["none", "multiple", ...LATTICE_REJECTION_CATEGORIES]),
+  priorRejectionBoundary: Object.freeze(["none", "multiple", "unknown", ...LATTICE_REJECTION_BOUNDARIES]),
+  priorRejectionCategory: Object.freeze(["none", "multiple", ...LATTICE_REJECTION_CATEGORIES]),
 });
 export const LATTICE_WITHHELD_TRACE_FIELDS = Object.freeze(Object.keys(LATTICE_WITHHELD_TRACE_VALUES));
 const VALUE_SETS = Object.fromEntries(Object.entries(LATTICE_WITHHELD_TRACE_VALUES)
   .map(([field, values]) => [field, new Set(values)]));
 const FAILURE_FIELDS = Object.freeze([
   "failureCause", "stage", "attempt", "validationCategory", "priorValidationCategory",
+  "rejectionBoundary", "rejectionCategory", "priorRejectionBoundary", "priorRejectionCategory",
 ]);
 
 export function withheldTraceIsConsistent(trace) {
@@ -45,6 +51,16 @@ export function withheldTraceIsConsistent(trace) {
       && !["document-window-certification", "document-relation-certification"].includes(trace.stage))
     || (["context-capacity", "output-limit"].includes(trace.failureCause)
       && trace.validationCategory !== "capacity")) return false;
+  for (const [boundary, category] of [
+    [trace.rejectionBoundary, trace.rejectionCategory],
+    [trace.priorRejectionBoundary, trace.priorRejectionCategory],
+  ]) {
+    if (boundary === "multiple" || category === "multiple"
+      || (boundary === "none") !== (category === "none")
+      || (boundary === "unknown" && category !== "other")) return false;
+  }
+  if (trace.attempt === "1"
+    && (trace.priorRejectionBoundary !== "none" || trace.priorRejectionCategory !== "none")) return false;
   return true;
 }
 

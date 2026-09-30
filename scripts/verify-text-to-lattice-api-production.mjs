@@ -1064,6 +1064,8 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
         + `certification=${withheldDiagnostic.certification}; terminal_failure=${withheldDiagnostic.failureCause}; `
         + `stage=${withheldDiagnostic.stage}; attempt=${withheldDiagnostic.attempt}; `
         + `validation=${withheldDiagnostic.validationCategory}; prior_validation=${withheldDiagnostic.priorValidationCategory}; `
+        + `rejection_boundary=${withheldDiagnostic.rejectionBoundary}; rejection_category=${withheldDiagnostic.rejectionCategory}; `
+        + `prior_rejection_boundary=${withheldDiagnostic.priorRejectionBoundary}; prior_rejection_category=${withheldDiagnostic.priorRejectionCategory}; `
         + `calls_used=${withheldDiagnostic.callsUsed}; batch_count=${envelope.result.batchCount}; `
         + `verification_passes=${envelope.result.verificationPasses}; finding_count=${envelope.result.findings.length})`);
     }

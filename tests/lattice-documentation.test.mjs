@@ -191,6 +191,16 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
   assert.match(dossier, /Historical inactive WebLLM and lease appendix/u);
   assert.match(dossier, /\*\*Qualification date:\*\* 2026-09-30/u);
+  assert.match(dossier, /bounded qualification,[\s\S]{0,120}run #162[\s\S]{0,240}`be20fab7dbf312deef5ccc77997932f077b21f6e`/iu);
+  assert.match(dossier, /exact tree `2a7130b71189bb790f84ff8809b51542b6baf056`[\s\S]{0,100}deployed source-set digest `7419de535c9d3b35b74a7455e11dad52073618403c874d33631759d04f119ca2`/u);
+  assert.match(dossier, /deployed qualification-dossier digest `d642e6f1bd47b5cdd92a139ea1653f7fe931fc84f9558f5f427626b53ebb5663`/u);
+  assert.match(dossier, /Run #162's bounded synthetic canary[\s\S]{0,160}2026-09-30T13:58:37\.984Z[\s\S]{0,260}terminal_failure=host-validation, stage=verification, attempt=2, validation=response-shape, prior_validation=response-shape, calls_used=5, batch_count=1, verification_passes=0, and finding_count=1/u);
+  assert.match(dossier, /calls_used=5 is aggregate provider-call usage, not a failure-call ordinal or proof of unretained call outcomes/u);
+  assert.match(dossier, /exact invalid private structure and whether rejection originated in decoding or host normalization were not retained/iu);
+  assert.match(dossier, /69c38fbd-1cd0-4d72-911d-3bcd5b087962[\s\S]{0,100}7496d68f-29dd-4373-b078-0ab9b09942fa[\s\S]{0,80}2026-09-30T13:59:14\.894Z[\s\S]{0,30}3\/3 held samples/u);
+  assert.match(dossier, /Run #162 closes none of GATE-02, GATE-03, or GATE-06/u);
+  assert.match(dossier, /diagnostic correction, revision 6[\s\S]{0,180}source-only until separately deployed and observed[\s\S]{0,120}no retrospective private-structure or rejection-origin evidence for run #162/iu);
+  assert.doesNotMatch(dossier, /run #162[^\n]{0,200}(?:proves|establishes)[^\n]{0,100}(?:insufficient|budget is too small)/iu);
   assert.match(dossier, /preceding bounded qualification,[\s\S]{0,120}run #158[\s\S]{0,180}attempt 2[\s\S]{0,100}`66c34fd4775efa8de6cf35110f8d623f4418210f`/iu);
   assert.match(dossier, /bounded qualification,[\s\S]{0,120}run #160[\s\S]{0,280}`94fba0deb97748f3a91693a3bae15296b0ef3699`/iu);
   assert.match(dossier, /deployed source-set digest `d483b0124f2d7fb8c76cf028f8667b7ffb264299630b3cba7736f8cb8cac37a6`/u);
