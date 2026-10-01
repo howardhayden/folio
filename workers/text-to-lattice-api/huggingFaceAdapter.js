@@ -48,6 +48,10 @@ export const LATTICE_PROVIDER_FAILURE_CLASSES = Object.freeze([
   "provider_malformed_response",
 ]);
 
+const TOOL_ENVELOPE_SUBTYPES = Object.freeze([
+  "E00", "E01", "E02", "E03", "E04", "E05", "E06", "E07",
+  "S01", "S02", "S03", "S04", "S05", "S06", "S07",
+]);
 export const LATTICE_PROVIDER_MALFORMED_SUBTYPES = Object.freeze([
   "none",
   "response_read",
@@ -58,6 +62,9 @@ export const LATTICE_PROVIDER_MALFORMED_SUBTYPES = Object.freeze([
   "choice_shape",
   "finish_reason",
   "message_shape",
+  // Fixed host predicates on already rejected transport envelopes. These
+  // permit bounded shape inference without retaining values or field names.
+  ...TOOL_ENVELOPE_SUBTYPES,
   "message_role",
   "content_empty",
   "content_json",
@@ -1815,6 +1822,45 @@ async function boundedResponseText(response, maximumBytes, signal) {
   }
 }
 
+export function providerEnvelopeSubtypeIsConsistent(subtype, stage, providerFinishReason) {
+  if (!MALFORMED_SUBTYPE_SET.has(subtype)) return false;
+  if (!TOOL_ENVELOPE_SUBTYPES.includes(subtype)) return true;
+  if (!["verification", "certification"].includes(stage)) return false;
+  if (subtype === "S01") return providerFinishReason === "tool_calls";
+  return subtype.startsWith("S") ? providerFinishReason === "stop"
+    : ["stop", "tool_calls"].includes(providerFinishReason);
+}
+
+function rejectedNamedToolSubtype(toolCall, toolName) {
+  try {
+    if (!record(toolCall)) return "E00";
+    if (typeof toolCall.id !== "string") return "E01";
+    if (!toolCall.id.trim()) return "E02";
+    if (toolCall.id.length > 256) return "E03";
+    if (toolCall.type !== "function") return "E04";
+    if (!record(toolCall.function)) return "E05";
+    if (toolCall.function.name !== toolName) return "E06";
+    if (typeof toolCall.function.arguments !== "string") return "E07";
+  } catch { /* Observation must preserve the rejected envelope outcome. */ }
+  return "message_shape";
+}
+
+function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedToolContent) {
+  try {
+    if (!allowStoppedToolContent) return "message_shape";
+    if (providerFinishReason !== "stop") return "S01";
+    if (Object.hasOwn(message, "tool_calls")) {
+      if (!Array.isArray(message.tool_calls)) return "S02";
+      if (message.tool_calls.length === 0) return "S03";
+      if (message.tool_calls.length > 1) return "S04";
+    }
+    if (Object.hasOwn(message, "function_call")) return "S05";
+    if (!Object.keys(message).every((key) => key === "role" || key === "content")) return "S06";
+    if (typeof message.content !== "string") return "S07";
+  } catch { /* Observation must preserve the rejected envelope outcome. */ }
+  return "message_shape";
+}
+
 function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent) {
   let envelope;
   try {
@@ -1913,7 +1959,7 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
         throw withProviderDiagnostic(
           providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
           {
-            subtype: "message_shape",
+            subtype: rejectedNamedToolSubtype(toolCall, toolName),
             finishReason: providerFinishReason,
             responseSize,
             contentSize: providerContentSize,
@@ -1937,7 +1983,7 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
       throw withProviderDiagnostic(
         providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
         {
-          subtype: "message_shape",
+          subtype: rejectedStoppedToolSubtype(choice.message, choice.finish_reason, allowStoppedToolContent),
           finishReason: providerFinishReason,
           responseSize,
           contentSize: providerContentSize,

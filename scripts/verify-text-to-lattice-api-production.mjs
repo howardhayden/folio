@@ -32,6 +32,7 @@ import {
   LATTICE_REMOTE_MODELS,
   LATTICE_PROVIDER_SIZE_BUCKETS,
   LATTICE_PROVIDER_STAGES,
+  providerEnvelopeSubtypeIsConsistent,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
   LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
@@ -903,6 +904,7 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
       || ordinal > LATTICE_PROVIDER_CALL_LIMIT
       || !PROVIDER_MALFORMED_SUBTYPE_SET.has(diagnosticValues.subtype)
       || !PROVIDER_FINISH_REASON_SET.has(diagnosticValues.finishReason)
+      || !providerEnvelopeSubtypeIsConsistent(diagnosticValues.subtype, diagnosticValues.stage, diagnosticValues.finishReason)
       || !PROVIDER_SIZE_BUCKET_SET.has(diagnosticValues.requestSize)
       || !PROVIDER_SIZE_BUCKET_SET.has(diagnosticValues.responseSize)
       || !PROVIDER_SIZE_BUCKET_SET.has(diagnosticValues.contentSize)

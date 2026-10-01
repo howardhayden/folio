@@ -193,6 +193,10 @@ test("the release register honestly holds the remote capability and preserves hi
   assert.match(register.publicClient.reason, /aggregate calls_used=5 is not a failure-call ordinal/u);
   assert.match(register.publicClient.reason, /No exact invalid private structure or decoding-versus-host-normalization rejection origin was retained/u);
   assert.match(register.publicClient.reason, /diagnostic extension, revision 7/iu);
+  assert.match(register.publicClient.reason, /Qualification run #166[\s\S]{0,250}diagnostic revision 7 merged by PR #53/iu);
+  assert.match(register.publicClient.reason, /provider-envelope rejection at initial verification before private-wire decoding/iu);
+  assert.match(register.publicClient.reason, /retained no revision-7 host predicate code or first deterministic finding/iu);
+  assert.match(register.publicClient.reason, /diagnostic extension, revision 8/iu);
   assert.match(register.publicClient.reason, /no retrospective exact-predicate or deterministic-finding evidence for run #164/iu);
   assert.match(register.publicClient.reason, /source-only until separately deployed and observed/iu);
   assert.match(register.publicClient.reason, /run #160 exercised the merged correction/iu);
@@ -202,7 +206,7 @@ test("the release register honestly holds the remote capability and preserves hi
   const reviewedBaseline = dossier.match(/^\*\*Reviewed baseline:\*\* `([a-f0-9]{40})`$/mu)?.[1];
   assert.equal(reviewedBaseline, register.implementationBaselineRevision, "the dossier binds the current register baseline");
   assert.match(register.publicClient.reason, /merged by PR #50 was deployed for bounded qualification by run #160 but remains unqualified/iu);
-  assert.match(register.publicClient.reason, /The current qualification-only diagnostic extension, revision 7/iu);
+  assert.match(register.publicClient.reason, /The current qualification-only diagnostic extension, revision 8/iu);
   assert.ok(register.publicClient.heldBoundary.deny.some((item) => /production-verified or qualified/iu.test(item)));
   assert.ok(register.publicClient.heldBoundary.deny.some((item) => /public client is activated/iu.test(item)));
   assert.ok(register.publicClient.heldBoundary.deny.every((item) => !/candidate is deployed/iu.test(item)));
