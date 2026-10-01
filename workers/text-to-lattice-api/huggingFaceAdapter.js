@@ -113,6 +113,95 @@ export const LATTICE_PROVIDER_ANALYSIS_ATTEMPTS = Object.freeze([
   "2",
 ]);
 
+// Qualification-only observations of an already rejected HTTP response. These
+// are advertised metadata, never proof of the internal serving target or hop.
+export const LATTICE_PROVIDER_HTTP_HEADER_VALUES = Object.freeze({
+  mediaType: Object.freeze(["absent", "json", "text", "html", "other", "invalid", "unavailable"]),
+  allow: Object.freeze(["absent", "empty", "includes-POST", "excludes-POST", "invalid", "unavailable"]),
+  routerRoute: Object.freeze(["absent", "present", "invalid", "unavailable"]),
+  routerModel: Object.freeze([
+    "absent", "expected-selector", "expected-model", "mapped-model",
+    "replacement-literal", "other", "invalid", "unavailable",
+  ]),
+  inferenceProvider: Object.freeze(["absent", "expected", "other", "invalid", "unavailable"]),
+});
+const HTTP_HEADER_VALUE_SETS = Object.freeze(Object.fromEntries(
+  Object.entries(LATTICE_PROVIDER_HTTP_HEADER_VALUES).map(([field, values]) => [field, new Set(values)]),
+));
+const HTTP_HEADER_CHARACTER_LIMIT = 256;
+const HTTP_TOKEN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
+const VERIFIER_MAPPED_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct";
+const VERIFIER_ADVERTISED_REPLACEMENT = "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo";
+
+export function isClosedProviderHttpHeaders(value) {
+  try {
+    return record(value)
+      && Object.isFrozen(value)
+      && Object.getPrototypeOf(value) === Object.prototype
+      && Reflect.ownKeys(value).length === Object.keys(HTTP_HEADER_VALUE_SETS).length
+      && Object.entries(HTTP_HEADER_VALUE_SETS).every(([field, values]) => {
+        const descriptor = Object.getOwnPropertyDescriptor(value, field);
+        return descriptor !== undefined && "value" in descriptor && values.has(descriptor.value);
+      });
+  } catch {
+    return false;
+  }
+}
+
+function qualificationHttpHeaders(response, role) {
+  const observe = (name, classify) => {
+    try {
+      const raw = response.headers.get(name);
+      if (raw === null) return "absent";
+      if (typeof raw !== "string" || raw.length > HTTP_HEADER_CHARACTER_LIMIT
+        || /[^\t\x20-\x7e]/u.test(raw)) return "invalid";
+      return classify(raw.replace(/^[\t ]+|[\t ]+$/gu, ""));
+    } catch {
+      return "unavailable";
+    }
+  };
+  const selector = LATTICE_REMOTE_MODELS[role];
+  // Derive only the trusted configured literal; never normalize an observed ID.
+  const separator = selector.lastIndexOf(":");
+  const expectedModel = selector.slice(0, separator);
+  const expectedProvider = selector.slice(separator + 1);
+  return Object.freeze({
+    mediaType: observe("content-type", (value) => {
+      const match = /^([^/;\t ]+)\/([^/;\t ]+)(?:[\t ]*;[\t\x20-\x7e]*)?$/u.exec(value);
+      if (match === null || !HTTP_TOKEN.test(match[1]) || !HTTP_TOKEN.test(match[2])) return "invalid";
+      const media = `${match[1]}/${match[2]}`.toLowerCase();
+      if (media === "application/json") return "json";
+      if (media === "text/plain") return "text";
+      if (media === "text/html") return "html";
+      return "other";
+    }),
+    allow: observe("allow", (value) => {
+      if (value === "") return "empty";
+      const methods = value.split(",").map((method) => method.replace(/^[\t ]+|[\t ]+$/gu, ""));
+      // Empty list members are permitted by HTTP list syntax. A bounded list
+      // still distinguishes the case-sensitive POST token from arbitrary text.
+      if (methods.length > 32 || methods.some((method) => method !== "" && !HTTP_TOKEN.test(method))) {
+        return "invalid";
+      }
+      if (methods.every((method) => method === "")) return "empty";
+      return methods.includes("POST") ? "includes-POST" : "excludes-POST";
+    }),
+    routerRoute: observe("x-router-route", (value) => value ? "present" : "invalid"),
+    routerModel: observe("x-router-model", (value) => {
+      if (!value || /[\t ]/u.test(value)) return "invalid";
+      if (value === selector) return "expected-selector";
+      if (value === expectedModel) return "expected-model";
+      if (role === "verifier" && value === VERIFIER_MAPPED_MODEL) return "mapped-model";
+      if (role === "verifier" && value === VERIFIER_ADVERTISED_REPLACEMENT) return "replacement-literal";
+      return "other";
+    }),
+    inferenceProvider: observe("x-inference-provider", (value) => {
+      if (!value || /[\t ]/u.test(value)) return "invalid";
+      return value === expectedProvider ? "expected" : "other";
+    }),
+  });
+}
+
 export const LATTICE_PROVIDER_CALL_TIMEOUT_MS = 120_000;
 const LATTICE_PROVIDER_VERIFICATION_CALL_TIMEOUT_MS = 180_000;
 export const LATTICE_PROVIDER_REQUEST_BYTE_LIMIT = 1_048_576;
@@ -567,6 +656,9 @@ function withProviderDiagnostic(error, patch) {
   if (COMPLETION_TOKEN_BUCKET_SET.has(patch.completionTokens)) {
     next.completionTokens = patch.completionTokens;
   }
+  if (error.code === "provider_http_error" && isClosedProviderHttpHeaders(patch.httpHeaders)) {
+    next.httpHeaders = patch.httpHeaders;
+  }
   if (error.code !== "provider_malformed_response") next.subtype = "none";
   PROVIDER_DIAGNOSTICS.set(error, Object.freeze(next));
   return error;
@@ -710,6 +802,12 @@ function withQualificationDiagnostic(
       configurable: false,
       enumerable: false,
       value: stageDiagnostic.priorValidationCategory,
+      writable: false,
+    },
+    qualificationHttpHeaders: {
+      configurable: false,
+      enumerable: false,
+      value: error.code === "provider_http_error" ? providerDiagnostic.httpHeaders ?? null : null,
       writable: false,
     },
   });
@@ -2138,6 +2236,7 @@ export async function requestHuggingFaceJson({
   toolChoice,
   allowStoppedToolContent = false,
   requireMinimalVerificationContent = false,
+  observeQualificationHttpHeaders = false,
   presencePenalty,
   signal,
   fetchImpl = globalThis.fetch,
@@ -2177,6 +2276,7 @@ export async function requestHuggingFaceJson({
     || (toolChoice !== undefined && toolName === undefined)
     || typeof allowStoppedToolContent !== "boolean"
     || typeof requireMinimalVerificationContent !== "boolean"
+    || typeof observeQualificationHttpHeaders !== "boolean"
     || (requireMinimalVerificationContent
       && (role !== "verifier"
         || schemaName !== VERIFICATION_TOOL_NAME
@@ -2302,13 +2402,16 @@ export async function requestHuggingFaceJson({
         throw providerError("provider_redirect", "The Lattice provider attempted an unexpected redirect.");
       }
       if (!response.ok) {
+        const httpHeaders = observeQualificationHttpHeaders
+          ? qualificationHttpHeaders(response, role)
+          : null;
         discardResponseBody(response);
-        throw providerError("provider_http_error", "The Lattice provider rejected the request.", {
+        throw withProviderDiagnostic(providerError("provider_http_error", "The Lattice provider rejected the request.", {
           status: response.status,
           retryAfterSeconds: response.status === 429
             ? parseRetryAfterSeconds(response.headers.get("retry-after"))
             : null,
-        });
+        }), { httpHeaders });
       }
       if (!PROVIDER_JSON_CONTENT_TYPE.test(response.headers.get("content-type") ?? "")) {
         discardResponseBody(response);
@@ -2372,8 +2475,9 @@ export function createHuggingFaceLatticeAdapter({
   callTimeoutMs,
   maximumRequestBytes = LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   maximumResponseBytes = LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
+  observeQualificationHttpHeaders = false,
 } = {}) {
-  if (!REQUESTED_MODES.has(requestedMode)) {
+  if (!REQUESTED_MODES.has(requestedMode) || typeof observeQualificationHttpHeaders !== "boolean") {
     throw new TypeError("The Lattice provider received an invalid requested mode.");
   }
 
@@ -2419,6 +2523,7 @@ export function createHuggingFaceLatticeAdapter({
         toolChoice: stage.toolChoice,
         allowStoppedToolContent: stage.allowStoppedToolContent,
         requireMinimalVerificationContent: stage.requireMinimalVerificationContent,
+        observeQualificationHttpHeaders,
         maxTokens: analysisFit
           ? analysisOutputTokenLimitForSchema(fittedSchema)
           : stage.maxTokens,

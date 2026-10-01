@@ -33,6 +33,7 @@ import {
   LATTICE_PROVIDER_SIZE_BUCKETS,
   LATTICE_PROVIDER_STAGES,
   providerEnvelopeSubtypeIsConsistent,
+  isClosedProviderHttpHeaders,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
   LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
@@ -50,6 +51,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
@@ -897,6 +899,8 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     if (!PROVIDER_FAILURE_CLASS_SET.has(diagnosticValues.failureClass)
       || !(diagnosticValues.upstreamStatus === "none"
         || /^[45]\d{2}$/u.test(diagnosticValues.upstreamStatus))
+      || (diagnosticValues.failureClass === "provider_http_error")
+        !== /^[45]\d{2}$/u.test(diagnosticValues.upstreamStatus)
       || !PROVIDER_STAGE_SET.has(diagnosticValues.stage)
       || !/^(?:[1-9]|[12]\d|3[0-2])$/u.test(diagnosticValues.callOrdinal)
       || !Number.isSafeInteger(ordinal)
@@ -938,6 +942,19 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
       fail(`${label} returned an invalid qualification diagnostic`);
     }
     diagnostic = Object.freeze({ ...diagnosticValues, callOrdinal: ordinal });
+  }
+  const httpValues = Object.freeze(Object.fromEntries(Object.entries(
+    LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
+  ).map(([field, header]) => [field, response.headers.get(header)])));
+  const httpPresent = Object.values(httpValues).filter((value) => value !== null).length;
+  const expectsHttpObservation = diagnostic?.failureClass === "provider_http_error";
+  if (expectsHttpObservation) {
+    if (httpPresent !== Object.keys(LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS).length) {
+      fail(`${label} returned an incomplete qualification HTTP diagnostic`);
+    }
+    if (!isClosedProviderHttpHeaders(httpValues)) fail(`${label} returned an invalid qualification HTTP diagnostic`);
+  } else if (httpPresent !== 0) {
+    fail(`${label} returned an incompatible qualification HTTP diagnostic`);
   }
   const terminalDiagnosticValues = Object.freeze(Object.fromEntries(
     Object.entries(LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS)
@@ -1023,7 +1040,10 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
       + `stage_attempt=${diagnostic.stageAttempt}; `
       + `analysis_origin=${diagnostic.analysisOrigin}; `
       + `analysis_attempt=${diagnostic.analysisAttempt}; `
-      + `prior_validation=${diagnostic.priorValidationCategory}`);
+      + `prior_validation=${diagnostic.priorValidationCategory}`
+      + (expectsHttpObservation
+        ? Object.entries(httpValues).map(([field, value]) => `; http_${field}=${value}`).join("")
+        : ""));
   }
   if (diagnostic !== null) {
     fail(`${label} returned a qualification diagnostic on success`);

@@ -49,6 +49,7 @@ import {
   LATTICE_PROVIDER_STAGES,
   LatticeProviderError,
   createHuggingFaceLatticeAdapter,
+  isClosedProviderHttpHeaders,
   requestHuggingFaceJson,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
@@ -72,6 +73,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_EXPIRES_AT_BINDING,
@@ -5567,7 +5569,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
 });
 
 test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
-  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v8");
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v9");
   const diagnosticHeaders = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
       LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -5774,7 +5776,7 @@ test("the terminal analysis diagnostic is all-or-none, bounded, and qualificatio
   }
 });
 
-test("the v8 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v9 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -6562,4 +6564,169 @@ test("withheld diagnostics are immutable closed observations confined to marked 
     });
   }
   assert.equal(getterReads, 0);
+});
+
+
+test("qualification HTTP header observations are finite, bounded, exception-isolated, and bodyless", async (t) => {
+  const absent = { mediaType: "absent", allow: "absent", routerRoute: "absent", routerModel: "absent", inferenceProvider: "absent" };
+  const cases = [
+    ["absent headers", {}, {}],
+    ["empty Allow", { allow: "" }, { allow: "empty" }],
+    ["POST with list whitespace and empty members", { allow: " GET, ,POST, " }, { allow: "includes-POST" }],
+    ["lowercase method", { allow: "post" }, { allow: "excludes-POST" }],
+    ["method prefix", { allow: "POSTER" }, { allow: "excludes-POST" }],
+    ["no methods", { allow: ", ," }, { allow: "empty" }],
+    ["malformed method", { allow: "GET;POST" }, { allow: "invalid" }],
+    ["32 list members", { allow: Array(32).fill("G").join(",") }, { allow: "excludes-POST" }],
+    ["33 list members", { allow: Array(33).fill("G").join(",") }, { allow: "invalid" }],
+    ["JSON type", { "content-type": "Application/JSON; charset=utf-8" }, { mediaType: "json" }],
+    ["plain type", { "content-type": "text/plain" }, { mediaType: "text" }],
+    ["HTML type", { "content-type": "text/html" }, { mediaType: "html" }],
+    ["other type", { "content-type": "application/problem+json" }, { mediaType: "other" }],
+    ["malformed type", { "content-type": "PRIVATE HEADER CONTENT" }, { mediaType: "invalid" }],
+    ["route presence", { "x-router-route": "PRIVATE-ROUTE-MUST-NOT-CROSS" }, { routerRoute: "present" }],
+    ["empty route", { "x-router-route": "" }, { routerRoute: "invalid" }],
+    ["configured selector", { "x-router-model": LATTICE_REMOTE_MODELS.verifier }, { routerModel: "expected-selector" }],
+    ["hub model literal", { "x-router-model": "meta-llama/Llama-3.1-8B-Instruct" }, { routerModel: "expected-model" }],
+    ["mapped model literal", { "x-router-model": "meta-llama/Meta-Llama-3.1-8B-Instruct" }, { routerModel: "mapped-model" }],
+    ["metadata replacement literal", { "x-router-model": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo" }, { routerModel: "replacement-literal" }],
+    ["model case mismatch", { "x-router-model": "meta-llama/llama-3.1-8b-instruct" }, { routerModel: "other" }],
+    ["model prefix", { "x-router-model": `${LATTICE_REMOTE_MODELS.verifier}-extra` }, { routerModel: "other" }],
+    ["model whitespace", { "x-router-model": "PRIVATE MODEL" }, { routerModel: "invalid" }],
+    ["configured provider", { "x-inference-provider": "deepinfra" }, { inferenceProvider: "expected" }],
+    ["provider case mismatch", { "x-inference-provider": "DeepInfra" }, { inferenceProvider: "other" }],
+    ["empty provider", { "x-inference-provider": "" }, { inferenceProvider: "invalid" }],
+    ["256 character route", { "x-router-route": "x".repeat(256) }, { routerRoute: "present" }],
+    ...["content-type", "allow", "x-router-route", "x-router-model", "x-inference-provider"].map((name, index) => [
+      `oversized ${name}`, { [name]: "x".repeat(257) }, { [Object.keys(absent)[index]]: "invalid" },
+    ]),
+    ["non-ASCII metadata", { "x-router-route": "é" }, { routerRoute: "invalid" }],
+  ];
+  for (const [name, headers, expected] of cases) {
+    await t.test(name, async () => {
+      let reads = 0; let cancels = 0; let calls = 0;
+      const body = new ReadableStream({ pull() { reads += 1; throw Error("PRIVATE-BODY"); }, cancel() { cancels += 1; } }, { highWaterMark: 0 });
+      const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationHttpHeaders: true,
+        fetchImpl: async (url, init) => {
+          calls += 1;
+          assert.equal(url, HUGGING_FACE_CHAT_COMPLETIONS_URL);
+          assert.equal(init.method, "POST"); assert.equal(init.redirect, "manual");
+          const request = JSON.parse(init.body);
+          assert.equal(request.model, LATTICE_REMOTE_MODELS.verifier); assert.equal(request.max_tokens, 2048);
+          assert.doesNotMatch(init.body, /observeQualificationHttpHeaders|qualificationHttpHeaders/u);
+          return new Response(body, { status: 405, headers });
+        } });
+      let failure;
+      try { await adapter.verify(minimalVerificationRequest()); } catch (error) { failure = error; }
+      assert.ok(failure instanceof LatticeProviderError); assert.equal(failure.code, "provider_http_error");
+      assert.equal(failure.status, 405); assert.equal(failure.qualificationStage, "verification");
+      assert.equal(failure.qualificationCallOrdinal, 1); assert.equal(failure.qualificationSubtype, "none");
+      assert.deepEqual(failure.qualificationHttpHeaders, { ...absent, ...expected });
+      assert.equal(isClosedProviderHttpHeaders(failure.qualificationHttpHeaders), true);
+      const descriptor = Object.getOwnPropertyDescriptor(failure, "qualificationHttpHeaders");
+      assert.equal(descriptor.enumerable, false); assert.equal(descriptor.writable, false); assert.equal(descriptor.configurable, false);
+      assert.doesNotMatch(JSON.stringify(failure.qualificationHttpHeaders), /PRIVATE|meta-llama|deepinfra|é/u);
+      assert.equal(reads, 0); assert.equal(cancels, 1); assert.equal(calls, 1);
+      assert.deepEqual(adapter.completionCapacity(), { used: 1, limit: 32, remaining: 31 });
+    });
+  }
+  await t.test("throwing header access cannot change HTTP failure", async () => {
+    const response = new Response(null, { status: 405 });
+    response.headers.get = () => { throw Error("PRIVATE-HEADER-EXCEPTION"); };
+    const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationHttpHeaders: true, fetchImpl: async () => response });
+    await assert.rejects(adapter.verify(minimalVerificationRequest()), (error) => {
+      assert.equal(error.code, "provider_http_error"); assert.equal(error.status, 405);
+      assert.deepEqual(error.qualificationHttpHeaders, Object.fromEntries(Object.keys(absent).map((field) => [field, "unavailable"])));
+      assert.doesNotMatch(JSON.stringify(error), /PRIVATE-HEADER/u); return true;
+    });
+  });
+  await t.test("ordinary request does not observe headers", async () => {
+    let headerReads = 0;
+    const response = new Response(null, { status: 405 });
+    response.headers.get = () => { headerReads += 1; throw Error("must not read"); };
+    const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", fetchImpl: async () => response });
+    await assert.rejects(adapter.verify(minimalVerificationRequest()), (error) => {
+      assert.equal(error.code, "provider_http_error"); assert.equal(error.qualificationHttpHeaders, null); return true;
+    });
+    assert.equal(headerReads, 0);
+  });
+  assert.throws(() => createHuggingFaceLatticeAdapter({ observeQualificationHttpHeaders: "true" }), TypeError);
+  assert.equal(isClosedProviderHttpHeaders(absent), false);
+  assert.equal(isClosedProviderHttpHeaders(Object.freeze({ ...absent, extra: "private" })), false);
+  assert.equal(isClosedProviderHttpHeaders(Object.freeze({ ...absent, routerModel: "private" })), false);
+  const accessor = { ...absent }; Object.defineProperty(accessor, "allow", { get() { throw Error("private"); } });
+  assert.equal(isClosedProviderHttpHeaders(Object.freeze(accessor)), false);
+});
+
+test("qualification HTTP metadata remains confined to marked unexpired failures", async () => {
+  const active = { HF_TOKEN: "server_only_token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
+  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE };
+  const makeWorker = () => createLatticeApiWorker({
+    fetchImpl: async () => new Response("PRIVATE-BODY", { status: 405, headers: { "content-type": "text/html", Allow: "GET", "x-router-route": "PRIVATE-ROUTE", "x-router-model": "PRIVATE-MODEL", "x-inference-provider": "PRIVATE-PROVIDER" } }),
+    runTextToLatticeImpl: async (_text, { adapter }) => adapter.analyze(analysisRequestWithDiagnostic()),
+  });
+  let ordinaryBody;
+  for (const [env, headers, exposes] of [
+    [{ HF_TOKEN: "server_only_token" }, marked, false],
+    [active, {}, false],
+    [active, { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v8" }, false],
+    [active, marked, true],
+  ]) {
+    const response = await makeWorker().fetch(apiRequest(validPayload, { headers }), env);
+    assert.equal(response.status, 502); const body = await response.text();
+    ordinaryBody ??= body; assert.equal(body, ordinaryBody);
+    assert.deepEqual(JSON.parse(body), { error: "upstream_unavailable" });
+    for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS)) {
+      const expected = { mediaType: "html", allow: "excludes-POST", routerRoute: "present", routerModel: "other", inferenceProvider: "other" };
+      assert.equal(response.headers.get(header), exposes ? expected[field] : null);
+    }
+    assert.doesNotMatch(JSON.stringify([...response.headers]) + body, /PRIVATE-/u);
+  }
+  const expired = await makeWorker().fetch(apiRequest(validPayload, { headers: marked }), { ...active, [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2000-01-01T00:00:00.000Z" });
+  assert.equal(expired.status, 503);
+  for (const header of Object.values(LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS)) assert.equal(expired.headers.has(header), false);
+});
+
+
+test("qualification HTTP 405 preserves verification call-four provenance and one admission", async () => {
+  let providerCalls = 0; let admissions = 0; let bodyReads = 0; let cancellations = 0;
+  const verification = { ...minimalVerificationRequest() };
+  Object.defineProperty(verification, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, { value: Object.freeze({ attempt: "initial", priorValidationCategory: "none" }) });
+  const worker = createLatticeApiWorker({
+    admitTransformation: async () => { admissions += 1; return allowTransformation(); },
+    fetchImpl: async () => {
+      providerCalls += 1;
+      if (providerCalls < 4) return successfulProviderResponse({ d: 2, p: [], l: [] });
+      return new Response(new ReadableStream({ pull() { bodyReads += 1; }, cancel() { cancellations += 1; } }, { highWaterMark: 0 }), {
+        status: 405, headers: { Allow: "POST", "Content-Type": "application/json", "x-router-model": "meta-llama/Meta-Llama-3.1-8B-Instruct", "x-inference-provider": "deepinfra" },
+      });
+    },
+    runTextToLatticeImpl: async (_text, { adapter }) => {
+      // Three accepted synthetic envelopes establish adapter-call provenance;
+      // they are not represented as successful semantic pipeline reviews.
+      for (let index = 0; index < 3; index += 1) await adapter.analyze(analysisRequestWithDiagnostic());
+      return adapter.verify(Object.freeze(verification));
+    },
+  });
+  const response = await worker.fetch(apiRequest(validPayload, { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE } }), {
+    HF_TOKEN: "server_only_token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z",
+  });
+  assert.equal(response.status, 502); assert.deepEqual(await json(response), { error: "upstream_unavailable" });
+  const expected = { failureClass: "provider_http_error", upstreamStatus: "405", stage: "verification", callOrdinal: "4", stageAttempt: "initial", analysisOrigin: "none", analysisAttempt: "none", priorValidationCategory: "none" };
+  for (const [field, value] of Object.entries(expected)) assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS[field]), value);
+  const http = { mediaType: "json", allow: "includes-POST", routerRoute: "absent", routerModel: "mapped-model", inferenceProvider: "expected" };
+  for (const [field, value] of Object.entries(http)) assert.equal(response.headers.get(LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS[field]), value);
+  assert.equal(providerCalls, 4); assert.equal(admissions, 1); assert.equal(bodyReads, 0); assert.equal(cancellations, 1);
+});
+
+test("qualification HTTP observations cannot escape expiry during provider work", async () => {
+  let instant = Date.parse("2026-10-01T05:00:00.000Z");
+  const worker = createLatticeApiWorker({ now: () => instant,
+    fetchImpl: async () => { instant += 20_000; return new Response(null, { status: 405, headers: { Allow: "GET" } }); },
+    runTextToLatticeImpl: async (_text, { adapter }) => adapter.analyze(analysisRequestWithDiagnostic()),
+  });
+  const response = await worker.fetch(apiRequest(validPayload, { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE } }), {
+    HF_TOKEN: "server_only_token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2026-10-01T05:00:10.000Z",
+  });
+  for (const header of Object.values(LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS)) assert.equal(response.headers.has(header), false);
 });
