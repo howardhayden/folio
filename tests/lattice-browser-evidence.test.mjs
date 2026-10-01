@@ -451,6 +451,35 @@ function invalidAfter(mutate, expression = /browser evidence is invalid/u) {
   assert.throws(() => verifyBrowserEvidence(evidence), expression);
 }
 
+function evidenceForPublicSample(resultStatus, { preserveSource = false, repeatSource = false } = {}) {
+  const evidence = validEvidence();
+  for (const engine of evidence.engines) {
+    const sourceMarker = `protected-dialogue-${engine.engine_id}-keep-verbatim`;
+    const outputMarker = `public-output-marker-${engine.engine_id}`;
+    const source = `Original public synthetic source. ${sourceMarker}. ${outputMarker}.`;
+    const output = resultStatus === "conformant-for-context"
+      ? source
+      : `Rewritten public synthetic result. ${outputMarker}.${preserveSource ? ` ${sourceMarker}.` : ""}${repeatSource ? ` ${sourceMarker}.` : ""}`;
+    engine.response.result_status = resultStatus;
+    Object.assign(engine.content_fingerprints, {
+      source_utf8_bytes: Buffer.byteLength(source),
+      source_sha256: createHash("sha256").update(source).digest("hex"),
+      source_marker_utf8_bytes: Buffer.byteLength(sourceMarker),
+      source_marker_sha256: createHash("sha256").update(sourceMarker).digest("hex"),
+      output_utf8_bytes: Buffer.byteLength(output),
+      output_sha256: createHash("sha256").update(output).digest("hex"),
+      output_marker_utf8_bytes: Buffer.byteLength(outputMarker),
+      output_marker_sha256: createHash("sha256").update(outputMarker).digest("hex"),
+    });
+    // Counts describe matching allowed body records, once per record even if
+    // protected text occurs repeatedly. The two markers may overlap source/output.
+    engine.privacy.source_marker_request_body_matches = Number(source.includes(sourceMarker));
+    engine.privacy.source_marker_response_body_matches = Number(output.includes(sourceMarker));
+    engine.privacy.output_marker_response_body_matches = Number(output.includes(outputMarker));
+  }
+  return evidence;
+}
+
 function crc32(bytes) {
   let crc = 0xffffffff;
   for (const byte of bytes) {
@@ -733,8 +762,7 @@ test("only an exact no-store 200 result envelope and allowed terminal status qua
     invalidAfter((candidate) => { candidate.engines[1].response[field] = value; }, new RegExp(field, "u"));
   }
   for (const resultStatus of ["translated", "conformant-for-context", "review-required"]) {
-    const candidate = validEvidence();
-    candidate.engines[0].response.result_status = resultStatus;
+    const candidate = evidenceForPublicSample(resultStatus);
     assert.doesNotThrow(() => verifyBrowserEvidence(candidate));
   }
 });
@@ -769,7 +797,6 @@ test("privacy evidence fails closed on provider, credential, retry, cache, worke
     "api_cache_replay_count",
     "rum_request_count",
     "cloudflare_beacon_transferred_bytes",
-    "source_marker_response_body_matches",
     "source_marker_prohibited_matches",
     "output_marker_prohibited_matches",
     "persistent_storage_marker_matches",
@@ -789,6 +816,7 @@ test("privacy evidence fails closed on provider, credential, retry, cache, worke
     ["content_bearing_request_count", 2],
     ["browser_quota_cookie_request_count", 0],
     ["source_marker_request_body_matches", 0],
+    ["source_marker_response_body_matches", 2],
     ["output_marker_response_body_matches", 0],
     ["provider_origins_observed", ["https://router.huggingface.co"]],
     ["content_bearing_urls", ["https://hah.dev/api/lattice", "https://example.com/collect"]],
@@ -812,6 +840,46 @@ test("privacy evidence fails closed on provider, credential, retry, cache, worke
     invalidAfter((candidate) => { candidate.engines[1].privacy[field] = value; }, new RegExp(field, "u"));
   }
   invalidAfter((candidate) => { candidate.engines[0].privacy.blocked_cloudflare_beacon_count = 17; }, /blocked_cloudflare_beacon_count/u);
+});
+
+test("protected source may occur in the one permitted translated or review result body", () => {
+  for (const resultStatus of ["translated", "review-required"]) {
+    for (const preserveSource of [false, true]) {
+      const candidate = evidenceForPublicSample(resultStatus, { preserveSource });
+      assert.equal(candidate.engines[0].privacy.source_marker_response_body_matches, Number(preserveSource));
+      assert.doesNotThrow(() => verifyBrowserEvidence(candidate));
+    }
+    const repeated = evidenceForPublicSample(resultStatus, { preserveSource: true, repeatSource: true });
+    assert.equal(repeated.engines[0].privacy.source_marker_response_body_matches, 1);
+    assert.doesNotThrow(() => verifyBrowserEvidence(repeated));
+  }
+});
+
+test("conformant evidence proves unchanged text and one matching permitted result body", () => {
+  const candidate = evidenceForPublicSample("conformant-for-context");
+  assert.equal(candidate.engines[0].content_fingerprints.output_sha256, candidate.engines[0].content_fingerprints.source_sha256);
+  assert.doesNotThrow(() => verifyBrowserEvidence(candidate));
+  for (const [field, value] of [["output_utf8_bytes", candidate.engines[0].content_fingerprints.source_utf8_bytes + 1], ["output_sha256", "a".repeat(64)]]) {
+    const altered = structuredClone(candidate);
+    altered.engines[0].content_fingerprints[field] = value;
+    assert.throws(() => verifyBrowserEvidence(altered), new RegExp(field, "u"));
+  }
+  candidate.engines[0].privacy.source_marker_response_body_matches = 0;
+  assert.throws(() => verifyBrowserEvidence(candidate), /source_marker_response_body_matches/u);
+});
+
+test("allowed result matches cannot conceal prohibited marker locations", () => {
+  for (const field of ["source_marker_prohibited_matches", "output_marker_prohibited_matches", "url_marker_matches", "header_marker_matches", "error_marker_matches", "console_marker_matches", "analytics_marker_matches", "unrelated_request_marker_matches", "persistent_storage_marker_matches"]) {
+    const candidate = evidenceForPublicSample("translated", { preserveSource: true });
+    candidate.engines[0].privacy[field] = 1;
+    assert.throws(() => verifyBrowserEvidence(candidate), new RegExp(field, "u"));
+  }
+});
+
+test("permitted source response matches are finite integer record counts", () => {
+  for (const count of [-1, 2, 0.5, "1", null, true]) {
+    invalidAfter((candidate) => { candidate.engines[0].privacy.source_marker_response_body_matches = count; }, /source_marker_response_body_matches/u);
+  }
 });
 
 test("fingerprints retain bounded counts and distinct digests, never source or output", () => {
@@ -1084,5 +1152,20 @@ test("the owner template is inert and the schema mirrors the closed contract", a
   const ajv = new Ajv2020({ allErrors: true, strict: true });
   const validate = ajv.compile(schema);
   assert.equal(validate(validEvidence()), true, JSON.stringify(validate.errors));
+  for (const resultStatus of ["translated", "conformant-for-context", "review-required"]) {
+    for (const preserveSource of [false, true]) {
+      const evidence = evidenceForPublicSample(resultStatus, { preserveSource });
+      assert.equal(validate(evidence), true, JSON.stringify(validate.errors));
+      assert.doesNotThrow(() => verifyBrowserEvidence(evidence));
+    }
+  }
+  const conformant = evidenceForPublicSample("conformant-for-context");
+  conformant.engines[0].privacy.source_marker_response_body_matches = 0;
+  assert.equal(validate(conformant), false);
+  for (const count of [-1, 2, 0.5, "1", null, true]) {
+    const evidence = evidenceForPublicSample("translated");
+    evidence.engines[0].privacy.source_marker_response_body_matches = count;
+    assert.equal(validate(evidence), false);
+  }
   assert.equal(validate(template), false, "safe placeholders remain intentionally invalid until replaced");
 });

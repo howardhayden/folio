@@ -606,6 +606,7 @@
       }
     },
     "privacy": {
+      "description": "Marker body matches count matching request or response records, deduplicated within each record across repeated occurrences and encoding scans. Only request.text in the one acknowledged content-bearing API request and result.text in its successful strictly validated API response are permitted locations, for either marker. Every occurrence in other fields, traffic, errors, headers, URLs, console, analytics, or storage is prohibited and must be included in the applicable zero-match counters. A source marker may survive verbatim in a protected span of a material result; both markers can already be present in unchanged conformant source.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -719,16 +720,21 @@
           "const": 0
         },
         "source_marker_request_body_matches": {
-          "const": 1
+          "const": 1,
+          "description": "Exactly one matching acknowledged request body, confined to request.text; repeated occurrences and encoding scans count that record once."
         },
         "source_marker_response_body_matches": {
-          "const": 0
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Zero or one matching successful response body, with every permitted occurrence confined to result.text. Repeated occurrences and encoding scans count the record once. Conformant-for-context requires one matching record and identical source/output byte counts and SHA-256 fingerprints."
         },
         "source_marker_prohibited_matches": {
           "const": 0
         },
         "output_marker_response_body_matches": {
-          "const": 1
+          "const": 1,
+          "description": "Exactly one matching successful response body, confined to result.text; repeated occurrences and encoding scans count that record once."
         },
         "output_marker_prohibited_matches": {
           "const": 0
@@ -860,6 +866,7 @@
       }
     },
     "fingerprints": {
+      "description": "For conformant-for-context, source and output SHA-256 fingerprints and UTF-8 byte counts must be identical; the executable verifier checks these dynamic equalities.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1005,6 +1012,40 @@
       }
     },
     "engine": {
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "response": {
+                "properties": {
+                  "result_status": {
+                    "const": "conformant-for-context"
+                  }
+                },
+                "required": [
+                  "result_status"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "response"
+            ]
+          },
+          "then": {
+            "properties": {
+              "privacy": {
+                "properties": {
+                  "source_marker_response_body_matches": {
+                    "const": 1
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        }
+      ],
       "type": "object",
       "additionalProperties": false,
       "required": [
