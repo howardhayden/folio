@@ -30,6 +30,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
@@ -90,9 +91,18 @@ function qualificationDiagnosticHeaders(overrides = {}) {
     priorValidationCategory: "none",
     ...overrides,
   };
-  return Object.fromEntries(Object.entries(
+  const headers = Object.fromEntries(Object.entries(
     LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
   ).map(([field, header]) => [header, values[field]]));
+  if (values.failureClass !== "provider_http_error" && overrides.upstreamStatus === undefined) {
+    headers[LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus] = "none";
+  }
+  if (values.failureClass === "provider_http_error") {
+    Object.assign(headers, Object.fromEntries(Object.values(
+      LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
+    ).map((header) => [header, "absent"])));
+  }
+  return headers;
 }
 
 function terminalAnalysisDiagnosticHeaders(overrides = {}) {
@@ -1966,6 +1976,35 @@ test("withheld canary diagnostics fail closed on missing, hostile, or incompatib
       });
       assert.equal(fixture.canaryRequests, 1);
       assert.equal(fixture.setupRequests, 1);
+    });
+  }
+});
+
+
+test("qualification HTTP diagnostic completeness and applicability fail closed without reflection", async (t) => {
+  const marker = "PRIVATE-HTTP-METADATA";
+  const exact = qualificationDiagnosticHeaders({ upstreamStatus: "405", stage: "verification", callOrdinal: "4", analysisOrigin: "none", analysisAttempt: "none" });
+  const onlyHttp = Object.fromEntries(Object.values(LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS).map((header) => [header, "absent"]));
+  const missing = { ...exact }; delete missing[LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS.allow];
+  const cases = [
+    ["complete HTTP failure", exact, 502, /upstream_status=405; stage=verification; call_ordinal=4.*http_mediaType=absent; http_allow=absent; http_routerRoute=absent; http_routerModel=absent; http_inferenceProvider=absent/u],
+    ["HTTP failure without numeric status", { ...exact, [LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.upstreamStatus]: "none" }, 502, /invalid qualification diagnostic/u],
+    ["network failure with numeric status", qualificationDiagnosticHeaders({ failureClass: "provider_unavailable", upstreamStatus: "405" }), 502, /invalid qualification diagnostic/u],
+    ["missing HTTP field", missing, 502, /incomplete qualification HTTP diagnostic/u],
+    ["unrecognized HTTP value", { ...exact, [LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS.routerModel]: marker }, 502, /invalid qualification HTTP diagnostic/u],
+    ["partial HTTP group", { ...qualificationDiagnosticHeaders({ failureClass: "provider_unavailable" }), [LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS.allow]: "empty" }, 502, /incompatible qualification HTTP diagnostic/u],
+    ["HTTP group on network failure", { ...qualificationDiagnosticHeaders({ failureClass: "provider_unavailable" }), ...onlyHttp }, 502, /incompatible qualification HTTP diagnostic/u],
+    ["HTTP group on success", onlyHttp, 200, /incompatible qualification HTTP diagnostic/u],
+  ];
+  for (const [name, headers, status, expected] of cases) {
+    await t.test(name, async () => {
+      const body = status === 200 ? { result: validResult(), schema_version: 1 } : { error: "upstream_unavailable" };
+      const fixture = successfulFixture({ canaryResponse: apiJson(body, status, headers) });
+      let failure;
+      try { await verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait }); }
+      catch (error) { failure = error; }
+      assert.ok(failure instanceof Error); assert.match(failure.message, expected);
+      assert.equal(failure.message.includes(marker), false); assert.equal(fixture.canaryRequests, 1); assert.equal(fixture.setupRequests, 1);
     });
   }
 });
