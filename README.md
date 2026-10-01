@@ -7,7 +7,7 @@ A progressively enhanced portfolio for Hayden Howard, centered on systems, infor
 - `/` — introduction, animated ASCII illustration, and Q&A
 - `/resume/` — structured skill stacks, career timeline, education, and projects
 - `/tools/` — a considered productivity and technology stack
-- `/shelf/` — a progressively enhanced, filterable catalogue of 30 works
+- `/shelf/` — a progressively enhanced, filterable catalogue of 31 works
 - `/projects/` — canonical project records and relationships
 - `/requirements/` and `/ns/` — shared requirements and the site vocabulary
 

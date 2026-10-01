@@ -1963,15 +1963,16 @@ test("renders shelf records before client hydration", async () => {
     ["authorInput", "Search Author", " Search Author"],
     ["collectionInput", "Search Collection", " Search Collection"],
   ]);
-  assert.match(html, /aria-label="30 shelf results"/);
-  assert.equal((html.match(/<article class="card">/g) ?? []).length, 30);
+  assert.match(html, /aria-label="31 shelf results"/);
+  assert.equal((html.match(/<article class="card">/g) ?? []).length, 31);
   assert.match(html, /Ethical Machines/i);
+  assert.match(html, /Nippon Sangoku/);
   assert.match(html, /20 Sep 2022/);
   assert.match(html, />1859</);
   assert.match(html, />180 C\.E\.<\/span><\/dd>/);
-  assert.equal((html.match(/class="paper-meta-item shelf-manifest-entry"/gu) ?? []).length, 150);
-  assert.equal((html.match(/class="shelf-manifest-prefix" aria-hidden="true">├─ <\/span>/gu) ?? []).length, 120);
-  assert.equal((html.match(/class="shelf-manifest-prefix" aria-hidden="true">└─ <\/span>/gu) ?? []).length, 30);
+  assert.equal((html.match(/class="paper-meta-item shelf-manifest-entry"/gu) ?? []).length, 155);
+  assert.equal((html.match(/class="shelf-manifest-prefix" aria-hidden="true">├─ <\/span>/gu) ?? []).length, 124);
+  assert.equal((html.match(/class="shelf-manifest-prefix" aria-hidden="true">└─ <\/span>/gu) ?? []).length, 31);
   assert.match(html, /Orb: On the Movements of the Earth/i);
 });
 
