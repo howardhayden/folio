@@ -1966,7 +1966,7 @@ test("renders shelf records before client hydration", async () => {
   assert.match(html, /aria-label="31 shelf results"/);
   assert.equal((html.match(/<article class="card">/g) ?? []).length, 31);
   assert.match(html, /Ethical Machines/i);
-  assert.match(html, /Nippon Sangoku/);
+  assert.match(html, /<h2 class="card-title">Nippon Sangoku: The Three Nations of the Rising Sun<\/h2>/u);
   assert.match(html, /20 Sep 2022/);
   assert.match(html, />1859</);
   assert.match(html, />180 C\.E\.<\/span><\/dd>/);
