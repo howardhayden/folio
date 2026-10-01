@@ -1629,6 +1629,97 @@ test("verifier corrections keep negative results complete and preserve both reje
   }
 });
 
+test("reverification corrections preserve decision consistency and original candidate provenance", async (context) => {
+  const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
+  const issueChecks = VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum;
+  const gates = VERIFICATION_SCHEMA.properties.failedGates.items.enum;
+  const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
+  for (const inconsistency of ["negative-positive", "issue-passed", "document-issue-local-only"]) {
+    for (const recover of [true, false]) {
+      await context.test(`${inconsistency}: ${recover ? "corrected" : "exhausted"}`, async () => {
+        const calls = [];
+        let drafts = 0;
+        let verifies = 0;
+        const worker = createLatticeApiWorker({
+          fetchImpl: async (_url, init) => {
+            const body = JSON.parse(init.body); calls.push(body);
+            if (body.response_format?.type === "json_schema") return successfulProviderResponse(canaryAnalysisWire(body));
+            if (body.response_format?.type === "json_object") {
+              drafts += 1;
+              return successfulProviderResponse(canaryCandidateFromProviderBody(
+                body, drafts === 1 ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText,
+              ));
+            }
+            const toolName = body.tool_choice.function.name;
+            if (toolName === VERIFICATION_TOOL_NAME) {
+              verifies += 1;
+              const wire = structuredClone(canaryVerificationWire(body));
+              if (verifies === 1) {
+                wire.d = 1;
+                wire.g = gates.map((name) => name === "clarity" ? "1" : "0").join("");
+              }
+              if (verifies === 2 && inconsistency === "document-issue-local-only") {
+                wire.d = 1;
+                wire.p["0"].f = checks.map((name) => name === "clarity" ? "1" : "0").join("");
+              }
+              if (verifies === 2) {
+                wire.d = 1;
+                if (inconsistency !== "negative-positive") {
+                  wire.i = [{ c: issueChecks.indexOf("clarity"), p: inconsistency === "issue-passed" ? 0 : -1 }];
+                }
+              }
+              if (verifies === 3 && !recover) delete wire.i;
+              return successfulProviderToolResponse(wire, { toolName });
+            }
+            assert.equal(recover, true, "exhausted reverification must not certify the discarded repair");
+            assert.equal(toolName, CERTIFICATION_TOOL_NAME);
+            const payload = inertModelPayload(body);
+            return successfulProviderToolResponse(acceptingCertificationWire(
+              payload.certificateId, payload.obligationIds,
+            ), { toolName });
+          },
+        });
+        const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: {
+          [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+        } }), { HF_TOKEN: "server-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" });
+        const envelope = await json(response);
+        assert.equal(response.status, 200);
+        assert.equal(drafts, 2);
+        assert.equal(verifies, 3);
+        assert.equal(calls.length, recover ? 7 : 6);
+        assert.equal(envelope.result.status === "translated", recover);
+        const verifyBodies = calls.filter((body) => body.tool_choice?.function?.name === VERIFICATION_TOOL_NAME);
+        assert.deepEqual(verifyBodies[1].tools, verifyBodies[2].tools);
+        for (const body of verifyBodies) {
+          assert.equal(body.model, LATTICE_REMOTE_MODELS.verifier);
+          assert.equal(body.max_tokens, 2_048);
+          assert.match(body.tools[0].function.description, /Repair or reject requires at least one actual failed condition/u);
+          assert.match(body.messages[0].content, /Never use i alone to establish a failed check/u);
+          assert.doesNotMatch(JSON.stringify(body), /V01F|D14|decision-consistency|A verifier issue must identify/u);
+        }
+        assert.equal(Object.hasOwn(inertModelPayload(verifyBodies[1]), "retry"), false);
+        assert.equal(inertModelPayload(verifyBodies[2]).retry, "private-verification-wire-invalid");
+        if (recover) {
+          assert.equal(envelope.result.text, `${repairText}\n`);
+          assert.equal(envelope.result.verificationPasses, 2);
+        } else {
+          assert.equal(envelope.result.text, null);
+          assert.equal(envelope.result.verificationPasses, 0);
+          const expected = {
+            verification: "review-only-rejection", firstDeterministicRule: "D14", stage: "reverification",
+            attempt: "2", validationCategory: "response-shape", priorValidationCategory: "decision-consistency",
+            rejectionBoundary: "wire-decoder", rejectionRule: "V01F",
+            priorRejectionBoundary: "host-normalizer", priorRejectionRule: "unknown", callsUsed: "6",
+          };
+          for (const [field, value] of Object.entries(expected)) {
+            assert.equal(response.headers.get(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS[field]), value, field);
+          }
+        }
+      });
+    }
+  }
+});
+
 test("repair and reject wire records still require grounded layer support and every root field", async () => {
   const request = minimalVerificationRequest();
   for (const decision of [1, 2]) {
