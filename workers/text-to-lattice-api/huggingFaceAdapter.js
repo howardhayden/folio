@@ -465,9 +465,9 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: VERIFICATION_WIRE_SCHEMA,
     schemaName: "lattice_verification_wire_v2",
-    toolName: VERIFICATION_TOOL_NAME,
-    toolChoice: "named",
-    allowStoppedToolContent: true,
+    responseFormat: "json_schema",
+    schemaDescription: "Supply one complete private verification result using the fitted closed index-and-mask schema.",
+    requireMinimalVerificationContent: true,
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
     maxTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -1862,7 +1862,7 @@ function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedT
   return "message_shape";
 }
 
-function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, requireMinimalVerificationContent) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -1938,6 +1938,18 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
         subtype: "message_role",
         finishReason: providerFinishReason,
         responseSize,
+        completionTokens,
+      },
+    );
+  }
+  if (requireMinimalVerificationContent && !exactKeys(choice.message, ["role", "content"])) {
+    throw withProviderDiagnostic(
+      providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
+      {
+        subtype: "message_shape",
+        finishReason: providerFinishReason,
+        responseSize,
+        contentSize: providerContentSize,
         completionTokens,
       },
     );
@@ -2125,6 +2137,7 @@ export async function requestHuggingFaceJson({
   minP: unsupportedMinP,
   toolChoice,
   allowStoppedToolContent = false,
+  requireMinimalVerificationContent = false,
   presencePenalty,
   signal,
   fetchImpl = globalThis.fetch,
@@ -2157,27 +2170,36 @@ export async function requestHuggingFaceJson({
     || (schemaDescription !== undefined && resolvedResponseFormat !== "json_schema")
     || (responseFormat !== undefined && !RESPONSE_FORMATS.has(responseFormat))
     || (responseFormat !== undefined && toolName !== undefined)
-    || (resolvedResponseFormat === "json_schema" && role !== "generator")
+    || (resolvedResponseFormat === "json_schema" && role !== "generator" && !requireMinimalVerificationContent)
     || (toolName !== undefined
       && (typeof toolName !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(toolName)))
     || (toolChoice !== undefined && toolChoice !== "named")
     || (toolChoice !== undefined && toolName === undefined)
     || typeof allowStoppedToolContent !== "boolean"
+    || typeof requireMinimalVerificationContent !== "boolean"
+    || (requireMinimalVerificationContent
+      && (role !== "verifier"
+        || schemaName !== VERIFICATION_TOOL_NAME
+        || resolvedResponseFormat !== "json_schema"
+        || toolName !== undefined
+        || toolChoice !== undefined
+        || allowStoppedToolContent))
     || (allowStoppedToolContent
       && (role !== "verifier"
         || toolChoice !== "named"
         || !STOPPED_TOOL_CONTENT_NAMES.has(toolName)))
     || (toolName !== undefined && role !== "verifier")
-    || (toolName === undefined && role === "verifier" && responseFormat !== "json_object")) {
+    || (toolName === undefined && role === "verifier"
+      && responseFormat !== "json_object" && !requireMinimalVerificationContent)) {
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
   // Nscale analysis uses strict JSON Schema. Candidate and repair generation use
   // one JSON-object assistant channel with the closed schema in trusted
-  // instructions. DeepInfra verification and certification use forced named tools;
-  // an explicit stage-only compatibility path narrowly normalizes a minimal
-  // content-only stopped envelope before the exact wire decoder and authoritative
-  // host validation.
+  // instructions. DeepInfra verification uses its advertised JSON Schema channel
+  // with only a minimal stopped assistant-content envelope. Certification retains
+  // forced named tools and its explicit minimal stopped-content compatibility.
+  // Both private paths still require the exact wire decoder and host validation.
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],
     messages: toolName === undefined
@@ -2301,6 +2323,7 @@ export async function requestHuggingFaceJson({
         boundedBody.responseSize,
         toolName,
         allowStoppedToolContent,
+        requireMinimalVerificationContent,
       );
     } catch (error) {
       if (deadline.didTimeOut()) {
@@ -2395,6 +2418,7 @@ export function createHuggingFaceLatticeAdapter({
         toolName: stage.toolName,
         toolChoice: stage.toolChoice,
         allowStoppedToolContent: stage.allowStoppedToolContent,
+        requireMinimalVerificationContent: stage.requireMinimalVerificationContent,
         maxTokens: analysisFit
           ? analysisOutputTokenLimitForSchema(fittedSchema)
           : stage.maxTokens,
