@@ -4437,6 +4437,161 @@ test("named-tool envelopes fail closed for missing, extra, or malformed calls", 
   }
 });
 
+test("rejected provider envelopes expose only finite first-failed host predicates", async (context) => {
+  const privateMarker = "PRIVATE-ENVELOPE-MUST-NOT-CROSS";
+  const call = providerToolCall({ name: VERIFICATION_TOOL_NAME });
+  const native = (tool) => ({ role: "assistant", tool_calls: [tool] });
+  const stopped = { role: "assistant", content: JSON.stringify({ accepted: true }) };
+  const cases = [
+    ["call record", native(null), "E00"],
+    ["id type before other invalid fields", native({ ...call, id: 7, type: privateMarker }), "E01"],
+    ["blank id", native({ ...call, id: " \t" }), "E02"],
+    ["id bound before type", native({ ...call, id: "x".repeat(257), type: privateMarker }), "E03"],
+    ["call discriminator", native({ ...call, type: privateMarker }), "E04"],
+    ["function record", native({ ...call, function: null }), "E05"],
+    ["name before arguments", native({ ...call, function: { name: privateMarker, arguments: 7 } }), "E06"],
+    ["arguments type", native({ ...call, function: { ...call.function, arguments: {} } }), "E07"],
+    ["finish before collection", { ...stopped, tool_calls: null }, "S01", { finishReason: "tool_calls" }],
+    ["collection type before legacy", { ...stopped, tool_calls: null, function_call: null }, "S02"],
+    ["empty collection", { ...stopped, tool_calls: [] }, "S03"],
+    ["multiple collection", { ...stopped, tool_calls: [call, call] }, "S04"],
+    ["legacy field before extra fields", { ...stopped, function_call: null, [privateMarker]: true }, "S05"],
+    ["nonminimal field set before content type", { ...stopped, content: 7, [privateMarker]: true }, "S06"],
+    ["content type", { role: "assistant", content: null }, "S07"],
+  ];
+  for (const [name, message, subtype, overrides = {}] of cases) {
+    await context.test(name, async () => {
+      let calls = 0;
+      const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async () => {
+        calls += 1;
+        return providerChoiceResponse({ finish_reason: overrides.finishReason ?? "stop", message });
+      } });
+      await assert.rejects(adapter.verify(minimalVerificationRequest()), (error) => {
+        assert.ok(error instanceof LatticeProviderError);
+        assert.equal(error.code, "provider_malformed_response");
+        assert.equal(error.qualificationSubtype, subtype);
+        assert.equal(error.qualificationStage, "verification");
+        assert.equal(error.qualificationCallOrdinal, 1);
+        assert.equal(JSON.stringify(error).includes(privateMarker), false);
+        assert.equal(error.message.includes(privateMarker), false);
+        return true;
+      });
+      assert.equal(calls, 1);
+      assert.equal(adapter.completionCapacity().used, 1);
+    });
+  }
+});
+
+test("provider envelope observations do not add acceptance restrictions or expose auxiliary data", async () => {
+  const privateMarker = "PRIVATE-AUXILIARY-MUST-NOT-CROSS";
+  const call = providerToolCall({ name: VERIFICATION_TOOL_NAME });
+  const accepted = await requestHuggingFaceJson(providerRequestOptions(async () => providerChoiceResponse({
+    finish_reason: "stop",
+    message: { role: "assistant", content: privateMarker, function_call: privateMarker,
+      [privateMarker]: true, tool_calls: [call] },
+  }), { role: "verifier", toolName: VERIFICATION_TOOL_NAME, toolChoice: "named", allowStoppedToolContent: true }));
+  assert.deepEqual(accepted, { accepted: true });
+  assert.equal(JSON.stringify(accepted).includes(privateMarker), false);
+});
+
+test("provider envelope observation failure preserves the original malformed-response outcome", async () => {
+  const originalTrim = String.prototype.trim;
+  let idReads = 0;
+  let calls = 0;
+  const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async () => {
+    calls += 1;
+    return providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant",
+      tool_calls: [providerToolCall({ name: VERIFICATION_TOOL_NAME, id: " \t" })] } });
+  } });
+  try {
+    String.prototype.trim = function trim() {
+      if (String(this) === " \t" && ++idReads > 1) throw new Error("PRIVATE-OBSERVER-ERROR");
+      return originalTrim.call(this);
+    };
+    await assert.rejects(adapter.verify(minimalVerificationRequest()), (error) => {
+      assert.ok(error instanceof LatticeProviderError);
+      assert.equal(error.code, "provider_malformed_response");
+      assert.equal(error.qualificationSubtype, "message_shape");
+      assert.equal(error.message.includes("PRIVATE-OBSERVER-ERROR"), false);
+      return true;
+    });
+  } finally { String.prototype.trim = originalTrim; }
+  assert.equal(idReads, 2);
+  assert.equal(calls, 1);
+  assert.equal(adapter.completionCapacity().used, 1);
+});
+
+test("coded envelope observations remain confined to marked expiring qualification errors", async () => {
+  const privateMarker = "PRIVATE-ENVELOPE-CONTENT-MUST-NOT-CROSS";
+  const verificationRequest = { ...minimalVerificationRequest() };
+  Object.defineProperty(verificationRequest, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: Object.freeze({ attempt: "initial", priorValidationCategory: "none" }),
+  });
+  Object.freeze(verificationRequest);
+  const makeWorker = () => createLatticeApiWorker({
+    fetchImpl: async () => providerChoiceResponse({ finish_reason: "stop",
+      message: { role: "assistant", content: privateMarker, tool_calls: null } }),
+    runTextToLatticeImpl: async (_text, { adapter }) => adapter.verify(verificationRequest),
+  });
+  const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE };
+  const active = { HF_TOKEN: "server_only_token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
+  const ordinary = await makeWorker().fetch(apiRequest(validPayload, { headers }), { HF_TOKEN: "server_only_token" });
+  const marked = await makeWorker().fetch(apiRequest(validPayload, { headers }), active);
+  assert.equal(ordinary.status, 502);
+  assert.equal(marked.status, 502);
+  assert.deepEqual(await json(ordinary), { error: "malformed_upstream_response" });
+  assert.deepEqual(await json(marked), { error: "malformed_upstream_response" });
+  for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) assert.equal(ordinary.headers.has(header), false);
+  assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "S02");
+  assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage), "verification");
+  assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stageAttempt), "initial");
+  assert.equal(JSON.stringify([...marked.headers]).includes(privateMarker), false);
+});
+
+test("the Worker suppresses impossible coded envelope provenance", async (contextTest) => {
+  const base = {
+    qualificationStage: "verification", qualificationCallOrdinal: 4,
+    qualificationSubtype: "E06", qualificationFinishReason: "stop",
+    qualificationRequestSize: "4097-16384", qualificationResponseSize: "1-4096",
+    qualificationContentSize: "1-4096", qualificationCompletionTokens: "1-255",
+    qualificationStageAttempt: "initial", qualificationAnalysisOrigin: "none",
+    qualificationAnalysisAttempt: "none", qualificationPriorValidationCategory: "none",
+  };
+  const cases = [
+    ["native predicate", {}, "E06"],
+    ["stopped predicate", { qualificationSubtype: "S02" }, "S02"],
+    ["wrong stage", { qualificationStage: "analysis", qualificationAnalysisOrigin: "initial",
+      qualificationAnalysisAttempt: "1" }, null],
+    ["wrong stopped finish", { qualificationSubtype: "S01" }, null],
+    ["wrong collection finish", { qualificationSubtype: "S02", qualificationFinishReason: "tool_calls" }, null],
+    ["absent native finish", { qualificationFinishReason: "none" }, null],
+  ];
+  for (const [name, overrides, expected] of cases) {
+    await contextTest.test(name, async () => {
+      const failure = Object.assign(new LatticeProviderError("provider_malformed_response", "PRIVATE-ERROR"), base, overrides);
+      const worker = createLatticeApiWorker({
+        createAdapter: () => Object.freeze({}),
+        runTextToLatticeImpl: async () => { throw failure; },
+      });
+      const response = await worker.fetch(apiRequest(validPayload, { headers: {
+        [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+      } }), { HF_TOKEN: "server_only_token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" });
+      assert.equal(response.status, 502);
+      assert.deepEqual(await json(response), { error: "malformed_upstream_response" });
+      assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), expected);
+      if (expected === null) {
+        for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) {
+          assert.equal(response.headers.has(header), false);
+        }
+      }
+      assert.equal(JSON.stringify([...response.headers]).includes("PRIVATE-ERROR"), false);
+    });
+  }
+});
+
 test("strict-schema analysis treats assistant content as authoritative and never falls back to tool fields", async () => {
   const privateMarker = "PRIVATE-AUXILIARY-TOOL-DATA-MUST-NOT-CROSS";
   const cases = [
@@ -5118,7 +5273,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
 });
 
 test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
-  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v7");
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v8");
   const diagnosticHeaders = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
       LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -5325,7 +5480,7 @@ test("the terminal analysis diagnostic is all-or-none, bounded, and qualificatio
   }
 });
 
-test("the v7 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v8 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {

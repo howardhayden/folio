@@ -200,6 +200,10 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /69c38fbd-1cd0-4d72-911d-3bcd5b087962[\s\S]{0,100}7496d68f-29dd-4373-b078-0ab9b09942fa[\s\S]{0,80}2026-09-30T13:59:14\.894Z[\s\S]{0,30}3\/3 held samples/u);
   assert.match(dossier, /Run #162 closes none of GATE-02, GATE-03, or GATE-06/u);
   assert.match(dossier, /diagnostic extension, revision 7/iu);
+  assert.match(dossier, /Qualification run #166[\s\S]{0,250}diagnostic revision 7 merged by PR #53/iu);
+  assert.match(dossier, /provider-envelope rejection at initial verification before private-wire decoding/iu);
+  assert.match(dossier, /retained no revision-7 host predicate code or first deterministic finding/iu);
+  assert.match(dossier, /diagnostic extension, revision 8/iu);
   assert.match(dossier, /no retrospective exact-predicate or deterministic-finding evidence for run #164/iu);
   assert.match(dossier, /Codes permit bounded inference about static host predicates/iu);
   assert.match(dossier, /Initial verification supplied a valid semantic rejection and initiated repair/iu);
@@ -214,7 +218,7 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /run #160 attempt 2[\s\S]{0,600}post-candidate-withheld with batch_count=1, verification_passes=0, and finding_count=1/iu);
   assert.match(dossier, /retained summary does not identify the exact internal cause/iu);
   assert.match(dossier, /6118ad58-8448-4d10-b564-ecee5538e0b8[\s\S]{0,100}f24b2a69-a426-456e-99c5-cb1020f02e4a[\s\S]{0,80}2026-09-30T12:56:33\.469Z/u);
-  assert.match(dossier, /The current qualification-only diagnostic extension, revision 7/iu);
+  assert.match(dossier, /The current qualification-only diagnostic extension, revision 8/iu);
   assert.match(dossier, /exact 65,536-byte boundary returned HTTP 400 invalid_request; 65,537 bytes returned HTTP 413 input_too_large/u);
   assert.match(dossier, /https:\/\/github\.com\/howardhayden\/folio\/actions\/runs\/36595292369/u);
   assert.match(dossier, /deployed source-set digest `2677c607d748582348930f1b90087e09455fff9773ce2eca203a4a7474ab7a8a`/u);

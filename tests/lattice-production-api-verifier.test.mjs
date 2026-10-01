@@ -1229,6 +1229,32 @@ test("the canary rejects absent, partial, malformed, or success diagnostics with
   }
 });
 
+test("provider envelope codes reject impossible stage or finish provenance", async (contextTest) => {
+  const base = { failureClass: "provider_malformed_response", upstreamStatus: "none", stage: "verification",
+    subtype: "E06", finishReason: "stop", analysisOrigin: "none", analysisAttempt: "none" };
+  const cases = [
+    ["named predicate", {}, /subtype=E06; finish_reason=stop/u],
+    ["stopped predicate", { subtype: "S02" }, /subtype=S02; finish_reason=stop/u],
+    ["wrong stage", { stage: "analysis", analysisOrigin: "initial", analysisAttempt: "1" }, /invalid qualification diagnostic/u],
+    ["wrong stopped finish", { subtype: "S01" }, /invalid qualification diagnostic/u],
+    ["wrong collection finish", { subtype: "S02", finishReason: "tool_calls" }, /invalid qualification diagnostic/u],
+    ["absent native finish", { finishReason: "none" }, /invalid qualification diagnostic/u],
+    ["unreachable disabled compatibility", { subtype: "S00" }, /invalid qualification diagnostic/u],
+  ];
+  for (const [name, overrides, expected] of cases) {
+    await contextTest.test(name, async () => {
+      const fixture = successfulFixture({ canaryResponse: apiJson({ error: "malformed_upstream_response" }, 502,
+        qualificationDiagnosticHeaders({ ...base, ...overrides })) });
+      let failure;
+      try { await verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait }); }
+      catch (error) { failure = error; }
+      assert.ok(failure instanceof Error);
+      assert.match(failure.message, expected);
+      assert.equal(fixture.canaryRequests, 1);
+    });
+  }
+});
+
 test("an unable canary reports only an allowlisted homogeneous failure class and safe counts", async (contextTest) => {
   const cases = [
     ["atomization-unavailable", "pre-candidate-analysis-contract"],

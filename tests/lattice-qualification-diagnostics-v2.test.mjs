@@ -549,7 +549,7 @@ test("analysis never substitutes auxiliary tool calls for strict-schema content"
   }
 });
 
-test("every remaining malformed-response branch maps to one fixed content-free subtype", async () => {
+test("every remaining shared malformed-response branch maps to one fixed content-free subtype", async () => {
   const privateMarker = "PRIVATE-MALFORMED-SUBTYPE-MARKER";
   const cases = [
     {
@@ -637,10 +637,17 @@ test("every remaining malformed-response branch maps to one fixed content-free s
       },
     },
   ];
+  // These named-tool-only predicates are exercised individually through the
+  // production verifier adapter in lattice-api-worker.test.mjs. This matrix
+  // exercises the shared transport guards through strict-schema analysis.
+  const namedToolEnvelopeSubtypes = [
+    "E00", "E01", "E02", "E03", "E04", "E05", "E06", "E07",
+    "S01", "S02", "S03", "S04", "S05", "S06", "S07",
+  ];
   assert.deepEqual(
     cases.map(({ subtype }) => subtype).sort(),
     LATTICE_PROVIDER_MALFORMED_SUBTYPES
-      .filter((subtype) => !["none", "envelope_json", "content_json"].includes(subtype))
+      .filter((subtype) => !["none", "envelope_json", "content_json", ...namedToolEnvelopeSubtypes].includes(subtype))
       .sort(),
   );
 
