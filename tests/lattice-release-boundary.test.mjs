@@ -197,6 +197,10 @@ test("the release register honestly holds the remote capability and preserves hi
   assert.match(register.publicClient.reason, /provider-envelope rejection at initial verification before private-wire decoding/iu);
   assert.match(register.publicClient.reason, /retained no revision-7 host predicate code or first deterministic finding/iu);
   assert.match(register.publicClient.reason, /diagnostic extension, revision 8/iu);
+  assert.match(register.publicClient.reason, /Qualification run #168[\s\S]{0,250}diagnostic revision 8 merged by PR #54/iu);
+  assert.match(register.publicClient.reason, /rejection_rule=V01F, prior_rejection_boundary=wire-decoder, prior_rejection_category=coverage, prior_rejection_rule=V16M/u);
+  assert.match(register.publicClient.reason, /first_deterministic_rule=D14/u);
+  assert.match(register.publicClient.reason, /four readiness probes observed one active response followed by three consecutive held responses/iu);
   assert.match(register.publicClient.reason, /no retrospective exact-predicate or deterministic-finding evidence for run #164/iu);
   assert.match(register.publicClient.reason, /source-only until separately deployed and observed/iu);
   assert.match(register.publicClient.reason, /run #160 exercised the merged correction/iu);
