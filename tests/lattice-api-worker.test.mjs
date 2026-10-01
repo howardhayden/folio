@@ -1569,6 +1569,143 @@ test("malformed and oversized Content-Length reject without awaiting body cancel
   }
 });
 
+test("verifier corrections keep negative results complete and preserve both rejection guards", async (context) => {
+  for (const firstFailure of ["V16M", "V01F"]) {
+    for (const recover of [true, false]) {
+      await context.test(`${firstFailure}: ${recover ? "corrected" : "exhausted"}`, async () => {
+        const calls = [];
+        let verifierCalls = 0;
+        const worker = createLatticeApiWorker({
+          fetchImpl: async (_url, init) => {
+            const body = JSON.parse(init.body);
+            calls.push(body);
+            if (body.response_format?.type === "json_schema") {
+              return successfulProviderResponse(canaryAnalysisWire(body));
+            }
+            if (body.response_format?.type === "json_object") {
+              return successfulProviderResponse(canaryCandidateFromProviderBody(
+                body, "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.",
+              ));
+            }
+            const toolName = body.tool_choice.function.name;
+            if (toolName === VERIFICATION_TOOL_NAME) {
+              verifierCalls += 1;
+              const wire = structuredClone(canaryVerificationWire(body));
+              if (verifierCalls === 1 || !recover) {
+                if (firstFailure === "V16M") wire.p["0"].x = "0".repeat(wire.p["0"].x.length);
+                else delete wire.i;
+              }
+              return successfulProviderToolResponse(wire, { toolName });
+            }
+            assert.equal(recover, true, "invalid verification cannot reach certification");
+            assert.equal(toolName, CERTIFICATION_TOOL_NAME);
+            const payload = inertModelPayload(body);
+            return successfulProviderToolResponse(acceptingCertificationWire(
+              payload.certificateId, payload.obligationIds,
+            ), { toolName });
+          },
+        });
+        const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
+        const envelope = await json(response);
+        assert.equal(response.status, 200);
+        assert.equal(verifierCalls, 2);
+        assert.equal(calls.length, recover ? 5 : 4);
+        assert.equal(envelope.result.status === "translated", recover);
+        assert.equal(envelope.result.verificationPasses, recover ? 1 : 0);
+        const verifies = calls.filter((body) => body.tool_choice?.function?.name === VERIFICATION_TOOL_NAME);
+        assert.deepEqual(verifies[0].tools, verifies[1].tools);
+        for (const body of verifies) {
+          assert.equal(body.model, LATTICE_REMOTE_MODELS.verifier);
+          assert.equal(body.max_tokens, 2_048);
+          assert.match(body.tools[0].function.description, /exactly the four root fields d, g, p, and i/u);
+          assert.match(body.tools[0].function.description, /x and y.*at least one 1.*repair or reject/u);
+          assert.match(body.messages[0].content, /emptiness applies only to c, never to x or y/u);
+          assert.doesNotMatch(JSON.stringify(body), /V16M|V01F|D14|PRIVATE-HOST/u);
+        }
+        assert.equal(Object.hasOwn(inertModelPayload(verifies[0]), "retry"), false);
+        assert.equal(inertModelPayload(verifies[1]).retry, "private-verification-wire-invalid");
+      });
+    }
+  }
+});
+
+test("repair and reject wire records still require grounded layer support and every root field", async () => {
+  const request = minimalVerificationRequest();
+  for (const decision of [1, 2]) {
+    const wire = structuredClone(acceptingVerificationWire(request));
+    wire.d = decision;
+    wire.p["0"].f = "000000010";
+    const variants = [
+      [wire, null],
+      [{ ...wire, p: { 0: { ...wire.p["0"], x: "0".repeat(wire.p["0"].x.length) } } }, "V16M"],
+      [{ ...wire, p: { 0: { ...wire.p["0"], y: "0".repeat(wire.p["0"].y.length) } } }, "V17M"],
+      ...["d", "g", "p", "i"].map((field) => {
+        const missing = { ...wire }; delete missing[field]; return [missing, "V01F"];
+      }),
+      [{ ...wire, extra: false }, "V01F"],
+    ];
+    for (const [value, rule] of variants) {
+      const adapter = createHuggingFaceLatticeAdapter({
+        token: "server-token", fetchImpl: async () => successfulProviderToolResponse(value, { toolName: VERIFICATION_TOOL_NAME }),
+      });
+      const result = await adapter.verify(request);
+      assert.equal(adapter.completionCapacity().used, 1);
+      if (rule) {
+        assert.deepEqual(result, {});
+        assert.equal(rejectedResultDiagnostic(result).rule, rule);
+      } else {
+        assert.equal(result.decision, decision === 1 ? "repair" : "reject");
+        assert.deepEqual(result.passages[0].failedChecks, ["materiality"]);
+        assert.equal(result.passages[0].conformanceConfirmed, false);
+        assert.ok(result.passages[0].layerEvidenceAtomIds.length > 0);
+        assert.ok(result.passages[0].layerEvidenceSpanIds.length > 0);
+      }
+    }
+  }
+});
+
+test("draft and repair instructions distinguish result instances and meaning-preserving rewrite from retention", async () => {
+  const base = minimalAnalysisRequest("A visitor places a blue notebook on the desk, reads the first page, and closes it.");
+  const sourceSpans = latticeSourceSpansForBatch(base.batch);
+  const request = { ...base, sourceSpans, analysisAtomLimit: 12 };
+  for (const [disposition, masks, expected] of [
+    [0, ["000", "000", "000", "000", "000"], "rewrite"],
+    [1, ["100", "010", "001", "111", "101"], "retain-if-conformant"],
+    [1, ["000", "000", "000", "000", "000"], "rewrite"],
+  ]) {
+    const calls = [];
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-token", fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body); calls.push(body);
+        return successfulProviderResponse(calls.length === 1
+          ? { d: 2, p: [[0, disposition, [[1, 0, 1, [0, 1, 2]]], masks]], l: [] }
+          : { passages: [] });
+      },
+    });
+    const analysis = await adapter.analyze(request);
+    assert.equal(analysis.passages[0].disposition, expected);
+    const draft = { ...request, analysis };
+    await adapter.generate(draft);
+    await adapter.repair({ ...draft, candidate: { passages: [] }, verification: {
+      decision: "repair", gates: {}, passages: [], issues: [], questions: [],
+    } });
+    assert.equal(calls.length, 3);
+    for (const body of calls.slice(1)) {
+      const payload = inertModelPayload(body);
+      assert.equal(payload.analysis[1][0][3], expected);
+      assert.match(body.messages[0].content, /complete candidate-result instance/u);
+      assert.match(body.messages[0].content, /ordinary source prose is evidence/u);
+      assert.match(body.messages[0].content, /retain-if-conformant.*complete source passage exactly/u);
+      assert.match(body.messages[0].content, /speech act/u);
+      assert.doesNotMatch(body.messages[0].content, /Return the candidate schema\./u);
+      assert.equal(body.model, LATTICE_REMOTE_MODELS.generator);
+      assert.equal(body.max_tokens, 800);
+      assert.deepEqual(body.response_format, { type: "json_object" });
+      assert.equal(Object.hasOwn(body, "tools"), false);
+    }
+  }
+});
+
 test("the remote analysis dialect replaces host-shape instructions and correction prose", () => {
   const request = Object.freeze({
     ...minimalAnalysisRequest(),
