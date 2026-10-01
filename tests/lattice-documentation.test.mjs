@@ -204,6 +204,10 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /provider-envelope rejection at initial verification before private-wire decoding/iu);
   assert.match(dossier, /retained no revision-7 host predicate code or first deterministic finding/iu);
   assert.match(dossier, /diagnostic extension, revision 8/iu);
+  assert.match(dossier, /Qualification run #168[\s\S]{0,250}diagnostic revision 8 merged by PR #54/iu);
+  assert.match(dossier, /rejection_rule=V01F, prior_rejection_boundary=wire-decoder, prior_rejection_category=coverage, prior_rejection_rule=V16M/u);
+  assert.match(dossier, /first_deterministic_rule=D14/u);
+  assert.match(dossier, /four readiness probes observed one active response followed by three consecutive held responses/iu);
   assert.match(dossier, /no retrospective exact-predicate or deterministic-finding evidence for run #164/iu);
   assert.match(dossier, /Codes permit bounded inference about static host predicates/iu);
   assert.match(dossier, /Initial verification supplied a valid semantic rejection and initiated repair/iu);
