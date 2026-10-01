@@ -738,7 +738,9 @@ function verifyPrivacy(value, path) {
   ]) exactValue(privacy[field], 0, `${path}.${field}`);
   integer(privacy.blocked_cloudflare_beacon_count, 0, 16, `${path}.blocked_cloudflare_beacon_count`);
   exactValue(privacy.source_marker_request_body_matches, 1, `${path}.source_marker_request_body_matches`);
-  exactValue(privacy.source_marker_response_body_matches, 0, `${path}.source_marker_response_body_matches`);
+  // These are matching body-record counts, not substring occurrence counts.
+  // Protected source text may remain inside the one permitted result.text.
+  integer(privacy.source_marker_response_body_matches, 0, 1, `${path}.source_marker_response_body_matches`);
   exactValue(privacy.output_marker_response_body_matches, 1, `${path}.output_marker_response_body_matches`);
   exactArray(privacy.provider_origins_observed, [], `${path}.provider_origins_observed`);
   exactArray(privacy.content_bearing_urls, [API_URL], `${path}.content_bearing_urls`);
@@ -883,6 +885,11 @@ function verifyEngine(value, expectedIdentity, index, deployment) {
     fail(`${path}.privacy.post_terminal_observation_ms`, "must equal the measured terminal-to-observation-end duration");
   }
   const fingerprints = verifyFingerprints(engine.content_fingerprints, `${path}.content_fingerprints`);
+  if (engine.response.result_status === "conformant-for-context") {
+    exactValue(engine.privacy.source_marker_response_body_matches, 1, `${path}.privacy.source_marker_response_body_matches`);
+    exactValue(fingerprints.output_utf8_bytes, fingerprints.source_utf8_bytes, `${path}.content_fingerprints.output_utf8_bytes`);
+    exactValue(fingerprints.output_sha256, fingerprints.source_sha256, `${path}.content_fingerprints.output_sha256`);
+  }
   const capture = verifySanitizedCapture(
     engine.sanitized_capture,
     `${path}.sanitized_capture`,
