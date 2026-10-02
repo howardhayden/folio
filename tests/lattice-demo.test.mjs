@@ -3742,3 +3742,87 @@ test("all resume production sources remain free of canned transformations and ru
     assert.doesNotMatch(leaseWindow, /\bbody\s*:/u);
   }
 });
+
+
+test("authentic materiality failure remains bound to its own rewrite passage", async (context) => {
+  const source = `${opaqueWords(8)}\n\n${opaqueWords(9)}`;
+  assert.equal(preflightLatticeInput(source).batches[0].passages.length, 2);
+  for (const issueOnWrongPassage of [false, true]) await context.test(issueOnWrongPassage ? "wrong passage withheld" : "same passage repaired", async () => {
+    let certificates = 0;
+    const adapter = scriptedAdapter({
+      generate(request) {
+        const candidate = rawCandidate(request);
+        candidate.passages[0].text = request.batch.passages[0].text;
+        return candidate;
+      },
+      verify(request, count) {
+        if (count > 1 && !issueOnWrongPassage) return rawVerification(request);
+        const actualD14 = request.deterministicFindings.filter((finding) => deterministicFindingRule(finding) === "D14");
+        assert.equal(actualD14.length, 1);
+        assert.equal(actualD14[0].passageId, request.batch.passages[0].id);
+        return rawVerification(request, { decision: "repair", passage: { materiality: true }, issues: [{
+          id: "materiality-scope", check: "materiality", passageId: request.batch.passages[issueOnWrongPassage ? 1 : 0].id,
+          atomIds: [], message: "The selected passage is not material.",
+        }] });
+      },
+      repair(request) {
+        assert.equal(issueOnWrongPassage, false);
+        assert.equal(request.verification.passages[0].materiality, false);
+        assert.equal(request.verification.passages[1].materiality, true);
+        return rawCandidate(request);
+      },
+      certify(request) {
+        certificates += 1;
+        return { certificateId: request.certificateId, obligationIds: request.obligationIds, decision: "accept",
+          checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, true])), issues: [] };
+      },
+    });
+    const result = await runTextToLattice(source, { adapter });
+    assert.equal(result.status === "translated", !issueOnWrongPassage);
+    assert.equal(result.text === null, issueOnWrongPassage);
+    assert.equal(adapter.calls.analyze, 1);
+    assert.equal(adapter.calls.generate, 1);
+    assert.equal(adapter.calls.verify, 2);
+    assert.equal(adapter.calls.repair, issueOnWrongPassage ? 0 : 1);
+    assert.equal(certificates, issueOnWrongPassage ? 0 : 1);
+  });
+});
+
+test("host materiality reconciliation preserves structural replacement-analysis prerequisites", async (context) => {
+  for (const replacementValid of [false, true]) await context.test(replacementValid ? "valid graph then regenerate" : "failed graph blocks candidate repair", async () => {
+    const events = []; let certificates = 0;
+    const adapter = scriptedAdapter({
+      analyze(request, count) {
+        events.push(`analyze:${count}`);
+        if (count > 1 && !replacementValid) return {};
+        return rawAnalysis(request);
+      },
+      generate(request, count) {
+        events.push(`generate:${count}`);
+        return rawCandidate(request, { identity: count === 1 });
+      },
+      verify(request, count) {
+        events.push(`verify:${count}`);
+        if (count === 1) {
+          assert.equal(request.deterministicFindings.some((finding) => deterministicFindingRule(finding) === "D14"), true);
+          return rawVerification(request, { decision: "repair", gates: { sourceCoverage: false }, passage: { materiality: true } });
+        }
+        return rawVerification(request);
+      },
+      repair() { assert.fail("a structural failure must regenerate only after valid reanalysis"); },
+      certify(request) {
+        certificates += 1;
+        return { certificateId: request.certificateId, obligationIds: request.obligationIds, decision: "accept",
+          checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, true])), issues: [] };
+      },
+    });
+    const result = await runTextToLattice(opaqueWords(8), { adapter });
+    assert.equal(result.status === "translated", replacementValid);
+    assert.equal(result.text === null, !replacementValid);
+    assert.equal(adapter.calls.repair, 0);
+    assert.equal(certificates, 0, "a single unbroken passage does not add document certification");
+    assert.deepEqual(events, replacementValid
+      ? ["analyze:1", "generate:1", "verify:1", "analyze:2", "generate:2", "verify:2"]
+      : ["analyze:1", "generate:1", "verify:1", "analyze:2", "analyze:3"]);
+  });
+});

@@ -2030,7 +2030,8 @@ test("reverification corrections preserve decision consistency and original cand
           assert.equal(envelope.result.text, null);
           assert.equal(envelope.result.verificationPasses, 0);
           const expected = {
-            verification: "review-only-rejection", firstDeterministicRule: "D14", stage: "reverification",
+            // Failed reverification restores the original host-proved nonmaterial candidate.
+            verification: "semantic-rejection", firstDeterministicRule: "D14", stage: "reverification",
             attempt: "2", validationCategory: "response-shape", priorValidationCategory: "decision-consistency",
             rejectionBoundary: "wire-decoder", rejectionRule: "V01F",
             priorRejectionBoundary: "host-normalizer", priorRejectionRule: "unknown", callsUsed: "6",
@@ -8187,4 +8188,108 @@ test("the prior verifier rejection validator rejects malformed, inconsistent, an
   ];
   for (const value of invalid) assert.equal(isClosedPriorVerificationRejection(value), false);
   assert.equal(getterReads, 0);
+});
+
+
+test("authentic D14 reconciles a complete corrected verifier before bounded material repair", async (context) => {
+  const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
+  const issueChecks = VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum;
+  for (const [name, decision, localIssue] of [
+    ["accept", 0, false], ["repair", 1, false], ["reject", 2, false], ["local materiality issue", 1, true],
+  ]) for (const copiedRepair of [false, true]) {
+    await context.test(`${name}, ${copiedRepair ? "copied repair withheld" : "real repair certified"}`, async () => {
+      const calls = []; let drafts = 0; let verifies = 0; let certificates = 0; let repairFeedback = null;
+      const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body); calls.push(body);
+        if (isAnalysisBody(body)) {
+          const wire = canaryAnalysisWire(body);
+          wire.p[0][2] = [[1, 0, 1, [0]], [1, 0, 1, [1, 2]]];
+          return successfulProviderResponse(wire);
+        }
+        if (isCandidateBody(body)) {
+          drafts += 1;
+          if (drafts === 2) {
+            repairFeedback = inertModelPayload(body).verification;
+          }
+          return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+            drafts === 1 || copiedRepair ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText));
+        }
+        if (isVerificationBody(body)) {
+          verifies += 1;
+          const wire = canaryVerificationWire(body);
+          wire.p["0"].x = "10";
+          wire.p["0"].y = verifies === 1 ? "000" : "100";
+          assert.equal(wire.p["0"].f, "000000000", "model never echoes materiality failure in its mask");
+          if (verifies <= 2) wire.d = verifies === 1 ? 1 : decision;
+          if (verifies === 2 && localIssue) wire.i = [{ c: issueChecks.indexOf("materiality"), p: 0 }];
+          if (verifies === 2) {
+            assert.equal(inertModelPayload(body).retry, "private-verification-wire-invalid");
+            assert.match(body.messages[0].content, /Rebuild layer support from the source/u);
+          }
+          assert.equal(body.max_tokens, 2048);
+          return successfulProviderResponse(wire);
+        }
+        certificates += 1;
+        assert.equal(copiedRepair, false, "a copied repair must not certify");
+        const payload = inertModelPayload(body);
+        return successfulProviderToolResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds), {
+          toolName: CERTIFICATION_TOOL_NAME,
+        });
+      } });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
+      const envelope = await json(response);
+      assert.equal(response.status, 200);
+      assert.equal(drafts, 2, "the valid corrected review must reach exactly one material repair");
+      assert.equal(verifies, 3);
+      assert.equal(repairFeedback[0], decision === 2 ? "reject" : "repair");
+      assert.deepEqual(repairFeedback[2][0][4], ["materiality"], "host-proved failure must reach repair feedback");
+      assert.equal(certificates, copiedRepair ? 0 : 1);
+      assert.equal(calls.filter(isAnalysisBody).length, 1, "pure D14 must not require structural reanalysis");
+      assert.equal(calls.length, copiedRepair ? 6 : 7);
+      assert.equal(envelope.result.status === "translated", !copiedRepair);
+      assert.equal(envelope.result.text, copiedRepair ? null : `${repairText}\n`);
+      assert.equal(envelope.result.verificationPasses, copiedRepair ? 0 : 2);
+      const verifyBodies = calls.filter(isVerificationBody);
+      assert.deepEqual(fittedVerificationSchemaForBody(verifyBodies[0]), fittedVerificationSchemaForBody(verifyBodies[1]));
+      for (const body of verifyBodies.slice(0, 2)) {
+        assert.deepEqual(inertModelPayload(body).deterministicFindings.map(({ id }) => id), ["candidate-not-material"]);
+        assert.doesNotMatch(JSON.stringify(body), /V17M|D14|decision-consistency/u);
+      }
+    });
+  }
+});
+
+test("D14 reconciliation cannot validate unsupported issues, absent host failures, or invalid masks", async (context) => {
+  const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
+  const issueChecks = VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum;
+  for (const failure of ["no D14", "global materiality issue", "unrelated local issue", "zero support mask", "truncated support mask"]) {
+    await context.test(failure, async () => {
+      let drafts = 0; let verifies = 0; const calls = [];
+      const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body); calls.push(body);
+        if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body));
+        if (isCandidateBody(body)) {
+          drafts += 1;
+          assert.equal(drafts, 1, "invalid corrected reviews cannot start repair");
+          return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+            failure === "no D14" ? repairText : LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1)));
+        }
+        assert.equal(isVerificationBody(body), true, "invalid corrected reviews cannot certify");
+        verifies += 1;
+        const wire = canaryVerificationWire(body); wire.d = 1;
+        if (verifies === 1 || failure === "zero support mask") wire.p["0"].y = "000";
+        else if (failure === "truncated support mask") wire.p["0"].y = "1";
+        if (verifies === 2 && failure === "global materiality issue") wire.i = [{ c: issueChecks.indexOf("materiality"), p: -1 }];
+        if (verifies === 2 && failure === "unrelated local issue") wire.i = [{ c: issueChecks.indexOf("clarity"), p: 0 }];
+        return successfulProviderResponse(wire);
+      } });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
+      const envelope = await json(response);
+      assert.equal(response.status, 200);
+      assert.equal(envelope.result.text, null);
+      assert.notEqual(envelope.result.status, "translated");
+      assert.equal(envelope.result.verificationPasses, 0);
+      assert.equal(drafts, 1); assert.equal(verifies, 2); assert.equal(calls.length, 4);
+    });
+  }
 });
