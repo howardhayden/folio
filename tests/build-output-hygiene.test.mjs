@@ -192,6 +192,7 @@ test("the public model contract retains bounded stages without publishing privat
     "topP",
     "responseFormat",
     "strict",
+    "allowNullJsonObjectVerificationToolCalls",
   ]) {
     assert.doesNotMatch(
       publicContract,
@@ -242,11 +243,20 @@ test("the public model contract retains bounded stages without publishing privat
   assert.match(verificationStageSource, /requireMinimalVerificationContent: true/u);
   assert.match(verificationStageSource, /allowEmptyStoppedToolCalls: true/u);
   assert.match(verificationStageSource, /allowNullStoppedVerificationMetadata: true/u);
+  assert.match(verificationStageSource, /allowNullJsonObjectVerificationToolCalls: true/u);
   assert.doesNotMatch(verificationStageSource, /toolName|toolChoice|allowStoppedToolContent/u);
   assert.match(certificationStageSource, /toolName: CERTIFICATION_TOOL_NAME/u);
   assert.match(certificationStageSource, /toolChoice: "named"/u);
   assert.match(certificationStageSource, /allowStoppedToolContent: true/u);
-  assert.doesNotMatch(certificationStageSource, /responseFormat/u);
+  assert.doesNotMatch(certificationStageSource, /responseFormat|allowNullJsonObjectVerificationToolCalls/u);
+  const providerBodyStart = adapter.indexOf("const providerRequestBody = JSON.stringify({");
+  const providerBodyEnd = adapter.indexOf("const requestByteLength =", providerBodyStart);
+  assert.ok(providerBodyStart >= 0 && providerBodyEnd > providerBodyStart);
+  assert.doesNotMatch(
+    adapter.slice(providerBodyStart, providerBodyEnd),
+    /allowNullJsonObjectVerificationToolCalls/u,
+    "the verification null-collection permission stays outside the serialized provider request",
+  );
   assert.match(adapter, /model: LATTICE_REMOTE_MODELS\[role\]/u);
   assert.doesNotMatch(adapter, /CreateMLCEngine|latticeWebllm\.worker/u);
 });

@@ -643,6 +643,7 @@ const STAGES = Object.freeze({
     requireMinimalVerificationContent: true,
     allowEmptyStoppedToolCalls: true,
     allowNullStoppedVerificationMetadata: true,
+    allowNullJsonObjectVerificationToolCalls: true,
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
     maxTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -2097,40 +2098,44 @@ function rejectedNamedToolSubtype(toolCall, toolName) {
   return "message_shape";
 }
 
-function stoppedToolMessageKeysAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata) {
+function stoppedToolMessageKeysAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls = false) {
   return Object.keys(message).every((key) => key === "role" || key === "content"
-    || (allowEmptyStoppedToolCalls && key === "tool_calls")
+    || ((allowEmptyStoppedToolCalls || allowNullJsonObjectVerificationToolCalls) && key === "tool_calls")
     || (allowNullStoppedVerificationMetadata
       && (key === "name" || key === "reasoning_content") && message[key] === null));
 }
 
-function stoppedContentMessageAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata) {
+function stoppedContentMessageAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls = false) {
   return (!Object.hasOwn(message, "tool_calls")
-      || (allowEmptyStoppedToolCalls && Array.isArray(message.tool_calls) && message.tool_calls.length === 0))
+      || (allowEmptyStoppedToolCalls && Array.isArray(message.tool_calls) && message.tool_calls.length === 0)
+      || (allowNullJsonObjectVerificationToolCalls && message.tool_calls === null))
     && !Object.hasOwn(message, "function_call")
-    && stoppedToolMessageKeysAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata)
+    && stoppedToolMessageKeysAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls)
     && typeof message.content === "string";
 }
 
-function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata) {
+function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls = false) {
   try {
     if (!allowStoppedToolContent) return "message_shape";
     if (providerFinishReason !== "stop") return "S01";
     if (Object.hasOwn(message, "tool_calls")) {
-      // Refine an already rejected collection predicate without accepting,
-      // retaining or repairing provider content. Other nonarrays stay S02.
-      if (!Array.isArray(message.tool_calls)) return message.tool_calls === null ? "S02N" : "S02";
-      if (message.tool_calls.length === 0 && !allowEmptyStoppedToolCalls) return "S03";
-      if (message.tool_calls.length > 1) return "S04";
+      if (!Array.isArray(message.tool_calls)) {
+        if (!(allowNullJsonObjectVerificationToolCalls && message.tool_calls === null)) {
+          return message.tool_calls === null ? "S02N" : "S02";
+        }
+      } else {
+        if (message.tool_calls.length === 0 && !allowEmptyStoppedToolCalls) return "S03";
+        if (message.tool_calls.length > 1) return "S04";
+      }
     }
     if (Object.hasOwn(message, "function_call")) return "S05";
-    if (!stoppedToolMessageKeysAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata)) return "S06";
+    if (!stoppedToolMessageKeysAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls)) return "S06";
     if (typeof message.content !== "string") return "S07";
   } catch { /* Observation must preserve the rejected envelope outcome. */ }
   return "message_shape";
 }
 
-function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, requireMinimalVerificationContent, minimalVerificationJsonObject, observeQualificationEnvelopeShape) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls, requireMinimalVerificationContent, minimalVerificationJsonObject, observeQualificationEnvelopeShape) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -2211,14 +2216,15 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
     );
   }
   if (requireMinimalVerificationContent && !(minimalVerificationJsonObject
-    ? stoppedContentMessageAllowed(choice.message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata)
+    ? stoppedContentMessageAllowed(choice.message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls)
     : exactKeys(choice.message, ["role", "content"]))) {
-    // JSON-object mode has one content channel. Reuse the exact stopped-content
-    // envelope guard; even one otherwise valid native call is competing content.
+    // JSON-object mode has one content channel. Its explicit null-collection
+    // compatibility carries no arguments and never rewrites the message/content.
+    // Even one otherwise valid native call is competing content.
     // The retained strict-schema mode still requires exactly role/content.
     const subtype = minimalVerificationJsonObject
       ? rejectedStoppedToolSubtype(choice.message, choice.finish_reason,
-        true, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata)
+        true, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls)
       : "message_shape";
     throw withProviderDiagnostic(
       providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
@@ -2424,6 +2430,7 @@ export async function requestHuggingFaceJson({
   allowStoppedToolContent = false,
   allowEmptyStoppedToolCalls = false,
   allowNullStoppedVerificationMetadata = false,
+  allowNullJsonObjectVerificationToolCalls = false,
   requireMinimalVerificationContent = false,
   observeQualificationHttpHeaders = false,
   observeQualificationEnvelopeShape = false,
@@ -2469,6 +2476,7 @@ export async function requestHuggingFaceJson({
     || typeof allowStoppedToolContent !== "boolean"
     || typeof allowEmptyStoppedToolCalls !== "boolean"
     || typeof allowNullStoppedVerificationMetadata !== "boolean"
+    || typeof allowNullJsonObjectVerificationToolCalls !== "boolean"
     || typeof requireMinimalVerificationContent !== "boolean"
     || typeof observeQualificationHttpHeaders !== "boolean"
     || typeof observeQualificationEnvelopeShape !== "boolean"
@@ -2485,6 +2493,7 @@ export async function requestHuggingFaceJson({
         || toolChoice !== "named"
         || !STOPPED_TOOL_CONTENT_NAMES.has(toolName)))
     || (allowEmptyStoppedToolCalls && !allowStoppedToolContent && !minimalVerificationJsonObject)
+    || (allowNullJsonObjectVerificationToolCalls && !minimalVerificationJsonObject)
     || (allowNullStoppedVerificationMetadata
       && !minimalVerificationJsonObject
       && (!allowStoppedToolContent || toolName !== VERIFICATION_TOOL_NAME))
@@ -2628,6 +2637,7 @@ export async function requestHuggingFaceJson({
         allowStoppedToolContent,
         allowEmptyStoppedToolCalls,
         allowNullStoppedVerificationMetadata,
+        allowNullJsonObjectVerificationToolCalls,
         requireMinimalVerificationContent,
         minimalVerificationJsonObject,
         observeQualificationEnvelopeShape,
@@ -2735,6 +2745,7 @@ export function createHuggingFaceLatticeAdapter({
         allowStoppedToolContent: stage.allowStoppedToolContent,
         allowEmptyStoppedToolCalls: stage.allowEmptyStoppedToolCalls,
         allowNullStoppedVerificationMetadata: stage.allowNullStoppedVerificationMetadata,
+        allowNullJsonObjectVerificationToolCalls: stage.allowNullJsonObjectVerificationToolCalls,
         requireMinimalVerificationContent: stage.requireMinimalVerificationContent,
         observeQualificationHttpHeaders,
         observeQualificationEnvelopeShape,
