@@ -5420,7 +5420,7 @@ test("rejected provider envelopes expose only finite first-failed host predicate
     ["name before arguments", native({ ...call, function: { name: privateMarker, arguments: 7 } }), "E06"],
     ["arguments type", native({ ...call, function: { ...call.function, arguments: {} } }), "E07"],
     ["finish before collection", { ...stopped, tool_calls: null }, "S01", { finishReason: "tool_calls" }],
-    ["collection type before legacy", { ...stopped, tool_calls: null, function_call: null }, "S02"],
+    ["collection type before legacy", { ...stopped, tool_calls: null, function_call: null }, "S02N"],
     ["multiple collection", { ...stopped, tool_calls: [call, call] }, "S04"],
     ["legacy field before extra fields", { ...stopped, function_call: null, [privateMarker]: true }, "S05"],
     ["nonminimal field set before content type", { ...stopped, content: 7, [privateMarker]: true }, "S06"],
@@ -5515,7 +5515,7 @@ test("null stopped verification metadata preserves transport precedence and down
     ["extra before competing native call", { ...stopped, tool_calls: [tool], unknown: null }, "S06"],
     ["content type before competing native call", { ...stopped, tool_calls: [tool], content: null }, "S07"],
     ["finish before collection", { ...stopped, tool_calls: null }, "finish_reason", "tool_calls"],
-    ["collection type before metadata", { ...stopped, tool_calls: null, name: "PRIVATE" }, "S02"],
+    ["collection type before metadata", { ...stopped, tool_calls: null, name: "PRIVATE" }, "S02N"],
     ["multiple calls before metadata", { ...stopped, tool_calls: [tool, tool] }, "S04"],
     ["legacy before metadata", { ...stopped, function_call: null, name: "PRIVATE" }, "S05"],
     ["extra before content type", { ...stopped, unknown: null, content: null }, "S06"],
@@ -5620,6 +5620,46 @@ test("provider envelope observation failure preserves the original malformed-res
   assert.equal(adapter.completionCapacity().used, 1);
 });
 
+test("S02N distinguishes rejected literal-null collections without changing acceptance", async (context) => {
+  const privateMarker = "PRIVATE-COLLECTION-MUST-NOT-CROSS";
+  for (const stage of ["verification", "certification"]) {
+    const request = stage === "verification" ? minimalVerificationRequest() : minimalCertificationRequest();
+    const method = stage === "verification" ? "verify" : "certify";
+    const stopped = { role: "assistant", content: "{}" };
+    const cases = [
+      ...[null, {}, { secret: privateMarker }, "", privateMarker, false, true, 0, 7].map((value) => [
+        `${typeof value}:${JSON.stringify(value)}`, { ...stopped, tool_calls: value },
+        value === null ? "S02N" : "S02", "stop",
+      ]),
+      ["null precedes legacy", { ...stopped, tool_calls: null, function_call: null }, "S02N", "stop"],
+      ["null precedes extras", { ...stopped, tool_calls: null, [privateMarker]: true }, "S02N", "stop"],
+      ["null precedes content", { ...stopped, tool_calls: null, content: null }, "S02N", "stop"],
+      ["role precedes null", { ...stopped, role: "user", tool_calls: null }, "message_role", "stop"],
+      ["finish precedes null", { ...stopped, tool_calls: null },
+        stage === "verification" ? "finish_reason" : "S01", "tool_calls"],
+    ];
+    for (const [name, message, subtype, finish_reason] of cases) {
+      await context.test(`${stage}: ${name}`, async () => {
+        let calls = 0;
+        const adapter = createHuggingFaceLatticeAdapter({ token: "server-test-token",
+          observeQualificationEnvelopeShape: true, fetchImpl: async () => {
+            calls += 1; return providerChoiceResponse({ finish_reason, message });
+          } });
+        await assert.rejects(adapter[method](request), (error) => {
+          assert.equal(error.code, "provider_malformed_response");
+          assert.equal(error.qualificationSubtype, subtype);
+          assert.equal(error.qualificationStage, stage);
+          assert.equal(error.qualificationEnvelopeShape, null);
+          assert.equal(Object.getOwnPropertyDescriptor(error, "qualificationSubtype").enumerable, false);
+          assert.doesNotMatch(error.message + JSON.stringify(error), /PRIVATE-COLLECTION/u);
+          return true;
+        });
+        assert.equal(calls, 1); assert.equal(adapter.completionCapacity().used, 1);
+      });
+    }
+  }
+});
+
 test("coded envelope observations remain confined to marked expiring qualification errors", async () => {
   const privateMarker = "PRIVATE-ENVELOPE-CONTENT-MUST-NOT-CROSS";
   const certificationRequest = { ...minimalCertificationRequest() };
@@ -5644,7 +5684,7 @@ test("coded envelope observations remain confined to marked expiring qualificati
   assert.deepEqual(await json(ordinary), { error: "malformed_upstream_response" });
   assert.deepEqual(await json(marked), { error: "malformed_upstream_response" });
   for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) assert.equal(ordinary.headers.has(header), false);
-  assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "S02");
+  assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "S02N");
   assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage), "certification");
   assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stageAttempt), "initial");
   assert.equal(JSON.stringify([...marked.headers]).includes(privateMarker), false);
@@ -5662,6 +5702,10 @@ test("the Worker suppresses impossible coded envelope provenance", async (contex
   const cases = [
     ["native predicate", {}, "E06"],
     ["stopped predicate", { qualificationSubtype: "S02" }, "S02"],
+    ["literal null predicate", { qualificationSubtype: "S02N" }, "S02N"],
+    ["null wrong stage", { qualificationSubtype: "S02N", qualificationStage: "analysis",
+      qualificationAnalysisOrigin: "initial", qualificationAnalysisAttempt: "1" }, null],
+    ["null wrong finish", { qualificationSubtype: "S02N", qualificationFinishReason: "tool_calls" }, null],
     ["wrong stage", { qualificationStage: "analysis", qualificationAnalysisOrigin: "initial",
       qualificationAnalysisAttempt: "1" }, null],
     ["wrong stopped finish", { qualificationSubtype: "S01" }, null],
@@ -7709,7 +7753,7 @@ test("S06 shape observation retains only finite types while preserving rejection
     [{ role: "assistant", content, tool_calls: [verificationTool] }, "message_shape", true, "stop"],
     [{ role: "assistant", content: null, tool_calls: [verificationTool] }, "S07", true, "stop"],
     [{ role: "assistant", content, refusal: null }, "S06", false, "stop"],
-    [{ role: "assistant", content, tool_calls: null, refusal: null }, "S02", true, "stop"],
+    [{ role: "assistant", content, tool_calls: null, refusal: null }, "S02N", true, "stop"],
     [{ role: "assistant", content, function_call: null, refusal: null }, "S05", true, "stop"],
     [{ role: "assistant", content: null }, "S07", true, "stop"],
     [{ role: "assistant", content, refusal: null }, "none", true, "length"],

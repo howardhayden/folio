@@ -637,12 +637,12 @@ test("every remaining shared malformed-response branch maps to one fixed content
       },
     },
   ];
-  // These named-tool-only predicates are exercised individually through the
-  // production verifier adapter in lattice-api-worker.test.mjs. This matrix
+  // These review-stage envelope predicates are exercised individually through
+  // production verification/certification in lattice-api-worker.test.mjs. This matrix
   // exercises the shared transport guards through strict-schema analysis.
   const namedToolEnvelopeSubtypes = [
     "E00", "E01", "E02", "E03", "E04", "E05", "E06", "E07",
-    "S01", "S02", "S03", "S04", "S05", "S06", "S07",
+    "S01", "S02", "S02N", "S03", "S04", "S05", "S06", "S07",
   ];
   assert.deepEqual(
     cases.map(({ subtype }) => subtype).sort(),
