@@ -1643,7 +1643,7 @@ test("malformed and oversized Content-Length reject without awaiting body cancel
 });
 
 test("verifier corrections keep negative results complete and preserve both rejection guards", async (context) => {
-  for (const firstFailure of ["V16M", "V01F", "V14L"]) {
+  for (const firstFailure of ["V16M", "V17M", "V01F", "V14L"]) {
     for (const recover of [true, false]) {
       await context.test(`${firstFailure}: ${recover ? "corrected" : "exhausted"}`, async () => {
         const calls = [];
@@ -1666,6 +1666,7 @@ test("verifier corrections keep negative results complete and preserve both reje
               const wire = structuredClone(canaryVerificationWire(body));
               if (verifierCalls === 1 || !recover) {
                 if (firstFailure === "V16M") wire.p["0"].x = "0".repeat(wire.p["0"].x.length);
+                else if (firstFailure === "V17M") wire.p["0"].y = "0".repeat(wire.p["0"].y.length);
                 else if (firstFailure === "V14L") wire.p["0"].f = wire.p["0"].f.slice(0, -1);
                 else delete wire.i;
               }
@@ -1694,20 +1695,93 @@ test("verifier corrections keep negative results complete and preserve both reje
           assert.match(body.messages[0].content, /exactly the four root fields d, g, p, and i/u);
           assert.match(body.messages[0].content, /x and y.*at least one 1.*repair or reject/u);
           assert.match(body.messages[0].content, /emptiness applies only to c, never to x or y/u);
-          assert.doesNotMatch(JSON.stringify(body), /V16M|V01F|V14L|D14|PRIVATE-HOST/u);
+          assert.doesNotMatch(JSON.stringify(body), /V16M|V17M|V01F|V14L|D14|PRIVATE-HOST/u);
         }
         assert.equal(Object.hasOwn(inertModelPayload(verifies[0]), "retry"), false);
         assert.equal(inertModelPayload(verifies[1]).retry, "private-verification-wire-invalid");
         const widthHint = /Rebuild every bit or digit string by enumerating all supplied ordered positions/u;
         const fieldHint = /Construct a complete result instance with every required field/u;
+        const supportHint = /Rebuild layer support from the source/u;
         assert.doesNotMatch(verifies[0].messages[0].content, widthHint);
         assert.doesNotMatch(verifies[0].messages[0].content, fieldHint);
+        assert.doesNotMatch(verifies[0].messages[0].content, supportHint);
         if (firstFailure === "V14L") assert.match(verifies[1].messages[0].content, widthHint);
         else assert.doesNotMatch(verifies[1].messages[0].content, widthHint);
         if (firstFailure === "V01F") assert.match(verifies[1].messages[0].content, fieldHint);
         else assert.doesNotMatch(verifies[1].messages[0].content, fieldHint);
+        if (["V16M", "V17M"].includes(firstFailure)) {
+          assert.match(verifies[1].messages[0].content, supportHint);
+          assert.match(verifies[1].messages[0].content, /Never select an unsupported atom or span merely to satisfy the minimum/u);
+          assert.match(verifies[1].messages[0].content, /Replace the complete d\/g\/p\/i result/u);
+        } else assert.doesNotMatch(verifies[1].messages[0].content, supportHint);
       });
     }
+  }
+});
+
+test("actual empty layer evidence correction precedes material repair without bypassing either guard", async (context) => {
+  const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
+  const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
+  for (const correctionOmitsField of [false, true]) {
+    await context.test(correctionOmitsField ? "V17M then V01F remains withheld" : "grounded correction reaches material repair", async () => {
+      const calls = [];
+      let drafts = 0;
+      let verifies = 0;
+      const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body); calls.push(body);
+        if (isAnalysisBody(body)) {
+          const wire = canaryAnalysisWire(body);
+          wire.p[0][2] = [[1, 0, 1, [0]], [1, 0, 1, [1, 2]]];
+          return successfulProviderResponse(wire);
+        }
+        if (body.response_format?.type === "json_object") {
+          drafts += 1;
+          return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+            drafts === 1 ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText));
+        }
+        let wire;
+        if (isVerificationBody(body)) {
+          verifies += 1;
+          wire = canaryVerificationWire(body);
+          wire.p["0"].x = "10";
+          wire.p["0"].y = verifies === 1 ? "000" : "100";
+          if (verifies <= 2) {
+            wire.d = 1;
+            wire.p["0"].f = checks.map((check) => check === "materiality" ? "1" : "0").join("");
+          }
+          if (verifies === 2) {
+            assert.match(body.messages[0].content, /Rebuild layer support from the source/u);
+            assert.match(body.messages[0].content, /Replace the complete d\/g\/p\/i result/u);
+            if (correctionOmitsField) delete wire.i;
+          } else assert.doesNotMatch(body.messages[0].content, /Rebuild layer support from the source/u);
+        } else {
+          assert.equal(correctionOmitsField, false, "invalid correction cannot certify");
+          const payload = inertModelPayload(body);
+          wire = acceptingCertificationWire(payload.certificateId, payload.obligationIds);
+        }
+        return providerChoiceResponse({ finish_reason: "stop", message: {
+          role: "assistant", content: JSON.stringify(wire), tool_calls: [],
+        } });
+      } });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
+      const envelope = await json(response);
+      assert.equal(response.status, 200);
+      assert.equal(drafts, correctionOmitsField ? 1 : 2);
+      assert.equal(verifies, correctionOmitsField ? 2 : 3);
+      assert.equal(calls.length, correctionOmitsField ? 4 : 7);
+      assert.equal(envelope.result.text, correctionOmitsField ? null : `${repairText}\n`);
+      assert.equal(envelope.result.verificationPasses, correctionOmitsField ? 0 : 2);
+      const bodies = calls.filter(isVerificationBody);
+      assert.deepEqual(fittedVerificationSchemaForBody(bodies[0]), fittedVerificationSchemaForBody(bodies[1]));
+      for (const body of bodies.slice(0, 2)) {
+        assert.deepEqual(inertModelPayload(body).deterministicFindings.map(({ id }) => id), ["candidate-not-material"]);
+        assert.doesNotMatch(JSON.stringify(body), /V17M|V01F|D14/u);
+      }
+      if (!correctionOmitsField) {
+        assert.equal(Boolean(inertModelPayload(bodies[2]).deterministicFindings?.length), false);
+        assert.equal(calls.at(-1).max_tokens, 520);
+      }
+    });
   }
 });
 
@@ -5203,9 +5277,9 @@ test("empty stopped-tool normalization remains an explicit two-tool opt-in", asy
 });
 
 test("caller correction fields cannot select trusted verifier correction guidance", async () => {
-  for (const rule of ["V14L", "V01F"]) {
+  for (const rule of ["V14L", "V01F", "V16M", "V17M"]) {
     const request = { ...minimalVerificationRequest(),
-      wireCorrection: rule === "V14L" ? "mask-width" : "field-set",
+      wireCorrection: rule === "V14L" ? "mask-width" : rule === "V01F" ? "field-set" : "layer-support",
       diagnostic: Object.freeze({ boundary: "wire-decoder", rule, category: "response-shape" }),
       protocolFeedback: Object.freeze({ attempt: 2, issue: rule, category: "response-shape", wireCorrection: "mask-width" }),
     };
@@ -5219,8 +5293,8 @@ test("caller correction fields cannot select trusted verifier correction guidanc
       return successfulProviderResponse(acceptingVerificationWire(request));
     } });
     assert.equal((await adapter.verify(request)).decision, "accept");
-    assert.doesNotMatch(body.messages[0].content, /Rebuild every bit or digit string|Construct a complete result instance with every required field/u);
-    assert.doesNotMatch(JSON.stringify(body), /V14L|V01F|wireCorrection|diagnostic/u);
+    assert.doesNotMatch(body.messages[0].content, /Rebuild every bit or digit string|Construct a complete result instance with every required field|Rebuild layer support from the source/u);
+    assert.doesNotMatch(JSON.stringify(body), /V14L|V01F|V16M|V17M|wireCorrection|diagnostic/u);
     assert.equal(inertModelPayload(body).retry, "private-verification-wire-invalid");
   }
 });

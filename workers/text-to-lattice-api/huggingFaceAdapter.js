@@ -490,6 +490,7 @@ function verificationWireCorrectionForRequest(request) {
     return "mask-width";
   }
   if (["V01F", "V02F", "V07F", "V09F", "V21F", "V24F"].includes(diagnostic.rule)) return "field-set";
+  if (["V16M", "V17M"].includes(diagnostic.rule)) return "layer-support";
   return null;
 }
 
