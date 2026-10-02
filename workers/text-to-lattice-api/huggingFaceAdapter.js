@@ -150,6 +150,65 @@ export function isClosedProviderHttpHeaders(value) {
   }
 }
 
+// Fixed dictionary slots, never copied provider keys. The last three names are
+// request-schema observations only, not asserted provider response contracts.
+export const LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS = Object.freeze([
+  "reasoning", "tool_call_id", "refusal", "audio", "annotations",
+  "name", "reasoning_content", "cache_control",
+]);
+const ENVELOPE_SHAPE_CODES = "nsSaAoObd";
+const ENVELOPE_SHAPE_ALLOWED_KEYS = new Set([
+  "role", "content", "tool_calls", ...LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS,
+]);
+
+export function isClosedProviderEnvelopeShape(value) {
+  try {
+    if (!record(value) || !Object.isFrozen(value)
+      || Object.getPrototypeOf(value) !== Object.prototype
+      || Reflect.ownKeys(value).length !== 3) return false;
+    const fields = ["namedShape", "unknownCount", "unknownShapes"];
+    if (!fields.every((field) => {
+      const descriptor = Object.getOwnPropertyDescriptor(value, field);
+      return descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string";
+    })) return false;
+    if (!/^[-nsSaAoObd]{8}$/u.test(value.namedShape)
+      || !["0", "1", "2", "3-plus"].includes(value.unknownCount)
+      || !/^[01]{9}$/u.test(value.unknownShapes)) return false;
+    const unknownTypes = [...value.unknownShapes].filter((bit) => bit === "1").length;
+    return (value.unknownCount === "0") === (unknownTypes === 0)
+      && (value.unknownCount === "3-plus" || unknownTypes <= Number(value.unknownCount))
+      && (value.namedShape !== "--------" || value.unknownCount !== "0");
+  } catch { return false; }
+}
+
+function qualificationEnvelopeShape(message) {
+  // Called only after S06 has already rejected a bounded, parsed JSON message.
+  // Strict emptiness, no trimming, recursive inspection, names, values or hashes.
+  try {
+    const code = (value) => {
+      if (value === null) return "n";
+      if (typeof value === "string") return value.length === 0 ? "s" : "S";
+      if (Array.isArray(value)) return value.length === 0 ? "a" : "A";
+      if (typeof value === "object") return Object.keys(value).length === 0 ? "o" : "O";
+      if (typeof value === "boolean") return "b";
+      if (typeof value === "number") return "d";
+      throw new TypeError("Unobservable JSON shape.");
+    };
+    const namedShape = LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS.map((field) =>
+      Object.hasOwn(message, field) ? code(message[field]) : "-").join("");
+    const unknownShapes = Array(ENVELOPE_SHAPE_CODES.length).fill("0");
+    let count = 0;
+    for (const key of Object.keys(message)) {
+      if (ENVELOPE_SHAPE_ALLOWED_KEYS.has(key)) continue;
+      count += 1;
+      unknownShapes[ENVELOPE_SHAPE_CODES.indexOf(code(message[key]))] = "1";
+    }
+    const observed = Object.freeze({ namedShape,
+      unknownCount: count < 3 ? `${count}` : "3-plus", unknownShapes: unknownShapes.join("") });
+    return isClosedProviderEnvelopeShape(observed) ? observed : null;
+  } catch { return null; } // Observation cannot alter the original rejection.
+}
+
 function qualificationHttpHeaders(response, role) {
   const observe = (name, classify) => {
     try {
@@ -683,6 +742,8 @@ function withProviderDiagnostic(error, patch) {
   if (error.code === "provider_http_error" && isClosedProviderHttpHeaders(patch.httpHeaders)) {
     next.httpHeaders = patch.httpHeaders;
   }
+  if (error.code === "provider_malformed_response" && next.subtype === "S06"
+    && isClosedProviderEnvelopeShape(patch.envelopeShape)) next.envelopeShape = patch.envelopeShape;
   if (error.code !== "provider_malformed_response") next.subtype = "none";
   PROVIDER_DIAGNOSTICS.set(error, Object.freeze(next));
   return error;
@@ -826,6 +887,13 @@ function withQualificationDiagnostic(
       configurable: false,
       enumerable: false,
       value: stageDiagnostic.priorValidationCategory,
+      writable: false,
+    },
+    qualificationEnvelopeShape: {
+      configurable: false,
+      enumerable: false,
+      value: error.code === "provider_malformed_response" && providerDiagnostic.subtype === "S06"
+        ? providerDiagnostic.envelopeShape ?? null : null,
       writable: false,
     },
     qualificationHttpHeaders: {
@@ -2013,7 +2081,7 @@ function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedT
   return "message_shape";
 }
 
-function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, requireMinimalVerificationContent) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, requireMinimalVerificationContent, observeQualificationEnvelopeShape) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -2149,11 +2217,14 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
       // absent-only default.
       content = choice.message.content;
     } else {
+      const subtype = rejectedStoppedToolSubtype(choice.message, choice.finish_reason,
+        allowStoppedToolContent, allowEmptyStoppedToolCalls);
       throw withProviderDiagnostic(
         providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
         {
-          subtype: rejectedStoppedToolSubtype(choice.message, choice.finish_reason,
-            allowStoppedToolContent, allowEmptyStoppedToolCalls),
+          subtype,
+          envelopeShape: observeQualificationEnvelopeShape && subtype === "S06"
+            ? qualificationEnvelopeShape(choice.message) : null,
           finishReason: providerFinishReason,
           responseSize,
           contentSize: providerContentSize,
@@ -2297,6 +2368,7 @@ export async function requestHuggingFaceJson({
   allowEmptyStoppedToolCalls = false,
   requireMinimalVerificationContent = false,
   observeQualificationHttpHeaders = false,
+  observeQualificationEnvelopeShape = false,
   presencePenalty,
   signal,
   fetchImpl = globalThis.fetch,
@@ -2338,6 +2410,7 @@ export async function requestHuggingFaceJson({
     || typeof allowEmptyStoppedToolCalls !== "boolean"
     || typeof requireMinimalVerificationContent !== "boolean"
     || typeof observeQualificationHttpHeaders !== "boolean"
+    || typeof observeQualificationEnvelopeShape !== "boolean"
     || (requireMinimalVerificationContent
       && (role !== "verifier"
         || schemaName !== VERIFICATION_TOOL_NAME
@@ -2490,6 +2563,7 @@ export async function requestHuggingFaceJson({
         allowStoppedToolContent,
         allowEmptyStoppedToolCalls,
         requireMinimalVerificationContent,
+        observeQualificationEnvelopeShape,
       );
     } catch (error) {
       if (deadline.didTimeOut()) {
@@ -2539,8 +2613,10 @@ export function createHuggingFaceLatticeAdapter({
   maximumRequestBytes = LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   maximumResponseBytes = LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
   observeQualificationHttpHeaders = false,
+  observeQualificationEnvelopeShape = false,
 } = {}) {
-  if (!REQUESTED_MODES.has(requestedMode) || typeof observeQualificationHttpHeaders !== "boolean") {
+  if (!REQUESTED_MODES.has(requestedMode) || typeof observeQualificationHttpHeaders !== "boolean"
+    || typeof observeQualificationEnvelopeShape !== "boolean") {
     throw new TypeError("The Lattice provider received an invalid requested mode.");
   }
 
@@ -2593,6 +2669,7 @@ export function createHuggingFaceLatticeAdapter({
         allowEmptyStoppedToolCalls: stage.allowEmptyStoppedToolCalls,
         requireMinimalVerificationContent: stage.requireMinimalVerificationContent,
         observeQualificationHttpHeaders,
+        observeQualificationEnvelopeShape,
         maxTokens: analysisFit
           ? analysisOutputTokenLimitForSchema(fittedSchema)
           : stage.maxTokens,

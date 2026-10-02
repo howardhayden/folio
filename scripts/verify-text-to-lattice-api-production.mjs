@@ -34,6 +34,7 @@ import {
   LATTICE_PROVIDER_STAGES,
   providerEnvelopeSubtypeIsConsistent,
   isClosedProviderHttpHeaders,
+  isClosedProviderEnvelopeShape,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
   LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
@@ -52,6 +53,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
@@ -943,6 +945,20 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     }
     diagnostic = Object.freeze({ ...diagnosticValues, callOrdinal: ordinal });
   }
+  const shapeValues = Object.freeze(Object.fromEntries(Object.entries(
+    LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
+  ).map(([field, header]) => [field, response.headers.get(header)])));
+  const shapePresent = Object.values(shapeValues).filter((value) => value !== null).length;
+  const expectsShapeObservation = diagnostic?.failureClass === "provider_malformed_response"
+    && diagnostic.subtype === "S06";
+  if (expectsShapeObservation) {
+    if (shapePresent !== Object.keys(LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS).length) {
+      fail(`${label} returned an incomplete qualification envelope shape`);
+    }
+    if (!isClosedProviderEnvelopeShape(shapeValues)) fail(`${label} returned an invalid qualification envelope shape`);
+  } else if (shapePresent !== 0) {
+    fail(`${label} returned an incompatible qualification envelope shape`);
+  }
   const httpValues = Object.freeze(Object.fromEntries(Object.entries(
     LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   ).map(([field, header]) => [field, response.headers.get(header)])));
@@ -1041,6 +1057,9 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
       + `analysis_origin=${diagnostic.analysisOrigin}; `
       + `analysis_attempt=${diagnostic.analysisAttempt}; `
       + `prior_validation=${diagnostic.priorValidationCategory}`
+      + (expectsShapeObservation
+        ? Object.entries(shapeValues).map(([field, value]) => `; envelope_${field}=${value}`).join("")
+        : "")
       + (expectsHttpObservation
         ? Object.entries(httpValues).map(([field, value]) => `; http_${field}=${value}`).join("")
         : ""));
