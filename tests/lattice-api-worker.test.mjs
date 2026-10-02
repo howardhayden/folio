@@ -17,7 +17,9 @@ import {
   REANALYSIS_SCHEMA,
   VERIFICATION_SCHEMA,
   analysisMessages,
+  candidateMessages,
   documentCertificationMessages,
+  repairMessages,
   verificationMessages,
 } from "../app/resume/lattice/promptContract.js";
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
@@ -1826,6 +1828,60 @@ test("repair and reject wire records still require grounded layer support and ev
   }
 });
 
+test("compact drafting and repair derive concrete plans from source rather than generic layer labels", async () => {
+  const base = minimalAnalysisRequest("A visitor places a blue notebook on the desk, reads the first page, and closes it.");
+  const request = { ...base, sourceSpans: latticeSourceSpansForBatch(base.batch), analysisAtomLimit: 12 };
+  const calls = [];
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "server-token", fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body); calls.push(body);
+      return successfulProviderResponse(calls.length === 1
+        ? { d: 2, p: [[0, 0, [[1, 0, 1, [0, 1, 2]]], ["000", "000", "000", "000", "000"]]], l: [] }
+        : { passages: [] });
+    },
+  });
+  const analysis = await adapter.analyze(request);
+  const draft = { ...request, analysis };
+  for (const correction of [false, true]) {
+    const current = { ...draft, ...(correction ? { protocolFeedback: { attempt: 2, category: "response-shape" } } : {}) };
+    await adapter.generate(current);
+    await adapter.repair({ ...current, candidate: { passages: [] }, verification: {
+      decision: "repair", gates: {}, passages: [], issues: [], questions: [],
+    } });
+  }
+  assert.equal(calls.length, 5);
+  assert.equal(adapter.completionCapacity().used, 5);
+  assert.match(calls[0].messages[0].content, /discourse function and rationale provide generic guidance for the selected layer/u);
+  for (const body of calls.slice(1)) {
+    const system = body.messages[0].content;
+    assert.match(system, /Discourse function and rationale provide generic layer guidance/u);
+    assert.match(system, /Derive this passage's concrete realization from its complete supplied source, document kind, validated disposition and layer, typed atoms, evidence, and relation links/u);
+    assert.doesNotMatch(system, /source-specific.*(?:realization|repair) plan/u);
+    assert.match(system, /normalized word|normalized wording/u);
+    assert.match(system, /speech act/u);
+    const payload = inertModelPayload(body);
+    assert.equal(payload.analysis[0], analysis.documentKind);
+    assert.equal(payload.analysis[1][0][1], analysis.passages[0].discourseFunction);
+    assert.equal(payload.analysis[1][0][3], "rewrite");
+    assert.equal(payload.analysis[1][0][4], analysis.passages[0].rationale);
+    assert.deepEqual(payload.analysis[1][0][5][0][5], payload.sourcePassages ? [] : analysis.passages[0].atoms[0].evidenceSpanIds);
+    assert.deepEqual(payload.analysis[1][0][5][0][6], []);
+    assert.ok(body.messages[1].content.includes(base.batch.passages[0].text));
+    assert.equal(body.max_tokens, 800);
+    assert.deepEqual(body.response_format, { type: "json_object" });
+    assert.equal(Object.hasOwn(body, "tools"), false);
+  }
+});
+
+test("host-schema drafting and repair preserve detailed plans by default and explicit selection", () => {
+  const request = { ...minimalVerificationRequest(), verification: { decision: "repair", gates: {}, passages: [], issues: [], questions: [] } };
+  for (const factory of [candidateMessages, repairMessages]) {
+    assert.deepEqual(factory(request), factory(request, { analysisPlanDialect: "host-schema" }));
+    assert.match(factory(request)[0].content, /source-specific.*plan/u);
+    assert.throws(() => factory(request, { analysisPlanDialect: "untrusted" }), /invalid analysis plan dialect/u);
+  }
+});
+
 test("draft and repair instructions distinguish result instances and meaning-preserving rewrite from retention", async () => {
   const base = minimalAnalysisRequest("A visitor places a blue notebook on the desk, reads the first page, and closes it.");
   const sourceSpans = latticeSourceSpansForBatch(base.batch);
@@ -1966,7 +2022,7 @@ test("compact requested modes never demand a rationale outside the fitted analys
         assert.equal(inertModelPayload(body).requestedMode, requestedMode);
         assert.match(instructions, new RegExp(`Requested mode: ${requestedMode}`, "u"));
         assert.match(instructions, /Semantic fidelity, safety, accessibility, and supported mixed functions override the preference/u);
-        assert.match(instructions, /The host derives bounded atom values, discourse functions, and rationales/u);
+        assert.match(instructions, /The host derives each bounded atom value from its selected source evidence; discourse function and rationale provide generic guidance/u);
         assert.match(instructions, /do not emit free-text planning fields/u);
         assert.doesNotMatch(instructions, /Explain deviations in the rationale|PRIVATE-HOST-MODE-FEEDBACK|Explain a mode deviation in prose/u);
         assert.deepEqual(Object.keys(body.response_format.json_schema.schema.properties), ["d", "p", "l"]);
@@ -1986,6 +2042,103 @@ test("host-schema requested modes retain their source-grounded rationale instruc
     assert.match(messages[0].content, /Explain deviations in the rationale/u);
     assert.match(messages[0].content, /Semantic fidelity, safety, accessibility, and supported mixed functions override the preference/u);
   }
+});
+
+test("compact verification publishes only the trusted fitted layout on initial and correction calls", async (context) => {
+  for (const retained of [false, true]) {
+    for (const atomCount of [1, 2]) {
+      await context.test(`${retained ? "retention" : "rewrite"}, ${atomCount} atoms`, async () => {
+        const base = minimalVerificationRequest(atomCount === 1
+          ? "Read the note." : "Read \u2066https://example.test/note\u2069, then save it.");
+        const original = base.analysis.passages[0];
+        const atoms = Array.from({ length: atomCount }, (_value, index) => ({
+          ...original.atoms[0], id: `layout-a${index}`,
+        }));
+        const criteria = retained ? [
+          ...LATTICE_CONFORMANCE_CRITERIA.universal,
+          ...LATTICE_CONFORMANCE_CRITERIA.operative,
+        ] : [];
+        const request = { ...base, wireLayout: { rootFields: ["PRIVATE-SPOOFED-LAYOUT"] },
+          analysis: { ...base.analysis, passages: [{ ...original, atoms,
+            disposition: retained ? "retain-if-conformant" : "rewrite",
+            conformanceCriteria: criteria,
+          }] },
+        };
+        const calls = [];
+        const adapter = createHuggingFaceLatticeAdapter({ token: "server-token",
+          fetchImpl: async (_url, init) => {
+            const body = JSON.parse(init.body);
+            calls.push(body);
+            return successfulProviderToolResponse(acceptingVerificationWire(request), {
+              toolName: VERIFICATION_TOOL_NAME,
+            });
+          },
+        });
+        await adapter.verify(request);
+        await adapter.verify({ ...request, protocolFeedback: {
+          attempt: 2, issue: "PRIVATE-LAYOUT-ERROR", instruction: "PRIVATE-LAYOUT-DETAIL",
+        } });
+        const layouts = calls.map((body) => inertModelPayload(body).wireLayout);
+        assert.ok(layouts[0], "the compact request needs its actual fitted widths");
+        assert.deepEqual(layouts[0], layouts[1]);
+        const evidenceCount = base.sourceSpans[0].spans.length
+          + (base.sourceSpans[0].literalAnnotations?.length ?? 0);
+        assert.deepEqual(layouts[0], {
+          rootFields: ["d", "g", "p", "i"], gateWidth: 11, passagePositions: ["0"],
+          passages: { 0: {
+            fields: ["a", "u", "s", "f", "l", "x", "y", "c"],
+            widths: { a: atomCount, s: evidenceCount, f: 9, x: atomCount, y: evidenceCount },
+            conformance: { fields: ["v", "s", "k"], spanWidth: evidenceCount,
+              criterionCount: criteria.length, criterionFields: ["v", "s"],
+              criterionSpanWidth: evidenceCount },
+          } }, issueFields: ["c", "p"],
+        });
+        for (const body of calls) {
+          const schema = fittedVerificationSchemaForBody(body);
+          const layout = inertModelPayload(body).wireLayout;
+          assert.deepEqual(layout.rootFields, schema.required);
+          assert.deepEqual(layout.passagePositions, schema.properties.p.required);
+          const passage = schema.properties.p.properties["0"].properties;
+          for (const [key, width] of Object.entries(layout.passages["0"].widths)) {
+            assert.equal(passage[key].minLength, width);
+            assert.equal(passage[key].maxLength, width);
+          }
+          assert.equal(passage.c.properties.k.minItems, criteria.length);
+          assert.match(body.messages[0].content, /wireLayout.*exact required fields and widths/u);
+          assert.doesNotMatch(JSON.stringify(body), /PRIVATE-SPOOFED-LAYOUT|PRIVATE-LAYOUT-|V01F|V14L/u);
+        }
+        assert.equal(Object.hasOwn(inertModelPayload({ messages: verificationMessages(request) }), "wireLayout"), false);
+        assert.deepEqual(verificationMessages(request), verificationMessages(request, { responseDialect: "host-schema" }));
+        assert.equal(adapter.completionCapacity().used, 2);
+      });
+    }
+  }
+});
+
+test("the complete fitted verifier request enforces its exact UTF-8 byte boundary", async () => {
+  const request = minimalVerificationRequest("Read \u2066https://example.test/note\u2069 and write café.");
+  let measuredBytes;
+  const response = () => successfulProviderToolResponse(acceptingVerificationWire(request), {
+    toolName: VERIFICATION_TOOL_NAME,
+  });
+  await createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+    measuredBytes = Buffer.byteLength(init.body, "utf8");
+    assert.ok(inertModelPayload(JSON.parse(init.body)).wireLayout);
+    return response();
+  } }).verify(request);
+  let allowedFetches = 0;
+  await createHuggingFaceLatticeAdapter({ token: "server-token", maximumRequestBytes: measuredBytes,
+    fetchImpl: async () => { allowedFetches += 1; return response(); },
+  }).verify(request);
+  assert.equal(allowedFetches, 1);
+  let rejectedFetches = 0;
+  const rejected = createHuggingFaceLatticeAdapter({ token: "server-token",
+    maximumRequestBytes: measuredBytes - 1,
+    fetchImpl: async () => { rejectedFetches += 1; return response(); },
+  });
+  await assert.rejects(rejected.verify(request), (error) => error instanceof LatticeProviderError
+    && error.code === "provider_request_too_large" && error.qualificationStage === "verification");
+  assert.equal(rejectedFetches, 0);
 });
 
 test("compact verification binds complete mask positions on initial and correction calls", async (context) => {

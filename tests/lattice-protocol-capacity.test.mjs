@@ -66,6 +66,7 @@ import {
   LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT,
   LATTICE_REMOTE_MODELS,
   LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
+  LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
   createHuggingFaceLatticeAdapter,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 
@@ -539,8 +540,10 @@ test("clarification data is serialized only for its one pre-candidate analyzer r
   assert.doesNotMatch(JSON.stringify(analysisMessages({ ...request, allowClarification: false })), new RegExp(marker, "u"));
   for (const messages of [
     candidateMessages(request),
+    candidateMessages(request, { analysisPlanDialect: "compact-wire-v2" }),
     verificationMessages(request),
     repairMessages(request),
+    repairMessages(request, { analysisPlanDialect: "compact-wire-v2" }),
     documentCertificationMessages({
       certificateId: "certificate:document",
       obligationIds: ["document:whole"],
@@ -1052,7 +1055,7 @@ test("the complete legal production verifier allocation has an exhaustive pinned
   skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
     ? false
     : "set LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
-}, async () => {
+}, async (context) => {
   const tokenizer = await reviewedActiveVerifierRepositoryTokenizer();
   try {
     const source = productionLegalVerifierMaximumSource();
@@ -1183,10 +1186,12 @@ test("the complete legal production verifier allocation has an exhaustive pinned
     });
 
     let fittedSchema;
+    const capturedBodies = [];
     const remoteVerifier = createHuggingFaceLatticeAdapter({
       token: "server-test-token",
       fetchImpl: async (_url, init) => {
         const body = JSON.parse(init.body);
+        capturedBodies.push({ body, bytes: Buffer.byteLength(init.body, "utf8") });
         fittedSchema = body.tools[0].function.parameters;
         const value = maximumLegalWireValue(atomCounts, evidenceCounts);
         return new Response(JSON.stringify({
@@ -1207,7 +1212,7 @@ test("the complete legal production verifier allocation has an exhaustive pinned
         }), { status: 200, headers: { "Content-Type": "application/json" } });
       },
     });
-    const decoded = await remoteVerifier.verify({
+    const verificationRequest = {
       batch: preflight.batches[0],
       sourceSpans,
       context: null,
@@ -1217,7 +1222,37 @@ test("the complete legal production verifier allocation has an exhaustive pinned
       deterministicFindings: [],
       documentFindings: [],
       signal: new AbortController().signal,
-    });
+    };
+    const decoded = await remoteVerifier.verify(verificationRequest);
+    await remoteVerifier.verify({ ...verificationRequest, protocolFeedback: {
+      attempt: 2, issue: "PRIVATE-CAPACITY-ERROR", instruction: "PRIVATE-CAPACITY-DETAIL",
+    } });
+    assert.equal(capturedBodies.length, 2);
+    const layouts = capturedBodies.map(({ body }) => inertPayload(body.messages).wireLayout);
+    assert.deepEqual(layouts[0], layouts[1]);
+    assert.deepEqual(layouts[0].passagePositions, ["0", "1", "2", "3"]);
+    for (const { body, bytes } of capturedBodies) {
+      assert.ok(bytes < LATTICE_PROVIDER_REQUEST_BYTE_LIMIT);
+      assert.equal(body.max_tokens, 2_048);
+      assert.doesNotMatch(JSON.stringify(body), /PRIVATE-CAPACITY-/u);
+      const schema = body.tools[0].function.parameters;
+      const layout = inertPayload(body.messages).wireLayout;
+      for (const [index, position] of layout.passagePositions.entries()) {
+        const record = layout.passages[position];
+        const passage = schema.properties.p.properties[position];
+        assert.deepEqual(record.fields, passage.required);
+        assert.deepEqual(record.widths, {
+          a: atomCounts[index], s: evidenceCounts[index], f: 9,
+          x: atomCounts[index], y: evidenceCounts[index],
+        });
+        assert.equal(record.conformance.criterionCount, conformanceCriteria.length);
+      }
+    }
+    context.diagnostic(JSON.stringify({ fixture: "legal four-passage allocation",
+      inputBytes: capturedBodies.map(({ bytes }) => bytes),
+      serializedBodyTokens: capturedBodies.map(({ body }) => tokenizer.encode(JSON.stringify(body)).length),
+      note: "Actual request-body measurement; serialized-body token counts do not establish hosted chat-template context capacity.",
+    }));
     assert.equal(decoded.decision, "reject");
     assert.equal(decoded.passages.length, BATCH_PASSAGE_LIMIT);
     assert.equal(decoded.issues.length, issueLimit);
@@ -3774,6 +3809,76 @@ test("the reachable dense two-passage repair retains its grounding inside the pi
     assert.ok(totals.every((total) => total <= LATTICE_CONTEXT_BUDGET.windowTokens), JSON.stringify(totals));
   } finally {
     tokenizers.dispose();
+  }
+});
+
+test("active compact drafting and repair byte-bound grounded maximum requests and corrections", async (context) => {
+  const requestFor = ({ batch, sourceSpans, context = null }) => {
+    const analysis = linkedAnalysisFor(batch, sourceSpans);
+    return { batch, sourceSpans, context, documentLedger: [], analysis,
+      candidate: candidateFor(batch, analysis), verification: failedVerification(batch, analysis),
+      deterministicFindings: [], documentFindings: [],
+    };
+  };
+  const neighborPassages = segmentLatticeSource([fixedPassage("n"), fixedPassage("u"), fixedPassage("f")].join("\n"));
+  const neighborBatch = { id: "b001", passages: [neighborPassages[1]],
+    wordCount: neighborPassages[1].wordCount, characterCount: 420 };
+  const fixtures = [
+    ["dense two-passage", denseLiteralRepairRequest()],
+    ["four passages with twenty-four literals", requestFor(manualLiteralBatch())],
+    ["maximum passage with both neighbors", requestFor({ batch: neighborBatch,
+      sourceSpans: latticeSourceSpansForBatch(neighborBatch),
+      context: contextPassagesForBatch(neighborPassages, neighborBatch) })],
+  ];
+  for (const [label, request] of fixtures) {
+    const bodies = [];
+    const adapter = createHuggingFaceLatticeAdapter({ token: "server-test-token",
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body);
+        bodies.push({ body, bytes: Buffer.byteLength(init.body, "utf8") });
+        return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: {
+          role: "assistant", content: JSON.stringify(request.candidate),
+        } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+    for (const current of [request, { ...request, protocolFeedback: {
+      stage: "repair", attempt: 2, issue: seededLetters(360, 23_000),
+      instruction: "Return a complete object matching every named field, enum, identifier, and evidence constraint.",
+    } }, { ...request, verification: null, protocolFeedback: {
+      stage: "generation-recovery", attempt: 1, issue: seededLetters(360, 24_000),
+      instruction: "Return a complete object matching every named field, enum, identifier, and evidence constraint.",
+    } }]) {
+      await adapter.generate(current);
+      await adapter.repair(current);
+    }
+    assert.equal(bodies.length, 6);
+    for (const [index, { body, bytes }] of bodies.entries()) {
+      assert.ok(bytes < LATTICE_PROVIDER_REQUEST_BYTE_LIMIT);
+      assert.equal(body.max_tokens, 800);
+      assert.deepEqual(body.response_format, { type: "json_object" });
+      assert.equal(Object.hasOwn(body, "tools"), false);
+      assert.match(body.messages[0].content, /concrete realization from its complete supplied source/u);
+      const payload = inertPayload(body.messages);
+      const repair = index % 2 === 1;
+      if (repair) {
+        assert.deepEqual(payload.sourcePassages.map(([id, text]) => [id, text]),
+          request.batch.passages.map(({ id, text }) => [id, text]));
+        assert.equal(payload.sourcePassages.flatMap((group) => group[2]).length,
+          request.sourceSpans.flatMap(({ spans }) => spans).filter(({ kind }) => kind === "literal").length);
+        assert.deepEqual(payload.rejectedCandidate, request.candidate.passages.map((passage) => [
+          passage.passageId, passage.layer, passage.text,
+        ]));
+      } else {
+        assert.equal(payload.passages.flatMap((group) => group[1]).length,
+          request.sourceSpans.flatMap(({ spans }) => spans).length);
+        if (request.context) assert.ok(payload.context);
+      }
+      assert.equal(payload.analysis[1].flatMap((passage) => passage[5]).length,
+        request.analysis.passages.flatMap(({ atoms }) => atoms).length);
+    }
+    context.diagnostic(JSON.stringify({ fixture: label,
+      inputBytes: bodies.map(({ bytes }) => bytes), repairFromSource: false,
+    }));
   }
 });
 

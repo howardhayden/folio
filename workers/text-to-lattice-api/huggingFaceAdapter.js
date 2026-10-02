@@ -7,6 +7,7 @@ import {
   LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
   LATTICE_BATCH_ATOM_LIMIT,
   LATTICE_CONFORMANCE_CRITERIA,
+  LATTICE_COMPACT_ANALYSIS_HOST_DERIVATION_INSTRUCTION,
   LATTICE_FITTED_ANALYSIS_CONTEXT,
   LATTICE_STAGE_DIAGNOSTIC_CONTEXT,
   LATTICE_VERIFICATION_MASK_LAYOUT_INSTRUCTION,
@@ -360,7 +361,7 @@ const ANALYSIS_WIRE_SCHEMA = Object.freeze({
 const ANALYSIS_WIRE_GUIDE = [
   "Return one minified private analysis instance using only the mandatory d/p/l index layout; never echo the schema.",
   `Root d is the zero-based document-kind index [${ANALYSIS_DOCUMENT_KINDS.join(",")}]. Root p contains one passage tuple per supplied passage in supplied order. Root l contains the document link tuples. Passage and atom IDs are host-generated and must not be emitted.`,
-  `Passage tuple positions 0-3: [layer index,disposition index,atom tuples,criterion evidence masks]. Layer indices are [${ANALYSIS_LAYERS.join(",")}]; disposition indices are [${ANALYSIS_DISPOSITIONS.join(",")}]. The host derives bounded discourse and rationale text from the selected layer and evidence.`,
+  `Passage tuple positions 0-3: [layer index,disposition index,atom tuples,criterion evidence masks]. Layer indices are [${ANALYSIS_LAYERS.join(",")}]; disposition indices are [${ANALYSIS_DISPOSITIONS.join(",")}]. ${LATTICE_COMPACT_ANALYSIS_HOST_DERIVATION_INSTRUCTION}`,
   `Atom tuple positions 0-3: [kind index,priority index,preservation index,evidence positions]. Kind indices are [${ANALYSIS_ATOM_KINDS.join(",")}]; priority indices are [${ANALYSIS_PRIORITIES.join(",")}]; preservation indices are [${ANALYSIS_PRESERVATIONS.join(",")}]. The host derives each atom value from its selected source evidence.`,
   `Each l tuple is [source atom position,relation index,target position]. Atom positions use global passage/atom order. Relation indices are [${ANALYSIS_RELATIONS.join(",")}]. Nonnegative targets select emitted atoms; -1 selects the first supplied ledger atom, -2 the second, and so on. Select only existing non-self positions and never repeat a typed link.`,
   "Evidence positions are zero-based in exact supplied evidence order. List each atom's one to three unique positions in ascending order, and cover every supplied evidence position across the passage's atoms.",
@@ -478,8 +479,8 @@ const VERIFICATION_WIRE_GUIDE = [
   `Issue check index order: [${VERIFICATION_ISSUE_CHECKS.join(",")}]. Keep i empty when g or a passage record already records the failure. Emit no source identifiers, long-form host field names, explanations, schema text, or whitespace after the closing brace.`,
 ].join("\n");
 
-function verificationWireMessages(request) {
-  return verificationMessages(request, { responseDialect: "compact-wire-v2" });
+function verificationWireMessages(request, wireLayout) {
+  return verificationMessages(request, { responseDialect: "compact-wire-v2", wireLayout });
 }
 
 const CERTIFICATION_CHECK_NAMES = Object.freeze([
@@ -517,6 +518,14 @@ const CERTIFICATION_WIRE_GUIDE = [
   "Root i contains no duplicate index, and every listed index points to false in k. Keep i empty on acceptance. Emit no long-form host field names, explanations, issue prose, schema text, or whitespace after the closing brace.",
 ].join("\n");
 
+function candidateWirePlanMessages(request) {
+  return candidateMessages(request, { analysisPlanDialect: "compact-wire-v2" });
+}
+
+function repairWirePlanMessages(request) {
+  return repairMessages(request, { analysisPlanDialect: "compact-wire-v2" });
+}
+
 function certificationWireMessages(request) {
   return documentCertificationMessages(request, { responseDialect: "compact-wire-v2" });
 }
@@ -546,7 +555,7 @@ const STAGES = Object.freeze({
     role: "generator",
     schema: CANDIDATE_SCHEMA,
     schemaName: "lattice_candidate_v1",
-    messages: candidateMessages,
+    messages: candidateWirePlanMessages,
     maxTokens: CANDIDATE_MAX_OUTPUT_TOKENS,
     callTimeoutMs: LATTICE_PROVIDER_CALL_TIMEOUT_MS,
     temperature: 0.45,
@@ -584,7 +593,7 @@ const STAGES = Object.freeze({
     role: "generator",
     schema: CANDIDATE_SCHEMA,
     schemaName: "lattice_repair_v1",
-    messages: repairMessages,
+    messages: repairWirePlanMessages,
     maxTokens: REPAIR_MAX_OUTPUT_TOKENS,
     callTimeoutMs: LATTICE_PROVIDER_CALL_TIMEOUT_MS,
     temperature: 0.45,
@@ -1248,6 +1257,34 @@ function verificationWireSchemaForFit(fit) {
         items: issueSchema,
       }),
     }),
+  });
+}
+
+function verificationWireLayoutForSchema(schema) {
+  const passages = schema.properties.p;
+  return Object.freeze({
+    rootFields: Object.freeze([...schema.required]),
+    gateWidth: schema.properties.g.minLength,
+    passagePositions: Object.freeze([...passages.required]),
+    passages: Object.freeze(Object.fromEntries(passages.required.map((position) => {
+      const passage = passages.properties[position];
+      const conformance = passage.properties.c;
+      const criteria = conformance.properties.k;
+      return [position, Object.freeze({
+        fields: Object.freeze([...passage.required]),
+        widths: Object.freeze(Object.fromEntries(["a", "s", "f", "x", "y"].map((key) => (
+          [key, passage.properties[key].minLength]
+        )))),
+        conformance: Object.freeze({
+          fields: Object.freeze([...conformance.required]),
+          spanWidth: conformance.properties.s.minLength,
+          criterionCount: criteria.minItems,
+          criterionFields: Object.freeze([...criteria.items.required]),
+          criterionSpanWidth: criteria.items.properties.s.minLength,
+        }),
+      })];
+    }))),
+    issueFields: Object.freeze([...schema.properties.i.items.required]),
   });
 }
 
@@ -2512,10 +2549,14 @@ export function createHuggingFaceLatticeAdapter({
         : certificationFit
         ? certificationWireSchemaForFit(certificationFit)
         : stage.schema;
+      const verificationLayout = verificationFit ? verificationWireLayoutForSchema(fittedSchema) : null;
+      const messageFactory = verificationFit
+        ? (current) => verificationWireMessages(current, verificationLayout)
+        : stage.messages;
       result = await requestHuggingFaceJson({
         token,
         role: stage.role,
-        messages: messagesWithMode(stage.messages, fittedRequest, requestedMode),
+        messages: messagesWithMode(messageFactory, fittedRequest, requestedMode),
         schema: fittedSchema,
         schemaName: stage.schemaName,
         responseGuide: stage.responseGuide,
