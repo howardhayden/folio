@@ -31,6 +31,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
@@ -2005,6 +2006,41 @@ test("qualification HTTP diagnostic completeness and applicability fail closed w
       catch (error) { failure = error; }
       assert.ok(failure instanceof Error); assert.match(failure.message, expected);
       assert.equal(failure.message.includes(marker), false); assert.equal(fixture.canaryRequests, 1); assert.equal(fixture.setupRequests, 1);
+    });
+  }
+});
+
+
+test("S06 qualification shape is complete, compatible and non-reflective", async (t) => {
+  const base = qualificationDiagnosticHeaders({ failureClass: "provider_malformed_response", upstreamStatus: "none",
+    stage: "verification", subtype: "S06", finishReason: "stop", analysisOrigin: "none", analysisAttempt: "none" });
+  const shape = Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS)
+    .map(([field, header]) => [header, { namedShape: "--n-a---", unknownCount: "0", unknownShapes: "000000000" }[field]]));
+  const exact = { ...base, ...shape };
+  const h = LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS;
+  const d = LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS;
+  const partial = { ...exact }; delete partial[h.unknownShapes];
+  const cases = [
+    ["actual finite observation", exact, 502, /subtype=S06.*envelope_namedShape=--n-a---; envelope_unknownCount=0; envelope_unknownShapes=000000000/u],
+    ["missing all", base, 502, /incomplete qualification envelope shape/u],
+    ["partial", partial, 502, /incomplete qualification envelope shape/u],
+    ["private value", { ...exact, [h.namedShape]: "PRIVATE-CONTENT" }, 502, /invalid qualification envelope shape/u],
+    ["impossible absence", { ...exact, [h.namedShape]: "--------" }, 502, /invalid qualification envelope shape/u],
+    ["impossible count", { ...exact, [h.unknownShapes]: "100000000" }, 502, /invalid qualification envelope shape/u],
+    ["wrong subtype", { ...exact, [d.subtype]: "S02" }, 502, /incompatible qualification envelope shape/u],
+    ["wrong stage", { ...exact, [d.stage]: "candidate" }, 502, /invalid qualification diagnostic/u],
+    ["wrong finish", { ...exact, [d.finishReason]: "tool_calls" }, 502, /invalid qualification diagnostic/u],
+    ["on success", exact, 200, /qualification diagnostic on success/u],
+    ["alone on success", shape, 200, /incompatible qualification envelope shape/u],
+  ];
+  for (const [name, headers, status, expected] of cases) {
+    await t.test(name, async () => {
+      const body = status === 200 ? { result: validResult(), schema_version: 1 } : { error: "malformed_upstream_response" };
+      const fixture = successfulFixture({ canaryResponse: apiJson(body, status, headers) });
+      await assert.rejects(verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait }), (error) => {
+        assert.match(error.message, expected); assert.doesNotMatch(error.message, /PRIVATE/u); return true;
+      });
+      assert.equal(fixture.canaryRequests, 1); assert.equal(fixture.setupRequests, 1);
     });
   }
 });
