@@ -554,9 +554,9 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: VERIFICATION_WIRE_SCHEMA,
     schemaName: "lattice_verification_wire_v2",
-    responseFormat: "json_schema",
-    schemaDescription: "Supply one complete private verification result using the fitted closed index-and-mask schema.",
-    requireMinimalVerificationContent: true,
+    toolName: VERIFICATION_TOOL_NAME,
+    toolChoice: "named",
+    allowStoppedToolContent: true,
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
     maxTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -2296,9 +2296,9 @@ export async function requestHuggingFaceJson({
 
   // Nscale analysis uses strict JSON Schema. Candidate and repair generation use
   // one JSON-object assistant channel with the closed schema in trusted
-  // instructions. DeepInfra verification uses its advertised JSON Schema channel
-  // with only a minimal stopped assistant-content envelope. Certification retains
-  // forced named tools and its explicit minimal stopped-content compatibility.
+  // instructions. The exact DeepInfra model's current Router metadata advertises
+  // tools, not structured output. Verification and certification use the retained
+  // named-tool path with its explicit minimal stopped-content compatibility.
   // Both private paths still require the exact wire decoder and host validation.
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],

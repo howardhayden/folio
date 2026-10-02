@@ -542,18 +542,60 @@ function isAnalysisBody(body) {
 
 function isVerificationBody(body) {
   return body.model === LATTICE_REMOTE_MODELS.verifier
-    && body.response_format?.type === "json_schema"
-    && body.response_format.json_schema.name === VERIFICATION_TOOL_NAME;
+    && body.tool_choice?.function?.name === VERIFICATION_TOOL_NAME;
 }
 
 function fittedVerificationSchemaForBody(body) {
   assert.equal(isVerificationBody(body), true);
-  assert.equal(body.response_format.json_schema.strict, true);
-  assert.deepEqual(Object.keys(body.response_format.json_schema).sort(), ["description", "name", "schema", "strict"]);
-  assert.ok(body.response_format.json_schema.description.length <= 256);
-  for (const field of ["tools", "tool_choice", "parallel_tool_calls"]) assert.equal(Object.hasOwn(body, field), false);
-  return body.response_format.json_schema.schema;
+  return forcedToolSchema(body, VERIFICATION_TOOL_NAME);
 }
+
+test("production verifier uses supported named tools on initial and correction calls", async (t) => {
+  for (const corrected of [false, true]) {
+    await t.test(corrected ? "correction" : "initial", async () => {
+      const calls = [];
+      const request = {
+        ...minimalVerificationRequest(),
+        ...(corrected ? { protocolFeedback: {
+          stage: "verification", attempt: 2, category: "response-shape",
+          issue: "PRIVATE-VERIFIER-FEEDBACK", instruction: "Return the complete host schema.",
+        } } : {}),
+      };
+      const adapter = createHuggingFaceLatticeAdapter({
+        token: "server-token",
+        fetchImpl: async (url, init) => {
+          const body = JSON.parse(init.body);
+          calls.push({ url, init, body });
+          return successfulProviderToolResponse(acceptingVerificationWire(request), {
+            toolName: VERIFICATION_TOOL_NAME,
+          });
+        },
+      });
+      let result;
+      let failure;
+      try { result = await adapter.verify(request); } catch (error) { failure = error; }
+      assert.equal(calls.length, 1);
+      const { url, init, body } = calls[0];
+      assert.equal(url, HUGGING_FACE_CHAT_COMPLETIONS_URL);
+      assert.equal(init.method, "POST");
+      assert.equal(body.model, "meta-llama/Llama-3.1-8B-Instruct:deepinfra");
+      const schema = forcedToolSchema(body, VERIFICATION_TOOL_NAME);
+      assert.deepEqual(schema.required, ["d", "g", "p", "i"]);
+      assert.equal(schema.additionalProperties, false);
+      assert.equal(body.max_tokens, 2_048);
+      assert.equal(body.temperature, 0);
+      assert.equal(body.top_p, 1);
+      assert.equal(body.seed, 71_903);
+      assert.equal(body.stream, false);
+      const instructions = body.messages.filter(({ role }) => role === "system")
+        .map(({ content }) => content).join("\n");
+      assert.match(instructions, /Call this function exactly once/u);
+      assert.doesNotMatch(instructions, /supplied strict JSON Schema|PRIVATE-VERIFIER-FEEDBACK|Return the complete host schema/u);
+      assert.equal(failure, undefined);
+      assert.equal(result.decision, "accept");
+    });
+  }
+});
 
 function minimalCertificationRequest() {
   return { certificateId: "certificate:envelope-test", obligationIds: ["document:whole"],
@@ -1890,6 +1932,62 @@ test("the remote analysis dialect replaces host-shape instructions and correctio
   );
 });
 
+test("compact requested modes never demand a rationale outside the fitted analysis wire", async (t) => {
+  for (const requestedMode of ["operative", "experiential"]) {
+    for (const correction of [false, true]) {
+      await t.test(`${requestedMode} ${correction ? "correction" : "initial"}`, async () => {
+        const request = Object.freeze({
+          ...minimalAnalysisRequest("A visitor closes the notebook."),
+          requestedMode,
+          ...(correction ? { protocolFeedback: Object.freeze({
+            stage: "analysis", attempt: 2, category: "evidence",
+            issue: "PRIVATE-HOST-MODE-FEEDBACK", instruction: "Explain a mode deviation in prose.",
+          }) } : {}),
+        });
+        const selectedLayer = requestedMode === "operative" ? "experiential" : "operative";
+        const calls = [];
+        const adapter = createHuggingFaceLatticeAdapter({
+          token: "server-token",
+          requestedMode,
+          fetchImpl: async (_url, init) => {
+            const body = JSON.parse(init.body);
+            calls.push(body);
+            return successfulProviderResponse({
+              d: 2, p: [[selectedLayer === "operative" ? 0 : 1, 0,
+                [[1, 0, 1, [0]]], ["0", "0", "0", "0", "0"]]], l: [],
+            });
+          },
+        });
+        const result = await adapter.analyze(request);
+        assert.equal(calls.length, 1);
+        const body = calls[0];
+        const instructions = body.messages.filter(({ role }) => role === "system")
+          .map(({ content }) => content).join("\n");
+        assert.equal(inertModelPayload(body).requestedMode, requestedMode);
+        assert.match(instructions, new RegExp(`Requested mode: ${requestedMode}`, "u"));
+        assert.match(instructions, /Semantic fidelity, safety, accessibility, and supported mixed functions override the preference/u);
+        assert.match(instructions, /The host derives bounded atom values, discourse functions, and rationales/u);
+        assert.match(instructions, /do not emit free-text planning fields/u);
+        assert.doesNotMatch(instructions, /Explain deviations in the rationale|PRIVATE-HOST-MODE-FEEDBACK|Explain a mode deviation in prose/u);
+        assert.deepEqual(Object.keys(body.response_format.json_schema.schema.properties), ["d", "p", "l"]);
+        assert.equal(result.passages[0].layer, selectedLayer);
+        assert.equal(result.passages[0].rationale,
+          `Use the ${selectedLayer} layer to make cited source commitments legible without adding meaning.`);
+      });
+    }
+  }
+});
+
+test("host-schema requested modes retain their source-grounded rationale instructions", () => {
+  for (const requestedMode of ["operative", "experiential"]) {
+    const request = Object.freeze({ ...minimalAnalysisRequest(), requestedMode });
+    const messages = analysisMessages(request);
+    assert.deepEqual(messages, analysisMessages(request, { responseDialect: "host-schema" }));
+    assert.match(messages[0].content, /Explain deviations in the rationale/u);
+    assert.match(messages[0].content, /Semantic fidelity, safety, accessibility, and supported mixed functions override the preference/u);
+  }
+});
+
 test("compact verifier and certifier dialects replace host-shape output and private correction prose", () => {
   const privateFeedback = Object.freeze({
     stage: "verification",
@@ -2420,7 +2518,7 @@ test("all five production stages use their exact provider response transport", a
   }
   const verificationSchema = fittedVerificationSchemaForBody(calls[2]);
   const certificationSchema = forcedToolSchema(calls[3], CERTIFICATION_TOOL_NAME);
-  assert.match(calls[2].messages[0].content, /Response contract lattice_verification_wire_v2/u);
+  assert.match(calls[2].messages[0].content, /Response channel lattice_verification_wire_v2/u);
   assert.match(calls[3].messages[0].content, /Response channel lattice_certification_wire_v2/u);
   assert.equal(calls[2].messages[0].content.includes(JSON.stringify(VERIFICATION_SCHEMA)), false);
   assert.doesNotMatch(
@@ -2581,7 +2679,7 @@ test("the production canary completes through the compact verifier wire", async 
         });
       }
       if (calls.length === 3) {
-        return successfulProviderResponse({
+        return successfulProviderToolResponse({
           d: 0,
           g: "0".repeat(11),
           p: {
@@ -2597,7 +2695,7 @@ test("the production canary completes through the compact verifier wire", async 
             },
           },
           i: [],
-        });
+        }, { toolName: VERIFICATION_TOOL_NAME });
       }
       return assert.fail("the single-passage canary must not require document certification");
     },
@@ -2618,7 +2716,7 @@ test("the production canary completes through the compact verifier wire", async 
   fittedVerificationSchemaForBody(calls[2]);
 });
 
-test("the API Worker completes schema verification and required named-tool certification", async () => {
+test("the API Worker completes named-tool verification and required named-tool certification", async () => {
   const source = LATTICE_PRODUCTION_CANARY_TEXT;
   const preflight = preflightLatticeInput(source);
   assert.equal(preflight.batches.length, 1);
@@ -2665,7 +2763,7 @@ test("the API Worker completes schema verification and required named-tool certi
         });
       }
       if (calls.length === 3) {
-        return successfulProviderResponse({
+        return successfulProviderToolResponse({
           d: 0,
           g: "0".repeat(11),
           p: {
@@ -2681,7 +2779,7 @@ test("the API Worker completes schema verification and required named-tool certi
             },
           },
           i: [],
-        });
+        }, { toolName: VERIFICATION_TOOL_NAME });
       }
       if (calls.length === 4) {
         return successfulProviderToolResponse(acceptingCertificationWire(
@@ -4923,20 +5021,20 @@ test("a named-tool completion that reaches the output limit fails after one fetc
   assert.equal(fetches, 1);
 });
 
-test("schema verification accepts only its minimal stopped content channel without tool fallback", async (context) => {
+test("tool verification accepts one exact named call or its bounded stopped-content compatibility", async (context) => {
   const request = minimalVerificationRequest();
   const wire = acceptingVerificationWire(request);
   const content = JSON.stringify(wire);
   const tool = providerToolCall({ name: VERIFICATION_TOOL_NAME, argumentsValue: content });
   const cases = [
     ["valid minimal content", "stop", { role: "assistant", content }, null],
-    ["mixed valid tool and content", "stop", { role: "assistant", content, tool_calls: [tool] }, "provider_malformed_response"],
+    ["valid native tool with auxiliary content", "stop", { role: "assistant", content: "PRIVATE-AUXILIARY", tool_calls: [tool] }, null],
     ["null tool field", "stop", { role: "assistant", content, tool_calls: null }, "provider_malformed_response"],
     ["empty tool field", "stop", { role: "assistant", content, tool_calls: [] }, "provider_malformed_response"],
     ["legacy field", "stop", { role: "assistant", content, function_call: null }, "provider_malformed_response"],
     ["auxiliary field", "stop", { role: "assistant", content, private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
     ["tool finish with valid content", "tool_calls", { role: "assistant", content }, "provider_malformed_response"],
-    ["only valid tool arguments", "stop", { role: "assistant", tool_calls: [tool] }, "provider_malformed_response"],
+    ["only valid tool arguments", "stop", { role: "assistant", tool_calls: [tool] }, null],
     ["wrong role", "stop", { role: "user", content }, "provider_malformed_response"],
     ["empty content", "stop", { role: "assistant", content: "" }, "provider_malformed_response"],
     ["invalid JSON", "stop", { role: "assistant", content: "{" }, "provider_malformed_response"],
