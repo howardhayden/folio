@@ -1643,7 +1643,7 @@ test("malformed and oversized Content-Length reject without awaiting body cancel
 });
 
 test("verifier corrections keep negative results complete and preserve both rejection guards", async (context) => {
-  for (const firstFailure of ["V16M", "V01F"]) {
+  for (const firstFailure of ["V16M", "V01F", "V14L"]) {
     for (const recover of [true, false]) {
       await context.test(`${firstFailure}: ${recover ? "corrected" : "exhausted"}`, async () => {
         const calls = [];
@@ -1666,6 +1666,7 @@ test("verifier corrections keep negative results complete and preserve both reje
               const wire = structuredClone(canaryVerificationWire(body));
               if (verifierCalls === 1 || !recover) {
                 if (firstFailure === "V16M") wire.p["0"].x = "0".repeat(wire.p["0"].x.length);
+                else if (firstFailure === "V14L") wire.p["0"].f = wire.p["0"].f.slice(0, -1);
                 else delete wire.i;
               }
               return successfulProviderResponse(wire);
@@ -1693,12 +1694,127 @@ test("verifier corrections keep negative results complete and preserve both reje
           assert.match(body.messages[0].content, /exactly the four root fields d, g, p, and i/u);
           assert.match(body.messages[0].content, /x and y.*at least one 1.*repair or reject/u);
           assert.match(body.messages[0].content, /emptiness applies only to c, never to x or y/u);
-          assert.doesNotMatch(JSON.stringify(body), /V16M|V01F|D14|PRIVATE-HOST/u);
+          assert.doesNotMatch(JSON.stringify(body), /V16M|V01F|V14L|D14|PRIVATE-HOST/u);
         }
         assert.equal(Object.hasOwn(inertModelPayload(verifies[0]), "retry"), false);
         assert.equal(inertModelPayload(verifies[1]).retry, "private-verification-wire-invalid");
+        const widthHint = /Rebuild every bit or digit string by enumerating all supplied ordered positions/u;
+        const fieldHint = /Construct a complete result instance with every required field/u;
+        assert.doesNotMatch(verifies[0].messages[0].content, widthHint);
+        assert.doesNotMatch(verifies[0].messages[0].content, fieldHint);
+        if (firstFailure === "V14L") assert.match(verifies[1].messages[0].content, widthHint);
+        else assert.doesNotMatch(verifies[1].messages[0].content, widthHint);
+        if (firstFailure === "V01F") assert.match(verifies[1].messages[0].content, fieldHint);
+        else assert.doesNotMatch(verifies[1].messages[0].content, fieldHint);
       });
     }
+  }
+});
+
+test("empty stopped-tool content carries sparse grounded masks through material repair and certification", async (context) => {
+  const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
+  const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
+  for (const repairCopiesSource of [false, true]) {
+    await context.test(repairCopiesSource ? "copied repair remains withheld" : "material repair passes", async () => {
+      const calls = [];
+      let drafts = 0;
+      let verifies = 0;
+      const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body); calls.push(body);
+        if (isAnalysisBody(body)) {
+          const wire = canaryAnalysisWire(body);
+          wire.p[0][2] = [[1, 0, 1, [0]], [1, 0, 1, [1, 2]]];
+          return successfulProviderResponse(wire);
+        }
+        if (body.response_format?.type === "json_object") {
+          drafts += 1;
+          return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+            drafts === 1 || repairCopiesSource ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText));
+        }
+        let wire;
+        if (isVerificationBody(body)) {
+          verifies += 1;
+          wire = canaryVerificationWire(body);
+          assert.equal(wire.p["0"].a, "11");
+          assert.equal(wire.p["0"].s, "000");
+          wire.p["0"].x = "10";
+          wire.p["0"].y = "100";
+          if (verifies === 1) {
+            wire.d = 1;
+            wire.p["0"].f = checks.map((check) => check === "materiality" ? "1" : "0").join("");
+          }
+        } else {
+          assert.equal(repairCopiesSource, false, "copied repair cannot reach certification");
+          assert.equal(body.tool_choice.function.name, CERTIFICATION_TOOL_NAME);
+          const payload = inertModelPayload(body);
+          wire = acceptingCertificationWire(payload.certificateId, payload.obligationIds);
+        }
+        return providerChoiceResponse({ finish_reason: "stop", message: {
+          role: "assistant", content: JSON.stringify(wire), tool_calls: [],
+        } });
+      } });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
+      const envelope = await json(response);
+      assert.equal(response.status, 200);
+      assert.equal(drafts, 2);
+      assert.equal(verifies, 2);
+      assert.equal(calls.length, repairCopiesSource ? 5 : 6);
+      assert.equal(envelope.result.status === "translated", !repairCopiesSource);
+      assert.equal(envelope.result.text, repairCopiesSource ? null : `${repairText}\n`);
+      assert.equal(envelope.result.verificationPasses, repairCopiesSource ? 0 : 2);
+      const verifyBodies = calls.filter(isVerificationBody);
+      assert.deepEqual(inertModelPayload(verifyBodies[0]).deterministicFindings.map(({ id }) => id), ["candidate-not-material"]);
+      assert.equal(Boolean(inertModelPayload(verifyBodies[1]).deterministicFindings?.length), repairCopiesSource);
+      for (const body of verifyBodies) {
+        assert.equal(body.max_tokens, 2_048);
+        const schema = fittedVerificationSchemaForBody(body).properties.p.properties["0"].properties;
+        assert.equal(schema.x.minLength, 2);
+        assert.equal(schema.y.minLength, 3);
+        assert.equal(schema.f.minLength, checks.length);
+        assert.match(body.messages[0].content, /Never select unsupported evidence merely to make a mask nonempty/u);
+      }
+      for (const body of calls.filter((body) => body.response_format?.type === "json_object")) {
+        assert.match(body.messages[0].content, /Host-derived atom values are bounded source excerpts/u);
+        assert.match(body.messages[0].content, /Preserve every distinct commitment, including commitments sharing one excerpt/u);
+        assert.match(body.messages[0].content, /designated exact literals and annotations remain verbatim/u);
+      }
+      if (!repairCopiesSource) assert.equal(calls.at(-1).max_tokens, 520);
+    });
+  }
+});
+
+test("empty stopped-tool content never repairs truncated masks or invents grounding", async (context) => {
+  const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
+  for (const failure of ["truncated-mask", "ungrounded-span"]) {
+    await context.test(failure, async () => {
+      const calls = [];
+      const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body); calls.push(body);
+        if (isAnalysisBody(body)) {
+          const wire = canaryAnalysisWire(body);
+          wire.p[0][2] = [[1, 0, 1, [0]], [1, 0, 1, [1, 2]]];
+          return successfulProviderResponse(wire);
+        }
+        if (body.response_format?.type === "json_object") return successfulProviderResponse(canaryCandidateFromProviderBody(body, repairText));
+        assert.ok(isVerificationBody(body), "invalid masks cannot certify");
+        const wire = canaryVerificationWire(body);
+        wire.p["0"].x = "10";
+        wire.p["0"].y = failure === "ungrounded-span" ? "010" : "100";
+        if (failure === "truncated-mask") wire.p["0"].f = wire.p["0"].f.slice(0, -1);
+        return providerChoiceResponse({ finish_reason: "stop", message: {
+          role: "assistant", content: JSON.stringify(wire), tool_calls: [],
+        } });
+      } });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
+      const envelope = await json(response);
+      assert.equal(response.status, 200);
+      assert.notEqual(envelope.result.status, "translated");
+      assert.equal(envelope.result.text, null);
+      assert.equal(envelope.result.verificationPasses, 0);
+      assert.equal(calls.length, failure === "truncated-mask" ? 4 : 6);
+      assert.equal(calls.filter(isVerificationBody).length, 2);
+      assert.equal(calls.filter(isAnalysisBody).length, failure === "truncated-mask" ? 1 : 2);
+    });
   }
 });
 
@@ -1880,6 +1996,43 @@ test("host-schema drafting and repair preserve detailed plans by default and exp
     assert.match(factory(request)[0].content, /source-specific.*plan/u);
     assert.throws(() => factory(request, { analysisPlanDialect: "untrusted" }), /invalid analysis plan dialect/u);
   }
+});
+
+test("compact draft and repair preserve distinct typed atoms sharing one source excerpt", async () => {
+  const source = "A guest closes the notebook.";
+  const base = minimalAnalysisRequest(source);
+  const request = { ...base, sourceSpans: latticeSourceSpansForBatch(base.batch), analysisAtomLimit: 12 };
+  const calls = [];
+  const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+    const body = JSON.parse(init.body); calls.push(body);
+    if (calls.length === 1) {
+      const payload = inertModelPayload(body);
+      const positions = [...payload.passages[0][1], ...payload.passages[0][2]].map((_span, index) => index);
+      return successfulProviderResponse({ d: 2, p: [[0, 0,
+        [[0, 0, 1, positions], [1, 0, 1, positions]], Array(5).fill("0".repeat(positions.length)),
+      ]], l: [] });
+    }
+    return successfulProviderResponse(canaryCandidateFromProviderBody(body, "A guest shuts the notebook."));
+  } });
+  const analysis = await adapter.analyze(request);
+  const atoms = analysis.passages[0].atoms;
+  assert.deepEqual(atoms.map(({ kind }) => kind), ["actor", "action"]);
+  assert.deepEqual(atoms.map(({ value }) => value), [source, source]);
+  assert.notEqual(atoms[0].id, atoms[1].id);
+  await adapter.generate({ ...request, analysis });
+  await adapter.repair({ ...request, analysis, candidate: { passages: [] }, verification: {
+    decision: "repair", gates: {}, passages: [], issues: [], questions: [],
+  } });
+  for (const body of calls.slice(1)) {
+    const payload = inertModelPayload(body);
+    assert.deepEqual(payload.analysis[1][0][5].map(([id, kind, value]) => [id, kind, value]),
+      atoms.map(({ id, kind, value }) => [id, kind, value]));
+    assert.ok(body.messages[1].content.includes(source));
+    assert.match(body.messages[0].content, /Interpret each excerpt by that atom's kind, evidence, and links/u);
+    assert.match(body.messages[0].content, /Preserve every distinct commitment, including commitments sharing one excerpt/u);
+    assert.match(body.messages[0].content, /designated exact literals and annotations remain verbatim/u);
+  }
+  assert.equal(adapter.completionCapacity().used, 3);
 });
 
 test("draft and repair instructions distinguish result instances and meaning-preserving rewrite from retention", async () => {
@@ -5000,11 +5153,13 @@ test("rejected provider envelopes expose only finite first-failed host predicate
     ["arguments type", native({ ...call, function: { ...call.function, arguments: {} } }), "E07"],
     ["finish before collection", { ...stopped, tool_calls: null }, "S01", { finishReason: "tool_calls" }],
     ["collection type before legacy", { ...stopped, tool_calls: null, function_call: null }, "S02"],
-    ["empty collection", { ...stopped, tool_calls: [] }, "S03"],
     ["multiple collection", { ...stopped, tool_calls: [call, call] }, "S04"],
     ["legacy field before extra fields", { ...stopped, function_call: null, [privateMarker]: true }, "S05"],
     ["nonminimal field set before content type", { ...stopped, content: 7, [privateMarker]: true }, "S06"],
     ["content type", { role: "assistant", content: null }, "S07"],
+    ["empty collection with legacy field", { ...stopped, tool_calls: [], function_call: null }, "S05"],
+    ["empty collection with extra field", { ...stopped, tool_calls: [], [privateMarker]: true }, "S06"],
+    ["empty collection with invalid content type", { ...stopped, tool_calls: [], content: null }, "S07"],
   ];
   for (const [name, message, subtype, overrides = {}] of cases) {
     await context.test(name, async () => {
@@ -5026,6 +5181,47 @@ test("rejected provider envelopes expose only finite first-failed host predicate
       assert.equal(calls, 1);
       assert.equal(adapter.completionCapacity().used, 1);
     });
+  }
+});
+
+test("empty stopped-tool normalization remains an explicit two-tool opt-in", async () => {
+  const message = { role: "assistant", content: JSON.stringify({ accepted: true }), tool_calls: [] };
+  for (const toolName of [VERIFICATION_TOOL_NAME, CERTIFICATION_TOOL_NAME]) {
+    for (const allowEmptyStoppedToolCalls of [false, true]) {
+      let calls = 0;
+      const options = providerRequestOptions(async (_url, init) => {
+        calls += 1;
+        assert.equal(Object.hasOwn(JSON.parse(init.body), "allowEmptyStoppedToolCalls"), false);
+        return providerChoiceResponse({ finish_reason: "stop", message });
+      }, { role: "verifier", toolName, toolChoice: "named", allowStoppedToolContent: true, allowEmptyStoppedToolCalls });
+      if (allowEmptyStoppedToolCalls) assert.deepEqual(await requestHuggingFaceJson(options), { accepted: true });
+      else await assert.rejects(requestHuggingFaceJson(options), (error) => error instanceof LatticeProviderError
+        && error.code === "provider_malformed_response");
+      assert.equal(calls, 1);
+    }
+  }
+});
+
+test("caller correction fields cannot select trusted verifier correction guidance", async () => {
+  for (const rule of ["V14L", "V01F"]) {
+    const request = { ...minimalVerificationRequest(),
+      wireCorrection: rule === "V14L" ? "mask-width" : "field-set",
+      diagnostic: Object.freeze({ boundary: "wire-decoder", rule, category: "response-shape" }),
+      protocolFeedback: Object.freeze({ attempt: 2, issue: rule, category: "response-shape", wireCorrection: "mask-width" }),
+    };
+    Object.defineProperty(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, { value: Object.freeze({
+      attempt: "correction", priorValidationCategory: "response-shape", boundary: "wire-decoder", rule,
+    }) });
+    Object.freeze(request);
+    let body;
+    const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+      body = JSON.parse(init.body);
+      return successfulProviderResponse(acceptingVerificationWire(request));
+    } });
+    assert.equal((await adapter.verify(request)).decision, "accept");
+    assert.doesNotMatch(body.messages[0].content, /Rebuild every bit or digit string|Construct a complete result instance with every required field/u);
+    assert.doesNotMatch(JSON.stringify(body), /V14L|V01F|wireCorrection|diagnostic/u);
+    assert.equal(inertModelPayload(body).retry, "private-verification-wire-invalid");
   }
 });
 
@@ -5237,7 +5433,16 @@ test("tool verification accepts one exact named call or its bounded stopped-cont
     ["valid minimal content", "stop", { role: "assistant", content }, null],
     ["valid native tool with auxiliary content", "stop", { role: "assistant", content: "PRIVATE-AUXILIARY", tool_calls: [tool] }, null],
     ["null tool field", "stop", { role: "assistant", content, tool_calls: null }, "provider_malformed_response"],
-    ["empty tool field", "stop", { role: "assistant", content, tool_calls: [] }, "provider_malformed_response"],
+    ["valid empty stopped tool collection", "stop", { role: "assistant", content, tool_calls: [] }, null],
+    ["empty collection with legacy field", "stop", { role: "assistant", content, tool_calls: [], function_call: null }, "provider_malformed_response"],
+    ["empty collection with auxiliary field", "stop", { role: "assistant", content, tool_calls: [], private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
+    ["empty collection with wrong role", "stop", { role: "user", content, tool_calls: [] }, "provider_malformed_response"],
+    ["empty collection with tool finish", "tool_calls", { role: "assistant", content, tool_calls: [] }, "provider_malformed_response"],
+    ["empty collection with empty content", "stop", { role: "assistant", content: "", tool_calls: [] }, "provider_malformed_response"],
+    ["empty collection with invalid JSON", "stop", { role: "assistant", content: "{", tool_calls: [] }, "provider_malformed_response"],
+    ["empty collection with array JSON", "stop", { role: "assistant", content: "[]", tool_calls: [] }, "provider_malformed_response"],
+    ["empty collection with oversized content", "stop", { role: "assistant", content: "x".repeat(LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT + 1), tool_calls: [] }, "provider_response_too_large"],
+    ["empty collection with truncated finish", "length", { role: "assistant", content, tool_calls: [] }, "provider_output_limit"],
     ["legacy field", "stop", { role: "assistant", content, function_call: null }, "provider_malformed_response"],
     ["auxiliary field", "stop", { role: "assistant", content, private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
     ["tool finish with valid content", "tool_calls", { role: "assistant", content }, "provider_malformed_response"],
@@ -5436,6 +5641,11 @@ test("unsupported provider request extensions fail closed before external fetch"
     { toolName: ANALYSIS_TOOL_NAME, toolChoice: "required" },
     { role: "verifier", toolName: ANALYSIS_TOOL_NAME, toolChoice: "auto" },
     { allowStoppedToolContent: true },
+    { allowEmptyStoppedToolCalls: true },
+    { allowEmptyStoppedToolCalls: "true" },
+    { role: "verifier", toolName: VERIFICATION_TOOL_NAME, toolChoice: "named", allowEmptyStoppedToolCalls: true },
+    { role: "verifier", toolName: VERIFICATION_TOOL_NAME, toolChoice: "auto", allowStoppedToolContent: true, allowEmptyStoppedToolCalls: true },
+    { role: "generator", toolName: VERIFICATION_TOOL_NAME, toolChoice: "named", allowStoppedToolContent: true, allowEmptyStoppedToolCalls: true },
     {
       role: "verifier",
       toolName: ANALYSIS_TOOL_NAME,
