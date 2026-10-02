@@ -533,7 +533,7 @@ const VERIFICATION_WIRE_GUIDE = [
   "Set d to accept only when every reported gate and passage condition passes. Repair or reject requires at least one actual failed condition represented by g or a passage record; never invent a failure to justify a negative decision. Each i entry must name a check already failed in g, or in the referenced passage; a document-wide entry cannot rely on an unrelated local failure. Never use i alone to establish a failed check.",
   "Root p is the fitted object whose numeric keys are supplied passage positions. Each passage is {a,u,s,f,l,x,y,c}: atom-status digits, unsupported-meaning boolean, unmodeled-span bit string, failed-check bit string, independent-layer index, layer-evidence atom bit string, layer-evidence span bit string, and conformance object.",
   `Atom-status digits use supplied atom order: 1 checked, 2 missing, 0 unaccounted. Failed-check mask order: [${VERIFICATION_PASSAGE_CHECKS.join(",")}]. Layer indices are zero-based in this order: [${VERIFICATION_LAYERS.join(",")}].`,
-  "Every bit string uses supplied order and exact fitted width; 1 selects an item. Layer-support masks x and y each contain at least one 1, even for repair or reject. x selects supplied atoms supporting the independent layer; y selects source spans grounded by those atoms. Never select unsupported evidence merely to make a mask nonempty. Conformance c is {v,s,k}: confirmed, conformance-span bit string, and criterion checks in fitted order. Each criterion check is {v,s}: passed and evidence-span bit string. Rewrites use {v:false,s:all-zero,k:[]}. This emptiness applies only to c, never to x or y.",
+  "Every bit string uses supplied order and exact fitted width; 1 selects an item. Layer-support masks x and y each contain at least one 1, even for repair or reject. x selects supplied atoms supporting the independent layer; y selects source spans grounded by those atoms. Never select unsupported evidence merely to make a mask nonempty. Conformance c is {v,s,k}: unchanged-source retention confirmed, conformance-span bit string, and criterion checks in fitted order. It is not candidate quality or layer support. Each criterion check is {v,s}: passed and evidence-span bit string. Rewrites use {v:false,s:all-zero,k:[]}, matching wireLayout conformance.fixedProtocolValue; this emptiness applies only to c, never to x or y.",
   "The unmodeled-span mask selects at most 12 positions. Every passed criterion selects at least one evidence bit. Root i contains only necessary {c,p} objects: c is the zero-based failed-check index and p is the zero-based passage position, or -1 for document-wide. Root i contains no duplicate {c,p} pair.",
   `Issue check index order: [${VERIFICATION_ISSUE_CHECKS.join(",")}]. Keep i empty when g or a passage record already records the failure. Emit no source identifiers, long-form host field names, explanations, schema text, or whitespace after the closing brace.`,
 ].join("\n");
@@ -550,6 +550,7 @@ function verificationWireCorrectionForRequest(request) {
   }
   if (["V01F", "V02F", "V07F", "V09F", "V21F", "V24F"].includes(diagnostic.rule)) return "field-set";
   if (["V16M", "V17M"].includes(diagnostic.rule)) return "layer-support";
+  if (diagnostic.rule === "V19") return "retained-conformance";
   return null;
 }
 
@@ -1351,6 +1352,15 @@ function verificationWireLayoutForSchema(schema) {
       const passage = passages.properties[position];
       const conformance = passage.properties.c;
       const criteria = conformance.properties.k;
+      const confirmed = conformance.properties.v;
+      const spans = conformance.properties.s;
+      // Project only existing fitted single-value constraints. Never infer a
+      // semantic result or supply defaults for retained-source assessment.
+      const fixedProtocolValue = confirmed.enum?.length === 1 && confirmed.enum[0] === false
+        && spans.enum?.length === 1 && typeof spans.enum[0] === "string"
+        && /^0+$/u.test(spans.enum[0]) && spans.enum[0].length === spans.minLength
+        && spans.minLength === spans.maxLength && criteria.minItems === 0 && criteria.maxItems === 0
+        ? Object.freeze({ v: confirmed.enum[0], s: spans.enum[0], k: Object.freeze([]) }) : null;
       return [position, Object.freeze({
         fields: Object.freeze([...passage.required]),
         widths: Object.freeze(Object.fromEntries(["a", "s", "f", "x", "y"].map((key) => (
@@ -1362,6 +1372,7 @@ function verificationWireLayoutForSchema(schema) {
           criterionCount: criteria.minItems,
           criterionFields: Object.freeze([...criteria.items.required]),
           criterionSpanWidth: criteria.items.properties.s.minLength,
+          ...(fixedProtocolValue === null ? {} : { fixedProtocolValue }),
         }),
       })];
     }))),

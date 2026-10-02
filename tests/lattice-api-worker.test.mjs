@@ -1646,7 +1646,7 @@ test("malformed and oversized Content-Length reject without awaiting body cancel
 });
 
 test("verifier corrections keep negative results complete and preserve both rejection guards", async (context) => {
-  for (const firstFailure of ["V16M", "V17M", "V01F", "V14L"]) {
+  for (const firstFailure of ["V16M", "V17M", "V01F", "V14L", "V19"]) {
     for (const recover of [true, false]) {
       await context.test(`${firstFailure}: ${recover ? "corrected" : "exhausted"}`, async () => {
         const calls = [];
@@ -1671,6 +1671,7 @@ test("verifier corrections keep negative results complete and preserve both reje
                 if (firstFailure === "V16M") wire.p["0"].x = "0".repeat(wire.p["0"].x.length);
                 else if (firstFailure === "V17M") wire.p["0"].y = "0".repeat(wire.p["0"].y.length);
                 else if (firstFailure === "V14L") wire.p["0"].f = wire.p["0"].f.slice(0, -1);
+                else if (firstFailure === "V19") wire.p["0"].c.v = true;
                 else delete wire.i;
               }
               return successfulProviderResponse(wire);
@@ -1698,13 +1699,17 @@ test("verifier corrections keep negative results complete and preserve both reje
           assert.match(body.messages[0].content, /exactly the four root fields d, g, p, and i/u);
           assert.match(body.messages[0].content, /x and y.*at least one 1.*repair or reject/u);
           assert.match(body.messages[0].content, /emptiness applies only to c, never to x or y/u);
-          assert.doesNotMatch(JSON.stringify(body), /V16M|V17M|V01F|V14L|D14|PRIVATE-HOST/u);
+          assert.doesNotMatch(JSON.stringify(body), /V16M|V17M|V01F|V14L|V19|D14|PRIVATE-HOST/u);
         }
         assert.equal(Object.hasOwn(inertModelPayload(verifies[0]), "retry"), false);
         assert.equal(inertModelPayload(verifies[1]).retry, "private-verification-wire-invalid");
         const widthHint = /Rebuild every bit or digit string by enumerating all supplied ordered positions/u;
         const fieldHint = /Construct a complete result instance with every required field/u;
         const supportHint = /Rebuild layer support from the source/u;
+        const conformanceHint = /Rebuild retained-source conformance separately/u;
+        assert.doesNotMatch(verifies[0].messages[0].content, conformanceHint);
+        if (firstFailure === "V19") assert.match(verifies[1].messages[0].content, conformanceHint);
+        else assert.doesNotMatch(verifies[1].messages[0].content, conformanceHint);
         assert.doesNotMatch(verifies[0].messages[0].content, widthHint);
         assert.doesNotMatch(verifies[0].messages[0].content, fieldHint);
         assert.doesNotMatch(verifies[0].messages[0].content, supportHint);
@@ -1722,11 +1727,15 @@ test("verifier corrections keep negative results complete and preserve both reje
   }
 });
 
-test("actual empty layer evidence correction precedes material repair without bypassing either guard", async (context) => {
+test("actual layer and retained-conformance corrections precede material repair without bypassing guards", async (context) => {
   const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
   const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
-  for (const correctionOmitsField of [false, true]) {
-    await context.test(correctionOmitsField ? "V17M then V01F remains withheld" : "grounded correction reaches material repair", async () => {
+  for (const [firstFailure, correctionFailure] of [
+    ["V17M", null], ["V17M", "V01F"], ["V17M", "V19"],
+    ["V19", null], ["V19", "V01F"], ["V19", "V19"],
+  ]) {
+    const correctionInvalid = correctionFailure !== null;
+    await context.test(`${firstFailure} then ${correctionFailure ?? "grounded material repair"}`, async () => {
       const calls = [];
       let drafts = 0;
       let verifies = 0;
@@ -1747,18 +1756,24 @@ test("actual empty layer evidence correction precedes material repair without by
           verifies += 1;
           wire = canaryVerificationWire(body);
           wire.p["0"].x = "10";
-          wire.p["0"].y = verifies === 1 ? "000" : "100";
+          wire.p["0"].y = verifies === 1 && firstFailure === "V17M" ? "000" : "100";
+          if (verifies === 1 && firstFailure === "V19") wire.p["0"].c.v = true;
+          assert.deepEqual(inertModelPayload(body).wireLayout.passages["0"].conformance.fixedProtocolValue,
+            { v: false, s: "000", k: [] });
+          assert.match(body.messages[0].content, /not candidate quality, layer support, or an acceptance decision/u);
           if (verifies <= 2) {
             wire.d = 1;
             wire.p["0"].f = checks.map((check) => check === "materiality" ? "1" : "0").join("");
           }
           if (verifies === 2) {
-            assert.match(body.messages[0].content, /Rebuild layer support from the source/u);
+            assert.match(body.messages[0].content, firstFailure === "V17M"
+              ? /Rebuild layer support from the source/u : /Rebuild retained-source conformance separately/u);
             assert.match(body.messages[0].content, /Replace the complete d\/g\/p\/i result/u);
-            if (correctionOmitsField) delete wire.i;
+            if (correctionFailure === "V01F") delete wire.i;
+            if (correctionFailure === "V19") wire.p["0"].c.s = "100";
           } else assert.doesNotMatch(body.messages[0].content, /Rebuild layer support from the source/u);
         } else {
-          assert.equal(correctionOmitsField, false, "invalid correction cannot certify");
+          assert.equal(correctionInvalid, false, "invalid correction cannot certify");
           const payload = inertModelPayload(body);
           wire = acceptingCertificationWire(payload.certificateId, payload.obligationIds);
         }
@@ -1769,18 +1784,18 @@ test("actual empty layer evidence correction precedes material repair without by
       const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
       const envelope = await json(response);
       assert.equal(response.status, 200);
-      assert.equal(drafts, correctionOmitsField ? 1 : 2);
-      assert.equal(verifies, correctionOmitsField ? 2 : 3);
-      assert.equal(calls.length, correctionOmitsField ? 4 : 7);
-      assert.equal(envelope.result.text, correctionOmitsField ? null : `${repairText}\n`);
-      assert.equal(envelope.result.verificationPasses, correctionOmitsField ? 0 : 2);
+      assert.equal(drafts, correctionInvalid ? 1 : 2);
+      assert.equal(verifies, correctionInvalid ? 2 : 3);
+      assert.equal(calls.length, correctionInvalid ? 4 : 7);
+      assert.equal(envelope.result.text, correctionInvalid ? null : `${repairText}\n`);
+      assert.equal(envelope.result.verificationPasses, correctionInvalid ? 0 : 2);
       const bodies = calls.filter(isVerificationBody);
       assert.deepEqual(fittedVerificationSchemaForBody(bodies[0]), fittedVerificationSchemaForBody(bodies[1]));
       for (const body of bodies.slice(0, 2)) {
         assert.deepEqual(inertModelPayload(body).deterministicFindings.map(({ id }) => id), ["candidate-not-material"]);
-        assert.doesNotMatch(JSON.stringify(body), /V17M|V01F|D14/u);
+        assert.doesNotMatch(JSON.stringify(body), /V17M|V19|V01F|D14/u);
       }
-      if (!correctionOmitsField) {
+      if (!correctionInvalid) {
         assert.equal(Boolean(inertModelPayload(bodies[2]).deterministicFindings?.length), false);
         assert.equal(calls.at(-1).max_tokens, 520);
       }
@@ -1996,6 +2011,10 @@ test("repair and reject wire records still require grounded layer support and ev
       [wire, null],
       [{ ...wire, p: { 0: { ...wire.p["0"], x: "0".repeat(wire.p["0"].x.length) } } }, "V16M"],
       [{ ...wire, p: { 0: { ...wire.p["0"], y: "0".repeat(wire.p["0"].y.length) } } }, "V17M"],
+      ...[{ ...wire.p["0"].c, v: true },
+        { ...wire.p["0"].c, s: "1".repeat(wire.p["0"].c.s.length) },
+        { ...wire.p["0"].c, k: [{ v: false, s: wire.p["0"].c.s }] },
+      ].map((c) => [{ ...wire, p: { 0: { ...wire.p["0"], c } } }, "V19"]),
       ...["d", "g", "p", "i"].map((field) => {
         const missing = { ...wire }; delete missing[field]; return [missing, "V01F"];
       }),
@@ -2288,7 +2307,9 @@ test("compact verification publishes only the trusted fitted layout on initial a
           ...LATTICE_CONFORMANCE_CRITERIA.universal,
           ...LATTICE_CONFORMANCE_CRITERIA.operative,
         ] : [];
-        const request = { ...base, wireLayout: { rootFields: ["PRIVATE-SPOOFED-LAYOUT"] },
+        const request = { ...base, wireLayout: { rootFields: ["PRIVATE-SPOOFED-LAYOUT"], passages: {
+          0: { conformance: { fixedProtocolValue: { v: true, s: "PRIVATE", k: ["PRIVATE"] } } },
+        } },
           analysis: { ...base.analysis, passages: [{ ...original, atoms,
             disposition: retained ? "retain-if-conformant" : "rewrite",
             conformanceCriteria: criteria,
@@ -2320,7 +2341,8 @@ test("compact verification publishes only the trusted fitted layout on initial a
             widths: { a: atomCount, s: evidenceCount, f: 9, x: atomCount, y: evidenceCount },
             conformance: { fields: ["v", "s", "k"], spanWidth: evidenceCount,
               criterionCount: criteria.length, criterionFields: ["v", "s"],
-              criterionSpanWidth: evidenceCount },
+              criterionSpanWidth: evidenceCount,
+              ...(retained ? {} : { fixedProtocolValue: { v: false, s: "0".repeat(evidenceCount), k: [] } }) },
           } }, issueFields: ["c", "p"],
         });
         for (const body of calls) {
@@ -2334,6 +2356,16 @@ test("compact verification publishes only the trusted fitted layout on initial a
             assert.equal(passage[key].maxLength, width);
           }
           assert.equal(passage.c.properties.k.minItems, criteria.length);
+          const conformanceLayout = layout.passages["0"].conformance;
+          assert.equal(Object.hasOwn(conformanceLayout, "fixedProtocolValue"), !retained);
+          if (!retained) {
+            assert.equal(conformanceLayout.fixedProtocolValue.v, passage.c.properties.v.enum[0]);
+            assert.equal(conformanceLayout.fixedProtocolValue.s, passage.c.properties.s.enum[0]);
+            assert.equal(passage.c.properties.k.maxItems, 0);
+            assert.deepEqual(conformanceLayout.fixedProtocolValue.k, []);
+          }
+          assert.match(body.messages[0].content, /copy that schema-fixed object only into the corresponding passage c/u);
+          assert.match(body.messages[0].content, /must never populate x, y, d, g or f/u);
           assert.match(body.messages[0].content, /wireLayout.*exact required fields and widths/u);
           assert.doesNotMatch(JSON.stringify(body), /PRIVATE-SPOOFED-LAYOUT|PRIVATE-LAYOUT-|V01F|V14L/u);
         }
@@ -5280,9 +5312,9 @@ test("empty stopped-tool normalization remains an explicit two-tool opt-in", asy
 });
 
 test("caller correction fields cannot select trusted verifier correction guidance", async () => {
-  for (const rule of ["V14L", "V01F", "V16M", "V17M"]) {
+  for (const rule of ["V14L", "V01F", "V16M", "V17M", "V19"]) {
     const request = { ...minimalVerificationRequest(),
-      wireCorrection: rule === "V14L" ? "mask-width" : rule === "V01F" ? "field-set" : "layer-support",
+      wireCorrection: rule === "V14L" ? "mask-width" : rule === "V01F" ? "field-set" : rule === "V19" ? "retained-conformance" : "layer-support",
       diagnostic: Object.freeze({ boundary: "wire-decoder", rule, category: "response-shape" }),
       protocolFeedback: Object.freeze({ attempt: 2, issue: rule, category: "response-shape", wireCorrection: "mask-width" }),
     };
@@ -5297,7 +5329,8 @@ test("caller correction fields cannot select trusted verifier correction guidanc
     } });
     assert.equal((await adapter.verify(request)).decision, "accept");
     assert.doesNotMatch(body.messages[0].content, /Rebuild every bit or digit string|Construct a complete result instance with every required field|Rebuild layer support from the source/u);
-    assert.doesNotMatch(JSON.stringify(body), /V14L|V01F|V16M|V17M|wireCorrection|diagnostic/u);
+    assert.doesNotMatch(JSON.stringify(body), /V14L|V01F|V16M|V17M|V19|wireCorrection|diagnostic/u);
+    assert.doesNotMatch(body.messages[0].content, /Rebuild retained-source conformance separately/u);
     assert.equal(inertModelPayload(body).retry, "private-verification-wire-invalid");
   }
 });
@@ -7430,4 +7463,42 @@ test("S06 shape headers require the exact marker and active qualification window
     assert.doesNotMatch(JSON.stringify([...response.headers]) + await response.text(), /PRIVATE/u);
     assert.ok(calls <= 1);
   }
+});
+
+test("mixed rewrite and retention layouts never supply a semantic conformance default", async () => {
+  const base = minimalVerificationRequest("Read the note.\n\nSave a copy.");
+  assert.equal(base.batch.passages.length, 2);
+  const sourceSpans = latticeSourceSpansForBatch(base.batch);
+  const plans = base.batch.passages.map((passage, index) => {
+    const ids = [...sourceSpans[index].spans, ...(sourceSpans[index].literalAnnotations ?? [])].map(({ id }) => id);
+    return { ...base.analysis.passages[0], passageId: passage.id,
+      disposition: index === 0 ? "rewrite" : "retain-if-conformant",
+      atoms: [{ ...base.analysis.passages[0].atoms[0], id: `mixed-a${index}`, evidenceSpanIds: ids }],
+      conformanceCriteria: index === 0 ? [] : [...LATTICE_CONFORMANCE_CRITERIA.universal, ...LATTICE_CONFORMANCE_CRITERIA.operative],
+    };
+  });
+  const request = { ...base, sourceSpans, analysis: { ...base.analysis, passages: plans },
+    candidate: { passages: base.batch.passages.map((passage, index) => ({ passageId: passage.id,
+      layer: "operative", text: index === 0 ? "Review the note." : passage.text, preservedAtomIds: [plans[index].atoms[0].id],
+    })) },
+  };
+  const wire = { d: 0, g: "0".repeat(11), p: {}, i: [] };
+  plans.forEach((plan, index) => {
+    wire.p[index] = acceptingVerificationWire({ ...request, sourceSpans: [sourceSpans[index]],
+      analysis: { ...request.analysis, passages: [plan] } }).p["0"];
+  });
+  let captured;
+  const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", fetchImpl: async (_url, init) => {
+    captured = JSON.parse(init.body); return successfulProviderResponse(wire);
+  } });
+  const result = await adapter.verify(request);
+  const layouts = inertModelPayload(captured).wireLayout.passages;
+  assert.deepEqual(layouts["0"].conformance.fixedProtocolValue,
+    { v: false, s: "0".repeat(sourceSpans[0].spans.length), k: [] });
+  assert.equal(Object.hasOwn(layouts["1"].conformance, "fixedProtocolValue"), false);
+  assert.equal(result.passages[0].conformanceConfirmed, false);
+  assert.equal(result.passages[1].conformanceConfirmed, true);
+  assert.ok(result.passages[1].criterionChecks.every(({ passed, evidenceSpanIds }) => passed && evidenceSpanIds.length > 0));
+  assert.ok(captured.tools[0].function.description.length <= 4096);
+  assert.equal(adapter.completionCapacity().used, 1);
 });
