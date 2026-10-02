@@ -640,6 +640,7 @@ const STAGES = Object.freeze({
     toolChoice: "named",
     allowStoppedToolContent: true,
     allowEmptyStoppedToolCalls: true,
+    allowNullStoppedVerificationMetadata: true,
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
     maxTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -2092,7 +2093,14 @@ function rejectedNamedToolSubtype(toolCall, toolName) {
   return "message_shape";
 }
 
-function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedToolContent, allowEmptyStoppedToolCalls) {
+function stoppedToolMessageKeysAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata) {
+  return Object.keys(message).every((key) => key === "role" || key === "content"
+    || (allowEmptyStoppedToolCalls && key === "tool_calls")
+    || (allowNullStoppedVerificationMetadata
+      && (key === "name" || key === "reasoning_content") && message[key] === null));
+}
+
+function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata) {
   try {
     if (!allowStoppedToolContent) return "message_shape";
     if (providerFinishReason !== "stop") return "S01";
@@ -2102,14 +2110,13 @@ function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedT
       if (message.tool_calls.length > 1) return "S04";
     }
     if (Object.hasOwn(message, "function_call")) return "S05";
-    if (!Object.keys(message).every((key) => key === "role" || key === "content"
-      || (allowEmptyStoppedToolCalls && key === "tool_calls"))) return "S06";
+    if (!stoppedToolMessageKeysAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata)) return "S06";
     if (typeof message.content !== "string") return "S07";
   } catch { /* Observation must preserve the rejected envelope outcome. */ }
   return "message_shape";
 }
 
-function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, requireMinimalVerificationContent, observeQualificationEnvelopeShape) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, requireMinimalVerificationContent, observeQualificationEnvelopeShape) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -2233,20 +2240,21 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
       && (!Object.hasOwn(choice.message, "tool_calls")
         || (allowEmptyStoppedToolCalls && Array.isArray(toolCalls) && toolCalls.length === 0))
       && !Object.hasOwn(choice.message, "function_call")
-      && Object.keys(choice.message).every((key) => key === "role" || key === "content"
-        || (allowEmptyStoppedToolCalls && key === "tool_calls"))
+      && stoppedToolMessageKeysAllowed(choice.message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata)
       && typeof choice.message.content === "string") {
       // Normalize only the explicitly enabled, minimal stopped-content
       // compatibility envelope. Parsing and the production stage's closed wire
       // decoder remain mandatory. A separately enabled empty collection carries
       // no competing arguments; only this exact minimal stopped envelope may
-      // use content. Null/malformed calls, legacy fields, extra message fields
-      // and length-limited content remain rejected. Generic callers retain the
-      // absent-only default.
+      // use content. The verification-only metadata opt-in admits the observed
+      // name/reasoning_content fields only when literally null; it neither reads
+      // reasoning text nor changes content. Null/malformed calls, legacy fields,
+      // all other extras and length-limited content remain rejected. Generic
+      // callers retain the absent-only default.
       content = choice.message.content;
     } else {
       const subtype = rejectedStoppedToolSubtype(choice.message, choice.finish_reason,
-        allowStoppedToolContent, allowEmptyStoppedToolCalls);
+        allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata);
       throw withProviderDiagnostic(
         providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
         {
@@ -2394,6 +2402,7 @@ export async function requestHuggingFaceJson({
   toolChoice,
   allowStoppedToolContent = false,
   allowEmptyStoppedToolCalls = false,
+  allowNullStoppedVerificationMetadata = false,
   requireMinimalVerificationContent = false,
   observeQualificationHttpHeaders = false,
   observeQualificationEnvelopeShape = false,
@@ -2436,6 +2445,7 @@ export async function requestHuggingFaceJson({
     || (toolChoice !== undefined && toolName === undefined)
     || typeof allowStoppedToolContent !== "boolean"
     || typeof allowEmptyStoppedToolCalls !== "boolean"
+    || typeof allowNullStoppedVerificationMetadata !== "boolean"
     || typeof requireMinimalVerificationContent !== "boolean"
     || typeof observeQualificationHttpHeaders !== "boolean"
     || typeof observeQualificationEnvelopeShape !== "boolean"
@@ -2451,6 +2461,8 @@ export async function requestHuggingFaceJson({
         || toolChoice !== "named"
         || !STOPPED_TOOL_CONTENT_NAMES.has(toolName)))
     || (allowEmptyStoppedToolCalls && !allowStoppedToolContent)
+    || (allowNullStoppedVerificationMetadata
+      && (!allowStoppedToolContent || toolName !== VERIFICATION_TOOL_NAME))
     || (toolName !== undefined && role !== "verifier")
     || (toolName === undefined && role === "verifier"
       && responseFormat !== "json_object" && !requireMinimalVerificationContent)) {
@@ -2590,6 +2602,7 @@ export async function requestHuggingFaceJson({
         toolName,
         allowStoppedToolContent,
         allowEmptyStoppedToolCalls,
+        allowNullStoppedVerificationMetadata,
         requireMinimalVerificationContent,
         observeQualificationEnvelopeShape,
       );
@@ -2695,6 +2708,7 @@ export function createHuggingFaceLatticeAdapter({
         toolChoice: stage.toolChoice,
         allowStoppedToolContent: stage.allowStoppedToolContent,
         allowEmptyStoppedToolCalls: stage.allowEmptyStoppedToolCalls,
+        allowNullStoppedVerificationMetadata: stage.allowNullStoppedVerificationMetadata,
         requireMinimalVerificationContent: stage.requireMinimalVerificationContent,
         observeQualificationHttpHeaders,
         observeQualificationEnvelopeShape,
