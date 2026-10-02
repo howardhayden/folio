@@ -9,6 +9,7 @@ import {
   LATTICE_CONFORMANCE_CRITERIA,
   LATTICE_FITTED_ANALYSIS_CONTEXT,
   LATTICE_STAGE_DIAGNOSTIC_CONTEXT,
+  LATTICE_VERIFICATION_MASK_LAYOUT_INSTRUCTION,
   REANALYSIS_SCHEMA,
   VERIFICATION_SCHEMA,
   analysisMessages,
@@ -466,6 +467,7 @@ const VERIFICATION_WIRE_SCHEMA = Object.freeze({
   required: Object.freeze(["d", "g", "p", "i"]),
 });
 const VERIFICATION_WIRE_GUIDE = [
+  LATTICE_VERIFICATION_MASK_LAYOUT_INSTRUCTION,
   "Return one minified private verification instance with exactly the four root fields d, g, p, and i; never echo the schema. Keep i as [] when no additional issue is needed, never omit it. Return every fitted passage record completely for every decision, including repair and reject.",
   `Root d is the zero-based decision index [${VERIFICATION_DECISIONS.join(",")}]. Root g is the ${VERIFICATION_GATES.length}-character failed-gate bit string in this order: [${VERIFICATION_GATES.join(",")}].`,
   "Set d to accept only when every reported gate and passage condition passes. Repair or reject requires at least one actual failed condition represented by g or a passage record; never invent a failure to justify a negative decision. Each i entry must name a check already failed in g, or in the referenced passage; a document-wide entry cannot rely on an unrelated local failure. Never use i alone to establish a failed check.",
