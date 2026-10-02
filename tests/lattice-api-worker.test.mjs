@@ -1840,11 +1840,11 @@ test("actual layer, conformance and issue corrections precede material repair wi
   }
 });
 
-test("empty stopped-tool content carries sparse grounded masks through material repair and certification", async (context) => {
+test("empty and observed-null stopped verification carry sparse grounded masks through material repair and certification", async (context) => {
   const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
   const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
-  for (const nullMetadata of [false, true]) for (const repairCopiesSource of [false, true]) {
-    await context.test(`${nullMetadata ? "null metadata" : "minimal metadata"}: ${repairCopiesSource ? "copied repair remains withheld" : "material repair passes"}`, async () => {
+  for (const nullToolCollection of [false, true]) for (const nullMetadata of [false, true]) for (const repairCopiesSource of [false, true]) {
+    await context.test(`${nullToolCollection ? "null calls" : "empty calls"}, ${nullMetadata ? "null metadata" : "minimal metadata"}: ${repairCopiesSource ? "copied repair remains withheld" : "material repair passes"}`, async () => {
       const calls = [];
       let drafts = 0;
       let verifies = 0;
@@ -1879,7 +1879,8 @@ test("empty stopped-tool content carries sparse grounded masks through material 
           wire = acceptingCertificationWire(payload.certificateId, payload.obligationIds);
         }
         return providerChoiceResponse({ finish_reason: "stop", message: {
-          role: "assistant", content: JSON.stringify(wire), tool_calls: [],
+          role: "assistant", content: JSON.stringify(wire),
+          tool_calls: isVerificationBody(body) && nullToolCollection ? null : [],
           ...(nullMetadata && isVerificationBody(body) ? { name: null, reasoning_content: null } : {}),
         } });
       } });
@@ -1913,10 +1914,10 @@ test("empty stopped-tool content carries sparse grounded masks through material 
   }
 });
 
-test("empty stopped-tool content never repairs truncated masks or invents grounding", async (context) => {
+test("empty and observed-null stopped verification never repairs truncated masks or invents grounding", async (context) => {
   const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
-  for (const nullMetadata of [false, true]) for (const failure of ["truncated-mask", "ungrounded-span"]) {
-    await context.test(`${nullMetadata ? "null metadata" : "minimal metadata"}: ${failure}`, async () => {
+  for (const nullToolCollection of [false, true]) for (const nullMetadata of [false, true]) for (const failure of ["truncated-mask", "ungrounded-span"]) {
+    await context.test(`${nullToolCollection ? "null calls" : "empty calls"}, ${nullMetadata ? "null metadata" : "minimal metadata"}: ${failure}`, async () => {
       const calls = [];
       const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
         const body = JSON.parse(init.body); calls.push(body);
@@ -1932,7 +1933,8 @@ test("empty stopped-tool content never repairs truncated masks or invents ground
         wire.p["0"].y = failure === "ungrounded-span" ? "010" : "100";
         if (failure === "truncated-mask") wire.p["0"].f = wire.p["0"].f.slice(0, -1);
         return providerChoiceResponse({ finish_reason: "stop", message: {
-          role: "assistant", content: JSON.stringify(wire), tool_calls: [],
+          role: "assistant", content: JSON.stringify(wire),
+          tool_calls: isVerificationBody(body) && nullToolCollection ? null : [],
           ...(nullMetadata && isVerificationBody(body) ? { name: null, reasoning_content: null } : {}),
         } });
       } });
@@ -5509,13 +5511,14 @@ test("null stopped verification metadata preserves transport precedence and down
   const cases = [
     ["observed pair", stopped, null],
     ["observed pair with empty calls", { ...stopped, tool_calls: [] }, null],
+    ["observed pair with literal-null calls", { ...stopped, tool_calls: null }, null],
     ["legacy field remains rejected with a native call", { ...stopped, content: "PRIVATE", name: "PRIVATE", reasoning_content: "PRIVATE", function_call: null, tool_calls: [tool] }, "S05"],
     ["one valid native call supplies no verification fallback", { ...stopped, tool_calls: [tool] }, "message_shape"],
     ["nonempty native calls supply no verification fallback", { ...stopped, tool_calls: [{ ...tool, type: "PRIVATE" }] }, "message_shape"],
     ["extra before competing native call", { ...stopped, tool_calls: [tool], unknown: null }, "S06"],
     ["content type before competing native call", { ...stopped, tool_calls: [tool], content: null }, "S07"],
     ["finish before collection", { ...stopped, tool_calls: null }, "finish_reason", "tool_calls"],
-    ["collection type before metadata", { ...stopped, tool_calls: null, name: "PRIVATE" }, "S02N"],
+    ["literal-null calls do not excuse nonnull metadata", { ...stopped, tool_calls: null, name: "PRIVATE" }, "S06"],
     ["multiple calls before metadata", { ...stopped, tool_calls: [tool, tool] }, "S04"],
     ["legacy before metadata", { ...stopped, function_call: null, name: "PRIVATE" }, "S05"],
     ["extra before content type", { ...stopped, unknown: null, content: null }, "S06"],
@@ -5536,7 +5539,7 @@ test("null stopped verification metadata preserves transport precedence and down
       let calls = 0;
       const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", observeQualificationEnvelopeShape: true,
         fetchImpl: async (_url, init) => {
-          calls += 1; assert.doesNotMatch(init.body, /allowNullStoppedVerificationMetadata/u);
+          calls += 1; assert.doesNotMatch(init.body, /allowNullStoppedVerificationMetadata|allowNullJsonObjectVerificationToolCalls/u);
           return providerChoiceResponse({ finish_reason, message });
         } });
       if (subtype) await assert.rejects(adapter.verify(request), (error) => {
@@ -5620,36 +5623,46 @@ test("provider envelope observation failure preserves the original malformed-res
   assert.equal(adapter.completionCapacity().used, 1);
 });
 
-test("S02N distinguishes rejected literal-null collections without changing acceptance", async (context) => {
+test("observed literal-null collections are verification-only and retain every later guard", async (context) => {
   const privateMarker = "PRIVATE-COLLECTION-MUST-NOT-CROSS";
   for (const stage of ["verification", "certification"]) {
     const request = stage === "verification" ? minimalVerificationRequest() : minimalCertificationRequest();
     const method = stage === "verification" ? "verify" : "certify";
-    const stopped = { role: "assistant", content: "{}" };
+    const content = JSON.stringify(stage === "verification"
+      ? acceptingVerificationWire(request)
+      : acceptingCertificationWire(request.certificateId, request.obligationIds));
+    const stopped = { role: "assistant", content };
+    const verification = stage === "verification";
     const cases = [
-      ...[null, {}, { secret: privateMarker }, "", privateMarker, false, true, 0, 7].map((value) => [
-        `${typeof value}:${JSON.stringify(value)}`, { ...stopped, tool_calls: value },
-        value === null ? "S02N" : "S02", "stop",
+      ["literal-null collection", { ...stopped, tool_calls: null }, verification ? null : "S02N", "stop"],
+      ...[{}, { secret: privateMarker }, "", privateMarker, false, true, 0, 7].map((value) => [
+        `${typeof value}:${JSON.stringify(value)}`, { ...stopped, tool_calls: value }, "S02", "stop",
       ]),
-      ["null precedes legacy", { ...stopped, tool_calls: null, function_call: null }, "S02N", "stop"],
-      ["null precedes extras", { ...stopped, tool_calls: null, [privateMarker]: true }, "S02N", "stop"],
-      ["null precedes content", { ...stopped, tool_calls: null, content: null }, "S02N", "stop"],
+      ["null with legacy", { ...stopped, tool_calls: null, function_call: null }, verification ? "S05" : "S02N", "stop"],
+      ["null with extras", { ...stopped, tool_calls: null, [privateMarker]: true }, verification ? "S06" : "S02N", "stop"],
+      ["null with nonstring content", { ...stopped, tool_calls: null, content: null }, verification ? "S07" : "S02N", "stop"],
+      ["null with empty content", { ...stopped, tool_calls: null, content: "" }, verification ? "content_empty" : "S02N", "stop"],
+      ["null with invalid JSON", { ...stopped, tool_calls: null, content: "{" }, verification ? "content_json" : "S02N", "stop"],
+      ["null with array JSON", { ...stopped, tool_calls: null, content: "[]" }, verification ? "content_shape" : "S02N", "stop"],
       ["role precedes null", { ...stopped, role: "user", tool_calls: null }, "message_role", "stop"],
-      ["finish precedes null", { ...stopped, tool_calls: null },
-        stage === "verification" ? "finish_reason" : "S01", "tool_calls"],
+      ["finish precedes null", { ...stopped, tool_calls: null }, verification ? "finish_reason" : "S01", "tool_calls"],
     ];
     for (const [name, message, subtype, finish_reason] of cases) {
       await context.test(`${stage}: ${name}`, async () => {
         let calls = 0;
         const adapter = createHuggingFaceLatticeAdapter({ token: "server-test-token",
-          observeQualificationEnvelopeShape: true, fetchImpl: async () => {
-            calls += 1; return providerChoiceResponse({ finish_reason, message });
+          observeQualificationEnvelopeShape: true, fetchImpl: async (_url, init) => {
+            calls += 1;
+            assert.doesNotMatch(init.body, /allowNullJsonObjectVerificationToolCalls/u);
+            return providerChoiceResponse({ finish_reason, message });
           } });
-        await assert.rejects(adapter[method](request), (error) => {
+        if (subtype === null) assert.equal((await adapter[method](request)).decision, "accept");
+        else await assert.rejects(adapter[method](request), (error) => {
           assert.equal(error.code, "provider_malformed_response");
           assert.equal(error.qualificationSubtype, subtype);
           assert.equal(error.qualificationStage, stage);
-          assert.equal(error.qualificationEnvelopeShape, null);
+          if (subtype === "S06") assert.equal(isClosedProviderEnvelopeShape(error.qualificationEnvelopeShape), true);
+          else assert.equal(error.qualificationEnvelopeShape, null);
           assert.equal(Object.getOwnPropertyDescriptor(error, "qualificationSubtype").enumerable, false);
           assert.doesNotMatch(error.message + JSON.stringify(error), /PRIVATE-COLLECTION/u);
           return true;
@@ -5659,6 +5672,7 @@ test("S02N distinguishes rejected literal-null collections without changing acce
     }
   }
 });
+
 
 test("coded envelope observations remain confined to marked expiring qualification errors", async () => {
   const privateMarker = "PRIVATE-ENVELOPE-CONTENT-MUST-NOT-CROSS";
@@ -5832,7 +5846,14 @@ test("production JSON-object verification accepts only its bounded stopped-conte
   const cases = [
     ["valid minimal content", "stop", { role: "assistant", content }, null],
     ["native tool with auxiliary content is rejected", "stop", { role: "assistant", content: "PRIVATE-AUXILIARY", tool_calls: [tool] }, "provider_malformed_response"],
-    ["null tool field", "stop", { role: "assistant", content, tool_calls: null }, "provider_malformed_response"],
+    ["valid observed-null stopped tool field", "stop", { role: "assistant", content, tool_calls: null }, null],
+    ["null collection with legacy field", "stop", { role: "assistant", content, tool_calls: null, function_call: null }, "provider_malformed_response"],
+    ["null collection with auxiliary field", "stop", { role: "assistant", content, tool_calls: null, private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
+    ["null collection with empty content", "stop", { role: "assistant", content: "", tool_calls: null }, "provider_malformed_response"],
+    ["null collection with invalid JSON", "stop", { role: "assistant", content: "{", tool_calls: null }, "provider_malformed_response"],
+    ["null collection with array JSON", "stop", { role: "assistant", content: "[]", tool_calls: null }, "provider_malformed_response"],
+    ["null collection with oversized content", "stop", { role: "assistant", content: "x".repeat(LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT + 1), tool_calls: null }, "provider_response_too_large"],
+    ["null collection with truncated finish", "length", { role: "assistant", content, tool_calls: null }, "provider_output_limit"],
     ["valid empty stopped tool collection", "stop", { role: "assistant", content, tool_calls: [] }, null],
     ["empty collection with legacy field", "stop", { role: "assistant", content, tool_calls: [], function_call: null }, "provider_malformed_response"],
     ["empty collection with auxiliary field", "stop", { role: "assistant", content, tool_calls: [], private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
@@ -5870,6 +5891,7 @@ test("production JSON-object verification accepts only its bounded stopped-conte
         assert.equal(body.seed, 71_903);
         assert.equal(body.stream, false);
         assert.equal(Object.hasOwn(body, "requireMinimalVerificationContent"), false);
+        assert.equal(Object.hasOwn(body, "allowNullJsonObjectVerificationToolCalls"), false);
         return providerChoiceResponse({ finish_reason, message });
       } });
       if (code) {
@@ -6003,11 +6025,96 @@ test("every supported correction history preserves the verifier cap and sanitize
   }
 });
 
+test("observed-null verification is an independent explicit permission with identical provider request bytes", async (context) => {
+  const content = JSON.stringify({ accepted: true });
+  let referenceBody;
+  for (const nullPermission of [undefined, false, true]) {
+    for (const emptyPermission of [false, true]) {
+      for (const field of ["absent", "null", "empty"]) {
+        await context.test(`null=${nullPermission ?? "default"}, empty=${emptyPermission}, field=${field}`, async () => {
+          let calls = 0;
+          const options = providerRequestOptions(async (_url, init) => {
+            calls += 1;
+            referenceBody ??= init.body;
+            assert.equal(init.body, referenceBody, "all compatibility permissions remain host-only");
+            assert.doesNotMatch(init.body, /allowNullJsonObjectVerificationToolCalls|allowEmptyStoppedToolCalls|requireMinimalVerificationContent/u);
+            const body = JSON.parse(init.body);
+            assert.equal(body.model, LATTICE_REMOTE_MODELS.verifier);
+            assert.deepEqual(body.response_format, { type: "json_object" });
+            assert.equal(Object.hasOwn(body, "tools"), false);
+            assert.equal(Object.hasOwn(body, "tool_choice"), false);
+            const extras = field === "absent" ? {} : { tool_calls: field === "null" ? null : [] };
+            return providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant", content, ...extras } });
+          }, { role: "verifier", schemaName: VERIFICATION_TOOL_NAME, responseFormat: "json_object",
+            requireMinimalVerificationContent: true, allowEmptyStoppedToolCalls: emptyPermission,
+            ...(nullPermission === undefined ? {} : { allowNullJsonObjectVerificationToolCalls: nullPermission }),
+          });
+          const accepted = field === "absent" || (field === "null" ? nullPermission === true : emptyPermission);
+          if (accepted) assert.deepEqual(await requestHuggingFaceJson(options), { accepted: true });
+          else await assert.rejects(requestHuggingFaceJson(options), (error) => error instanceof LatticeProviderError
+            && error.code === "provider_malformed_response");
+          assert.equal(calls, 1);
+        });
+      }
+    }
+  }
+});
+
+test("observed-null verification permission rejects every other transport scope before fetch", async (context) => {
+  for (const [label, overrides] of [
+    ["generator role", { role: "generator" }],
+    ["certification schema", { schemaName: CERTIFICATION_TOOL_NAME }],
+    ["analysis schema", { schemaName: ANALYSIS_TOOL_NAME }],
+    ["implicit JSON-object default", { responseFormat: undefined }],
+    ["legacy strict schema", { responseFormat: "json_schema" }],
+    ["minimal guard disabled", { requireMinimalVerificationContent: false }],
+    ["named verification", { responseFormat: undefined, requireMinimalVerificationContent: false,
+      toolName: VERIFICATION_TOOL_NAME, toolChoice: "named", allowStoppedToolContent: true }],
+    ["named certification", { responseFormat: undefined, requireMinimalVerificationContent: false,
+      schemaName: CERTIFICATION_TOOL_NAME, toolName: CERTIFICATION_TOOL_NAME, toolChoice: "named", allowStoppedToolContent: true }],
+    ["stopped-tool mode", { allowStoppedToolContent: true }],
+    ["string permission", { allowNullJsonObjectVerificationToolCalls: "true" }],
+    ["numeric permission", { allowNullJsonObjectVerificationToolCalls: 1 }],
+    ["null permission", { allowNullJsonObjectVerificationToolCalls: null }],
+  ]) {
+    await context.test(label, async () => {
+      let calls = 0;
+      const options = providerRequestOptions(async () => { calls += 1; return successfulProviderResponse(); }, {
+        role: "verifier", schemaName: VERIFICATION_TOOL_NAME, responseFormat: "json_object",
+        requireMinimalVerificationContent: true, allowNullJsonObjectVerificationToolCalls: true, ...overrides,
+      });
+      await assert.rejects(requestHuggingFaceJson(options), TypeError);
+      assert.equal(calls, 0);
+    });
+  }
+});
+
+test("named stopped-content compatibility retains literal-null rejection with verification opt-in absent", async () => {
+  for (const toolName of [VERIFICATION_TOOL_NAME, CERTIFICATION_TOOL_NAME]) {
+    for (const allowStoppedToolContent of [false, true]) {
+      let calls = 0;
+      const options = providerRequestOptions(async (_url, init) => {
+        calls += 1;
+        const body = JSON.parse(init.body);
+        forcedToolSchema(body, toolName);
+        return providerChoiceResponse({ finish_reason: "stop", message: {
+          role: "assistant", content: JSON.stringify({ accepted: true }), tool_calls: null,
+        } });
+      }, { role: "verifier", toolName, toolChoice: "named", allowStoppedToolContent,
+        allowEmptyStoppedToolCalls: allowStoppedToolContent });
+      await assert.rejects(requestHuggingFaceJson(options), (error) => error instanceof LatticeProviderError
+        && error.code === "provider_malformed_response");
+      assert.equal(calls, 1);
+    }
+  }
+});
+
 test("dedicated JSON-object verifier envelope permissions do not weaken the retained schema helper", async (t) => {
   const accepted = JSON.stringify({ accepted: true });
   for (const [label, extras, allowed] of [
     ["minimal", {}, true],
     ["empty calls", { tool_calls: [] }, false],
+    ["literal-null calls", { tool_calls: null }, false],
     ["null name", { name: null }, false],
     ["null reasoning", { reasoning_content: null }, false],
     ["both nullable fields", { name: null, reasoning_content: null }, false],
@@ -6092,6 +6199,8 @@ test("unsupported provider request extensions fail closed before external fetch"
     { allowEmptyStoppedToolCalls: "true" },
     { allowNullStoppedVerificationMetadata: true },
     { allowNullStoppedVerificationMetadata: "true" },
+    { allowNullJsonObjectVerificationToolCalls: true },
+    { allowNullJsonObjectVerificationToolCalls: "true" },
     { role: "verifier", toolName: VERIFICATION_TOOL_NAME, toolChoice: "named", allowNullStoppedVerificationMetadata: true },
     { role: "verifier", toolName: CERTIFICATION_TOOL_NAME, toolChoice: "named", allowStoppedToolContent: true, allowNullStoppedVerificationMetadata: true },
     { role: "verifier", toolName: VERIFICATION_TOOL_NAME, toolChoice: "named", allowEmptyStoppedToolCalls: true },
@@ -7749,11 +7858,15 @@ test("S06 shape observation retains only finite types while preserving rejection
   assert.equal(competing.qualificationSubtype, "S06");
   assert.deepEqual(competing.qualificationEnvelopeShape,
     { namedShape: "--n-----", unknownCount: "0", unknownShapes: "000000000" });
+  const nullCollectionExtra = await observe({ role: "assistant", content, tool_calls: null, refusal: null });
+  assert.equal(nullCollectionExtra.qualificationSubtype, "S06");
+  assert.deepEqual(nullCollectionExtra.qualificationEnvelopeShape,
+    { namedShape: "--n-----", unknownCount: "0", unknownShapes: "000000000" });
   for (const [message, subtype, enabled, finish] of [
     [{ role: "assistant", content, tool_calls: [verificationTool] }, "message_shape", true, "stop"],
     [{ role: "assistant", content: null, tool_calls: [verificationTool] }, "S07", true, "stop"],
     [{ role: "assistant", content, refusal: null }, "S06", false, "stop"],
-    [{ role: "assistant", content, tool_calls: null, refusal: null }, "S02N", true, "stop"],
+    [{ role: "assistant", content: null, tool_calls: null }, "S07", true, "stop"],
     [{ role: "assistant", content, function_call: null, refusal: null }, "S05", true, "stop"],
     [{ role: "assistant", content: null }, "S07", true, "stop"],
     [{ role: "assistant", content, refusal: null }, "none", true, "length"],
