@@ -545,17 +545,43 @@ function isAnalysisBody(body) {
     && body.response_format.json_schema.name === ANALYSIS_TOOL_NAME;
 }
 
+function isCandidateBody(body) {
+  return body.model === LATTICE_REMOTE_MODELS.generator
+    && body.response_format?.type === "json_object";
+}
+
 function isVerificationBody(body) {
   return body.model === LATTICE_REMOTE_MODELS.verifier
-    && body.tool_choice?.function?.name === VERIFICATION_TOOL_NAME;
+    && body.response_format?.type === "json_object"
+    && body.messages.some(({ role, content }) => role === "system"
+      && content.includes(`Response contract ${VERIFICATION_TOOL_NAME}:`));
 }
 
 function fittedVerificationSchemaForBody(body) {
   assert.equal(isVerificationBody(body), true);
-  return forcedToolSchema(body, VERIFICATION_TOOL_NAME);
+  assert.deepEqual(body.response_format, { type: "json_object" });
+  for (const key of ["tools", "tool_choice", "parallel_tool_calls"]) {
+    assert.equal(Object.hasOwn(body, key), false);
+  }
+  const systemMessages = body.messages.filter(({ role }) => role === "system");
+  const contracts = systemMessages.filter(({ content }) => (
+    typeof content === "string" && content.includes(`Response contract ${VERIFICATION_TOOL_NAME}:`)
+  ));
+  assert.equal(contracts.length, 1, "one trusted verification contract is required");
+  const system = systemMessages.map(({ content }) => content).join("\n");
+  assert.equal((system.match(/<LATTICE_RESPONSE_SCHEMA>/gu) ?? []).length, 1);
+  assert.equal((system.match(/<\/LATTICE_RESPONSE_SCHEMA>/gu) ?? []).length, 1);
+  const blocks = [...contracts[0].content.matchAll(
+    /<LATTICE_RESPONSE_SCHEMA>(.*?)<\/LATTICE_RESPONSE_SCHEMA>/gsu,
+  )];
+  assert.equal(blocks.length, 1, "one trusted fitted schema belongs to the verification contract");
+  const schema = JSON.parse(blocks[0][1]);
+  assert.deepEqual(schema.required, ["d", "g", "p", "i"]);
+  assert.equal(schema.additionalProperties, false);
+  return schema;
 }
 
-test("production verifier uses supported named tools on initial and correction calls", async (t) => {
+test("production verifier uses dedicated JSON-object content on initial and correction calls", async (t) => {
   for (const corrected of [false, true]) {
     await t.test(corrected ? "correction" : "initial", async () => {
       const calls = [];
@@ -571,20 +597,16 @@ test("production verifier uses supported named tools on initial and correction c
         fetchImpl: async (url, init) => {
           const body = JSON.parse(init.body);
           calls.push({ url, init, body });
-          return successfulProviderToolResponse(acceptingVerificationWire(request), {
-            toolName: VERIFICATION_TOOL_NAME,
-          });
+          return successfulProviderResponse(acceptingVerificationWire(request));
         },
       });
-      let result;
-      let failure;
-      try { result = await adapter.verify(request); } catch (error) { failure = error; }
+      const result = await adapter.verify(request);
       assert.equal(calls.length, 1);
       const { url, init, body } = calls[0];
       assert.equal(url, HUGGING_FACE_CHAT_COMPLETIONS_URL);
       assert.equal(init.method, "POST");
       assert.equal(body.model, "meta-llama/Llama-3.1-8B-Instruct:deepinfra");
-      const schema = forcedToolSchema(body, VERIFICATION_TOOL_NAME);
+      const schema = fittedVerificationSchemaForBody(body);
       assert.deepEqual(schema.required, ["d", "g", "p", "i"]);
       assert.equal(schema.additionalProperties, false);
       assert.equal(body.max_tokens, 2_048);
@@ -594,9 +616,9 @@ test("production verifier uses supported named tools on initial and correction c
       assert.equal(body.stream, false);
       const instructions = body.messages.filter(({ role }) => role === "system")
         .map(({ content }) => content).join("\n");
-      assert.match(instructions, /Call this function exactly once/u);
-      assert.doesNotMatch(instructions, /supplied strict JSON Schema|PRIVATE-VERIFIER-FEEDBACK|Return the complete host schema/u);
-      assert.equal(failure, undefined);
+      assert.match(instructions, /Return exactly one minified JSON object matching the following closed JSON Schema/u);
+      assert.ok(instructions.includes(JSON.stringify(schema)));
+      assert.doesNotMatch(instructions, /Call this function exactly once|supplied strict JSON Schema|PRIVATE-VERIFIER-FEEDBACK|Return the complete host schema/u);
       assert.equal(result.decision, "accept");
     });
   }
@@ -1658,7 +1680,7 @@ test("verifier corrections keep negative results complete and preserve both reje
             if (isAnalysisBody(body)) {
               return successfulProviderResponse(canaryAnalysisWire(body));
             }
-            if (body.response_format?.type === "json_object") {
+            if (isCandidateBody(body)) {
               return successfulProviderResponse(canaryCandidateFromProviderBody(
                 body, "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.",
               ));
@@ -1752,7 +1774,7 @@ test("actual layer, conformance and issue corrections precede material repair wi
           wire.p[0][2] = [[1, 0, 1, [0]], [1, 0, 1, [1, 2]]];
           return successfulProviderResponse(wire);
         }
-        if (body.response_format?.type === "json_object") {
+        if (isCandidateBody(body)) {
           drafts += 1;
           return successfulProviderResponse(canaryCandidateFromProviderBody(body,
             drafts === 1 ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText));
@@ -1833,7 +1855,7 @@ test("empty stopped-tool content carries sparse grounded masks through material 
           wire.p[0][2] = [[1, 0, 1, [0]], [1, 0, 1, [1, 2]]];
           return successfulProviderResponse(wire);
         }
-        if (body.response_format?.type === "json_object") {
+        if (isCandidateBody(body)) {
           drafts += 1;
           return successfulProviderResponse(canaryCandidateFromProviderBody(body,
             drafts === 1 || repairCopiesSource ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText));
@@ -1881,7 +1903,7 @@ test("empty stopped-tool content carries sparse grounded masks through material 
         assert.equal(schema.f.minLength, checks.length);
         assert.match(body.messages[0].content, /Never select unsupported evidence merely to make a mask nonempty/u);
       }
-      for (const body of calls.filter((body) => body.response_format?.type === "json_object")) {
+      for (const body of calls.filter(isCandidateBody)) {
         assert.match(body.messages[0].content, /Host-derived atom values are bounded source excerpts/u);
         assert.match(body.messages[0].content, /Preserve every distinct commitment, including commitments sharing one excerpt/u);
         assert.match(body.messages[0].content, /designated exact literals and annotations remain verbatim/u);
@@ -1903,7 +1925,7 @@ test("empty stopped-tool content never repairs truncated masks or invents ground
           wire.p[0][2] = [[1, 0, 1, [0]], [1, 0, 1, [1, 2]]];
           return successfulProviderResponse(wire);
         }
-        if (body.response_format?.type === "json_object") return successfulProviderResponse(canaryCandidateFromProviderBody(body, repairText));
+        if (isCandidateBody(body)) return successfulProviderResponse(canaryCandidateFromProviderBody(body, repairText));
         assert.ok(isVerificationBody(body), "invalid masks cannot certify");
         const wire = canaryVerificationWire(body);
         wire.p["0"].x = "10";
@@ -1942,7 +1964,7 @@ test("reverification corrections preserve decision consistency and original cand
           fetchImpl: async (_url, init) => {
             const body = JSON.parse(init.body); calls.push(body);
             if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body));
-            if (body.response_format?.type === "json_object") {
+            if (isCandidateBody(body)) {
               drafts += 1;
               return successfulProviderResponse(canaryCandidateFromProviderBody(
                 body, drafts === 1 ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText,
@@ -2343,9 +2365,7 @@ test("compact verification publishes only the trusted fitted layout on initial a
           fetchImpl: async (_url, init) => {
             const body = JSON.parse(init.body);
             calls.push(body);
-            return successfulProviderToolResponse(acceptingVerificationWire(request), {
-              toolName: VERIFICATION_TOOL_NAME,
-            });
+            return successfulProviderResponse(acceptingVerificationWire(request));
           },
         });
         await adapter.verify(request);
@@ -2407,9 +2427,7 @@ test("compact verification publishes only the trusted fitted layout on initial a
 test("the complete fitted verifier request enforces its exact UTF-8 byte boundary", async () => {
   const request = minimalVerificationRequest("Read \u2066https://example.test/note\u2069 and write café.");
   let measuredBytes;
-  const response = () => successfulProviderToolResponse(acceptingVerificationWire(request), {
-    toolName: VERIFICATION_TOOL_NAME,
-  });
+  const response = () => successfulProviderResponse(acceptingVerificationWire(request));
   await createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
     measuredBytes = Buffer.byteLength(init.body, "utf8");
     assert.ok(inertModelPayload(JSON.parse(init.body)).wireLayout);
@@ -2455,8 +2473,7 @@ test("compact verification binds complete mask positions on initial and correcti
           calls += 1;
           const body = JSON.parse(init.body);
           const instructions = body.messages[0].content;
-          const description = body.tools[0].function.description;
-          for (const guide of [instructions, description]) {
+          for (const guide of [instructions]) {
             assert.match(guide, /a and x have one character for every supplied atom, in supplied atom order/u);
             assert.match(guide, /Keep zero positions for unselected atoms; x must be exactly as long as a/u);
             assert.match(guide, /lossless spans first, then nested literal annotations, each in supplied order/u);
@@ -2470,7 +2487,7 @@ test("compact verification binds complete mask positions on initial and correcti
           assert.equal(schema.s.minLength, evidence.length);
           assert.equal(schema.y.minLength, evidence.length);
           assert.equal(body.max_tokens, 2_048);
-          assert.equal(Object.hasOwn(body, "response_format"), false);
+          assert.deepEqual(body.response_format, { type: "json_object" });
           return successfulProviderResponse({ ...wire, p: { 0: passage } });
         },
       });
@@ -3014,7 +3031,7 @@ test("all five production stages use their exact provider response transport", a
   }
   const verificationSchema = fittedVerificationSchemaForBody(calls[2]);
   const certificationSchema = forcedToolSchema(calls[3], CERTIFICATION_TOOL_NAME);
-  assert.match(calls[2].messages[0].content, /Response channel lattice_verification_wire_v2/u);
+  assert.match(calls[2].messages[0].content, /Response contract lattice_verification_wire_v2/u);
   assert.match(calls[3].messages[0].content, /Response channel lattice_certification_wire_v2/u);
   assert.equal(calls[2].messages[0].content.includes(JSON.stringify(VERIFICATION_SCHEMA)), false);
   assert.doesNotMatch(
@@ -3175,7 +3192,7 @@ test("the production canary completes through the compact verifier wire", async 
         });
       }
       if (calls.length === 3) {
-        return successfulProviderToolResponse({
+        return successfulProviderResponse({
           d: 0,
           g: "0".repeat(11),
           p: {
@@ -3191,7 +3208,7 @@ test("the production canary completes through the compact verifier wire", async 
             },
           },
           i: [],
-        }, { toolName: VERIFICATION_TOOL_NAME });
+        });
       }
       return assert.fail("the single-passage canary must not require document certification");
     },
@@ -3212,7 +3229,7 @@ test("the production canary completes through the compact verifier wire", async 
   fittedVerificationSchemaForBody(calls[2]);
 });
 
-test("the API Worker completes named-tool verification and required named-tool certification", async () => {
+test("the API Worker completes JSON-object verification and required named-tool certification", async () => {
   const source = LATTICE_PRODUCTION_CANARY_TEXT;
   const preflight = preflightLatticeInput(source);
   assert.equal(preflight.batches.length, 1);
@@ -3259,7 +3276,7 @@ test("the API Worker completes named-tool verification and required named-tool c
         });
       }
       if (calls.length === 3) {
-        return successfulProviderToolResponse({
+        return successfulProviderResponse({
           d: 0,
           g: "0".repeat(11),
           p: {
@@ -3275,7 +3292,7 @@ test("the API Worker completes named-tool verification and required named-tool c
             },
           },
           i: [],
-        }, { toolName: VERIFICATION_TOOL_NAME });
+        });
       }
       if (calls.length === 4) {
         return successfulProviderToolResponse(acceptingCertificationWire(
@@ -3347,7 +3364,7 @@ test("the API Worker adaptively splits a production-canary output limit and stil
         }
         return successfulProviderResponse(canaryAnalysisWire(body));
       }
-      if (body.response_format?.type === "json_object") {
+      if (isCandidateBody(body)) {
         const passageId = inertModelPayload(body).analysis[1][0][0];
         assert.equal(transformedByPassage.has(passageId), true);
         return successfulProviderResponse(canaryCandidateFromProviderBody(
@@ -3429,7 +3446,7 @@ test("the API Worker certifies the exact production canary before conformant suc
       if (isAnalysisBody(body)) {
         return successfulProviderResponse(canaryAnalysisWire(body, { retain: true }));
       }
-      if (body.response_format?.type === "json_object") {
+      if (isCandidateBody(body)) {
         return successfulProviderResponse(canaryCandidateFromProviderBody(
           body,
           LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1),
@@ -4393,7 +4410,7 @@ test("reanalysis evidence diagnostics preserve bounded correction, structural wi
             }
             return successfulProviderResponse(wire);
           }
-          if (body.response_format?.type === "json_object") {
+          if (isCandidateBody(body)) {
             drafts += 1;
             return successfulProviderResponse(canaryCandidateFromProviderBody(body,
               drafts === 1 ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText));
@@ -5492,9 +5509,12 @@ test("null stopped verification metadata preserves transport precedence and down
   const cases = [
     ["observed pair", stopped, null],
     ["observed pair with empty calls", { ...stopped, tool_calls: [] }, null],
-    ["native call stays authoritative", { ...stopped, content: "PRIVATE", name: "PRIVATE", reasoning_content: "PRIVATE", function_call: null, tool_calls: [tool] }, null],
-    ["invalid native call stays authoritative", { ...stopped, tool_calls: [{ ...tool, type: "PRIVATE" }] }, "E04"],
-    ["finish before collection", { ...stopped, tool_calls: null }, "S01", "tool_calls"],
+    ["legacy field remains rejected with a native call", { ...stopped, content: "PRIVATE", name: "PRIVATE", reasoning_content: "PRIVATE", function_call: null, tool_calls: [tool] }, "S05"],
+    ["one valid native call supplies no verification fallback", { ...stopped, tool_calls: [tool] }, "message_shape"],
+    ["nonempty native calls supply no verification fallback", { ...stopped, tool_calls: [{ ...tool, type: "PRIVATE" }] }, "message_shape"],
+    ["extra before competing native call", { ...stopped, tool_calls: [tool], unknown: null }, "S06"],
+    ["content type before competing native call", { ...stopped, tool_calls: [tool], content: null }, "S07"],
+    ["finish before collection", { ...stopped, tool_calls: null }, "finish_reason", "tool_calls"],
     ["collection type before metadata", { ...stopped, tool_calls: null, name: "PRIVATE" }, "S02"],
     ["multiple calls before metadata", { ...stopped, tool_calls: [tool, tool] }, "S04"],
     ["legacy before metadata", { ...stopped, function_call: null, name: "PRIVATE" }, "S05"],
@@ -5760,14 +5780,14 @@ test("a named-tool completion that reaches the output limit fails after one fetc
   assert.equal(fetches, 1);
 });
 
-test("tool verification accepts one exact named call or its bounded stopped-content compatibility", async (context) => {
+test("production JSON-object verification accepts only its bounded stopped-content envelope", async (context) => {
   const request = minimalVerificationRequest();
   const wire = acceptingVerificationWire(request);
   const content = JSON.stringify(wire);
   const tool = providerToolCall({ name: VERIFICATION_TOOL_NAME, argumentsValue: content });
   const cases = [
     ["valid minimal content", "stop", { role: "assistant", content }, null],
-    ["valid native tool with auxiliary content", "stop", { role: "assistant", content: "PRIVATE-AUXILIARY", tool_calls: [tool] }, null],
+    ["native tool with auxiliary content is rejected", "stop", { role: "assistant", content: "PRIVATE-AUXILIARY", tool_calls: [tool] }, "provider_malformed_response"],
     ["null tool field", "stop", { role: "assistant", content, tool_calls: null }, "provider_malformed_response"],
     ["valid empty stopped tool collection", "stop", { role: "assistant", content, tool_calls: [] }, null],
     ["empty collection with legacy field", "stop", { role: "assistant", content, tool_calls: [], function_call: null }, "provider_malformed_response"],
@@ -5782,7 +5802,7 @@ test("tool verification accepts one exact named call or its bounded stopped-cont
     ["legacy field", "stop", { role: "assistant", content, function_call: null }, "provider_malformed_response"],
     ["auxiliary field", "stop", { role: "assistant", content, private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
     ["tool finish with valid content", "tool_calls", { role: "assistant", content }, "provider_malformed_response"],
-    ["only valid tool arguments", "stop", { role: "assistant", tool_calls: [tool] }, null],
+    ["only tool arguments are rejected", "stop", { role: "assistant", tool_calls: [tool] }, "provider_malformed_response"],
     ["wrong role", "stop", { role: "user", content }, "provider_malformed_response"],
     ["empty content", "stop", { role: "assistant", content: "" }, "provider_malformed_response"],
     ["invalid JSON", "stop", { role: "assistant", content: "{" }, "provider_malformed_response"],
@@ -5912,7 +5932,7 @@ test("every supported correction history preserves the verifier cap and sanitize
           if (isAnalysisBody(body)) {
             return successfulProviderResponse({ d: "instruction", p: [], q: [] });
           }
-          if (body.response_format?.type === "json_object") {
+          if (isCandidateBody(body)) {
             return successfulProviderResponse({ passages: [] });
           }
           return successfulProviderResponse({});
@@ -5935,6 +5955,53 @@ test("every supported correction history preserves the verifier cap and sanitize
       assert.equal(calls.length, 4, "a terminal length finish must not retry");
       assert.equal(calls[3].max_tokens, 2_048);
       fittedVerificationSchemaForBody(calls[3]);
+    });
+  }
+});
+
+test("dedicated JSON-object verifier envelope permissions do not weaken the retained schema helper", async (t) => {
+  const accepted = JSON.stringify({ accepted: true });
+  for (const [label, extras, allowed] of [
+    ["minimal", {}, true],
+    ["empty calls", { tool_calls: [] }, false],
+    ["null name", { name: null }, false],
+    ["null reasoning", { reasoning_content: null }, false],
+    ["both nullable fields", { name: null, reasoning_content: null }, false],
+  ]) {
+    await t.test(`legacy schema: ${label}`, async () => {
+      let calls = 0;
+      const options = providerRequestOptions(async (_url, init) => {
+        calls += 1;
+        const body = JSON.parse(init.body);
+        assert.equal(body.response_format.type, "json_schema");
+        assert.equal(body.response_format.json_schema.strict, true);
+        assert.equal(Object.hasOwn(body, "tools"), false);
+        return providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant", content: accepted, ...extras } });
+      }, { role: "verifier", schemaName: VERIFICATION_TOOL_NAME,
+        responseFormat: "json_schema", requireMinimalVerificationContent: true });
+      if (allowed) assert.deepEqual(await requestHuggingFaceJson(options), { accepted: true });
+      else await assert.rejects(requestHuggingFaceJson(options), (error) => error instanceof LatticeProviderError
+        && error.code === "provider_malformed_response");
+      assert.equal(calls, 1);
+    });
+  }
+  for (const [label, patch] of [
+    ["generator role", { role: "generator" }],
+    ["certification schema", { schemaName: CERTIFICATION_TOOL_NAME }],
+    ["implicit JSON-object default", { responseFormat: undefined }],
+    ["named tool", { toolName: VERIFICATION_TOOL_NAME, toolChoice: "named" }],
+    ["stopped-tool flag", { allowStoppedToolContent: true }],
+    ["schema empty-call opt-in", { responseFormat: "json_schema", allowEmptyStoppedToolCalls: true }],
+    ["schema null-metadata opt-in", { responseFormat: "json_schema", allowNullStoppedVerificationMetadata: true }],
+  ]) {
+    await t.test(`configuration: ${label}`, async () => {
+      let calls = 0;
+      const options = providerRequestOptions(async () => { calls += 1; return successfulProviderResponse(); }, {
+        role: "verifier", schemaName: VERIFICATION_TOOL_NAME, responseFormat: "json_object",
+        requireMinimalVerificationContent: true, ...patch,
+      });
+      await assert.rejects(requestHuggingFaceJson(options), TypeError);
+      assert.equal(calls, 0);
     });
   }
 });
@@ -7633,7 +7700,14 @@ test("S06 shape observation retains only finite types while preserving rejection
     const error = await observe({ role: "assistant", content, ...extras });
     assert.deepEqual(error.qualificationEnvelopeShape, { namedShape: "--------", unknownCount: count, unknownShapes: mask });
   }
+  const verificationTool = providerToolCall({ name: VERIFICATION_TOOL_NAME, argumentsValue: content });
+  const competing = await observe({ role: "assistant", content, tool_calls: [verificationTool], refusal: null });
+  assert.equal(competing.qualificationSubtype, "S06");
+  assert.deepEqual(competing.qualificationEnvelopeShape,
+    { namedShape: "--n-----", unknownCount: "0", unknownShapes: "000000000" });
   for (const [message, subtype, enabled, finish] of [
+    [{ role: "assistant", content, tool_calls: [verificationTool] }, "message_shape", true, "stop"],
+    [{ role: "assistant", content: null, tool_calls: [verificationTool] }, "S07", true, "stop"],
     [{ role: "assistant", content, refusal: null }, "S06", false, "stop"],
     [{ role: "assistant", content, tool_calls: null, refusal: null }, "S02", true, "stop"],
     [{ role: "assistant", content, function_call: null, refusal: null }, "S05", true, "stop"],
@@ -7643,13 +7717,15 @@ test("S06 shape observation retains only finite types while preserving rejection
     const failure = await observe(message, enabled, finish);
     assert.equal(failure.qualificationSubtype, subtype); assert.equal(failure.qualificationEnvelopeShape, null);
   }
-  // The authoritative single named call keeps precedence even with extra fields.
-  const tool = providerToolCall({ name: VERIFICATION_TOOL_NAME, argumentsValue: content });
+  // Certification retains authoritative single named-call precedence.
+  const certification = minimalCertificationRequest();
+  const tool = providerToolCall({ name: CERTIFICATION_TOOL_NAME,
+    argumentsValue: JSON.stringify(acceptingCertificationWire(certification.certificateId, certification.obligationIds)) });
   const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationEnvelopeShape: true,
     fetchImpl: async () => providerChoiceResponse({ finish_reason: "stop", message: {
       role: "assistant", content: "PRIVATE", tool_calls: [tool], function_call: null, refusal: "PRIVATE",
     } }) });
-  assert.equal((await adapter.verify(request)).decision, "accept");
+  assert.equal((await adapter.certify(certification)).decision, "accept");
   assert.throws(() => createHuggingFaceLatticeAdapter({ observeQualificationEnvelopeShape: "true" }), TypeError);
 });
 
@@ -7731,6 +7807,8 @@ test("mixed rewrite and retention layouts never supply a semantic conformance de
   assert.equal(result.passages[0].conformanceConfirmed, false);
   assert.equal(result.passages[1].conformanceConfirmed, true);
   assert.ok(result.passages[1].criterionChecks.every(({ passed, evidenceSpanIds }) => passed && evidenceSpanIds.length > 0));
-  assert.ok(captured.tools[0].function.description.length <= 4096);
+  assert.deepEqual(captured.response_format, { type: "json_object" });
+  assert.equal(Object.hasOwn(captured, "tools"), false);
+  fittedVerificationSchemaForBody(captured);
   assert.equal(adapter.completionCapacity().used, 1);
 });

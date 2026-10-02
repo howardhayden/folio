@@ -673,6 +673,39 @@ function maximalFittedWireValue(schema, stringValue) {
   throw new TypeError("The fitted-wire test received an unsupported JSON Schema shape.");
 }
 
+function fittedJsonObjectVerificationSchema(body) {
+  assert.equal(body.model, LATTICE_REMOTE_MODELS.verifier);
+  assert.deepEqual(body.response_format, { type: "json_object" });
+  for (const field of ["tools", "tool_choice", "parallel_tool_calls"]) {
+    assert.equal(Object.hasOwn(body, field), false);
+  }
+  const systemMessages = body.messages.filter(({ role }) => role === "system");
+  const contractMessages = systemMessages.filter(({ content }) => (
+    typeof content === "string"
+      && /(?:^|\n)Response contract lattice_verification_wire_v2:/u.test(content)
+  ));
+  assert.equal(contractMessages.length, 1, "one trusted system verification contract is required");
+  const systemContent = systemMessages.map(({ content }) => content).join("\n");
+  assert.equal((systemContent.match(/<LATTICE_RESPONSE_SCHEMA>/gu) ?? []).length, 1);
+  assert.equal((systemContent.match(/<\/LATTICE_RESPONSE_SCHEMA>/gu) ?? []).length, 1);
+  const schemaBlocks = [...systemContent.matchAll(
+    /<LATTICE_RESPONSE_SCHEMA>(.*?)<\/LATTICE_RESPONSE_SCHEMA>/gsu,
+  )];
+  assert.equal(schemaBlocks.length, 1, "one trusted system fitted schema is required");
+  const [contractSchema] = [...contractMessages[0].content.matchAll(
+    /<LATTICE_RESPONSE_SCHEMA>(.*?)<\/LATTICE_RESPONSE_SCHEMA>/gsu,
+  )];
+  assert.ok(contractSchema, "the fitted schema belongs to the trusted verification contract");
+  return JSON.parse(contractSchema[1]);
+}
+
+function stoppedVerificationResponse(value) {
+  return new Response(JSON.stringify({ choices: [{
+    finish_reason: "stop",
+    message: { role: "assistant", content: JSON.stringify(value) },
+  }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+}
+
 function fittedVerificationPassageEntries(schema) {
   const passageMap = schema.properties.p;
   return passageMap.required.map((key) => [key, passageMap.properties[key]]);
@@ -759,6 +792,7 @@ function productionLegalVerifierMaximumSource() {
   ].join("\n\n");
 }
 
+// Verification wrappers are historical sensitivity checks; certification still uses named tools.
 function nativeToolCompletion(toolName, prettyArguments) {
   return `<|python_tag|>{"name":"${toolName}","parameters":${prettyArguments}}<|eom_id|>`;
 }
@@ -809,7 +843,7 @@ test("a production-reachable verifier boundary wire fits the bounded budget unde
       fetchImpl: async (_url, init) => {
         verifierCalls += 1;
         const body = JSON.parse(init.body);
-        fittedVerificationSchema = body.tools[0].function.parameters;
+        fittedVerificationSchema = fittedJsonObjectVerificationSchema(body);
         const value = {
           d: 0,
           g: "0".repeat(11),
@@ -838,22 +872,7 @@ test("a production-reachable verifier boundary wire fits the bounded budget unde
             })),
           i: [],
         };
-        return new Response(JSON.stringify({
-          choices: [{
-            finish_reason: "tool_calls",
-            message: {
-              role: "assistant",
-              tool_calls: [{
-                id: "call_reachable_capacity",
-                type: "function",
-                function: {
-                  name: "lattice_verification_wire_v2",
-                  arguments: JSON.stringify(value),
-                },
-              }],
-            },
-          }],
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
+        return stoppedVerificationResponse(value);
       },
     });
     const conformanceCriteria = [
@@ -1043,7 +1062,7 @@ test("a production-reachable verifier boundary wire fits the bounded budget unde
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification
         - PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS
         >= Math.ceil(PRODUCTION_REACHABLE_VERIFIER_NATIVE_TOOL_TOKENS / 2),
-      "the verifier cap must retain at least a 50-percent production-reachable native-tool-output margin",
+      "the verifier cap retains the conservative historical native-tool-output sensitivity margin",
     );
 
   } finally {
@@ -1192,24 +1211,9 @@ test("the complete legal production verifier allocation has an exhaustive pinned
       fetchImpl: async (_url, init) => {
         const body = JSON.parse(init.body);
         capturedBodies.push({ body, bytes: Buffer.byteLength(init.body, "utf8") });
-        fittedSchema = body.tools[0].function.parameters;
+        fittedSchema = fittedJsonObjectVerificationSchema(body);
         const value = maximumLegalWireValue(atomCounts, evidenceCounts);
-        return new Response(JSON.stringify({
-          choices: [{
-            finish_reason: "tool_calls",
-            message: {
-              role: "assistant",
-              tool_calls: [{
-                id: "call_complete_legal_maximum",
-                type: "function",
-                function: {
-                  name: "lattice_verification_wire_v2",
-                  arguments: JSON.stringify(value),
-                },
-              }],
-            },
-          }],
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
+        return stoppedVerificationResponse(value);
       },
     });
     const verificationRequest = {
@@ -1235,7 +1239,7 @@ test("the complete legal production verifier allocation has an exhaustive pinned
       assert.ok(bytes < LATTICE_PROVIDER_REQUEST_BYTE_LIMIT);
       assert.equal(body.max_tokens, 2_048);
       assert.doesNotMatch(JSON.stringify(body), /PRIVATE-CAPACITY-/u);
-      const schema = body.tools[0].function.parameters;
+      const schema = fittedJsonObjectVerificationSchema(body);
       const layout = inertPayload(body.messages).wireLayout;
       for (const [index, position] of layout.passagePositions.entries()) {
         const record = layout.passages[position];
@@ -1467,9 +1471,14 @@ test("the complete legal production verifier allocation has an exhaustive pinned
       prettyTokens: 1_313,
       prettyNativeToolTokens: PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS,
     });
-    // The minimal stopped-content compatibility channel has the same closed wire.
-    // Keep its sensitivity measurement within the active native-tool bound.
+    // The active JSON-object channel retains the same closed wire. Include a
+    // representative stop token; provider-managed output accounting is unknown.
     assert.equal(exhaustiveMaximum.prettyTokens + 1, 1_314);
+    assert.ok(
+      LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification - (exhaustiveMaximum.prettyTokens + 1)
+        >= Math.ceil((exhaustiveMaximum.prettyTokens + 1) / 2),
+      "the active stopped-content output retains at least a 50-percent pinned-tokenizer margin",
+    );
     assert.ok(exhaustiveMaximum.prettyTokens + 1 <= PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS);
     assert.equal(maskTokenUnits(atomCounts, evidenceCounts), exhaustiveMaximum.variableTokens);
 
@@ -1509,7 +1518,8 @@ test("the complete legal production verifier allocation has an exhaustive pinned
     // measured inside its immediate containing object/array, including the
     // opening/closing-brace boundary. The raw numeric p-map and root checks
     // below then measure every remaining enclosing boundary in the complete
-    // native-tool result. These invariant local maxima therefore compose.
+    // historical native-tool sensitivity result. These invariant local maxima
+    // therefore compose.
     const passageKeyOrders = permutations(["a", "u", "s", "f", "l", "x", "y", "c"]);
     const passageOrderMeasurements = ["0", "2", "3"].map((passageKey) => {
       const passage = exhaustiveMaximumValue.p[passageKey];
@@ -1573,7 +1583,7 @@ test("the complete legal production verifier allocation has an exhaustive pinned
     // Integer-like passage keys are sorted by Object.keys/JSON.stringify, but
     // raw provider JSON can place them in any order. Serialize those maps
     // manually for every supported passage count and exhaust each permutation
-    // in the full native-tool wrapper.
+    // in the historical native-tool sensitivity wrapper.
     for (let passageCount = 1; passageCount <= BATCH_PASSAGE_LIMIT; passageCount += 1) {
       const passageMaximum = exhaustiveMaximaByPassageCount.get(passageCount);
       const value = maximumLegalWireValue(
@@ -1651,7 +1661,7 @@ test("the production-reachable maximum-token relation certifier wire fits the bo
       fetchImpl: async (_url, init) => {
         verifierCalls += 1;
         const body = JSON.parse(init.body);
-        const schema = body.tools[0].function.parameters;
+        const schema = fittedJsonObjectVerificationSchema(body);
         const value = {
           d: 0,
           g: "0".repeat(11),
@@ -1680,22 +1690,7 @@ test("the production-reachable maximum-token relation certifier wire fits the bo
             })),
           i: [],
         };
-        return new Response(JSON.stringify({
-          choices: [{
-            finish_reason: "tool_calls",
-            message: {
-              role: "assistant",
-              tool_calls: [{
-                id: "call_reachable_relation_verification",
-                type: "function",
-                function: {
-                  name: "lattice_verification_wire_v2",
-                  arguments: JSON.stringify(value),
-                },
-              }],
-            },
-          }],
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
+        return stoppedVerificationResponse(value);
       },
     });
     const conformanceCriteria = [
@@ -2038,7 +2033,8 @@ test("the production-reachable maximum-character split-window certifier wire is 
           });
           return contentResponse({ d: 8, p: passages, l: [] });
         }
-        if (body.response_format?.type === "json_object") {
+        if (body.model === LATTICE_REMOTE_MODELS.generator
+          && body.response_format?.type === "json_object") {
           candidateCalls += 1;
           const payload = inertPayload(body.messages);
           return contentResponse({
@@ -2054,10 +2050,10 @@ test("the production-reachable maximum-character split-window certifier wire is 
           });
         }
 
-        const toolName = body.tool_choice?.function?.name;
-        if (toolName === "lattice_verification_wire_v2") {
+        if (body.model === LATTICE_REMOTE_MODELS.verifier
+          && body.response_format?.type === "json_object") {
           verifierCalls += 1;
-          const schema = body.tools[0].function.parameters;
+          const schema = fittedJsonObjectVerificationSchema(body);
           const passages = Object.fromEntries(fittedVerificationPassageEntries(schema)
             .map(([key, passageSchema]) => {
               const atomCount = passageSchema.properties.a.maxLength;
@@ -2081,13 +2077,14 @@ test("the production-reachable maximum-character split-window certifier wire is 
                 },
               }];
             }));
-          return toolResponse(toolName, {
+          return contentResponse({
             d: 0,
             g: "0".repeat(11),
             p: passages,
             i: [],
-          }, providerCalls);
+          });
         }
+        const toolName = body.tool_choice?.function?.name;
         if (toolName === "lattice_certification_wire_v2") {
           if (certifierCalls === 0) preCertificationCalls = providerCalls - 1;
           certifierCalls += 1;
@@ -2361,7 +2358,7 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
     });
     await adapter.certify(adversarialCertificationRequest);
 
-    const fittedSchema = (body) => {
+    const fittedCertificationSchema = (body) => {
       assert.equal(Object.hasOwn(body, "response_format"), false);
       assert.equal(Object.hasOwn(body, "parallel_tool_calls"), false);
       assert.equal(body.tools.length, 1);
@@ -2371,7 +2368,9 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       });
       return body.tools[0].function.parameters;
     };
-    const [verificationSchema, certificationSchema, adversarialCertificationSchema] = bodies.map(fittedSchema);
+    const verificationSchema = fittedJsonObjectVerificationSchema(bodies[0]);
+    const [certificationSchema, adversarialCertificationSchema] = bodies.slice(1)
+      .map(fittedCertificationSchema);
     assert.deepEqual(verificationSchema.required, ["d", "g", "p", "i"]);
     assert.deepEqual(certificationSchema.required, ["c", "o", "d", "k", "i"]);
     assert.equal(verificationSchema.properties.p.required.length, batch.passages.length);
@@ -2496,9 +2495,10 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
     const prettyAdversarialCertificationTokens = tokenizer.encode(
       prettyAdversarialCertificationWire,
     ).length;
-    // These wrappers are sensitivity checks around the canonical argument
-    // object. They do not claim how DeepInfra counts provider-managed chat
-    // templates or tool control tokens. The serialized response envelope also
+    // Verification named-tool wrappers are historical sensitivity checks;
+    // certification still uses this channel. They do not claim how DeepInfra
+    // counts provider-managed chat templates or tool control tokens. The
+    // serialized response envelope also
     // contains gateway metadata, so it is representative and is not part of
     // the model-output budget proof.
     const nativeVerificationToolTokens = tokenizer.encode(nativeToolCompletion(
@@ -2526,7 +2526,7 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       "lattice_verification_wire_v2",
       prettyVerificationWire,
     )).length;
-    const acceptedMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens = tokenizer.encode(
+    const historicalMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens = tokenizer.encode(
       representativeSerializedProviderEnvelope(
         "lattice_verification_wire_v2",
         prettyVerificationWire,
@@ -2552,7 +2552,7 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       nativeCertificationToolTokens,
       nativeAdversarialCertificationToolTokens,
       representativeSerializedVerificationEnvelopeTokens,
-      acceptedMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens,
+      historicalMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens,
       representativeSerializedCertificationEnvelopeTokens,
       representativeSerializedAdversarialCertificationEnvelopeTokens,
       verificationWireCharacters: verificationWire.length,
@@ -2569,7 +2569,7 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       nativeCertificationToolTokens: 257,
       nativeAdversarialCertificationToolTokens: 440,
       representativeSerializedVerificationEnvelopeTokens: 1_688,
-      acceptedMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens: 1_714,
+      historicalMaximumLengthAsciiIdSerializedVerificationEnvelopeTokens: 1_714,
       representativeSerializedCertificationEnvelopeTokens: 342,
       representativeSerializedAdversarialCertificationEnvelopeTokens: 503,
       verificationWireCharacters: 1_974,
@@ -2591,6 +2591,11 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       `pretty conservative decoder-valid verifier arguments used ${prettyVerificationTokens} reviewed-repository-tokenizer tokens`,
     );
     assert.ok(
+      tokenizer.encode(`${prettyVerificationWire}<|eot_id|>`).length
+        <= LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification,
+      "the active conservative stopped-content verifier wire fits with a representative stop token",
+    );
+    assert.ok(
       prettyCertificationTokens <= LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.certification,
       `pretty conservative decoder-valid certifier arguments used ${prettyCertificationTokens} reviewed-repository-tokenizer tokens`,
     );
@@ -2599,7 +2604,7 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
         === Math.ceil(
           Math.ceil(PRODUCTION_LEGAL_VERIFIER_MAX_NATIVE_TOOL_TOKENS * 1.5) / 256,
         ) * 256,
-      "the verifier cap must be the smallest 256-token step retaining a 50-percent pinned-tokenizer margin over a complete legal production verifier object",
+      "the verifier cap retains the conservative historical named-tool sensitivity margin in 256-token steps",
     );
     assert.equal(
       LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.verification

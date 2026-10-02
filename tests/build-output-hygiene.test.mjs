@@ -238,10 +238,11 @@ test("the public model contract retains bounded stages without publishing privat
     adapter.indexOf("certification: Object.freeze({"),
     adapter.indexOf("repair: Object.freeze({"),
   );
-  assert.match(verificationStageSource, /toolName: VERIFICATION_TOOL_NAME/u);
-  assert.match(verificationStageSource, /toolChoice: "named"/u);
-  assert.match(verificationStageSource, /allowStoppedToolContent: true/u);
-  assert.doesNotMatch(verificationStageSource, /responseFormat|requireMinimalVerificationContent/u);
+  assert.match(verificationStageSource, /responseFormat: "json_object"/u);
+  assert.match(verificationStageSource, /requireMinimalVerificationContent: true/u);
+  assert.match(verificationStageSource, /allowEmptyStoppedToolCalls: true/u);
+  assert.match(verificationStageSource, /allowNullStoppedVerificationMetadata: true/u);
+  assert.doesNotMatch(verificationStageSource, /toolName|toolChoice|allowStoppedToolContent/u);
   assert.match(certificationStageSource, /toolName: CERTIFICATION_TOOL_NAME/u);
   assert.match(certificationStageSource, /toolChoice: "named"/u);
   assert.match(certificationStageSource, /allowStoppedToolContent: true/u);
