@@ -11,6 +11,7 @@ import {
   LATTICE_FITTED_ANALYSIS_CONTEXT,
   LATTICE_STAGE_DIAGNOSTIC_CONTEXT,
   LATTICE_VERIFICATION_MASK_LAYOUT_INSTRUCTION,
+  LATTICE_VERIFICATION_ISSUE_WIRE_INSTRUCTION,
   REANALYSIS_SCHEMA,
   VERIFICATION_SCHEMA,
   analysisMessages,
@@ -530,12 +531,13 @@ const VERIFICATION_WIRE_GUIDE = [
   LATTICE_VERIFICATION_MASK_LAYOUT_INSTRUCTION,
   "Return one minified private verification instance with exactly the four root fields d, g, p, and i; never echo the schema. Keep i as [] when no additional issue is needed, never omit it. Return every fitted passage record completely for every decision, including repair and reject.",
   `Root d is the zero-based decision index [${VERIFICATION_DECISIONS.join(",")}]. Root g is the ${VERIFICATION_GATES.length}-character failed-gate bit string in this order: [${VERIFICATION_GATES.join(",")}].`,
-  "Set d to accept only when every reported gate and passage condition passes. Repair or reject requires at least one actual failed condition represented by g or a passage record; never invent a failure to justify a negative decision. Each i entry must name a check already failed in g, or in the referenced passage; a document-wide entry cannot rely on an unrelated local failure. Never use i alone to establish a failed check.",
+  "Set d to accept only when every reported gate and passage condition passes. Repair or reject requires at least one actual failed condition represented by g or a passage record; never invent a failure to justify a negative decision.",
   "Root p is the fitted object whose numeric keys are supplied passage positions. Each passage is {a,u,s,f,l,x,y,c}: atom-status digits, unsupported-meaning boolean, unmodeled-span bit string, failed-check bit string, independent-layer index, layer-evidence atom bit string, layer-evidence span bit string, and conformance object.",
   `Atom-status digits use supplied atom order: 1 checked, 2 missing, 0 unaccounted. Failed-check mask order: [${VERIFICATION_PASSAGE_CHECKS.join(",")}]. Layer indices are zero-based in this order: [${VERIFICATION_LAYERS.join(",")}].`,
   "Every bit string uses supplied order and exact fitted width; 1 selects an item. Layer-support masks x and y each contain at least one 1, even for repair or reject. x selects supplied atoms supporting the independent layer; y selects source spans grounded by those atoms. Never select unsupported evidence merely to make a mask nonempty. Conformance c is {v,s,k}: unchanged-source retention confirmed, conformance-span bit string, and criterion checks in fitted order. It is not candidate quality or layer support. Each criterion check is {v,s}: passed and evidence-span bit string. Rewrites use {v:false,s:all-zero,k:[]}, matching wireLayout conformance.fixedProtocolValue; this emptiness applies only to c, never to x or y.",
-  "The unmodeled-span mask selects at most 12 positions. Every passed criterion selects at least one evidence bit. Root i contains only necessary {c,p} objects: c is the zero-based failed-check index and p is the zero-based passage position, or -1 for document-wide. Root i contains no duplicate {c,p} pair.",
-  `Issue check index order: [${VERIFICATION_ISSUE_CHECKS.join(",")}]. Keep i empty when g or a passage record already records the failure. Emit no source identifiers, long-form host field names, explanations, schema text, or whitespace after the closing brace.`,
+  "The unmodeled-span mask selects at most 12 positions. Every passed criterion selects at least one evidence bit.",
+  LATTICE_VERIFICATION_ISSUE_WIRE_INSTRUCTION,
+  `Issue check index order: [${VERIFICATION_ISSUE_CHECKS.join(",")}]. Emit no source identifiers, long-form host field names, explanations, schema text, or whitespace after the closing brace.`,
 ].join("\n");
 
 function verificationWireMessages(request, wireLayout, wireCorrection) {
@@ -551,6 +553,7 @@ function verificationWireCorrectionForRequest(request) {
   if (["V01F", "V02F", "V07F", "V09F", "V21F", "V24F"].includes(diagnostic.rule)) return "field-set";
   if (["V16M", "V17M"].includes(diagnostic.rule)) return "layer-support";
   if (diagnostic.rule === "V19") return "retained-conformance";
+  if (diagnostic.rule === "V24O") return "issue-object";
   return null;
 }
 
@@ -1377,6 +1380,8 @@ function verificationWireLayoutForSchema(schema) {
         }),
       })];
     }))),
+    issueType: schema.properties.i.type,
+    issueItemType: schema.properties.i.items.type,
     issueFields: Object.freeze([...schema.properties.i.items.required]),
   });
 }
