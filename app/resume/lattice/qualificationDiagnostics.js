@@ -4,6 +4,30 @@ import {
   LATTICE_DETERMINISTIC_RULES, rejectionRuleIsConsistent,
 } from "./rejectionDiagnostics.js";
 
+// This optional observation is the first verifier rejection retained when its
+// correction provider call fails. It is not a verification or decoding result.
+export function isClosedPriorVerificationRejection(trace) {
+  try {
+    const fields = ["boundary", "category", "rule"];
+    return trace !== null && typeof trace === "object" && !Array.isArray(trace)
+      && Object.isFrozen(trace) && Object.getPrototypeOf(trace) === Object.prototype
+      && Reflect.ownKeys(trace).length === fields.length
+      && fields.every((field) => {
+        const descriptor = Object.getOwnPropertyDescriptor(trace, field);
+        return descriptor && descriptor.enumerable === true && Object.hasOwn(descriptor, "value");
+      })
+      && LATTICE_REJECTION_BOUNDARIES.includes(trace.boundary)
+      && LATTICE_REJECTION_CATEGORIES.includes(trace.category)
+      && LATTICE_REJECTION_RULES.includes(trace.rule)
+      && (trace.rule === "unknown" || trace.rule.startsWith("V"))
+      && (trace.boundary !== "host-normalizer"
+        || (trace.category === "other" && trace.rule === "unknown"))
+      && rejectionRuleIsConsistent(trace.boundary, trace.category, trace.rule);
+  } catch {
+    return false;
+  }
+}
+
 // These independent host observations describe a withheld terminal result. They
 // do not identify a unique cause or retain any transformation content.
 export const LATTICE_WITHHELD_TRACE_VALUES = Object.freeze({
