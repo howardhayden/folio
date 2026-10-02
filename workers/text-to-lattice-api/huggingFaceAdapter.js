@@ -53,7 +53,7 @@ export const LATTICE_PROVIDER_FAILURE_CLASSES = Object.freeze([
 
 const TOOL_ENVELOPE_SUBTYPES = Object.freeze([
   "E00", "E01", "E02", "E03", "E04", "E05", "E06", "E07",
-  "S01", "S02", "S03", "S04", "S05", "S06", "S07",
+  "S01", "S02", "S02N", "S03", "S04", "S05", "S06", "S07",
 ]);
 export const LATTICE_PROVIDER_MALFORMED_SUBTYPES = Object.freeze([
   "none",
@@ -2117,7 +2117,9 @@ function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedT
     if (!allowStoppedToolContent) return "message_shape";
     if (providerFinishReason !== "stop") return "S01";
     if (Object.hasOwn(message, "tool_calls")) {
-      if (!Array.isArray(message.tool_calls)) return "S02";
+      // Refine an already rejected collection predicate without accepting,
+      // retaining or repairing provider content. Other nonarrays stay S02.
+      if (!Array.isArray(message.tool_calls)) return message.tool_calls === null ? "S02N" : "S02";
       if (message.tool_calls.length === 0 && !allowEmptyStoppedToolCalls) return "S03";
       if (message.tool_calls.length > 1) return "S04";
     }

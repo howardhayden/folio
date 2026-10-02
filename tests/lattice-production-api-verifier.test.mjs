@@ -1246,6 +1246,9 @@ test("provider envelope codes reject impossible stage or finish provenance", asy
   const cases = [
     ["named predicate", {}, /subtype=E06; finish_reason=stop/u],
     ["stopped predicate", { subtype: "S02" }, /subtype=S02; finish_reason=stop/u],
+    ["literal null predicate", { subtype: "S02N" }, /subtype=S02N; finish_reason=stop/u],
+    ["null wrong stage", { subtype: "S02N", stage: "analysis", analysisOrigin: "initial", analysisAttempt: "1" }, /invalid qualification diagnostic/u],
+    ["null wrong finish", { subtype: "S02N", finishReason: "tool_calls" }, /invalid qualification diagnostic/u],
     ["wrong stage", { stage: "analysis", analysisOrigin: "initial", analysisAttempt: "1" }, /invalid qualification diagnostic/u],
     ["wrong stopped finish", { subtype: "S01" }, /invalid qualification diagnostic/u],
     ["wrong collection finish", { subtype: "S02", finishReason: "tool_calls" }, /invalid qualification diagnostic/u],
