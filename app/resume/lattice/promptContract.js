@@ -983,7 +983,7 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     throw new TypeError("Text to Lattice received an invalid verification response dialect.");
   }
   const compactWire = responseDialect === "compact-wire-v2";
-  if (![null, "mask-width", "field-set"].includes(wireCorrection)) {
+  if (![null, "mask-width", "field-set", "layer-support"].includes(wireCorrection)) {
     throw new TypeError("Text to Lattice received invalid verification correction guidance.");
   }
   const correctionInstruction = !compactWire || !request.protocolFeedback ? ""
@@ -991,6 +991,8 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     ? " Rebuild every bit or digit string by enumerating all supplied ordered positions before selecting them. Emit one character for each position, retaining zeros for unselected positions; the number of selected items never determines a mask's width."
     : wireCorrection === "field-set"
     ? " Construct a complete result instance with every required field, including required empty arrays and objects; do not substitute a schema definition or omit an empty field."
+    : wireCorrection === "layer-support"
+    ? " Rebuild layer support from the source: independently select its supported layer, identify supplied atoms that support that layer, and locate source evidence cited by those selected atoms. Encode those atom positions in x and their genuinely supporting source-evidence positions in y, preserving every fitted zero position. Both masks require actual support and at least one selection for every decision; a failed candidate or negative rewrite conformance does not erase source-layer evidence. Never select an unsupported atom or span merely to satisfy the minimum. Replace the complete d/g/p/i result, including every passage field and required empty array; keep negative rewrite conformance only in c."
     : "";
   return messages(
     "Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.",
