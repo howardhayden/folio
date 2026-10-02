@@ -1555,13 +1555,30 @@ function derivedAnalysisRationale(layer) {
   return `Use the ${layer} layer to make cited source commitments legible without adding meaning.`;
 }
 
-function rejectedAnalysisWire(category) {
+function rejectedAnalysisWire(category, rejectionCategory = "other", rule = "unknown") {
   const result = {};
   ANALYSIS_DECODER_FAILURES.set(
     result,
     ANALYSIS_DECODER_FAILURE_CATEGORY_SET.has(category) ? category : "response-shape",
   );
-  return result;
+  return rememberRejectedResult(result, rejectionCategory, rule);
+}
+
+// Classify only an already rejected index list. These static predicate codes
+// retain no position, count, source span, provider value, or error prose.
+function rejectedAnalysisEvidencePositions(indices, valueCount) {
+  try {
+    if (!Array.isArray(indices)) return rejectedAnalysisWire("evidence", "value-type", "A02T");
+    if (indices.length < 1) return rejectedAnalysisWire("evidence", "coverage", "A02M");
+    if (indices.length > 3) return rejectedAnalysisWire("evidence", "collection-bound", "A02X");
+    if (indices.some((index) => !Number.isSafeInteger(index))) {
+      return rejectedAnalysisWire("evidence", "value-domain", "A02I");
+    }
+    if (indices.some((index) => index < 0 || index >= valueCount)) {
+      return rejectedAnalysisWire("evidence", "reference", "A02R");
+    }
+  } catch { /* Observation must preserve the original evidence rejection. */ }
+  return rejectedAnalysisWire("evidence");
 }
 
 function decodeAnalysisWire(value, fit) {
@@ -1589,7 +1606,7 @@ function decodeAnalysisWire(value, fit) {
       return rejectedAnalysisWire("response-shape");
     }
     if (passage[2].length < fit.minimumAtomAllocations[passageIndex]) {
-      return rejectedAnalysisWire("evidence");
+      return rejectedAnalysisWire("evidence", "coverage", "A01");
     }
     if (passage[2].length > fit.atomAllocations[passageIndex]) {
       return rejectedAnalysisWire("capacity");
@@ -1623,7 +1640,7 @@ function decodeAnalysisWire(value, fit) {
       if (kind === null || priority === null || rawPreservation === null) {
         return rejectedAnalysisWire("response-shape");
       }
-      if (evidencePositions === null) return rejectedAnalysisWire("evidence");
+      if (evidencePositions === null) return rejectedAnalysisEvidencePositions(rawAtom[3], evidenceIds.length);
       const evidenceSpanIds = evidencePositions.map((evidenceIndex) => evidenceIds[evidenceIndex]);
       const selectedEvidenceRecords = evidencePositions.map((evidenceIndex) => (
         evidenceRecords[evidenceIndex]
@@ -1683,7 +1700,7 @@ function decodeAnalysisWire(value, fit) {
     const coveredEvidence = new Set(rawPassage.atoms.flatMap(({ evidenceSpanIds }) => evidenceSpanIds));
     if (coveredEvidence.size !== rawPassage.evidenceIds.length
       || rawPassage.evidenceIds.some((id) => !coveredEvidence.has(id))) {
-      return rejectedAnalysisWire("evidence");
+      return rejectedAnalysisWire("evidence", "coverage", "A03");
     }
     const ambiguityAtomIds = rawPassage.atoms
       .filter(({ kind }) => kind === "ambiguity" || kind === "uncertainty")

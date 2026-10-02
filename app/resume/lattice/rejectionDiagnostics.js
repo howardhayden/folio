@@ -37,6 +37,11 @@ rules(["V20", "C04"], { "": "coverage" });
 rules(["V25"], { T: "value-type", I: "value-domain" });
 rules(["V26", "C02", "C05"], { "": "reference" });
 rules(["V28", "C13"], { "": "duplicate" });
+rules(["A01", "A03"], { "": "coverage" });
+rules(["A02"], {
+  T: "value-type", M: "coverage", X: "collection-bound",
+  I: "value-domain", R: "reference",
+});
 Object.freeze(RULE_CATEGORIES);
 export const LATTICE_REJECTION_RULES = Object.freeze(["unknown", ...Object.keys(RULE_CATEGORIES)]);
 export const LATTICE_DETERMINISTIC_RULES = Object.freeze([
