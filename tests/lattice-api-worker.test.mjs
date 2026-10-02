@@ -1806,8 +1806,8 @@ test("actual layer and retained-conformance corrections precede material repair 
 test("empty stopped-tool content carries sparse grounded masks through material repair and certification", async (context) => {
   const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
   const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
-  for (const repairCopiesSource of [false, true]) {
-    await context.test(repairCopiesSource ? "copied repair remains withheld" : "material repair passes", async () => {
+  for (const nullMetadata of [false, true]) for (const repairCopiesSource of [false, true]) {
+    await context.test(`${nullMetadata ? "null metadata" : "minimal metadata"}: ${repairCopiesSource ? "copied repair remains withheld" : "material repair passes"}`, async () => {
       const calls = [];
       let drafts = 0;
       let verifies = 0;
@@ -1843,6 +1843,7 @@ test("empty stopped-tool content carries sparse grounded masks through material 
         }
         return providerChoiceResponse({ finish_reason: "stop", message: {
           role: "assistant", content: JSON.stringify(wire), tool_calls: [],
+          ...(nullMetadata && isVerificationBody(body) ? { name: null, reasoning_content: null } : {}),
         } });
       } });
       const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
@@ -1877,8 +1878,8 @@ test("empty stopped-tool content carries sparse grounded masks through material 
 
 test("empty stopped-tool content never repairs truncated masks or invents grounding", async (context) => {
   const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
-  for (const failure of ["truncated-mask", "ungrounded-span"]) {
-    await context.test(failure, async () => {
+  for (const nullMetadata of [false, true]) for (const failure of ["truncated-mask", "ungrounded-span"]) {
+    await context.test(`${nullMetadata ? "null metadata" : "minimal metadata"}: ${failure}`, async () => {
       const calls = [];
       const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
         const body = JSON.parse(init.body); calls.push(body);
@@ -1895,6 +1896,7 @@ test("empty stopped-tool content never repairs truncated masks or invents ground
         if (failure === "truncated-mask") wire.p["0"].f = wire.p["0"].f.slice(0, -1);
         return providerChoiceResponse({ finish_reason: "stop", message: {
           role: "assistant", content: JSON.stringify(wire), tool_calls: [],
+          ...(nullMetadata && isVerificationBody(body) ? { name: null, reasoning_content: null } : {}),
         } });
       } });
       const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
@@ -5423,6 +5425,90 @@ test("empty stopped-tool normalization remains an explicit two-tool opt-in", asy
   }
 });
 
+test("observed null stopped verification metadata is an explicit verification-only opt-in", async () => {
+  for (const extras of [{}, { name: null }, { reasoning_content: null }, { name: null, reasoning_content: null }]) {
+    for (const emptyCalls of [false, true]) {
+      for (const enabled of [false, true]) {
+        let calls = 0;
+        const options = providerRequestOptions(async (_url, init) => {
+          calls += 1;
+          assert.doesNotMatch(init.body, /allowNullStoppedVerificationMetadata/u);
+          return providerChoiceResponse({ finish_reason: "stop", message: {
+            role: "assistant", content: JSON.stringify({ accepted: true }), ...extras,
+            ...(emptyCalls ? { tool_calls: [] } : {}),
+          } });
+        }, { role: "verifier", toolName: VERIFICATION_TOOL_NAME, toolChoice: "named",
+          allowStoppedToolContent: true, allowEmptyStoppedToolCalls: true,
+          ...(enabled ? { allowNullStoppedVerificationMetadata: true } : {}),
+        });
+        if (enabled || Object.keys(extras).length === 0) assert.deepEqual(await requestHuggingFaceJson(options), { accepted: true });
+        else await assert.rejects(requestHuggingFaceJson(options), (error) => error instanceof LatticeProviderError
+          && error.code === "provider_malformed_response");
+        assert.equal(calls, 1);
+      }
+    }
+  }
+  const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async () =>
+    providerChoiceResponse({ finish_reason: "stop", message: {
+      role: "assistant", content: "{}", name: null, reasoning_content: null,
+    } }) });
+  await assert.rejects(adapter.certify(minimalCertificationRequest()), (error) => error.qualificationSubtype === "S06");
+  assert.equal(adapter.completionCapacity().used, 1);
+});
+
+test("null stopped verification metadata preserves transport precedence and downstream validation", async (context) => {
+  const request = minimalVerificationRequest();
+  const content = JSON.stringify(acceptingVerificationWire(request));
+  const stopped = { role: "assistant", content, name: null, reasoning_content: null };
+  const tool = providerToolCall({ name: VERIFICATION_TOOL_NAME, argumentsValue: content });
+  const cases = [
+    ["observed pair", stopped, null],
+    ["observed pair with empty calls", { ...stopped, tool_calls: [] }, null],
+    ["native call stays authoritative", { ...stopped, content: "PRIVATE", name: "PRIVATE", reasoning_content: "PRIVATE", function_call: null, tool_calls: [tool] }, null],
+    ["invalid native call stays authoritative", { ...stopped, tool_calls: [{ ...tool, type: "PRIVATE" }] }, "E04"],
+    ["finish before collection", { ...stopped, tool_calls: null }, "S01", "tool_calls"],
+    ["collection type before metadata", { ...stopped, tool_calls: null, name: "PRIVATE" }, "S02"],
+    ["multiple calls before metadata", { ...stopped, tool_calls: [tool, tool] }, "S04"],
+    ["legacy before metadata", { ...stopped, function_call: null, name: "PRIVATE" }, "S05"],
+    ["extra before content type", { ...stopped, unknown: null, content: null }, "S06"],
+    ["content type", { ...stopped, content: null }, "S07"],
+    ["empty content", { ...stopped, content: "" }, "content_empty"],
+    ["invalid JSON", { ...stopped, content: "{" }, "content_json"],
+  ];
+  for (const key of ["name", "reasoning_content"]) {
+    for (const value of ["", "PRIVATE", [], ["PRIVATE"], {}, { private: true }, false, 0]) {
+      cases.push([`${key} rejects ${typeof value} ${JSON.stringify(value)}`, { ...stopped, [key]: value }, "S06"]);
+    }
+  }
+  for (const key of ["reasoning", "tool_call_id", "refusal", "audio", "annotations", "cache_control", "unknown"]) {
+    cases.push([`${key} remains rejected even when null`, { ...stopped, [key]: null }, "S06"]);
+  }
+  for (const [name, message, subtype, finish_reason = "stop"] of cases) {
+    await context.test(name, async () => {
+      let calls = 0;
+      const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", observeQualificationEnvelopeShape: true,
+        fetchImpl: async (_url, init) => {
+          calls += 1; assert.doesNotMatch(init.body, /allowNullStoppedVerificationMetadata/u);
+          return providerChoiceResponse({ finish_reason, message });
+        } });
+      if (subtype) await assert.rejects(adapter.verify(request), (error) => {
+        assert.equal(error.qualificationSubtype, subtype);
+        assert.doesNotMatch(JSON.stringify(error), /PRIVATE/u);
+        return true;
+      });
+      else assert.equal((await adapter.verify(request)).decision, "accept");
+      assert.equal(calls, 1); assert.equal(adapter.completionCapacity().used, 1);
+    });
+  }
+  const strictEmptyOptions = providerRequestOptions(async () => providerChoiceResponse({ finish_reason: "stop", message: {
+    ...stopped, tool_calls: [],
+  } }), { role: "verifier", toolName: VERIFICATION_TOOL_NAME, toolChoice: "named",
+    allowStoppedToolContent: true, allowNullStoppedVerificationMetadata: true });
+  await assert.rejects(requestHuggingFaceJson(strictEmptyOptions), (error) => error instanceof LatticeProviderError
+    && error.code === "provider_malformed_response");
+});
+
+
 test("caller correction fields cannot select trusted verifier correction guidance", async () => {
   for (const rule of ["V14L", "V01F", "V16M", "V17M", "V19"]) {
     const request = { ...minimalVerificationRequest(),
@@ -5865,6 +5951,10 @@ test("unsupported provider request extensions fail closed before external fetch"
     { allowStoppedToolContent: true },
     { allowEmptyStoppedToolCalls: true },
     { allowEmptyStoppedToolCalls: "true" },
+    { allowNullStoppedVerificationMetadata: true },
+    { allowNullStoppedVerificationMetadata: "true" },
+    { role: "verifier", toolName: VERIFICATION_TOOL_NAME, toolChoice: "named", allowNullStoppedVerificationMetadata: true },
+    { role: "verifier", toolName: CERTIFICATION_TOOL_NAME, toolChoice: "named", allowStoppedToolContent: true, allowNullStoppedVerificationMetadata: true },
     { role: "verifier", toolName: VERIFICATION_TOOL_NAME, toolChoice: "named", allowEmptyStoppedToolCalls: true },
     { role: "verifier", toolName: VERIFICATION_TOOL_NAME, toolChoice: "auto", allowStoppedToolContent: true, allowEmptyStoppedToolCalls: true },
     { role: "generator", toolName: VERIFICATION_TOOL_NAME, toolChoice: "named", allowStoppedToolContent: true, allowEmptyStoppedToolCalls: true },
