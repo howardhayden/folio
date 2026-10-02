@@ -26,7 +26,7 @@ import {
   graphemeExcerpt,
 } from "../../app/resume/lattice/segments.js";
 import { LATTICE_PROVIDER_CALL_LIMIT } from "../../app/resume/lattice/remoteProtocol.js";
-import { rememberRejectedResult } from "../../app/resume/lattice/rejectionDiagnostics.js";
+import { rememberRejectedResult, stageCorrectionRequestDiagnostic } from "../../app/resume/lattice/rejectionDiagnostics.js";
 
 export { LATTICE_PROVIDER_CALL_LIMIT };
 
@@ -479,8 +479,18 @@ const VERIFICATION_WIRE_GUIDE = [
   `Issue check index order: [${VERIFICATION_ISSUE_CHECKS.join(",")}]. Keep i empty when g or a passage record already records the failure. Emit no source identifiers, long-form host field names, explanations, schema text, or whitespace after the closing brace.`,
 ].join("\n");
 
-function verificationWireMessages(request, wireLayout) {
-  return verificationMessages(request, { responseDialect: "compact-wire-v2", wireLayout });
+function verificationWireMessages(request, wireLayout, wireCorrection) {
+  return verificationMessages(request, { responseDialect: "compact-wire-v2", wireLayout, wireCorrection });
+}
+
+function verificationWireCorrectionForRequest(request) {
+  const diagnostic = stageCorrectionRequestDiagnostic(request);
+  if (diagnostic?.boundary !== "wire-decoder") return null;
+  if (["V06L", "V12L", "V13L", "V14L", "V16L", "V17L", "V18L", "V23L"].includes(diagnostic.rule)) {
+    return "mask-width";
+  }
+  if (["V01F", "V02F", "V07F", "V09F", "V21F", "V24F"].includes(diagnostic.rule)) return "field-set";
+  return null;
 }
 
 const CERTIFICATION_CHECK_NAMES = Object.freeze([
@@ -568,6 +578,7 @@ const STAGES = Object.freeze({
     toolName: VERIFICATION_TOOL_NAME,
     toolChoice: "named",
     allowStoppedToolContent: true,
+    allowEmptyStoppedToolCalls: true,
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
     maxTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -582,6 +593,7 @@ const STAGES = Object.freeze({
     toolName: CERTIFICATION_TOOL_NAME,
     toolChoice: "named",
     allowStoppedToolContent: true,
+    allowEmptyStoppedToolCalls: true,
     responseGuide: CERTIFICATION_WIRE_GUIDE,
     messages: certificationWireMessages,
     maxTokens: CERTIFICATION_MAX_OUTPUT_TOKENS,
@@ -1983,23 +1995,24 @@ function rejectedNamedToolSubtype(toolCall, toolName) {
   return "message_shape";
 }
 
-function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedToolContent) {
+function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedToolContent, allowEmptyStoppedToolCalls) {
   try {
     if (!allowStoppedToolContent) return "message_shape";
     if (providerFinishReason !== "stop") return "S01";
     if (Object.hasOwn(message, "tool_calls")) {
       if (!Array.isArray(message.tool_calls)) return "S02";
-      if (message.tool_calls.length === 0) return "S03";
+      if (message.tool_calls.length === 0 && !allowEmptyStoppedToolCalls) return "S03";
       if (message.tool_calls.length > 1) return "S04";
     }
     if (Object.hasOwn(message, "function_call")) return "S05";
-    if (!Object.keys(message).every((key) => key === "role" || key === "content")) return "S06";
+    if (!Object.keys(message).every((key) => key === "role" || key === "content"
+      || (allowEmptyStoppedToolCalls && key === "tool_calls"))) return "S06";
     if (typeof message.content !== "string") return "S07";
   } catch { /* Observation must preserve the rejected envelope outcome. */ }
   return "message_shape";
 }
 
-function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, requireMinimalVerificationContent) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, requireMinimalVerificationContent) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -2120,20 +2133,26 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
       content = toolCall.function.arguments;
     } else if (allowStoppedToolContent
       && choice.finish_reason === "stop"
-      && !Object.hasOwn(choice.message, "tool_calls")
+      && (!Object.hasOwn(choice.message, "tool_calls")
+        || (allowEmptyStoppedToolCalls && Array.isArray(toolCalls) && toolCalls.length === 0))
       && !Object.hasOwn(choice.message, "function_call")
-      && Object.keys(choice.message).every((key) => key === "role" || key === "content")
+      && Object.keys(choice.message).every((key) => key === "role" || key === "content"
+        || (allowEmptyStoppedToolCalls && key === "tool_calls"))
       && typeof choice.message.content === "string") {
       // Normalize only the explicitly enabled, minimal stopped-content
       // compatibility envelope. Parsing and the production stage's closed wire
-      // decoder remain mandatory; null/empty tool fields, legacy calls, extra
-      // message fields, and length-limited content never enter this path.
+      // decoder remain mandatory. A separately enabled empty collection carries
+      // no competing arguments; only this exact minimal stopped envelope may
+      // use content. Null/malformed calls, legacy fields, extra message fields
+      // and length-limited content remain rejected. Generic callers retain the
+      // absent-only default.
       content = choice.message.content;
     } else {
       throw withProviderDiagnostic(
         providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
         {
-          subtype: rejectedStoppedToolSubtype(choice.message, choice.finish_reason, allowStoppedToolContent),
+          subtype: rejectedStoppedToolSubtype(choice.message, choice.finish_reason,
+            allowStoppedToolContent, allowEmptyStoppedToolCalls),
           finishReason: providerFinishReason,
           responseSize,
           contentSize: providerContentSize,
@@ -2274,6 +2293,7 @@ export async function requestHuggingFaceJson({
   minP: unsupportedMinP,
   toolChoice,
   allowStoppedToolContent = false,
+  allowEmptyStoppedToolCalls = false,
   requireMinimalVerificationContent = false,
   observeQualificationHttpHeaders = false,
   presencePenalty,
@@ -2314,6 +2334,7 @@ export async function requestHuggingFaceJson({
     || (toolChoice !== undefined && toolChoice !== "named")
     || (toolChoice !== undefined && toolName === undefined)
     || typeof allowStoppedToolContent !== "boolean"
+    || typeof allowEmptyStoppedToolCalls !== "boolean"
     || typeof requireMinimalVerificationContent !== "boolean"
     || typeof observeQualificationHttpHeaders !== "boolean"
     || (requireMinimalVerificationContent
@@ -2322,11 +2343,12 @@ export async function requestHuggingFaceJson({
         || resolvedResponseFormat !== "json_schema"
         || toolName !== undefined
         || toolChoice !== undefined
-        || allowStoppedToolContent))
+        || allowStoppedToolContent || allowEmptyStoppedToolCalls))
     || (allowStoppedToolContent
       && (role !== "verifier"
         || toolChoice !== "named"
         || !STOPPED_TOOL_CONTENT_NAMES.has(toolName)))
+    || (allowEmptyStoppedToolCalls && !allowStoppedToolContent)
     || (toolName !== undefined && role !== "verifier")
     || (toolName === undefined && role === "verifier"
       && responseFormat !== "json_object" && !requireMinimalVerificationContent)) {
@@ -2465,6 +2487,7 @@ export async function requestHuggingFaceJson({
         boundedBody.responseSize,
         toolName,
         allowStoppedToolContent,
+        allowEmptyStoppedToolCalls,
         requireMinimalVerificationContent,
       );
     } catch (error) {
@@ -2550,8 +2573,9 @@ export function createHuggingFaceLatticeAdapter({
         ? certificationWireSchemaForFit(certificationFit)
         : stage.schema;
       const verificationLayout = verificationFit ? verificationWireLayoutForSchema(fittedSchema) : null;
+      const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
       const messageFactory = verificationFit
-        ? (current) => verificationWireMessages(current, verificationLayout)
+        ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection)
         : stage.messages;
       result = await requestHuggingFaceJson({
         token,
@@ -2565,6 +2589,7 @@ export function createHuggingFaceLatticeAdapter({
         toolName: stage.toolName,
         toolChoice: stage.toolChoice,
         allowStoppedToolContent: stage.allowStoppedToolContent,
+        allowEmptyStoppedToolCalls: stage.allowEmptyStoppedToolCalls,
         requireMinimalVerificationContent: stage.requireMinimalVerificationContent,
         observeQualificationHttpHeaders,
         maxTokens: analysisFit

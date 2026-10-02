@@ -10,6 +10,7 @@ const CATEGORIES = new Set(LATTICE_REJECTION_CATEGORIES);
 const BOUNDARIES = new Set(LATTICE_REJECTION_BOUNDARIES);
 const RESULT_DIAGNOSTICS = new WeakMap();
 const ERROR_DIAGNOSTICS = new WeakMap();
+const CORRECTION_REQUEST_DIAGNOSTICS = new WeakMap();
 const DETERMINISTIC_DIAGNOSTICS = new WeakMap();
 
 // Closed, source-defined predicate codes. No runtime magnitude or loop ordinal
@@ -99,6 +100,26 @@ export function rememberRejectedError(error, diagnostic) {
 export function rejectedErrorDiagnostic(error) {
   try {
     return identity(error) ? ERROR_DIAGNOSTICS.get(error) ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+// Bind a correction to its actual prior host rejection. Caller fields, error
+// prose, and model-provided codes cannot select correction instructions.
+export function rememberStageCorrectionRequest(request, error) {
+  try {
+    const diagnostic = rejectedErrorDiagnostic(error);
+    if (identity(request) && Object.isFrozen(request) && diagnostic !== null) {
+      CORRECTION_REQUEST_DIAGNOSTICS.set(request, diagnostic);
+    }
+  } catch { /* Observation must preserve the original correction request. */ }
+  return request;
+}
+
+export function stageCorrectionRequestDiagnostic(request) {
+  try {
+    return identity(request) ? CORRECTION_REQUEST_DIAGNOSTICS.get(request) ?? null : null;
   } catch {
     return null;
   }

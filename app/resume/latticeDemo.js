@@ -71,6 +71,7 @@ import {
   rejectedResultDiagnostic,
   rememberRejectedError,
   rejectedErrorDiagnostic,
+  rememberStageCorrectionRequest,
   deterministicFindingRule,
 } from "./lattice/rejectionDiagnostics.js";
 
@@ -1402,7 +1403,9 @@ function stageDiagnosticRequest(request, stage, attempt, lastError, analysisOrig
       }),
     });
   }
-  return Object.freeze(currentRequest);
+  const frozenRequest = Object.freeze(currentRequest);
+  if (attempt > 1) rememberStageCorrectionRequest(frozenRequest, lastError);
+  return frozenRequest;
 }
 
 function stageFeedback(stage, error, attempt) {
