@@ -1988,6 +1988,60 @@ test("host-schema requested modes retain their source-grounded rationale instruc
   }
 });
 
+test("compact verification binds complete mask positions on initial and correction calls", async (context) => {
+  const base = minimalVerificationRequest("Read \u2066https://example.test/note\u2069, then save the note.");
+  const plan = base.analysis.passages[0];
+  const atoms = [plan.atoms[0], { ...plan.atoms[0], id: "a2" }];
+  const evidence = [...base.sourceSpans[0].spans, ...base.sourceSpans[0].literalAnnotations];
+  assert.ok(base.sourceSpans[0].literalAnnotations.length > 0);
+  assert.notEqual(atoms.length, evidence.length);
+  const request = {
+    ...base,
+    analysis: { ...base.analysis, passages: [{ ...plan, atoms }] },
+  };
+  for (const correction of [false, true]) {
+    await context.test(correction ? "bounded correction" : "initial", async () => {
+      const current = { ...request, ...(correction ? { protocolFeedback: {
+        attempt: 2, issue: "PRIVATE-MASK-HOST-ERROR", instruction: "PRIVATE-MASK-HOST-DETAIL",
+      } } : {}) };
+      let calls = 0;
+      const wire = acceptingVerificationWire(current);
+      const passage = { ...wire.p["0"], x: "01", y: "0".repeat(evidence.length - 1) + "1" };
+      const adapter = createHuggingFaceLatticeAdapter({
+        token: "server-token",
+        fetchImpl: async (_url, init) => {
+          calls += 1;
+          const body = JSON.parse(init.body);
+          const instructions = body.messages[0].content;
+          const description = body.tools[0].function.description;
+          for (const guide of [instructions, description]) {
+            assert.match(guide, /a and x have one character for every supplied atom, in supplied atom order/u);
+            assert.match(guide, /Keep zero positions for unselected atoms; x must be exactly as long as a/u);
+            assert.match(guide, /lossless spans first, then nested literal annotations, each in supplied order/u);
+            assert.match(guide, /y must be exactly as long as s/u);
+            assert.match(guide, /complete widths apply to every decision/u);
+          }
+          assert.doesNotMatch(JSON.stringify(body), /PRIVATE-MASK-HOST|V16L|V17M/u);
+          const schema = fittedVerificationSchemaForBody(body).properties.p.properties["0"].properties;
+          assert.equal(schema.a.minLength, atoms.length);
+          assert.equal(schema.x.minLength, atoms.length);
+          assert.equal(schema.s.minLength, evidence.length);
+          assert.equal(schema.y.minLength, evidence.length);
+          assert.equal(body.max_tokens, 2_048);
+          assert.equal(Object.hasOwn(body, "response_format"), false);
+          return successfulProviderResponse({ ...wire, p: { 0: passage } });
+        },
+      });
+      const result = await adapter.verify(current);
+      assert.equal(result.decision, "accept");
+      assert.deepEqual(result.passages[0].layerEvidenceAtomIds, ["a2"]);
+      assert.deepEqual(result.passages[0].layerEvidenceSpanIds, [evidence.at(-1).id]);
+      assert.equal(calls, 1);
+      assert.equal(adapter.completionCapacity().used, 1);
+    });
+  }
+});
+
 test("compact verifier and certifier dialects replace host-shape output and private correction prose", () => {
   const privateFeedback = Object.freeze({
     stage: "verification",
