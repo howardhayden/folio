@@ -13,6 +13,7 @@ import {
   isLatticeApiResult,
 } from "../../app/resume/lattice/remoteProtocol.js";
 import {
+  getLatticeVerificationPriorRejection,
   preflightLatticeInput,
   runTextToLattice,
 } from "../../app/resume/latticeDemo.js";
@@ -56,7 +57,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v10";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v11";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
@@ -72,6 +73,11 @@ export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   analysisOrigin: "X-Lattice-Qualification-Analysis-Origin",
   analysisAttempt: "X-Lattice-Qualification-Analysis-Attempt",
   priorValidationCategory: "X-Lattice-Qualification-Prior-Validation",
+});
+export const LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS = Object.freeze({
+  boundary: "X-Lattice-Qualification-Prior-Verification-Rejection-Boundary",
+  category: "X-Lattice-Qualification-Prior-Verification-Rejection-Category",
+  rule: "X-Lattice-Qualification-Prior-Verification-Rejection-Rule",
 });
 export const LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS = Object.freeze({
   namedShape: "X-Lattice-Qualification-Envelope-Named-Shape",
@@ -559,6 +565,17 @@ function withQualificationProviderDiagnostic(response, error, enabled) {
   if (diagnostic === null) return response;
   for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) {
     response.headers.set(header, diagnostic[field]);
+  }
+  if (diagnostic.stage === "verification" && diagnostic.stageAttempt === "correction"
+    && Number(diagnostic.callOrdinal) > 1) {
+    const prior = getLatticeVerificationPriorRejection(error);
+    if (prior !== null) {
+      for (const [field, header] of Object.entries(
+        LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
+      )) {
+        response.headers.set(header, prior[field]);
+      }
+    }
   }
   if (diagnostic.failureClass === "provider_malformed_response" && diagnostic.subtype === "S06"
     && isClosedProviderEnvelopeShape(error.qualificationEnvelopeShape)) {

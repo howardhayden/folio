@@ -32,6 +32,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
@@ -2047,6 +2048,82 @@ test("S06 qualification shape is complete, compatible and non-reflective", async
         assert.match(error.message, expected); assert.doesNotMatch(error.message, /PRIVATE/u); return true;
       });
       assert.equal(fixture.canaryRequests, 1); assert.equal(fixture.setupRequests, 1);
+    });
+  }
+});
+
+
+test("first verification rejection on a correction provider failure is finite, complete and compatible", async (t) => {
+  const marker = "PRIVATE-PRIOR-VERIFICATION-MUST-NOT-CROSS";
+  const base = {
+    failureClass: "provider_output_limit", stage: "verification", callOrdinal: "5",
+    finishReason: "length", requestSize: "4097-16384", responseSize: "4097-16384",
+    contentSize: "4097-16384", completionTokens: "2048-3071",
+    stageAttempt: "correction", analysisOrigin: "none", analysisAttempt: "none",
+    priorValidationCategory: "other",
+  };
+  const diagnostic = qualificationDiagnosticHeaders(base);
+  const headerNames = LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS;
+  const priorHeaders = (overrides = {}) => {
+    const values = { boundary: "wire-decoder", category: "field-set", rule: "V01F", ...overrides };
+    return Object.fromEntries(Object.entries(headerNames).map(([field, header]) => [header, values[field]]));
+  };
+  const prior = priorHeaders();
+  const exact = { ...diagnostic, ...prior };
+  const incompatible = /incompatible prior verification rejection diagnostic/u;
+  const invalid = /invalid prior verification rejection diagnostic/u;
+  const unknownHeader = `X-Lattice-Qualification-Prior-Verification-Rejection-${marker}`;
+  const cases = [
+    ["unknown header alone", { [unknownHeader]: marker }, 502, invalid, false],
+    ["unknown header alongside exact triplet", { ...exact, [unknownHeader]: marker }, 502, invalid, false],
+    ["optional group absent", diagnostic, 502, /finish_reason=length; .*prior_validation=other$/u, false],
+    ["exact first wire rejection", exact, 502, /prior_validation=other; prior_rejection_boundary=wire-decoder; prior_rejection_category=field-set; prior_rejection_rule=V01F$/u, true],
+    ["host normalizer unknown", { ...diagnostic, ...priorHeaders({ boundary: "host-normalizer", category: "other", rule: "unknown" }) }, 502, /prior_rejection_boundary=host-normalizer; prior_rejection_category=other; prior_rejection_rule=unknown$/u, true],
+    ["wire unknown remains uncertain", { ...diagnostic, ...priorHeaders({ category: "other", rule: "unknown" }) }, 502, /prior_rejection_boundary=wire-decoder; prior_rejection_category=other; prior_rejection_rule=unknown$/u, true],
+    ["mask coverage rejection", { ...diagnostic, ...priorHeaders({ category: "coverage", rule: "V16M" }) }, 502, /prior_rejection_category=coverage; prior_rejection_rule=V16M$/u, true],
+    ["consistency rejection", { ...diagnostic, ...priorHeaders({ category: "consistency", rule: "V19" }) }, 502, /prior_rejection_category=consistency; prior_rejection_rule=V19$/u, true],
+    ["all fields without base diagnostic", prior, 502, incompatible, false],
+    ["private boundary", { ...exact, [headerNames.boundary]: marker }, 502, invalid, false],
+    ["private category", { ...exact, [headerNames.category]: marker }, 502, invalid, false],
+    ["private rule", { ...exact, [headerNames.rule]: marker }, 502, invalid, false],
+    ["unregistered rule", { ...exact, [headerNames.rule]: "V999" }, 502, invalid, false],
+    ["unregistered boundary", { ...exact, [headerNames.boundary]: "unknown" }, 502, invalid, false],
+    ["mismatched category and rule", { ...exact, [headerNames.category]: "coverage" }, 502, invalid, false],
+    ["analysis rule", { ...diagnostic, ...priorHeaders({ category: "reference", rule: "A02R" }) }, 502, invalid, false],
+    ["certifier rule", { ...diagnostic, ...priorHeaders({ category: "reference", rule: "C02" }) }, 502, invalid, false],
+    ["host normalizer with decoder rule", { ...exact, [headerNames.boundary]: "host-normalizer" }, 502, invalid, false],
+    ["host normalizer with precise category", { ...diagnostic, ...priorHeaders({ boundary: "host-normalizer", rule: "unknown" }) }, 502, invalid, false],
+    ["joined duplicate rule values", { ...exact, [headerNames.rule]: "V01F, V01F" }, 502, invalid, false],
+    ["empty rule", { ...exact, [headerNames.rule]: "" }, 502, invalid, false],
+    ["wrong stage", { ...qualificationDiagnosticHeaders({ ...base, stage: "candidate" }), ...prior }, 502, incompatible, false],
+    ["initial attempt", { ...qualificationDiagnosticHeaders({ ...base, stageAttempt: "initial", priorValidationCategory: "none" }), ...prior }, 502, incompatible, false],
+    ["first call", { ...qualificationDiagnosticHeaders({ ...base, callOrdinal: "1" }), ...prior }, 502, incompatible, false],
+    ["ordinal outside call budget", { ...qualificationDiagnosticHeaders({ ...base, callOrdinal: "33" }), ...prior }, 502, /invalid qualification diagnostic/u, false],
+    ["all groups on success", exact, 200, incompatible, false],
+    ["prior group alone on success", prior, 200, incompatible, false],
+  ];
+  for (const [field, header] of Object.entries(headerNames)) {
+    const partial = { ...exact };
+    delete partial[header];
+    cases.push([`missing ${field}`, partial, 502, /incomplete prior verification rejection diagnostic/u, false]);
+  }
+  for (const [name, headers, status, expected, reportsPrior] of cases) {
+    await t.test(name, async () => {
+      const body = status === 200
+        ? { result: validResult(), schema_version: 1 }
+        : { error: "malformed_upstream_response" };
+      const fixture = successfulFixture({ canaryResponse: apiJson(body, status, headers) });
+      await assert.rejects(verifyTextToLatticeApiProduction({
+        fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait,
+      }), (error) => {
+        assert.match(error.message, expected);
+        assert.equal(error.message.toLowerCase().includes(marker.toLowerCase()), false);
+        if (!reportsPrior) assert.doesNotMatch(error.message, /prior_rejection_(?:boundary|category|rule)=/u);
+        return true;
+      });
+      assert.equal(fixture.canaryRequests, 1);
+      assert.equal(fixture.setupRequests, 1);
+      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
     });
   }
 });

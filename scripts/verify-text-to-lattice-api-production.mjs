@@ -54,12 +54,14 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
 import {
   LATTICE_WITHHELD_TRACE_FIELDS,
   isClosedWithheldTrace,
+  isClosedPriorVerificationRejection,
 } from "../app/resume/lattice/qualificationDiagnostics.js";
 import {
   LATTICE_TRANSFORMATIONS_PER_UTC_DAY,
@@ -972,6 +974,39 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   } else if (httpPresent !== 0) {
     fail(`${label} returned an incompatible qualification HTTP diagnostic`);
   }
+  const priorVerificationHeaderNames = new Set(Object.values(
+    LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
+  ).map((header) => header.toLowerCase()));
+  for (const header of response.headers.keys()) {
+    const name = header.toLowerCase();
+    if (name.startsWith("x-lattice-qualification-prior-verification-rejection-")
+      && !priorVerificationHeaderNames.has(name)) {
+      fail(`${label} returned an invalid prior verification rejection diagnostic`);
+    }
+  }
+  const priorVerificationValues = Object.freeze(Object.fromEntries(Object.entries(
+    LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
+  ).map(([field, header]) => [field, response.headers.get(header)])));
+  const priorVerificationPresent = Object.values(priorVerificationValues)
+    .filter((value) => value !== null).length;
+  const priorVerificationFieldCount = Object.keys(
+    LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
+  ).length;
+  let priorVerificationRejection = null;
+  if (priorVerificationPresent !== 0) {
+    if (priorVerificationPresent !== priorVerificationFieldCount) {
+      fail(`${label} returned an incomplete prior verification rejection diagnostic`);
+    }
+    if (response.status === 200 || diagnostic === null
+      || diagnostic.stage !== "verification" || diagnostic.stageAttempt !== "correction"
+      || diagnostic.callOrdinal <= 1) {
+      fail(`${label} returned an incompatible prior verification rejection diagnostic`);
+    }
+    if (!isClosedPriorVerificationRejection(priorVerificationValues)) {
+      fail(`${label} returned an invalid prior verification rejection diagnostic`);
+    }
+    priorVerificationRejection = priorVerificationValues;
+  }
   const terminalDiagnosticValues = Object.freeze(Object.fromEntries(
     Object.entries(LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS)
       .map(([field, header]) => [field, response.headers.get(header)]),
@@ -1057,6 +1092,10 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
       + `analysis_origin=${diagnostic.analysisOrigin}; `
       + `analysis_attempt=${diagnostic.analysisAttempt}; `
       + `prior_validation=${diagnostic.priorValidationCategory}`
+      + (priorVerificationRejection === null ? ""
+        : `; prior_rejection_boundary=${priorVerificationRejection.boundary}`
+          + `; prior_rejection_category=${priorVerificationRejection.category}`
+          + `; prior_rejection_rule=${priorVerificationRejection.rule}`)
       + (expectsShapeObservation
         ? Object.entries(shapeValues).map(([field, value]) => `; envelope_${field}=${value}`).join("")
         : "")

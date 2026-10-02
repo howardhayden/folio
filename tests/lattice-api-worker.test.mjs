@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { preflightLatticeInput, runTextToLattice } from "../app/resume/latticeDemo.js";
+import { getLatticeVerificationPriorRejection, preflightLatticeInput, runTextToLattice } from "../app/resume/latticeDemo.js";
 import {
   LATTICE_RESULT_VERSION,
   LATTICE_VISITOR_SESSION_ACCEPT,
@@ -22,6 +22,7 @@ import {
   repairMessages,
   verificationMessages,
 } from "../app/resume/lattice/promptContract.js";
+import { isClosedPriorVerificationRejection } from "../app/resume/lattice/qualificationDiagnostics.js";
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
 import {
   LATTICE_REJECTION_CATEGORIES,
@@ -77,6 +78,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
@@ -6644,7 +6646,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
 });
 
 test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
-  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v10");
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v11");
   const diagnosticHeaders = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
       LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -6851,7 +6853,7 @@ test("the terminal analysis diagnostic is all-or-none, bounded, and qualificatio
   }
 });
 
-test("the v10 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v11 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -7968,4 +7970,221 @@ test("mixed rewrite and retention layouts never supply a semantic conformance de
   assert.equal(Object.hasOwn(captured, "tools"), false);
   fittedVerificationSchemaForBody(captured);
   assert.equal(adapter.completionCapacity().used, 1);
+});
+
+function run212ProviderDiagnosticError(overrides = {}) {
+  return Object.assign(new LatticeProviderError("provider_output_limit", "PRIVATE-RUN212-PROVIDER"), {
+    qualificationStage: "verification", qualificationCallOrdinal: 4,
+    qualificationSubtype: "none", qualificationFinishReason: "length",
+    qualificationRequestSize: "4097-16384", qualificationResponseSize: "4097-16384",
+    qualificationContentSize: "4097-16384", qualificationCompletionTokens: "2048-3071",
+    qualificationStageAttempt: "correction", qualificationAnalysisOrigin: "none",
+    qualificationAnalysisAttempt: "none", qualificationPriorValidationCategory: "other",
+    ...overrides,
+  });
+}
+
+async function run212PriorVerificationFailure({
+  first = "V01F", errorOverrides = null, headers = {
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  }, expiresAt = "2099-10-02T14:00:00.000Z", clock = () => Date.now(),
+  onFailure = () => {},
+} = {}) {
+  let failure = null;
+  let verifies = 0;
+  const bodies = [];
+  const worker = createLatticeApiWorker({
+    now: clock,
+    createAdapter(options) {
+      const adapter = createHuggingFaceLatticeAdapter(options);
+      return Object.freeze({ ...adapter, async verify(request) {
+        verifies += 1;
+        if (verifies === 1 && first === "host-normalizer") return {};
+        if (verifies === 1 && first === "unobserved") throw new SyntaxError("PRIVATE-RUN212-HOST");
+        if (verifies === 2 && errorOverrides !== null) throw run212ProviderDiagnosticError(errorOverrides);
+        return adapter.verify(request);
+      } });
+    },
+    async runTextToLatticeImpl(text, options) {
+      try { return await runTextToLattice(text, options); }
+      catch (error) { failure = error; onFailure(); throw error; }
+    },
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body); bodies.push(body);
+      if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body));
+      if (isCandidateBody(body)) return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+        "A guest sets a blue notebook on the desk, reviews the first page, then shuts it."));
+      assert.equal(isVerificationBody(body), true, "the failed correction must not reach certification");
+      if (verifies > 1 || first === "initial-provider") {
+        return providerChoiceResponse({ finish_reason: "length", message: {
+          role: "assistant", content: "PRIVATE-RUN212-TRUNCATED-OUTPUT",
+        } });
+      }
+      const wire = canaryVerificationWire(body);
+      if (first === "V01F") delete wire.i;
+      if (first === "V17M") wire.p["0"].y = "0".repeat(wire.p["0"].y.length);
+      return successfulProviderResponse(wire);
+    },
+  });
+  const env = { HF_TOKEN: "server-token",
+    ...(expiresAt === null ? {} : { [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: expiresAt }) };
+  const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers }), env);
+  return { response, failure, bodies, verifies };
+}
+
+test("a verifier provider correction retains the actual first wire rejection in marked qualification headers", async (t) => {
+  for (const [rule, category] of [["V01F", "field-set"], ["V17M", "coverage"]]) {
+    await t.test(rule, async () => {
+      const { response, failure, bodies, verifies } = await run212PriorVerificationFailure({ first: rule });
+      assert.equal(response.status, 502);
+      assert.deepEqual(await json(response), { error: "malformed_upstream_response" });
+      assert.equal(verifies, 2);
+      assert.equal(bodies.length, 4);
+      assert.equal(failure.code, "provider_output_limit");
+      assert.equal(failure.qualificationFinishReason, "length");
+      const diagnostic = getLatticeVerificationPriorRejection(failure);
+      assert.deepEqual(diagnostic, { boundary: "wire-decoder", category, rule });
+      assert.equal(Object.isFrozen(diagnostic), true);
+      assert.deepEqual(Reflect.ownKeys(diagnostic).sort(), ["boundary", "category", "rule"]);
+      for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS)) {
+        assert.equal(response.headers.get(header), diagnostic[field], field);
+      }
+      assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal), "4");
+      assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stageAttempt), "correction");
+      for (const body of bodies.filter(isVerificationBody)) {
+        assert.equal(body.max_tokens, 2048);
+        assert.equal(JSON.stringify(body).includes(rule), false, "host predicate codes must not enter provider prompts");
+      }
+      assert.equal(JSON.stringify([...response.headers]).includes("PRIVATE-RUN212"), false);
+      assert.equal(JSON.stringify(diagnostic).includes("PRIVATE-RUN212"), false);
+      for (const header of [...Object.values(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS),
+        ...Object.values(LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS)]) {
+        assert.equal(response.headers.has(header), false);
+      }
+    });
+  }
+});
+
+test("prior verifier diagnostics distinguish a known host-normalizer fallback from unavailable evidence", async (t) => {
+  for (const first of ["host-normalizer", "unobserved", "initial-provider"]) {
+    await t.test(first, async () => {
+      const { response, failure } = await run212PriorVerificationFailure({ first });
+      assert.equal(response.status, 502);
+      assert.deepEqual(await json(response), { error: "malformed_upstream_response" });
+      const expected = first === "host-normalizer"
+        ? { boundary: "host-normalizer", category: "other", rule: "unknown" } : null;
+      assert.deepEqual(getLatticeVerificationPriorRejection(failure), expected);
+      for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS)) {
+        assert.equal(response.headers.get(header), expected?.[field] ?? null, field);
+      }
+    });
+  }
+});
+
+test("prior verifier evidence is error-identity bound and cannot be copied, proxied, or supplied as error properties", async () => {
+  const { failure } = await run212PriorVerificationFailure();
+  const spoof = run212ProviderDiagnosticError({
+    qualificationPriorVerificationRejection: Object.freeze({ boundary: "wire-decoder", category: "field-set", rule: "V01F" }),
+    priorRejectionBoundary: "wire-decoder", priorRejectionCategory: "field-set", priorRejectionRule: "V01F",
+  });
+  rememberRejectedError(spoof, Object.freeze({ boundary: "wire-decoder", category: "field-set", rule: "V01F" }));
+  let reads = 0;
+  const hostile = Object.freeze(Object.defineProperty({}, "qualificationStage", {
+    get() { reads += 1; throw new Error("PRIVATE-RUN212-GETTER"); },
+  }));
+  const { proxy, revoke } = Proxy.revocable(failure, {}); revoke();
+  for (const value of [null, undefined, "V01F", spoof, { ...failure }, new Proxy(failure, {}), proxy, hostile]) {
+    assert.equal(getLatticeVerificationPriorRejection(value), null);
+  }
+  assert.equal(reads, 0);
+  const worker = createLatticeApiWorker({
+    createAdapter: () => ({}), runTextToLatticeImpl: async () => { throw spoof; },
+  });
+  const response = await worker.fetch(apiRequest(validPayload, { headers: {
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  } }), { HF_TOKEN: "server-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-10-02T14:00:00.000Z" });
+  assert.equal(response.status, 502);
+  assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage), "verification");
+  for (const header of Object.values(LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS)) {
+    assert.equal(response.headers.has(header), false);
+  }
+  assert.equal((await response.text()).includes("PRIVATE-RUN212"), false);
+});
+
+test("authentic first verifier evidence is suppressed when correction provider metadata is inconsistent", async (t) => {
+  const cases = [
+    ["different valid provider stage", { qualificationStage: "analysis", qualificationAnalysisOrigin: "initial", qualificationAnalysisAttempt: "2" }],
+    ["initial provider attempt", { qualificationStageAttempt: "initial", qualificationPriorValidationCategory: "none" }],
+    ["impossible first call correction", { qualificationCallOrdinal: 1 }],
+    ["invalid base category", { qualificationPriorValidationCategory: "PRIVATE-RUN212-CATEGORY" }],
+    ["invalid length finish", { qualificationFinishReason: "stop" }],
+  ];
+  for (const [name, errorOverrides] of cases) await t.test(name, async () => {
+    const { response, failure } = await run212PriorVerificationFailure({ errorOverrides });
+    assert.equal(response.status, 502);
+    assert.deepEqual(getLatticeVerificationPriorRejection(failure), {
+      boundary: "wire-decoder", category: "field-set", rule: "V01F",
+    }, "the engine's actual prior rejection exists independently of incompatible provider metadata");
+    for (const header of Object.values(LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS)) {
+      assert.equal(response.headers.has(header), false, header);
+    }
+    assert.equal(JSON.stringify([...response.headers]).includes("PRIVATE-RUN212"), false);
+    assert.equal((await response.text()).includes("PRIVATE-RUN212"), false);
+  });
+});
+
+test("first verifier rejection headers require the current marker and an unexpired qualification at response time", async (t) => {
+  const cases = [
+    ["unmarked", { headers: {} }, 502],
+    ["previous marker", { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v10" } }, 502],
+    ["ordinary production", { expiresAt: null }, 502],
+    ["expired admission", { expiresAt: "2020-10-02T14:00:00.000Z" }, 503],
+  ];
+  for (const [name, options, status] of cases) await t.test(name, async () => {
+    const { response } = await run212PriorVerificationFailure(options);
+    assert.equal(response.status, status);
+    for (const header of Object.values(LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS)) {
+      assert.equal(response.headers.has(header), false, header);
+    }
+    assert.equal((await response.text()).includes("PRIVATE-RUN212"), false);
+  });
+  await t.test("expires during the correction", async () => {
+    const expiry = "2099-10-02T14:00:00.000Z";
+    let time = Date.parse(expiry) - 1000;
+    const { response } = await run212PriorVerificationFailure({ expiresAt: expiry, clock: () => time,
+      onFailure: () => { time = Date.parse(expiry); } });
+    assert.equal(response.status, 502);
+    for (const header of Object.values(LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS)) {
+      assert.equal(response.headers.has(header), false, header);
+    }
+  });
+});
+
+test("the prior verifier rejection validator rejects malformed, inconsistent, and executable evidence without reading accessors", () => {
+  const base = { boundary: "wire-decoder", category: "field-set", rule: "V01F" };
+  assert.equal(isClosedPriorVerificationRejection(Object.freeze(base)), true);
+  assert.equal(isClosedPriorVerificationRejection(Object.freeze({ boundary: "host-normalizer", category: "other", rule: "unknown" })), true);
+  let getterReads = 0;
+  const accessor = { ...base };
+  Object.defineProperty(accessor, "rule", { enumerable: true, get() { getterReads += 1; return "V01F"; } });
+  Object.freeze(accessor);
+  const hidden = { ...base };
+  Object.defineProperty(hidden, "rule", { enumerable: false });
+  Object.freeze(hidden);
+  const { proxy, revoke } = Proxy.revocable(base, {}); revoke();
+  const invalid = [
+    null, undefined, [], { ...base }, Object.freeze({ ...base, detail: "PRIVATE-RUN212" }),
+    Object.freeze({ ...base, [Symbol("private")]: "PRIVATE-RUN212" }),
+    Object.freeze(Object.assign(Object.create({}), base)), accessor, hidden, proxy,
+    Object.freeze({ boundary: "wire-decoder", category: "field-set" }),
+    Object.freeze({ ...base, rule: "PRIVATE-RUN212" }),
+    Object.freeze({ ...base, rule: "C01F" }),
+    Object.freeze({ ...base, category: "coverage", rule: "A03" }),
+    Object.freeze({ ...base, category: "coverage" }),
+    Object.freeze({ ...base, boundary: "host-normalizer" }),
+    Object.freeze({ boundary: "host-normalizer", category: "field-set", rule: "unknown" }),
+    Object.freeze({ boundary: "unknown", category: "other", rule: "unknown" }),
+  ];
+  for (const value of invalid) assert.equal(isClosedPriorVerificationRejection(value), false);
+  assert.equal(getterReads, 0);
 });

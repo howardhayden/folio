@@ -66,7 +66,10 @@ import {
   foldLatticePresentationLetters,
   materiallyDifferent,
 } from "./lattice/validators.js";
-import { isClosedWithheldTrace } from "./lattice/qualificationDiagnostics.js";
+import {
+  isClosedPriorVerificationRejection,
+  isClosedWithheldTrace,
+} from "./lattice/qualificationDiagnostics.js";
 import {
   rejectedResultDiagnostic,
   rememberRejectedError,
@@ -1355,6 +1358,23 @@ function rememberStageFailureDiagnostic(error, stage, attempt, firstError) {
     }));
   } catch {
     // Diagnostic bookkeeping must preserve the original stage outcome.
+  }
+}
+
+// Read only the engine's identity-bound observation. Matching error properties,
+// cloned errors and provider-authored values cannot manufacture this evidence.
+export function getLatticeVerificationPriorRejection(error) {
+  try {
+    const diagnostic = STAGE_FAILURE_DIAGNOSTICS.get(error);
+    if (diagnostic?.stage !== "verification" || diagnostic.attempt !== "2") return null;
+    const prior = Object.freeze({
+      boundary: diagnostic.priorRejectionBoundary,
+      category: diagnostic.priorRejectionCategory,
+      rule: diagnostic.priorRejectionRule,
+    });
+    return isClosedPriorVerificationRejection(prior) ? prior : null;
+  } catch {
+    return null;
   }
 }
 
