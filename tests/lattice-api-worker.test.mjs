@@ -4299,6 +4299,118 @@ test("the private compact analysis wire format expands to the unchanged host sch
   ), false);
 });
 
+test("analysis evidence rejection codes bind only to the actual fitted rejecting predicate", async () => {
+  const base = minimalAnalysisRequest(LATTICE_PRODUCTION_CANARY_TEXT);
+  const request = Object.freeze({ ...base, sourceSpans: latticeSourceSpansForBatch(base.batch), analysisAtomLimit: 12 });
+  const atom = (positions) => [1, 0, 1, positions];
+  const wire = (atoms) => ({ d: 2, p: [[0, 0, atoms, Array(5).fill("000")]], l: [] });
+  const cases = [
+    [wire([]), "coverage", "A01"],
+    [wire([atom(null)]), "value-type", "A02T"],
+    [wire([atom([])]), "coverage", "A02M"],
+    [wire([atom([0, 1, 2, 2])]), "collection-bound", "A02X"],
+    [wire([atom(["PRIVATE-INDEX"])]), "value-domain", "A02I"],
+    [wire([atom([0.5])]), "value-domain", "A02I"],
+    [wire([atom([-1])]), "reference", "A02R"],
+    [wire([atom([3])]), "reference", "A02R"],
+    [wire([atom([0, 1])]), "coverage", "A03"],
+    [wire([atom([0, 0])]), "coverage", "A03"],
+  ];
+  for (const [value, category, rule] of cases) {
+    const result = await createHuggingFaceLatticeAdapter({ token: "server-token",
+      fetchImpl: async () => successfulProviderResponse(value),
+    }).analyze(request);
+    assert.deepEqual(result, {});
+    assert.deepEqual(rejectedResultDiagnostic(result), { boundary: "wire-decoder", category, rule });
+    assert.equal(result[LATTICE_FITTED_ANALYSIS_CONTEXT].decoderFailureCategory, "evidence");
+    assert.equal(JSON.stringify(result), "{}");
+    assert.equal(rejectedResultDiagnostic({ ...result }), null, "cloning cannot copy trusted observations");
+  }
+  const valid = await createHuggingFaceLatticeAdapter({ token: "server-token",
+    fetchImpl: async () => successfulProviderResponse(wire([atom([0, 0, 1]), atom([2])])),
+  }).analyze(request);
+  assert.equal(rejectedResultDiagnostic(valid), null);
+  assert.equal(valid.passages[0].atoms.length, 2);
+  assert.equal(valid.passages[0].atoms[0].evidenceSpanIds.length, 2, "valid duplicate positions still deduplicate");
+  const malformed = await createHuggingFaceLatticeAdapter({ token: "server-token",
+    fetchImpl: async () => successfulProviderResponse({ ...wire([atom([0, 1, 2])]), arbitrary: "PRIVATE-INDEX" }),
+  }).analyze(request);
+  assert.deepEqual(rejectedResultDiagnostic(malformed), { boundary: "wire-decoder", category: "other", rule: "unknown" });
+  assert.equal(malformed[LATTICE_FITTED_ANALYSIS_CONTEXT].decoderFailureCategory, "response-shape");
+});
+
+test("reanalysis evidence diagnostics preserve bounded correction, structural withholding and marked privacy", async (context) => {
+  const gates = VERIFICATION_SCHEMA.properties.failedGates.items.enum;
+  const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
+  for (const recover of [false, true]) {
+    for (const marked of [false, true]) {
+      await context.test(`${recover ? "valid replacement" : "exhausted replacement"}; ${marked ? "marked" : "ordinary"}`, async () => {
+        const calls = [];
+        let analyzes = 0;
+        let drafts = 0;
+        let verifies = 0;
+        const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+          const body = JSON.parse(init.body); calls.push(body);
+          assert.doesNotMatch(JSON.stringify(body), /A01|A02[TMXIR]|A03|rejectionRule|rejectionCategory/u);
+          if (isAnalysisBody(body)) {
+            analyzes += 1;
+            const wire = canaryAnalysisWire(body);
+            if (analyzes === 2) wire.p[0][2][0][3] = [0, 1];
+            if (analyzes === 3) {
+              assert.equal(inertModelPayload(body).retry, "private-analysis-wire-invalid");
+              assert.match(body.messages[0].content, /Closed correction category: evidence/u);
+              if (!recover) wire.p[0][2][0][3] = [3];
+            }
+            return successfulProviderResponse(wire);
+          }
+          if (body.response_format?.type === "json_object") {
+            drafts += 1;
+            return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+              drafts === 1 ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText));
+          }
+          if (isVerificationBody(body)) {
+            verifies += 1;
+            const wire = canaryVerificationWire(body);
+            if (verifies === 1) {
+              wire.d = 1;
+              wire.g = gates.map((gate) => gate === "sourceCoverage" ? "1" : "0").join("");
+            }
+            return successfulProviderResponse(wire);
+          }
+          assert.equal(recover, true, "failed graph replacement cannot certify");
+          const payload = inertModelPayload(body);
+          return successfulProviderToolResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds),
+            { toolName: CERTIFICATION_TOOL_NAME });
+        } });
+        const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, {
+          headers: marked ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE } : {},
+        }), { HF_TOKEN: "server-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" });
+        const envelope = await json(response);
+        assert.equal(response.status, 200);
+        assert.equal(analyzes, 3);
+        assert.equal(drafts, recover ? 2 : 1);
+        assert.equal(verifies, recover ? 2 : 1);
+        assert.equal(calls.length, recover ? 8 : 5);
+        assert.equal(envelope.result.text, recover ? `${repairText}\n` : null);
+        if (marked && !recover) {
+          const expected = { verification: "semantic-rejection", firstDeterministicRule: "D14", stage: "re-atomization",
+            attempt: "2", validationCategory: "evidence", priorValidationCategory: "evidence",
+            rejectionBoundary: "wire-decoder", rejectionCategory: "reference", rejectionRule: "A02R",
+            priorRejectionBoundary: "wire-decoder", priorRejectionCategory: "coverage", priorRejectionRule: "A03", callsUsed: "5" };
+          for (const [field, value] of Object.entries(expected)) {
+            assert.equal(response.headers.get(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS[field]), value, field);
+          }
+        } else {
+          for (const header of Object.values(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS)) {
+            assert.equal(response.headers.has(header), false, header);
+          }
+        }
+        assert.doesNotMatch(JSON.stringify(envelope), /A02R|A03|rejectionBoundary|rejectionRule/u);
+      });
+    }
+  }
+});
+
 test("the private compact analysis decoder weakens safe overclaims and rejects invalid fitted data", async () => {
   const base = minimalAnalysisRequest(
     "A visitor places a blue notebook on the desk, reads the first page, and closes it.",
@@ -7148,6 +7260,8 @@ test("withheld diagnostics are immutable closed observations confined to marked 
     ["impossible predicate", Object.freeze({ ...baseTrace, rejectionCategory: "coverage", rejectionRule: "V06M" })],
     ["wrong decoder stage", Object.freeze({ ...baseTrace, stage: "repair" })],
     ["wrong decoder family", Object.freeze({ ...baseTrace, rejectionRule: "C01F" })],
+    ["analysis decoder wrong stage", Object.freeze({ ...baseTrace, rejectionCategory: "coverage", rejectionRule: "A03" })],
+    ["analysis decoder wrong category", Object.freeze({ ...baseTrace, stage: "re-atomization", rejectionRule: "A03" })],
     ["clear with deterministic finding", Object.freeze({ ...baseTrace, firstDeterministicRule: "D14" })],
     ["blocked without deterministic finding", Object.freeze({ ...baseTrace, deterministic: "blocked" })],
     ["partial rejection", Object.freeze(Object.fromEntries(Object.entries(baseTrace).filter(([field]) => field !== "rejectionBoundary")))],

@@ -69,6 +69,7 @@ export function withheldTraceIsConsistent(trace) {
       || (boundary === "unknown" && (category !== "other" || rule !== "unknown"))
       || (boundary !== "none" && !rejectionRuleIsConsistent(boundary, category, rule))) return false;
     if ((rule.startsWith("V") && !["verification", "reverification"].includes(trace.stage))
+      || (rule.startsWith("A") && trace.stage !== "re-atomization")
       || (rule.startsWith("C") && !["document-certification", "document-window-certification", "document-relation-certification"].includes(trace.stage))) return false;
   }
   if (["context-capacity", "output-limit"].includes(trace.failureCause)
