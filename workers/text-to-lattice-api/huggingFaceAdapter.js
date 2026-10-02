@@ -639,9 +639,8 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: VERIFICATION_WIRE_SCHEMA,
     schemaName: "lattice_verification_wire_v2",
-    toolName: VERIFICATION_TOOL_NAME,
-    toolChoice: "named",
-    allowStoppedToolContent: true,
+    responseFormat: "json_object",
+    requireMinimalVerificationContent: true,
     allowEmptyStoppedToolCalls: true,
     allowNullStoppedVerificationMetadata: true,
     responseGuide: VERIFICATION_WIRE_GUIDE,
@@ -2105,6 +2104,14 @@ function stoppedToolMessageKeysAllowed(message, allowEmptyStoppedToolCalls, allo
       && (key === "name" || key === "reasoning_content") && message[key] === null));
 }
 
+function stoppedContentMessageAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata) {
+  return (!Object.hasOwn(message, "tool_calls")
+      || (allowEmptyStoppedToolCalls && Array.isArray(message.tool_calls) && message.tool_calls.length === 0))
+    && !Object.hasOwn(message, "function_call")
+    && stoppedToolMessageKeysAllowed(message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata)
+    && typeof message.content === "string";
+}
+
 function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata) {
   try {
     if (!allowStoppedToolContent) return "message_shape";
@@ -2121,7 +2128,7 @@ function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedT
   return "message_shape";
 }
 
-function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, requireMinimalVerificationContent, observeQualificationEnvelopeShape) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, requireMinimalVerificationContent, minimalVerificationJsonObject, observeQualificationEnvelopeShape) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -2201,11 +2208,22 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
       },
     );
   }
-  if (requireMinimalVerificationContent && !exactKeys(choice.message, ["role", "content"])) {
+  if (requireMinimalVerificationContent && !(minimalVerificationJsonObject
+    ? stoppedContentMessageAllowed(choice.message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata)
+    : exactKeys(choice.message, ["role", "content"]))) {
+    // JSON-object mode has one content channel. Reuse the exact stopped-content
+    // envelope guard; even one otherwise valid native call is competing content.
+    // The retained strict-schema mode still requires exactly role/content.
+    const subtype = minimalVerificationJsonObject
+      ? rejectedStoppedToolSubtype(choice.message, choice.finish_reason,
+        true, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata)
+      : "message_shape";
     throw withProviderDiagnostic(
       providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
       {
-        subtype: "message_shape",
+        subtype,
+        envelopeShape: observeQualificationEnvelopeShape && subtype === "S06"
+          ? qualificationEnvelopeShape(choice.message) : null,
         finishReason: providerFinishReason,
         responseSize,
         contentSize: providerContentSize,
@@ -2242,11 +2260,7 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
       content = toolCall.function.arguments;
     } else if (allowStoppedToolContent
       && choice.finish_reason === "stop"
-      && (!Object.hasOwn(choice.message, "tool_calls")
-        || (allowEmptyStoppedToolCalls && Array.isArray(toolCalls) && toolCalls.length === 0))
-      && !Object.hasOwn(choice.message, "function_call")
-      && stoppedToolMessageKeysAllowed(choice.message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata)
-      && typeof choice.message.content === "string") {
+      && stoppedContentMessageAllowed(choice.message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata)) {
       // Normalize only the explicitly enabled, minimal stopped-content
       // compatibility envelope. Parsing and the production stage's closed wire
       // decoder remain mandatory. A separately enabled empty collection carries
@@ -2421,6 +2435,8 @@ export async function requestHuggingFaceJson({
   const resolvedResponseFormat = toolName === undefined
     ? responseFormat ?? "json_object"
     : undefined;
+  const minimalVerificationJsonObject = requireMinimalVerificationContent
+    && responseFormat === "json_object";
   if (typeof token !== "string" || !token.trim()) {
     throw providerError("provider_not_configured", "The Lattice provider is not configured.");
   }
@@ -2457,16 +2473,18 @@ export async function requestHuggingFaceJson({
     || (requireMinimalVerificationContent
       && (role !== "verifier"
         || schemaName !== VERIFICATION_TOOL_NAME
-        || resolvedResponseFormat !== "json_schema"
+        || (resolvedResponseFormat !== "json_schema" && !minimalVerificationJsonObject)
         || toolName !== undefined
         || toolChoice !== undefined
-        || allowStoppedToolContent || allowEmptyStoppedToolCalls))
+        || allowStoppedToolContent
+        || (!minimalVerificationJsonObject && (allowEmptyStoppedToolCalls || allowNullStoppedVerificationMetadata))))
     || (allowStoppedToolContent
       && (role !== "verifier"
         || toolChoice !== "named"
         || !STOPPED_TOOL_CONTENT_NAMES.has(toolName)))
-    || (allowEmptyStoppedToolCalls && !allowStoppedToolContent)
+    || (allowEmptyStoppedToolCalls && !allowStoppedToolContent && !minimalVerificationJsonObject)
     || (allowNullStoppedVerificationMetadata
+      && !minimalVerificationJsonObject
       && (!allowStoppedToolContent || toolName !== VERIFICATION_TOOL_NAME))
     || (toolName !== undefined && role !== "verifier")
     || (toolName === undefined && role === "verifier"
@@ -2474,12 +2492,12 @@ export async function requestHuggingFaceJson({
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
-  // Nscale analysis uses strict JSON Schema. Candidate and repair generation use
-  // one JSON-object assistant channel with the closed schema in trusted
-  // instructions. The exact DeepInfra model's current Router metadata advertises
-  // tools, not structured output. Verification and certification use the retained
-  // named-tool path with its explicit minimal stopped-content compatibility.
-  // Both private paths still require the exact wire decoder and host validation.
+  // Nscale analysis uses strict JSON Schema. Candidate, repair and verification
+  // use JSON-object content with the closed schema in trusted instructions.
+  // Verification additionally requires its exact minimal stopped envelope;
+  // JSON-object mode promises syntax, not fitted-schema or semantic validity.
+  // Certification retains the named-tool path and stopped compatibility.
+  // Both private review stages still require exact decoding and host validation.
   const providerRequestBody = JSON.stringify({
     model: LATTICE_REMOTE_MODELS[role],
     messages: toolName === undefined
@@ -2609,6 +2627,7 @@ export async function requestHuggingFaceJson({
         allowEmptyStoppedToolCalls,
         allowNullStoppedVerificationMetadata,
         requireMinimalVerificationContent,
+        minimalVerificationJsonObject,
         observeQualificationEnvelopeShape,
       );
     } catch (error) {
