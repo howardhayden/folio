@@ -1027,6 +1027,12 @@ function normalizeVerification(
       .flatMap(({ evidenceSpanIds }) => evidenceSpanIds));
     const layerEvidenceGrounded = resolvedLayerEvidence.ids.every((id) => layerAtomEvidenceIds.has(id));
     booleans.registerFit &&= rawPassage.independentLayer === plan.layer && layerEvidenceGrounded;
+    // A host-proved nonmaterial rewrite remains a failed passage check even
+    // when the verifier omits it. Bind only the current passage's authentic
+    // D14 finding; never manufacture a positive semantic materiality result.
+    booleans.materiality &&= plan.disposition !== "rewrite" || !deterministicFindings.some((finding) => (
+      finding.passageId === source.id && deterministicFindingRule(finding) === "D14"
+    ));
     const resolvedConformance = resolveSourceSpanIds(
       rawPassage.conformanceEvidenceSpanIds,
       source.id,
