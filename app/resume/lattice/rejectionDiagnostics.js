@@ -29,6 +29,9 @@ rules(["V05", "V15", "V27", "C11", "C12"], { T: "value-type", I: "value-domain",
 rules(["V06", "V13", "V14", "V16", "V17", "V18", "V23"], {
   T: "value-type", L: "value-domain", A: "value-domain",
 });
+// Preserve historical V14L while distinguishing only fixed width predicates.
+// These observations establish neither the alphabet nor any mask contents.
+rules(["V14L"], { E: "value-domain", S: "value-domain", G: "value-domain" });
 rules(["V16", "V17", "V23"], { M: "coverage" });
 rules(["V13"], { X: "collection-bound" });
 rules(["V12"], { T: "value-type", L: "value-domain", A: "value-domain" });

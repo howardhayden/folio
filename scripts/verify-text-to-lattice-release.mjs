@@ -29,6 +29,8 @@ import {
 import { projectBySlug } from "../app/resume/projects.js";
 import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
+  HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL,
+  LATTICE_VERIFICATION_REQUEST_MODEL,
   LATTICE_PROVIDER_CALL_LIMIT,
   LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT,
   LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS,
@@ -238,6 +240,8 @@ const heldForbiddenExecutableStrings = Object.freeze([
   "Network policy denied text-to-lattice",
   "LatticeRemoteError",
   "https://router.huggingface.co/v1/chat/completions",
+  "https://router.huggingface.co/deepinfra/v1/openai/chat/completions",
+  "meta-llama/Meta-Llama-3.1-8B-Instruct",
   "Qwen/Qwen3-4B-Instruct-2507:nscale",
   "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
 ]);
@@ -1099,6 +1103,8 @@ async function verifyQualificationDossier(register) {
       .maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay
       .toLocaleString("en-US"),
     artifacts.activeCapability.provider.endpoint,
+    artifacts.activeCapability.provider.verificationEndpoint,
+    artifacts.activeCapability.provider.verificationRequestModel,
     artifacts.activeCapability.provider.generatorModel,
     artifacts.activeCapability.provider.verifierModel,
     artifacts.activeCapability.provider.revisionStatus,
@@ -1294,6 +1300,8 @@ function verifyArtifactSet(register) {
     || capability.admission?.maximumProviderCallsFromAdmittedRequestsPerUtcDay
       !== LATTICE_TRANSFORMATIONS_PER_UTC_DAY * LATTICE_PROVIDER_CALL_LIMIT
     || capability.provider.endpoint !== HUGGING_FACE_CHAT_COMPLETIONS_URL
+    || capability.provider.verificationEndpoint !== HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL
+    || capability.provider.verificationRequestModel !== LATTICE_VERIFICATION_REQUEST_MODEL
     || capability.provider.generatorModel !== LATTICE_REMOTE_MODELS.generator
     || capability.provider.verifierModel !== LATTICE_REMOTE_MODELS.verifier
     || JSON.stringify(capability.provider.stageCallTimeoutsMs)
@@ -2224,6 +2232,8 @@ async function verifyEnabledBuiltBoundary(site, files) {
     "/api/text-to-lattice/lease",
     "https://verify.hah.dev",
     HUGGING_FACE_CHAT_COMPLETIONS_URL,
+    HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL,
+    LATTICE_VERIFICATION_REQUEST_MODEL,
     LATTICE_REMOTE_MODELS.generator,
     LATTICE_REMOTE_MODELS.verifier,
     "@mlc-ai/web-llm",

@@ -33,6 +33,8 @@ export { LATTICE_PROVIDER_CALL_LIMIT };
 
 export const HUGGING_FACE_CHAT_COMPLETIONS_URL =
   "https://router.huggingface.co/v1/chat/completions";
+export const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL =
+  "https://router.huggingface.co/deepinfra/v1/openai/chat/completions";
 
 export const LATTICE_REMOTE_MODELS = Object.freeze({
   generator: "Qwen/Qwen3-4B-Instruct-2507:nscale",
@@ -134,6 +136,7 @@ const HTTP_HEADER_VALUE_SETS = Object.freeze(Object.fromEntries(
 const HTTP_HEADER_CHARACTER_LIMIT = 256;
 const HTTP_TOKEN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
 const VERIFIER_MAPPED_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct";
+export const LATTICE_VERIFICATION_REQUEST_MODEL = VERIFIER_MAPPED_MODEL;
 const VERIFIER_ADVERTISED_REPLACEMENT = "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo";
 
 export function isClosedProviderHttpHeaders(value) {
@@ -547,7 +550,7 @@ function verificationWireMessages(request, wireLayout, wireCorrection) {
 function verificationWireCorrectionForRequest(request) {
   const diagnostic = stageCorrectionRequestDiagnostic(request);
   if (diagnostic?.boundary !== "wire-decoder") return null;
-  if (["V06L", "V12L", "V13L", "V14L", "V16L", "V17L", "V18L", "V23L"].includes(diagnostic.rule)) {
+  if (["V06L", "V12L", "V13L", "V14L", "V14LE", "V14LS", "V14LG", "V16L", "V17L", "V18L", "V23L"].includes(diagnostic.rule)) {
     return "mask-width";
   }
   if (["V01F", "V02F", "V07F", "V09F", "V21F", "V24F"].includes(diagnostic.rule)) return "field-set";
@@ -639,7 +642,8 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: VERIFICATION_WIRE_SCHEMA,
     schemaName: "lattice_verification_wire_v2",
-    responseFormat: "json_object",
+    responseFormat: "json_schema",
+    schemaDescription: "Supply one complete private verification result using the fitted closed index-and-mask schema.",
     requireMinimalVerificationContent: true,
     allowEmptyStoppedToolCalls: true,
     allowNullStoppedVerificationMetadata: true,
@@ -1807,7 +1811,12 @@ function rejectedEnumRule(value, base) {
 function rejectedStringRule(value, values, base, { alphabet = /^[01]+$/u, minimum = 0, maximum = values.length } = {}) {
   try {
     if (typeof value !== "string") return base + "T";
-    if (value.length !== values.length) return base + "L";
+    if (value.length !== values.length) {
+      // Refine only an already rejected passage-check width. No raw length or
+      // mask bits leave this boundary; length still precedes alphabet checks.
+      if (base === "V14") return value.length === 0 ? "V14LE" : value.length < values.length ? "V14LS" : "V14LG";
+      return base + "L";
+    }
     if (!alphabet.test(value)) return base + "A";
     const selected = values.filter((_item, index) => value[index] === "1").length;
     if (selected < minimum) return base + "M";
@@ -2135,7 +2144,7 @@ function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedT
   return "message_shape";
 }
 
-function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls, requireMinimalVerificationContent, minimalVerificationJsonObject, observeQualificationEnvelopeShape) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls, requireMinimalVerificationContent, compatibleVerificationContent, observeQualificationEnvelopeShape) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -2215,14 +2224,14 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
       },
     );
   }
-  if (requireMinimalVerificationContent && !(minimalVerificationJsonObject
+  if (requireMinimalVerificationContent && !(compatibleVerificationContent
     ? stoppedContentMessageAllowed(choice.message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls)
     : exactKeys(choice.message, ["role", "content"]))) {
-    // JSON-object mode has one content channel. Its explicit null-collection
+    // Both verification formats have one content channel. Explicit null/empty
     // compatibility carries no arguments and never rewrites the message/content.
     // Even one otherwise valid native call is competing content.
-    // The retained strict-schema mode still requires exactly role/content.
-    const subtype = minimalVerificationJsonObject
+    // Strict callers without compatibility flags still require role/content.
+    const subtype = compatibleVerificationContent
       ? rejectedStoppedToolSubtype(choice.message, choice.finish_reason,
         true, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls)
       : "message_shape";
@@ -2444,8 +2453,11 @@ export async function requestHuggingFaceJson({
   const resolvedResponseFormat = toolName === undefined
     ? responseFormat ?? "json_object"
     : undefined;
-  const minimalVerificationJsonObject = requireMinimalVerificationContent
-    && responseFormat === "json_object";
+  const minimalVerificationContentRequest = requireMinimalVerificationContent
+    && RESPONSE_FORMATS.has(responseFormat);
+  const compatibleVerificationContent = minimalVerificationContentRequest
+    && (resolvedResponseFormat === "json_object" || allowEmptyStoppedToolCalls
+      || allowNullStoppedVerificationMetadata || allowNullJsonObjectVerificationToolCalls);
   if (typeof token !== "string" || !token.trim()) {
     throw providerError("provider_not_configured", "The Lattice provider is not configured.");
   }
@@ -2483,19 +2495,18 @@ export async function requestHuggingFaceJson({
     || (requireMinimalVerificationContent
       && (role !== "verifier"
         || schemaName !== VERIFICATION_TOOL_NAME
-        || (resolvedResponseFormat !== "json_schema" && !minimalVerificationJsonObject)
+        || !minimalVerificationContentRequest
         || toolName !== undefined
         || toolChoice !== undefined
-        || allowStoppedToolContent
-        || (!minimalVerificationJsonObject && (allowEmptyStoppedToolCalls || allowNullStoppedVerificationMetadata))))
+        || allowStoppedToolContent))
     || (allowStoppedToolContent
       && (role !== "verifier"
         || toolChoice !== "named"
         || !STOPPED_TOOL_CONTENT_NAMES.has(toolName)))
-    || (allowEmptyStoppedToolCalls && !allowStoppedToolContent && !minimalVerificationJsonObject)
-    || (allowNullJsonObjectVerificationToolCalls && !minimalVerificationJsonObject)
+    || (allowEmptyStoppedToolCalls && !allowStoppedToolContent && !minimalVerificationContentRequest)
+    || (allowNullJsonObjectVerificationToolCalls && !minimalVerificationContentRequest)
     || (allowNullStoppedVerificationMetadata
-      && !minimalVerificationJsonObject
+      && !minimalVerificationContentRequest
       && (!allowStoppedToolContent || toolName !== VERIFICATION_TOOL_NAME))
     || (toolName !== undefined && role !== "verifier")
     || (toolName === undefined && role === "verifier"
@@ -2503,14 +2514,19 @@ export async function requestHuggingFaceJson({
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
-  // Nscale analysis uses strict JSON Schema. Candidate, repair and verification
-  // use JSON-object content with the closed schema in trusted instructions.
-  // Verification additionally requires its exact minimal stopped envelope;
-  // JSON-object mode promises syntax, not fitted-schema or semantic validity.
-  // Certification retains the named-tool path and stopped compatibility.
-  // Both private review stages still require exact decoding and host validation.
+  // Only validated strict verification uses HF's explicit DeepInfra proxy and
+  // its fixed mapping of the same selected model. Certification shares the
+  // verifier role but retains the unified route and named-tool contract.
+  const explicitVerificationProxy = minimalVerificationContentRequest
+    && resolvedResponseFormat === "json_schema";
+  const providerUrl = explicitVerificationProxy
+    ? HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL : HUGGING_FACE_CHAT_COMPLETIONS_URL;
+  const providerModel = explicitVerificationProxy
+    ? LATTICE_VERIFICATION_REQUEST_MODEL : LATTICE_REMOTE_MODELS[role];
+  // Fitted schemas request structural constraints; complete wire decoding and
+  // deterministic/semantic host validation remain mandatory for every response.
   const providerRequestBody = JSON.stringify({
-    model: LATTICE_REMOTE_MODELS[role],
+    model: providerModel,
     messages: toolName === undefined
       ? resolvedResponseFormat === "json_schema"
         ? jsonSchemaMessages(messages, schemaName, responseGuide)
@@ -2569,7 +2585,7 @@ export async function requestHuggingFaceJson({
   try {
     let response;
     try {
-      const responsePromise = Promise.resolve(fetchImpl(HUGGING_FACE_CHAT_COMPLETIONS_URL, {
+      const responsePromise = Promise.resolve(fetchImpl(providerUrl, {
         method: "POST",
         headers: {
           ...JSON_HEADERS,
@@ -2606,7 +2622,7 @@ export async function requestHuggingFaceJson({
       if (response.redirected
         || response.type === "opaqueredirect"
         || (response.status >= 300 && response.status < 400)
-        || response.url && response.url !== HUGGING_FACE_CHAT_COMPLETIONS_URL) {
+        || response.url && response.url !== providerUrl) {
         discardResponseBody(response);
         throw providerError("provider_redirect", "The Lattice provider attempted an unexpected redirect.");
       }
@@ -2639,7 +2655,7 @@ export async function requestHuggingFaceJson({
         allowNullStoppedVerificationMetadata,
         allowNullJsonObjectVerificationToolCalls,
         requireMinimalVerificationContent,
-        minimalVerificationJsonObject,
+        compatibleVerificationContent,
         observeQualificationEnvelopeShape,
       );
     } catch (error) {

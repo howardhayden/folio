@@ -317,7 +317,7 @@ test("the release register honestly holds the remote capability and preserves hi
     "responseCachePolicy",
   ].sort(), "the public capability cannot carry undeclared private wire fields");
   assert.deepEqual(Object.keys(capability.provider).sort(), [
-    "endpoint", "generatorModel", "verifierModel", "stageCallTimeoutsMs",
+    "endpoint", "verificationEndpoint", "verificationRequestModel", "generatorModel", "verifierModel", "stageCallTimeoutsMs",
     "maximumCallTimeoutMs", "callLimit", "stageMaximumOutputTokens",
     "maximumRequestedOutputTokensPerCall", "maximumRequestedOutputTokensPerAdmittedRequest",
     "maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay",
@@ -417,6 +417,8 @@ test("the release register honestly holds the remote capability and preserves hi
     },
   );
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
+  assert.equal(capability.provider.verificationEndpoint, "https://router.huggingface.co/deepinfra/v1/openai/chat/completions");
+  assert.equal(capability.provider.verificationRequestModel, "meta-llama/Meta-Llama-3.1-8B-Instruct");
   assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-4B-Instruct-2507:nscale");
   assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.1-8B-Instruct:deepinfra");
   assert.deepEqual(capability.provider.stageCallTimeoutsMs, {
@@ -794,6 +796,10 @@ test("the held-site validator rejects executable bypasses outside the résumé",
   await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script>const endpoint="https://router.huggingface.co/v1/chat/completions"</script>'),
     /contains https:\/\/router\.huggingface\.co\/v1\/chat\/completions/u,
+  );
+  await withHeldSiteFixture(
+    (site) => appendToHtml(route(site), '<script>const endpoint="https://router.huggingface.co/deepinfra/v1/openai/chat/completions"</script>'),
+    /contains https:\/\/router\.huggingface\.co\/deepinfra\/v1\/openai\/chat\/completions/u,
   );
   await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script>throw new Error("Network policy denied text-to-lattice")</script>'),

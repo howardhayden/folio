@@ -30,6 +30,15 @@ const deploymentCustody = Object.freeze({
   siteArtifactSha256: createHash("sha256").update("exact-pages-artifact.tar").digest("hex"),
   qualifiedSourceSetSha256: createHash("sha256").update("qualified-source-set").digest("hex"),
 });
+const liveProviderContract = Object.freeze({
+  endpoint: "https://router.huggingface.co/v1/chat/completions",
+  verification_endpoint: "https://router.huggingface.co/deepinfra/v1/openai/chat/completions",
+  verification_request_model: "meta-llama/Meta-Llama-3.1-8B-Instruct",
+  generator_model: "Qwen/Qwen3-4B-Instruct-2507:nscale",
+  verifier_model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+  automatic_retry: false,
+  alternate_provider_or_model_fallback: false,
+});
 
 function jobsApiPayload(overrides = {}) {
   const job = {
@@ -135,7 +144,8 @@ async function withEvidenceFiles(callback, overrides = {}) {
     },
     liveEvidencePath: {
       format: "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE",
-      schemaVersion: 1,
+      schemaVersion: 2,
+      declared_provider_contract: liveProviderContract,
       checks: [{ id: "wrong-method", status: 405, bodyRetained: false }],
     },
     ...overrides,
@@ -579,7 +589,7 @@ test("deployment evidence rejects content-bearing or credential-shaped retained 
   }, {
     liveEvidencePath: {
       format: "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE",
-      schemaVersion: 1,
+      schemaVersion: 2,
       text: "must not persist",
     },
   });
@@ -593,9 +603,41 @@ test("deployment evidence rejects content-bearing or credential-shaped retained 
   }, {
     liveEvidencePath: {
       format: "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE",
-      schemaVersion: 1,
+      schemaVersion: 2,
       note: "Bearer should-not-be-retained",
     },
+  });
+});
+
+test("deployment evidence binds format-specific versions and the complete current provider contract", async (context) => {
+  for (const [field, version] of [
+    ["liveEvidencePath", 1], ["liveEvidencePath", 3],
+    ["secretEvidencePath", 2], ["routeEvidencePath", 2],
+  ]) await context.test(`${field}: wrong version ${version}`, async () => {
+    await withEvidenceFiles(async (paths) => {
+      const value = JSON.parse(await readFile(paths[field], "utf8"));
+      value.schemaVersion = version;
+      await writeFile(paths[field], JSON.stringify(value));
+      await assert.rejects(buildTextToLatticeDeploymentEvidence({
+        ...paths, ...deploymentCustody, environment: environment(),
+      }), /invalid format or schema version/u);
+    });
+  });
+  for (const [name, patch] of [
+    ["old verification route", { verification_endpoint: liveProviderContract.endpoint }],
+    ["replacement model", { verification_request_model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo" }],
+    ["fallback", { alternate_provider_or_model_fallback: true }],
+    ["unknown field", { extra: "undeclared" }],
+    ["missing mapping", { verification_request_model: undefined }],
+  ]) await context.test(name, async () => {
+    await withEvidenceFiles(async (paths) => {
+      const value = JSON.parse(await readFile(paths.liveEvidencePath, "utf8"));
+      value.declared_provider_contract = { ...value.declared_provider_contract, ...patch };
+      await writeFile(paths.liveEvidencePath, JSON.stringify(value));
+      await assert.rejects(buildTextToLatticeDeploymentEvidence({
+        ...paths, ...deploymentCustody, environment: environment(),
+      }), /invalid fixed provider contract/u);
+    });
   });
 });
 

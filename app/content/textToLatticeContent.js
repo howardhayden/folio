@@ -12,6 +12,8 @@ import { LATTICE_BATCH_LIMIT, LATTICE_PASSAGE_LIMIT } from "../resume/lattice/se
 import { LATTICE_USAGE_POLICY as HISTORICAL_LATTICE_USAGE_POLICY } from "../resume/lattice/usagePolicy.js";
 
 const HUGGING_FACE_CHAT_COMPLETIONS_URL = "https://router.huggingface.co/v1/chat/completions";
+const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL = "https://router.huggingface.co/deepinfra/v1/openai/chat/completions";
+const LATTICE_VERIFICATION_REQUEST_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct";
 const REMOTE_GENERATOR_ID = "Qwen/Qwen3-4B-Instruct-2507:nscale";
 const REMOTE_VERIFIER_ID = "meta-llama/Llama-3.1-8B-Instruct:deepinfra";
 const REMOTE_GENERATOR_REVIEWED_REVISION = "cdbee75f17c01a7cc42f958dc650907174af0554";
@@ -143,8 +145,8 @@ export const textToLatticeContract = Object.freeze({
     huggingFace: Object.freeze({
       summary: "After explicit confirmation, hah.dev sends server-created prompts containing the submitted text to the Hugging Face Inference Providers chat-completions router, configured to use Nscale for the fixed Qwen3-4B-Instruct-2507 generator and DeepInfra for the fixed Llama 3.1 8B Instruct verifier.",
       protections: Object.freeze([
-        `The server can call only ${HUGGING_FACE_CHAT_COMPLETIONS_URL}; user text cannot select a URL, provider, model, header, or credential.`,
-        `The generator is fixed to ${REMOTE_GENERATOR_ID} and the verifier is fixed to ${REMOTE_VERIFIER_ID}. There is no automatic provider or model fallback.`,
+        `The server uses ${HUGGING_FACE_CHAT_COMPLETIONS_URL} for analysis, candidate generation, repair, and certification. Verification and its bounded correction or reverification use only ${HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL}. User text cannot select a URL, provider, model, header, or credential.`,
+        `The generator is fixed to ${REMOTE_GENERATOR_ID} and the canonical verifier selector is ${REMOTE_VERIFIER_ID}. Only the verification route uses the mapped request model ${LATTICE_VERIFICATION_REQUEST_MODEL}; certification keeps the canonical selector on the default route. There is no automatic provider or model fallback.`,
         "The Hugging Face token is a server-side encrypted Worker secret and is never sent to the browser. Browser Content Security Policy limits connect-src to the hah.dev origin.",
         "Provider calls omit caches and reject redirects. Request, response, token, and time limits remain bounded. hah.dev deterministically validates every returned object against its closed contract, and invalid, incomplete, or unknown data fails closed. A schema-correction pass may call the same fixed model again within the pipeline budget and never switches providers.",
         "The hah.dev application does not persist source text, prompts, candidates, results, or raw provider bodies and does not write them to application logs or analytics. Responses use Cache-Control: no-store.",
@@ -195,7 +197,7 @@ export const textToLatticeContract = Object.freeze({
     "Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information.",
     "hah.dev application code does not retain source text, prompts, candidates, results, or raw provider responses in storage, logs, caches, queues, or analytics. The bounded Worker and browser keep only transient in-memory state needed for the request and display.",
     "Hugging Face, Nscale, DeepInfra, and their infrastructure process the submitted content under their own policies; hah.dev does not claim that its application-level no-retention rule governs those external systems.",
-    "The provider endpoint, provider, generator, and verifier are fixed server-side. There is no automatic provider or model fallback, and a terminal failure requires another deliberate submission.",
+    "Provider endpoints, stage routing, the generator, and the verifier are fixed server-side. There is no automatic provider or model fallback, and a terminal failure requires another deliberate submission.",
     "The service admits at most 30 transformations globally per UTC day and 3 from one ordinary persistent cookie jar per UTC day. Its API-scoped opaque HttpOnly cookie contains no submitted content and expires at the next UTC-day boundary; no IP or browser fingerprint is used as a second quota identity.",
     "The active remote runtime may differ in weights, tokenizer behavior, kernels, numerical behavior, and serving configuration from the historical pinned MLC/WebGPU artifacts; byte-for-byte equivalence is not claimed.",
     "Canonical hah.dev pages, manifests, Markdown, JSON-LD, the sitemap, and the tool contract remain readable without JavaScript or conversion availability.",
