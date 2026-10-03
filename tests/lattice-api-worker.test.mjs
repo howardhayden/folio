@@ -8262,7 +8262,7 @@ test("authentic D14 reconciles a complete corrected verifier before bounded mate
 test("D14 reconciliation cannot validate unsupported issues, absent host failures, or invalid masks", async (context) => {
   const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
   const issueChecks = VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum;
-  for (const failure of ["no D14", "global materiality issue", "unrelated local issue", "zero support mask", "truncated support mask"]) {
+  for (const failure of ["no D14", "global materiality issue", "unrelated local issue", "truncated support mask"]) {
     await context.test(failure, async () => {
       let drafts = 0; let verifies = 0; const calls = [];
       const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
@@ -8277,7 +8277,7 @@ test("D14 reconciliation cannot validate unsupported issues, absent host failure
         assert.equal(isVerificationBody(body), true, "invalid corrected reviews cannot certify");
         verifies += 1;
         const wire = canaryVerificationWire(body); wire.d = 1;
-        if (verifies === 1 || failure === "zero support mask") wire.p["0"].y = "000";
+        if (verifies === 1) wire.p["0"].y = "000";
         else if (failure === "truncated support mask") wire.p["0"].y = "1";
         if (verifies === 2 && failure === "global materiality issue") wire.i = [{ c: issueChecks.indexOf("materiality"), p: -1 }];
         if (verifies === 2 && failure === "unrelated local issue") wire.i = [{ c: issueChecks.indexOf("clarity"), p: 0 }];
@@ -8291,5 +8291,226 @@ test("D14 reconciliation cannot validate unsupported issues, absent host failure
       assert.equal(envelope.result.verificationPasses, 0);
       assert.equal(drafts, 1); assert.equal(verifies, 2); assert.equal(calls.length, 4);
     });
+  }
+});
+
+
+function applyEmptySupportRegressionFailure(wire, failure) {
+  if (failure === "V16M") wire.p["0"].x = "0".repeat(wire.p["0"].x.length);
+  else if (failure === "V17M") wire.p["0"].y = "0".repeat(wire.p["0"].y.length);
+  else if (failure === "V01F") delete wire.i;
+  else if (failure === "V17L") wire.p["0"].y = "1";
+  else if (failure === "V19") wire.p["0"].c.v = true;
+  else if (failure === "V24O") wire.i = [null];
+  else if (failure === "host issue") {
+    wire.d = 1;
+    wire.i = [{ c: VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum.indexOf("clarity"), p: 0 }];
+  } else if (failure === "structural") {
+    // The selected atom has evidence span 0 only. Span 1 exists but does not ground it.
+    wire.p["0"].x = "10";
+    wire.p["0"].y = "010";
+  } else assert.equal(failure, null, `unexpected regression failure ${failure}`);
+}
+
+async function runEmptySupportMaterialRepair({
+  first = "V16M", second = "V17M", hasD14 = true, copiedRepair = false,
+  freshFailure = null, brokenRepair = false,
+} = {}) {
+  const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
+  const calls = []; const verifyResults = []; const repairRequests = [];
+  let drafts = 0; let verifies = 0; let certificates = 0;
+  const worker = createLatticeApiWorker({
+    createAdapter(options) {
+      const adapter = createHuggingFaceLatticeAdapter(options);
+      return Object.freeze({ ...adapter,
+        async verify(request) {
+          const result = await adapter.verify(request);
+          verifyResults.push(result);
+          return result;
+        },
+        async repair(request) { repairRequests.push(request); return adapter.repair(request); },
+      });
+    },
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body); calls.push(body);
+      if (isAnalysisBody(body)) {
+        const wire = canaryAnalysisWire(body);
+        wire.p[0][2] = [[1, 0, 1, [0]], [1, 0, 1, [1, 2]]];
+        return successfulProviderResponse(wire);
+      }
+      if (isCandidateBody(body)) {
+        drafts += 1;
+        if (drafts > 1) {
+          assert.equal(inertModelPayload(body).verification, null,
+            "unavailable independent review must not become invented semantic feedback");
+          if (brokenRepair) return successfulProviderResponse({ passages: [] });
+        }
+        return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+          hasD14 && (drafts === 1 || copiedRepair) ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText));
+      }
+      if (isVerificationBody(body)) {
+        verifies += 1;
+        const wire = canaryVerificationWire(body);
+        wire.p["0"].x = "10";
+        wire.p["0"].y = "100";
+        applyEmptySupportRegressionFailure(wire, verifies === 1 ? first : verifies === 2 ? second : freshFailure);
+        assert.equal(body.max_tokens, 2048);
+        assert.deepEqual(body.response_format, { type: "json_object" });
+        fittedVerificationSchemaForBody(body);
+        return successfulProviderResponse(wire);
+      }
+      certificates += 1;
+      assert.equal(copiedRepair || brokenRepair || freshFailure !== null, false,
+        "unproved or nonmaterial repairs cannot enter certification");
+      assert.equal(body.tool_choice.function.name, CERTIFICATION_TOOL_NAME);
+      assert.equal(body.max_tokens, 520);
+      const payload = inertModelPayload(body);
+      return successfulProviderToolResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds), {
+        toolName: CERTIFICATION_TOOL_NAME,
+      });
+    },
+  });
+  const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: {
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  } }), { HF_TOKEN: "server-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-10-03T14:00:00.000Z" });
+  const envelope = await json(response);
+  return { response, envelope, calls, drafts, verifies, certificates, repairRequests, verifyResults, repairText };
+}
+
+function assertRetainedEmptySupportPair(result, first, second) {
+  // The adapter returns identity-tagged rejected results; normalization in
+  // the engine creates the later errors. Keep the original result evidence.
+  assert.deepEqual(rejectedResultDiagnostic(result.verifyResults[0]),
+    { boundary: "wire-decoder", category: "coverage", rule: first });
+  assert.deepEqual(rejectedResultDiagnostic(result.verifyResults[1]),
+    { boundary: "wire-decoder", category: "coverage", rule: second });
+  for (const value of result.verifyResults.slice(0, 2)) {
+    assert.equal(rejectedResultDiagnostic({ ...value }), null,
+      "copied properties must not become original rejection evidence");
+  }
+}
+
+const EMPTY_SUPPORT_REGRESSION_PAIRS = [
+  ["V16M", "V16M"], ["V16M", "V17M"], ["V17M", "V16M"], ["V17M", "V17M"],
+];
+
+test("two genuine empty-support rejections may spend the existing D14 repair only with fresh verification", async (context) => {
+  for (const [first, second] of EMPTY_SUPPORT_REGRESSION_PAIRS) for (const copiedRepair of [false, true]) {
+    await context.test(`${first}/${second}: ${copiedRepair ? "copied repair withheld" : "real repair certified"}`, async () => {
+      const result = await runEmptySupportMaterialRepair({ first, second, copiedRepair });
+      const { response, envelope, calls, drafts, verifies, certificates, repairRequests, repairText } = result;
+      assert.equal(response.status, 200);
+      assert.equal(drafts, 2, "one existing material repair, no added candidate cycle");
+      assert.equal(repairRequests.length, 1);
+      assert.equal(repairRequests[0].verification, null);
+      assert.equal(Object.isFrozen(repairRequests[0]), true);
+      assert.deepEqual(repairRequests[0].deterministicFindings.map(({ id }) => id), ["candidate-not-material"]);
+      assert.equal(verifies, 3, "the repaired candidate requires a fresh complete review");
+      assert.equal(certificates, copiedRepair ? 0 : 1);
+      assert.equal(calls.filter(isAnalysisBody).length, 1, "pure host D14 does not re-atomize");
+      assert.equal(calls.length, copiedRepair ? 6 : 7);
+      assert.equal(envelope.result.status === "translated", !copiedRepair);
+      assert.equal(envelope.result.text, copiedRepair ? null : `${repairText}\n`);
+      assert.equal(envelope.result.verificationPasses, copiedRepair ? 0 : 2);
+      const verifyBodies = calls.filter(isVerificationBody);
+      for (const body of verifyBodies) {
+        const schema = fittedVerificationSchemaForBody(body).properties.p.properties["0"].properties;
+        assert.equal(schema.x.minLength, 2);
+        assert.equal(schema.x.maxLength, 2);
+        assert.equal(schema.y.minLength, 3);
+        assert.equal(schema.y.maxLength, 3);
+        assert.equal(schema.x.pattern, "^[01]*1[01]*$");
+        assert.equal(schema.y.pattern, "^[01]*1[01]*$");
+        assert.doesNotMatch(JSON.stringify(body), /V16M|V17M|D14|decision-consistency/u);
+      }
+      assert.deepEqual(fittedVerificationSchemaForBody(verifyBodies[0]), fittedVerificationSchemaForBody(verifyBodies[1]));
+      assert.deepEqual(fittedVerificationSchemaForBody(verifyBodies[0]), fittedVerificationSchemaForBody(verifyBodies[2]));
+      assert.equal(inertModelPayload(verifyBodies[1]).retry, "private-verification-wire-invalid");
+      assert.equal(Object.hasOwn(inertModelPayload(verifyBodies[2]), "retry"), false,
+        "a new candidate must not inherit the old candidate's correction attempt");
+      assert.equal(Boolean(inertModelPayload(verifyBodies[2]).deterministicFindings?.length), copiedRepair);
+      assertRetainedEmptySupportPair(result, first, second);
+    });
+  }
+});
+
+test("empty-support recovery never accepts invalid fresh masks or a structural fresh rejection", async (context) => {
+  for (const freshFailure of ["V16M", "V17M", "V17L", "host issue", "structural"]) {
+    await context.test(freshFailure, async () => {
+      const result = await runEmptySupportMaterialRepair({ freshFailure });
+      assert.equal(result.response.status, 200);
+      assert.notEqual(result.envelope.result.status, "translated");
+      assert.equal(result.envelope.result.text, null);
+      assert.equal(result.envelope.result.verificationPasses, 0);
+      assert.equal(result.drafts, 2, "no second repair after the single recovery");
+      assert.equal(result.repairRequests.length, 1);
+      assert.equal(result.calls.filter(isAnalysisBody).length, 1, "no new reanalysis loop after this repair");
+      assert.equal(result.verifies, freshFailure === "structural" ? 3 : 4);
+      assert.equal(result.calls.length, freshFailure === "structural" ? 6 : 7);
+      assert.equal(result.certificates, 0);
+      assertRetainedEmptySupportPair(result, "V16M", "V17M");
+      if (freshFailure !== "structural") {
+        assert.equal(result.response.headers.get(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS.failureCause), "multiple",
+          "original verification and failed reverification are distinct retained failures");
+        assert.equal(result.response.headers.get(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS.firstDeterministicRule), "D14",
+          "failed fresh verification restores the original candidate lineage");
+      }
+    });
+  }
+});
+
+test("failed material recovery preserves the first empty-support rejection and does not invent a verifier result", async (context) => {
+  for (const [first, second] of EMPTY_SUPPORT_REGRESSION_PAIRS) {
+    await context.test(`${first}/${second}`, async () => {
+      const result = await runEmptySupportMaterialRepair({ first, second, brokenRepair: true });
+      assert.equal(result.response.status, 200);
+      assert.notEqual(result.envelope.result.status, "translated");
+      assert.equal(result.envelope.result.text, null);
+      assert.equal(result.envelope.result.verificationPasses, 0);
+      assert.equal(result.drafts, 3, "one initial candidate and two existing bounded normalization attempts within one repair");
+      assert.equal(result.repairRequests.length, 2);
+      assert.ok(result.repairRequests.every(({ verification }) => verification === null));
+      assert.equal(result.verifies, 2, "no candidate was produced for independent reverification");
+      assert.equal(result.certificates, 0);
+      assert.equal(result.calls.length, 6);
+      assert.equal(result.calls.filter(isAnalysisBody).length, 1);
+      assertRetainedEmptySupportPair(result, first, second);
+      for (const [field, value] of Object.entries({
+        verification: "unavailable", firstDeterministicRule: "D14", failureCause: "multiple", stage: "multiple",
+      })) assert.equal(result.response.headers.get(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS[field]), value, field);
+    });
+  }
+});
+
+test("empty-support recovery requires an actual host D14 and two failures from the eligible decoder family", async (context) => {
+  for (const [first, second] of EMPTY_SUPPORT_REGRESSION_PAIRS) {
+    await context.test(`no host D14: ${first}/${second}`, async () => {
+      const result = await runEmptySupportMaterialRepair({ first, second, hasD14: false });
+      assert.equal(result.response.status, 200);
+      assert.equal(result.envelope.result.text, null);
+      assert.equal(result.envelope.result.verificationPasses, 0);
+      assert.equal(result.drafts, 1);
+      assert.equal(result.verifies, 2);
+      assert.equal(result.certificates, 0);
+      assert.equal(result.repairRequests.length, 0);
+      assert.equal(result.calls.length, 4);
+    });
+  }
+  for (const support of ["V16M", "V17M"]) {
+    for (const other of ["V01F", "V17L", "V19", "V24O", "host issue"]) {
+      for (const [first, second] of [[support, other], [other, support]]) {
+        await context.test(`ineligible pair: ${first}/${second}`, async () => {
+          const result = await runEmptySupportMaterialRepair({ first, second });
+          assert.equal(result.response.status, 200);
+          assert.equal(result.envelope.result.text, null);
+          assert.equal(result.envelope.result.verificationPasses, 0);
+          assert.equal(result.drafts, 1);
+          assert.equal(result.verifies, 2);
+          assert.equal(result.certificates, 0);
+          assert.equal(result.repairRequests.length, 0);
+          assert.equal(result.calls.length, 4);
+        });
+      }
+    }
   }
 });

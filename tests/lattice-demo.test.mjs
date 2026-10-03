@@ -3826,3 +3826,90 @@ test("host materiality reconciliation preserves structural replacement-analysis 
       : ["analyze:1", "generate:1", "verify:1", "analyze:2", "analyze:3"]);
   });
 });
+
+test("empty layer support can spend the existing repair on an authentic nonmaterial candidate", async () => {
+  const events = [];
+  const adapter = scriptedAdapter({
+    generate(request) { return rawCandidate(request, { identity: true }); },
+    verify(request, count) {
+      events.push(`verify:${count}`);
+      if (count <= 2) return rememberRejectedResult({}, "coverage", count === 1 ? "V16M" : "V17M");
+      return rawVerification(request);
+    },
+    repair(request) {
+      events.push("repair");
+      assert.equal(request.verification, null, "unavailable verification supplies no model findings");
+      assert.ok(request.deterministicFindings.every((finding) => deterministicFindingRule(finding) === "D14"));
+      return rawCandidate(request);
+    },
+  });
+  const result = await runTextToLattice(opaqueWords(8), { adapter });
+  assert.equal(result.status, "translated");
+  assert.equal(adapter.calls.analyze, 1);
+  assert.equal(adapter.calls.generate, 1);
+  assert.equal(adapter.calls.repair, 1);
+  assert.deepEqual(events, ["verify:1", "verify:2", "repair", "verify:3"]);
+});
+
+test("empty-support recovery requires both authentic support failures and only D14", async (context) => {
+  const cases = [
+    ["prior width failure", "V17L", "V17M"], ["current width failure", "V17M", "V17L"],
+    ["prior field failure", "V01F", "V17M"], ["current field failure", "V17M", "V01F"],
+    ["prior retained coverage", "V20", "V17M"], ["current criterion coverage", "V17M", "V23M"],
+    ["copied rejection", "V17M", "V17M"], ["no D14", "V17M", "V17M"],
+    ["mixed deterministic findings", "V17M", "V17M"], ["valid unsupported language", null, null],
+  ];
+  for (const [name, first, second] of cases) await context.test(name, async () => {
+    const adapter = scriptedAdapter({
+      generate(request) {
+        const candidate = rawCandidate(request, { identity: name !== "no D14" });
+        if (name === "mixed deterministic findings") candidate.passages[0].layer = "experiential";
+        return candidate;
+      },
+      verify(request, count) {
+        if (name === "valid unsupported language") return rawVerification(request, { gates: { languageSupported: false } });
+        if (name === "mixed deterministic findings") {
+          assert.deepEqual(request.deterministicFindings.map(deterministicFindingRule).sort(), ["D12", "D14"]);
+        }
+        const rule = count === 1 ? first : second;
+        const result = rememberRejectedResult({}, rule.endsWith("L") ? "value-domain"
+          : rule.endsWith("F") ? "field-set" : "coverage", rule);
+        return name === "copied rejection" ? { ...result, rejectionRule: rule, rejectionCategory: "coverage" } : result;
+      },
+      repair() { assert.fail("unrelated or untrusted evidence must not grant material repair"); },
+    });
+    const result = await runTextToLattice(opaqueWords(8), { adapter });
+    assert.equal(result.text, null);
+    assert.equal(adapter.calls.repair, 0);
+    assert.equal(adapter.calls.analyze, 1);
+    assert.equal(adapter.calls.verify, name === "valid unsupported language" ? 1 : 2);
+  });
+});
+
+test("empty-support recovery cannot add another replacement after repair or recheck failure", async (context) => {
+  for (const failure of ["invalid repair", "invalid recheck", "structural recheck", "cancellation"]) {
+    await context.test(failure, async () => {
+      const controller = new AbortController();
+      const adapter = scriptedAdapter({
+        generate(request) { return rawCandidate(request, { identity: true }); },
+        verify(request, count) {
+          if (count <= 2 || failure === "invalid recheck") return rememberRejectedResult({}, "coverage", "V17M");
+          return rawVerification(request, { gates: { sourceCoverage: false } });
+        },
+        repair(request) {
+          assert.equal(request.verification, null);
+          if (failure === "cancellation") controller.abort();
+          return failure === "invalid repair" ? {} : rawCandidate(request);
+        },
+        certify() { assert.fail("failed fresh verification cannot certify"); },
+      });
+      const pending = runTextToLattice(opaqueWords(8), { adapter, signal: controller.signal });
+      if (failure === "cancellation") await assert.rejects(pending, { name: "AbortError" });
+      else assert.equal((await pending).text, null);
+      assert.equal(adapter.calls.analyze, 1, "no second reanalysis/replacement opportunity");
+      assert.equal(adapter.calls.generate, 1);
+      assert.equal(adapter.calls.repair, failure === "invalid repair" ? 2 : 1, "one repair stage with only its existing correction");
+      assert.equal(adapter.calls.verify, failure === "invalid recheck" ? 4 : failure === "structural recheck" ? 3 : 2);
+    });
+  }
+});
