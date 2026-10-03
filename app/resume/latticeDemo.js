@@ -2808,6 +2808,26 @@ function batchFindings(batch, deterministic, verification) {
   return findings;
 }
 
+function canRepairAfterEmptyLayerSupport(entry) {
+  if (entry.verification.available !== false || entry.deterministicFindings.length === 0) return false;
+  // Both rejected checks must belong to the existing empty layer-support
+  // correction family. Diagnostic lookalikes and other invalid evidence do
+  // not grant another opportunity, and no missing support is filled in here.
+  const failure = REVIEW_STAGE_FAILURE_DIAGNOSTICS.get(entry.verification);
+  if (failure?.stage !== "verification" || failure.attempt !== "2"
+    || failure.failureCause !== "host-validation"
+    || failure.validationCategory !== "response-shape" || failure.priorValidationCategory !== "response-shape"
+    || failure.rejectionBoundary !== "wire-decoder" || failure.priorRejectionBoundary !== "wire-decoder"
+    || failure.rejectionCategory !== "coverage" || failure.priorRejectionCategory !== "coverage"
+    || !["V16M", "V17M"].includes(failure.rejectionRule)
+    || !["V16M", "V17M"].includes(failure.priorRejectionRule)) return false;
+  return entry.deterministicFindings.every((finding) => (
+    deterministicFindingRule(finding) === "D14"
+    && entry.batch.passages.some((passage) => passage.id === finding.passageId)
+    && entry.analysis.passages.some((plan) => plan.passageId === finding.passageId && plan.disposition === "rewrite")
+  ));
+}
+
 function unavailableVerification(batch, analysis, message) {
   const gates = Object.freeze({
     languageSupported: true,
@@ -3614,7 +3634,13 @@ export async function runTextToLattice(value, options = {}) {
     ))
   ));
   const structuralIds = new Set(structurallyFailed.map((entry) => entry.batch.id));
-  const retryableFailures = failures.filter((entry) => entry.verification.available !== false && entry.verification.gates.languageSupported);
+  const unverifiedMaterialityRepairs = new Set(failures
+    .filter(canRepairAfterEmptyLayerSupport)
+    .map((entry) => entry.batch.id));
+  const retryableFailures = failures.filter((entry) => (
+    entry.verification.available !== false && entry.verification.gates.languageSupported
+    || unverifiedMaterialityRepairs.has(entry.batch.id)
+  ));
   const retryNotes = [];
   const reanalyzedByBatch = new Map();
 
@@ -3713,6 +3739,10 @@ export async function runTextToLattice(value, options = {}) {
     const replacementAnalysis = replacementEntry?.analysis ?? original.analysis;
     const retryRequest = Object.freeze({
       ...original,
+      // Repair only the host-proved defect; the unavailable review contains
+      // placeholders, not independent semantic findings. Fresh verification
+      // below must still establish every required condition for the new draft.
+      ...(unverifiedMaterialityRepairs.has(original.batch.id) ? { verification: null } : {}),
       analysisRevisionId: replacementEntry?.analysisRevisionId ?? original.analysisRevisionId,
       clarificationDocumentProvenance: replacementEntry?.clarificationDocumentProvenance
         ?? original.clarificationDocumentProvenance,
