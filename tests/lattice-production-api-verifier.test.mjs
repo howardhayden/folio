@@ -274,11 +274,25 @@ test("the production verifier establishes one bodyless visitor session before ex
       preflightCallbacks += 1;
       assert.equal(fixture.canaryRequests, 0);
       assert.equal(preflightEvidence.format, LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA);
+      assert.equal(preflightEvidence.schemaVersion, 2);
+      assert.equal(preflightEvidence.declared_provider_contract.verification_endpoint,
+        "https://router.huggingface.co/deepinfra/v1/openai/chat/completions");
+      assert.equal(preflightEvidence.declared_provider_contract.verification_request_model,
+        "meta-llama/Meta-Llama-3.1-8B-Instruct");
     },
   });
 
   assert.equal(evidence.format, LATTICE_PRODUCTION_EVIDENCE_SCHEMA);
-  assert.equal(evidence.schemaVersion, 1);
+  assert.equal(evidence.schemaVersion, 2);
+  assert.deepEqual(evidence.declared_provider_contract, {
+    endpoint: "https://router.huggingface.co/v1/chat/completions",
+    verification_endpoint: "https://router.huggingface.co/deepinfra/v1/openai/chat/completions",
+    verification_request_model: "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    generator_model: "Qwen/Qwen3-4B-Instruct-2507:nscale",
+    verifier_model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+    automatic_retry: false,
+    alternate_provider_or_model_fallback: false,
+  });
   assert.equal(evidence.verified_at, "2026-09-14T12:34:56.000Z");
   assert.equal(preflightCallbacks, 1);
   assert.deepEqual(Object.keys(evidence), [
@@ -2081,6 +2095,14 @@ test("first verification rejection on a correction provider failure is finite, c
     ["host normalizer unknown", { ...diagnostic, ...priorHeaders({ boundary: "host-normalizer", category: "other", rule: "unknown" }) }, 502, /prior_rejection_boundary=host-normalizer; prior_rejection_category=other; prior_rejection_rule=unknown$/u, true],
     ["wire unknown remains uncertain", { ...diagnostic, ...priorHeaders({ category: "other", rule: "unknown" }) }, 502, /prior_rejection_boundary=wire-decoder; prior_rejection_category=other; prior_rejection_rule=unknown$/u, true],
     ["mask coverage rejection", { ...diagnostic, ...priorHeaders({ category: "coverage", rule: "V16M" }) }, 502, /prior_rejection_category=coverage; prior_rejection_rule=V16M$/u, true],
+    ...["V14L", "V14LE", "V14LS", "V14LG"].flatMap((rule) => [
+      [`passage-check width ${rule}`, { ...diagnostic, ...priorHeaders({ category: "value-domain", rule }) }, 502,
+        new RegExp(`prior_rejection_boundary=wire-decoder; prior_rejection_category=value-domain; prior_rejection_rule=${rule}$`, "u"), true],
+      [`width category mismatch ${rule}`, { ...diagnostic, ...priorHeaders({ category: "coverage", rule }) }, 502, invalid, false],
+      [`width host-boundary mismatch ${rule}`, { ...diagnostic, ...priorHeaders({ boundary: "host-normalizer", category: "value-domain", rule }) }, 502, invalid, false],
+    ]),
+    ...["V14LX", "V14LS8", "V14LG10"].map((rule) =>
+      [`unregistered width refinement ${rule}`, { ...diagnostic, ...priorHeaders({ category: "value-domain", rule }) }, 502, invalid, false]),
     ["consistency rejection", { ...diagnostic, ...priorHeaders({ category: "consistency", rule: "V19" }) }, 502, /prior_rejection_category=consistency; prior_rejection_rule=V19$/u, true],
     ["all fields without base diagnostic", prior, 502, incompatible, false],
     ["private boundary", { ...exact, [headerNames.boundary]: marker }, 502, invalid, false],

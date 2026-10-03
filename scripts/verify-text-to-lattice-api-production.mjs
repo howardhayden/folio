@@ -17,6 +17,8 @@ import {
   LATTICE_PROVIDER_ANALYSIS_ATTEMPTS,
   LATTICE_PROVIDER_ANALYSIS_ORIGINS,
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
+  HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL,
+  LATTICE_VERIFICATION_REQUEST_MODEL,
   LATTICE_PROVIDER_CALL_LIMIT,
   LATTICE_PROVIDER_COMPLETION_TOKEN_BUCKETS,
   LATTICE_PROVIDER_FAILURE_CLASSES,
@@ -1290,7 +1292,7 @@ export async function verifyTextToLatticeApiProduction({
   );
   const runUrl = `${deployment.serverUrl}/${deployment.repository}/actions/runs/${deployment.runId}`;
   const commonEvidence = Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     verified_at: verifiedAt.toISOString(),
     deployment: Object.freeze({
       repository: deployment.repository,
@@ -1309,6 +1311,8 @@ export async function verifyTextToLatticeApiProduction({
     }),
     declared_provider_contract: Object.freeze({
       endpoint: HUGGING_FACE_CHAT_COMPLETIONS_URL,
+      verification_endpoint: HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL,
+      verification_request_model: LATTICE_VERIFICATION_REQUEST_MODEL,
       generator_model: LATTICE_REMOTE_MODELS.generator,
       verifier_model: LATTICE_REMOTE_MODELS.verifier,
       automatic_retry: false,

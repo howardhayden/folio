@@ -3854,6 +3854,9 @@ test("empty layer support can spend the existing repair on an authentic nonmater
 test("empty-support recovery requires both authentic support failures and only D14", async (context) => {
   const cases = [
     ["prior width failure", "V17L", "V17M"], ["current width failure", "V17M", "V17L"],
+    ...["V14LE", "V14LS", "V14LG"].flatMap((rule) => [
+      [`prior check width ${rule}`, rule, "V17M"], [`current check width ${rule}`, "V17M", rule],
+    ]),
     ["prior field failure", "V01F", "V17M"], ["current field failure", "V17M", "V01F"],
     ["prior retained coverage", "V20", "V17M"], ["current criterion coverage", "V17M", "V23M"],
     ["copied rejection", "V17M", "V17M"], ["no D14", "V17M", "V17M"],
@@ -3872,7 +3875,7 @@ test("empty-support recovery requires both authentic support failures and only D
           assert.deepEqual(request.deterministicFindings.map(deterministicFindingRule).sort(), ["D12", "D14"]);
         }
         const rule = count === 1 ? first : second;
-        const result = rememberRejectedResult({}, rule.endsWith("L") ? "value-domain"
+        const result = rememberRejectedResult({}, rule.endsWith("L") || /^V14L[ESG]$/u.test(rule) ? "value-domain"
           : rule.endsWith("F") ? "field-set" : "coverage", rule);
         return name === "copied rejection" ? { ...result, rejectionRule: rule, rejectionCategory: "coverage" } : result;
       },

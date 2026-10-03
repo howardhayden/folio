@@ -9,6 +9,12 @@ import {
 import {
   LATTICE_API_VISITOR_COOKIE_SECRET_BINDING,
 } from "../workers/text-to-lattice-api/visitorCookie.js";
+import {
+  HUGGING_FACE_CHAT_COMPLETIONS_URL,
+  HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL,
+  LATTICE_REMOTE_MODELS,
+  LATTICE_VERIFICATION_REQUEST_MODEL,
+} from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 
 const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const SHA_PATTERN = /^[a-f0-9]{40}$/u;
@@ -244,7 +250,7 @@ function inspectEvidenceValue(value, path = "evidence") {
   }
 }
 
-async function readSanitizedEvidence(pathname, expectedFormat) {
+async function readSanitizedEvidence(pathname, expectedFormat, expectedSchemaVersion = 1) {
   const bytes = await readFile(resolve(pathname));
   if (bytes.byteLength > MAXIMUM_EVIDENCE_BYTES) {
     fail(`${expectedFormat} exceeds the retained evidence-size boundary.`);
@@ -255,11 +261,29 @@ async function readSanitizedEvidence(pathname, expectedFormat) {
   } catch {
     fail(`${expectedFormat} is not UTF-8 JSON.`);
   }
-  if (!isRecord(value) || value.format !== expectedFormat || value.schemaVersion !== 1
+  if (!isRecord(value) || value.format !== expectedFormat || value.schemaVersion !== expectedSchemaVersion
     || !SAFE_EVIDENCE_FORMATS.has(value.format)) {
     fail(`${expectedFormat} has an invalid format or schema version.`);
   }
   inspectEvidenceValue(value);
+  if (expectedFormat === "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE") {
+    // Historical v1 receipts remain evidence for their own revisions. Current
+    // assembly requires the v2 producer's complete fixed stage-target contract.
+    const expectedProvider = {
+      endpoint: HUGGING_FACE_CHAT_COMPLETIONS_URL,
+      verification_endpoint: HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL,
+      verification_request_model: LATTICE_VERIFICATION_REQUEST_MODEL,
+      generator_model: LATTICE_REMOTE_MODELS.generator,
+      verifier_model: LATTICE_REMOTE_MODELS.verifier,
+      automatic_retry: false,
+      alternate_provider_or_model_fallback: false,
+    };
+    const provider = value.declared_provider_contract;
+    if (!isRecord(provider) || Object.keys(provider).length !== Object.keys(expectedProvider).length
+      || Object.entries(expectedProvider).some(([key, expected]) => provider[key] !== expected)) {
+      fail(`${expectedFormat} has an invalid fixed provider contract.`);
+    }
+  }
   return Object.freeze({
     basename: basename(pathname),
     sha256: createHash("sha256").update(bytes).digest("hex"),
@@ -495,7 +519,7 @@ export async function buildTextToLatticeDeploymentEvidence({
     readJson(policyDeploymentPath, "response-policy deployment status"),
     readSanitizedEvidence(secretEvidencePath, "TEXT_TO_LATTICE_SECRET_BINDING_EVIDENCE"),
     readSanitizedEvidence(routeEvidencePath, "TEXT_TO_LATTICE_ROUTE_INVENTORY_EVIDENCE"),
-    readSanitizedEvidence(liveEvidencePath, "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE"),
+    readSanitizedEvidence(liveEvidencePath, "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE", 2),
   ]);
   const generatedAt = now();
   if (!(generatedAt instanceof Date) || Number.isNaN(generatedAt.valueOf())) {

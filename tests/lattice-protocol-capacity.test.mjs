@@ -674,29 +674,18 @@ function maximalFittedWireValue(schema, stringValue) {
 }
 
 function fittedJsonObjectVerificationSchema(body) {
-  assert.equal(body.model, LATTICE_REMOTE_MODELS.verifier);
-  assert.deepEqual(body.response_format, { type: "json_object" });
+  // Retain the existing helper call sites while making production transport strict.
+  assert.equal(body.model, "meta-llama/Meta-Llama-3.1-8B-Instruct");
+  assert.equal(body.response_format.type, "json_schema");
+  assert.equal(body.response_format.json_schema.name, "lattice_verification_wire_v2");
+  assert.equal(body.response_format.json_schema.strict, true);
   for (const field of ["tools", "tool_choice", "parallel_tool_calls"]) {
     assert.equal(Object.hasOwn(body, field), false);
   }
-  const systemMessages = body.messages.filter(({ role }) => role === "system");
-  const contractMessages = systemMessages.filter(({ content }) => (
-    typeof content === "string"
-      && /(?:^|\n)Response contract lattice_verification_wire_v2:/u.test(content)
-  ));
-  assert.equal(contractMessages.length, 1, "one trusted system verification contract is required");
-  const systemContent = systemMessages.map(({ content }) => content).join("\n");
-  assert.equal((systemContent.match(/<LATTICE_RESPONSE_SCHEMA>/gu) ?? []).length, 1);
-  assert.equal((systemContent.match(/<\/LATTICE_RESPONSE_SCHEMA>/gu) ?? []).length, 1);
-  const schemaBlocks = [...systemContent.matchAll(
-    /<LATTICE_RESPONSE_SCHEMA>(.*?)<\/LATTICE_RESPONSE_SCHEMA>/gsu,
-  )];
-  assert.equal(schemaBlocks.length, 1, "one trusted system fitted schema is required");
-  const [contractSchema] = [...contractMessages[0].content.matchAll(
-    /<LATTICE_RESPONSE_SCHEMA>(.*?)<\/LATTICE_RESPONSE_SCHEMA>/gsu,
-  )];
-  assert.ok(contractSchema, "the fitted schema belongs to the trusted verification contract");
-  return JSON.parse(contractSchema[1]);
+  const system = body.messages.filter(({ role }) => role === "system").map(({ content }) => content).join("\n");
+  assert.doesNotMatch(system, /<\/?LATTICE_RESPONSE_SCHEMA>/u);
+  assert.equal((system.match(/Response contract lattice_verification_wire_v2:/gu) ?? []).length, 1);
+  return body.response_format.json_schema.schema;
 }
 
 function stoppedVerificationResponse(value) {
@@ -2050,8 +2039,9 @@ test("the production-reachable maximum-character split-window certifier wire is 
           });
         }
 
-        if (body.model === LATTICE_REMOTE_MODELS.verifier
-          && body.response_format?.type === "json_object") {
+        if (body.model === "meta-llama/Meta-Llama-3.1-8B-Instruct"
+          && body.response_format?.type === "json_schema"
+          && body.response_format.json_schema.name === "lattice_verification_wire_v2") {
           verifierCalls += 1;
           const schema = fittedJsonObjectVerificationSchema(body);
           const passages = Object.fromEntries(fittedVerificationPassageEntries(schema)

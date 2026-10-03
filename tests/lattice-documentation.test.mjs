@@ -12,6 +12,11 @@ const siteRoot = new URL("../site/documentation/text-to-lattice/", import.meta.u
 const readBytes = (base, path) => readFile(new URL(path, base));
 const readText = async (base, path) => (await readBytes(base, path)).toString("utf8");
 const digest = (value) => createHash("sha256").update(value).digest("hex");
+const canonicalJson = (value) => Array.isArray(value)
+  ? value.map(canonicalJson)
+  : value && typeof value === "object"
+    ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalJson(value[key])]))
+    : value;
 const occurrences = (value, expression) => [...value.matchAll(expression)].length;
 
 const [atlas, manifest, releaseRegister] = await Promise.all([
@@ -247,7 +252,7 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /earlier bounded qualification,[\s\S]{0,100}run #154/iu);
   assert.match(dossier, /preceding bounded qualification,[\s\S]{0,100}run #152/iu);
   assert.match(dossier, /run #147[\s\S]{0,180}`43e70d05c1b5783ecf26f0b784541bfffa5217c1`[\s\S]{0,100}`5fca1bc272cfaf5ef16bce29f3c4d96d9ff741683aad3d6c24adf5c49a320b18`/iu);
-  assert.match(dossier, /cd3ead3efa5910d951bae94e4db8dba2a70e49bd268ceda10153938e68c951ef/u);
+  assert.ok(dossier.includes(`**Artifact-set projection SHA-256:** \`${digest(JSON.stringify(canonicalJson(releaseRegister.artifactSet)))}\``));
   assert.match(dossier, /workflow run 34325228788[\s\S]{0,300}9ab26b95cc1f9a94697118c0fc20a849db8f6ad2/u);
   assert.match(dossier, /266db6b8264a0aa42ac16916ddf696554c846b239960e7d19fc002917d843950/u);
 });

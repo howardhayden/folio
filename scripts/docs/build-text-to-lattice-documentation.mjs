@@ -628,6 +628,8 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || activeCapability?.admission?.maximumProviderCallsPerAdmittedRequest !== 32
     || activeCapability?.admission?.maximumProviderCallsFromAdmittedRequestsPerUtcDay !== 960
     || activeProvider?.endpoint !== "https://router.huggingface.co/v1/chat/completions"
+    || activeProvider?.verificationEndpoint !== "https://router.huggingface.co/deepinfra/v1/openai/chat/completions"
+    || activeProvider?.verificationRequestModel !== "meta-llama/Meta-Llama-3.1-8B-Instruct"
     || activeProvider?.generatorModel !== "Qwen/Qwen3-4B-Instruct-2507:nscale"
     || activeProvider?.verifierModel !== "meta-llama/Llama-3.1-8B-Instruct:deepinfra"
     || JSON.stringify(activeProvider?.stageCallTimeoutsMs) !== JSON.stringify({

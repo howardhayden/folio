@@ -171,6 +171,7 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 
 ## Source register
 
+- **SRC-HF-DEEPINFRA-CLIENT — Hugging Face DeepInfra explicit-provider client at e59d02918671448aeca3a5d96a5f9ac05556a9e9:** [Reviewed source](https://github.com/huggingface/huggingface.js/blob/e59d02918671448aeca3a5d96a5f9ac05556a9e9/packages/inference/src/providers/deepinfra.ts)
 - **SRC-REQUIREMENTS — Text to Lattice public requirements:** `docs/lattice-resume-demo-requirements.md`
 - **SRC-DEMO — Bounded pipeline coordinator:** `app/resume/latticeDemo.js`
 - **SRC-INPUT — Input and clarification policy:** `app/resume/lattice/inputPolicy.js`
