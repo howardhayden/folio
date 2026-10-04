@@ -674,18 +674,16 @@ function maximalFittedWireValue(schema, stringValue) {
 }
 
 function fittedJsonObjectVerificationSchema(body) {
-  // Retain the existing helper call sites while making production transport strict.
   assert.equal(body.model, "meta-llama/Meta-Llama-3.1-8B-Instruct");
-  assert.equal(body.response_format.type, "json_schema");
-  assert.equal(body.response_format.json_schema.name, "lattice_verification_wire_v2");
-  assert.equal(body.response_format.json_schema.strict, true);
+  assert.deepEqual(body.response_format, { type: "json_object" });
   for (const field of ["tools", "tool_choice", "parallel_tool_calls"]) {
     assert.equal(Object.hasOwn(body, field), false);
   }
   const system = body.messages.filter(({ role }) => role === "system").map(({ content }) => content).join("\n");
-  assert.doesNotMatch(system, /<\/?LATTICE_RESPONSE_SCHEMA>/u);
   assert.equal((system.match(/Response contract lattice_verification_wire_v2:/gu) ?? []).length, 1);
-  return body.response_format.json_schema.schema;
+  const schemas = [...system.matchAll(/<LATTICE_RESPONSE_SCHEMA>(.*?)<\/LATTICE_RESPONSE_SCHEMA>/gu)];
+  assert.equal(schemas.length, 1);
+  return JSON.parse(schemas[0][1]);
 }
 
 function stoppedVerificationResponse(value) {
@@ -2040,8 +2038,7 @@ test("the production-reachable maximum-character split-window certifier wire is 
         }
 
         if (body.model === "meta-llama/Meta-Llama-3.1-8B-Instruct"
-          && body.response_format?.type === "json_schema"
-          && body.response_format.json_schema.name === "lattice_verification_wire_v2") {
+          && body.response_format?.type === "json_object") {
           verifierCalls += 1;
           const schema = fittedJsonObjectVerificationSchema(body);
           const passages = Object.fromEntries(fittedVerificationPassageEntries(schema)

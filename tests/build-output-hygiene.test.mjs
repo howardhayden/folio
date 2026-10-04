@@ -239,7 +239,7 @@ test("the public model contract retains bounded stages without publishing privat
     adapter.indexOf("certification: Object.freeze({"),
     adapter.indexOf("repair: Object.freeze({"),
   );
-  assert.match(verificationStageSource, /responseFormat: "json_schema"/u);
+  assert.match(verificationStageSource, /responseFormat: "json_object"/u);
   assert.match(verificationStageSource, /requireMinimalVerificationContent: true/u);
   assert.match(verificationStageSource, /allowEmptyStoppedToolCalls: true/u);
   assert.match(verificationStageSource, /allowNullStoppedVerificationMetadata: true/u);
@@ -257,7 +257,7 @@ test("the public model contract retains bounded stages without publishing privat
     /allowNullJsonObjectVerificationToolCalls/u,
     "the verification null-collection permission stays outside the serialized provider request",
   );
-  assert.match(adapter, /const explicitVerificationProxy = minimalVerificationContentRequest\s*&& resolvedResponseFormat === "json_schema"/u);
+  assert.match(adapter, /const explicitVerificationProxy = minimalVerificationContentRequest;/u);
   assert.match(adapter, /const providerModel = explicitVerificationProxy\s*\? LATTICE_VERIFICATION_REQUEST_MODEL : LATTICE_REMOTE_MODELS\[role\]/u);
   assert.match(adapter.slice(providerBodyStart, providerBodyEnd), /model: providerModel/u);
   assert.doesNotMatch(adapter, /CreateMLCEngine|latticeWebllm\.worker/u);
