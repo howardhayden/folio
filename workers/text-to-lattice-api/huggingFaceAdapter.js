@@ -452,6 +452,18 @@ const VERIFICATION_LAYERS = Object.freeze([
 const VERIFICATION_ISSUE_CHECKS = Object.freeze([
   ...INTERNAL_VERIFICATION_ISSUE_SCHEMA.properties.check.enum,
 ]);
+// This fixed crosswalk describes three different index spaces. It contains no
+// observed failure, selected bit, issue default, or independent review result.
+const VERIFICATION_ISSUE_CHECK_BINDINGS = Object.freeze(VERIFICATION_ISSUE_CHECKS.map((check, index) => {
+  const gatePosition = VERIFICATION_GATES.indexOf(check);
+  const passageCheckPosition = VERIFICATION_PASSAGE_CHECKS.indexOf(check);
+  return Object.freeze({
+    index,
+    check,
+    gatePosition: gatePosition < 0 ? null : gatePosition,
+    passageCheckPosition: passageCheckPosition < 0 ? null : passageCheckPosition,
+  });
+}));
 const WIRE_MASK_PLACEHOLDER_SCHEMA = Object.freeze({ type: "string", minLength: 1 });
 function wireBitMaskSchema(width, { requireSelection = false } = {}) {
   if (!Number.isSafeInteger(width) || width < 1) {
@@ -1386,6 +1398,7 @@ function verificationWireLayoutForSchema(schema) {
     issueType: schema.properties.i.type,
     issueItemType: schema.properties.i.items.type,
     issueFields: Object.freeze([...schema.properties.i.items.required]),
+    issueCheckBindings: VERIFICATION_ISSUE_CHECK_BINDINGS,
   });
 }
 
