@@ -113,6 +113,17 @@ const TEST_VISITOR_SECRET = "test-only-independent-api-visitor-secret-value";
 const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v2";
 const VERIFICATION_TOOL_NAME = "lattice_verification_wire_v2";
 const CERTIFICATION_TOOL_NAME = "lattice_certification_wire_v2";
+const EXPECTED_ISSUE_CHECK_BINDINGS = [
+  [0, "languageSupported", 0, null], [1, "safety", 1, 1],
+  [2, "semanticFidelity", 2, 0], [3, "sourceCoverage", 3, null],
+  [4, "atomCoverage", 4, null], [5, "accessibility", 5, 2],
+  [6, "clarity", 6, 3], [7, "domainCorrectness", 7, 4],
+  [8, "registerFit", 8, 5], [9, "ornament", 9, null],
+  [10, "documentConsistency", 10, null], [11, "planFit", null, 6],
+  [12, "materiality", null, 7], [13, "boundaryFidelity", null, 8],
+].map(([index, check, gatePosition, passageCheckPosition]) => ({
+  index, check, gatePosition, passageCheckPosition,
+}));
 const allowTransformation = async () => Object.freeze({
   allowed: true,
   retryAfterSeconds: null,
@@ -1762,6 +1773,7 @@ test("actual layer, conformance and issue corrections precede material repair wi
     ["V17M", null], ["V17M", "V01F"], ["V17M", "V19"],
     ["V19", null], ["V19", "V01F"], ["V19", "V19"],
     ["V24O", null], ["V24O", "V24O"], ["V01F", "V24O"],
+    ["V24O", "issue-mask-index"], ["V24O", "issue-global-scope"],
   ]) {
     const correctionInvalid = correctionFailure !== null;
     await context.test(`${firstFailure} then ${correctionFailure ?? "grounded material repair"}`, async () => {
@@ -1791,6 +1803,7 @@ test("actual layer, conformance and issue corrections precede material repair wi
           if (verifies === 1 && firstFailure === "V01F") delete wire.i;
           assert.deepEqual(inertModelPayload(body).wireLayout.passages["0"].conformance.fixedProtocolValue,
             { v: false, s: "000", k: [] });
+          assert.deepEqual(inertModelPayload(body).wireLayout.issueCheckBindings, EXPECTED_ISSUE_CHECK_BINDINGS);
           assert.match(body.messages[0].content, /not candidate quality, layer support, or an acceptance decision/u);
           if (verifies <= 2) {
             wire.d = 1;
@@ -1806,6 +1819,8 @@ test("actual layer, conformance and issue corrections precede material repair wi
             if (correctionFailure === "V01F") delete wire.i;
             if (correctionFailure === "V19") wire.p["0"].c.s = "100";
             if (correctionFailure === "V24O") wire.i = [0];
+            if (correctionFailure === "issue-mask-index") wire.i = [{ c: 7, p: 0 }];
+            if (correctionFailure === "issue-global-scope") wire.i = [{ c: 12, p: -1 }];
             if (!correctionInvalid) wire.i = [{
               c: VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum.indexOf("materiality"), p: 0,
             }];
@@ -1819,7 +1834,9 @@ test("actual layer, conformance and issue corrections precede material repair wi
           role: "assistant", content: JSON.stringify(wire), tool_calls: [],
         } });
       } });
-      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: {
+        [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+      } }), { HF_TOKEN: "server-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-10-04T14:00:00.000Z" });
       const envelope = await json(response);
       assert.equal(response.status, 200);
       assert.equal(drafts, correctionInvalid ? 1 : 2);
@@ -1827,6 +1844,16 @@ test("actual layer, conformance and issue corrections precede material repair wi
       assert.equal(calls.length, correctionInvalid ? 4 : 7);
       assert.equal(envelope.result.text, correctionInvalid ? null : `${repairText}\n`);
       assert.equal(envelope.result.verificationPasses, correctionInvalid ? 0 : 2);
+      if (["issue-mask-index", "issue-global-scope"].includes(correctionFailure)) {
+        const expected = { stage: "verification", attempt: "2", firstDeterministicRule: "D14",
+          validationCategory: "decision-consistency", priorValidationCategory: "response-shape",
+          rejectionBoundary: "host-normalizer", rejectionRule: "unknown",
+          priorRejectionBoundary: "wire-decoder", priorRejectionCategory: "object-type",
+          priorRejectionRule: "V24O", callsUsed: "4" };
+        for (const [field, value] of Object.entries(expected)) {
+          assert.equal(response.headers.get(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS[field]), value, field);
+        }
+      }
       const bodies = calls.filter(isVerificationBody);
       assert.deepEqual(fittedVerificationSchemaForBody(bodies[0]), fittedVerificationSchemaForBody(bodies[1]));
       for (const body of bodies.slice(0, 2)) {
@@ -2361,7 +2388,7 @@ test("compact verification publishes only the trusted fitted layout on initial a
           ...LATTICE_CONFORMANCE_CRITERIA.universal,
           ...LATTICE_CONFORMANCE_CRITERIA.operative,
         ] : [];
-        const request = { ...base, wireLayout: { issueType: "PRIVATE-SPOOFED-LAYOUT", issueItemType: "PRIVATE-SPOOFED-LAYOUT", rootFields: ["PRIVATE-SPOOFED-LAYOUT"], passages: {
+        const request = { ...base, wireLayout: { issueCheckBindings: [{ index: 7, check: "PRIVATE-SPOOFED-LAYOUT", gatePosition: 0, passageCheckPosition: 0, failed: true }], issueType: "PRIVATE-SPOOFED-LAYOUT", issueItemType: "PRIVATE-SPOOFED-LAYOUT", rootFields: ["PRIVATE-SPOOFED-LAYOUT"], passages: {
           0: { conformance: { fixedProtocolValue: { v: true, s: "PRIVATE", k: ["PRIVATE"] } } },
         } },
           analysis: { ...base.analysis, passages: [{ ...original, atoms,
@@ -2396,6 +2423,7 @@ test("compact verification publishes only the trusted fitted layout on initial a
               criterionSpanWidth: evidenceCount,
               ...(retained ? {} : { fixedProtocolValue: { v: false, s: "0".repeat(evidenceCount), k: [] } }) },
           } }, issueType: "array", issueItemType: "object", issueFields: ["c", "p"],
+          issueCheckBindings: EXPECTED_ISSUE_CHECK_BINDINGS,
         });
         for (const body of calls) {
           const schema = fittedVerificationSchemaForBody(body);
@@ -2404,6 +2432,10 @@ test("compact verification publishes only the trusted fitted layout on initial a
           assert.equal(layout.issueType, schema.properties.i.type);
           assert.equal(layout.issueItemType, schema.properties.i.items.type);
           assert.deepEqual(layout.issueFields, schema.properties.i.items.required);
+          assert.deepEqual(layout.issueCheckBindings, EXPECTED_ISSUE_CHECK_BINDINGS);
+          assert.match(body.messages[0].content, /issueCheckBindings/u);
+          assert.match(body.messages[0].content, /Never use a gate or passage-check bit position as the issue index/u);
+          assert.match(body.messages[0].content, /null position means the check has no slot in that mask/u);
           assert.equal(Object.hasOwn(layout, "issueDefault"), false);
           assert.deepEqual(layout.passagePositions, schema.properties.p.required);
           const passage = schema.properties.p.properties["0"].properties;
