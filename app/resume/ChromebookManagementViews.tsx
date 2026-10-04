@@ -17,7 +17,7 @@ import {
   chromebookServiceBlueprints,
   chromebookSkillDomains,
   chromebookStateFlows,
-} from "./chromebookManagementViews.js";
+} from "./chromebookManagementViewData.js";
 
 type ChromebookViewId = "flow" | "skills" | "matrix" | "blueprint";
 type ChromebookConditionId = "normal-return" | "overdue-unreturned" | "late-return";

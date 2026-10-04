@@ -642,8 +642,7 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: VERIFICATION_WIRE_SCHEMA,
     schemaName: "lattice_verification_wire_v2",
-    responseFormat: "json_schema",
-    schemaDescription: "Supply one complete private verification result using the fitted closed index-and-mask schema.",
+    responseFormat: "json_object",
     requireMinimalVerificationContent: true,
     allowEmptyStoppedToolCalls: true,
     allowNullStoppedVerificationMetadata: true,
@@ -2514,17 +2513,18 @@ export async function requestHuggingFaceJson({
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
-  // Only validated strict verification uses HF's explicit DeepInfra proxy and
+  // Only validated dedicated verification uses HF's explicit DeepInfra proxy and
   // its fixed mapping of the same selected model. Certification shares the
   // verifier role but retains the unified route and named-tool contract.
-  const explicitVerificationProxy = minimalVerificationContentRequest
-    && resolvedResponseFormat === "json_schema";
+  const explicitVerificationProxy = minimalVerificationContentRequest;
   const providerUrl = explicitVerificationProxy
     ? HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL : HUGGING_FACE_CHAT_COMPLETIONS_URL;
   const providerModel = explicitVerificationProxy
     ? LATTICE_VERIFICATION_REQUEST_MODEL : LATTICE_REMOTE_MODELS[role];
-  // Fitted schemas request structural constraints; complete wire decoding and
-  // deterministic/semantic host validation remain mandatory for every response.
+  // JSON-object verification embeds its exact fitted schema in trusted
+  // instructions. This mode promises JSON syntax, not schema enforcement;
+  // complete wire decoding and host validation remain mandatory. Other strict
+  // schema callers retain their existing response-format contract.
   const providerRequestBody = JSON.stringify({
     model: providerModel,
     messages: toolName === undefined

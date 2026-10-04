@@ -9,7 +9,7 @@ import {
   chromebookServiceBlueprints,
   chromebookSkillDomains,
   chromebookStateFlows,
-} from "../app/resume/chromebookManagementViews.js";
+} from "../app/resume/chromebookManagementViewData.js";
 import {
   createFrostedStateTransition,
   FROSTED_STATE_DURATION_MS,

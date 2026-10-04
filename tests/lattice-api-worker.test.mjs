@@ -558,13 +558,12 @@ const TEST_VERIFICATION_PROXY_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct";
 
 function isVerificationBody(body) {
   return body.model === TEST_VERIFICATION_PROXY_MODEL
-    && body.response_format?.type === "json_schema"
-    && body.response_format.json_schema.name === VERIFICATION_TOOL_NAME;
+    && body.response_format?.type === "json_object";
 }
 
 function fittedVerificationSchemaForBody(body) {
   assert.equal(isVerificationBody(body), true);
-  assert.equal(body.response_format.json_schema.strict, true);
+  assert.deepEqual(body.response_format, { type: "json_object" });
   for (const key of ["tools", "tool_choice", "parallel_tool_calls"]) {
     assert.equal(Object.hasOwn(body, key), false);
   }
@@ -572,15 +571,15 @@ function fittedVerificationSchemaForBody(body) {
     && typeof content === "string" && content.includes(`Response contract ${VERIFICATION_TOOL_NAME}:`));
   assert.equal(contracts.length, 1, "one trusted verification contract is required");
   const system = body.messages.filter(({ role }) => role === "system").map(({ content }) => content).join("\n");
-  assert.doesNotMatch(system, /<\/?LATTICE_RESPONSE_SCHEMA>/u,
-    "strict verification supplies its fitted schema through the schema response format only");
-  const schema = body.response_format.json_schema.schema;
+  const schemas = [...system.matchAll(/<LATTICE_RESPONSE_SCHEMA>(.*?)<\/LATTICE_RESPONSE_SCHEMA>/gu)];
+  assert.equal(schemas.length, 1, "one exact fitted schema belongs in trusted verification instructions");
+  const schema = JSON.parse(schemas[0][1]);
   assert.deepEqual(schema.required, ["d", "g", "p", "i"]);
   assert.equal(schema.additionalProperties, false);
   return schema;
 }
 
-test("production verifier uses its fixed explicit proxy and fitted strict schema on initial and correction calls", async (t) => {
+test("production verifier uses its fixed explicit proxy and fitted JSON-object instructions on initial and correction calls", async (t) => {
   for (const corrected of [false, true]) {
     await t.test(corrected ? "correction" : "initial", async () => {
       const calls = [];
@@ -615,8 +614,9 @@ test("production verifier uses its fixed explicit proxy and fitted strict schema
       assert.equal(body.stream, false);
       const instructions = body.messages.filter(({ role }) => role === "system")
         .map(({ content }) => content).join("\n");
-      assert.match(instructions, /Return exactly one JSON object satisfying the supplied strict JSON Schema/u);
-      assert.equal(instructions.includes(JSON.stringify(schema)), false);
+      assert.match(instructions, /Return exactly one minified JSON object matching the following closed JSON Schema/u);
+      assert.equal(instructions.includes(JSON.stringify(schema)), true);
+      assert.doesNotMatch(instructions, /supplied strict JSON Schema/u);
       assert.doesNotMatch(instructions, /Call this function exactly once|PRIVATE-VERIFIER-FEEDBACK|Return the complete host schema/u);
       assert.equal(result.decision, "accept");
     });
@@ -1952,7 +1952,7 @@ test("empty and observed-null stopped verification never repairs truncated masks
   }
 });
 
-test("reverification corrections preserve decision consistency and original candidate provenance", async (context) => {
+test("reverification corrections preserve fixed JSON-object transport, decision consistency and original candidate provenance", async (context) => {
   const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
   const issueChecks = VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum;
   const gates = VERIFICATION_SCHEMA.properties.failedGates.items.enum;
@@ -1964,7 +1964,7 @@ test("reverification corrections preserve decision consistency and original cand
         let drafts = 0;
         let verifies = 0;
         const worker = createLatticeApiWorker({
-          fetchImpl: async (_url, init) => {
+          fetchImpl: async (url, init) => {
             const body = JSON.parse(init.body); calls.push(body);
             if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body));
             if (isCandidateBody(body)) {
@@ -1976,6 +1976,8 @@ test("reverification corrections preserve decision consistency and original cand
             const toolName = isVerificationBody(body) ? VERIFICATION_TOOL_NAME : body.tool_choice.function.name;
             if (toolName === VERIFICATION_TOOL_NAME) {
               verifies += 1;
+              assert.equal(url, TEST_VERIFICATION_PROXY_URL);
+              fittedVerificationSchemaForBody(body);
               const wire = structuredClone(canaryVerificationWire(body));
               if (verifies === 1) {
                 wire.d = 1;
@@ -1995,6 +1997,9 @@ test("reverification corrections preserve decision consistency and original cand
               return successfulProviderResponse(wire);
             }
             assert.equal(recover, true, "exhausted reverification must not certify the discarded repair");
+            assert.equal(url, HUGGING_FACE_CHAT_COMPLETIONS_URL);
+            assert.equal(body.model, LATTICE_REMOTE_MODELS.verifier);
+            assert.equal(body.max_tokens, 520);
             assert.equal(toolName, CERTIFICATION_TOOL_NAME);
             const payload = inertModelPayload(body);
             return successfulProviderToolResponse(acceptingCertificationWire(
@@ -2491,8 +2496,7 @@ test("compact verification binds complete mask positions on initial and correcti
           assert.equal(schema.s.minLength, evidence.length);
           assert.equal(schema.y.minLength, evidence.length);
           assert.equal(body.max_tokens, 2_048);
-          assert.equal(body.response_format.type, "json_schema");
-          assert.equal(body.response_format.json_schema.strict, true);
+          assert.deepEqual(body.response_format, { type: "json_object" });
           return successfulProviderResponse({ ...wire, p: { 0: passage } });
         },
       });
@@ -3234,7 +3238,7 @@ test("the production canary completes through the compact verifier wire", async 
   fittedVerificationSchemaForBody(calls[2]);
 });
 
-test("the API Worker completes strict-schema verification and required named-tool certification", async () => {
+test("the API Worker completes JSON-object verification and required named-tool certification", async () => {
   const source = LATTICE_PRODUCTION_CANARY_TEXT;
   const preflight = preflightLatticeInput(source);
   assert.equal(preflight.batches.length, 1);
@@ -5848,7 +5852,7 @@ test("a named-tool completion that reaches the output limit fails after one fetc
   assert.equal(fetches, 1);
 });
 
-test("production strict-schema verification accepts only its bounded stopped-content envelope", async (context) => {
+test("production JSON-object verification accepts only its bounded stopped-content envelope", async (context) => {
   const request = minimalVerificationRequest();
   const wire = acceptingVerificationWire(request);
   const content = JSON.stringify(wire);
@@ -6049,7 +6053,8 @@ test("observed-null verification is an independent explicit permission with iden
             assert.equal(init.body, referenceBody, "all compatibility permissions remain host-only");
             assert.doesNotMatch(init.body, /allowNullJsonObjectVerificationToolCalls|allowEmptyStoppedToolCalls|requireMinimalVerificationContent/u);
             const body = JSON.parse(init.body);
-            assert.equal(body.model, LATTICE_REMOTE_MODELS.verifier);
+            assert.equal(_url, TEST_VERIFICATION_PROXY_URL);
+            assert.equal(body.model, TEST_VERIFICATION_PROXY_MODEL);
             assert.deepEqual(body.response_format, { type: "json_object" });
             assert.equal(Object.hasOwn(body, "tools"), false);
             assert.equal(Object.hasOwn(body, "tool_choice"), false);
@@ -7986,8 +7991,7 @@ test("mixed rewrite and retention layouts never supply a semantic conformance de
   assert.equal(result.passages[0].conformanceConfirmed, false);
   assert.equal(result.passages[1].conformanceConfirmed, true);
   assert.ok(result.passages[1].criterionChecks.every(({ passed, evidenceSpanIds }) => passed && evidenceSpanIds.length > 0));
-  assert.equal(captured.response_format.type, "json_schema");
-  assert.equal(captured.response_format.json_schema.strict, true);
+  assert.deepEqual(captured.response_format, { type: "json_object" });
   assert.equal(Object.hasOwn(captured, "tools"), false);
   fittedVerificationSchemaForBody(captured);
   assert.equal(adapter.completionCapacity().used, 1);
@@ -8385,8 +8389,7 @@ async function runEmptySupportMaterialRepair({
         wire.p["0"].y = "100";
         applyEmptySupportRegressionFailure(wire, verifies === 1 ? first : verifies === 2 ? second : freshFailure);
         assert.equal(body.max_tokens, 2048);
-        assert.equal(body.response_format.type, "json_schema");
-        assert.equal(body.response_format.json_schema.strict, true);
+        assert.deepEqual(body.response_format, { type: "json_object" });
         fittedVerificationSchemaForBody(body);
         return successfulProviderResponse(wire);
       }
@@ -8584,7 +8587,7 @@ test("fixed provider transport is selected by actual stage and cannot be changed
   const cases = [
     ["analysis", "analyze", minimalAnalysisRequest(), HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_schema"],
     ["candidate", "generate", verification, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_object"],
-    ["verification", "verify", verification, TEST_VERIFICATION_PROXY_URL, TEST_VERIFICATION_PROXY_MODEL, "json_schema"],
+    ["verification", "verify", verification, TEST_VERIFICATION_PROXY_URL, TEST_VERIFICATION_PROXY_MODEL, "json_object"],
     ["certification", "certify", minimalCertificationRequest(), HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.verifier, "tool"],
     ["repair", "repair", { ...verification, verification: null }, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_object"],
   ];
@@ -8621,6 +8624,39 @@ test("fixed provider transport is selected by actual stage and cannot be changed
     await adapter[method]({ ...request, ...hostile });
     assert.equal(calls, 1);
     assert.deepEqual(adapter.completionCapacity(), { used: 1, limit: 32, remaining: 31 });
+  });
+});
+
+test("the dedicated verification opt-in alone selects the explicit proxy for both content formats", async (context) => {
+  for (const [label, overrides, url, model, format] of [
+    ["generic generator JSON", {}, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_object"],
+    ["generic generator strict", { responseFormat: "json_schema" }, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_schema"],
+    ["verifier without opt-in", { role: "verifier", schemaName: VERIFICATION_TOOL_NAME, responseFormat: "json_object" }, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.verifier, "json_object"],
+    ["verifier false opt-in", { role: "verifier", schemaName: VERIFICATION_TOOL_NAME, responseFormat: "json_object", requireMinimalVerificationContent: false }, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.verifier, "json_object"],
+    ...["json_object", "json_schema"].map((responseFormat) => [
+      `dedicated ${responseFormat}`, { role: "verifier", schemaName: VERIFICATION_TOOL_NAME,
+        responseFormat, requireMinimalVerificationContent: true },
+      TEST_VERIFICATION_PROXY_URL, TEST_VERIFICATION_PROXY_MODEL, responseFormat,
+    ]),
+  ]) await context.test(label, async () => {
+    let calls = 0;
+    const options = providerRequestOptions(async (actualUrl, init) => {
+      calls += 1;
+      assert.equal(actualUrl, url);
+      const body = JSON.parse(init.body);
+      assert.equal(body.model, model);
+      assert.equal(body.response_format.type, format);
+      if (format === "json_schema") {
+        assert.equal(body.response_format.json_schema.strict, true);
+        assert.deepEqual(body.response_format.json_schema.schema, options.schema);
+        assert.doesNotMatch(body.messages.map(({ content }) => content).join("\n"), /LATTICE_RESPONSE_SCHEMA/u);
+      } else {
+        assert.deepEqual(body.response_format, { type: "json_object" });
+      }
+      return successfulProviderResponse({ accepted: true });
+    }, overrides);
+    assert.deepEqual(await requestHuggingFaceJson(options), { accepted: true });
+    assert.equal(calls, 1);
   });
 });
 

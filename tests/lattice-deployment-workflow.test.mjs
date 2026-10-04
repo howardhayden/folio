@@ -262,9 +262,9 @@ test("deployment tooling and every action reference are immutable", async () => 
   const workerPackage = JSON.parse(packageSource);
   const workerLock = JSON.parse(lockSource);
   assert.equal(workerPackage.type, "module");
-  assert.equal(workerPackage.devDependencies.wrangler, "4.129.1");
-  assert.equal(workerLock.packages[""].devDependencies.wrangler, "4.129.1");
-  assert.equal(workerLock.packages["node_modules/wrangler"].version, "4.129.1");
+  assert.equal(workerPackage.devDependencies.wrangler, "4.143.1");
+  assert.equal(workerLock.packages[""].devDependencies.wrangler, "4.143.1");
+  assert.equal(workerLock.packages["node_modules/wrangler"].version, "4.143.1");
   assert.doesNotMatch(workflow, /\bnpx\b|cloudflare\/wrangler-action/iu);
   const actionReferences = [...workflow.matchAll(/^\s*- uses:\s*(\S+)/gmu)].map((match) => match[1]);
   assert.ok(actionReferences.length > 0);

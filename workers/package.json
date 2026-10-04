@@ -8,6 +8,6 @@
     "node": ">=22.13.0"
   },
   "devDependencies": {
-    "wrangler": "4.129.1"
+    "wrangler": "4.143.1"
   }
 }
