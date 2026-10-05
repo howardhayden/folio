@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 
 import { verifyTextToLatticeSecretBindings } from "../scripts/verify-text-to-lattice-secret-bindings.mjs";
 import {
@@ -26,6 +27,7 @@ import {
   TEXT_TO_LATTICE_QUALIFICATION_CLEANUP_LEAD_MS,
   TEXT_TO_LATTICE_QUALIFICATION_WINDOW_MS,
   planTextToLatticeQualificationWindow,
+  validateTextToLatticeQualificationOperation,
   waitForTextToLatticeQualificationCleanup,
 } from "../scripts/plan-text-to-lattice-qualification-window.mjs";
 import {
@@ -39,6 +41,94 @@ import {
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workflowPath = resolve(root, ".github/workflows/pages.yml");
+
+function workflowJob(workflow, name) {
+  const block = new RegExp(`\\n  ${name}:\\n([\\s\\S]*?)(?=\\n  [a-z][a-z_-]*:\\n|$)`, "u")
+    .exec(workflow)?.[1];
+  assert.ok(block, `The actual workflow must contain ${name}.`);
+  return block;
+}
+
+function workflowJobGuard(workflow, name, context) {
+  const block = workflowJob(workflow, name);
+  const guard = /^ {4}if: (.+)(?:\n|$)/mu.exec(block);
+  assert.ok(guard, `${name} must have an explicit job guard.`);
+  const expression = guard[1] === ">-"
+    ? block.slice(guard.index + guard[0].length).split("\n")
+      .filter((line, index, lines) => line.startsWith("      ")
+        && lines.slice(0, index).every((prior) => prior.startsWith("      ")))
+      .map((line) => line.trim()).join(" ")
+    : guard[1];
+  // Evaluate the workflow's actual finite boolean expressions, not a parallel
+  // reimplementation of its routing. Fixture values use GitHub's typed inputs.
+  const normalized = expression.replaceAll("needs.publication-boundary", "needs['publication-boundary']");
+  if (!/\b(?:always|success|failure|cancelled)\(/u.test(expression)
+    && workflowJobNeeds(workflow, name).some((need) => context.needs[need].result !== "success")) {
+    return false;
+  }
+  return runInNewContext(`Boolean(${normalized})`, {
+    ...context,
+    always: () => true,
+    contains: (collection, value) => collection.includes(value),
+    fromJSON: JSON.parse,
+  }, { timeout: 100 });
+}
+
+function workflowJobNeeds(workflow, name) {
+  const block = workflowJob(workflow, name);
+  const line = /^ {4}needs:(.*)$/mu.exec(block);
+  assert.ok(line, `${name} must declare its dependencies.`);
+  const inline = line[1].trim();
+  if (inline) return inline.replace(/^\[|\]$/gu, "").split(",").map((value) => value.trim());
+  const rest = block.slice(line.index + line[0].length + 1);
+  return /^(?: {6}- [^\n]+\n)+/u.exec(rest)?.[0].trim().split("\n")
+    .map((value) => value.trim().slice(2)) ?? [];
+}
+
+function workflowGuardContext({
+  phase = "qualification-pending",
+  restore = false,
+  activate = false,
+  deployServices = false,
+  event = "workflow_dispatch",
+  ref = "refs/heads/main",
+  results = {},
+} = {}) {
+  const inputs = {
+    restore_text_to_lattice_qualification: restore,
+    activate_text_to_lattice_qualification: activate,
+    deploy_text_to_lattice_services: deployServices,
+  };
+  let boundaryResult = ref === "refs/heads/main" ? "success" : "skipped";
+  try {
+    validateTextToLatticeQualificationOperation({
+      LATTICE_OPERATION_EVENT: event,
+      LATTICE_OPERATION_REF: ref,
+      LATTICE_OPERATION_PHASE: phase,
+      LATTICE_RESTORE_QUALIFICATION: String(restore),
+      LATTICE_ACTIVATE_QUALIFICATION: String(activate),
+      LATTICE_DEPLOY_SERVICES: String(deployServices),
+    });
+  } catch {
+    boundaryResult = "failure";
+  }
+  const names = ["publication-boundary", "build", "build_qualification_rollback", "deploy_held",
+    "deploy_text_to_lattice_services", "deploy", "wait_for_text_to_lattice_qualification_expiry",
+    "restore_text_to_lattice_qualification_api", "expire_text_to_lattice_qualification_api"];
+  const needs = Object.fromEntries(names.map((name) => [name, {
+    result: results[name] ?? (name === "publication-boundary" ? boundaryResult : "skipped"),
+    outputs: {},
+  }]));
+  needs["publication-boundary"].outputs.release_phase = phase;
+  needs.build_qualification_rollback.outputs = {
+    held_pages_artifact_id: "123", held_pages_artifact_sha256: "a".repeat(64),
+  };
+  needs.deploy_text_to_lattice_services.outputs.qualification_cleanup_at = "2026-09-14T17:24:00.000Z";
+  for (const name of ["restore_text_to_lattice_qualification_api", "expire_text_to_lattice_qualification_api"]) {
+    needs[name].outputs = { rollback_authorized: "true", held_api_verified: "true" };
+  }
+  return { github: { ref, event_name: event, event: { head_commit: { message: "" } } }, inputs, needs };
+}
 const mainConnectSources = [
   "'self'",
   "https://huggingface.co",
@@ -501,7 +591,7 @@ test("qualification activation is evidence-bound and cleans up API before held P
 
   assert.doesNotMatch(waitJob, /^\s*environment:|^\s*concurrency:/mu);
   assert.match(waitJob, /plan-text-to-lattice-qualification-window\.mjs[\s\S]*?--wait-until[\s\S]*?qualification_cleanup_at/u);
-  assert.match(apiCleanup, /needs\.wait_for_text_to_lattice_qualification_expiry\.result == 'success'/u);
+  assert.match(apiCleanup, /contains\(fromJSON\('\["success", "failure", "cancelled"\]'\), needs\.wait_for_text_to_lattice_qualification_expiry\.result\)/u);
   assert.match(apiCleanup, /Require current main before bounded qualification API shutdown[\s\S]*?Deploy held API at the bounded qualification cleanup point[\s\S]*?workers\/text-to-lattice-api\/held\.js[\s\S]*?verify-text-to-lattice-held-api\.mjs/u);
   assert.doesNotMatch(apiCleanup, /actions\/deploy-pages@|retire-text-to-lattice-legacy-surfaces\.mjs|--apply/u);
   assert.match(pagesCleanup, /outputs\.held_pages_artifact_id != ''[\s\S]*?outputs\.held_pages_artifact_sha256 != ''[\s\S]*?needs\.expire_text_to_lattice_qualification_api\.outputs\.held_api_verified == 'true'/u);
@@ -509,6 +599,143 @@ test("qualification activation is evidence-bound and cleans up API before held P
   assert.doesNotMatch(pagesCleanup, /wrangler deploy|retire-text-to-lattice-legacy-surfaces\.mjs|--apply/u);
   assert.match(enforcement, /needs\.publication-boundary\.result != 'success'/u);
   assert.match(enforcement, /needs\.deploy\.result != 'success'/u);
+});
+
+test("immediate rollback routes only held API and parent-artifact work before proved Pages restoration", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const context = workflowGuardContext({ restore: true });
+  assert.deepEqual(workflowJobNeeds(workflow, "restore_text_to_lattice_qualification_api"), ["publication-boundary"]);
+  for (const result of ["skipped", "failure", "cancelled"]) {
+    context.needs.build_qualification_rollback.result = result;
+    assert.equal(workflowJobGuard(workflow, "restore_text_to_lattice_qualification_api", context), true);
+    assert.equal(workflowJobGuard(workflow, "expire_text_to_lattice_qualification_pages", context), false);
+  }
+  for (const name of ["build", "deploy_held", "deploy_text_to_lattice_services", "deploy",
+    "wait_for_text_to_lattice_qualification_expiry", "expire_text_to_lattice_qualification_api"]) {
+    assert.equal(workflowJobGuard(workflow, name, context), false, name);
+  }
+  assert.equal(workflowJobGuard(workflow, "build_qualification_rollback", context), true);
+  context.needs.build_qualification_rollback.result = "success";
+  context.needs.restore_text_to_lattice_qualification_api.result = "success";
+  assert.equal(workflowJobGuard(workflow, "expire_text_to_lattice_qualification_pages", context), true);
+  assert.equal(workflowJobGuard(workflow, "enforce_text_to_lattice_held_api", context), false);
+  for (const field of ["held_pages_artifact_id", "held_pages_artifact_sha256"]) {
+    const original = context.needs.build_qualification_rollback.outputs[field];
+    context.needs.build_qualification_rollback.outputs[field] = "";
+    assert.equal(workflowJobGuard(workflow, "expire_text_to_lattice_qualification_pages", context), false, field);
+    context.needs.build_qualification_rollback.outputs[field] = original;
+  }
+  for (const field of ["rollback_authorized", "held_api_verified"]) {
+    context.needs.restore_text_to_lattice_qualification_api.outputs[field] = "false";
+    assert.equal(workflowJobGuard(workflow, "expire_text_to_lattice_qualification_pages", context), false, field);
+    context.needs.restore_text_to_lattice_qualification_api.outputs[field] = "true";
+  }
+  context.needs.restore_text_to_lattice_qualification_api.result = "failure";
+  assert.equal(workflowJobGuard(workflow, "enforce_text_to_lattice_held_api", context), true);
+  assert.equal(workflowJobGuard(workflow, "expire_text_to_lattice_qualification_pages", context), false);
+});
+
+test("mixed, wrong-phase, and wrong-event restore operations cannot open active paths or restore Pages", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const candidates = [{ activate: true }, { deployServices: true }, { activate: true, deployServices: true },
+    { phase: "held" }, { phase: "qualified" }, { event: "push" }, { ref: "refs/heads/other" }];
+  for (const options of candidates) {
+    const context = workflowGuardContext({ restore: true, ...options });
+    for (const name of ["build", "build_qualification_rollback", "restore_text_to_lattice_qualification_api",
+      "deploy_held", "deploy_text_to_lattice_services", "deploy", "wait_for_text_to_lattice_qualification_expiry",
+      "expire_text_to_lattice_qualification_api", "expire_text_to_lattice_qualification_pages"]) {
+      assert.equal(workflowJobGuard(workflow, name, context), false, `${name}: ${JSON.stringify(options)}`);
+    }
+    assert.equal(workflowJobGuard(workflow, "enforce_text_to_lattice_held_api", context),
+      context.github.ref === "refs/heads/main", "invalid publication retains only current-main fail-closed enforcement");
+  }
+});
+
+test("ordinary qualification activation preserves its build, service, deployment, and timed cleanup routes", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const context = workflowGuardContext({ activate: true, results: {
+    build: "success", build_qualification_rollback: "success", deploy_text_to_lattice_services: "success", deploy: "success",
+  } });
+  for (const name of ["build", "build_qualification_rollback", "deploy_text_to_lattice_services", "deploy",
+    "wait_for_text_to_lattice_qualification_expiry"]) {
+    assert.equal(workflowJobGuard(workflow, name, context), true, name);
+  }
+  assert.equal(workflowJobGuard(workflow, "restore_text_to_lattice_qualification_api", context), false);
+  assert.equal(workflowJobGuard(workflow, "enforce_text_to_lattice_held_api", context), false);
+  for (const result of ["success", "failure", "cancelled", "skipped"]) {
+    context.needs.wait_for_text_to_lattice_qualification_expiry.result = result;
+    assert.equal(workflowJobGuard(workflow, "expire_text_to_lattice_qualification_api", context), result !== "skipped", result);
+  }
+  context.needs.wait_for_text_to_lattice_qualification_expiry.result = "cancelled";
+  context.needs.deploy_text_to_lattice_services.result = "failure";
+  assert.equal(workflowJobGuard(workflow, "expire_text_to_lattice_qualification_api", context), false);
+  context.needs.deploy_text_to_lattice_services.result = "success";
+  context.needs.deploy.result = "failure";
+  assert.equal(workflowJobGuard(workflow, "expire_text_to_lattice_qualification_api", context), false);
+  context.needs.deploy.result = "success";
+  context.needs.expire_text_to_lattice_qualification_api.result = "success";
+  assert.equal(workflowJobGuard(workflow, "expire_text_to_lattice_qualification_pages", context), true);
+  context.needs.expire_text_to_lattice_qualification_api.outputs.held_api_verified = "false";
+  assert.equal(workflowJobGuard(workflow, "expire_text_to_lattice_qualification_pages", context), false);
+});
+
+test("ordinary held and qualified publication guards retain their existing routes", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const held = workflowGuardContext({ phase: "held", results: { build: "success", deploy_held: "success" } });
+  assert.equal(workflowJobGuard(workflow, "deploy_held", held), true);
+  assert.equal(workflowJobGuard(workflow, "enforce_text_to_lattice_held_api", held), true);
+  assert.equal(workflowJobGuard(workflow, "deploy_text_to_lattice_services", held), false);
+  held.inputs.deploy_text_to_lattice_services = true;
+  assert.equal(workflowJobGuard(workflow, "deploy_text_to_lattice_services", held), true);
+  const qualified = workflowGuardContext({ phase: "qualified", results: { build: "success", deploy_text_to_lattice_services: "success" } });
+  assert.equal(workflowJobGuard(workflow, "deploy_text_to_lattice_services", qualified), true);
+  assert.equal(workflowJobGuard(workflow, "deploy", qualified), true);
+  assert.equal(workflowJobGuard(workflow, "restore_text_to_lattice_qualification_api", qualified), false);
+  assert.equal(workflowJobGuard(workflow, "wait_for_text_to_lattice_qualification_expiry", qualified), false);
+});
+
+test("manual and timed rollback retain current-main mutation guards and bounded sanitized receipts", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const boundary = workflowJob(workflow, "publication-boundary");
+  assert.match(boundary, /LATTICE_RESTORE_QUALIFICATION: \$\{\{ inputs\.restore_text_to_lattice_qualification \}\}/u);
+  assert.match(boundary, /plan-text-to-lattice-qualification-window\.mjs --validate-operation/u);
+  const manual = workflowJob(workflow, "restore_text_to_lattice_qualification_api");
+  assert.match(manual, /Require current main before immediate qualification API shutdown[\s\S]*?verify-current-main-sha\.mjs[\s\S]*?Immediately deploy held qualification API[\s\S]*?workers\/text-to-lattice-api\/held\.js[\s\S]*?verify-text-to-lattice-held-api\.mjs/u);
+  assert.equal((manual.match(/wrangler deploy(?:\s|$)/gu) ?? []).length, 1);
+  assert.doesNotMatch(manual, /build:pages|node --test|LATTICE_QUALIFICATION_EXPIRES_AT|--qualification-expires-at|actions\/deploy-pages@/u);
+  assert.match(manual, /text-to-lattice-qualification-restore-api-[\s\S]*?include-hidden-files: false[\s\S]*?retention-days: 7/u);
+  const pages = workflowJob(workflow, "expire_text_to_lattice_qualification_pages");
+  assert.match(pages, /Require current main before bounded qualification Pages rollback[\s\S]*?verify-current-main-sha\.mjs[\s\S]*?actions\/deploy-pages@/u);
+  assert.match(pages, /Retain verified qualification Pages restoration evidence[\s\S]*?steps\.restored-held-pages-verification\.outcome == 'success'[\s\S]*?held-pages\.json[\s\S]*?if-no-files-found: error[\s\S]*?retention-days: 7/u);
+});
+
+test("qualification operation validation accepts only exact exclusive restore flags and boundary", () => {
+  const base = { LATTICE_OPERATION_EVENT: "workflow_dispatch", LATTICE_OPERATION_REF: "refs/heads/main",
+    LATTICE_OPERATION_PHASE: "qualification-pending", LATTICE_RESTORE_QUALIFICATION: "true",
+    LATTICE_ACTIVATE_QUALIFICATION: "false", LATTICE_DEPLOY_SERVICES: "false" };
+  assert.equal(validateTextToLatticeQualificationOperation(base), "rollback");
+  assert.equal(validateTextToLatticeQualificationOperation({}), "ordinary");
+  for (const field of ["LATTICE_RESTORE_QUALIFICATION", "LATTICE_ACTIVATE_QUALIFICATION", "LATTICE_DEPLOY_SERVICES"]) {
+    for (const value of [true, 1, "TRUE", "true\n", " true", "false\u2028", "0"]) {
+      assert.throws(() => validateTextToLatticeQualificationOperation({ ...base, [field]: value }), /flag is invalid/u);
+    }
+  }
+  for (const [field, values] of Object.entries({ LATTICE_OPERATION_EVENT: ["push", "workflow_dispatch\n"],
+    LATTICE_OPERATION_REF: ["refs/heads/other", "refs/heads/main\n"], LATTICE_OPERATION_PHASE: ["held", "qualified", "qualification-pending\n"],
+    LATTICE_ACTIVATE_QUALIFICATION: ["true"], LATTICE_DEPLOY_SERVICES: ["true"] })) {
+    for (const value of values) assert.throws(() => validateTextToLatticeQualificationOperation({ ...base, [field]: value }), /exclusive dispatch/u);
+  }
+  for (const value of [null, undefined, [], "true"]) assert.throws(() => validateTextToLatticeQualificationOperation(value), /environment is invalid/u);
+});
+
+test("qualification wait refuses noncanonical timestamps without waiting", async () => {
+  let called = false;
+  for (const value of ["2026-09-14T17:24:00.000Z\n", "2026-09-14T17:24:00.000Z\r\n", "2026-09-14T17:24:00.000Z\u2028", "2026-02-30T17:24:00.000Z", "2026-09-14T17:24:00Z", "not-a-date"]) {
+    await assert.rejects(waitForTextToLatticeQualificationCleanup(value, {
+      now: () => new Date("2026-09-14T17:00:00.000Z"), wait: async () => { called = true; },
+    }), /timestamp.*invalid/u);
+  }
+  assert.equal(called, false);
 });
 
 test("the qualification window is absolute, bounded, and schedules cleanup with safety lead", async () => {

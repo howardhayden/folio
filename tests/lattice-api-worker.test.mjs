@@ -8700,6 +8700,7 @@ test("the prior verifier rejection validator rejects malformed, inconsistent, an
 
 test("authentic D14 reconciles a complete corrected verifier before bounded material repair", async (context) => {
   const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
+  const rejectedDraft = LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1).toUpperCase();
   const issueChecks = VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum;
   for (const [name, decision, localIssue] of [
     ["accept", 0, false], ["repair", 1, false], ["reject", 2, false], ["local materiality issue", 1, true],
@@ -8716,10 +8717,18 @@ test("authentic D14 reconciles a complete corrected verifier before bounded mate
         if (isCandidateBody(body)) {
           drafts += 1;
           if (drafts === 2) {
-            repairFeedback = inertModelPayload(body).verification;
+            const payload = inertModelPayload(body);
+            repairFeedback = payload.verification;
+            assert.equal(Object.hasOwn(payload, "rejectedCandidate"), false);
+            assert.equal(payload.sourcePassages[0][1], LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1));
+            assert.equal(JSON.stringify(body).includes(rejectedDraft), false,
+              "the presentation-only rejected draft must not anchor the repair request");
+            assert.deepEqual(payload.deterministicFindings.map(({ id }) => id), ["candidate-not-material"]);
+            assert.equal(body.model, LATTICE_REMOTE_MODELS.generator);
+            assert.equal(body.max_tokens, LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.repair);
           }
           return successfulProviderResponse(canaryCandidateFromProviderBody(body,
-            drafts === 1 || copiedRepair ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText));
+            drafts === 1 ? rejectedDraft : copiedRepair ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText));
         }
         if (isVerificationBody(body)) {
           verifies += 1;
@@ -9225,6 +9234,11 @@ test("pipeline headers bind actual withheld lineage and cannot be forged or outl
     assert.equal(Object.hasOwn(inertModelPayload(drafts[0]), "regenerationFeedback"), false);
     assert.deepEqual(inertModelPayload(drafts[1]).regenerationFeedback,
       regeneration ? { nonmaterialPassagePositions: [0] } : undefined);
+    assert.equal(Object.hasOwn(inertModelPayload(drafts[1]), "rejectedCandidate"), false);
+    if (!regeneration) {
+      assert.deepEqual(inertModelPayload(drafts[1]).deterministicFindings.map(({ id }) => id), ["candidate-not-material"]);
+      assert.equal(inertModelPayload(drafts[1]).verification[0], "repair");
+    }
     for (const options of [{ clone: true }, { duplicate: true }, { headers: {} },
       { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v14" } },
       { env: { HF_TOKEN: "test-only" } },

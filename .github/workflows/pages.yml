@@ -17,6 +17,11 @@ on:
         required: false
         default: false
         type: boolean
+      restore_text_to_lattice_qualification:
+        description: Restore held API and Pages immediately during qualification
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -74,9 +79,18 @@ jobs:
       - id: release-state
         name: Read Text to Lattice publication boundary
         run: node scripts/read-text-to-lattice-release-state.mjs
+      - name: Validate exclusive qualification rollback operation
+        env:
+          LATTICE_OPERATION_EVENT: ${{ github.event_name }}
+          LATTICE_OPERATION_REF: ${{ github.ref }}
+          LATTICE_OPERATION_PHASE: ${{ steps.release-state.outputs.release_phase }}
+          LATTICE_RESTORE_QUALIFICATION: ${{ inputs.restore_text_to_lattice_qualification }}
+          LATTICE_ACTIVATE_QUALIFICATION: ${{ inputs.activate_text_to_lattice_qualification }}
+          LATTICE_DEPLOY_SERVICES: ${{ inputs.deploy_text_to_lattice_services }}
+        run: node scripts/plan-text-to-lattice-qualification-window.mjs --validate-operation
 
   build:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && inputs.restore_text_to_lattice_qualification != true
     needs: publication-boundary
     runs-on: ubuntu-latest
     outputs:
@@ -139,6 +153,84 @@ jobs:
           --github-output
           "$GITHUB_OUTPUT"
 
+  restore_text_to_lattice_qualification_api:
+    name: Immediately restore the qualification API to held
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      needs.publication-boundary.result == 'success' &&
+      needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.restore_text_to_lattice_qualification == true
+    # This job must not wait for the held Pages build or any active-service path.
+    needs: publication-boundary
+    environment:
+      name: text-to-lattice-production
+    runs-on: ubuntu-latest
+    concurrency:
+      group: text-to-lattice-services
+      cancel-in-progress: false
+    outputs:
+      held_api_verified: ${{ steps.restored-held-api-verification.outcome == 'success' }}
+      rollback_authorized: ${{ steps.current-main-before-restored-api.outcome == 'success' }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: workers/package-lock.json
+      - name: Install pinned Worker deployment tooling for immediate qualification rollback
+        run: npm ci --ignore-scripts --prefix workers
+      - name: Require protected Cloudflare qualification-restore configuration
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          node -e 'for (const name of ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"])
+          if (!process.env[name]) throw new Error(`${name} is not configured in the protected environment.`)'
+      - name: Require current main before immediate qualification API shutdown
+        id: current-main-before-restored-api
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Immediately deploy held qualification API
+        id: restored-held-api-deployment
+        if: ${{ steps.current-main-before-restored-api.outcome == 'success' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler deploy
+          workers/text-to-lattice-api/held.js
+          --config workers/text-to-lattice-api/wrangler.jsonc
+      - name: Verify immediately restored qualification API is held
+        id: restored-held-api-verification
+        if: ${{ steps.restored-held-api-deployment.outcome == 'success' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: |
+          ./workers/node_modules/.bin/wrangler deployments status --json \
+            --config workers/text-to-lattice-api/wrangler.jsonc \
+            > "$RUNNER_TEMP/text-to-lattice-held-deployment.raw.json"
+          node scripts/verify-text-to-lattice-held-api.mjs \
+            --deployment "$RUNNER_TEMP/text-to-lattice-held-deployment.raw.json" \
+            --output "$RUNNER_TEMP/text-to-lattice-qualification-restore/held-api.json"
+      - name: Retain qualification-restore API evidence
+        if: ${{ always() && steps.current-main-before-restored-api.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: text-to-lattice-qualification-restore-api-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/text-to-lattice-qualification-restore
+          if-no-files-found: warn
+          include-hidden-files: false
+          retention-days: 7
+
   build_qualification_rollback:
     name: Build verified held Pages rollback artifact
     if: >-
@@ -147,7 +239,10 @@ jobs:
       needs.publication-boundary.result == 'success' &&
       needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
       github.event_name == 'workflow_dispatch' &&
-      inputs.activate_text_to_lattice_qualification == true
+      (
+        inputs.activate_text_to_lattice_qualification == true ||
+        inputs.restore_text_to_lattice_qualification == true
+      )
     needs: publication-boundary
     runs-on: ubuntu-latest
     outputs:
@@ -251,6 +346,7 @@ jobs:
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
+      inputs.restore_text_to_lattice_qualification != true &&
       needs.publication-boundary.result == 'success' &&
       needs.build.result == 'success' &&
       (
@@ -592,6 +688,7 @@ jobs:
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
+      inputs.restore_text_to_lattice_qualification != true &&
       needs.publication-boundary.result == 'success' &&
       needs.build.result == 'success' &&
       needs.deploy_text_to_lattice_services.result == 'success' &&
@@ -638,6 +735,7 @@ jobs:
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
+      inputs.restore_text_to_lattice_qualification != true &&
       needs.publication-boundary.result == 'success' &&
       needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
       needs.deploy_text_to_lattice_services.result == 'success' &&
@@ -668,10 +766,14 @@ jobs:
       github.ref == 'refs/heads/main' &&
       needs.publication-boundary.result == 'success' &&
       needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
-      needs.wait_for_text_to_lattice_qualification_expiry.result == 'success'
+      inputs.restore_text_to_lattice_qualification != true &&
+      needs.deploy_text_to_lattice_services.result == 'success' &&
+      needs.deploy.result == 'success' &&
+      contains(fromJSON('["success", "failure", "cancelled"]'), needs.wait_for_text_to_lattice_qualification_expiry.result)
     needs:
       - publication-boundary
       - deploy_text_to_lattice_services
+      - deploy
       - wait_for_text_to_lattice_qualification_expiry
     environment:
       name: text-to-lattice-production
@@ -751,11 +853,24 @@ jobs:
       needs.build_qualification_rollback.result == 'success' &&
       needs.build_qualification_rollback.outputs.held_pages_artifact_id != '' &&
       needs.build_qualification_rollback.outputs.held_pages_artifact_sha256 != '' &&
-      needs.expire_text_to_lattice_qualification_api.outputs.rollback_authorized == 'true' &&
-      needs.expire_text_to_lattice_qualification_api.outputs.held_api_verified == 'true'
+      (
+        (
+          inputs.restore_text_to_lattice_qualification == true &&
+          needs.restore_text_to_lattice_qualification_api.result == 'success' &&
+          needs.restore_text_to_lattice_qualification_api.outputs.rollback_authorized == 'true' &&
+          needs.restore_text_to_lattice_qualification_api.outputs.held_api_verified == 'true'
+        ) ||
+        (
+          inputs.restore_text_to_lattice_qualification != true &&
+          needs.expire_text_to_lattice_qualification_api.result == 'success' &&
+          needs.expire_text_to_lattice_qualification_api.outputs.rollback_authorized == 'true' &&
+          needs.expire_text_to_lattice_qualification_api.outputs.held_api_verified == 'true'
+        )
+      )
     needs:
       - publication-boundary
       - build_qualification_rollback
+      - restore_text_to_lattice_qualification_api
       - expire_text_to_lattice_qualification_api
     environment:
       name: github-pages
@@ -785,10 +900,20 @@ jobs:
         with:
           artifact_name: text-to-lattice-held-rollback-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Verify bounded qualification Pages is held
+        id: restored-held-pages-verification
         run: >-
           node scripts/verify-text-to-lattice-held-pages.mjs
           --output
           "$RUNNER_TEMP/text-to-lattice-qualification-expiry/held-pages.json"
+      - name: Retain verified qualification Pages restoration evidence
+        if: ${{ always() && steps.restored-held-pages-verification.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: text-to-lattice-qualification-restored-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/text-to-lattice-qualification-expiry/held-pages.json
+          if-no-files-found: error
+          include-hidden-files: false
+          retention-days: 7
 
   enforce_text_to_lattice_held_api:
     name: Enforce held API after held or failed publication
@@ -801,6 +926,11 @@ jobs:
         ) ||
         (
           needs.publication-boundary.result == 'success' &&
+          (
+            inputs.restore_text_to_lattice_qualification != true ||
+            needs.restore_text_to_lattice_qualification_api.result != 'success' ||
+            needs.restore_text_to_lattice_qualification_api.outputs.held_api_verified != 'true'
+          ) &&
           (
             (
               needs.publication-boundary.outputs.release_phase == 'held' &&
@@ -822,7 +952,7 @@ jobs:
     concurrency:
       group: text-to-lattice-services
       cancel-in-progress: false
-    needs: [publication-boundary, build, deploy_held, deploy_text_to_lattice_services, deploy]
+    needs: [publication-boundary, build, deploy_held, deploy_text_to_lattice_services, deploy, restore_text_to_lattice_qualification_api]
     permissions:
       contents: read
     steps:
