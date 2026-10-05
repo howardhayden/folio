@@ -61,7 +61,7 @@ const canonicalRegisterSource = "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-RE
 const canonicalQualificationSource = "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
 const activeLlamaTermsProvenance = Object.freeze({
   version: "Llama 3.1",
-  model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+  model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
   modelRepository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
   modelRepositoryRevision: "0e9e39f249a16976918f6564b8830bc894c89659",
   modelRepositoryRevisionUrl: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/tree/0e9e39f249a16976918f6564b8830bc894c89659",
@@ -244,6 +244,7 @@ const heldForbiddenExecutableStrings = Object.freeze([
   "meta-llama/Meta-Llama-3.1-8B-Instruct",
   "Qwen/Qwen3-4B-Instruct-2507:nscale",
   "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+  "meta-llama/Llama-3.1-8B-Instruct:nscale",
 ]);
 const staleEnabledPublicationPattern = /release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)|sole open (?:release )?blocker|held solely because|hold the interactive client/iu;
 const serializedVinextRscScript = /^\s*\(\(self\[Symbol\.for\("vinext\.navigationRuntime"\)\]\?\?=\{bootstrap:\{routeManifest:null\},functions:\{\}\}\)\.bootstrap\.rsc\?\?=\{rsc:\[\]\}\)\.rsc\.push\(("(?:\\[\s\S]|[^"\\])*")\)\s*;?\s*$/u;
@@ -1023,8 +1024,8 @@ async function verifyLlamaUseEvaluation(register) {
   }
   if (record.targetVerifier?.model !== register.artifactSet.activeCapability.provider.verifierModel
     || record.targetVerifier?.modelRepositoryRevision !== register.artifactSet.llamaTerms.active.modelRepositoryRevision
-    || record.evidenceResetAt !== activeLlamaTermsProvenance.reviewedAt
-    || !/different model or serving revision/iu.test(record.evidenceResetReason ?? "")) {
+    || record.evidenceResetAt !== "2026-10-04"
+    || !/another provider or serving revision/iu.test(record.evidenceResetReason ?? "")) {
     fail("Llama-use evaluation evidence must be reset and bound to the exact active verifier model and reviewed repository revision.");
   }
   requireString(evaluation.claimBoundary, "Llama-use evaluation claim boundary");
@@ -1186,7 +1187,7 @@ async function verifyQualificationDossier(register) {
     || !/__Secure-hah-lattice-api-visitor/u.test(source)
     || !/30[^.]*globally per UTC day/iu.test(source)
     || !/3[^.]*browser cookie jar per UTC day/iu.test(source)
-    || !/Hugging Face[\s\S]{0,300}Nscale[\s\S]{0,300}DeepInfra/iu.test(source)
+    || !/Hugging Face[\s\S]{0,300}Nscale/iu.test(source)
     || !/no automatic retry/iu.test(source)
     || !/no (?:alternate )?provider or model fallback/iu.test(source)
     || !/provider-managed[\s\S]{0,240}not byte/iu.test(source)
@@ -1302,6 +1303,12 @@ function verifyArtifactSet(register) {
     || capability.provider.endpoint !== HUGGING_FACE_CHAT_COMPLETIONS_URL
     || capability.provider.verificationEndpoint !== HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL
     || capability.provider.verificationRequestModel !== LATTICE_VERIFICATION_REQUEST_MODEL
+    || capability.provider.certificationEndpoint !== HUGGING_FACE_CHAT_COMPLETIONS_URL
+    || capability.provider.certificationRequestModel !== LATTICE_REMOTE_MODELS.verifier
+    || capability.provider.verificationResponseFormat !== "json_schema"
+    || capability.provider.verificationSchemaStrict !== true
+    || capability.provider.certificationResponseFormat !== "json_schema"
+    || capability.provider.certificationSchemaStrict !== true
     || capability.provider.generatorModel !== LATTICE_REMOTE_MODELS.generator
     || capability.provider.verifierModel !== LATTICE_REMOTE_MODELS.verifier
     || JSON.stringify(capability.provider.stageCallTimeoutsMs)

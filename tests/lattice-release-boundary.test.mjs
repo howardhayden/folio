@@ -318,6 +318,8 @@ test("the release register honestly holds the remote capability and preserves hi
   ].sort(), "the public capability cannot carry undeclared private wire fields");
   assert.deepEqual(Object.keys(capability.provider).sort(), [
     "endpoint", "verificationEndpoint", "verificationRequestModel", "generatorModel", "verifierModel", "stageCallTimeoutsMs",
+    "certificationEndpoint", "certificationRequestModel", "verificationResponseFormat",
+    "verificationSchemaStrict", "certificationResponseFormat", "certificationSchemaStrict",
     "maximumCallTimeoutMs", "callLimit", "stageMaximumOutputTokens",
     "maximumRequestedOutputTokensPerCall", "maximumRequestedOutputTokensPerAdmittedRequest",
     "maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay",
@@ -417,10 +419,16 @@ test("the release register honestly holds the remote capability and preserves hi
     },
   );
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
-  assert.equal(capability.provider.verificationEndpoint, "https://router.huggingface.co/deepinfra/v1/openai/chat/completions");
-  assert.equal(capability.provider.verificationRequestModel, "meta-llama/Meta-Llama-3.1-8B-Instruct");
+  assert.equal(capability.provider.verificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
+  assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.1-8B-Instruct:nscale");
   assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-4B-Instruct-2507:nscale");
-  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.1-8B-Instruct:deepinfra");
+  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.1-8B-Instruct:nscale");
+  assert.equal(capability.provider.certificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
+  assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.1-8B-Instruct:nscale");
+  assert.equal(capability.provider.verificationResponseFormat, "json_schema");
+  assert.equal(capability.provider.verificationSchemaStrict, true);
+  assert.equal(capability.provider.certificationResponseFormat, "json_schema");
+  assert.equal(capability.provider.certificationSchemaStrict, true);
   assert.deepEqual(capability.provider.stageCallTimeoutsMs, {
     analysis: 120_000,
     candidate: 120_000,
@@ -451,7 +459,7 @@ test("the release register honestly holds the remote capability and preserves hi
   assert.deepEqual(register.artifactSet.llamaTerms.active, {
     status: "active",
     version: "Llama 3.1",
-    model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+    model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
     modelRepository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
     modelRepositoryRevision: "0e9e39f249a16976918f6564b8830bc894c89659",
     modelRepositoryRevisionUrl: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/tree/0e9e39f249a16976918f6564b8830bc894c89659",
@@ -488,8 +496,8 @@ test("the release register honestly holds the remote capability and preserves hi
     register.artifactSet.llamaBehaviorEvaluation.targetVerifier.modelRepositoryRevision,
     register.artifactSet.llamaTerms.active.modelRepositoryRevision,
   );
-  assert.equal(register.artifactSet.llamaBehaviorEvaluation.evidenceResetAt, "2026-09-25");
-  assert.match(register.artifactSet.llamaBehaviorEvaluation.evidenceResetReason, /different model or serving revision/iu);
+  assert.equal(register.artifactSet.llamaBehaviorEvaluation.evidenceResetAt, "2026-10-04");
+  assert.match(register.artifactSet.llamaBehaviorEvaluation.evidenceResetReason, /another provider or serving revision/iu);
   assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionPerformed, false);
 
   for (const id of ["GATE-02", "GATE-03", "GATE-06"]) {

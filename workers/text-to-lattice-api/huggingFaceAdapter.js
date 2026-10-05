@@ -33,12 +33,11 @@ export { LATTICE_PROVIDER_CALL_LIMIT };
 
 export const HUGGING_FACE_CHAT_COMPLETIONS_URL =
   "https://router.huggingface.co/v1/chat/completions";
-export const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL =
-  "https://router.huggingface.co/deepinfra/v1/openai/chat/completions";
+export const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL = HUGGING_FACE_CHAT_COMPLETIONS_URL;
 
 export const LATTICE_REMOTE_MODELS = Object.freeze({
   generator: "Qwen/Qwen3-4B-Instruct-2507:nscale",
-  verifier: "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+  verifier: "meta-llama/Llama-3.1-8B-Instruct:nscale",
 });
 
 export const LATTICE_PROVIDER_FAILURE_CLASSES = Object.freeze([
@@ -136,7 +135,7 @@ const HTTP_HEADER_VALUE_SETS = Object.freeze(Object.fromEntries(
 const HTTP_HEADER_CHARACTER_LIMIT = 256;
 const HTTP_TOKEN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
 const VERIFIER_MAPPED_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct";
-export const LATTICE_VERIFICATION_REQUEST_MODEL = VERIFIER_MAPPED_MODEL;
+export const LATTICE_VERIFICATION_REQUEST_MODEL = LATTICE_REMOTE_MODELS.verifier;
 const VERIFIER_ADVERTISED_REPLACEMENT = "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo";
 
 export function isClosedProviderHttpHeaders(value) {
@@ -477,6 +476,27 @@ function wireBitMaskSchema(width, { requireSelection = false } = {}) {
   });
 }
 
+function nscaleReviewJsonSchema(value) {
+  if (Array.isArray(value)) return value.map(nscaleReviewJsonSchema);
+  if (!record(value)) return value;
+  const projected = Object.fromEntries(Object.entries(value).map(([key, item]) => [key, nscaleReviewJsonSchema(item)]));
+  const width = value.minLength;
+  if (value.type !== "string" || !Number.isSafeInteger(width) || width < 1 || value.maxLength !== width) return projected;
+  // As with analysisWireBitMaskSchema, avoid XGrammar's pattern-plus-length
+  // incompatibility. Keep the fitted internal schema and decoder unchanged.
+  // Partition nonempty binary masks by the first 1: every branch has the exact
+  // fitted width, preserving the same legal fixed-width binary masks.
+  if (value.pattern === "^[01]*1[01]*$") {
+    projected.pattern = `^(?:${Array.from({ length: width }, (_, index) =>
+      `0{${index}}1[01]{${width - index - 1}}`).join("|")})$`;
+  } else if (value.pattern !== `^[01]{${width}}$` && value.pattern !== `^[012]{${width}}$`) {
+    return projected;
+  }
+  delete projected.minLength;
+  delete projected.maxLength;
+  return projected;
+}
+
 function closedWireObject(properties) {
   const frozenProperties = Object.freeze(properties);
   return Object.freeze({
@@ -654,11 +674,9 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: VERIFICATION_WIRE_SCHEMA,
     schemaName: "lattice_verification_wire_v2",
-    responseFormat: "json_object",
+    responseFormat: "json_schema",
+    schemaDescription: "Supply one complete private verification result using the fitted closed index-and-mask schema.",
     requireMinimalVerificationContent: true,
-    allowEmptyStoppedToolCalls: true,
-    allowNullStoppedVerificationMetadata: true,
-    allowNullJsonObjectVerificationToolCalls: true,
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
     maxTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -670,10 +688,9 @@ const STAGES = Object.freeze({
     role: "verifier",
     schema: CERTIFICATION_WIRE_SCHEMA,
     schemaName: "lattice_certification_wire_v2",
-    toolName: CERTIFICATION_TOOL_NAME,
-    toolChoice: "named",
-    allowStoppedToolContent: true,
-    allowEmptyStoppedToolCalls: true,
+    responseFormat: "json_schema",
+    schemaDescription: "Supply one complete private document certificate using the fitted closed schema.",
+    requireMinimalVerificationContent: true,
     responseGuide: CERTIFICATION_WIRE_GUIDE,
     messages: certificationWireMessages,
     maxTokens: CERTIFICATION_MAX_OUTPUT_TOKENS,
@@ -2239,7 +2256,7 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
   if (requireMinimalVerificationContent && !(compatibleVerificationContent
     ? stoppedContentMessageAllowed(choice.message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls)
     : exactKeys(choice.message, ["role", "content"]))) {
-    // Both verification formats have one content channel. Explicit null/empty
+    // Both review stages have one content channel. Explicit legacy null/empty
     // compatibility carries no arguments and never rewrites the message/content.
     // Even one otherwise valid native call is competing content.
     // Strict callers without compatibility flags still require role/content.
@@ -2506,7 +2523,10 @@ export async function requestHuggingFaceJson({
     || typeof observeQualificationEnvelopeShape !== "boolean"
     || (requireMinimalVerificationContent
       && (role !== "verifier"
-        || schemaName !== VERIFICATION_TOOL_NAME
+        || !(schemaName === VERIFICATION_TOOL_NAME
+          || (schemaName === CERTIFICATION_TOOL_NAME && resolvedResponseFormat === "json_schema"
+            && !allowEmptyStoppedToolCalls && !allowNullStoppedVerificationMetadata
+            && !allowNullJsonObjectVerificationToolCalls))
         || !minimalVerificationContentRequest
         || toolName !== undefined
         || toolChoice !== undefined
@@ -2526,18 +2546,11 @@ export async function requestHuggingFaceJson({
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
-  // Only validated dedicated verification uses HF's explicit DeepInfra proxy and
-  // its fixed mapping of the same selected model. Certification shares the
-  // verifier role but retains the unified route and named-tool contract.
-  const explicitVerificationProxy = minimalVerificationContentRequest;
-  const providerUrl = explicitVerificationProxy
-    ? HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL : HUGGING_FACE_CHAT_COMPLETIONS_URL;
-  const providerModel = explicitVerificationProxy
-    ? LATTICE_VERIFICATION_REQUEST_MODEL : LATTICE_REMOTE_MODELS[role];
-  // JSON-object verification embeds its exact fitted schema in trusted
-  // instructions. This mode promises JSON syntax, not schema enforcement;
-  // complete wire decoding and host validation remain mandatory. Other strict
-  // schema callers retain their existing response-format contract.
+  // Both fixed Nscale role selectors use the unified Hugging Face route.
+  // Review stages require their closed single-content strict-schema envelope;
+  // legacy helper compatibility never selects an alternate route or model.
+  const providerUrl = HUGGING_FACE_CHAT_COMPLETIONS_URL;
+  const providerModel = LATTICE_REMOTE_MODELS[role];
   const providerRequestBody = JSON.stringify({
     model: providerModel,
     messages: toolName === undefined
@@ -2555,7 +2568,7 @@ export async function requestHuggingFaceJson({
               description: schemaDescription
                 ?? responseGuide
                 ?? "Supply one complete structured response.",
-              schema,
+              schema: requireMinimalVerificationContent ? nscaleReviewJsonSchema(schema) : schema,
               strict: true,
             },
           }

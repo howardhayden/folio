@@ -330,10 +330,17 @@ function providerToolCall({
 function fittedStringLength(schema) {
   const explicitLength = schema.maxLength ?? schema.minLength;
   if (Number.isSafeInteger(explicitLength) && explicitLength >= 0) return explicitLength;
-  const binaryWidth = typeof schema.pattern === "string"
-    ? /^\^\[01\]\{([1-9]\d*)\}\$$/u.exec(schema.pattern)
-    : null;
-  return binaryWidth ? Number(binaryWidth[1]) : 1;
+  const fixed = typeof schema.pattern === "string" ? /^\^\[01(?:2)?\]\{([1-9]\d*)\}\$$/u.exec(schema.pattern) : null;
+  if (fixed) return Number(fixed[1]);
+  if (schema.pattern?.startsWith("^(?:0{0}1[01]{")) {
+    const branches = schema.pattern.slice(4, -2).split("|");
+    const width = branches.length;
+    for (const [index, branch] of branches.entries()) {
+      assert.equal(branch, `0{${index}}1[01]{${width - index - 1}}`);
+    }
+    return width;
+  }
+  return 1;
 }
 
 function maximalJsonSchemaValue(schema, stringValue = (length) => "x".repeat(length)) {
@@ -564,33 +571,114 @@ function isCandidateBody(body) {
     && body.response_format?.type === "json_object";
 }
 
-const TEST_VERIFICATION_PROXY_URL = "https://router.huggingface.co/deepinfra/v1/openai/chat/completions";
-const TEST_VERIFICATION_PROXY_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct";
+const TEST_REVIEW_URL = "https://router.huggingface.co/v1/chat/completions";
+const TEST_REVIEW_MODEL = "meta-llama/Llama-3.1-8B-Instruct:nscale";
 
 function isVerificationBody(body) {
-  return body.model === TEST_VERIFICATION_PROXY_MODEL
-    && body.response_format?.type === "json_object";
+  return body.model === TEST_REVIEW_MODEL
+    && body.response_format?.type === "json_schema"
+    && body.response_format.json_schema.name === VERIFICATION_TOOL_NAME;
+}
+
+function strictReviewSchema(body, expectedName) {
+  assert.equal(body.model, TEST_REVIEW_MODEL);
+  assert.equal(body.response_format.type, "json_schema");
+  assert.equal(body.response_format.json_schema.name, expectedName);
+  assert.equal(body.response_format.json_schema.strict, true);
+  for (const key of ["tools", "tool_choice", "parallel_tool_calls"]) {
+    assert.equal(Object.hasOwn(body, key), false);
+  }
+  assert.doesNotMatch(body.messages.map(({ content }) => content).join("\n"), /LATTICE_RESPONSE_SCHEMA/u);
+  return body.response_format.json_schema.schema;
 }
 
 function fittedVerificationSchemaForBody(body) {
   assert.equal(isVerificationBody(body), true);
-  assert.deepEqual(body.response_format, { type: "json_object" });
-  for (const key of ["tools", "tool_choice", "parallel_tool_calls"]) {
-    assert.equal(Object.hasOwn(body, key), false);
-  }
-  const contracts = body.messages.filter(({ role, content }) => role === "system"
-    && typeof content === "string" && content.includes(`Response contract ${VERIFICATION_TOOL_NAME}:`));
-  assert.equal(contracts.length, 1, "one trusted verification contract is required");
-  const system = body.messages.filter(({ role }) => role === "system").map(({ content }) => content).join("\n");
-  const schemas = [...system.matchAll(/<LATTICE_RESPONSE_SCHEMA>(.*?)<\/LATTICE_RESPONSE_SCHEMA>/gu)];
-  assert.equal(schemas.length, 1, "one exact fitted schema belongs in trusted verification instructions");
-  const schema = JSON.parse(schemas[0][1]);
+  const schema = strictReviewSchema(body, VERIFICATION_TOOL_NAME);
   assert.deepEqual(schema.required, ["d", "g", "p", "i"]);
   assert.equal(schema.additionalProperties, false);
   return schema;
 }
 
-test("production verifier uses its fixed explicit proxy and fitted JSON-object instructions on initial and correction calls", async (t) => {
+test("Nscale review schema projection preserves exhaustive legal binary masks without mutating fitted constraints", async () => {
+  for (const width of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
+    const mask = (requireSelection) => ({ type: "string", minLength: width, maxLength: width,
+      pattern: requireSelection ? "^[01]*1[01]*$" : `^[01]{${width}}$` });
+    const schema = { type: "object", additionalProperties: false,
+      properties: { g: mask(false), x: mask(true), y: mask(true) }, required: ["g", "x", "y"] };
+    const before = structuredClone(schema);
+    let captured;
+    await requestHuggingFaceJson(providerRequestOptions(async (_url, init) => {
+      captured = JSON.parse(init.body);
+      return successfulProviderResponse({ g: "0".repeat(width), x: "1".repeat(width), y: "1".repeat(width) });
+    }, { role: "verifier", schemaName: VERIFICATION_TOOL_NAME, schema,
+      responseFormat: "json_schema", requireMinimalVerificationContent: true }));
+    assert.deepEqual(schema, before, "projection must not alter fitted internal constraints");
+    const projected = strictReviewSchema(captured, VERIFICATION_TOOL_NAME);
+    for (const [field, requireSelection] of [["g", false], ["x", true], ["y", true]]) {
+      assert.equal(Object.hasOwn(projected.properties[field], "minLength"), false);
+      assert.equal(Object.hasOwn(projected.properties[field], "maxLength"), false);
+      const pattern = new RegExp(projected.properties[field].pattern, "u");
+      for (let length = 0; length <= width + 1; length += 1) {
+        for (let value = 0; value < 2 ** length; value += 1) {
+          const bits = length === 0 ? "" : value.toString(2).padStart(length, "0");
+          assert.equal(pattern.test(bits), length === width && (!requireSelection || bits.includes("1")),
+            `${field}: width ${width}, ${bits}`);
+        }
+      }
+      assert.equal(pattern.test("2".repeat(width)), false);
+    }
+  }
+});
+
+test("projected strict schemas retain decoder rejection of nonbinary and wrong-width review masks", async () => {
+  const request = minimalVerificationRequest();
+  for (const [field, suffix, rule] of [["g", "\n", "V06L"], ["x", "\n", "V16L"], ["y", "\n", "V17L"],
+    ["x", "2", "V16A"], ["y", "2", "V17A"]]) {
+    const wire = structuredClone(acceptingVerificationWire(request));
+    const target = field === "g" ? wire : wire.p["0"];
+    target[field] = suffix === "2" ? "2".repeat(target[field].length) : target[field] + suffix;
+    const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", fetchImpl: async (_url, init) => {
+      fittedVerificationSchemaForBody(JSON.parse(init.body));
+      return successfulProviderResponse(wire);
+    } });
+    const result = await adapter.verify(request);
+    assert.deepEqual(result, {});
+    assert.equal(rejectedResultDiagnostic(result).rule, rule);
+    assert.equal(adapter.completionCapacity().used, 1);
+  }
+});
+
+test("Nscale review stages use closed strict-schema content on the fixed unified route", async (context) => {
+  for (const [method, request, name, wire, limit] of [
+    ["verify", minimalVerificationRequest(), VERIFICATION_TOOL_NAME, acceptingVerificationWire(minimalVerificationRequest()), 2_048],
+    ["certify", minimalCertificationRequest(), CERTIFICATION_TOOL_NAME,
+      acceptingCertificationWire("certificate:envelope-test", ["document:whole"]), 520],
+  ]) for (const corrected of [false, true]) await context.test(`${method}: ${corrected ? "correction" : "initial"}`, async () => {
+    let calls = 0;
+    const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (url, init) => {
+      calls += 1;
+      const body = JSON.parse(init.body);
+      assert.equal(url, HUGGING_FACE_CHAT_COMPLETIONS_URL);
+      assert.equal(body.model, "meta-llama/Llama-3.1-8B-Instruct:nscale");
+      assert.equal(body.response_format.type, "json_schema");
+      assert.equal(body.response_format.json_schema.name, name);
+      assert.equal(body.response_format.json_schema.strict, true);
+      assert.equal(body.response_format.json_schema.schema.additionalProperties, false);
+      assert.equal(body.max_tokens, limit);
+      for (const field of ["tools", "tool_choice", "parallel_tool_calls"]) assert.equal(Object.hasOwn(body, field), false);
+      assert.doesNotMatch(JSON.stringify(body), /deepinfra|Meta-Llama-3.1|LATTICE_RESPONSE_SCHEMA/u);
+      return successfulProviderResponse(wire);
+    } });
+    await adapter[method]({ ...request, ...(corrected ? { protocolFeedback: {
+      stage: method === "verify" ? "verification" : "certification", attempt: 2, category: "response-shape",
+      issue: "PRIVATE-CORRECTION", instruction: "PRIVATE-CORRECTION",
+    } } : {}) });
+    assert.equal(calls, 1);
+  });
+});
+
+test("production verifier uses its fixed Nscale route and fitted strict schema on initial and correction calls", async (t) => {
   for (const corrected of [false, true]) {
     await t.test(corrected ? "correction" : "initial", async () => {
       const calls = [];
@@ -612,9 +700,9 @@ test("production verifier uses its fixed explicit proxy and fitted JSON-object i
       const result = await adapter.verify(request);
       assert.equal(calls.length, 1);
       const { url, init, body } = calls[0];
-      assert.equal(url, TEST_VERIFICATION_PROXY_URL);
+      assert.equal(url, TEST_REVIEW_URL);
       assert.equal(init.method, "POST");
-      assert.equal(body.model, TEST_VERIFICATION_PROXY_MODEL);
+      assert.equal(body.model, TEST_REVIEW_MODEL);
       const schema = fittedVerificationSchemaForBody(body);
       assert.deepEqual(schema.required, ["d", "g", "p", "i"]);
       assert.equal(schema.additionalProperties, false);
@@ -625,9 +713,8 @@ test("production verifier uses its fixed explicit proxy and fitted JSON-object i
       assert.equal(body.stream, false);
       const instructions = body.messages.filter(({ role }) => role === "system")
         .map(({ content }) => content).join("\n");
-      assert.match(instructions, /Return exactly one minified JSON object matching the following closed JSON Schema/u);
-      assert.equal(instructions.includes(JSON.stringify(schema)), true);
-      assert.doesNotMatch(instructions, /supplied strict JSON Schema/u);
+      assert.match(instructions, /Return exactly one JSON object satisfying the supplied strict JSON Schema/u);
+      assert.equal(instructions.includes(JSON.stringify(schema)), false);
       assert.doesNotMatch(instructions, /Call this function exactly once|PRIVATE-VERIFIER-FEEDBACK|Return the complete host schema/u);
       assert.equal(result.decision, "accept");
     });
@@ -1695,7 +1782,7 @@ test("verifier corrections keep negative results complete and preserve both reje
                 body, "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.",
               ));
             }
-            const toolName = isVerificationBody(body) ? VERIFICATION_TOOL_NAME : body.tool_choice.function.name;
+            const toolName = isVerificationBody(body) ? VERIFICATION_TOOL_NAME : body.response_format?.json_schema?.name ?? body.tool_choice.function.name;
             if (toolName === VERIFICATION_TOOL_NAME) {
               verifierCalls += 1;
               const wire = structuredClone(canaryVerificationWire(body));
@@ -1714,9 +1801,9 @@ test("verifier corrections keep negative results complete and preserve both reje
             assert.equal(recover, true, "invalid verification cannot reach certification");
             assert.equal(toolName, CERTIFICATION_TOOL_NAME);
             const payload = inertModelPayload(body);
-            return successfulProviderToolResponse(acceptingCertificationWire(
+            return successfulProviderResponse(acceptingCertificationWire(
               payload.certificateId, payload.obligationIds,
-            ), { toolName });
+            ));
           },
         });
         const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
@@ -1729,7 +1816,7 @@ test("verifier corrections keep negative results complete and preserve both reje
         const verifies = calls.filter(isVerificationBody);
         assert.deepEqual(fittedVerificationSchemaForBody(verifies[0]), fittedVerificationSchemaForBody(verifies[1]));
         for (const body of verifies) {
-          assert.equal(body.model, TEST_VERIFICATION_PROXY_MODEL);
+          assert.equal(body.model, TEST_REVIEW_MODEL);
           assert.equal(body.max_tokens, 2_048);
           assert.match(body.messages[0].content, /exactly the four root fields d, g, p, and i/u);
           assert.match(body.messages[0].content, /x and y.*at least one 1.*repair or reject/u);
@@ -1831,7 +1918,7 @@ test("actual layer, conformance and issue corrections precede material repair wi
           wire = acceptingCertificationWire(payload.certificateId, payload.obligationIds);
         }
         return providerChoiceResponse({ finish_reason: "stop", message: {
-          role: "assistant", content: JSON.stringify(wire), tool_calls: [],
+          role: "assistant", content: JSON.stringify(wire),
         } });
       } });
       const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: {
@@ -1868,11 +1955,11 @@ test("actual layer, conformance and issue corrections precede material repair wi
   }
 });
 
-test("empty and observed-null stopped verification carry sparse grounded masks through material repair and certification", async (context) => {
+test("closed strict verification carries sparse grounded masks through material repair and certification", async (context) => {
   const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
   const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
-  for (const nullToolCollection of [false, true]) for (const nullMetadata of [false, true]) for (const repairCopiesSource of [false, true]) {
-    await context.test(`${nullToolCollection ? "null calls" : "empty calls"}, ${nullMetadata ? "null metadata" : "minimal metadata"}: ${repairCopiesSource ? "copied repair remains withheld" : "material repair passes"}`, async () => {
+  for (const repairCopiesSource of [false, true]) {
+    await context.test(repairCopiesSource ? "copied repair remains withheld" : "material repair passes", async () => {
       const calls = [];
       let drafts = 0;
       let verifies = 0;
@@ -1902,14 +1989,12 @@ test("empty and observed-null stopped verification carry sparse grounded masks t
           }
         } else {
           assert.equal(repairCopiesSource, false, "copied repair cannot reach certification");
-          assert.equal(body.tool_choice.function.name, CERTIFICATION_TOOL_NAME);
+          assert.equal(body.response_format?.json_schema?.name ?? body.tool_choice.function.name, CERTIFICATION_TOOL_NAME);
           const payload = inertModelPayload(body);
           wire = acceptingCertificationWire(payload.certificateId, payload.obligationIds);
         }
         return providerChoiceResponse({ finish_reason: "stop", message: {
           role: "assistant", content: JSON.stringify(wire),
-          tool_calls: isVerificationBody(body) && nullToolCollection ? null : [],
-          ...(nullMetadata && isVerificationBody(body) ? { name: null, reasoning_content: null } : {}),
         } });
       } });
       const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
@@ -1927,9 +2012,9 @@ test("empty and observed-null stopped verification carry sparse grounded masks t
       for (const body of verifyBodies) {
         assert.equal(body.max_tokens, 2_048);
         const schema = fittedVerificationSchemaForBody(body).properties.p.properties["0"].properties;
-        assert.equal(schema.x.minLength, 2);
-        assert.equal(schema.y.minLength, 3);
-        assert.equal(schema.f.minLength, checks.length);
+        assert.equal(fittedStringLength(schema.x), 2);
+        assert.equal(fittedStringLength(schema.y), 3);
+        assert.equal(fittedStringLength(schema.f), checks.length);
         assert.match(body.messages[0].content, /Never select unsupported evidence merely to make a mask nonempty/u);
       }
       for (const body of calls.filter(isCandidateBody)) {
@@ -1942,10 +2027,10 @@ test("empty and observed-null stopped verification carry sparse grounded masks t
   }
 });
 
-test("empty and observed-null stopped verification never repairs truncated masks or invents grounding", async (context) => {
+test("closed strict verification never repairs truncated masks or invents grounding", async (context) => {
   const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
-  for (const nullToolCollection of [false, true]) for (const nullMetadata of [false, true]) for (const failure of ["truncated-mask", "ungrounded-span"]) {
-    await context.test(`${nullToolCollection ? "null calls" : "empty calls"}, ${nullMetadata ? "null metadata" : "minimal metadata"}: ${failure}`, async () => {
+  for (const failure of ["truncated-mask", "ungrounded-span"]) {
+    await context.test(failure, async () => {
       const calls = [];
       const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
         const body = JSON.parse(init.body); calls.push(body);
@@ -1962,8 +2047,6 @@ test("empty and observed-null stopped verification never repairs truncated masks
         if (failure === "truncated-mask") wire.p["0"].f = wire.p["0"].f.slice(0, -1);
         return providerChoiceResponse({ finish_reason: "stop", message: {
           role: "assistant", content: JSON.stringify(wire),
-          tool_calls: isVerificationBody(body) && nullToolCollection ? null : [],
-          ...(nullMetadata && isVerificationBody(body) ? { name: null, reasoning_content: null } : {}),
         } });
       } });
       const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
@@ -1979,7 +2062,7 @@ test("empty and observed-null stopped verification never repairs truncated masks
   }
 });
 
-test("reverification corrections preserve fixed JSON-object transport, decision consistency and original candidate provenance", async (context) => {
+test("reverification corrections preserve fixed strict-schema transport, decision consistency and original candidate provenance", async (context) => {
   const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
   const issueChecks = VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum;
   const gates = VERIFICATION_SCHEMA.properties.failedGates.items.enum;
@@ -2000,10 +2083,10 @@ test("reverification corrections preserve fixed JSON-object transport, decision 
                 body, drafts === 1 ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText,
               ));
             }
-            const toolName = isVerificationBody(body) ? VERIFICATION_TOOL_NAME : body.tool_choice.function.name;
+            const toolName = isVerificationBody(body) ? VERIFICATION_TOOL_NAME : body.response_format?.json_schema?.name ?? body.tool_choice.function.name;
             if (toolName === VERIFICATION_TOOL_NAME) {
               verifies += 1;
-              assert.equal(url, TEST_VERIFICATION_PROXY_URL);
+              assert.equal(url, TEST_REVIEW_URL);
               fittedVerificationSchemaForBody(body);
               const wire = structuredClone(canaryVerificationWire(body));
               if (verifies === 1) {
@@ -2029,9 +2112,9 @@ test("reverification corrections preserve fixed JSON-object transport, decision 
             assert.equal(body.max_tokens, 520);
             assert.equal(toolName, CERTIFICATION_TOOL_NAME);
             const payload = inertModelPayload(body);
-            return successfulProviderToolResponse(acceptingCertificationWire(
+            return successfulProviderResponse(acceptingCertificationWire(
               payload.certificateId, payload.obligationIds,
-            ), { toolName });
+            ));
           },
         });
         const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: {
@@ -2046,7 +2129,7 @@ test("reverification corrections preserve fixed JSON-object transport, decision 
         const verifyBodies = calls.filter(isVerificationBody);
         assert.deepEqual(fittedVerificationSchemaForBody(verifyBodies[1]), fittedVerificationSchemaForBody(verifyBodies[2]));
         for (const body of verifyBodies) {
-          assert.equal(body.model, TEST_VERIFICATION_PROXY_MODEL);
+          assert.equal(body.model, TEST_REVIEW_MODEL);
           assert.equal(body.max_tokens, 2_048);
           assert.match(body.messages[0].content, /Repair or reject requires at least one actual failed condition/u);
           assert.match(body.messages[0].content, /Never use i alone to establish a failed check/u);
@@ -2440,8 +2523,8 @@ test("compact verification publishes only the trusted fitted layout on initial a
           assert.deepEqual(layout.passagePositions, schema.properties.p.required);
           const passage = schema.properties.p.properties["0"].properties;
           for (const [key, width] of Object.entries(layout.passages["0"].widths)) {
-            assert.equal(passage[key].minLength, width);
-            assert.equal(passage[key].maxLength, width);
+            assert.equal(fittedStringLength(passage[key]), width);
+            assert.equal(fittedStringLength(passage[key]), width);
           }
           assert.equal(passage.c.properties.k.minItems, criteria.length);
           const conformanceLayout = layout.passages["0"].conformance;
@@ -2523,12 +2606,12 @@ test("compact verification binds complete mask positions on initial and correcti
           }
           assert.doesNotMatch(JSON.stringify(body), /PRIVATE-MASK-HOST|V16L|V17M/u);
           const schema = fittedVerificationSchemaForBody(body).properties.p.properties["0"].properties;
-          assert.equal(schema.a.minLength, atoms.length);
-          assert.equal(schema.x.minLength, atoms.length);
-          assert.equal(schema.s.minLength, evidence.length);
-          assert.equal(schema.y.minLength, evidence.length);
+          assert.equal(fittedStringLength(schema.a), atoms.length);
+          assert.equal(fittedStringLength(schema.x), atoms.length);
+          assert.equal(fittedStringLength(schema.s), evidence.length);
+          assert.equal(fittedStringLength(schema.y), evidence.length);
           assert.equal(body.max_tokens, 2_048);
-          assert.deepEqual(body.response_format, { type: "json_object" });
+          assert.equal(body.response_format.type, "json_schema");
           return successfulProviderResponse({ ...wire, p: { 0: passage } });
         },
       });
@@ -2616,7 +2699,7 @@ test("compact verifier and certifier dialects replace host-shape output and priv
   );
 });
 
-test("the adapter uses strict JSON Schema analysis and forced-tool certification", async () => {
+test("the adapter uses strict JSON Schema analysis and certification", async () => {
   assert.equal(LATTICE_PROVIDER_CALL_TIMEOUT_MS, 120_000);
   assert.deepEqual(LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS, {
     analysis: 120_000,
@@ -2632,10 +2715,10 @@ test("the adapter uses strict JSON Schema analysis and forced-tool certification
     calls.push({ url, init, body: JSON.parse(init.body) });
     return calls.length === 1
       ? successfulProviderResponse({ d: "instruction", p: [], q: [] })
-      : successfulProviderToolResponse(acceptingCertificationWire(
+      : successfulProviderResponse(acceptingCertificationWire(
         "certificate:test",
         ["document:whole"],
-      ), { toolName: CERTIFICATION_TOOL_NAME });
+      ));
   };
   const adapter = createHuggingFaceLatticeAdapter({
     token: "hf_server_only_token",
@@ -2669,13 +2752,13 @@ test("the adapter uses strict JSON Schema analysis and forced-tool certification
   );
   assert.equal(
     LATTICE_REMOTE_MODELS.verifier,
-    "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+    "meta-llama/Llama-3.1-8B-Instruct:nscale",
   );
   assert.deepEqual(calls.map(({ body }) => body.max_tokens), [768, 520]);
   assert.deepEqual(calls.map(({ body }) => body.temperature), [0.7, 0]);
   assert.deepEqual(calls.map(({ body }) => body.top_p), [0.8, 1]);
   assert.deepEqual(calls.map(({ body }) => body.seed), [71_903, 71_903]);
-  for (const [index, { init, body }] of calls.entries()) {
+  for (const { init, body } of calls) {
     const expectedKeys = [
       "max_tokens",
       "messages",
@@ -2685,9 +2768,7 @@ test("the adapter uses strict JSON Schema analysis and forced-tool certification
       "temperature",
       "top_p",
     ];
-    expectedKeys.push(...(index === 0
-      ? ["response_format"]
-      : ["tool_choice", "tools"]));
+    expectedKeys.push("response_format");
     assert.deepEqual(Object.keys(body).sort(), expectedKeys.sort());
     assert.equal(init.method, "POST");
     assert.equal(init.cache, "no-store");
@@ -2752,7 +2833,7 @@ test("the adapter uses strict JSON Schema analysis and forced-tool certification
   assert.deepEqual([linkTuple[0].minimum, linkTuple[0].maximum], [0, 3]);
   assert.deepEqual([linkTuple[1].minimum, linkTuple[1].maximum], [0, 23]);
   assert.deepEqual([linkTuple[2].minimum, linkTuple[2].maximum], [0, 3]);
-  const certificationSchema = forcedToolSchema(calls[1].body, CERTIFICATION_TOOL_NAME);
+  const certificationSchema = strictReviewSchema(calls[1].body, CERTIFICATION_TOOL_NAME);
   assert.equal(Object.hasOwn(calls[0].body, "chat_template_kwargs"), false);
   assert.equal(Object.hasOwn(calls[0].body, "top_k"), false);
   assert.equal(Object.hasOwn(calls[0].body, "min_p"), false);
@@ -2786,11 +2867,11 @@ test("the adapter uses strict JSON Schema analysis and forced-tool certification
     false,
   );
   assert.equal(calls[0].body.messages[0].content.includes(JSON.stringify(REANALYSIS_SCHEMA)), false);
-  assert.match(calls[1].body.messages[0].content, /Response channel lattice_certification_wire_v2/u);
+  assert.match(calls[1].body.messages[0].content, /Response contract lattice_certification_wire_v2/u);
   assert.match(calls[1].body.messages[0].content, /document-certification result/u);
   assert.match(calls[1].body.messages[0].content, /private c\/o\/d\/k\/i wire layout/u);
   assert.doesNotMatch(calls[1].body.messages[0].content, /Return the document-certification schema/u);
-  assert.match(calls[1].body.messages[0].content, /Call this function exactly once/u);
+  assert.doesNotMatch(calls[1].body.messages[0].content, /Call this function exactly once/u);
   assert.equal(calls[1].body.messages[0].content.includes(JSON.stringify(DOCUMENT_CERTIFICATION_SCHEMA)), false);
   assert.deepEqual(certificationSchema.required, ["c", "o", "d", "k", "i"]);
   assert.deepEqual(certificationSchema.properties.c.enum, ["certificate:test"]);
@@ -3003,13 +3084,10 @@ test("all five production stages use their exact provider response transport", a
     successfulProviderResponse({ d: "instruction", p: [], q: [] }),
     successfulProviderResponse({ passages: [] }),
     successfulProviderResponse(acceptingVerificationWire(base)),
-    successfulProviderToolResponse(acceptingCertificationWire(
+    successfulProviderResponse(acceptingCertificationWire(
       "certificate:transport-matrix",
       ["document:whole"],
-    ), {
-      toolName: CERTIFICATION_TOOL_NAME,
-      toolCallId: "call_lattice_certification",
-    }),
+    )),
     successfulProviderResponse({ passages: [] }),
   ];
   const adapter = createHuggingFaceLatticeAdapter({
@@ -3050,7 +3128,7 @@ test("all five production stages use their exact provider response transport", a
   assert.deepEqual(calls.map(({ model }) => model), [
     LATTICE_REMOTE_MODELS.generator,
     LATTICE_REMOTE_MODELS.generator,
-    TEST_VERIFICATION_PROXY_MODEL,
+    TEST_REVIEW_MODEL,
     LATTICE_REMOTE_MODELS.verifier,
     LATTICE_REMOTE_MODELS.generator,
   ]);
@@ -3071,9 +3149,9 @@ test("all five production stages use their exact provider response transport", a
     assert.equal(Object.hasOwn(calls[index], "tool_choice"), false);
   }
   const verificationSchema = fittedVerificationSchemaForBody(calls[2]);
-  const certificationSchema = forcedToolSchema(calls[3], CERTIFICATION_TOOL_NAME);
+  const certificationSchema = strictReviewSchema(calls[3], CERTIFICATION_TOOL_NAME);
   assert.match(calls[2].messages[0].content, /Response contract lattice_verification_wire_v2/u);
-  assert.match(calls[3].messages[0].content, /Response channel lattice_certification_wire_v2/u);
+  assert.match(calls[3].messages[0].content, /Response contract lattice_certification_wire_v2/u);
   assert.equal(calls[2].messages[0].content.includes(JSON.stringify(VERIFICATION_SCHEMA)), false);
   assert.doesNotMatch(
     calls[2].messages[0].content,
@@ -3104,7 +3182,7 @@ test("compact verifier and certifier wires expand to the unchanged host schemas"
     fetchImpl: async (_url, init) => {
       calls.push(JSON.parse(init.body));
       return calls.length === 1 ? successfulProviderResponse(responses[0])
-        : successfulProviderToolResponse(responses[1], { toolName: CERTIFICATION_TOOL_NAME });
+        : successfulProviderResponse(responses[1]);
     },
   });
 
@@ -3162,13 +3240,13 @@ test("compact verifier and certifier wires expand to the unchanged host schemas"
   assert.deepEqual(verificationSchema.required, ["d", "g", "p", "i"]);
   assert.deepEqual(verificationSchema.properties.p.required, ["0"]);
   assert.deepEqual(verificationPassage.required, ["a", "u", "s", "f", "l", "x", "y", "c"]);
-  assert.equal(verificationPassage.properties.a.minLength, 1);
-  assert.equal(verificationPassage.properties.s.minLength, evidenceIds.length);
-  assert.equal(verificationPassage.properties.f.minLength, 9);
-  assert.equal(verificationPassage.properties.x.pattern, "^[01]*1[01]*$");
-  assert.equal(verificationPassage.properties.x.minLength, 1);
-  assert.equal(verificationPassage.properties.x.maxLength, 1);
-  assert.equal(verificationPassage.properties.y.minLength, evidenceIds.length);
+  assert.equal(fittedStringLength(verificationPassage.properties.a), 1);
+  assert.equal(fittedStringLength(verificationPassage.properties.s), evidenceIds.length);
+  assert.equal(fittedStringLength(verificationPassage.properties.f), 9);
+  assert.equal(verificationPassage.properties.x.pattern, "^(?:0{0}1[01]{0})$");
+  assert.equal(fittedStringLength(verificationPassage.properties.x), 1);
+  assert.equal(fittedStringLength(verificationPassage.properties.x), 1);
+  assert.equal(fittedStringLength(verificationPassage.properties.y), evidenceIds.length);
   assert.deepEqual(verificationPassage.properties.c.properties.v.enum, [false]);
   assert.deepEqual(
     verificationPassage.properties.c.properties.s.enum,
@@ -3178,7 +3256,7 @@ test("compact verifier and certifier wires expand to the unchanged host schemas"
   assert.equal(calls[0].max_tokens, 2_048);
   assert.equal(calls[0].messages[0].content.includes(JSON.stringify(VERIFICATION_SCHEMA)), false);
 
-  const certificationSchema = forcedToolSchema(calls[1], CERTIFICATION_TOOL_NAME);
+  const certificationSchema = strictReviewSchema(calls[1], CERTIFICATION_TOOL_NAME);
   assert.deepEqual(certificationSchema.properties.c.enum, [certificateId]);
   assert.deepEqual(certificationSchema.properties.o.items.enum, [...obligationIds]);
   assert.equal(certificationSchema.properties.k.items.type, "boolean");
@@ -3270,7 +3348,7 @@ test("the production canary completes through the compact verifier wire", async 
   fittedVerificationSchemaForBody(calls[2]);
 });
 
-test("the API Worker completes JSON-object verification and required named-tool certification", async () => {
+test("the API Worker completes strict-schema verification and certification", async () => {
   const source = LATTICE_PRODUCTION_CANARY_TEXT;
   const preflight = preflightLatticeInput(source);
   assert.equal(preflight.batches.length, 1);
@@ -3336,13 +3414,10 @@ test("the API Worker completes JSON-object verification and required named-tool 
         });
       }
       if (calls.length === 4) {
-        return successfulProviderToolResponse(acceptingCertificationWire(
+        return successfulProviderResponse(acceptingCertificationWire(
           "certificate:document",
           ["document:whole"],
-        ), {
-          toolName: CERTIFICATION_TOOL_NAME,
-          toolCallId: "call_lattice_certification",
-        });
+        ));
       }
       return assert.fail("the one-passage certification canary exceeded its four expected provider calls");
     },
@@ -3362,14 +3437,14 @@ test("the API Worker completes JSON-object verification and required named-tool 
   assert.deepEqual(calls.map(({ model }) => model), [
     LATTICE_REMOTE_MODELS.generator,
     LATTICE_REMOTE_MODELS.generator,
-    TEST_VERIFICATION_PROXY_MODEL,
+    TEST_REVIEW_MODEL,
     LATTICE_REMOTE_MODELS.verifier,
   ]);
   assert.deepEqual(calls.map(({ max_tokens: maxTokens }) => maxTokens), [1_024, 800, 2_048, 520]);
   assert.equal(inertModelPayload(calls[0]).requestedMode, "operative");
   assert.match(calls[0].messages[0].content, /never ask a public question/u);
   fittedVerificationSchemaForBody(calls[2]);
-  const certificationSchema = forcedToolSchema(calls[3], CERTIFICATION_TOOL_NAME);
+  const certificationSchema = strictReviewSchema(calls[3], CERTIFICATION_TOOL_NAME);
   assert.deepEqual(certificationSchema.properties.c.enum, ["certificate:document"]);
   assert.deepEqual(certificationSchema.properties.o.items.enum, ["document:whole"]);
   assert.deepEqual(inertModelPayload(calls[3]), {
@@ -3413,19 +3488,16 @@ test("the API Worker adaptively splits a production-canary output limit and stil
           transformedByPassage.get(passageId),
         ));
       }
-      const toolName = isVerificationBody(body) ? VERIFICATION_TOOL_NAME : body.tool_choice?.function?.name;
+      const toolName = isVerificationBody(body) ? VERIFICATION_TOOL_NAME : body.response_format?.json_schema?.name ?? body.tool_choice?.function?.name;
       if (toolName === VERIFICATION_TOOL_NAME) {
         return successfulProviderResponse(canaryVerificationWire(body));
       }
       if (toolName === CERTIFICATION_TOOL_NAME) {
         const payload = inertModelPayload(body);
-        return successfulProviderToolResponse(acceptingCertificationWire(
+        return successfulProviderResponse(acceptingCertificationWire(
           payload.certificateId,
           payload.obligationIds,
-        ), {
-          toolName,
-          toolCallId: "call_lattice_certification",
-        });
+        ));
       }
       return assert.fail("the adaptive canary used an undeclared provider stage");
     },
@@ -3449,8 +3521,7 @@ test("the API Worker adaptively splits a production-canary output limit and stil
   assert.deepEqual(envelope.result.findings, []);
   assert.equal(calls.length, 8);
   assert.deepEqual(calls.map((body) => (
-    isVerificationBody(body) ? VERIFICATION_TOOL_NAME
-      : body.response_format?.type ?? body.tool_choice.function.name
+    body.model === TEST_REVIEW_MODEL ? body.response_format.json_schema.name : body.response_format.type
   )), [
     "json_schema",
     "json_schema",
@@ -3493,19 +3564,16 @@ test("the API Worker certifies the exact production canary before conformant suc
           LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1),
         ));
       }
-      const toolName = isVerificationBody(body) ? VERIFICATION_TOOL_NAME : body.tool_choice?.function?.name;
+      const toolName = isVerificationBody(body) ? VERIFICATION_TOOL_NAME : body.response_format?.json_schema?.name ?? body.tool_choice?.function?.name;
       if (toolName === VERIFICATION_TOOL_NAME) {
         return successfulProviderResponse(canaryVerificationWire(body, { retain: true }));
       }
       if (toolName === CERTIFICATION_TOOL_NAME) {
         const payload = inertModelPayload(body);
-        return successfulProviderToolResponse(acceptingCertificationWire(
+        return successfulProviderResponse(acceptingCertificationWire(
           payload.certificateId,
           payload.obligationIds,
-        ), {
-          toolName,
-          toolCallId: "call_lattice_certification",
-        });
+        ));
       }
       return assert.fail("the conformant canary used an undeclared provider stage");
     },
@@ -4474,8 +4542,7 @@ test("reanalysis evidence diagnostics preserve bounded correction, structural wi
           }
           assert.equal(recover, true, "failed graph replacement cannot certify");
           const payload = inertModelPayload(body);
-          return successfulProviderToolResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds),
-            { toolName: CERTIFICATION_TOOL_NAME });
+          return successfulProviderResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds));
         } });
         const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, {
           headers: marked ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE } : {},
@@ -5453,7 +5520,7 @@ test("named-tool envelopes fail closed for missing, extra, or malformed calls", 
   }
 });
 
-test("rejected provider envelopes expose only finite first-failed host predicates", async (context) => {
+test("legacy named-tool helper rejects malformed envelopes without leaking private fields", async (context) => {
   const privateMarker = "PRIVATE-ENVELOPE-MUST-NOT-CROSS";
   const call = providerToolCall({ name: CERTIFICATION_TOOL_NAME });
   const native = (tool) => ({ role: "assistant", tool_calls: [tool] });
@@ -5477,25 +5544,23 @@ test("rejected provider envelopes expose only finite first-failed host predicate
     ["empty collection with extra field", { ...stopped, tool_calls: [], [privateMarker]: true }, "S06"],
     ["empty collection with invalid content type", { ...stopped, tool_calls: [], content: null }, "S07"],
   ];
-  for (const [name, message, subtype, overrides = {}] of cases) {
+  for (const [name, message, , overrides = {}] of cases) {
     await context.test(name, async () => {
       let calls = 0;
-      const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async () => {
+      const options = providerRequestOptions(async () => {
         calls += 1;
         return providerChoiceResponse({ finish_reason: overrides.finishReason ?? "stop", message });
-      } });
-      await assert.rejects(adapter.certify(minimalCertificationRequest()), (error) => {
+      }, { role: "verifier", toolName: CERTIFICATION_TOOL_NAME, toolChoice: "named",
+        allowStoppedToolContent: true, allowEmptyStoppedToolCalls: true });
+      await assert.rejects(requestHuggingFaceJson(options), (error) => {
         assert.ok(error instanceof LatticeProviderError);
         assert.equal(error.code, "provider_malformed_response");
-        assert.equal(error.qualificationSubtype, subtype);
-        assert.equal(error.qualificationStage, "certification");
-        assert.equal(error.qualificationCallOrdinal, 1);
+        assert.equal(error.qualificationSubtype, undefined, "low-level helpers cannot publish stage diagnostics");
         assert.equal(JSON.stringify(error).includes(privateMarker), false);
         assert.equal(error.message.includes(privateMarker), false);
         return true;
       });
       assert.equal(calls, 1);
-      assert.equal(adapter.completionCapacity().used, 1);
     });
   }
 });
@@ -5545,40 +5610,40 @@ test("observed null stopped verification metadata is an explicit verification-on
     providerChoiceResponse({ finish_reason: "stop", message: {
       role: "assistant", content: "{}", name: null, reasoning_content: null,
     } }) });
-  await assert.rejects(adapter.certify(minimalCertificationRequest()), (error) => error.qualificationSubtype === "S06");
+  await assert.rejects(adapter.certify(minimalCertificationRequest()), (error) => error.qualificationSubtype === "message_shape");
   assert.equal(adapter.completionCapacity().used, 1);
 });
 
-test("null stopped verification metadata preserves transport precedence and downstream validation", async (context) => {
+test("strict Nscale verification rejects legacy null metadata before content parsing", async (context) => {
   const request = minimalVerificationRequest();
   const content = JSON.stringify(acceptingVerificationWire(request));
   const stopped = { role: "assistant", content, name: null, reasoning_content: null };
   const tool = providerToolCall({ name: VERIFICATION_TOOL_NAME, argumentsValue: content });
   const cases = [
-    ["observed pair", stopped, null],
-    ["observed pair with empty calls", { ...stopped, tool_calls: [] }, null],
-    ["observed pair with literal-null calls", { ...stopped, tool_calls: null }, null],
-    ["legacy field remains rejected with a native call", { ...stopped, content: "PRIVATE", name: "PRIVATE", reasoning_content: "PRIVATE", function_call: null, tool_calls: [tool] }, "S05"],
+    ["observed pair", stopped, "message_shape"],
+    ["observed pair with empty calls", { ...stopped, tool_calls: [] }, "message_shape"],
+    ["observed pair with literal-null calls", { ...stopped, tool_calls: null }, "message_shape"],
+    ["legacy field remains rejected with a native call", { ...stopped, content: "PRIVATE", name: "PRIVATE", reasoning_content: "PRIVATE", function_call: null, tool_calls: [tool] }, "message_shape"],
     ["one valid native call supplies no verification fallback", { ...stopped, tool_calls: [tool] }, "message_shape"],
     ["nonempty native calls supply no verification fallback", { ...stopped, tool_calls: [{ ...tool, type: "PRIVATE" }] }, "message_shape"],
-    ["extra before competing native call", { ...stopped, tool_calls: [tool], unknown: null }, "S06"],
-    ["content type before competing native call", { ...stopped, tool_calls: [tool], content: null }, "S07"],
+    ["extra before competing native call", { ...stopped, tool_calls: [tool], unknown: null }, "message_shape"],
+    ["content type before competing native call", { ...stopped, tool_calls: [tool], content: null }, "message_shape"],
     ["finish before collection", { ...stopped, tool_calls: null }, "finish_reason", "tool_calls"],
-    ["literal-null calls do not excuse nonnull metadata", { ...stopped, tool_calls: null, name: "PRIVATE" }, "S06"],
-    ["multiple calls before metadata", { ...stopped, tool_calls: [tool, tool] }, "S04"],
-    ["legacy before metadata", { ...stopped, function_call: null, name: "PRIVATE" }, "S05"],
-    ["extra before content type", { ...stopped, unknown: null, content: null }, "S06"],
-    ["content type", { ...stopped, content: null }, "S07"],
-    ["empty content", { ...stopped, content: "" }, "content_empty"],
-    ["invalid JSON", { ...stopped, content: "{" }, "content_json"],
+    ["literal-null calls do not excuse nonnull metadata", { ...stopped, tool_calls: null, name: "PRIVATE" }, "message_shape"],
+    ["multiple calls before metadata", { ...stopped, tool_calls: [tool, tool] }, "message_shape"],
+    ["legacy before metadata", { ...stopped, function_call: null, name: "PRIVATE" }, "message_shape"],
+    ["extra before content type", { ...stopped, unknown: null, content: null }, "message_shape"],
+    ["content type", { ...stopped, content: null }, "message_shape"],
+    ["empty content", { ...stopped, content: "" }, "message_shape"],
+    ["invalid JSON", { ...stopped, content: "{" }, "message_shape"],
   ];
   for (const key of ["name", "reasoning_content"]) {
     for (const value of ["", "PRIVATE", [], ["PRIVATE"], {}, { private: true }, false, 0]) {
-      cases.push([`${key} rejects ${typeof value} ${JSON.stringify(value)}`, { ...stopped, [key]: value }, "S06"]);
+      cases.push([`${key} rejects ${typeof value} ${JSON.stringify(value)}`, { ...stopped, [key]: value }, "message_shape"]);
     }
   }
   for (const key of ["reasoning", "tool_call_id", "refusal", "audio", "annotations", "cache_control", "unknown"]) {
-    cases.push([`${key} remains rejected even when null`, { ...stopped, [key]: null }, "S06"]);
+    cases.push([`${key} remains rejected even when null`, { ...stopped, [key]: null }, "message_shape"]);
   }
   for (const [name, message, subtype, finish_reason = "stop"] of cases) {
     await context.test(name, async () => {
@@ -5646,30 +5711,29 @@ test("provider envelope observation failure preserves the original malformed-res
   const originalTrim = String.prototype.trim;
   let idReads = 0;
   let calls = 0;
-  const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async () => {
+  const options = providerRequestOptions(async () => {
     calls += 1;
     return providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant",
       tool_calls: [providerToolCall({ name: CERTIFICATION_TOOL_NAME, id: " \t" })] } });
-  } });
+  }, { role: "verifier", toolName: CERTIFICATION_TOOL_NAME, toolChoice: "named", allowStoppedToolContent: true });
   try {
     String.prototype.trim = function trim() {
       if (String(this) === " \t" && ++idReads > 1) throw new Error("PRIVATE-OBSERVER-ERROR");
       return originalTrim.call(this);
     };
-    await assert.rejects(adapter.certify(minimalCertificationRequest()), (error) => {
+    await assert.rejects(requestHuggingFaceJson(options), (error) => {
       assert.ok(error instanceof LatticeProviderError);
       assert.equal(error.code, "provider_malformed_response");
-      assert.equal(error.qualificationSubtype, "message_shape");
+      assert.equal(error.qualificationSubtype, undefined);
       assert.equal(error.message.includes("PRIVATE-OBSERVER-ERROR"), false);
       return true;
     });
   } finally { String.prototype.trim = originalTrim; }
   assert.equal(idReads, 2);
   assert.equal(calls, 1);
-  assert.equal(adapter.completionCapacity().used, 1);
 });
 
-test("observed literal-null collections are verification-only and retain every later guard", async (context) => {
+test("strict Nscale review stages reject literal-null and malformed collections", async (context) => {
   const privateMarker = "PRIVATE-COLLECTION-MUST-NOT-CROSS";
   for (const stage of ["verification", "certification"]) {
     const request = stage === "verification" ? minimalVerificationRequest() : minimalCertificationRequest();
@@ -5678,20 +5742,19 @@ test("observed literal-null collections are verification-only and retain every l
       ? acceptingVerificationWire(request)
       : acceptingCertificationWire(request.certificateId, request.obligationIds));
     const stopped = { role: "assistant", content };
-    const verification = stage === "verification";
     const cases = [
-      ["literal-null collection", { ...stopped, tool_calls: null }, verification ? null : "S02N", "stop"],
+      ["literal-null collection", { ...stopped, tool_calls: null }, "message_shape", "stop"],
       ...[{}, { secret: privateMarker }, "", privateMarker, false, true, 0, 7].map((value) => [
-        `${typeof value}:${JSON.stringify(value)}`, { ...stopped, tool_calls: value }, "S02", "stop",
+        `${typeof value}:${JSON.stringify(value)}`, { ...stopped, tool_calls: value }, "message_shape", "stop",
       ]),
-      ["null with legacy", { ...stopped, tool_calls: null, function_call: null }, verification ? "S05" : "S02N", "stop"],
-      ["null with extras", { ...stopped, tool_calls: null, [privateMarker]: true }, verification ? "S06" : "S02N", "stop"],
-      ["null with nonstring content", { ...stopped, tool_calls: null, content: null }, verification ? "S07" : "S02N", "stop"],
-      ["null with empty content", { ...stopped, tool_calls: null, content: "" }, verification ? "content_empty" : "S02N", "stop"],
-      ["null with invalid JSON", { ...stopped, tool_calls: null, content: "{" }, verification ? "content_json" : "S02N", "stop"],
-      ["null with array JSON", { ...stopped, tool_calls: null, content: "[]" }, verification ? "content_shape" : "S02N", "stop"],
+      ["null with legacy", { ...stopped, tool_calls: null, function_call: null }, "message_shape", "stop"],
+      ["null with extras", { ...stopped, tool_calls: null, [privateMarker]: true }, "message_shape", "stop"],
+      ["null with nonstring content", { ...stopped, tool_calls: null, content: null }, "message_shape", "stop"],
+      ["null with empty content", { ...stopped, tool_calls: null, content: "" }, "message_shape", "stop"],
+      ["null with invalid JSON", { ...stopped, tool_calls: null, content: "{" }, "message_shape", "stop"],
+      ["null with array JSON", { ...stopped, tool_calls: null, content: "[]" }, "message_shape", "stop"],
       ["role precedes null", { ...stopped, role: "user", tool_calls: null }, "message_role", "stop"],
-      ["finish precedes null", { ...stopped, tool_calls: null }, verification ? "finish_reason" : "S01", "tool_calls"],
+      ["finish precedes null", { ...stopped, tool_calls: null }, "finish_reason", "tool_calls"],
     ];
     for (const [name, message, subtype, finish_reason] of cases) {
       await context.test(`${stage}: ${name}`, async () => {
@@ -5707,8 +5770,7 @@ test("observed literal-null collections are verification-only and retain every l
           assert.equal(error.code, "provider_malformed_response");
           assert.equal(error.qualificationSubtype, subtype);
           assert.equal(error.qualificationStage, stage);
-          if (subtype === "S06") assert.equal(isClosedProviderEnvelopeShape(error.qualificationEnvelopeShape), true);
-          else assert.equal(error.qualificationEnvelopeShape, null);
+          assert.equal(error.qualificationEnvelopeShape, null);
           assert.equal(Object.getOwnPropertyDescriptor(error, "qualificationSubtype").enumerable, false);
           assert.doesNotMatch(error.message + JSON.stringify(error), /PRIVATE-COLLECTION/u);
           return true;
@@ -5744,7 +5806,7 @@ test("coded envelope observations remain confined to marked expiring qualificati
   assert.deepEqual(await json(ordinary), { error: "malformed_upstream_response" });
   assert.deepEqual(await json(marked), { error: "malformed_upstream_response" });
   for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) assert.equal(ordinary.headers.has(header), false);
-  assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "S02N");
+  assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "message_shape");
   assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage), "certification");
   assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stageAttempt), "initial");
   assert.equal(JSON.stringify([...marked.headers]).includes(privateMarker), false);
@@ -5884,7 +5946,7 @@ test("a named-tool completion that reaches the output limit fails after one fetc
   assert.equal(fetches, 1);
 });
 
-test("production JSON-object verification accepts only its bounded stopped-content envelope", async (context) => {
+test("production strict verification accepts only its closed stopped-content envelope", async (context) => {
   const request = minimalVerificationRequest();
   const wire = acceptingVerificationWire(request);
   const content = JSON.stringify(wire);
@@ -5892,15 +5954,15 @@ test("production JSON-object verification accepts only its bounded stopped-conte
   const cases = [
     ["valid minimal content", "stop", { role: "assistant", content }, null],
     ["native tool with auxiliary content is rejected", "stop", { role: "assistant", content: "PRIVATE-AUXILIARY", tool_calls: [tool] }, "provider_malformed_response"],
-    ["valid observed-null stopped tool field", "stop", { role: "assistant", content, tool_calls: null }, null],
+    ["valid observed-rejected null stopped tool field", "stop", { role: "assistant", content, tool_calls: null }, "provider_malformed_response"],
     ["null collection with legacy field", "stop", { role: "assistant", content, tool_calls: null, function_call: null }, "provider_malformed_response"],
     ["null collection with auxiliary field", "stop", { role: "assistant", content, tool_calls: null, private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
     ["null collection with empty content", "stop", { role: "assistant", content: "", tool_calls: null }, "provider_malformed_response"],
     ["null collection with invalid JSON", "stop", { role: "assistant", content: "{", tool_calls: null }, "provider_malformed_response"],
     ["null collection with array JSON", "stop", { role: "assistant", content: "[]", tool_calls: null }, "provider_malformed_response"],
-    ["null collection with oversized content", "stop", { role: "assistant", content: "x".repeat(LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT + 1), tool_calls: null }, "provider_response_too_large"],
+    ["null collection with oversized content", "stop", { role: "assistant", content: "x".repeat(LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT + 1), tool_calls: null }, "provider_malformed_response"],
     ["null collection with truncated finish", "length", { role: "assistant", content, tool_calls: null }, "provider_output_limit"],
-    ["valid empty stopped tool collection", "stop", { role: "assistant", content, tool_calls: [] }, null],
+    ["rejected empty stopped tool collection", "stop", { role: "assistant", content, tool_calls: [] }, "provider_malformed_response"],
     ["empty collection with legacy field", "stop", { role: "assistant", content, tool_calls: [], function_call: null }, "provider_malformed_response"],
     ["empty collection with auxiliary field", "stop", { role: "assistant", content, tool_calls: [], private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
     ["empty collection with wrong role", "stop", { role: "user", content, tool_calls: [] }, "provider_malformed_response"],
@@ -5908,7 +5970,7 @@ test("production JSON-object verification accepts only its bounded stopped-conte
     ["empty collection with empty content", "stop", { role: "assistant", content: "", tool_calls: [] }, "provider_malformed_response"],
     ["empty collection with invalid JSON", "stop", { role: "assistant", content: "{", tool_calls: [] }, "provider_malformed_response"],
     ["empty collection with array JSON", "stop", { role: "assistant", content: "[]", tool_calls: [] }, "provider_malformed_response"],
-    ["empty collection with oversized content", "stop", { role: "assistant", content: "x".repeat(LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT + 1), tool_calls: [] }, "provider_response_too_large"],
+    ["empty collection with oversized content", "stop", { role: "assistant", content: "x".repeat(LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT + 1), tool_calls: [] }, "provider_malformed_response"],
     ["empty collection with truncated finish", "length", { role: "assistant", content, tool_calls: [] }, "provider_output_limit"],
     ["legacy field", "stop", { role: "assistant", content, function_call: null }, "provider_malformed_response"],
     ["auxiliary field", "stop", { role: "assistant", content, private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
@@ -5930,7 +5992,7 @@ test("production JSON-object verification accepts only its bounded stopped-conte
         const schema = fittedVerificationSchemaForBody(body);
         assert.deepEqual(schema.required, ["d", "g", "p", "i"]);
         assert.equal(schema.additionalProperties, false);
-        assert.equal(body.model, TEST_VERIFICATION_PROXY_MODEL);
+        assert.equal(body.model, TEST_REVIEW_MODEL);
         assert.equal(body.max_tokens, 2_048);
         assert.equal(body.temperature, 0);
         assert.equal(body.top_p, 1);
@@ -6085,8 +6147,8 @@ test("observed-null verification is an independent explicit permission with iden
             assert.equal(init.body, referenceBody, "all compatibility permissions remain host-only");
             assert.doesNotMatch(init.body, /allowNullJsonObjectVerificationToolCalls|allowEmptyStoppedToolCalls|requireMinimalVerificationContent/u);
             const body = JSON.parse(init.body);
-            assert.equal(_url, TEST_VERIFICATION_PROXY_URL);
-            assert.equal(body.model, TEST_VERIFICATION_PROXY_MODEL);
+            assert.equal(_url, TEST_REVIEW_URL);
+            assert.equal(body.model, TEST_REVIEW_MODEL);
             assert.deepEqual(body.response_format, { type: "json_object" });
             assert.equal(Object.hasOwn(body, "tools"), false);
             assert.equal(Object.hasOwn(body, "tool_choice"), false);
@@ -6243,7 +6305,6 @@ test("unsupported provider request extensions fail closed before external fetch"
     { requireMinimalVerificationContent: true },
     { requireMinimalVerificationContent: "true" },
     { role: "verifier", responseFormat: "json_schema", requireMinimalVerificationContent: true },
-    { role: "verifier", schemaName: CERTIFICATION_TOOL_NAME, responseFormat: "json_schema", requireMinimalVerificationContent: true },
     { role: "verifier", schemaName: VERIFICATION_TOOL_NAME, requireMinimalVerificationContent: true },
     { role: "verifier", schemaName: VERIFICATION_TOOL_NAME, responseFormat: "json_schema", requireMinimalVerificationContent: true, toolName: VERIFICATION_TOOL_NAME },
     { role: "verifier", schemaName: VERIFICATION_TOOL_NAME, responseFormat: "json_schema", requireMinimalVerificationContent: true, allowStoppedToolContent: true },
@@ -7729,7 +7790,7 @@ test("qualification HTTP header observations are finite, bounded, exception-isol
     ["model case mismatch", { "x-router-model": "meta-llama/llama-3.1-8b-instruct" }, { routerModel: "other" }],
     ["model prefix", { "x-router-model": `${LATTICE_REMOTE_MODELS.verifier}-extra` }, { routerModel: "other" }],
     ["model whitespace", { "x-router-model": "PRIVATE MODEL" }, { routerModel: "invalid" }],
-    ["configured provider", { "x-inference-provider": "deepinfra" }, { inferenceProvider: "expected" }],
+    ["configured provider", { "x-inference-provider": "nscale" }, { inferenceProvider: "expected" }],
     ["provider case mismatch", { "x-inference-provider": "DeepInfra" }, { inferenceProvider: "other" }],
     ["empty provider", { "x-inference-provider": "" }, { inferenceProvider: "invalid" }],
     ["256 character route", { "x-router-route": "x".repeat(256) }, { routerRoute: "present" }],
@@ -7745,10 +7806,10 @@ test("qualification HTTP header observations are finite, bounded, exception-isol
       const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationHttpHeaders: true,
         fetchImpl: async (url, init) => {
           calls += 1;
-          assert.equal(url, TEST_VERIFICATION_PROXY_URL);
+          assert.equal(url, TEST_REVIEW_URL);
           assert.equal(init.method, "POST"); assert.equal(init.redirect, "manual");
           const request = JSON.parse(init.body);
-          assert.equal(request.model, TEST_VERIFICATION_PROXY_MODEL); assert.equal(request.max_tokens, 2048);
+          assert.equal(request.model, TEST_REVIEW_MODEL); assert.equal(request.max_tokens, 2048);
           assert.doesNotMatch(init.body, /observeQualificationHttpHeaders|qualificationHttpHeaders/u);
           return new Response(body, { status: 405, headers });
         } });
@@ -7834,7 +7895,7 @@ test("qualification HTTP 405 preserves verification call-four provenance and one
       providerCalls += 1;
       if (providerCalls < 4) return successfulProviderResponse({ d: 2, p: [], l: [] });
       return new Response(new ReadableStream({ pull() { bodyReads += 1; }, cancel() { cancellations += 1; } }, { highWaterMark: 0 }), {
-        status: 405, headers: { Allow: "POST", "Content-Type": "application/json", "x-router-model": "meta-llama/Meta-Llama-3.1-8B-Instruct", "x-inference-provider": "deepinfra" },
+        status: 405, headers: { Allow: "POST", "Content-Type": "application/json", "x-router-model": "meta-llama/Meta-Llama-3.1-8B-Instruct", "x-inference-provider": "nscale" },
       });
     },
     runTextToLatticeImpl: async (_text, { adapter }) => {
@@ -7868,81 +7929,36 @@ test("qualification HTTP observations cannot escape expiry during provider work"
 });
 
 
-test("S06 shape observation retains only finite types while preserving rejection and precedence", async () => {
-  assert.deepEqual(LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS,
-    ["reasoning", "tool_call_id", "refusal", "audio", "annotations", "name", "reasoning_content", "cache_control"]);
+test("strict Nscale reviews reject auxiliary fields and never interpret a competing tool channel", async (context) => {
   const values = [null, "", "PRIVATE-A", [], ["PRIVATE-B"], {}, { secret: "PRIVATE-C" }, true, 12345];
-  const codes = "nsSaAoObd";
-  const request = minimalVerificationRequest();
-  const content = JSON.stringify(acceptingVerificationWire(request));
-  const observe = async (message, enabled = true, finish_reason = "stop") => {
-    let calls = 0;
-    const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationEnvelopeShape: enabled,
-      fetchImpl: async (_url, init) => {
-        calls += 1;
-        assert.doesNotMatch(init.body, /observeQualificationEnvelopeShape|qualificationEnvelopeShape/u);
-        return providerChoiceResponse({ finish_reason, message });
-      } });
-    let failure;
-    try { await adapter.verify(request); } catch (error) { failure = error; }
-    assert.equal(calls, 1); assert.equal(adapter.completionCapacity().used, 1);
-    assert.ok(failure instanceof LatticeProviderError);
-    const descriptor = Object.getOwnPropertyDescriptor(failure, "qualificationEnvelopeShape");
-    assert.equal(descriptor.enumerable, false); assert.equal(descriptor.writable, false);
-    assert.doesNotMatch(JSON.stringify(failure), /PRIVATE/u);
-    return failure;
-  };
-  for (const [index, value] of values.entries()) {
-    const message = { role: "assistant", content, tool_calls: [], ...Object.fromEntries(
-      LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS.map((field) => [field, value])) };
-    const failure = await observe(message);
-    assert.equal(failure.qualificationSubtype, "S06");
-    assert.deepEqual(failure.qualificationEnvelopeShape,
-      { namedShape: codes[index].repeat(8), unknownCount: "0", unknownShapes: "000000000" });
-    assert.equal(isClosedProviderEnvelopeShape(failure.qualificationEnvelopeShape), true);
-  }
-  const unknown = (suffix) => Object.fromEntries(values.map((value, index) => [`PRIVATE-${suffix}-${index}`, value]));
-  const first = await observe({ role: "assistant", content, ...unknown("A") });
-  const second = await observe({ role: "assistant", content: "DIFFERENT-PRIVATE-CONTENT", ...unknown("B") });
-  assert.deepEqual(first.qualificationEnvelopeShape, { namedShape: "--------", unknownCount: "3-plus", unknownShapes: "111111111" });
-  assert.equal(JSON.stringify(first.qualificationEnvelopeShape), JSON.stringify(second.qualificationEnvelopeShape));
-  for (const [extras, count, mask] of [[{ PRIVATE: null }, "1", "100000000"],
-    [{ PRIVATE: " ", OTHER: false }, "2", "001000010"],
-    [{ PRIVATE: {}, OTHER: {} }, "2", "000001000"]]) {
-    const error = await observe({ role: "assistant", content, ...extras });
-    assert.deepEqual(error.qualificationEnvelopeShape, { namedShape: "--------", unknownCount: count, unknownShapes: mask });
-  }
-  const verificationTool = providerToolCall({ name: VERIFICATION_TOOL_NAME, argumentsValue: content });
-  const competing = await observe({ role: "assistant", content, tool_calls: [verificationTool], refusal: null });
-  assert.equal(competing.qualificationSubtype, "S06");
-  assert.deepEqual(competing.qualificationEnvelopeShape,
-    { namedShape: "--n-----", unknownCount: "0", unknownShapes: "000000000" });
-  const nullCollectionExtra = await observe({ role: "assistant", content, tool_calls: null, refusal: null });
-  assert.equal(nullCollectionExtra.qualificationSubtype, "S06");
-  assert.deepEqual(nullCollectionExtra.qualificationEnvelopeShape,
-    { namedShape: "--n-----", unknownCount: "0", unknownShapes: "000000000" });
-  for (const [message, subtype, enabled, finish] of [
-    [{ role: "assistant", content, tool_calls: [verificationTool] }, "message_shape", true, "stop"],
-    [{ role: "assistant", content: null, tool_calls: [verificationTool] }, "S07", true, "stop"],
-    [{ role: "assistant", content, refusal: null }, "S06", false, "stop"],
-    [{ role: "assistant", content: null, tool_calls: null }, "S07", true, "stop"],
-    [{ role: "assistant", content, function_call: null, refusal: null }, "S05", true, "stop"],
-    [{ role: "assistant", content: null }, "S07", true, "stop"],
-    [{ role: "assistant", content, refusal: null }, "none", true, "length"],
-  ]) {
-    const failure = await observe(message, enabled, finish);
-    assert.equal(failure.qualificationSubtype, subtype); assert.equal(failure.qualificationEnvelopeShape, null);
-  }
-  // Certification retains authoritative single named-call precedence.
-  const certification = minimalCertificationRequest();
-  const tool = providerToolCall({ name: CERTIFICATION_TOOL_NAME,
-    argumentsValue: JSON.stringify(acceptingCertificationWire(certification.certificateId, certification.obligationIds)) });
-  const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationEnvelopeShape: true,
-    fetchImpl: async () => providerChoiceResponse({ finish_reason: "stop", message: {
-      role: "assistant", content: "PRIVATE", tool_calls: [tool], function_call: null, refusal: "PRIVATE",
-    } }) });
-  assert.equal((await adapter.certify(certification)).decision, "accept");
-  assert.throws(() => createHuggingFaceLatticeAdapter({ observeQualificationEnvelopeShape: "true" }), TypeError);
+  const fields = [...LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS, "tool_calls", "function_call", "PRIVATE-UNKNOWN"];
+  for (const method of ["verify", "certify"]) await context.test(method, async () => {
+    const request = method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest();
+    const wire = method === "verify" ? acceptingVerificationWire(request)
+      : acceptingCertificationWire(request.certificateId, request.obligationIds);
+    const content = JSON.stringify(wire);
+    const messages = values.map((value) => ({ role: "assistant", content,
+      ...Object.fromEntries(fields.map((field) => [field, value])) }));
+    for (const field of fields) messages.push({ role: "assistant", content, [field]: null });
+    messages.push({ role: "assistant", content: "PRIVATE-NOT-JSON", tool_calls: [providerToolCall({
+      name: method === "verify" ? VERIFICATION_TOOL_NAME : CERTIFICATION_TOOL_NAME, argumentsValue: content,
+    })] });
+    for (const message of messages) {
+      let calls = 0;
+      const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationEnvelopeShape: true,
+        fetchImpl: async () => { calls += 1; return providerChoiceResponse({ finish_reason: "stop", message }); } });
+      await assert.rejects(adapter[method](request), (error) => {
+        assert.equal(error.code, "provider_malformed_response");
+        assert.equal(error.qualificationSubtype, "message_shape");
+        assert.equal(error.qualificationEnvelopeShape, null);
+        assert.equal(Object.getOwnPropertyDescriptor(error, "qualificationSubtype").enumerable, false);
+        assert.doesNotMatch(JSON.stringify(error) + error.message, /PRIVATE/u);
+        return true;
+      });
+      assert.equal(calls, 1);
+      assert.equal(adapter.completionCapacity().used, 1);
+    }
+  });
 });
 
 test("S06 shape records reject content channels, accessors and impossible combinations", () => {
@@ -7961,14 +7977,14 @@ test("S06 shape records reject content channels, accessors and impossible combin
   assert.equal(reads, 0);
 });
 
-test("S06 shape headers require the exact marker and active qualification window", async () => {
+test("strict review errors expose no legacy S06 shape headers even with an active marker", async () => {
   const request = { ...minimalCertificationRequest() };
   Object.defineProperty(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
     value: Object.freeze({ attempt: "initial", priorValidationCategory: "none" }), enumerable: false,
   }); Object.freeze(request);
   const active = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
   const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE };
-  for (const [env, headers, expected] of [[active, marked, true], [active, {}, false],
+  for (const [env, headers] of [[active, marked, true], [active, {}, false],
     [active, { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v9" }, false],
     [{ HF_TOKEN: "test-only" }, marked, false],
     [{ ...active, [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2000-01-01T00:00:00.000Z" }, marked, false]]) {
@@ -7982,8 +7998,7 @@ test("S06 shape headers require the exact marker and active qualification window
     const response = await worker.fetch(apiRequest(validPayload, { headers }), env);
     const observed = Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS)
       .map(([field, header]) => [field, response.headers.get(header)]));
-    assert.deepEqual(observed, expected ? { namedShape: "--n-a---", unknownCount: "0", unknownShapes: "000000000" }
-      : { namedShape: null, unknownCount: null, unknownShapes: null });
+    assert.deepEqual(observed, { namedShape: null, unknownCount: null, unknownShapes: null });
     assert.doesNotMatch(JSON.stringify([...response.headers]) + await response.text(), /PRIVATE/u);
     assert.ok(calls <= 1);
   }
@@ -8023,7 +8038,7 @@ test("mixed rewrite and retention layouts never supply a semantic conformance de
   assert.equal(result.passages[0].conformanceConfirmed, false);
   assert.equal(result.passages[1].conformanceConfirmed, true);
   assert.ok(result.passages[1].criterionChecks.every(({ passed, evidenceSpanIds }) => passed && evidenceSpanIds.length > 0));
-  assert.deepEqual(captured.response_format, { type: "json_object" });
+  assert.equal(captured.response_format.type, "json_schema");
   assert.equal(Object.hasOwn(captured, "tools"), false);
   fittedVerificationSchemaForBody(captured);
   assert.equal(adapter.completionCapacity().used, 1);
@@ -8295,9 +8310,7 @@ test("authentic D14 reconciles a complete corrected verifier before bounded mate
         certificates += 1;
         assert.equal(copiedRepair, false, "a copied repair must not certify");
         const payload = inertModelPayload(body);
-        return successfulProviderToolResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds), {
-          toolName: CERTIFICATION_TOOL_NAME,
-        });
+        return successfulProviderResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds));
       } });
       const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
       const envelope = await json(response);
@@ -8421,19 +8434,17 @@ async function runEmptySupportMaterialRepair({
         wire.p["0"].y = "100";
         applyEmptySupportRegressionFailure(wire, verifies === 1 ? first : verifies === 2 ? second : freshFailure);
         assert.equal(body.max_tokens, 2048);
-        assert.deepEqual(body.response_format, { type: "json_object" });
+        assert.equal(body.response_format.type, "json_schema");
         fittedVerificationSchemaForBody(body);
         return successfulProviderResponse(wire);
       }
       certificates += 1;
       assert.equal(copiedRepair || brokenRepair || freshFailure !== null, false,
         "unproved or nonmaterial repairs cannot enter certification");
-      assert.equal(body.tool_choice.function.name, CERTIFICATION_TOOL_NAME);
+      assert.equal(body.response_format?.json_schema?.name ?? body.tool_choice.function.name, CERTIFICATION_TOOL_NAME);
       assert.equal(body.max_tokens, 520);
       const payload = inertModelPayload(body);
-      return successfulProviderToolResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds), {
-        toolName: CERTIFICATION_TOOL_NAME,
-      });
+      return successfulProviderResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds));
     },
   });
   const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: {
@@ -8481,12 +8492,12 @@ test("two genuine empty-support rejections may spend the existing D14 repair onl
       const verifyBodies = calls.filter(isVerificationBody);
       for (const body of verifyBodies) {
         const schema = fittedVerificationSchemaForBody(body).properties.p.properties["0"].properties;
-        assert.equal(schema.x.minLength, 2);
-        assert.equal(schema.x.maxLength, 2);
-        assert.equal(schema.y.minLength, 3);
-        assert.equal(schema.y.maxLength, 3);
-        assert.equal(schema.x.pattern, "^[01]*1[01]*$");
-        assert.equal(schema.y.pattern, "^[01]*1[01]*$");
+        assert.equal(fittedStringLength(schema.x), 2);
+        assert.equal(fittedStringLength(schema.x), 2);
+        assert.equal(fittedStringLength(schema.y), 3);
+        assert.equal(fittedStringLength(schema.y), 3);
+        assert.equal(schema.x.pattern, "^(?:0{0}1[01]{1}|0{1}1[01]{0})$");
+        assert.equal(schema.y.pattern, "^(?:0{0}1[01]{2}|0{1}1[01]{1}|0{2}1[01]{0})$");
         assert.doesNotMatch(JSON.stringify(body), /V16M|V17M|D14|decision-consistency/u);
       }
       assert.deepEqual(fittedVerificationSchemaForBody(verifyBodies[0]), fittedVerificationSchemaForBody(verifyBodies[1]));
@@ -8619,8 +8630,8 @@ test("fixed provider transport is selected by actual stage and cannot be changed
   const cases = [
     ["analysis", "analyze", minimalAnalysisRequest(), HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_schema"],
     ["candidate", "generate", verification, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_object"],
-    ["verification", "verify", verification, TEST_VERIFICATION_PROXY_URL, TEST_VERIFICATION_PROXY_MODEL, "json_object"],
-    ["certification", "certify", minimalCertificationRequest(), HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.verifier, "tool"],
+    ["verification", "verify", verification, TEST_REVIEW_URL, TEST_REVIEW_MODEL, "json_schema"],
+    ["certification", "certify", minimalCertificationRequest(), HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.verifier, "json_schema"],
     ["repair", "repair", { ...verification, verification: null }, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_object"],
   ];
   for (const [stage, method, request, endpoint, model, format] of cases) await context.test(stage, async () => {
@@ -8637,13 +8648,10 @@ test("fixed provider transport is selected by actual stage and cannot be changed
       const body = JSON.parse(init.body);
       assert.equal(body.model, model);
       assert.doesNotMatch(init.body, /PRIVATE-CALLER|attacker\.invalid/u);
-      if (format === "tool") {
-        assert.equal(Object.hasOwn(body, "response_format"), false);
-        assert.equal(body.tool_choice.function.name, CERTIFICATION_TOOL_NAME);
+      if (stage === "certification") {
+        strictReviewSchema(body, CERTIFICATION_TOOL_NAME);
         assert.equal(body.max_tokens, 520);
-        return successfulProviderToolResponse(acceptingCertificationWire(request.certificateId, request.obligationIds), {
-          toolName: CERTIFICATION_TOOL_NAME,
-        });
+        return successfulProviderResponse(acceptingCertificationWire(request.certificateId, request.obligationIds));
       }
       assert.equal(body.response_format.type, format);
       if (stage === "verification") {
@@ -8659,7 +8667,7 @@ test("fixed provider transport is selected by actual stage and cannot be changed
   });
 });
 
-test("the dedicated verification opt-in alone selects the explicit proxy for both content formats", async (context) => {
+test("legacy content helper options cannot select a route or model outside fixed Nscale", async (context) => {
   for (const [label, overrides, url, model, format] of [
     ["generic generator JSON", {}, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_object"],
     ["generic generator strict", { responseFormat: "json_schema" }, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_schema"],
@@ -8668,7 +8676,7 @@ test("the dedicated verification opt-in alone selects the explicit proxy for bot
     ...["json_object", "json_schema"].map((responseFormat) => [
       `dedicated ${responseFormat}`, { role: "verifier", schemaName: VERIFICATION_TOOL_NAME,
         responseFormat, requireMinimalVerificationContent: true },
-      TEST_VERIFICATION_PROXY_URL, TEST_VERIFICATION_PROXY_MODEL, responseFormat,
+      TEST_REVIEW_URL, TEST_REVIEW_MODEL, responseFormat,
     ]),
   ]) await context.test(label, async () => {
     let calls = 0;
@@ -8692,15 +8700,15 @@ test("the dedicated verification opt-in alone selects the explicit proxy for bot
   });
 });
 
-test("a provider response must match the exact stage-selected URL even when the other URL is trusted", async (context) => {
+test("a provider response must match the unified URL and rejects the retired DeepInfra route", async (context) => {
   const verification = minimalVerificationRequest();
   const certification = minimalCertificationRequest();
   for (const [stage, request, selected, alternate] of [
-    ["verify", verification, TEST_VERIFICATION_PROXY_URL, HUGGING_FACE_CHAT_COMPLETIONS_URL],
-    ["certify", certification, HUGGING_FACE_CHAT_COMPLETIONS_URL, TEST_VERIFICATION_PROXY_URL],
+    ["verify", verification, TEST_REVIEW_URL, "https://router.huggingface.co/deepinfra/v1/openai/chat/completions"],
+    ["certify", certification, HUGGING_FACE_CHAT_COMPLETIONS_URL, "https://router.huggingface.co/deepinfra/v1/openai/chat/completions"],
   ]) for (const [name, responseUrl, accepted] of [
     ["exact", selected, true],
-    ["other configured route", alternate, false],
+    ["retired DeepInfra route", alternate, false],
     ["query suffix", `${selected}?route=other`, false],
     ["foreign host", "https://attacker.invalid/collect", false],
   ]) await context.test(`${stage}: ${name}`, async () => {
@@ -8710,9 +8718,7 @@ test("a provider response must match the exact stage-selected URL even when the 
       assert.equal(url, selected);
       const response = stage === "verify"
         ? successfulProviderResponse(acceptingVerificationWire(request))
-        : successfulProviderToolResponse(acceptingCertificationWire(request.certificateId, request.obligationIds), {
-          toolName: CERTIFICATION_TOOL_NAME,
-        });
+        : successfulProviderResponse(acceptingCertificationWire(request.certificateId, request.obligationIds));
       Object.defineProperty(response, "url", { value: responseUrl });
       return response;
     } });

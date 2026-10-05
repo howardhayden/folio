@@ -32,10 +32,16 @@ const deploymentCustody = Object.freeze({
 });
 const liveProviderContract = Object.freeze({
   endpoint: "https://router.huggingface.co/v1/chat/completions",
-  verification_endpoint: "https://router.huggingface.co/deepinfra/v1/openai/chat/completions",
-  verification_request_model: "meta-llama/Meta-Llama-3.1-8B-Instruct",
+  verification_endpoint: "https://router.huggingface.co/v1/chat/completions",
+  verification_request_model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
+  verification_response_format: "json_schema",
+  verification_schema_strict: true,
+  certification_endpoint: "https://router.huggingface.co/v1/chat/completions",
+  certification_request_model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
+  certification_response_format: "json_schema",
+  certification_schema_strict: true,
   generator_model: "Qwen/Qwen3-4B-Instruct-2507:nscale",
-  verifier_model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+  verifier_model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
   automatic_retry: false,
   alternate_provider_or_model_fallback: false,
 });
@@ -144,7 +150,7 @@ async function withEvidenceFiles(callback, overrides = {}) {
     },
     liveEvidencePath: {
       format: "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE",
-      schemaVersion: 2,
+      schemaVersion: 3,
       declared_provider_contract: liveProviderContract,
       checks: [{ id: "wrong-method", status: 405, bodyRetained: false }],
     },
@@ -589,7 +595,7 @@ test("deployment evidence rejects content-bearing or credential-shaped retained 
   }, {
     liveEvidencePath: {
       format: "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE",
-      schemaVersion: 2,
+      schemaVersion: 3,
       text: "must not persist",
     },
   });
@@ -603,7 +609,7 @@ test("deployment evidence rejects content-bearing or credential-shaped retained 
   }, {
     liveEvidencePath: {
       format: "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE",
-      schemaVersion: 2,
+      schemaVersion: 3,
       note: "Bearer should-not-be-retained",
     },
   });
@@ -611,7 +617,7 @@ test("deployment evidence rejects content-bearing or credential-shaped retained 
 
 test("deployment evidence binds format-specific versions and the complete current provider contract", async (context) => {
   for (const [field, version] of [
-    ["liveEvidencePath", 1], ["liveEvidencePath", 3],
+    ["liveEvidencePath", 1], ["liveEvidencePath", 2], ["liveEvidencePath", 4],
     ["secretEvidencePath", 2], ["routeEvidencePath", 2],
   ]) await context.test(`${field}: wrong version ${version}`, async () => {
     await withEvidenceFiles(async (paths) => {
@@ -624,7 +630,14 @@ test("deployment evidence binds format-specific versions and the complete curren
     });
   });
   for (const [name, patch] of [
-    ["old verification route", { verification_endpoint: liveProviderContract.endpoint }],
+    ["old verification route", { verification_endpoint: "https://router.huggingface.co/deepinfra/v1/openai/chat/completions" }],
+    ["old verifier selector", { verifier_model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra" }],
+    ["old verification format", { verification_response_format: "json_object" }],
+    ["non-strict verification", { verification_schema_strict: false }],
+    ["old certification route", { certification_endpoint: "https://router.huggingface.co/deepinfra/v1/openai/chat/completions" }],
+    ["wrong certification model", { certification_request_model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra" }],
+    ["old certification format", { certification_response_format: "named_tool" }],
+    ["non-strict certification", { certification_schema_strict: false }],
     ["replacement model", { verification_request_model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo" }],
     ["fallback", { alternate_provider_or_model_fallback: true }],
     ["unknown field", { extra: "undeclared" }],
@@ -637,6 +650,36 @@ test("deployment evidence binds format-specific versions and the complete curren
       await assert.rejects(buildTextToLatticeDeploymentEvidence({
         ...paths, ...deploymentCustody, environment: environment(),
       }), /invalid fixed provider contract/u);
+    });
+  });
+});
+
+test("historical DeepInfra receipts retain their bytes and cannot qualify the Nscale deployment", async (context) => {
+  for (const schemaVersion of [1, 2]) await context.test(`historical v${schemaVersion}`, async () => {
+    const historicalProvider = {
+      endpoint: "https://router.huggingface.co/v1/chat/completions",
+      ...(schemaVersion === 2 ? {
+        verification_endpoint: "https://router.huggingface.co/deepinfra/v1/openai/chat/completions",
+        verification_request_model: "meta-llama/Meta-Llama-3.1-8B-Instruct",
+      } : {}),
+      generator_model: "Qwen/Qwen3-4B-Instruct-2507:nscale",
+      verifier_model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+      automatic_retry: false,
+      alternate_provider_or_model_fallback: false,
+    };
+    await withEvidenceFiles(async (paths) => {
+      const before = await readFile(paths.liveEvidencePath);
+      await assert.rejects(buildTextToLatticeDeploymentEvidence({
+        ...paths, ...deploymentCustody, environment: environment(),
+      }), /invalid format or schema version/u);
+      assert.deepEqual(await readFile(paths.liveEvidencePath), before);
+    }, {
+      liveEvidencePath: {
+        format: "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE",
+        schemaVersion,
+        declared_provider_contract: historicalProvider,
+        checks: [{ id: "wrong-method", status: 405, bodyRetained: false }],
+      },
     });
   });
 });
