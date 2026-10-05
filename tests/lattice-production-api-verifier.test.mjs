@@ -27,6 +27,7 @@ import {
   verifyTextToLatticeHeldApi,
 } from "../scripts/verify-text-to-lattice-held-api.mjs";
 import {
+  createLatticeApiWorker,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
@@ -72,8 +73,8 @@ const completeUsageHeaders = Object.freeze({
   [LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS.generator]: "2,1000,200",
   [LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS.verifier]: "2,2000,100",
 });
-const quotaSetCookie = "__Secure-hah-lattice-api-visitor=v1.AAAAAAAAAAAAAAAAAAAAAAAA.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; Max-Age=41104; Path=/api/lattice; Secure; HttpOnly; SameSite=Strict";
-const SUCCESSFUL_PRODUCTION_REQUEST_COUNT = 4
+const quotaSetCookie = "__Secure-hah-lattice-api-visitor=v1.AAAAAAAAAAAAAAAAAAAAAAAA.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaA; Max-Age=41104; Path=/api/lattice; Secure; HttpOnly; SameSite=Strict";
+const CANARY_FLOW_REQUEST_COUNT = 4
   + LATTICE_PRODUCTION_READINESS_CONTRACT.requiredConsecutiveActiveSamples
   + 1
   + LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.length
@@ -207,7 +208,7 @@ function heldReadinessResponse(headers = {}) {
   });
 }
 
-function successfulFixture({ canaryResponse, readinessResponses, setupResponse } = {}) {
+function successfulFixture({ canaryResponse, readinessResponses, setupResponse, preservationResponse, tamperedCookieResponse } = {}) {
   const calls = [];
   const readinessSequence = readinessResponses ?? Array.from(
     { length: LATTICE_PRODUCTION_READINESS_CONTRACT.requiredConsecutiveActiveSamples },
@@ -217,6 +218,7 @@ function successfulFixture({ canaryResponse, readinessResponses, setupResponse }
   let negativeIndex = 0;
   let setupRequests = 0;
   let canaryRequests = 0;
+  let tamperedCookieRequests = 0;
   let canaryText = null;
   const fetchImpl = async (url, init) => {
     calls.push({ url: `${url}`, init });
@@ -245,7 +247,7 @@ function successfulFixture({ canaryResponse, readinessResponses, setupResponse }
 
     if (init.headers.Accept === LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT) {
       setupRequests += 1;
-      return setupResponse ?? new Response(null, {
+      return (setupRequests > 1 ? preservationResponse : setupResponse) ?? new Response(null, {
         status: 204,
         headers: {
           ...setupApiHeaders,
@@ -263,6 +265,11 @@ function successfulFixture({ canaryResponse, readinessResponses, setupResponse }
         : {});
     }
 
+    if (canaryRequests > 0) {
+      tamperedCookieRequests += 1;
+      return tamperedCookieResponse ?? apiJson({ error: "invalid_request" }, 403);
+    }
+
     canaryRequests += 1;
     const body = JSON.parse(init.body);
     canaryText = body.text;
@@ -275,11 +282,12 @@ function successfulFixture({ canaryResponse, readinessResponses, setupResponse }
     get negativeRequests() { return negativeIndex; },
     get setupRequests() { return setupRequests; },
     get canaryRequests() { return canaryRequests; },
+    get tamperedCookieRequests() { return tamperedCookieRequests; },
     get canaryText() { return canaryText; },
   };
 }
 
-test("the production verifier emits separate exact-byte-bound usage evidence while keeping its v3 return unchanged", async () => {
+test("the production verifier emits separate exact-byte-bound usage evidence with compatible v3 metadata", async () => {
   const fixture = successfulFixture();
   const sidecars = [];
   const evidence = await verifyTextToLatticeApiProduction({
@@ -337,7 +345,7 @@ test("invalid or out-of-scope qualification usage fails without a sidecar or con
   });
 });
 
-test("the production verifier establishes one bodyless visitor session before exactly one content canary", async () => {
+test("the production verifier preserves one setup and one canary before separate backend postflight probes", async () => {
   const fixture = successfulFixture();
   let preflightCallbacks = 0;
   const readinessRequestCount =
@@ -391,6 +399,7 @@ test("the production verifier establishes one bodyless visitor session before ex
     "negative_probes",
     "visitor_session_setup",
     "transformation_canary",
+    "visitor_session_postflight",
   ]);
   assert.deepEqual(
     evidence.negative_probes.outcomes.map(({ id }) => id),
@@ -430,7 +439,7 @@ test("the production verifier establishes one bodyless visitor session before ex
     provider_called: false,
     response_bodies_retained: false,
   });
-  assert.equal(fixture.setupRequests, 1);
+  assert.equal(fixture.setupRequests, 2);
   const { elapsed_ms: setupElapsed, ...visitorSessionSetup } = evidence.visitor_session_setup;
   assert.ok(Number.isSafeInteger(setupElapsed) && setupElapsed >= 0);
   assert.deepEqual(visitorSessionSetup, {
@@ -513,7 +522,7 @@ test("the production verifier establishes one bodyless visitor session before ex
   });
   assert.equal(
     fixture.calls.length,
-    4 + readinessRequestCount + 1 + LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.length + 1,
+    4 + readinessRequestCount + 1 + LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.length + 3,
   );
 
   const readinessCalls = fixture.calls.slice(4, 4 + readinessRequestCount);
@@ -540,7 +549,7 @@ test("the production verifier establishes one bodyless visitor session before ex
   assert.equal(Object.keys(setupCall.init.headers).some((name) => name.toLowerCase() === "content-type"), false);
   assert.equal(Object.keys(setupCall.init.headers).some((name) => name.toLowerCase() === "cookie"), false);
 
-  const canaryCall = fixture.calls.at(-1);
+  const canaryCall = fixture.calls.at(-3);
   const expectedCanaryRequest = {
     text: "A visitor places a blue notebook on the desk, reads the first page, and closes it.\n",
     requested_mode: "operative",
@@ -670,7 +679,7 @@ test("the certification canary rejects an unaccepted status or an inexact termin
       );
       assert.equal(fixture.canaryRequests, 1);
       assert.equal(fixture.setupRequests, 1);
-      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+      assert.equal(fixture.calls.length, CANARY_FLOW_REQUEST_COUNT);
     });
   }
 });
@@ -719,8 +728,8 @@ test("the certification canary accepts supported no-split and adaptive-split out
       });
       assert.equal(evidence.transformation_canary.terminal_status, result.status);
       assert.equal(fixture.canaryRequests, 1);
-      assert.equal(fixture.setupRequests, 1);
-      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+      assert.equal(fixture.setupRequests, 2);
+      assert.equal(fixture.calls.length, CANARY_FLOW_REQUEST_COUNT + 2);
     });
   }
 });
@@ -875,7 +884,7 @@ test("the sanitized preflight callback completes before any transformation canar
       wait: noWait,
       async onPreflightEvidence(evidence) {
         callbackCalls += 1;
-        assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT - 1);
+        assert.equal(fixture.calls.length, CANARY_FLOW_REQUEST_COUNT - 1);
         assert.equal(fixture.setupRequests, 1);
         assert.equal(
           fixture.negativeRequests,
@@ -963,7 +972,7 @@ test("active-API readiness settles only after consecutive exact content-free sam
     provider_called: false,
     response_bodies_retained: false,
   });
-  assert.equal(fixture.setupRequests, 1);
+  assert.equal(fixture.setupRequests, 2);
   assert.equal(fixture.canaryRequests, 1);
 
   const readinessCalls = fixture.calls.slice(4, 4 + readinessResponses.length);
@@ -1123,7 +1132,7 @@ test("the wrong-query probe verifies exact route exclusion as a non-API 405", as
     wrongQueryResponseBody,
     /lattice-live-negative-canary-2026-09-14/u,
   );
-  assert.equal(fixture.setupRequests, 1);
+  assert.equal(fixture.setupRequests, 2);
   assert.equal(fixture.canaryRequests, 1);
 });
 
@@ -1163,7 +1172,7 @@ test("a failed transformation canary retains only sanitized non-qualifying prefl
   );
   assert.equal(fixture.canaryRequests, 1);
   assert.equal(fixture.setupRequests, 1);
-  assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+  assert.equal(fixture.calls.length, CANARY_FLOW_REQUEST_COUNT);
   assert.deepEqual(events, ["preflight", "canary"]);
 
   const serialized = await readFile(preflightPath, "utf8");
@@ -1333,7 +1342,7 @@ test("the canary rejects absent, partial, malformed, or success diagnostics with
       assert.equal(failure.message.includes(privateMarker), false);
       assert.equal(fixture.canaryRequests, 1);
       assert.equal(fixture.setupRequests, 1);
-      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+      assert.equal(fixture.calls.length, CANARY_FLOW_REQUEST_COUNT);
     });
   }
 });
@@ -1416,7 +1425,7 @@ test("an unable canary reports only an allowlisted homogeneous failure class and
       assert.equal(failure.message.includes(privateMarker), false);
       assert.equal(fixture.canaryRequests, 1);
       assert.equal(fixture.setupRequests, 1);
-      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+      assert.equal(fixture.calls.length, CANARY_FLOW_REQUEST_COUNT);
     });
   }
 });
@@ -1559,7 +1568,7 @@ test("terminal analysis diagnostics are complete, allowlisted, and confined to a
       assert.equal(failure.message.includes(privateMarker), false);
       assert.equal(fixture.canaryRequests, 1);
       assert.equal(fixture.setupRequests, 1);
-      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+      assert.equal(fixture.calls.length, CANARY_FLOW_REQUEST_COUNT);
     });
   }
 });
@@ -1612,7 +1621,7 @@ test("mixed or unknown unable findings remain unclassified without leaking hosti
       assert.equal(failure.message.includes(hostileMessage), false);
       assert.equal(fixture.canaryRequests, 1);
       assert.equal(fixture.setupRequests, 1);
-      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+      assert.equal(fixture.calls.length, CANARY_FLOW_REQUEST_COUNT);
     });
   }
 });
@@ -2288,7 +2297,256 @@ test("first verification rejection on a correction provider failure is finite, c
       });
       assert.equal(fixture.canaryRequests, 1);
       assert.equal(fixture.setupRequests, 1);
-      assert.equal(fixture.calls.length, SUCCESSFUL_PRODUCTION_REQUEST_COUNT);
+      assert.equal(fixture.calls.length, CANARY_FLOW_REQUEST_COUNT);
     });
   }
+});
+
+
+function cookieSetupResponse(setCookie = quotaSetCookie) {
+  return new Response(null, { status: 204, headers: { ...setupApiHeaders, "Set-Cookie": setCookie } });
+}
+
+function sequencedWallClock(values) {
+  let index = 0;
+  return () => new Date(values[Math.min(index++, values.length - 1)]);
+}
+
+test("GATE02 postflight checks preserve the core flow and retain only finite cookie facts", async () => {
+  const fixture = successfulFixture();
+  let preflight;
+  const evidence = await verifyTextToLatticeApiProduction({
+    fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait,
+    onPreflightEvidence(value) { preflight = value; },
+  });
+  assert.equal(preflight.visitor_session_postflight, undefined);
+  assert.equal(preflight.visitor_session_setup.request_count, 1);
+  assert.equal(preflight.negative_probes.count, 24);
+  assert.equal(evidence.transformation_canary.request_count, 1);
+  assert.equal(fixture.setupRequests, 2);
+  assert.equal(fixture.canaryRequests, 1);
+  assert.equal(fixture.tamperedCookieRequests, 1);
+  assert.equal(fixture.calls.length, CANARY_FLOW_REQUEST_COUNT + 2);
+  const [canary, preservation, tampered] = fixture.calls.slice(-3);
+  const originalCookie = canary.init.headers.Cookie;
+  assert.deepEqual(JSON.parse(canary.init.body), LATTICE_PRODUCTION_CANARY_REQUEST);
+  assert.equal(preservation.init.headers.Cookie, originalCookie);
+  assert.equal(preservation.init.headers.Accept, LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT);
+  assert.equal(Object.hasOwn(preservation.init, "body"), false);
+  assert.equal(Object.hasOwn(preservation.init.headers, "Content-Type"), false);
+  assert.equal(tampered.init.body, "{");
+  assert.equal(tampered.init.headers.Accept, "application/json");
+  assert.equal(tampered.init.headers[LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER], undefined);
+  const originalParts = originalCookie.split(".");
+  const changedParts = tampered.init.headers.Cookie.split(".");
+  assert.deepEqual(changedParts.slice(0, 2), originalParts.slice(0, 2));
+  assert.notEqual(changedParts[2], originalParts[2]);
+  assert.equal(Buffer.from(changedParts[2], "base64url").length, 32);
+  assert.equal(Buffer.from(changedParts[2], "base64url").toString("base64url"), changedParts[2]);
+  const postflight = evidence.visitor_session_postflight;
+  assert.equal(postflight.scope, "backend-probes-after-successful-canary");
+  assert.equal(postflight.request_count, 2);
+  assert.equal(postflight.automatic_retry, false);
+  assert.equal(postflight.raw_request_or_response_content_recorded, false);
+  assert.deepEqual(postflight.initial_setup_expiry, {
+    basis: "runner-wall-clock-interval",
+    request_started_at: fixedNow().toISOString(), response_received_at: fixedNow().toISOString(),
+    minimum_max_age_seconds: 41_104, maximum_max_age_seconds: 41_104,
+    clock_tolerance_ms: 1_000, wall_clock_consistent: true,
+    next_utc_boundary_matched: true,
+  });
+  assert.equal(postflight.preservation.cookie_value_preserved, true);
+  assert.equal(postflight.preservation.cookie_header_present, true);
+  assert.equal(postflight.preservation.http_status, 204);
+  assert.equal(postflight.preservation.response_body_bytes, 0);
+  assert.equal(postflight.tampered_cookie.http_status, 403);
+  assert.equal(postflight.tampered_cookie.error, "invalid_request");
+  assert.equal(postflight.tampered_cookie.request_body_bytes, 1);
+  assert.equal(postflight.tampered_cookie.canonical_signature_mutation, true);
+  const serialized = JSON.stringify(evidence);
+  for (const cookie of [originalCookie, tampered.init.headers.Cookie]) {
+    assert.equal(serialized.includes(cookie), false);
+    assert.equal(serialized.includes(cookie.slice(cookie.indexOf("=") + 1)), false);
+  }
+});
+
+test("GATE02 expiry is bounded by the measured setup wall-clock interval", async () => {
+  const fixture = successfulFixture({
+    setupResponse: cookieSetupResponse(quotaSetCookie.replace("41104", "41103")),
+    preservationResponse: cookieSetupResponse(quotaSetCookie.replace("41104", "41102")),
+  });
+  let monotonic = 0;
+  const evidence = await verifyTextToLatticeApiProduction({
+    async fetchImpl(url, init) {
+      const response = await fixture.fetchImpl(url, init);
+      if (fixture.setupRequests === 1) monotonic = 2_000;
+      return response;
+    },
+    context, wait: noWait, monotonicNow: () => monotonic,
+    now: sequencedWallClock([
+      "2026-09-14T12:34:56.000Z", "2026-09-14T12:34:56.100Z", "2026-09-14T12:34:58.100Z",
+      "2026-09-14T12:34:58.100Z", "2026-09-14T12:34:58.100Z",
+    ]),
+  });
+  assert.equal(evidence.visitor_session_postflight.initial_setup_expiry.minimum_max_age_seconds, 41_102);
+  assert.equal(evidence.visitor_session_postflight.initial_setup_expiry.maximum_max_age_seconds, 41_104);
+  assert.equal(evidence.visitor_session_postflight.preservation.expiry.minimum_max_age_seconds, 41_102);
+});
+
+test("GATE02 rejects future, short, reversed, invalid and cross-midnight cookie expiry observations", async (t) => {
+  const cases = [
+    { name: "expiry after UTC boundary", age: 41_105 },
+    { name: "expiry before UTC boundary", age: 41_103 },
+    { name: "full-day lifetime at midday", age: 86_400 },
+    { name: "reversed clock", times: ["2026-09-14T12:34:56.000Z", "2026-09-14T12:34:58.000Z", "2026-09-14T12:34:56.000Z"] },
+    { name: "midnight during setup", age: 1, times: ["2026-09-14T23:59:59.900Z", "2026-09-14T23:59:59.900Z", "2026-09-15T00:00:00.100Z"] },
+    { name: "invalid response time", times: ["2026-09-14T12:34:56.000Z", "2026-09-14T12:34:56.000Z", "invalid"] },
+  ];
+  for (const { name, age = 41_104, times } of cases) await t.test(name, async () => {
+    const fixture = successfulFixture({ setupResponse: cookieSetupResponse(quotaSetCookie.replace("41104", `${age}`)) });
+    await assert.rejects(verifyTextToLatticeApiProduction({
+      fetchImpl: fixture.fetchImpl, context, now: times ? sequencedWallClock(times) : fixedNow, wait: noWait,
+    }), /cookie expiry/u);
+    assert.equal(fixture.setupRequests, 1);
+    assert.equal(fixture.negativeRequests, 0);
+    assert.equal(fixture.canaryRequests, 0);
+    assert.equal(fixture.tamperedCookieRequests, 0);
+  });
+});
+
+test("GATE02 rejects postflight rotation or failed tamper rejection without retry or raw leakage", async (t) => {
+  const rotated = quotaSetCookie.replace("AAAAAAAAAAAAAAAAAAAAAAAA", "BBBBBBBBBBBBBBBBBBBBBBBB");
+  for (const [name, options, expectedTamperCount] of [
+    ["rotated cookie", { preservationResponse: cookieSetupResponse(rotated) }, 0],
+    ["wrong preservation expiry", { preservationResponse: cookieSetupResponse(quotaSetCookie.replace("41104", "41105")) }, 0],
+    ["tampered authentication accepted", { tamperedCookieResponse: apiJson({ error: "invalid_request" }, 400) }, 1],
+    ["tampered cookie reflected", { tamperedCookieResponse: apiJson({ error: "invalid_request", cookie: rotated }, 403) }, 1],
+  ]) await t.test(name, async () => {
+    const fixture = successfulFixture(options);
+    let usageEmissions = 0;
+    await assert.rejects(verifyTextToLatticeApiProduction({
+      fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait,
+      onUsageEvidence() { usageEmissions += 1; },
+    }), (error) => {
+      assert.match(error.message, /postflight/u);
+      assert.equal(error.message.includes(rotated), false);
+      assert.equal(error.message.includes(quotaSetCookie.split(";", 1)[0]), false);
+      return true;
+    });
+    assert.equal(fixture.canaryRequests, 1);
+    assert.equal(fixture.setupRequests, 2);
+    assert.equal(fixture.tamperedCookieRequests, expectedTamperCount);
+    assert.equal(usageEmissions, 0);
+  });
+});
+
+test("GATE02 tampered-cookie malformed payload cannot cause an extra admission even if authentication regresses", async () => {
+  const fixture = successfulFixture();
+  let admissions = 0;
+  let providerFactories = 0;
+  let pipelineCalls = 0;
+  const worker = createLatticeApiWorker({
+    now: () => fixedNow().valueOf(),
+    async admitTransformation() { admissions += 1; return { allowed: true, retryAfterSeconds: null }; },
+    createAdapter() { providerFactories += 1; throw new Error("No provider factory permitted"); },
+    async runTextToLatticeImpl() { pipelineCalls += 1; throw new Error("No pipeline permitted"); },
+  });
+  const env = { HF_TOKEN: "synthetic-test-token", VISITOR_COOKIE_SECRET: "s".repeat(48) };
+  let tamperedRequest;
+  const fetchImpl = async (url, init) => {
+    if (init.headers.Accept === LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT
+      && !Object.hasOwn(init.headers, "Content-Type")) {
+      return worker.fetch(new Request(url, init), env);
+    }
+    if (fixture.canaryRequests === 1 && init.body === "{") {
+      tamperedRequest = new Request(url, init);
+      return worker.fetch(tamperedRequest.clone(), env);
+    }
+    return fixture.fetchImpl(url, init);
+  };
+  const evidence = await verifyTextToLatticeApiProduction({ fetchImpl, context, now: fixedNow, wait: noWait });
+  assert.equal(evidence.visitor_session_postflight.tampered_cookie.http_status, 403);
+  const permissiveWorker = createLatticeApiWorker({
+    now: () => fixedNow().valueOf(),
+    async resolveVisitor() { return { visitorId: "A".repeat(24), cookieValue: "in-memory-fixture" }; },
+    async admitTransformation() { admissions += 1; return { allowed: true, retryAfterSeconds: null }; },
+    createAdapter() { providerFactories += 1; throw new Error("No provider factory permitted"); },
+    async runTextToLatticeImpl() { pipelineCalls += 1; throw new Error("No pipeline permitted"); },
+  });
+  const response = await permissiveWorker.fetch(tamperedRequest.clone(), env);
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "invalid_request" });
+  assert.equal(admissions, 0);
+  assert.equal(providerFactories, 0);
+  assert.equal(pipelineCalls, 0);
+});
+
+
+test("GATE02 expiry accepts exact midnight and ceil-rounded subsecond intervals", async (t) => {
+  for (const [time, maxAge] of [["2026-09-15T00:00:00.000Z", 86_400], ["2026-09-14T23:59:59.999Z", 1]]) {
+    await t.test(time, async () => {
+      const setCookie = quotaSetCookie.replace("41104", `${maxAge}`);
+      const fixture = successfulFixture({ setupResponse: cookieSetupResponse(setCookie), preservationResponse: cookieSetupResponse(setCookie) });
+      const evidence = await verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: () => new Date(time), wait: noWait });
+      assert.equal(evidence.visitor_session_postflight.initial_setup_expiry.minimum_max_age_seconds, maxAge);
+      assert.equal(evidence.visitor_session_postflight.initial_setup_expiry.maximum_max_age_seconds, maxAge);
+    });
+  }
+});
+
+test("GATE02 additive postflight metadata does not reinterpret earlier v3 usage receipts", async () => {
+  let usage;
+  const fixture = successfulFixture();
+  const evidence = await verifyTextToLatticeApiProduction({
+    fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait,
+    onUsageEvidence(value) { usage = value; },
+  });
+  const earlierV3 = { ...evidence };
+  delete earlierV3.visitor_session_postflight;
+  const bytes = new TextEncoder().encode(serializeLatticeProductionEvidence(earlierV3).serialized);
+  const priorUsage = {
+    ...usage,
+    live_boundary: { ...usage.live_boundary, sha256: createHash("sha256").update(bytes).digest("hex") },
+  };
+  assert.equal(verifyLatticeQualificationUsageEvidence(priorUsage, bytes, { requireComplete: true }), priorUsage);
+  assert.equal(earlierV3.visitor_session_postflight, undefined);
+  assert.equal(earlierV3.schemaVersion, 3);
+});
+
+
+test("GATE02 expiry rejects wall-clock discontinuities during and between setup calls", async (t) => {
+  for (const [name, times, expectedSetups] of [
+    ["forward jump during initial setup", ["12:34:56", "12:34:56", "18:34:56"], 1],
+    ["backward jump before postflight", ["12:34:56", "12:34:56", "12:34:56", "11:34:56"], 1],
+    ["forward jump before postflight", ["12:34:56", "12:34:56", "12:34:56", "13:34:56"], 1],
+    ["forward jump during postflight", ["12:34:56", "12:34:56", "12:34:56", "12:34:56", "18:34:56"], 2],
+  ]) await t.test(name, async () => {
+    const fixture = successfulFixture();
+    await assert.rejects(verifyTextToLatticeApiProduction({
+      fetchImpl: fixture.fetchImpl, context, wait: noWait,
+      monotonicNow: () => 0,
+      now: sequencedWallClock(times.map((time) => `2026-09-14T${time}.000Z`)),
+    }), /inconsistent cookie expiry observation clock/u);
+    assert.equal(fixture.setupRequests, expectedSetups);
+    assert.equal(fixture.canaryRequests, name === "forward jump during initial setup" ? 0 : 1);
+    assert.equal(fixture.tamperedCookieRequests, 0);
+  });
+});
+
+
+test("GATE02 cookie expiry observation cannot outlive the bounded setup request", async () => {
+  const fixture = successfulFixture();
+  let monotonic = 0;
+  await assert.rejects(verifyTextToLatticeApiProduction({
+    async fetchImpl(url, init) {
+      const response = await fixture.fetchImpl(url, init);
+      if (fixture.setupRequests === 1) monotonic = 16_000;
+      return response;
+    },
+    context, wait: noWait, monotonicNow: () => monotonic,
+    now: sequencedWallClock(["2026-09-14T12:34:56.000Z", "2026-09-14T12:34:56.000Z", "2026-09-14T12:35:12.000Z"]),
+  }), /bounded cookie expiry observation interval/u);
+  assert.equal(fixture.setupRequests, 1);
+  assert.equal(fixture.negativeRequests, 0);
+  assert.equal(fixture.canaryRequests, 0);
 });
