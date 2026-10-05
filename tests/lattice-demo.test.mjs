@@ -3237,7 +3237,8 @@ test("withheld pipeline observations report actual retry paths and committed can
     assertCandidateWithheld(observed);
     assert.deepEqual(observed, baseline);
     assert.deepEqual(observedAdapter.calls, baselineAdapter.calls);
-    assert.deepEqual(observation, { retryPath, candidateLineage, initialDeterministic });
+    assert.deepEqual(observation, { retryPath, candidateLineage, initialDeterministic,
+      successfulCorrectionStage: name === "initial correction is not post-verification retry" ? "generation" : "none" });
     assert.equal(isClosedWithheldPipelineObservation(observation), true);
     assert.equal(Object.isFrozen(observation), true);
     assert.equal(Object.hasOwn(trace, "retryPath"), false, "the historical trace retains its original closed shape");
@@ -3264,7 +3265,7 @@ test("withheld pipeline observations retain mixed actual paths without exposing 
   const result = await runTextToLattice(source, { adapter, onCandidateWithheldDiagnostic(value) { trace = value; } });
   assertCandidateWithheld(result);
   assert.deepEqual(getLatticeWithheldPipelineObservation(trace), {
-    retryPath: "mixed", candidateLineage: "mixed", initialDeterministic: "d14-only",
+    retryPath: "mixed", candidateLineage: "mixed", initialDeterministic: "d14-only", successfulCorrectionStage: "none",
   });
   assert.deepEqual(flags.filter(([, regenerated]) => regenerated), [[structuralBatchId, true]]);
   assert.ok(flags.filter(([, regenerated]) => !regenerated).length === batches.length);
@@ -3300,6 +3301,7 @@ test("withheld observations omit recovered failures and tolerate observer except
   assert.equal(trace.priorRejectionBoundary, "none");
   assert.equal(trace.priorRejectionCategory, "none");
   assert.equal(trace.certification, "performed-not-accepted");
+  assert.equal(getLatticeWithheldPipelineObservation(trace).successfulCorrectionStage, "document-certification");
   const behavior = { verify: () => ({}) };
   const baselineAdapter = scriptedAdapter(behavior);
   const baseline = await runTextToLattice(source, { adapter: baselineAdapter });
@@ -4090,4 +4092,75 @@ test("empty-support recovery cannot add another replacement after repair or rech
       assert.equal(adapter.calls.verify, failure === "invalid recheck" ? 4 : failure === "structural recheck" ? 3 : 2);
     });
   }
+});
+
+test("successful correction stages record normalized recovery rather than acceptance or candidate lineage", async (context) => {
+  const identity = (request) => rawCandidate(request, { identity: true });
+  const structural = (request) => rawVerification(request, { gates: { sourceCoverage: false } });
+  const unsupported = (request) => rawVerification(request, { gates: { languageSupported: false } });
+  const cases = [
+    ["none", { generate: identity, repair: identity }],
+    ["atomization", { analyze: (request, count) => count === 1 ? {} : rawAnalysis(request), generate: identity, repair: identity }],
+    ["generation", { generate: (request, count) => count === 1 ? {} : identity(request), verify: unsupported }],
+    ["generation-recovery", { generate: () => ({}), repair: (request, count) => count === 1 ? {} : identity(request), verify: unsupported }],
+    ["verification", { generate: identity, verify: (request, count) => count === 1 ? {} : unsupported(request) }],
+    ["repair", { generate: identity, repair: (request, count) => count === 1 ? {} : identity(request) }],
+    ["reverification", { generate: identity, repair: identity, verify: (request, count) => count === 2 ? {} : rawVerification(request) }],
+    ["re-atomization", { generate: identity, verify: structural, analyze: (request, count) => count === 2 ? {} : rawAnalysis(request) }],
+    ["regeneration", { generate: (request, count) => count === 2 ? {} : identity(request), verify: structural }],
+    ["generation", { generate: (request, count) => count === 1 ? {} : identity(request), repair: identity }, "corrected initial draft later replaced"],
+    ["mixed", { generate: (request, count) => count === 1 ? {} : identity(request), repair: (request, count) => count === 1 ? {} : identity(request) }],
+    ["none", { generate: identity, repair: () => ({}) }, "failed correction is not successful"],
+    ["generation", { generate: (request, count) => count === 1 ? {} : identity(request), repair: () => ({}) }, "successful correction survives discarded later repair"],
+  ];
+  for (const [expected, behavior, label = expected] of cases) await context.test(label, async () => {
+    const source = opaqueWords(12);
+    const baselineAdapter = scriptedAdapter(behavior);
+    const baseline = await runTextToLattice(source, { adapter: baselineAdapter });
+    const adapter = scriptedAdapter(behavior);
+    let trace;
+    const result = await runTextToLattice(source, { adapter, onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assertCandidateWithheld(result);
+    assert.deepEqual(result, baseline);
+    assert.deepEqual(adapter.calls, baselineAdapter.calls);
+    assert.equal(getLatticeWithheldPipelineObservation(trace).successfulCorrectionStage, expected);
+    assert.doesNotMatch(JSON.stringify(result), /successfulCorrectionStage/u);
+  });
+});
+
+test("post-repair certification correction is protocol recovery even when its valid review rejects", async () => {
+  let certificateCalls = 0;
+  let trace;
+  const adapter = scriptedAdapter({
+    generate: (request) => rawCandidate(request, { identity: true }),
+    certify(request) {
+      certificateCalls += 1;
+      if (certificateCalls === 1) return {};
+      return { certificateId: request.certificateId, obligationIds: request.obligationIds, decision: "reject",
+        checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, name !== "boundaryFidelity"])), issues: [] };
+    },
+  });
+  const result = await runTextToLattice(`${opaqueWords(12)}\n`, { adapter,
+    onCandidateWithheldDiagnostic(value) { trace = value; } });
+  assertCandidateWithheld(result);
+  assert.equal(certificateCalls, 2);
+  assert.deepEqual(getLatticeWithheldPipelineObservation(trace), { retryPath: "repair", candidateLineage: "repair",
+    initialDeterministic: "d14-only", successfulCorrectionStage: "document-certification" });
+  assert.equal(trace.certification, "performed-not-accepted");
+});
+
+test("repeated successful corrections in one phase aggregate without retaining a count", async () => {
+  const source = Array.from({ length: 5 }, () => opaqueWords(12)).join("\n\n");
+  const batches = preflightLatticeInput(source).batches;
+  assert.ok(batches.length > 1);
+  let trace;
+  const adapter = scriptedAdapter({
+    generate: (request) => request.protocolFeedback ? rawCandidate(request, { identity: true }) : {},
+    verify: (request) => rawVerification(request, { gates: { languageSupported: false } }),
+  });
+  const result = await runTextToLattice(source, { adapter, onCandidateWithheldDiagnostic(value) { trace = value; } });
+  assertCandidateWithheld(result);
+  assert.equal(adapter.calls.generate, batches.length * 2);
+  assert.deepEqual(getLatticeWithheldPipelineObservation(trace), { retryPath: "none", candidateLineage: "initial",
+    initialDeterministic: "d14-only", successfulCorrectionStage: "generation" });
 });
