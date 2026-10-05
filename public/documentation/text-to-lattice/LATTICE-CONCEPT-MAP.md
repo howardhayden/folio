@@ -1,6 +1,6 @@
 ---
 title: Lattice concept and ecosystem map
-revision: 2026-10-04
+revision: 2026-10-05
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---

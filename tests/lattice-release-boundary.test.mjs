@@ -186,7 +186,7 @@ test("the release register honestly holds the remote capability and preserves hi
   );
   assert.ok(register.publicClient.heldBoundary.allow.length > 0);
   assert.ok(register.publicClient.heldBoundary.deny.some((item) => item.includes("/api/lattice")));
-  assert.equal(register.revision, "2026-10-04");
+  assert.equal(register.revision, "2026-10-05");
   assert.match(register.qualificationScope, /last pulled hah\.dev deployment and ancestry baseline/u);
   assert.match(register.publicClient.reason, /run #162[\s\S]{0,140}diagnostic revision 5 merged by PR #51/iu);
   assert.match(register.publicClient.reason, /terminal_failure=host-validation, stage=verification, attempt=2, validation=response-shape, prior_validation=response-shape, calls_used=5, batch_count=1, verification_passes=0, and finding_count=1/u);

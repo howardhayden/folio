@@ -66,6 +66,7 @@ export const LATTICE_PROVIDER_MALFORMED_SUBTYPES = Object.freeze([
   "choice_shape",
   "finish_reason",
   "message_shape",
+  "M01",
   // Fixed host predicates on already rejected transport envelopes. These
   // permit bounded shape inference without retaining values or field names.
   ...TOOL_ENVELOPE_SUBTYPES,
@@ -159,12 +160,15 @@ export const LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS = Object.freeze([
   "reasoning", "tool_call_id", "refusal", "audio", "annotations",
   "name", "reasoning_content", "cache_control",
 ]);
+export const LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS = Object.freeze([
+  ...LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS, "tool_calls", "function_call",
+]);
 const ENVELOPE_SHAPE_CODES = "nsSaAoObd";
 const ENVELOPE_SHAPE_ALLOWED_KEYS = new Set([
   "role", "content", "tool_calls", ...LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS,
 ]);
 
-export function isClosedProviderEnvelopeShape(value) {
+function isClosedProviderMessageShape(value, fieldCount) {
   try {
     if (!record(value) || !Object.isFrozen(value)
       || Object.getPrototypeOf(value) !== Object.prototype
@@ -174,18 +178,26 @@ export function isClosedProviderEnvelopeShape(value) {
       const descriptor = Object.getOwnPropertyDescriptor(value, field);
       return descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string";
     })) return false;
-    if (!/^[-nsSaAoObd]{8}$/u.test(value.namedShape)
+    if (value.namedShape.length !== fieldCount || !/^[-nsSaAoObd]+$/u.test(value.namedShape)
       || !["0", "1", "2", "3-plus"].includes(value.unknownCount)
-      || !/^[01]{9}$/u.test(value.unknownShapes)) return false;
+      || value.unknownShapes.length !== 9 || !/^[01]{9}$/u.test(value.unknownShapes)) return false;
     const unknownTypes = [...value.unknownShapes].filter((bit) => bit === "1").length;
     return (value.unknownCount === "0") === (unknownTypes === 0)
       && (value.unknownCount === "3-plus" || unknownTypes <= Number(value.unknownCount))
-      && (value.namedShape !== "--------" || value.unknownCount !== "0");
+      && (value.namedShape !== "-".repeat(fieldCount) || value.unknownCount !== "0");
   } catch { return false; }
 }
 
-function qualificationEnvelopeShape(message) {
-  // Called only after S06 has already rejected a bounded, parsed JSON message.
+export function isClosedProviderEnvelopeShape(value) {
+  return isClosedProviderMessageShape(value, LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS.length);
+}
+
+export function isClosedProviderStrictMessageShape(value) {
+  return isClosedProviderMessageShape(value, LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS.length);
+}
+
+function qualificationMessageShape(message, fields, allowedKeys) {
+  // Called only after the envelope has already been rejected.
   // Strict emptiness, no trimming, recursive inspection, names, values or hashes.
   try {
     const code = (value) => {
@@ -197,19 +209,30 @@ function qualificationEnvelopeShape(message) {
       if (typeof value === "number") return "d";
       throw new TypeError("Unobservable JSON shape.");
     };
-    const namedShape = LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS.map((field) =>
+    const namedShape = fields.map((field) =>
       Object.hasOwn(message, field) ? code(message[field]) : "-").join("");
     const unknownShapes = Array(ENVELOPE_SHAPE_CODES.length).fill("0");
     let count = 0;
     for (const key of Object.keys(message)) {
-      if (ENVELOPE_SHAPE_ALLOWED_KEYS.has(key)) continue;
+      if (allowedKeys.has(key)) continue;
       count += 1;
       unknownShapes[ENVELOPE_SHAPE_CODES.indexOf(code(message[key]))] = "1";
     }
     const observed = Object.freeze({ namedShape,
       unknownCount: count < 3 ? `${count}` : "3-plus", unknownShapes: unknownShapes.join("") });
-    return isClosedProviderEnvelopeShape(observed) ? observed : null;
+    return isClosedProviderMessageShape(observed, fields.length) ? observed : null;
   } catch { return null; } // Observation cannot alter the original rejection.
+}
+
+function qualificationEnvelopeShape(message) {
+  return qualificationMessageShape(message, LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS, ENVELOPE_SHAPE_ALLOWED_KEYS);
+}
+
+const STRICT_MESSAGE_SHAPE_ALLOWED_KEYS = new Set([
+  "role", "content", ...LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS,
+]);
+function qualificationStrictMessageShape(message) {
+  return qualificationMessageShape(message, LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS, STRICT_MESSAGE_SHAPE_ALLOWED_KEYS);
 }
 
 function qualificationHttpHeaders(response, role) {
@@ -282,6 +305,12 @@ const COMPLETION_TOKEN_BUCKET_SET = new Set(LATTICE_PROVIDER_COMPLETION_TOKEN_BU
 const ANALYSIS_ORIGIN_SET = new Set(LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS);
 const ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
 const PROVIDER_DIAGNOSTICS = new WeakMap();
+
+export function getLatticeProviderStrictMessageShape(error) {
+  const diagnostic = PROVIDER_DIAGNOSTICS.get(error);
+  return diagnostic?.subtype === "M01" && isClosedProviderStrictMessageShape(diagnostic.strictMessageShape)
+    ? diagnostic.strictMessageShape : null;
+}
 const ANALYSIS_DECODER_FAILURE_CATEGORY_SET = new Set([
   "response-shape",
   "passage-coverage",
@@ -781,6 +810,8 @@ function withProviderDiagnostic(error, patch) {
   }
   if (error.code === "provider_malformed_response" && next.subtype === "S06"
     && isClosedProviderEnvelopeShape(patch.envelopeShape)) next.envelopeShape = patch.envelopeShape;
+  if (error.code === "provider_malformed_response" && next.subtype === "M01"
+    && isClosedProviderStrictMessageShape(patch.strictMessageShape)) next.strictMessageShape = patch.strictMessageShape;
   if (error.code !== "provider_malformed_response") next.subtype = "none";
   PROVIDER_DIAGNOSTICS.set(error, Object.freeze(next));
   return error;
@@ -2115,6 +2146,7 @@ async function boundedResponseText(response, maximumBytes, signal) {
 
 export function providerEnvelopeSubtypeIsConsistent(subtype, stage, providerFinishReason) {
   if (!MALFORMED_SUBTYPE_SET.has(subtype)) return false;
+  if (subtype === "M01") return ["verification", "certification"].includes(stage) && providerFinishReason === "stop";
   if (!TOOL_ENVELOPE_SUBTYPES.includes(subtype)) return true;
   if (!["verification", "certification"].includes(stage)) return false;
   if (subtype === "S01") return providerFinishReason === "tool_calls";
@@ -2173,7 +2205,7 @@ function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedT
   return "message_shape";
 }
 
-function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls, requireMinimalVerificationContent, compatibleVerificationContent, observeQualificationEnvelopeShape) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls, requireMinimalVerificationContent, compatibleVerificationContent, observeQualificationEnvelopeShape, observeQualificationStrictMessageShape) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -2260,16 +2292,19 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
     // compatibility carries no arguments and never rewrites the message/content.
     // Even one otherwise valid native call is competing content.
     // Strict callers without compatibility flags still require role/content.
+    const strictMessageShape = observeQualificationStrictMessageShape && !compatibleVerificationContent
+      ? qualificationStrictMessageShape(choice.message) : null;
     const subtype = compatibleVerificationContent
       ? rejectedStoppedToolSubtype(choice.message, choice.finish_reason,
         true, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls)
-      : "message_shape";
+      : strictMessageShape !== null ? "M01" : "message_shape";
     throw withProviderDiagnostic(
       providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
       {
         subtype,
         envelopeShape: observeQualificationEnvelopeShape && subtype === "S06"
           ? qualificationEnvelopeShape(choice.message) : null,
+        strictMessageShape,
         finishReason: providerFinishReason,
         responseSize,
         contentSize: providerContentSize,
@@ -2472,6 +2507,7 @@ export async function requestHuggingFaceJson({
   requireMinimalVerificationContent = false,
   observeQualificationHttpHeaders = false,
   observeQualificationEnvelopeShape = false,
+  observeQualificationStrictMessageShape = false,
   presencePenalty,
   signal,
   fetchImpl = globalThis.fetch,
@@ -2521,6 +2557,7 @@ export async function requestHuggingFaceJson({
     || typeof requireMinimalVerificationContent !== "boolean"
     || typeof observeQualificationHttpHeaders !== "boolean"
     || typeof observeQualificationEnvelopeShape !== "boolean"
+    || typeof observeQualificationStrictMessageShape !== "boolean"
     || (requireMinimalVerificationContent
       && (role !== "verifier"
         || !(schemaName === VERIFICATION_TOOL_NAME
@@ -2683,6 +2720,7 @@ export async function requestHuggingFaceJson({
         requireMinimalVerificationContent,
         compatibleVerificationContent,
         observeQualificationEnvelopeShape,
+        observeQualificationStrictMessageShape,
       );
     } catch (error) {
       if (deadline.didTimeOut()) {
@@ -2733,9 +2771,10 @@ export function createHuggingFaceLatticeAdapter({
   maximumResponseBytes = LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
   observeQualificationHttpHeaders = false,
   observeQualificationEnvelopeShape = false,
+  observeQualificationStrictMessageShape = false,
 } = {}) {
   if (!REQUESTED_MODES.has(requestedMode) || typeof observeQualificationHttpHeaders !== "boolean"
-    || typeof observeQualificationEnvelopeShape !== "boolean") {
+    || typeof observeQualificationEnvelopeShape !== "boolean" || typeof observeQualificationStrictMessageShape !== "boolean") {
     throw new TypeError("The Lattice provider received an invalid requested mode.");
   }
 
@@ -2791,6 +2830,7 @@ export function createHuggingFaceLatticeAdapter({
         requireMinimalVerificationContent: stage.requireMinimalVerificationContent,
         observeQualificationHttpHeaders,
         observeQualificationEnvelopeShape,
+        observeQualificationStrictMessageShape,
         maxTokens: analysisFit
           ? analysisOutputTokenLimitForSchema(fittedSchema)
           : stage.maxTokens,
