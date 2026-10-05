@@ -56,7 +56,7 @@ import {
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
 import { latticeProtectedLiteralMatches } from "../app/resume/lattice/protectedSpans.js";
 import { rememberRejectedResult, deterministicFindingRule } from "../app/resume/lattice/rejectionDiagnostics.js";
-import { isClosedWithheldPipelineObservation } from "../app/resume/lattice/qualificationDiagnostics.js";
+import { isClosedWithheldPipelineObservation, rememberLatticeAnalysisRetentionDowngrade } from "../app/resume/lattice/qualificationDiagnostics.js";
 import {
   deterministicDocumentReview,
   deterministicPassageReview,
@@ -360,7 +360,11 @@ function scriptedAdapter(behavior = {}) {
     calls,
     async analyze(request) {
       calls.analyze += 1;
-      return behavior.analyze?.(request, calls.analyze) ?? rawAnalysis(request, behavior.analysisOptions);
+      const raw = await (behavior.analyze?.(request, calls.analyze) ?? rawAnalysis(request, behavior.analysisOptions));
+      // Trusted test adapter emulates the authentic decoder observation. Tests
+      // for missing provenance explicitly disable this internal test hook.
+      return behavior.retentionObservation === false ? raw
+        : rememberLatticeAnalysisRetentionDowngrade(raw, "none");
     },
     async generate(request) {
       calls.generate += 1;
@@ -3238,7 +3242,7 @@ test("withheld pipeline observations report actual retry paths and committed can
     assert.deepEqual(observed, baseline);
     assert.deepEqual(observedAdapter.calls, baselineAdapter.calls);
     assert.deepEqual(observation, { retryPath, candidateLineage, initialDeterministic,
-      successfulCorrectionStage: name === "initial correction is not post-verification retry" ? "generation" : "none" });
+      successfulCorrectionStage: name === "initial correction is not post-verification retry" ? "generation" : "none", initialRetentionDowngrade: "none" });
     assert.equal(isClosedWithheldPipelineObservation(observation), true);
     assert.equal(Object.isFrozen(observation), true);
     assert.equal(Object.hasOwn(trace, "retryPath"), false, "the historical trace retains its original closed shape");
@@ -3265,7 +3269,7 @@ test("withheld pipeline observations retain mixed actual paths without exposing 
   const result = await runTextToLattice(source, { adapter, onCandidateWithheldDiagnostic(value) { trace = value; } });
   assertCandidateWithheld(result);
   assert.deepEqual(getLatticeWithheldPipelineObservation(trace), {
-    retryPath: "mixed", candidateLineage: "mixed", initialDeterministic: "d14-only", successfulCorrectionStage: "none",
+    retryPath: "mixed", candidateLineage: "mixed", initialDeterministic: "d14-only", successfulCorrectionStage: "none", initialRetentionDowngrade: "none",
   });
   assert.deepEqual(flags.filter(([, regenerated]) => regenerated), [[structuralBatchId, true]]);
   assert.ok(flags.filter(([, regenerated]) => !regenerated).length === batches.length);
@@ -4145,7 +4149,7 @@ test("post-repair certification correction is protocol recovery even when its va
   assertCandidateWithheld(result);
   assert.equal(certificateCalls, 2);
   assert.deepEqual(getLatticeWithheldPipelineObservation(trace), { retryPath: "repair", candidateLineage: "repair",
-    initialDeterministic: "d14-only", successfulCorrectionStage: "document-certification" });
+    initialDeterministic: "d14-only", successfulCorrectionStage: "document-certification", initialRetentionDowngrade: "none" });
   assert.equal(trace.certification, "performed-not-accepted");
 });
 
@@ -4162,5 +4166,103 @@ test("repeated successful corrections in one phase aggregate without retaining a
   assertCandidateWithheld(result);
   assert.equal(adapter.calls.generate, batches.length * 2);
   assert.deepEqual(getLatticeWithheldPipelineObservation(trace), { retryPath: "none", candidateLineage: "initial",
-    initialDeterministic: "d14-only", successfulCorrectionStage: "generation" });
+    initialDeterministic: "d14-only", successfulCorrectionStage: "generation", initialRetentionDowngrade: "none" });
+});
+
+
+test("initial retention downgrade observations follow consumed normalized analyses only", async (context) => {
+  const identity = (request) => rawCandidate(request, { identity: true });
+  const unsupported = (request) => rawVerification(request, { gates: { languageSupported: false } });
+  const tagged = (request, value = "none") => rememberLatticeAnalysisRetentionDowngrade(rawAnalysis(request), value);
+  const incompleteRetention = (request) => {
+    const raw = rawAnalysis(request, { disposition: "retain-if-conformant" });
+    raw.passages[0].conformanceEvidenceSpanIds.pop();
+    return raw;
+  };
+  const cases = [
+    ["decoder downgrade", { analyze: (request) => tagged(request, "present") }, "present"],
+    ["host downgrade with decoder provenance", { analyze: incompleteRetention }, "present"],
+    ["complete retention remains none", { analysisOptions: { disposition: "retain-if-conformant" } }, "none"],
+    ["missing adapter provenance", { retentionObservation: false }, null],
+    ["missing adapter provenance despite local downgrade", { retentionObservation: false, analyze: incompleteRetention }, null],
+    ["cloned authenticated input", { retentionObservation: false, analyze: (request) => ({ ...tagged(request) }) }, null],
+    ["proxied authenticated input", { retentionObservation: false, analyze: (request) => new Proxy(tagged(request), {}) }, null],
+    ["property spoof", { retentionObservation: false, analyze(request) {
+      const raw = rawAnalysis(request); Object.defineProperty(raw, "initialRetentionDowngrade", { value: "none" }); return raw;
+    } }, null],
+    ["failed first normalization excluded", { analyze: (request, count) => count === 1
+      ? rememberLatticeAnalysisRetentionDowngrade({ ...rawAnalysis(request), extra: true }, "present")
+      : tagged(request) }, "none"],
+  ];
+  for (const [name, behavior, expected] of cases) await context.test(name, async () => {
+    const options = { generate: identity, verify: unsupported, ...behavior };
+    const baselineAdapter = scriptedAdapter(options);
+    const baseline = await runTextToLattice(opaqueWords(36), { adapter: baselineAdapter });
+    const adapter = scriptedAdapter(options); let trace;
+    const result = await runTextToLattice(opaqueWords(36), { adapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assertCandidateWithheld(result); assert.deepEqual(result, baseline); assert.deepEqual(adapter.calls, baselineAdapter.calls);
+    const observation = getLatticeWithheldPipelineObservation(trace);
+    assert.equal(observation?.initialRetentionDowngrade ?? null, expected);
+    if (expected === null) assert.equal(observation, null, "unknown provenance suppresses the complete group");
+    assert.doesNotMatch(JSON.stringify(result), /initialRetentionDowngrade|PRIVATE/u);
+  });
+
+  await context.test("later reanalysis does not replace initial observation", async () => {
+    let trace;
+    const adapter = scriptedAdapter({ generate: identity,
+      analyze: (request, count) => tagged(request, count === 1 ? "none" : "present"),
+      verify: (request) => rawVerification(request, { gates: { sourceCoverage: false } }),
+    });
+    const result = await runTextToLattice(opaqueWords(12), { adapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assertCandidateWithheld(result); assert.equal(adapter.calls.analyze, 2);
+    assert.equal(getLatticeWithheldPipelineObservation(trace).initialRetentionDowngrade, "none");
+  });
+
+  for (const markChild of [false, true]) await context.test(`surviving adaptive splits ${markChild ? "present" : "none"}`, async () => {
+    let trace;
+    const adapter = scriptedAdapter({ generate: identity, verify: unsupported,
+      analyze(request, count) {
+        if (count === 1) { const error = new Error("synthetic limit"); error.code = "provider_output_limit"; throw error; }
+        return tagged(request, markChild && count === 2 ? "present" : "none");
+      },
+    });
+    const result = await runTextToLattice(LATTICE_PRODUCTION_CANARY_TEXT, { adapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assertCandidateWithheld(result); assert.equal(adapter.calls.analyze, 3); assert.equal(adapter.calls.generate, 2);
+    assert.equal(getLatticeWithheldPipelineObservation(trace).initialRetentionDowngrade, markChild ? "present" : "none");
+  });
+
+  await context.test("any unknown consumed batch suppresses a known present batch", async () => {
+    let trace;
+    const adapter = scriptedAdapter({ retentionObservation: false, generate: identity, verify: unsupported,
+      analyze: (request, count) => count === 1 ? tagged(request, "present") : rawAnalysis(request),
+    });
+    const result = await runTextToLattice(Array.from({ length: 5 }, () => opaqueWords(12)).join("\n\n"), { adapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assertCandidateWithheld(result); assert.ok(adapter.calls.generate > 1);
+    assert.equal(getLatticeWithheldPipelineObservation(trace), null);
+  });
+});
+
+
+test("clarification replacement excludes the superseded initial retention observation", async () => {
+  const source = opaqueWords(9);
+  const pending = await runTextToLattice(source, { adapter: scriptedAdapter({ analysisOptions: { question: true } }) });
+  const question = pending.questions[0];
+  const answer = { questionId: question.id, questionFingerprint: question.fingerprint,
+    sourceFingerprint: question.sourceFingerprint, analysisRevisionId: question.analysisRevisionId,
+    questionStage: question.questionStage, passageId: question.passageId, answer: "The first reading" };
+  let trace;
+  const adapter = scriptedAdapter({
+    analyze: (request, count) => rememberLatticeAnalysisRetentionDowngrade(
+      rawAnalysis(request, { question: count === 1 }), count === 1 ? "present" : "none"),
+    generate: (request) => rawCandidate(request, { identity: true }),
+    verify: (request) => rawVerification(request, { gates: { languageSupported: false } }),
+  });
+  const result = await runTextToLattice(source, { adapter, clarificationAnswers: [answer],
+    onCandidateWithheldDiagnostic(value) { trace = value; } });
+  assertCandidateWithheld(result); assert.equal(adapter.calls.analyze, 2); assert.equal(adapter.calls.generate, 1);
+  assert.equal(getLatticeWithheldPipelineObservation(trace).initialRetentionDowngrade, "none");
 });
