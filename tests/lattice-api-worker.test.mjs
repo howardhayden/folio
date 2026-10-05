@@ -23,6 +23,7 @@ import {
   verificationMessages,
 } from "../app/resume/lattice/promptContract.js";
 import { isClosedPriorVerificationRejection, getLatticeAnalysisRetentionDowngrade } from "../app/resume/lattice/qualificationDiagnostics.js";
+import { getLatticeAnalysisPassageRetentionDowngrade } from "../app/resume/lattice/analysisProvenance.js";
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
 import { deterministicBatchReview } from "../app/resume/lattice/validators.js";
 import {
@@ -9233,7 +9234,12 @@ test("pipeline headers bind actual withheld lineage and cannot be forged or outl
   };
   const downgraded = await run({ retentionDowngrade: true });
   assert.equal(downgraded.response.headers.get("X-Lattice-Qualification-Pipeline-Initial-Retention-Downgrade"), "present");
-  assert.equal(downgraded.bodies.length, 5);
+  assert.equal(downgraded.bodies.length, 6);
+  assert.equal(downgraded.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.retryPath), "regeneration");
+  assert.equal(downgraded.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.candidateLineage), "regeneration");
+  const unmarkedDowngrade = await run({ retentionDowngrade: true, headers: {} });
+  assert.deepEqual(unmarkedDowngrade.bodies, downgraded.bodies);
+  assert.deepEqual(unmarkedDowngrade.json, downgraded.json);
   assert.equal(downgraded.json.result.text, null);
   const corrected = await run({ repairCorrection: true });
   assert.equal(corrected.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.successfulCorrectionStage), "repair");
@@ -9308,6 +9314,9 @@ test("analysis retention observations require explicit enablement and a complete
   assert.equal(getLatticeAnalysisRetentionDowngrade(ordinary), null);
   assert.equal(getLatticeAnalysisRetentionDowngrade(disabled), null);
   assert.equal(getLatticeAnalysisRetentionDowngrade(observed), "none");
+  for (const value of [ordinary, disabled, observed]) {
+    assert.equal(getLatticeAnalysisPassageRetentionDowngrade(value, value.passages[0], request.batch.passages[0]), false);
+  }
   assert.deepEqual(observed, ordinary); assert.deepEqual(observed, disabled);
   assert.equal(new Set(bytes).size, 1, "observation changes no provider request bytes");
   for (const [name, masks, expected, disposition] of [
@@ -9321,11 +9330,64 @@ test("analysis retention observations require explicit enablement and a complete
     assert.equal(getLatticeAnalysisRetentionDowngrade({ ...value }), null);
     assert.equal(getLatticeAnalysisRetentionDowngrade(new Proxy(value, {})), null);
     assert.equal(Object.hasOwn(value, "initialRetentionDowngrade"), false);
+    assert.equal(getLatticeAnalysisPassageRetentionDowngrade(value, value.passages[0], request.batch.passages[0]), expected === "present");
+    const unobserved = await run(false, (wire) => { wire.p[0][1] = 1; wire.p[0][3] = masks; });
+    assert.equal(getLatticeAnalysisRetentionDowngrade(unobserved), null);
+    assert.equal(getLatticeAnalysisPassageRetentionDowngrade(unobserved, unobserved.passages[0], request.batch.passages[0]), expected === "present");
+    assert.deepEqual(unobserved, value);
   });
   const rejected = await run(true, (wire) => { wire.p[0][1] = 1; wire.p[0][3][0] = "PRIVATE"; });
   assert.deepEqual(rejected, {});
   assert.equal(getLatticeAnalysisRetentionDowngrade(rejected), null);
+  assert.equal(getLatticeAnalysisPassageRetentionDowngrade(rejected, observed.passages[0], request.batch.passages[0]), null);
   for (const invalid of [null, 0, 1, "true"]) {
     assert.throws(() => createHuggingFaceLatticeAdapter({ observeQualificationRetentionDowngrade: invalid }));
   }
+});
+
+test("always-on downgraded-retention recovery preserves fixed stages and fresh acceptance with diagnostics off", async (context) => {
+  for (const retain of [false, true]) await context.test(retain ? "fresh complete conformance" : "material regeneration", async () => {
+    const run = async (marked) => {
+      const bodies = [];let analyses = 0,drafts = 0,reviews = 0;
+      const worker = createLatticeApiWorker({ fetchImpl: async (url, init) => {
+        assert.equal(url, HUGGING_FACE_CHAT_COMPLETIONS_URL);
+        const body = JSON.parse(init.body);bodies.push(body);let wire;
+        assert.ok(body.max_tokens <= 2048);assert.equal(Object.hasOwn(body, "tools"), false);
+        if (isAnalysisBody(body)) {
+          analyses += 1;assert.equal(body.model, LATTICE_REMOTE_MODELS.generator);
+          wire = canaryAnalysisWire(body, { retain: retain && analyses === 2 });
+          if (analyses === 1) wire.p[0][1] = 1;
+          else {
+            const feedback = inertModelPayload(body).reanalysisFeedback;
+            assert.ok(feedback);assert.ok(JSON.stringify(feedback).includes("repair"));
+          }
+        } else if (isCandidateBody(body)) {
+          drafts += 1;assert.equal(body.model, LATTICE_REMOTE_MODELS.generator);assert.equal(body.max_tokens, 800);
+          const payload = inertModelPayload(body);
+          assert.equal(Object.hasOwn(payload, "rejectedCandidate"), false);
+          assert.deepEqual(payload.regenerationFeedback, drafts === 2 && !retain ? { nonmaterialPassagePositions: [0] } : undefined);
+          wire = canaryCandidateFromProviderBody(body, drafts === 1 || retain ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1)
+            : "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.");
+        } else if (isVerificationBody(body)) {
+          reviews += 1;assert.equal(body.model, LATTICE_REMOTE_MODELS.verifier);assert.equal(body.max_tokens, 2048);
+          assert.equal(body.response_format.json_schema.strict, true);
+          wire = canaryVerificationWire(body, { retain: retain && reviews === 2 });
+        } else {
+          assert.equal(body.response_format.json_schema.name, CERTIFICATION_TOOL_NAME);
+          assert.equal(body.response_format.json_schema.strict, true);
+          assert.equal(body.model, LATTICE_REMOTE_MODELS.verifier);assert.equal(body.max_tokens, 520);
+          const payload = inertModelPayload(body);wire = acceptingCertificationWire(payload.certificateId, payload.obligationIds);
+        }
+        return successfulProviderResponse(wire);
+      } });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: marked
+        ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v17" } : {} }),
+      { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" });
+      assert.equal(response.status, 200);assert.equal(analyses, 2);assert.equal(drafts, 2);assert.equal(reviews, 2);
+      return { json: await json(response), bodies };
+    };
+    const ordinary = await run(false), observed = await run(true);
+    assert.equal(ordinary.json.result.status, retain ? "conformant-for-context" : "translated");
+    assert.equal(ordinary.bodies.length, 7);assert.deepEqual(observed.bodies, ordinary.bodies);assert.deepEqual(observed.json, ordinary.json);
+  });
 });
