@@ -305,6 +305,27 @@ const COMPLETION_TOKEN_BUCKET_SET = new Set(LATTICE_PROVIDER_COMPLETION_TOKEN_BU
 const ANALYSIS_ORIGIN_SET = new Set(LATTICE_ANALYSIS_DIAGNOSTIC_ORIGINS);
 const ANALYSIS_VALIDATION_CATEGORY_SET = new Set(LATTICE_ANALYSIS_VALIDATION_CATEGORIES);
 const PROVIDER_DIAGNOSTICS = new WeakMap();
+const QUALIFICATION_USAGE = new WeakMap();
+const QUALIFICATION_USAGE_OBSERVER = Symbol("qualification-usage-observer");
+export const LATTICE_QUALIFICATION_USAGE_TOKEN_LIMIT_PER_CALL = 1_048_576;
+export const LATTICE_QUALIFICATION_USAGE_TOKEN_LIMIT_AGGREGATE = 33_554_432;
+
+export function getLatticeQualificationUsage(adapter) {
+  const usage = QUALIFICATION_USAGE.get(adapter);
+  if (!usage) return null;
+  if (usage.budget.used === 0 || usage.reportedCalls !== usage.budget.used) return Object.freeze({ status: "unavailable" });
+  return Object.freeze({ status: "complete", generator: Object.freeze({ ...usage.generator }), verifier: Object.freeze({ ...usage.verifier }) });
+}
+
+function providerReportedUsage(envelope) {
+  const usage = envelope?.usage;
+  if (!record(usage)) return null;
+  const bounded = (value) => Number.isSafeInteger(value) && value >= 0 && value <= LATTICE_QUALIFICATION_USAGE_TOKEN_LIMIT_PER_CALL;
+  if (!bounded(usage.prompt_tokens) || !bounded(usage.completion_tokens)) return null;
+  const total = usage.prompt_tokens + usage.completion_tokens;
+  if (Object.hasOwn(usage, "total_tokens") && usage.total_tokens !== total) return null;
+  return Object.freeze({ promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens });
+}
 
 export function getLatticeProviderStrictMessageShape(error) {
   const diagnostic = PROVIDER_DIAGNOSTICS.get(error);
@@ -706,6 +727,7 @@ const STAGES = Object.freeze({
     responseFormat: "json_schema",
     schemaDescription: "Supply one complete private verification result using the fitted closed index-and-mask schema.",
     requireMinimalVerificationContent: true,
+    allowEmptyStoppedToolCalls: true,
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
     maxTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -720,6 +742,7 @@ const STAGES = Object.freeze({
     responseFormat: "json_schema",
     schemaDescription: "Supply one complete private document certificate using the fitted closed schema.",
     requireMinimalVerificationContent: true,
+    allowEmptyStoppedToolCalls: true,
     responseGuide: CERTIFICATION_WIRE_GUIDE,
     messages: certificationWireMessages,
     maxTokens: CERTIFICATION_MAX_OUTPUT_TOKENS,
@@ -2205,7 +2228,7 @@ function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedT
   return "message_shape";
 }
 
-function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls, requireMinimalVerificationContent, compatibleVerificationContent, observeQualificationEnvelopeShape, observeQualificationStrictMessageShape) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls, requireMinimalVerificationContent, compatibleVerificationContent, observeQualificationEnvelopeShape, observeQualificationStrictMessageShape, observeUsage) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -2216,6 +2239,9 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
     );
   }
   const completionTokens = completionTokenBucket(envelope?.usage?.completion_tokens);
+  if (typeof observeUsage === "function") {
+    try { observeUsage(providerReportedUsage(envelope)); } catch { /* Observation cannot alter provider handling. */ }
+  }
   if (!Array.isArray(envelope?.choices) || envelope.choices.length !== 1) {
     throw withProviderDiagnostic(
       providerError("provider_malformed_response", "The Lattice provider returned an invalid completion envelope."),
@@ -2508,6 +2534,7 @@ export async function requestHuggingFaceJson({
   observeQualificationHttpHeaders = false,
   observeQualificationEnvelopeShape = false,
   observeQualificationStrictMessageShape = false,
+  [QUALIFICATION_USAGE_OBSERVER]: observeUsage,
   presencePenalty,
   signal,
   fetchImpl = globalThis.fetch,
@@ -2562,7 +2589,7 @@ export async function requestHuggingFaceJson({
       && (role !== "verifier"
         || !(schemaName === VERIFICATION_TOOL_NAME
           || (schemaName === CERTIFICATION_TOOL_NAME && resolvedResponseFormat === "json_schema"
-            && !allowEmptyStoppedToolCalls && !allowNullStoppedVerificationMetadata
+            && !allowNullStoppedVerificationMetadata
             && !allowNullJsonObjectVerificationToolCalls))
         || !minimalVerificationContentRequest
         || toolName !== undefined
@@ -2721,6 +2748,7 @@ export async function requestHuggingFaceJson({
         compatibleVerificationContent,
         observeQualificationEnvelopeShape,
         observeQualificationStrictMessageShape,
+        observeUsage,
       );
     } catch (error) {
       if (deadline.didTimeOut()) {
@@ -2772,13 +2800,18 @@ export function createHuggingFaceLatticeAdapter({
   observeQualificationHttpHeaders = false,
   observeQualificationEnvelopeShape = false,
   observeQualificationStrictMessageShape = false,
+  observeQualificationUsage = false,
 } = {}) {
   if (!REQUESTED_MODES.has(requestedMode) || typeof observeQualificationHttpHeaders !== "boolean"
-    || typeof observeQualificationEnvelopeShape !== "boolean" || typeof observeQualificationStrictMessageShape !== "boolean") {
+    || typeof observeQualificationEnvelopeShape !== "boolean" || typeof observeQualificationStrictMessageShape !== "boolean"
+    || typeof observeQualificationUsage !== "boolean") {
     throw new TypeError("The Lattice provider received an invalid requested mode.");
   }
 
   const budget = { used: 0 };
+  const usage = observeQualificationUsage ? { budget, reportedCalls: 0,
+    generator: { calls: 0, promptTokens: 0, completionTokens: 0 },
+    verifier: { calls: 0, promptTokens: 0, completionTokens: 0 } } : null;
 
   const complete = async (stageName, request) => {
     if (budget.used >= LATTICE_PROVIDER_CALL_LIMIT) {
@@ -2787,6 +2820,7 @@ export function createHuggingFaceLatticeAdapter({
     budget.used += 1;
     const callOrdinal = budget.used;
     const stage = STAGES[stageName];
+    let usageObserved = false;
     const stageContext = request?.[LATTICE_STAGE_DIAGNOSTIC_CONTEXT];
     const analysisContext = stageName === "analysis"
       ? request?.[LATTICE_ANALYSIS_DIAGNOSTIC_CONTEXT]
@@ -2831,6 +2865,17 @@ export function createHuggingFaceLatticeAdapter({
         observeQualificationHttpHeaders,
         observeQualificationEnvelopeShape,
         observeQualificationStrictMessageShape,
+        [QUALIFICATION_USAGE_OBSERVER]: usage === null ? undefined : (reported) => {
+          if (usageObserved || reported === null) return;
+          usageObserved = true;
+          const roleUsage = usage[stage.role];
+          const promptTokens = roleUsage.promptTokens + reported.promptTokens;
+          const completionTokens = roleUsage.completionTokens + reported.completionTokens;
+          if (promptTokens > LATTICE_QUALIFICATION_USAGE_TOKEN_LIMIT_AGGREGATE
+            || completionTokens > LATTICE_QUALIFICATION_USAGE_TOKEN_LIMIT_AGGREGATE) return;
+          roleUsage.calls += 1; roleUsage.promptTokens = promptTokens; roleUsage.completionTokens = completionTokens;
+          usage.reportedCalls += 1;
+        },
         maxTokens: analysisFit
           ? analysisOutputTokenLimitForSchema(fittedSchema)
           : stage.maxTokens,
@@ -2873,7 +2918,7 @@ export function createHuggingFaceLatticeAdapter({
     return result;
   };
 
-  return Object.freeze({
+  const adapter = Object.freeze({
     completionCapacity() {
       return Object.freeze({
         used: budget.used,
@@ -2887,6 +2932,8 @@ export function createHuggingFaceLatticeAdapter({
     certify: (request) => complete("certification", request),
     repair: (request) => complete("repair", request),
   });
+  if (usage !== null) QUALIFICATION_USAGE.set(adapter, usage);
+  return adapter;
 }
 
 // Keep the public analysis schema imported alongside the closed schema. This

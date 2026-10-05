@@ -242,7 +242,8 @@ test("the public model contract retains bounded stages without publishing privat
   for (const reviewStageSource of [verificationStageSource, certificationStageSource]) {
     assert.match(reviewStageSource, /responseFormat: "json_schema"/u);
     assert.match(reviewStageSource, /requireMinimalVerificationContent: true/u);
-    assert.doesNotMatch(reviewStageSource, /toolName|toolChoice|allowStoppedToolContent|allowEmptyStoppedToolCalls|allowNullStoppedVerificationMetadata|allowNullJsonObjectVerificationToolCalls/u);
+    assert.match(reviewStageSource, /allowEmptyStoppedToolCalls: true/u);
+    assert.doesNotMatch(reviewStageSource, /toolName|toolChoice|allowStoppedToolContent|allowNullStoppedVerificationMetadata|allowNullJsonObjectVerificationToolCalls/u);
   }
   const providerBodyStart = adapter.indexOf("const providerRequestBody = JSON.stringify({");
   const providerBodyEnd = adapter.indexOf("const requestByteLength =", providerBodyStart);

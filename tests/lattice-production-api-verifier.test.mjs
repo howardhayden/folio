@@ -36,7 +36,11 @@ import {
   LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
+import {
+  verifyLatticeQualificationUsageEvidence,
+} from "../scripts/text-to-lattice-qualification-usage.mjs";
 import {
   TEXT_TO_LATTICE_DOCUMENT_POLICY,
 } from "../workers/text-to-lattice-response-policy/worker.js";
@@ -61,6 +65,11 @@ const setupApiHeaders = Object.freeze({
   "Cache-Control": "no-store",
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
+});
+const completeUsageHeaders = Object.freeze({
+  [LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS.status]: "complete",
+  [LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS.generator]: "2,1000,200",
+  [LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS.verifier]: "2,2000,100",
 });
 const quotaSetCookie = "__Secure-hah-lattice-api-visitor=v1.AAAAAAAAAAAAAAAAAAAAAAAA.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; Max-Age=41104; Path=/api/lattice; Secure; HttpOnly; SameSite=Strict";
 const SUCCESSFUL_PRODUCTION_REQUEST_COUNT = 4
@@ -248,7 +257,7 @@ function successfulFixture({ canaryResponse, readinessResponses, setupResponse }
     canaryRequests += 1;
     const body = JSON.parse(init.body);
     canaryText = body.text;
-    return canaryResponse ?? apiJson({ result: validResult(), schema_version: 1 }, 200);
+    return canaryResponse ?? apiJson({ result: validResult(), schema_version: 1 }, 200, completeUsageHeaders);
   };
   return {
     calls,
@@ -260,6 +269,64 @@ function successfulFixture({ canaryResponse, readinessResponses, setupResponse }
     get canaryText() { return canaryText; },
   };
 }
+
+test("the production verifier emits separate exact-byte-bound usage evidence while keeping its v3 return unchanged", async () => {
+  const fixture = successfulFixture();
+  const sidecars = [];
+  const evidence = await verifyTextToLatticeApiProduction({
+    fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait,
+    onUsageEvidence(value) { sidecars.push(value); },
+  });
+  assert.equal(evidence.schemaVersion, 3);
+  assert.equal(Object.hasOwn(evidence, "usage"), false);
+  assert.equal(Object.hasOwn(evidence.transformation_canary, "usage"), false);
+  assert.equal(sidecars.length, 1);
+  const liveBytes = new TextEncoder().encode(serializeLatticeProductionEvidence(evidence).serialized);
+  verifyLatticeQualificationUsageEvidence(sidecars[0], liveBytes, { requireComplete: true });
+  assert.equal(sidecars[0].observation.status, "complete");
+  assert.equal(sidecars[0].observation.generator.calls, 2);
+  assert.equal(sidecars[0].observation.verifier.calls, 2);
+  assert.equal(sidecars[0].cost.total_usd, "0.00014200");
+  assert.equal(JSON.stringify(sidecars[0]).includes(LATTICE_PRODUCTION_CANARY_TEXT), false);
+  assert.equal(JSON.stringify(sidecars[0]).includes(validResult().text), false);
+  assert.equal(fixture.canaryRequests, 1);
+});
+
+test("successful qualification preserves missing usage as unavailable cost without inventing zeros", async (t) => {
+  for (const [status, usageHeaders] of [
+    ["not-observed", {}],
+    ["unavailable", { [LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS.status]: "unavailable" }],
+  ]) await t.test(status, async () => {
+    const fixture = successfulFixture({ canaryResponse: apiJson({ result: validResult(), schema_version: 1 }, 200, usageHeaders) });
+    let sidecar;
+    const evidence = await verifyTextToLatticeApiProduction({
+      fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait,
+      onUsageEvidence(value) { sidecar = value; },
+    });
+    assert.equal(evidence.transformation_canary.strict_result_valid, true);
+    assert.deepEqual(sidecar.observation, { status });
+    assert.equal(sidecar.cost.status, "unavailable");
+    assert.equal(Object.hasOwn(sidecar.cost, "total_usd"), false);
+  });
+});
+
+test("invalid or out-of-scope qualification usage fails without a sidecar or content retry", async (t) => {
+  const responses = [
+    apiJson({ result: validResult(), schema_version: 1 }, 200, { ...completeUsageHeaders, [LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS.generator]: "2,1000,200,extra" }),
+    apiJson({ error: "upstream_unavailable" }, 502, completeUsageHeaders),
+    apiJson({ result: unableResult([{ code: "candidate-withheld", message: "The candidate was withheld." }]), schema_version: 1 }, 200, completeUsageHeaders),
+  ];
+  for (const [index, canaryResponse] of responses.entries()) await t.test(String(index), async () => {
+    const fixture = successfulFixture({ canaryResponse });
+    let sidecarCalls = 0;
+    await assert.rejects(verifyTextToLatticeApiProduction({
+      fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait,
+      onUsageEvidence() { sidecarCalls += 1; },
+    }), /qualification usage evidence failed/u);
+    assert.equal(sidecarCalls, 0);
+    assert.equal(fixture.canaryRequests, 1);
+  });
+});
 
 test("the production verifier establishes one bodyless visitor session before exactly one content canary", async () => {
   const fixture = successfulFixture();
