@@ -33,7 +33,7 @@ test("the documentation generator binds current remote evidence and preserves in
   assert.match(builder, /productionSatisfiedGateIds = new Set\(\["GATE-02", "GATE-03", "GATE-06"\]\)/u);
   assert.match(builder, /"historical-inactive"/u);
   assert.match(builder, /"historicalInactiveRecord",[\s\S]{0,100}"activeCurrentEvidence",[\s\S]{0,100}"activeEvidence"/u);
-  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with Nscale and DeepInfra targets/u);
+  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed Nscale targets/u);
   assert.match(builder, /GATE-03 must keep the provider call, stage, response, limiter, cost, generic-proxy, retry, fallback/u);
   assert.match(builder, /GATE-06 must require one explicit canonical-browser setup-plus-content lifecycle/u);
   assert.match(builder, /verifyReleaseStatusState\(releaseRegister\)/u);
@@ -85,7 +85,7 @@ test("the atlas models the held remote capability without promoting historical e
     "428 visitor_session_required",
     "intentional cookie clearing",
     "Qwen/Qwen3-4B-Instruct-2507:nscale",
-    "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+    "meta-llama/Llama-3.1-8B-Instruct:nscale",
     "no automatic retry",
     "provider or model fallback",
     "questions required to be empty",
@@ -190,7 +190,7 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /__Secure-hah-lattice-api-visitor/u);
   assert.match(dossier, /30[^.]*globally per UTC day/iu);
   assert.match(dossier, /3[^.]*browser cookie jar per UTC day/iu);
-  assert.match(dossier, /Hugging Face[\s\S]{0,300}Nscale[\s\S]{0,300}DeepInfra/iu);
+  assert.match(dossier, /Hugging Face[\s\S]{0,300}Nscale/iu);
   assert.match(dossier, /no automatic retry/iu);
   assert.match(dossier, /no alternate provider or model fallback/iu);
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
@@ -413,7 +413,7 @@ test("interactive editions remain complete, self-contained, accessible, and exec
     assert.match(artifact, /Backstage client\/server/u);
     assert.match(artifact, /POST \/api\/lattice/u);
     assert.match(artifact, /HF_TOKEN/u);
-    assert.match(artifact, /Hugging Face, Nscale, and DeepInfra/u);
+    assert.match(artifact, /Hugging Face and Nscale/u);
     assert.match(artifact, /no automatic retry/iu);
     assert.match(artifact, /no alternate provider or model fallback/iu);
     assert.doesNotMatch(artifact, /Backstage browser-local/u);

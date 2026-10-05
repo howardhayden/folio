@@ -274,22 +274,28 @@ test("the production verifier establishes one bodyless visitor session before ex
       preflightCallbacks += 1;
       assert.equal(fixture.canaryRequests, 0);
       assert.equal(preflightEvidence.format, LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA);
-      assert.equal(preflightEvidence.schemaVersion, 2);
+      assert.equal(preflightEvidence.schemaVersion, 3);
       assert.equal(preflightEvidence.declared_provider_contract.verification_endpoint,
-        "https://router.huggingface.co/deepinfra/v1/openai/chat/completions");
+        "https://router.huggingface.co/v1/chat/completions");
       assert.equal(preflightEvidence.declared_provider_contract.verification_request_model,
-        "meta-llama/Meta-Llama-3.1-8B-Instruct");
+        "meta-llama/Llama-3.1-8B-Instruct:nscale");
     },
   });
 
   assert.equal(evidence.format, LATTICE_PRODUCTION_EVIDENCE_SCHEMA);
-  assert.equal(evidence.schemaVersion, 2);
+  assert.equal(evidence.schemaVersion, 3);
   assert.deepEqual(evidence.declared_provider_contract, {
     endpoint: "https://router.huggingface.co/v1/chat/completions",
-    verification_endpoint: "https://router.huggingface.co/deepinfra/v1/openai/chat/completions",
-    verification_request_model: "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    verification_endpoint: "https://router.huggingface.co/v1/chat/completions",
+    verification_request_model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
+    verification_response_format: "json_schema",
+    verification_schema_strict: true,
+    certification_endpoint: "https://router.huggingface.co/v1/chat/completions",
+    certification_request_model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
+    certification_response_format: "json_schema",
+    certification_schema_strict: true,
     generator_model: "Qwen/Qwen3-4B-Instruct-2507:nscale",
-    verifier_model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
+    verifier_model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
     automatic_retry: false,
     alternate_provider_or_model_fallback: false,
   });

@@ -197,7 +197,7 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-REMOTE-PROTOCOL — Remote request and response protocol:** `app/resume/lattice/remoteProtocol.js`
 - **SRC-REMOTE-CLIENT — Same-origin remote request client:** `app/resume/lattice/remoteRequest.js`
 - **SRC-API-WORKER — Same-origin Text to Lattice API Worker:** `workers/text-to-lattice-api/worker.js`
-- **SRC-HF-ADAPTER — Fixed Hugging Face, Nscale, and DeepInfra provider adapter:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
+- **SRC-HF-ADAPTER — Fixed Hugging Face and Nscale provider adapter:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
 - **SRC-API-CONFIG — Text to Lattice API Worker configuration:** `workers/text-to-lattice-api/wrangler.jsonc`
 - **SRC-CAPACITY-POLICY — Atomic Text to Lattice request-admission policy:** `workers/text-to-lattice-api/capacityPolicy.js`
 - **SRC-CAPACITY-CLIENT — Text to Lattice request-admission client:** `workers/text-to-lattice-api/capacityClient.js`
@@ -241,6 +241,13 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-HF-NSCALE — Hugging Face Nscale provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/nscale)
 - **SRC-HF-DEEPINFRA — Hugging Face DeepInfra provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/deepinfra)
 - **SRC-LATTICE-UPSTREAM — Lattice upstream repository:** [Reviewed source](https://github.com/howardhayden/lattice)
+- **SRC-HF-MODEL-CATALOG — Hugging Face current routed model/provider metadata:** [Reviewed source](https://router.huggingface.co/v1/models)
+- **SRC-HF-NSCALE-MAPPING — Hugging Face Nscale model mapping:** [Reviewed source](https://huggingface.co/api/partners/nscale/models)
+- **SRC-NSCALE-CHAT — Nscale chat-completion schema contract:** [Reviewed source](https://docs.nscale.com/api-reference/inference/create-chat-completion)
+- **SRC-HF-PROVIDER-SECURITY — Hugging Face inference-provider security boundary:** [Reviewed source](https://huggingface.co/docs/inference-providers/security)
+- **SRC-NSCALE-PRIVACY — Nscale public privacy policy:** [Reviewed source](https://www.nscale.com/policies/privacy-policy)
+- **SRC-NSCALE-SHARED-RESPONSIBILITY — Nscale shared responsibility model:** [Reviewed source](https://docs.nscale.com/docs/help/shared-responsibility)
+- **SRC-NSCALE-WEBSITE-TERMS — Nscale public website terms and their scope:** [Reviewed source](https://www.nscale.com/policies/terms-conditions)
 
 ## Terms and provenance
 

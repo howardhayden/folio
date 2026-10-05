@@ -1292,7 +1292,7 @@ export async function verifyTextToLatticeApiProduction({
   );
   const runUrl = `${deployment.serverUrl}/${deployment.repository}/actions/runs/${deployment.runId}`;
   const commonEvidence = Object.freeze({
-    schemaVersion: 2,
+    schemaVersion: 3,
     verified_at: verifiedAt.toISOString(),
     deployment: Object.freeze({
       repository: deployment.repository,
@@ -1313,6 +1313,12 @@ export async function verifyTextToLatticeApiProduction({
       endpoint: HUGGING_FACE_CHAT_COMPLETIONS_URL,
       verification_endpoint: HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL,
       verification_request_model: LATTICE_VERIFICATION_REQUEST_MODEL,
+      verification_response_format: "json_schema",
+      verification_schema_strict: true,
+      certification_endpoint: HUGGING_FACE_CHAT_COMPLETIONS_URL,
+      certification_request_model: LATTICE_REMOTE_MODELS.verifier,
+      certification_response_format: "json_schema",
+      certification_schema_strict: true,
       generator_model: LATTICE_REMOTE_MODELS.generator,
       verifier_model: LATTICE_REMOTE_MODELS.verifier,
       automatic_retry: false,

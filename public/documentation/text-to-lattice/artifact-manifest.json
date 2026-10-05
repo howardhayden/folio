@@ -5,9 +5,9 @@
   "algorithm": "SHA-256",
   "authority": {
     "canonicalSource": "docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json",
-    "canonicalSourceSha256": "85bc9dfbafce2aeabbb4557cdc8b4229070686559f70116346bade775ace7d1f",
+    "canonicalSourceSha256": "198614462abca0ec4028ce127526e0c52d95bca8f96a96a82d2216c48a688fde",
     "builder": "scripts/docs/build-text-to-lattice-documentation.mjs",
-    "builderSha256": "551009a6fdeafc3bf20f2c492b690a16d8cc64ad735329c67e9f4e89cee867a8"
+    "builderSha256": "f80778d72e8beb16dda911f3951451f1c0b8d67ced53ec8d7544b40f01e62990"
   },
   "publicRoot": "/documentation/text-to-lattice/",
   "artifactPairs": [
@@ -19,7 +19,7 @@
       "markdown": "LATTICE-CONCEPT-MAP.md",
       "sourcePath": "docs/text-to-lattice/LATTICE-CONCEPT-MAP.md",
       "publicPath": "public/documentation/text-to-lattice/LATTICE-CONCEPT-MAP.md",
-      "sha256": "df4bff743c6af12a1507a079731f18ad6ce45b062203057d9a6239e1b47feb03"
+      "sha256": "b6a8e5e9e6372a152c6295ed9d1a633472bc1cfe30651c3a83748fb45f1aba34"
     },
     {
       "artifactId": "DOC-SKILL",
@@ -29,7 +29,7 @@
       "markdown": "LATTICE-SKILL-MAP.md",
       "sourcePath": "docs/text-to-lattice/LATTICE-SKILL-MAP.md",
       "publicPath": "public/documentation/text-to-lattice/LATTICE-SKILL-MAP.md",
-      "sha256": "9722fc1ab84d560eaf995a58636b75cf25275b43ff94cdc0cc79c8a0fcb9572c"
+      "sha256": "5362d802e0e4b245975061bef81050fcfa8e434895829f2d6a7fac9ce7db9373"
     },
     {
       "artifactId": "DOC-BLUEPRINT",
@@ -39,7 +39,7 @@
       "markdown": "TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md",
       "sourcePath": "docs/text-to-lattice/TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md",
       "publicPath": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md",
-      "sha256": "116210ba76ad2e9a5ec66d3c76624e09eb5cb5673e105d57362e807a9e06d63e"
+      "sha256": "12310e9f28b21335784b19fcc4a78a9210781a75754c19dc35095b7a9d34b87a"
     },
     {
       "artifactId": "DOC-SECURITY",
@@ -49,7 +49,7 @@
       "markdown": "TEXT-TO-LATTICE-SECURITY-MODEL.md",
       "sourcePath": "docs/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
       "publicPath": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
-      "sha256": "f894e7eb055f420ee5a47564fed3807fe78320859b42c21b9a2d92d13a50866b"
+      "sha256": "38934064b2075ec3457c9619b883d4c2fa37eb948e7458ca6daa49c8d50c7ac0"
     }
   ],
   "releaseEvidence": [
@@ -60,55 +60,55 @@
     },
     {
       "filename": "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-      "bytes": 254125,
-      "sha256": "b822f792014eb76ff80a5ddd595c8813293ce0fdf6a7bf611dd76ac93babecb7"
+      "bytes": 261296,
+      "sha256": "e778ba5c3d24bcf2d1b7588ea0f65c7ff9ed93c495ec491be8235ecd8903f516"
     },
     {
       "filename": "TEXT-TO-LATTICE-RELEASE-REGISTER.json",
-      "bytes": 1260957,
-      "sha256": "770f5f4fcd8f12c7b9174f23c920bf0602440ab1d1ffab0c956d421e19a90752"
+      "bytes": 1307453,
+      "sha256": "868c8c06a05440d5caf856bbc8168ffdc22705c38fb7e83df22d4eea1172fc30"
     }
   ],
   "artifacts": [
     {
       "path": "docs/text-to-lattice/LATTICE-CONCEPT-MAP.md",
-      "bytes": 37234,
-      "sha256": "df4bff743c6af12a1507a079731f18ad6ce45b062203057d9a6239e1b47feb03"
+      "bytes": 38243,
+      "sha256": "b6a8e5e9e6372a152c6295ed9d1a633472bc1cfe30651c3a83748fb45f1aba34"
     },
     {
       "path": "docs/text-to-lattice/LATTICE-SKILL-MAP.md",
-      "bytes": 22353,
-      "sha256": "9722fc1ab84d560eaf995a58636b75cf25275b43ff94cdc0cc79c8a0fcb9572c"
+      "bytes": 23365,
+      "sha256": "5362d802e0e4b245975061bef81050fcfa8e434895829f2d6a7fac9ce7db9373"
     },
     {
       "path": "docs/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
-      "bytes": 1806768,
-      "sha256": "f894e7eb055f420ee5a47564fed3807fe78320859b42c21b9a2d92d13a50866b"
+      "bytes": 1877705,
+      "sha256": "38934064b2075ec3457c9619b883d4c2fa37eb948e7458ca6daa49c8d50c7ac0"
     },
     {
       "path": "docs/text-to-lattice/TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md",
-      "bytes": 35976,
-      "sha256": "116210ba76ad2e9a5ec66d3c76624e09eb5cb5673e105d57362e807a9e06d63e"
+      "bytes": 36401,
+      "sha256": "12310e9f28b21335784b19fcc4a78a9210781a75754c19dc35095b7a9d34b87a"
     },
     {
       "path": "public/documentation/text-to-lattice/documentation-atlas.json",
-      "bytes": 1387773,
-      "sha256": "85bc9dfbafce2aeabbb4557cdc8b4229070686559f70116346bade775ace7d1f"
+      "bytes": 1434532,
+      "sha256": "198614462abca0ec4028ce127526e0c52d95bca8f96a96a82d2216c48a688fde"
     },
     {
       "path": "public/documentation/text-to-lattice/index.html",
-      "bytes": 14454,
-      "sha256": "245899222ca5f98ef5f73938c113edf8c06596406ae5eb4164b1e4de7c7bb6ef"
+      "bytes": 14446,
+      "sha256": "0a06956817489743c07b9199b8da0e09a286b871382c65a7dd2af4a832dda909"
     },
     {
       "path": "public/documentation/text-to-lattice/lattice-concept-map.html",
-      "bytes": 71279,
-      "sha256": "f9f465814397e37c4c01604b4a352ee80ff593d56c1f135e0f0c605f7feb5bc3"
+      "bytes": 72498,
+      "sha256": "fc33b6aea7c56f2fc713a790c9c4e3bba07f797cdc7a741f14fc525cd60a1fb3"
     },
     {
       "path": "public/documentation/text-to-lattice/LATTICE-CONCEPT-MAP.md",
-      "bytes": 37234,
-      "sha256": "df4bff743c6af12a1507a079731f18ad6ce45b062203057d9a6239e1b47feb03"
+      "bytes": 38243,
+      "sha256": "b6a8e5e9e6372a152c6295ed9d1a633472bc1cfe30651c3a83748fb45f1aba34"
     },
     {
       "path": "public/documentation/text-to-lattice/lattice-skill-map.html",
@@ -117,8 +117,8 @@
     },
     {
       "path": "public/documentation/text-to-lattice/LATTICE-SKILL-MAP.md",
-      "bytes": 22353,
-      "sha256": "9722fc1ab84d560eaf995a58636b75cf25275b43ff94cdc0cc79c8a0fcb9572c"
+      "bytes": 23365,
+      "sha256": "5362d802e0e4b245975061bef81050fcfa8e434895829f2d6a7fac9ce7db9373"
     },
     {
       "path": "public/documentation/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json",
@@ -127,33 +127,33 @@
     },
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-      "bytes": 254125,
-      "sha256": "b822f792014eb76ff80a5ddd595c8813293ce0fdf6a7bf611dd76ac93babecb7"
+      "bytes": 261296,
+      "sha256": "e778ba5c3d24bcf2d1b7588ea0f65c7ff9ed93c495ec491be8235ecd8903f516"
     },
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
-      "bytes": 1260957,
-      "sha256": "770f5f4fcd8f12c7b9174f23c920bf0602440ab1d1ffab0c956d421e19a90752"
+      "bytes": 1307453,
+      "sha256": "868c8c06a05440d5caf856bbc8168ffdc22705c38fb7e83df22d4eea1172fc30"
     },
     {
       "path": "public/documentation/text-to-lattice/text-to-lattice-security-model.html",
-      "bytes": 1266165,
-      "sha256": "0bcd7e971654566ccc890536e6f0e8ce7b8efe0186eba6f44d01beba7e97ab0c"
+      "bytes": 1313587,
+      "sha256": "697594b4636dcf7010301002b89adf929d31b798b27eb6a81a54216c9310ded6"
     },
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
-      "bytes": 1806768,
-      "sha256": "f894e7eb055f420ee5a47564fed3807fe78320859b42c21b9a2d92d13a50866b"
+      "bytes": 1877705,
+      "sha256": "38934064b2075ec3457c9619b883d4c2fa37eb948e7458ca6daa49c8d50c7ac0"
     },
     {
       "path": "public/documentation/text-to-lattice/text-to-lattice-service-blueprint.html",
-      "bytes": 71253,
-      "sha256": "ade2f59a01c927b552a5f7a2c487deaf61a10e83917907633ddca70c8ccc3036"
+      "bytes": 71343,
+      "sha256": "cc996f68d3813c82b072a87fefe9ee36b7d628bbf56483aa4e56e055d041ec5c"
     },
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md",
-      "bytes": 35976,
-      "sha256": "116210ba76ad2e9a5ec66d3c76624e09eb5cb5673e105d57362e807a9e06d63e"
+      "bytes": 36401,
+      "sha256": "12310e9f28b21335784b19fcc4a78a9210781a75754c19dc35095b7a9d34b87a"
     }
   ],
   "note": "The manifest does not hash itself. Source and public Markdown pairs are byte-identical. A manifest proves bytes in this tree, not deployed identity."

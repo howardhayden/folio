@@ -202,7 +202,7 @@ test("active Llama terms, required attribution, and historical artifacts are reg
 
   assert.equal(active.status, "active");
   assert.equal(active.version, "Llama 3.1");
-  assert.equal(active.model, "meta-llama/Llama-3.1-8B-Instruct:deepinfra");
+  assert.equal(active.model, "meta-llama/Llama-3.1-8B-Instruct:nscale");
   assert.equal(active.modelRepositoryRevision, "0e9e39f249a16976918f6564b8830bc894c89659");
   assert.equal(sha256(activeLicense), active.license.sha256);
   assert.equal(sha256(activeAcceptableUse), active.acceptableUsePolicy.sha256);

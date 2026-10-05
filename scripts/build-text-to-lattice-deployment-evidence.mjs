@@ -267,12 +267,18 @@ async function readSanitizedEvidence(pathname, expectedFormat, expectedSchemaVer
   }
   inspectEvidenceValue(value);
   if (expectedFormat === "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE") {
-    // Historical v1 receipts remain evidence for their own revisions. Current
-    // assembly requires the v2 producer's complete fixed stage-target contract.
+    // Historical v1/v2 receipts retain their captured DeepInfra contracts.
+    // Current assembly requires v3's fixed Nscale targets and strict review formats.
     const expectedProvider = {
       endpoint: HUGGING_FACE_CHAT_COMPLETIONS_URL,
       verification_endpoint: HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL,
       verification_request_model: LATTICE_VERIFICATION_REQUEST_MODEL,
+      verification_response_format: "json_schema",
+      verification_schema_strict: true,
+      certification_endpoint: HUGGING_FACE_CHAT_COMPLETIONS_URL,
+      certification_request_model: LATTICE_REMOTE_MODELS.verifier,
+      certification_response_format: "json_schema",
+      certification_schema_strict: true,
       generator_model: LATTICE_REMOTE_MODELS.generator,
       verifier_model: LATTICE_REMOTE_MODELS.verifier,
       automatic_retry: false,
@@ -519,7 +525,7 @@ export async function buildTextToLatticeDeploymentEvidence({
     readJson(policyDeploymentPath, "response-policy deployment status"),
     readSanitizedEvidence(secretEvidencePath, "TEXT_TO_LATTICE_SECRET_BINDING_EVIDENCE"),
     readSanitizedEvidence(routeEvidencePath, "TEXT_TO_LATTICE_ROUTE_INVENTORY_EVIDENCE"),
-    readSanitizedEvidence(liveEvidencePath, "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE", 2),
+    readSanitizedEvidence(liveEvidencePath, "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE", 3),
   ]);
   const generatedAt = now();
   if (!(generatedAt instanceof Date) || Number.isNaN(generatedAt.valueOf())) {

@@ -1013,7 +1013,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     },
   };
   const expectedRuntime = {
-    name: "Hugging Face Inference Providers with Nscale and DeepInfra",
+    name: "Hugging Face Inference Providers with Nscale",
     version: "provider-managed remote service",
     packageUrl: "https://huggingface.co/docs/inference-providers/",
     documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
@@ -1169,7 +1169,6 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
     "https://huggingface.co/docs/inference-providers/en/security",
     "https://huggingface.co/docs/inference-providers/en/providers/nscale",
-    "https://huggingface.co/docs/inference-providers/en/providers/deepinfra",
   ]) assert.ok(upstreamUrls.has(required), required);
   for (const id of ["securityAndPrivacy", "interactiveRelease", "publicationMode"]) {
     assert.ok(namespaceTerms.some((term) => term.id === id), `${id} has a vocabulary definition`);

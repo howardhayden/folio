@@ -38,7 +38,7 @@ export default function TextToLatticePage() {
             ) : (
               <>
                 <p>The interactive client’s availability follows the machine-checked release record for this build.</p>
-                <p>Text is submitted only after explicit confirmation through the same-origin <code>/api/lattice</code> capability. The server uses fixed Nscale-served Qwen and DeepInfra-served Llama roles through the Hugging Face router; hah.dev application code does not retain the source or result, write raw-content logs, or send content to analytics.</p>
+                <p>Text is submitted only after explicit confirmation through the same-origin <code>/api/lattice</code> capability. The server uses fixed Nscale-served Qwen and Nscale-served Llama roles through the Hugging Face router; hah.dev application code does not retain the source or result, write raw-content logs, or send content to analytics.</p>
                 <p><a href="/resume/#text-to-lattice">Use Text to Lattice</a></p>
               </>
             )}
@@ -96,7 +96,7 @@ export default function TextToLatticePage() {
             <dl className="paper-meta">
               <div className="paper-meta-item"><dt>Browser destination</dt><dd>Same-origin <code>POST /api/lattice</code>; no query string, redirect, or provider origin; one browser-owned API-scoped quota cookie</dd></div>
               <div className="paper-meta-item"><dt>Exact request</dt><dd><code>{"{text, requested_mode, schema_version: 1}"}</code>; requested mode is auto, operative, or experiential</dd></div>
-              <div className="paper-meta-item"><dt>Server-side roles</dt><dd>Qwen3-4B-Instruct-2507 generates through Nscale; Llama 3.1 8B Instruct verifies through DeepInfra; both are fixed through Hugging Face Inference Providers</dd></div>
+              <div className="paper-meta-item"><dt>Server-side roles</dt><dd>Qwen3-4B-Instruct-2507 generates through Nscale; Llama 3.1 8B Instruct verifies through Nscale; both are fixed through Hugging Face Inference Providers</dd></div>
               <div className="paper-meta-item"><dt>Retention</dt><dd>No hah.dev application storage, raw-content logging, caching, queueing, or analytics for the source, prompts, candidates, or result</dd></div>
               <div className="paper-meta-item"><dt>Failure</dt><dd>Bounded machine-readable error; no browser retry and no provider or model fallback</dd></div>
             </dl>
@@ -117,7 +117,7 @@ export default function TextToLatticePage() {
                 </dl>
                 <p>{security.api.limitation}</p>
                 <ul>{security.api.sources.map((source) => <li key={source.url}><a href={source.url}>{source.label}</a></li>)}</ul>
-                <p>This text leaves hah.dev for external processing only after the visitor chooses Process with external service. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Hugging Face, Nscale, DeepInfra, and their infrastructure process submitted content under their own policies.</p>
+                <p>This text leaves hah.dev for external processing only after the visitor chooses Process with external service. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Hugging Face, Nscale, and their infrastructure process submitted content under their own policies.</p>
               </div>
             </details>
           </section>
