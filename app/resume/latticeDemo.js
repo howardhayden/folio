@@ -1,3 +1,4 @@
+import { getLatticeAnalysisPassageRetentionDowngrade } from "./lattice/analysisProvenance.js";
 import {
   LATTICE_CLARIFICATION_SAFETY_LIMIT,
   LATTICE_CLARIFICATION_SERIALIZED_UTF8_LIMIT,
@@ -158,6 +159,8 @@ const FINDING_STAGE_FAILURE_DIAGNOSTICS = new WeakMap();
 const REVIEW_STAGE_FAILURE_DIAGNOSTICS = new WeakMap();
 const WITHHELD_PIPELINE_OBSERVATIONS = new WeakMap();
 const NORMALIZED_ANALYSIS_RETENTION_DOWNGRADES = new WeakMap();
+const INITIAL_ANALYSIS_DOWNGRADED_PASSAGES = new WeakMap();
+const INITIAL_CANDIDATE_ANALYSES = new WeakMap();
 
 export function getLatticeWithheldPipelineObservation(trace) {
   return WITHHELD_PIPELINE_OBSERVATIONS.get(trace) ?? null;
@@ -374,7 +377,7 @@ async function normalizeAnalysis(
   revisionId,
   sourceFingerprint,
   committedProvenance = [],
-  { allowClarification = true, analysisAtomLimit = LATTICE_BATCH_ATOM_LIMIT, signal, observeRetentionDowngrade = false } = {},
+  { allowClarification = true, analysisAtomLimit = LATTICE_BATCH_ATOM_LIMIT, signal, observeRetentionDowngrade = false, initialAnalysis = false } = {},
 ) {
   protocol(typeof revisionId === "string" && ANALYSIS_REVISION_ID_PATTERN.test(revisionId),
     "The host supplied an invalid atomization revision.");
@@ -426,6 +429,7 @@ async function normalizeAnalysis(
     "The atomizer response referenced invalid fitted ledger provenance.");
 
   const passagesById = new Map();
+  const downgradedPassages = new WeakMap();
   let retentionDowngraded = false;
   const rawAtomIds = new Set();
   for (const rawPassage of raw.passages) {
@@ -559,6 +563,7 @@ async function normalizeAnalysis(
       });
     });
     let disposition = rawPassage.disposition;
+    let passageRetentionDowngraded = false;
     let retainedCriteria = conformanceCriteria;
     let retainedConformanceSpanIds = resolvedConformance.ids;
     let retainedConformanceEvidence = conformanceEvidence;
@@ -575,6 +580,7 @@ async function normalizeAnalysis(
         || !completeAssertions || !completeAssertionEvidence) {
         disposition = "rewrite";
         retentionDowngraded = true;
+        passageRetentionDowngraded = true;
       }
     }
     if (disposition === "rewrite") {
@@ -596,6 +602,14 @@ async function normalizeAnalysis(
       conformanceEvidence: retainedConformanceEvidence,
       conformanceAssertions: retainedAssertions,
     }));
+    if (initialAnalysis) {
+      const decodedDowngrade = getLatticeAnalysisPassageRetentionDowngrade(raw, rawPassage, source);
+      // A host downgrade can extend authentic decoder provenance, never create
+      // it from an unregistered adapter result or a model-authored property.
+      if (decodedDowngrade !== null && (decodedDowngrade || passageRetentionDowngraded)) {
+        downgradedPassages.set(passagesById.get(source.id), source);
+      }
+    }
   }
 
   for (const passage of passagesById.values()) {
@@ -625,6 +639,7 @@ async function normalizeAnalysis(
       signal,
     }) : Object.freeze([]),
   });
+  if (initialAnalysis) INITIAL_ANALYSIS_DOWNGRADED_PASSAGES.set(normalized, downgradedPassages);
   if (observeRetentionDowngrade) {
     const decoderObservation = getLatticeAnalysisRetentionDowngrade(raw);
     // Missing prior-decoder provenance stays unavailable even if the local
@@ -2865,6 +2880,18 @@ export function hasOnlyBoundNonmaterialFindings(entry) {
   ));
 }
 
+export function hasOnlyBoundDowngradedRetentionFindings(entry) {
+  const initial = INITIAL_CANDIDATE_ANALYSES.get(entry.candidate);
+  if (!initial || initial.analysis !== entry.analysis || initial.batch !== entry.batch
+    || !hasOnlyBoundNonmaterialFindings(entry)) return false;
+  const origins = INITIAL_ANALYSIS_DOWNGRADED_PASSAGES.get(entry.analysis);
+  return origins !== undefined && entry.deterministicFindings.every((finding) => {
+    const source = entry.batch.passages.find((passage) => passage.id === finding.passageId);
+    const plan = entry.analysis.passages.find((passage) => passage.passageId === finding.passageId);
+    return origins.get(plan) === source;
+  });
+}
+
 function canRepairAfterEmptyLayerSupport(entry) {
   if (entry.verification.available !== false || entry.deterministicFindings.length === 0) return false;
   // Both rejected checks must belong to the existing empty layer-support
@@ -3400,7 +3427,7 @@ export async function runTextToLattice(value, options = {}) {
           analysisRevisionId,
           sourceFingerprint,
           clarificationDocumentProvenance,
-          { allowClarification, analysisAtomLimit: analysisAtomPlan.analysisAtomLimit, signal,
+          { allowClarification, analysisAtomLimit: analysisAtomPlan.analysisAtomLimit, signal, initialAnalysis: true,
             observeRetentionDowngrade: pipelineObservation !== null },
         ),
         signal,
@@ -3584,6 +3611,7 @@ export async function runTextToLattice(value, options = {}) {
     pipelineObservation?.initialRetentions.add(
       NORMALIZED_ANALYSIS_RETENTION_DOWNGRADES.get(request.analysis) ?? "unavailable",
     );
+    INITIAL_CANDIDATE_ANALYSES.set(candidate, Object.freeze({ analysis: request.analysis, batch: request.batch }));
     candidates.push(Object.freeze({ ...request, candidate, deterministicFindings }));
     progress(onProgress, "generating", index + 1, analyses.length, request.batch.id);
   }
@@ -3701,7 +3729,8 @@ export async function runTextToLattice(value, options = {}) {
   }
 
   const structurallyFailed = failures.filter((entry) => entry.verification.available !== false && entry.verification.gates.languageSupported && (
-    !entry.verification.gates.sourceCoverage
+    hasOnlyBoundDowngradedRetentionFindings(entry)
+    || !entry.verification.gates.sourceCoverage
     || !entry.verification.gates.atomCoverage
     || !entry.verification.gates.registerFit
     || entry.verification.passages.some((passage) => (

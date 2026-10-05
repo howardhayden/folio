@@ -15,6 +15,7 @@ import {
   preflightLatticeInput,
   getLatticeWithheldPipelineObservation,
   hasOnlyBoundNonmaterialFindings,
+  hasOnlyBoundDowngradedRetentionFindings,
   runTextToLattice,
   validateLatticeClarificationAnswer,
   validateLatticeInput,
@@ -57,6 +58,7 @@ import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy
 import { latticeProtectedLiteralMatches } from "../app/resume/lattice/protectedSpans.js";
 import { rememberRejectedResult, deterministicFindingRule } from "../app/resume/lattice/rejectionDiagnostics.js";
 import { isClosedWithheldPipelineObservation, rememberLatticeAnalysisRetentionDowngrade } from "../app/resume/lattice/qualificationDiagnostics.js";
+import { rememberLatticeAnalysisPassageOrigins } from "../app/resume/lattice/analysisProvenance.js";
 import {
   deterministicDocumentReview,
   deterministicPassageReview,
@@ -389,6 +391,197 @@ function scriptedAdapter(behavior = {}) {
     },
   };
 }
+
+function withPassageOrigins(raw, request, downgraded = []) {
+  return rememberLatticeAnalysisPassageOrigins(raw, raw.passages.map((passage, index) => ({
+    passage, source: request.batch.passages[index], retentionDowngraded: downgraded.includes(index),
+  })));
+}
+
+test("downgraded retention reanalyzes before its existing replacement and independent checks", async () => {
+  const events = [];
+  const adapter = scriptedAdapter({
+    analyze(request, count) {
+      events.push(`analyze:${count}`);
+      if (count === 2) {
+        assert.ok(request.reanalysisFeedback);
+        assert.ok(request.reanalysisFeedback.passages.some((passage) => passage.materiality === false));
+      }
+      return withPassageOrigins(rawAnalysis(request), request, count === 1 ? [0] : []);
+    },
+    generate(request, count) {
+      events.push(`generate:${count}`);
+      assert.equal(request.regenerationFromReanalysis === true, count === 2);
+      return rawCandidate(request, { identity: count === 1 });
+    },
+    verify(request, count) { events.push(`verify:${count}`); return rawVerification(request); },
+    repair() { assert.fail("authenticated downgraded retention must use reanalysis/regeneration"); },
+    certify(request) { events.push("certify"); return { certificateId: request.certificateId,
+      obligationIds: request.obligationIds, decision: "accept",
+      checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, true])), issues: [] }; },
+  });
+  const result = await runTextToLattice(`${opaqueWords(12)}\n`, { adapter });
+  assert.equal(result.status, "translated");
+  assert.deepEqual(events, ["analyze:1", "generate:1", "verify:1", "analyze:2", "generate:2", "verify:2", "certify"]);
+  assert.equal(adapter.calls.repair, 0);
+});
+
+test("downgraded retention can establish fresh complete unchanged conformance only after reanalysis", async () => {
+  const source = `${opaqueWords(12)}\n`; let certified = 0;
+  const adapter = scriptedAdapter({
+    analyze(request, count) { return withPassageOrigins(rawAnalysis(request,
+      count === 1 ? {} : { disposition: "retain-if-conformant" }), request, count === 1 ? [0] : []); },
+    generate(request) { return rawCandidate(request, { identity: true }); },
+    repair() { assert.fail("no direct repair after reanalysis selection"); },
+    certify(request) { certified += 1; return { certificateId: request.certificateId,
+      obligationIds: request.obligationIds, decision: "accept",
+      checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, true])), issues: [] }; },
+  });
+  const result = await runTextToLattice(source, { adapter });
+  assert.equal(result.status, "conformant-for-context");assert.equal(result.text, source);
+  assert.equal(adapter.calls.analyze, 2);assert.equal(adapter.calls.generate, 2);assert.equal(adapter.calls.verify, 2);assert.equal(certified, 1);
+});
+
+test("retention reanalysis requires each authentic initial passage origin and unchanged identities", async (context) => {
+  for (const kind of ["explicit rewrite", "missing origin", "copied analysis", "proxied analysis", "copied passage",
+    "wrong source", "property spoof", "mixed affected origins", "only unrelated passage downgraded", "mixed deterministic findings"]) await context.test(kind, async () => {
+    let firstRequest;
+    const source = kind.includes("passage") || kind.includes("mixed affected")
+      ? `${opaqueWords(12)}\n\n${opaqueWords(12, "z")}\n` : `${opaqueWords(12)}\n`;
+    const adapter = scriptedAdapter({
+      analyze(request) {
+        firstRequest = request;const raw = rawAnalysis(request);
+        const marked = kind === "explicit rewrite" ? [] : [0];
+        if (kind !== "missing origin" && kind !== "property spoof") {
+          rememberLatticeAnalysisPassageOrigins(raw, raw.passages.map((passage, index) => ({ passage,
+            source: kind === "wrong source" ? { ...request.batch.passages[index] } : request.batch.passages[index],
+            retentionDowngraded: marked.includes(index) })));
+        }
+        if (kind === "copied analysis") return { ...raw };
+        if (kind === "proxied analysis") return new Proxy(raw, {});
+        if (kind === "copied passage") raw.passages[0] = { ...raw.passages[0] };
+        if (kind === "property spoof") Object.defineProperty(raw, "retentionDowngraded", { value: true });
+        return raw;
+      },
+      generate(request) {
+        const candidate = rawCandidate(request, { identity: true });
+        if (kind === "only unrelated passage downgraded") candidate.passages[0].text = rawCandidate(request).passages[0].text;
+        if (kind === "mixed deterministic findings") candidate.passages[0].layer = "experiential";
+        return candidate;
+      },
+      repair(request) { assert.equal(request.regenerationFromReanalysis, undefined);return rawCandidate(request); },
+    });
+    await runTextToLattice(source, { adapter });
+    assert.ok(firstRequest);assert.equal(adapter.calls.analyze, 1);assert.equal(adapter.calls.repair, 1);
+  });
+
+  await context.test("initial candidate, analysis, source batch, passage and finding identities all bind selection", async () => {
+    let checked = false;
+    const adapter = scriptedAdapter({
+      analyze(request) { return withPassageOrigins(rawAnalysis(request), request, [0]); },
+      generate(request, count) { return rawCandidate(request, { identity: count === 1 }); },
+      verify(request, count) {
+        if (count === 1) {
+          assert.equal(hasOnlyBoundDowngradedRetentionFindings(request), true);checked = true;
+          for (const replacement of [{ analysis: { ...request.analysis } },{ analysis: new Proxy(request.analysis, {}) },
+            { candidate: { ...request.candidate } },{ batch: { ...request.batch } },
+            { deterministicFindings: request.deterministicFindings.map((finding) => ({ ...finding })) }]) {
+            assert.equal(hasOnlyBoundDowngradedRetentionFindings({ ...request, ...replacement }), false);
+          }
+          assert.ok(Object.isFrozen(request.analysis));assert.ok(Object.isFrozen(request.analysis.passages[0]));
+        }
+        return rawVerification(request);
+      },
+    });
+    await runTextToLattice(`${opaqueWords(12)}\n`, { adapter });assert.equal(checked, true);
+  });
+});
+
+test("host retention downgrade extends only authenticated decoder passage origins", async (context) => {
+  for (const authenticated of [false, true]) await context.test(String(authenticated), async () => {
+    const adapter = scriptedAdapter({
+      analyze(request, count) {
+        const raw = rawAnalysis(request, count === 1 ? { disposition: "retain-if-conformant" } : {});
+        if (count === 1) raw.passages[0].conformanceEvidenceSpanIds.pop();
+        return authenticated ? withPassageOrigins(raw, request) : raw;
+      },
+      generate(request, count) { return rawCandidate(request, { identity: count === 1 }); },
+    });
+    const result = await runTextToLattice(`${opaqueWords(36)}\n`, { adapter });
+    assert.equal(result.status, "translated");assert.equal(adapter.calls.analyze, authenticated ? 2 : 1);
+    assert.equal(adapter.calls.repair, authenticated ? 0 : 1);
+  });
+});
+
+test("retention reanalysis preserves negative review feedback and requires all affected passage origins", async () => {
+  let analyses = 0;
+  const adapter = scriptedAdapter({
+    analyze(request, count) {
+      analyses += 1;assert.equal(request.batch.passages.length, 2);
+      if (count === 2) {
+        assert.equal(request.reanalysisFeedback.decision, "reject");
+        assert.equal(request.reanalysisFeedback.gates.safety, false);
+        assert.ok(request.reanalysisFeedback.passages.every((passage) => passage.materiality === false));
+      }
+      return withPassageOrigins(rawAnalysis(request), request, [0, 1]);
+    },
+    generate(request, count) { return rawCandidate(request, { identity: count === 1 }); },
+    verify(request, count) { return rawVerification(request, count === 1 ? { decision: "reject", gates: { safety: false } } : {}); },
+    repair() { assert.fail("both bound positive origins use existing reanalysis"); },
+  });
+  const result = await runTextToLattice(`${opaqueWords(12)}\n\n${opaqueWords(12, "z")}\n`, { adapter });
+  assert.equal(result.status, "translated");assert.equal(analyses, 2);assert.equal(adapter.calls.verify, 2);
+});
+
+test("downgraded retention preserves unavailable and unsupported-language recovery guards", async (context) => {
+  for (const mode of ["unavailable", "unsupported language", "empty support exception"]) await context.test(mode, async () => {
+    const adapter = scriptedAdapter({
+      analyze(request) { return withPassageOrigins(rawAnalysis(request), request, [0]); },
+      generate(request) { return rawCandidate(request, { identity: true }); },
+      verify(request, count) {
+        if (mode === "unavailable") return {};
+        if (mode === "unsupported language") return rawVerification(request, { gates: { languageSupported: false } });
+        return count <= 2 ? rememberRejectedResult({}, "coverage", count === 1 ? "V16M" : "V17M") : rawVerification(request);
+      },
+    });
+    await runTextToLattice(`${opaqueWords(12)}\n`, { adapter });
+    assert.equal(adapter.calls.analyze, 1);assert.equal(adapter.calls.repair, mode === "empty support exception" ? 1 : 0);
+  });
+});
+
+test("retention reanalysis failures cannot add a later repair or replacement loop", async (context) => {
+  for (const mode of ["reanalysis", "regeneration", "reverification", "still copied", "semantic rejection", "certification rejection"]) await context.test(mode, async () => {
+    let trace, originalRevision, finalRevision;let certifications = 0;
+    const adapter = scriptedAdapter({
+      analyze(request, count) {
+        originalRevision ??= request.analysisRevisionId;
+        return mode === "reanalysis" && count > 1 ? {} : withPassageOrigins(rawAnalysis(request), request, count === 1 ? [0] : []);
+      },
+      generate(request, count) {
+        if (mode === "regeneration" && count > 1) return {};
+        return rawCandidate(request, { identity: count === 1 || mode === "still copied" });
+      },
+      verify(request, count) {
+        finalRevision = request.analysisRevisionId;
+        if (mode === "reverification" && count > 1) return {};
+        return rawVerification(request, mode === "semantic rejection" && count > 1 ? { gates: { safety: false } } : {});
+      },
+      repair() { assert.fail("selected reanalysis cannot fall back to repair"); },
+      certify(request) { certifications += 1;return { certificateId: request.certificateId,
+        obligationIds: request.obligationIds, decision: "reject",
+        checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, name !== "boundaryFidelity"])), issues: [] }; },
+    });
+    const result = await runTextToLattice(`${opaqueWords(12)}\n`, { adapter, onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assertCandidateWithheld(result);assert.equal(adapter.calls.repair, 0);
+    assert.equal(adapter.calls.analyze, mode === "reanalysis" ? 3 : 2);
+    assert.equal(adapter.calls.generate, mode === "reanalysis" ? 1 : mode === "regeneration" ? 3 : 2);
+    assert.equal(adapter.calls.verify, ["reanalysis", "regeneration"].includes(mode) ? 1 : mode === "reverification" ? 3 : 2);
+    assert.equal(certifications, mode === "certification rejection" ? 1 : 0);
+    assert.equal(getLatticeWithheldPipelineObservation(trace).candidateLineage,
+      ["reanalysis", "regeneration", "reverification"].includes(mode) ? "initial" : "regeneration");
+    if (["reanalysis", "regeneration"].includes(mode)) assert.equal(finalRevision, originalRevision);
+  });
+});
 
 function collectSchemaEnums(value, result = new Set()) {
   if (Array.isArray(value)) {

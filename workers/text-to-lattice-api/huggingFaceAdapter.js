@@ -28,6 +28,7 @@ import {
 } from "../../app/resume/lattice/segments.js";
 import { LATTICE_PROVIDER_CALL_LIMIT } from "../../app/resume/lattice/remoteProtocol.js";
 import { rememberLatticeAnalysisRetentionDowngrade } from "../../app/resume/lattice/qualificationDiagnostics.js";
+import { rememberLatticeAnalysisPassageOrigins } from "../../app/resume/lattice/analysisProvenance.js";
 import { rememberRejectedResult, stageCorrectionRequestDiagnostic } from "../../app/resume/lattice/rejectionDiagnostics.js";
 
 export { LATTICE_PROVIDER_CALL_LIMIT };
@@ -1790,6 +1791,7 @@ function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false) {
     sourceAtom.links.push({ relation, targetAtomId });
   }
   const passages = [];
+  const passageOrigins = [];
   let retentionDowngraded = false;
   for (const rawPassage of rawPassages) {
     const coveredEvidence = new Set(rawPassage.atoms.flatMap(({ evidenceSpanIds }) => evidenceSpanIds));
@@ -1806,6 +1808,7 @@ function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false) {
     let conformanceEvidenceSpanIds = [];
     let conformanceAssertions = [];
     let disposition = rawPassage.disposition;
+    let passageRetentionDowngraded = false;
     if (disposition === "retain-if-conformant") {
       conformanceCriteria = [
         ...LATTICE_CONFORMANCE_CRITERIA.universal,
@@ -1828,6 +1831,7 @@ function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false) {
         || rawPassage.evidenceIds.some((id) => !assertedEvidence.has(id))) {
         disposition = "rewrite";
         retentionDowngraded = true;
+        passageRetentionDowngraded = true;
         conformanceCriteria = [];
         conformanceAssertions = [];
       } else {
@@ -1846,8 +1850,14 @@ function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false) {
       conformanceEvidenceSpanIds,
       conformanceAssertions,
     });
+    passageOrigins.push({
+      passage: passages.at(-1),
+      source: fit.passages[passages.length - 1],
+      retentionDowngraded: passageRetentionDowngraded,
+    });
   }
   const result = { documentKind, passages, questions: [] };
+  rememberLatticeAnalysisPassageOrigins(result, passageOrigins);
   // Attach no observation to a partial or rejected decode. This branch changes
   // neither the canonicalization above nor any accepted analysis value.
   if (observeRetentionDowngrade) {
