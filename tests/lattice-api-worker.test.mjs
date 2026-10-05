@@ -55,7 +55,10 @@ import {
   createHuggingFaceLatticeAdapter,
   isClosedProviderHttpHeaders,
   isClosedProviderEnvelopeShape,
+  isClosedProviderStrictMessageShape,
+  getLatticeProviderStrictMessageShape,
   LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS,
+  LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS,
   requestHuggingFaceJson,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
@@ -82,6 +85,7 @@ import {
   LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_EXPIRES_AT_BINDING,
@@ -5806,7 +5810,7 @@ test("coded envelope observations remain confined to marked expiring qualificati
   assert.deepEqual(await json(ordinary), { error: "malformed_upstream_response" });
   assert.deepEqual(await json(marked), { error: "malformed_upstream_response" });
   for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) assert.equal(ordinary.headers.has(header), false);
-  assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "message_shape");
+  assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "M01");
   assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage), "certification");
   assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stageAttempt), "initial");
   assert.equal(JSON.stringify([...marked.headers]).includes(privateMarker), false);
@@ -6764,7 +6768,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
 });
 
 test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
-  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v12");
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v13");
   const diagnosticHeaders = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
       LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -6971,7 +6975,7 @@ test("the terminal analysis diagnostic is all-or-none, bounded, and qualificatio
   }
 });
 
-test("the v12 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v13 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -7961,6 +7965,111 @@ test("strict Nscale reviews reject auxiliary fields and never interpret a compet
   });
 });
 
+test("M01 records the strict review key shape without changing rejection or exposing content", async (t) => {
+  const fields = [...LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS, "tool_calls", "function_call"];
+  assert.deepEqual(LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS, fields);
+  const values = [[null, "n"], ["", "s"], ["PRIVATE-VALUE", "S"], [[], "a"], [["PRIVATE-VALUE"], "A"],
+    [{}, "o"], [{ secret: "PRIVATE-VALUE" }, "O"], [true, "b"], [123, "d"]];
+  const cases = values.map(([value, code], index) => ({
+    extras: { ...Object.fromEntries(fields.map((field) => [field, value])), "PRIVATE-UNKNOWN-KEY": value },
+    shape: { namedShape: code.repeat(10), unknownCount: "1", unknownShapes: "0".repeat(index) + "1" + "0".repeat(8 - index) },
+  }));
+  for (const [index, field] of fields.entries()) cases.push({ extras: { [field]: null },
+    shape: { namedShape: "-".repeat(index) + "n" + "-".repeat(9 - index), unknownCount: "0", unknownShapes: "000000000" } });
+  cases.push({ extras: { "PRIVATE-KEY-1": null, "PRIVATE-KEY-2": "", "PRIVATE-KEY-3": [] },
+    shape: { namedShape: "----------", unknownCount: "3-plus", unknownShapes: "110100000" } });
+  for (const method of ["verify", "certify"]) await t.test(method, async () => {
+    for (const { extras, shape } of cases) {
+      let calls = 0;
+      const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationStrictMessageShape: true,
+        fetchImpl: async () => { calls += 1; return providerChoiceResponse({ finish_reason: "stop", message: {
+          role: "assistant", content: "PRIVATE-CONTENT", ...extras,
+        } }); } });
+      await assert.rejects(adapter[method](method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest()), (error) => {
+        assert.equal(error.qualificationSubtype, "M01");
+        assert.equal(error.code, "provider_malformed_response");
+        assert.doesNotMatch(JSON.stringify(error) + error.message, /PRIVATE/u);
+        assert.equal(error.qualificationEnvelopeShape, null);
+        assert.deepEqual(getLatticeProviderStrictMessageShape(error), shape);
+        assert.equal(Object.isFrozen(getLatticeProviderStrictMessageShape(error)), true);
+        assert.doesNotMatch(JSON.stringify(getLatticeProviderStrictMessageShape(error)), /PRIVATE/u);
+        return true;
+      });
+      assert.equal(calls, 1); assert.equal(adapter.completionCapacity().used, 1);
+    }
+  });
+});
+
+test("M01 observation stays off by default and cannot change strict acceptance or another rejection boundary", async () => {
+  const request = minimalVerificationRequest();
+  const content = JSON.stringify(acceptingVerificationWire(request));
+  for (const observed of [false, true]) {
+    for (const [message, finish, expected] of [
+      [{ role: "assistant", content, tool_calls: null }, "stop", observed ? "M01" : "message_shape"],
+      [{ role: "assistant" }, "stop", "message_shape"],
+      [null, "stop", "message_shape"],
+      [{ role: "user", content, tool_calls: null }, "stop", "message_role"],
+      [{ role: "assistant", content, tool_calls: null }, "length", "none"],
+      [{ role: "assistant", content: "PRIVATE-NOT-JSON" }, "stop", "content_json"],
+    ]) {
+      const adapter = createHuggingFaceLatticeAdapter({ token: "test-only",
+        ...(observed ? { observeQualificationStrictMessageShape: true } : {}),
+        fetchImpl: async () => providerChoiceResponse({ finish_reason: finish, message }) });
+      await assert.rejects(adapter.verify(request), (error) => {
+        assert.equal(error.qualificationSubtype, expected);
+        assert.equal(getLatticeProviderStrictMessageShape(error) !== null, expected === "M01");
+        return true;
+      });
+      assert.equal(adapter.completionCapacity().used, 1);
+    }
+    const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationStrictMessageShape: observed,
+      fetchImpl: async () => successfulProviderResponse(acceptingVerificationWire(request)) });
+    assert.ok(await adapter.verify(request));
+    assert.equal(adapter.completionCapacity().used, 1);
+  }
+  for (const invalid of [null, "true", 1]) assert.throws(() => createHuggingFaceLatticeAdapter({
+    token: "test-only", observeQualificationStrictMessageShape: invalid,
+  }), /invalid requested mode/u);
+});
+
+test("M01 shape records and error identity reject accessors, copies and impossible groups", async () => {
+  const valid = { namedShape: "--------n-", unknownCount: "0", unknownShapes: "000000000" };
+  assert.equal(isClosedProviderStrictMessageShape(Object.freeze({ ...valid })), true);
+  assert.equal(isClosedProviderEnvelopeShape(Object.freeze({ ...valid })), false);
+  let reads = 0;
+  for (const value of [valid, Object.freeze({ ...valid, get namedShape() { reads += 1; return valid.namedShape; } }),
+    Object.freeze(Object.assign(Object.create(null), valid)), Object.freeze({ ...valid, private: "PRIVATE" }),
+    Object.freeze({ ...valid, [Symbol("PRIVATE")]: true }),
+    ...[{ namedShape: "----------" }, { namedShape: "--------" }, { namedShape: "PRIVATE" },
+      { unknownShapes: "000000000\n" }, { unknownShapes: "000000000\r\n" }, { unknownShapes: "000000000\u2028" },
+      { unknownCount: "0", unknownShapes: "100000000" }, { unknownCount: "1" },
+      { unknownCount: "1", unknownShapes: "110000000" }, { unknownCount: "PRIVATE" }]
+      .map((patch) => Object.freeze({ ...valid, ...patch }))]) {
+    assert.equal(isClosedProviderStrictMessageShape(value), false);
+  }
+  const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationStrictMessageShape: true,
+    fetchImpl: async () => providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant", content: "PRIVATE", tool_calls: null } }) });
+  let failure;
+  try { await adapter.verify(minimalVerificationRequest()); } catch (error) { failure = error; }
+  assert.deepEqual(getLatticeProviderStrictMessageShape(failure), valid);
+  const spoof = new LatticeProviderError("provider_malformed_response", "PRIVATE");
+  Object.defineProperties(spoof, Object.getOwnPropertyDescriptors(failure));
+  Object.defineProperty(spoof, "strictMessageShape", { get() { reads += 1; return Object.freeze(valid); } });
+  const { proxy, revoke } = Proxy.revocable(failure, {}); revoke();
+  for (const value of [undefined, null, "PRIVATE", { ...failure }, spoof, new Proxy(failure, {}), proxy]) {
+    assert.equal(getLatticeProviderStrictMessageShape(value), null);
+  }
+  const worker = createLatticeApiWorker({ createAdapter: () => ({}), runTextToLatticeImpl: async () => { throw spoof; } });
+  const response = await worker.fetch(apiRequest(validPayload, { headers: {
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  } }), { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-10-05T12:00:00.000Z" });
+  assert.equal(response.status, 502);
+  for (const header of [...Object.values(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS),
+    ...Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)]) assert.equal(response.headers.has(header), false);
+  assert.equal(reads, 0);
+  assert.doesNotMatch(await response.text(), /PRIVATE/u);
+});
+
 test("S06 shape records reject content channels, accessors and impossible combinations", () => {
   const valid = { namedShape: "--n-a---", unknownCount: "0", unknownShapes: "000000000" };
   assert.equal(isClosedProviderEnvelopeShape(Object.freeze({ ...valid })), true);
@@ -7969,6 +8078,7 @@ test("S06 shape records reject content channels, accessors and impossible combin
   for (const value of [valid, getter, Object.freeze(Object.assign(Object.create(null), valid)),
     Object.freeze({ ...valid, private: "PRIVATE" }), Object.freeze({ ...valid, [Symbol("PRIVATE")]: true }),
     ...[{ namedShape: "PRIVATE" }, { namedShape: "--------" }, { namedShape: "--n-a----" },
+      { unknownShapes: "000000000\n" }, { unknownShapes: "000000000\r\n" }, { unknownShapes: "000000000\u2028" },
       { unknownCount: "0", unknownShapes: "100000000" }, { unknownCount: "1" },
       { unknownCount: "1", unknownShapes: "110000000" }, { unknownCount: "2", unknownShapes: "111000000" },
       { unknownCount: "3-plus", unknownShapes: "PRIVATE" }].map((patch) => Object.freeze({ ...valid, ...patch }))]) {
@@ -7977,15 +8087,15 @@ test("S06 shape records reject content channels, accessors and impossible combin
   assert.equal(reads, 0);
 });
 
-test("strict review errors expose no legacy S06 shape headers even with an active marker", async () => {
+test("M01 strict review headers require v13 and an active window without exposing legacy S06 headers", async () => {
   const request = { ...minimalCertificationRequest() };
   Object.defineProperty(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
     value: Object.freeze({ attempt: "initial", priorValidationCategory: "none" }), enumerable: false,
   }); Object.freeze(request);
   const active = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
   const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE };
-  for (const [env, headers] of [[active, marked, true], [active, {}, false],
-    [active, { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v9" }, false],
+  for (const [env, headers, observed] of [[active, marked, true], [active, {}, false],
+    [active, { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v12" }, false],
     [{ HF_TOKEN: "test-only" }, marked, false],
     [{ ...active, [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2000-01-01T00:00:00.000Z" }, marked, false]]) {
     let calls = 0;
@@ -7996,12 +8106,40 @@ test("strict review errors expose no legacy S06 shape headers even with an activ
       } });
     }, runTextToLatticeImpl: async (_text, { adapter }) => adapter.certify(request) });
     const response = await worker.fetch(apiRequest(validPayload, { headers }), env);
-    const observed = Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS)
+    const legacy = Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS)
       .map(([field, header]) => [field, response.headers.get(header)]));
-    assert.deepEqual(observed, { namedShape: null, unknownCount: null, unknownShapes: null });
+    assert.deepEqual(legacy, { namedShape: null, unknownCount: null, unknownShapes: null });
+    const strict = Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS)
+      .map(([field, header]) => [field, response.headers.get(header)]));
+    assert.deepEqual(strict, observed ? { namedShape: "--n-a-----", unknownCount: "0", unknownShapes: "000000000" }
+      : { namedShape: null, unknownCount: null, unknownShapes: null });
     assert.doesNotMatch(JSON.stringify([...response.headers]) + await response.text(), /PRIVATE/u);
     assert.ok(calls <= 1);
   }
+});
+
+test("M01 observations cannot escape qualification expiry during strict review", async () => {
+  let instant = Date.parse("2026-10-05T12:00:00.000Z");
+  let failure;
+  const worker = createLatticeApiWorker({ now: () => instant,
+    fetchImpl: async () => {
+      instant += 20_000;
+      return providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant", content: "PRIVATE", tool_calls: null } });
+    },
+    runTextToLatticeImpl: async (_text, { adapter }) => {
+      try { await adapter.verify(minimalVerificationRequest()); } catch (error) { failure = error; throw error; }
+    },
+  });
+  const response = await worker.fetch(apiRequest(validPayload, { headers: {
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  } }), { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2026-10-05T12:00:10.000Z" });
+  assert.equal(failure.qualificationSubtype, "M01");
+  assert.deepEqual(getLatticeProviderStrictMessageShape(failure), {
+    namedShape: "--------n-", unknownCount: "0", unknownShapes: "000000000",
+  });
+  for (const header of [...Object.values(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS),
+    ...Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)]) assert.equal(response.headers.has(header), false);
+  assert.doesNotMatch(JSON.stringify([...response.headers]) + await response.text(), /PRIVATE/u);
 });
 
 test("mixed rewrite and retention layouts never supply a semantic conformance default", async () => {
@@ -8060,7 +8198,7 @@ async function run212PriorVerificationFailure({
   first = "V01F", errorOverrides = null, headers = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   }, expiresAt = "2099-10-02T14:00:00.000Z", clock = () => Date.now(),
-  onFailure = () => {},
+  onFailure = () => {}, correctionEnvelopeExtras = null,
 } = {}) {
   let failure = null;
   let verifies = 0;
@@ -8088,6 +8226,9 @@ async function run212PriorVerificationFailure({
         "A guest sets a blue notebook on the desk, reviews the first page, then shuts it."));
       assert.equal(isVerificationBody(body), true, "the failed correction must not reach certification");
       if (verifies > 1 || first === "initial-provider") {
+        if (correctionEnvelopeExtras !== null) return providerChoiceResponse({ finish_reason: "stop", message: {
+          role: "assistant", content: JSON.stringify(canaryVerificationWire(body)), ...correctionEnvelopeExtras,
+        } });
         return providerChoiceResponse({ finish_reason: "length", message: {
           role: "assistant", content: "PRIVATE-RUN212-TRUNCATED-OUTPUT",
         } });
@@ -8106,6 +8247,28 @@ async function run212PriorVerificationFailure({
   const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers }), env);
   return { response, failure, bodies, verifies };
 }
+
+test("M01 retains authentic correction provenance and stops at the same bounded call", async () => {
+  const { response, failure, bodies, verifies } = await run212PriorVerificationFailure({ correctionEnvelopeExtras: { tool_calls: null } });
+  assert.equal(response.status, 502);
+  assert.deepEqual(await json(response), { error: "malformed_upstream_response" });
+  assert.equal(bodies.length, 4); assert.equal(verifies, 2);
+  assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stageAttempt), "correction");
+  assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "M01");
+  assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal), "4");
+  assert.deepEqual(getLatticeVerificationPriorRejection(failure), { boundary: "wire-decoder", category: "field-set", rule: "V01F" });
+  for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS)) {
+    assert.equal(response.headers.get(header), getLatticeVerificationPriorRejection(failure)[field]);
+  }
+  for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS)) {
+    assert.equal(response.headers.get(header), getLatticeProviderStrictMessageShape(failure)[field]);
+  }
+  for (const body of bodies.filter(isVerificationBody)) {
+    assert.equal(body.max_tokens, 2048); assert.equal(body.response_format.json_schema.strict, true);
+    assert.equal(body.model, LATTICE_REMOTE_MODELS.verifier);
+    assert.doesNotMatch(JSON.stringify(body), /M01|observeQualificationStrictMessageShape/u);
+  }
+});
 
 test("a verifier provider correction retains the actual first wire rejection in marked qualification headers", async (t) => {
   for (const [rule, category] of [["V01F", "field-set"], ["V17M", "coverage"],

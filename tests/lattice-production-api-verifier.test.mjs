@@ -32,6 +32,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
@@ -2072,6 +2073,48 @@ test("S06 qualification shape is complete, compatible and non-reflective", async
   }
 });
 
+
+test("M01 qualification strict message shape is complete, stage-bound and non-reflective", async (t) => {
+  const h = LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS;
+  const d = LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS;
+  const base = qualificationDiagnosticHeaders({ failureClass: "provider_malformed_response", upstreamStatus: "none",
+    stage: "verification", subtype: "M01", finishReason: "stop", analysisOrigin: "none", analysisAttempt: "none" });
+  const shape = Object.fromEntries(Object.entries(h).map(([field, header]) => [header,
+    { namedShape: "-----nn-a-", unknownCount: "0", unknownShapes: "000000000" }[field]]));
+  const exact = { ...base, ...shape };
+  const invalid = /invalid qualification strict message shape/u;
+  const partial = { ...exact }; delete partial[h.unknownShapes];
+  const unknown = "X-Lattice-Qualification-Strict-Message-PRIVATE-KEY";
+  const legacy = Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS)
+    .map(([field, header]) => [header, { namedShape: "-----nn-", unknownCount: "0", unknownShapes: "000000000" }[field]]));
+  for (const [name, headers, status, expected] of [
+    ["exact verification", exact, 502, /subtype=M01.*strict_message_namedShape=-----nn-a-; strict_message_unknownCount=0; strict_message_unknownShapes=000000000/u],
+    ["exact certification", { ...exact, [d.stage]: "certification" }, 502, /stage=certification.*subtype=M01/u],
+    ["exact correction", { ...exact, [d.stageAttempt]: "correction", [d.priorValidationCategory]: "response-shape", [d.callOrdinal]: "4" }, 502, /subtype=M01/u],
+    ["missing all", base, 502, /incomplete qualification strict message shape/u],
+    ["partial", partial, 502, /incomplete qualification strict message shape/u],
+    ["private value", { ...exact, [h.namedShape]: "PRIVATE-VALUE" }, 502, invalid],
+    ["legacy width", { ...exact, [h.namedShape]: "-----nn-" }, 502, invalid],
+    ["impossible absence", { ...exact, [h.namedShape]: "----------" }, 502, invalid],
+    ["impossible count", { ...exact, [h.unknownShapes]: "100000000" }, 502, invalid],
+    ["unknown header alone", { [unknown]: "PRIVATE-VALUE" }, 502, invalid],
+    ["unknown header with shape", { ...exact, [unknown]: "PRIVATE-VALUE" }, 502, invalid],
+    ["wrong subtype", { ...exact, [d.subtype]: "message_shape" }, 502, /incompatible qualification strict message shape/u],
+    ["wrong stage", { ...exact, [d.stage]: "candidate" }, 502, /invalid qualification diagnostic/u],
+    ["wrong finish", { ...exact, [d.finishReason]: "tool_calls" }, 502, /invalid qualification diagnostic/u],
+    ["on success", exact, 200, /qualification diagnostic on success/u],
+    ["alone on success", shape, 200, /incompatible qualification strict message shape/u],
+    ["legacy group on M01", { ...exact, ...legacy }, 502, /incompatible qualification envelope shape/u],
+    ["strict group on S06", { ...exact, ...legacy, [d.subtype]: "S06" }, 502, /incompatible qualification strict message shape/u],
+  ]) await t.test(name, async () => {
+    const body = status === 200 ? { result: validResult(), schema_version: 1 } : { error: "malformed_upstream_response" };
+    const fixture = successfulFixture({ canaryResponse: apiJson(body, status, headers) });
+    await assert.rejects(verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait }), (error) => {
+      assert.match(error.message, expected); assert.doesNotMatch(error.message, /PRIVATE/u); return true;
+    });
+    assert.equal(fixture.canaryRequests, 1); assert.equal(fixture.setupRequests, 1);
+  });
+});
 
 test("first verification rejection on a correction provider failure is finite, complete and compatible", async (t) => {
   const marker = "PRIVATE-PRIOR-VERIFICATION-MUST-NOT-CROSS";

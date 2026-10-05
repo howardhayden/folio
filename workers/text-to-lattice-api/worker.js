@@ -31,6 +31,7 @@ import {
   createHuggingFaceLatticeAdapter,
   isClosedProviderHttpHeaders,
   isClosedProviderEnvelopeShape,
+  getLatticeProviderStrictMessageShape,
   providerEnvelopeSubtypeIsConsistent,
 } from "./huggingFaceAdapter.js";
 import {
@@ -57,7 +58,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v12";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v13";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
@@ -83,6 +84,11 @@ export const LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS = Object.free
   namedShape: "X-Lattice-Qualification-Envelope-Named-Shape",
   unknownCount: "X-Lattice-Qualification-Envelope-Unknown-Count",
   unknownShapes: "X-Lattice-Qualification-Envelope-Unknown-Shapes",
+});
+export const LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS = Object.freeze({
+  namedShape: "X-Lattice-Qualification-Strict-Message-Named-Shape",
+  unknownCount: "X-Lattice-Qualification-Strict-Message-Unknown-Count",
+  unknownShapes: "X-Lattice-Qualification-Strict-Message-Unknown-Shapes",
 });
 export const LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   mediaType: "X-Lattice-Qualification-Http-Media-Type",
@@ -516,6 +522,7 @@ function qualificationProviderDiagnostic(error) {
     || !LATTICE_PROVIDER_MALFORMED_SUBTYPE_SET.has(subtype)
     || !LATTICE_PROVIDER_FINISH_REASON_SET.has(finishReason)
     || !providerEnvelopeSubtypeIsConsistent(subtype, stage, finishReason)
+    || (subtype === "M01" && getLatticeProviderStrictMessageShape(error) === null)
     || !LATTICE_PROVIDER_SIZE_BUCKET_SET.has(requestSize)
     || !LATTICE_PROVIDER_SIZE_BUCKET_SET.has(responseSize)
     || !LATTICE_PROVIDER_SIZE_BUCKET_SET.has(contentSize)
@@ -581,6 +588,12 @@ function withQualificationProviderDiagnostic(response, error, enabled) {
     && isClosedProviderEnvelopeShape(error.qualificationEnvelopeShape)) {
     for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS)) {
       response.headers.set(header, error.qualificationEnvelopeShape[field]);
+    }
+  }
+  if (diagnostic.failureClass === "provider_malformed_response" && diagnostic.subtype === "M01") {
+    const shape = getLatticeProviderStrictMessageShape(error);
+    for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS)) {
+      response.headers.set(header, shape[field]);
     }
   }
   if (error.code === "provider_http_error" && isClosedProviderHttpHeaders(error.qualificationHttpHeaders)) {
@@ -902,6 +915,7 @@ export function createLatticeApiWorker({
           fetchImpl,
           observeQualificationHttpHeaders: qualificationDiagnosticRequested,
           observeQualificationEnvelopeShape: qualificationDiagnosticRequested,
+          observeQualificationStrictMessageShape: qualificationDiagnosticRequested,
         };
         if (providerCallTimeoutMs !== undefined) adapterOptions.callTimeoutMs = providerCallTimeoutMs;
         if (providerResponseByteLimit !== undefined) {

@@ -37,6 +37,7 @@ import {
   providerEnvelopeSubtypeIsConsistent,
   isClosedProviderHttpHeaders,
   isClosedProviderEnvelopeShape,
+  isClosedProviderStrictMessageShape,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
   LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
@@ -56,6 +57,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
@@ -963,6 +965,27 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   } else if (shapePresent !== 0) {
     fail(`${label} returned an incompatible qualification envelope shape`);
   }
+  const strictShapeHeaders = new Set(Object.values(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS)
+    .map((header) => header.toLowerCase()));
+  for (const header of response.headers.keys()) {
+    if (header.startsWith("x-lattice-qualification-strict-message-") && !strictShapeHeaders.has(header)) {
+      fail(`${label} returned an invalid qualification strict message shape`);
+    }
+  }
+  const strictShapeValues = Object.freeze(Object.fromEntries(Object.entries(
+    LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS,
+  ).map(([field, header]) => [field, response.headers.get(header)])));
+  const strictShapePresent = Object.values(strictShapeValues).filter((value) => value !== null).length;
+  const expectsStrictShapeObservation = diagnostic?.failureClass === "provider_malformed_response"
+    && diagnostic.subtype === "M01";
+  if (expectsStrictShapeObservation) {
+    if (strictShapePresent !== Object.keys(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS).length) {
+      fail(`${label} returned an incomplete qualification strict message shape`);
+    }
+    if (!isClosedProviderStrictMessageShape(strictShapeValues)) fail(`${label} returned an invalid qualification strict message shape`);
+  } else if (strictShapePresent !== 0) {
+    fail(`${label} returned an incompatible qualification strict message shape`);
+  }
   const httpValues = Object.freeze(Object.fromEntries(Object.entries(
     LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   ).map(([field, header]) => [field, response.headers.get(header)])));
@@ -1100,6 +1123,9 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
           + `; prior_rejection_rule=${priorVerificationRejection.rule}`)
       + (expectsShapeObservation
         ? Object.entries(shapeValues).map(([field, value]) => `; envelope_${field}=${value}`).join("")
+        : "")
+      + (expectsStrictShapeObservation
+        ? Object.entries(strictShapeValues).map(([field, value]) => `; strict_message_${field}=${value}`).join("")
         : "")
       + (expectsHttpObservation
         ? Object.entries(httpValues).map(([field, value]) => `; http_${field}=${value}`).join("")
