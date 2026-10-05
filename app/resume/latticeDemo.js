@@ -2828,6 +2828,14 @@ function batchFindings(batch, deterministic, verification) {
   return findings;
 }
 
+export function hasOnlyBoundNonmaterialFindings(entry) {
+  return entry.deterministicFindings.length > 0 && entry.deterministicFindings.every((finding) => (
+    deterministicFindingRule(finding) === "D14"
+    && entry.batch.passages.some((passage) => passage.id === finding.passageId)
+    && entry.analysis.passages.some((plan) => plan.passageId === finding.passageId && plan.disposition === "rewrite")
+  ));
+}
+
 function canRepairAfterEmptyLayerSupport(entry) {
   if (entry.verification.available !== false || entry.deterministicFindings.length === 0) return false;
   // Both rejected checks must belong to the existing empty layer-support
@@ -2841,11 +2849,7 @@ function canRepairAfterEmptyLayerSupport(entry) {
     || failure.rejectionCategory !== "coverage" || failure.priorRejectionCategory !== "coverage"
     || !["V16M", "V17M"].includes(failure.rejectionRule)
     || !["V16M", "V17M"].includes(failure.priorRejectionRule)) return false;
-  return entry.deterministicFindings.every((finding) => (
-    deterministicFindingRule(finding) === "D14"
-    && entry.batch.passages.some((passage) => passage.id === finding.passageId)
-    && entry.analysis.passages.some((plan) => plan.passageId === finding.passageId && plan.disposition === "rewrite")
-  ));
+  return hasOnlyBoundNonmaterialFindings(entry);
 }
 
 function unavailableVerification(batch, analysis, message) {
@@ -3776,6 +3780,8 @@ export async function runTextToLattice(value, options = {}) {
     const retryRequest = Object.freeze({
       ...original,
       ...(reanalyzedByBatch.has(original.batch.id) ? { regenerationFromReanalysis: true } : {}),
+      ...(!reanalyzedByBatch.has(original.batch.id) && hasOnlyBoundNonmaterialFindings(original)
+        ? { repairFromSource: true } : {}),
       // Repair only the host-proved defect; the unavailable review contains
       // placeholders, not independent semantic findings. Fresh verification
       // below must still establish every required condition for the new draft.

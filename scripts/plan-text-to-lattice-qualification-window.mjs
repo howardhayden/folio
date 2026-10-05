@@ -16,6 +16,28 @@ function exactDate(value, label) {
   return value;
 }
 
+export function validateTextToLatticeQualificationOperation(environment) {
+  if (environment === null || typeof environment !== "object" || Array.isArray(environment)) {
+    fail("the qualification operation environment is invalid.");
+  }
+  const flag = (name) => {
+    const value = environment[name] ?? "";
+    if (!["", "false", "true"].includes(value)) fail("a qualification operation flag is invalid.");
+    return value === "true";
+  };
+  const restore = flag("LATTICE_RESTORE_QUALIFICATION");
+  const activate = flag("LATTICE_ACTIVATE_QUALIFICATION");
+  const deploy = flag("LATTICE_DEPLOY_SERVICES");
+  if (!restore) return "ordinary";
+  if (environment.LATTICE_OPERATION_EVENT !== "workflow_dispatch"
+    || environment.LATTICE_OPERATION_REF !== "refs/heads/main"
+    || environment.LATTICE_OPERATION_PHASE !== "qualification-pending"
+    || activate || deploy) {
+    fail("immediate rollback requires an exclusive dispatch on current qualification-pending main.");
+  }
+  return "rollback";
+}
+
 export function planTextToLatticeQualificationWindow({
   now = () => new Date(),
 } = {}) {
@@ -34,13 +56,15 @@ export async function waitForTextToLatticeQualificationCleanup(cleanupAt, {
   now = () => new Date(),
   wait = (milliseconds) => new Promise((resolveWait) => setTimeout(resolveWait, milliseconds)),
 } = {}) {
-  if (typeof cleanupAt !== "string" || !CANONICAL_TIMESTAMP.test(cleanupAt)
+  if (typeof cleanupAt !== "string" || CANONICAL_TIMESTAMP.exec(cleanupAt)?.[0] !== cleanupAt
     || typeof now !== "function" || typeof wait !== "function") {
     fail("the cleanup timestamp or wait dependency is invalid.");
   }
   const current = exactDate(now(), "the wait timestamp");
   const target = new Date(cleanupAt);
-  if (Number.isNaN(target.valueOf())) fail("the cleanup timestamp is invalid.");
+  if (Number.isNaN(target.valueOf()) || target.toISOString() !== cleanupAt) {
+    fail("the cleanup timestamp is invalid.");
+  }
   const delay = Math.max(0, target.valueOf() - current.valueOf());
   if (delay > TEXT_TO_LATTICE_QUALIFICATION_WINDOW_MS) {
     fail("the cleanup timestamp exceeds the bounded qualification window.");
@@ -50,8 +74,11 @@ export async function waitForTextToLatticeQualificationCleanup(cleanupAt, {
 }
 
 function cliArguments(argumentsList) {
+  if (argumentsList.length === 1 && argumentsList[0] === "--validate-operation") {
+    return { mode: "validate" };
+  }
   if (argumentsList.length !== 2) {
-    fail("pass either --github-output <absolute path> or --wait-until <timestamp>.");
+    fail("pass --validate-operation, --github-output <absolute path>, or --wait-until <timestamp>.");
   }
   const [option, value] = argumentsList;
   if (option === "--github-output") {
@@ -67,7 +94,10 @@ const isCommand = process.argv[1]
 
 if (isCommand) {
   const { mode, value } = cliArguments(process.argv.slice(2));
-  if (mode === "plan") {
+  if (mode === "validate") {
+    const operation = validateTextToLatticeQualificationOperation(process.env);
+    process.stdout.write(`Qualification operation validated: ${operation}.\n`);
+  } else if (mode === "plan") {
     const plan = planTextToLatticeQualificationWindow();
     await appendFile(resolve(value), [
       `qualification_planned_at=${plan.qualificationPlannedAt}`,

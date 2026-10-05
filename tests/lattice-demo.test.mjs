@@ -14,6 +14,7 @@ import {
   countLatticeWords,
   preflightLatticeInput,
   getLatticeWithheldPipelineObservation,
+  hasOnlyBoundNonmaterialFindings,
   runTextToLattice,
   validateLatticeClarificationAnswer,
   validateLatticeInput,
@@ -3823,6 +3824,99 @@ test("all resume production sources remain free of canned transformations and ru
 });
 
 
+test("only host-proved nonmaterial repairs omit the rejected draft and still require independent clearance", async (context) => {
+  const source = `${opaqueWords(8)}\n\n${opaqueWords(9)}`;
+  for (const outcome of ["material repair", "prior semantic failure", "repeated copy", "semantic rejection", "protocol correction"]) {
+    await context.test(outcome, async () => {
+      const events = []; let certificates = 0;
+      const adapter = scriptedAdapter({
+        generate(request) {
+          events.push("generate");
+          assert.equal(request.repairFromSource, undefined);
+          const draft = rawCandidate(request, { identity: true });
+          for (const passage of draft.passages) passage.text = passage.text.toUpperCase();
+          return draft;
+        },
+        verify(request, count) {
+          events.push(`verify:${count}`);
+          return rawVerification(request, count === 1 ? {
+            ...(outcome === "prior semantic failure" ? { gates: { semanticFidelity: false } } : {}), issues: [{
+            id: "materiality-only", check: "materiality", passageId: request.batch.passages[0].id,
+            atomIds: [], message: "PRIVATE-PROVIDER-REVIEW-MUST-NOT-CROSS",
+          }] } : outcome === "semantic rejection" ? { gates: { semanticFidelity: false } } : {});
+        },
+        repair(request, count) {
+          events.push(`repair:${count}`);
+          assert.equal(request.repairFromSource, true);
+          assert.equal(request.regenerationFromReanalysis, undefined);
+          assert.equal(request.verification.available, true);
+          assert.equal(request.verification.decision, "repair");
+          assert.ok(request.deterministicFindings.length > 0);
+          assert.ok(request.deterministicFindings.every((finding) => deterministicFindingRule(finding) === "D14"));
+          assert.equal(hasOnlyBoundNonmaterialFindings(request), true);
+          for (const deterministicFindings of [[], request.deterministicFindings.map((finding) => Object.freeze({ ...finding })),
+            [Object.freeze({ id: "candidate-not-material", passageId: request.batch.passages[0].id,
+              atomIds: [], message: "D14", rule: "D14" })],
+            request.deterministicFindings.map((finding) => new Proxy(finding, {}))]) {
+            assert.equal(hasOnlyBoundNonmaterialFindings({ ...request, deterministicFindings }), false);
+          }
+          assert.equal(hasOnlyBoundNonmaterialFindings({ ...request, batch: { passages: [] } }), false);
+          assert.equal(hasOnlyBoundNonmaterialFindings({ ...request, analysis: { passages: request.analysis.passages
+            .map((plan) => ({ ...plan, disposition: "retain-if-conformant" })) } }), false);
+          const messages = repairMessages(request, { analysisPlanDialect: "compact-wire-v2" });
+          const payload = inertModelPayload(messages);
+          assert.equal(Object.hasOwn(payload, "rejectedCandidate"), false);
+          assert.deepEqual(payload.sourcePassages.map((passage) => passage.slice(0, 2)),
+            request.batch.passages.map(({ id, text }) => [id, text]));
+          assert.deepEqual(payload.deterministicFindings, request.deterministicFindings);
+          assert.equal(payload.verification[0], "repair");
+          assert.deepEqual(payload.verification[1], outcome === "prior semantic failure" ? ["semanticFidelity"] : []);
+          assert.deepEqual(payload.verification[3], [["materiality", request.batch.passages[0].id]]);
+          for (const passage of request.candidate.passages) assert.equal(JSON.stringify(payload).includes(passage.text), false);
+          assert.doesNotMatch(JSON.stringify(messages), /PRIVATE-PROVIDER-REVIEW-MUST-NOT-CROSS/u);
+          if (outcome === "protocol correction" && count === 1) return {};
+          return rawCandidate(request, { identity: outcome === "repeated copy" });
+        },
+        certify(request) {
+          events.push("certify"); certificates += 1;
+          return { certificateId: request.certificateId, obligationIds: request.obligationIds, decision: "accept",
+            checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, true])), issues: [] };
+        },
+      });
+      const result = await runTextToLattice(source, { adapter });
+      const accepted = ["material repair", "prior semantic failure", "protocol correction"].includes(outcome);
+      assert.equal(result.status, accepted ? "translated" : "unable-to-attempt");
+      assert.equal(result.text === null, !accepted);
+      if (!accepted) assertCandidateWithheld(result);
+      assert.equal(certificates, accepted ? 1 : 0);
+      assert.deepEqual(adapter.calls, { analyze: 1, generate: 1, verify: 2, repair: outcome === "protocol correction" ? 2 : 1 });
+      assert.deepEqual(events, ["generate", "verify:1", "repair:1",
+        ...(outcome === "protocol correction" ? ["repair:2"] : []), "verify:2", ...(accepted ? ["certify"] : [])]);
+    });
+  }
+});
+
+test("mixed deterministic repair findings keep the rejected candidate strategy", async () => {
+  const adapter = scriptedAdapter({
+    generate(request) {
+      const candidate = rawCandidate(request, { identity: true });
+      candidate.passages[0].layer = "experiential";
+      return candidate;
+    },
+    repair(request) {
+      assert.deepEqual(request.deterministicFindings.map(deterministicFindingRule).sort(), ["D12", "D14"]);
+      assert.equal(hasOnlyBoundNonmaterialFindings(request), false);
+      assert.equal(request.repairFromSource, undefined);
+      assert.equal(request.verification.available, true);
+      assert.ok(inertModelPayload(repairMessages(request)).rejectedCandidate);
+      return rawCandidate(request);
+    },
+  });
+  const result = await runTextToLattice(opaqueWords(8), { adapter });
+  assert.equal(result.status, "translated");
+  assert.deepEqual(adapter.calls, { analyze: 1, generate: 1, verify: 2, repair: 1 });
+});
+
 test("authentic materiality failure remains bound to its own rewrite passage", async (context) => {
   const source = `${opaqueWords(8)}\n\n${opaqueWords(9)}`;
   assert.equal(preflightLatticeInput(source).batches[0].passages.length, 2);
@@ -3878,6 +3972,7 @@ test("host materiality reconciliation preserves structural replacement-analysis 
       },
       generate(request, count) {
         events.push(`generate:${count}`);
+        assert.equal(request.repairFromSource, undefined, "regeneration keeps its source-and-revised-plan contract");
         return rawCandidate(request, { identity: count === 1 });
       },
       verify(request, count) {
@@ -3918,6 +4013,7 @@ test("empty layer support can spend the existing repair on an authentic nonmater
     repair(request) {
       events.push("repair");
       assert.equal(request.verification, null, "unavailable verification supplies no model findings");
+      assert.equal(request.repairFromSource, true);
       assert.ok(request.deterministicFindings.every((finding) => deterministicFindingRule(finding) === "D14"));
       return rawCandidate(request);
     },
