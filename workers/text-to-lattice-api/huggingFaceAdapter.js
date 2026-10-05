@@ -27,6 +27,7 @@ import {
   graphemeExcerpt,
 } from "../../app/resume/lattice/segments.js";
 import { LATTICE_PROVIDER_CALL_LIMIT } from "../../app/resume/lattice/remoteProtocol.js";
+import { rememberLatticeAnalysisRetentionDowngrade } from "../../app/resume/lattice/qualificationDiagnostics.js";
 import { rememberRejectedResult, stageCorrectionRequestDiagnostic } from "../../app/resume/lattice/rejectionDiagnostics.js";
 
 export { LATTICE_PROVIDER_CALL_LIMIT };
@@ -1674,7 +1675,7 @@ function rejectedAnalysisEvidencePositions(indices, valueCount) {
   return rejectedAnalysisWire("evidence");
 }
 
-function decodeAnalysisWire(value, fit) {
+function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false) {
   const ledgerIds = (fit?.request?.documentLedger ?? []).map(({ id }) => id);
   if (!fit || !exactKeys(value, ["d", "p", "l"])
     || !Array.isArray(value.p) || !Array.isArray(value.l)) {
@@ -1789,6 +1790,7 @@ function decodeAnalysisWire(value, fit) {
     sourceAtom.links.push({ relation, targetAtomId });
   }
   const passages = [];
+  let retentionDowngraded = false;
   for (const rawPassage of rawPassages) {
     const coveredEvidence = new Set(rawPassage.atoms.flatMap(({ evidenceSpanIds }) => evidenceSpanIds));
     if (coveredEvidence.size !== rawPassage.evidenceIds.length
@@ -1825,6 +1827,7 @@ function decodeAnalysisWire(value, fit) {
         || assertedEvidence.size !== rawPassage.evidenceIds.length
         || rawPassage.evidenceIds.some((id) => !assertedEvidence.has(id))) {
         disposition = "rewrite";
+        retentionDowngraded = true;
         conformanceCriteria = [];
         conformanceAssertions = [];
       } else {
@@ -1844,7 +1847,13 @@ function decodeAnalysisWire(value, fit) {
       conformanceAssertions,
     });
   }
-  return { documentKind, passages, questions: [] };
+  const result = { documentKind, passages, questions: [] };
+  // Attach no observation to a partial or rejected decode. This branch changes
+  // neither the canonicalization above nor any accepted analysis value.
+  if (observeRetentionDowngrade) {
+    rememberLatticeAnalysisRetentionDowngrade(result, retentionDowngraded ? "present" : "none");
+  }
+  return result;
 }
 
 function wireAtomStatuses(statuses, atomIds) {
@@ -2801,10 +2810,12 @@ export function createHuggingFaceLatticeAdapter({
   observeQualificationEnvelopeShape = false,
   observeQualificationStrictMessageShape = false,
   observeQualificationUsage = false,
+  observeQualificationRetentionDowngrade = false,
 } = {}) {
   if (!REQUESTED_MODES.has(requestedMode) || typeof observeQualificationHttpHeaders !== "boolean"
     || typeof observeQualificationEnvelopeShape !== "boolean" || typeof observeQualificationStrictMessageShape !== "boolean"
-    || typeof observeQualificationUsage !== "boolean") {
+    || typeof observeQualificationUsage !== "boolean"
+    || typeof observeQualificationRetentionDowngrade !== "boolean") {
     throw new TypeError("The Lattice provider received an invalid requested mode.");
   }
 
@@ -2898,7 +2909,7 @@ export function createHuggingFaceLatticeAdapter({
       );
     }
     if (stageName === "analysis") {
-      result = decodeAnalysisWire(result, analysisFit);
+      result = decodeAnalysisWire(result, analysisFit, observeQualificationRetentionDowngrade);
       const decoderFailureCategory = ANALYSIS_DECODER_FAILURES.get(result);
       Object.defineProperty(result, LATTICE_FITTED_ANALYSIS_CONTEXT, {
         configurable: false,

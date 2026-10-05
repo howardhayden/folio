@@ -71,6 +71,7 @@ import {
   isClosedWithheldTrace,
   isClosedWithheldPipelineObservation,
   LATTICE_SUCCESSFUL_CORRECTION_STAGES,
+  getLatticeAnalysisRetentionDowngrade,
 } from "./lattice/qualificationDiagnostics.js";
 import {
   rejectedResultDiagnostic,
@@ -156,18 +157,21 @@ const STAGE_FAILURE_DIAGNOSTICS = new WeakMap();
 const FINDING_STAGE_FAILURE_DIAGNOSTICS = new WeakMap();
 const REVIEW_STAGE_FAILURE_DIAGNOSTICS = new WeakMap();
 const WITHHELD_PIPELINE_OBSERVATIONS = new WeakMap();
+const NORMALIZED_ANALYSIS_RETENTION_DOWNGRADES = new WeakMap();
 
 export function getLatticeWithheldPipelineObservation(trace) {
   return WITHHELD_PIPELINE_OBSERVATIONS.get(trace) ?? null;
 }
 
 function withheldPipelineObservation(state, finalCandidates) {
-  if (state === null) return null;
+  if (state === null || state.initialRetentions.size === 0
+    || state.initialRetentions.has("unavailable")) return null;
   const correctedStages = [...state.successfulCorrectionStages];
   if (correctedStages.some((stage) => !LATTICE_SUCCESSFUL_CORRECTION_STAGES.includes(stage))) return null;
   const paths = new Set(state.retryPaths.values());
   const lineages = new Set(finalCandidates.map(({ candidate }) => state.candidateLineages.get(candidate)));
   const observation = Object.freeze({
+    initialRetentionDowngrade: state.initialRetentions.has("present") ? "present" : "none",
     successfulCorrectionStage: correctedStages.length === 0 ? "none"
       : correctedStages.length === 1 ? correctedStages[0] : "mixed",
     retryPath: paths.size === 0 ? "none" : paths.size === 1 ? [...paths][0] : "mixed",
@@ -370,7 +374,7 @@ async function normalizeAnalysis(
   revisionId,
   sourceFingerprint,
   committedProvenance = [],
-  { allowClarification = true, analysisAtomLimit = LATTICE_BATCH_ATOM_LIMIT, signal } = {},
+  { allowClarification = true, analysisAtomLimit = LATTICE_BATCH_ATOM_LIMIT, signal, observeRetentionDowngrade = false } = {},
 ) {
   protocol(typeof revisionId === "string" && ANALYSIS_REVISION_ID_PATTERN.test(revisionId),
     "The host supplied an invalid atomization revision.");
@@ -422,6 +426,7 @@ async function normalizeAnalysis(
     "The atomizer response referenced invalid fitted ledger provenance.");
 
   const passagesById = new Map();
+  let retentionDowngraded = false;
   const rawAtomIds = new Set();
   for (const rawPassage of raw.passages) {
     protocol(record(rawPassage) && Array.isArray(rawPassage.atoms), "The atomizer returned an invalid passage.");
@@ -569,6 +574,7 @@ async function normalizeAnalysis(
       if (!completeCriteria || conformanceCriteria.length !== requiredCriteria.length || !completeEvidence
         || !completeAssertions || !completeAssertionEvidence) {
         disposition = "rewrite";
+        retentionDowngraded = true;
       }
     }
     if (disposition === "rewrite") {
@@ -601,7 +607,7 @@ async function normalizeAnalysis(
     }
   }
 
-  return Object.freeze({
+  const normalized = Object.freeze({
     revisionId,
     documentKind: raw.documentKind,
     passages: Object.freeze(expectedIds.map((id) => passagesById.get(id))),
@@ -619,6 +625,17 @@ async function normalizeAnalysis(
       signal,
     }) : Object.freeze([]),
   });
+  if (observeRetentionDowngrade) {
+    const decoderObservation = getLatticeAnalysisRetentionDowngrade(raw);
+    // Missing prior-decoder provenance stays unavailable even if the local
+    // host branch alone would prove an existential downgrade. No assumptions
+    // about an unobserved adapter enter the complete qualification group.
+    if (decoderObservation !== null) {
+      NORMALIZED_ANALYSIS_RETENTION_DOWNGRADES.set(normalized,
+        retentionDowngraded || decoderObservation === "present" ? "present" : "none");
+    }
+  }
+  return normalized;
 }
 
 function containsUngroundedQuestionLanguage(value, source) {
@@ -3279,7 +3296,7 @@ export async function runTextToLattice(value, options = {}) {
   }
   const pipelineObservation = onCandidateWithheldDiagnostic === undefined ? null : {
     retryPaths: new Map(), candidateLineages: new WeakMap(), initialD14: false, initialOther: false,
-    successfulCorrectionStages: new Set(),
+    successfulCorrectionStages: new Set(), initialRetentions: new Set(),
   };
   const terminalResult = (state) => resultFromState({ ...state, onCandidateWithheldDiagnostic, pipelineObservation });
   const clarificationAnswers = clarificationAnswersPayload(options.clarificationAnswers);
@@ -3383,7 +3400,8 @@ export async function runTextToLattice(value, options = {}) {
           analysisRevisionId,
           sourceFingerprint,
           clarificationDocumentProvenance,
-          { allowClarification, analysisAtomLimit: analysisAtomPlan.analysisAtomLimit, signal },
+          { allowClarification, analysisAtomLimit: analysisAtomPlan.analysisAtomLimit, signal,
+            observeRetentionDowngrade: pipelineObservation !== null },
         ),
         signal,
       });
@@ -3560,6 +3578,12 @@ export async function runTextToLattice(value, options = {}) {
       pipelineObservation.initialD14 ||= deterministicFindings.some((finding) => deterministicFindingRule(finding) === "D14");
       pipelineObservation.initialOther ||= deterministicFindings.some((finding) => deterministicFindingRule(finding) !== "D14");
     }
+    // Aggregate only analyses actually consumed by successful initial drafting
+    // (including generation recovery). Failed/superseded analysis attempts,
+    // unsuccessful split parents and later reanalysis do not contribute.
+    pipelineObservation?.initialRetentions.add(
+      NORMALIZED_ANALYSIS_RETENTION_DOWNGRADES.get(request.analysis) ?? "unavailable",
+    );
     candidates.push(Object.freeze({ ...request, candidate, deterministicFindings }));
     progress(onProgress, "generating", index + 1, analyses.length, request.batch.id);
   }

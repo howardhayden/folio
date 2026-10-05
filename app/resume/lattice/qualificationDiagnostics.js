@@ -6,7 +6,7 @@ import {
 
 // Separate from the historical terminal failure trace. These fields describe
 // actual post-verification control flow, committed candidate provenance, and
-// successful protocol normalization on a correction anywhere in the run.
+// successful protocol normalization and initial analysis canonicalization.
 export const LATTICE_SUCCESSFUL_CORRECTION_STAGES = Object.freeze([
   "atomization", "generation", "generation-recovery", "verification", "re-atomization",
   "repair", "regeneration", "reverification", "document-certification",
@@ -16,8 +16,25 @@ export const LATTICE_WITHHELD_PIPELINE_VALUES = Object.freeze({
   candidateLineage: Object.freeze(["initial", "repair", "regeneration", "mixed"]),
   initialDeterministic: Object.freeze(["clear", "d14-only", "other", "d14-and-other"]),
   successfulCorrectionStage: Object.freeze(["none", ...LATTICE_SUCCESSFUL_CORRECTION_STAGES, "mixed"]),
+  initialRetentionDowngrade: Object.freeze(["none", "present"]),
 });
 export const LATTICE_WITHHELD_PIPELINE_FIELDS = Object.freeze(Object.keys(LATTICE_WITHHELD_PIPELINE_VALUES));
+
+// Trusted internal bridge from the adapter decoder to host normalization. Never
+// call this recorder with a provider-authored property or an inferred default.
+// The only retained value is the actual complete-decoder branch observation;
+// keys remain private identities, so copies/proxies/property lookalikes fail.
+const ANALYSIS_RETENTION_DOWNGRADES = new WeakMap();
+export function rememberLatticeAnalysisRetentionDowngrade(result, value) {
+  if (result !== null && typeof result === "object" && !Array.isArray(result)
+    && ["none", "present"].includes(value) && !ANALYSIS_RETENTION_DOWNGRADES.has(result)) {
+    ANALYSIS_RETENTION_DOWNGRADES.set(result, value);
+  }
+  return result;
+}
+export function getLatticeAnalysisRetentionDowngrade(result) {
+  return ANALYSIS_RETENTION_DOWNGRADES.get(result) ?? null;
+}
 
 export function isClosedWithheldPipelineObservation(value) {
   try {
