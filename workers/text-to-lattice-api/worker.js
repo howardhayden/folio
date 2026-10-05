@@ -14,6 +14,7 @@ import {
 } from "../../app/resume/lattice/remoteProtocol.js";
 import {
   getLatticeVerificationPriorRejection,
+  getLatticeWithheldPipelineObservation,
   preflightLatticeInput,
   runTextToLattice,
 } from "../../app/resume/latticeDemo.js";
@@ -59,7 +60,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v14";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v15";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
@@ -130,6 +131,11 @@ export const LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS = Object
   priorRejectionCategory: "X-Lattice-Qualification-Withheld-Prior-Rejection-Category",
   priorRejectionRule: "X-Lattice-Qualification-Withheld-Prior-Rejection-Rule",
   callsUsed: "X-Lattice-Qualification-Withheld-Calls-Used",
+});
+export const LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
+  retryPath: "X-Lattice-Qualification-Pipeline-Retry-Path",
+  candidateLineage: "X-Lattice-Qualification-Pipeline-Candidate-Lineage",
+  initialDeterministic: "X-Lattice-Qualification-Pipeline-Initial-Deterministic",
 });
 
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset=utf-8)?$/iu;
@@ -697,7 +703,8 @@ function qualificationWithheldDiagnostic(trace, adapter) {
     if (capacity === null || typeof capacity !== "object" || Array.isArray(capacity)) return null;
     const used = capacity?.used;
     if (!Number.isSafeInteger(used) || used < 1 || used > LATTICE_PROVIDER_CALL_LIMIT) return null;
-    return Object.freeze({ ...trace, callsUsed: `${used}` });
+    return Object.freeze({ ...trace, callsUsed: `${used}`,
+      pipeline: getLatticeWithheldPipelineObservation(trace) });
   } catch {
     return null;
   }
@@ -710,6 +717,11 @@ function withQualificationWithheldDiagnostic(response, result, diagnostic, enabl
   }
   for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS)) {
     response.headers.set(header, diagnostic[field]);
+  }
+  if (diagnostic.pipeline !== null) {
+    for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS)) {
+      response.headers.set(header, diagnostic.pipeline[field]);
+    }
   }
   return response;
 }

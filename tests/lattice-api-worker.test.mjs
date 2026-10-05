@@ -24,6 +24,7 @@ import {
 } from "../app/resume/lattice/promptContract.js";
 import { isClosedPriorVerificationRejection } from "../app/resume/lattice/qualificationDiagnostics.js";
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
+import { deterministicBatchReview } from "../app/resume/lattice/validators.js";
 import {
   LATTICE_REJECTION_CATEGORIES,
   rejectedErrorDiagnostic,
@@ -90,6 +91,7 @@ import {
   LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_EXPIRES_AT_BINDING,
   createLatticeApiWorker as createProductionLatticeApiWorker,
   qualificationWindowAllowsRequests,
@@ -2263,6 +2265,49 @@ test("host-schema drafting and repair preserve detailed plans by default and exp
     assert.match(factory(request)[0].content, /source-specific.*plan/u);
     assert.throws(() => factory(request, { analysisPlanDialect: "untrusted" }), /invalid analysis plan dialect/u);
   }
+});
+
+test("regeneration preserves authentic prior nonmaterial findings without stale plan or candidate data", async () => {
+  const request = minimalVerificationRequest("The visitor closes the notebook.");
+  const copied = { passages: [{ ...request.candidate.passages[0], text: request.batch.passages[0].text }] };
+  const findings = deterministicBatchReview(request.batch, request.analysis, copied);
+  assert.equal(findings.some(({ id }) => id === "candidate-not-material"), true);
+  const calls = [];
+  const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+    calls.push(JSON.parse(init.body));
+    return successfulProviderResponse({ passages: [] });
+  } });
+  const prior = { ...request, deterministicFindings: findings,
+    candidate: { passages: [{ ...copied.passages[0], text: "PRIVATE-OLD-DRAFT" }] },
+    verification: { issues: [{ message: "PRIVATE-OLD-REVIEW" }] } };
+  await adapter.generate(prior);
+  await adapter.generate({ ...prior, regenerationFromReanalysis: true });
+  assert.equal(Object.hasOwn(inertModelPayload(calls[0]), "regenerationFeedback"), false);
+  assert.doesNotMatch(calls[0].messages[0].content, /nonmaterialPassagePositions/u);
+  assert.deepEqual(inertModelPayload(calls[1]).regenerationFeedback, { nonmaterialPassagePositions: [0] });
+  assert.match(calls[1].messages[0].content, /previous draft/u);
+  assert.match(calls[1].messages[0].content, /nonmaterialPassagePositions/u);
+  assert.doesNotMatch(JSON.stringify(calls), /PRIVATE-OLD-DRAFT|PRIVATE-OLD-REVIEW/u);
+  assert.equal(calls[1].max_tokens, 800);
+  assert.deepEqual(calls[1].response_format, { type: "json_object" });
+  assert.equal(adapter.completionCapacity().used, 2);
+
+  for (const current of [
+    { ...prior, regenerationFromReanalysis: "true" },
+    { ...prior, regenerationFromReanalysis: true, deterministicFindings: findings.map((item) => ({ ...item })) },
+    { ...prior, regenerationFromReanalysis: true, deterministicFindings: [] },
+    { ...prior, regenerationFromReanalysis: true, analysis: { ...request.analysis,
+      passages: request.analysis.passages.map((item) => ({ ...item, disposition: "retain-if-conformant" })) } },
+    { ...prior, regenerationFromReanalysis: true, batch: { ...request.batch,
+      passages: request.batch.passages.map((item) => ({ ...item, id: "different-passage" })) } },
+  ]) {
+    const messages = candidateMessages(current, { analysisPlanDialect: "compact-wire-v2" });
+    assert.equal(Object.hasOwn(inertModelPayload({ messages }), "regenerationFeedback"), false);
+    assert.doesNotMatch(messages[0].content, /nonmaterialPassagePositions/u);
+  }
+  const repeated = candidateMessages({ ...prior, regenerationFromReanalysis: true,
+    deterministicFindings: [...findings, ...findings] });
+  assert.deepEqual(inertModelPayload({ messages: repeated }).regenerationFeedback, { nonmaterialPassagePositions: [0] });
 });
 
 test("compact draft and repair preserve distinct typed atoms sharing one source excerpt", async () => {
@@ -6770,7 +6815,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
 });
 
 test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
-  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v14");
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v15");
   const diagnosticHeaders = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
       LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -6977,7 +7022,7 @@ test("the terminal analysis diagnostic is all-or-none, bounded, and qualificatio
   }
 });
 
-test("the v14 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v15 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -7986,8 +8031,8 @@ test("strict Nscale reviews reject auxiliary fields and never interpret a compet
   });
 });
 
-test("Worker usage headers require an authentic completed adapter and the active v14 qualification marker", async () => {
-  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v14" };
+test("Worker usage headers require an authentic completed adapter and the active v15 qualification marker", async () => {
+  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v15" };
   const env = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
   const run = async ({ retain = false, headers = marked, environment = env, missing = false, forged = false } = {}) => {
     const bodies = [];
@@ -8032,7 +8077,7 @@ test("Worker usage headers require an authentic completed adapter and the active
     });
     for (const options of [
       { environment: { HF_TOKEN: "test-only" } }, { headers: {} },
-      { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v13" } }, { forged: true },
+      { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v14" } }, { forged: true },
     ]) {
       const ordinary = await run({ retain, ...options });
       assert.equal(ordinary.response.status, 200);
@@ -8055,7 +8100,7 @@ test("Worker usage headers require an authentic completed adapter and the active
 
 test("Worker usage headers remain absent on unable failed or expiry-during-work outcomes", async () => {
   const cutoff = Date.parse("2099-09-17T12:00:00.000Z");
-  const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v14" };
+  const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v15" };
   const env = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(cutoff).toISOString() };
   for (const outcome of ["unable", "failed", "expired"]) {
     let clock = cutoff - 1000;
@@ -8310,7 +8355,7 @@ test("S06 shape records reject content channels, accessors and impossible combin
   assert.equal(reads, 0);
 });
 
-test("S06 compatible review headers require v14 and an active window without exposing M01 headers", async () => {
+test("S06 compatible review headers require v15 and an active window without exposing M01 headers", async () => {
   const request = { ...minimalCertificationRequest() };
   Object.defineProperty(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
     value: Object.freeze({ attempt: "initial", priorValidationCategory: "none" }), enumerable: false,
@@ -9134,4 +9179,66 @@ test("strict verification preserves safe explicit content-envelope opt-ins and s
       && error.code === "provider_malformed_response");
     assert.equal(calls, 1);
   });
+});
+
+test("pipeline headers bind actual withheld lineage and cannot be forged or outlive qualification", async () => {
+  const active = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
+  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v15" };
+  const run = async ({ regeneration = false, headers = marked, env = active, clone = false, duplicate = false, expiresDuring = false } = {}) => {
+    const bodies = [];
+    let verifies = 0;
+    let instant = Date.parse("2026-10-05T12:00:00.000Z");
+    const worker = createLatticeApiWorker({ now: () => instant,
+      runTextToLatticeImpl: (source, options) => runTextToLattice(source, { ...options,
+        onCandidateWithheldDiagnostic: (trace) => {
+          if (expiresDuring) instant += 20_000;
+          options.onCandidateWithheldDiagnostic?.(clone ? Object.freeze({ ...trace }) : trace);
+          if (duplicate) options.onCandidateWithheldDiagnostic?.(trace);
+        },
+      }),
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body); bodies.push(body);
+        if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body));
+        if (isCandidateBody(body)) return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+          LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1)));
+        assert.equal(isVerificationBody(body), true, "withheld copies cannot reach certification");
+        const wire = canaryVerificationWire(body);
+        if (regeneration && ++verifies === 1) { wire.d = 1; wire.g = "00010000000"; }
+        return successfulProviderResponse(wire);
+      },
+    });
+    const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers }), env);
+    return { response, json: await json(response), bodies };
+  };
+  for (const regeneration of [false, true]) {
+    const qualified = await run({ regeneration });
+    assert.equal(qualified.response.status, 200);
+    assert.equal(qualified.json.result.status, "unable-to-attempt");
+    assert.equal(qualified.json.result.text, null);
+    const expected = { retryPath: regeneration ? "regeneration" : "repair",
+      candidateLineage: regeneration ? "regeneration" : "repair", initialDeterministic: "d14-only" };
+    for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS)) {
+      assert.equal(qualified.response.headers.get(header), expected[field]);
+    }
+    assert.equal(qualified.bodies.length, regeneration ? 6 : 5);
+    const drafts = qualified.bodies.filter(isCandidateBody);
+    assert.equal(Object.hasOwn(inertModelPayload(drafts[0]), "regenerationFeedback"), false);
+    assert.deepEqual(inertModelPayload(drafts[1]).regenerationFeedback,
+      regeneration ? { nonmaterialPassagePositions: [0] } : undefined);
+    for (const options of [{ clone: true }, { duplicate: true }, { headers: {} },
+      { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v14" } },
+      { env: { HF_TOKEN: "test-only" } },
+      { expiresDuring: true, env: { ...active, [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2026-10-05T12:00:10.000Z" } }]) {
+      const other = await run({ regeneration, ...options });
+      if (options.expiresDuring) {
+        assert.equal(other.response.status, 503);
+        assert.deepEqual(other.json, { error: "upstream_unavailable" });
+      } else assert.deepEqual(other.json, qualified.json);
+      assert.deepEqual(other.bodies, qualified.bodies);
+      for (const header of Object.values(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS)) {
+        assert.equal(other.response.headers.has(header), false);
+      }
+    }
+    assert.doesNotMatch(JSON.stringify(qualified.json), /retryPath|candidateLineage|initialDeterministic|regenerationFeedback/u);
+  }
 });

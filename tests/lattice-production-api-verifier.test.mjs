@@ -36,6 +36,7 @@ import {
   LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
 import {
@@ -142,7 +143,15 @@ function withheldDiagnosticHeaders(overrides = {}) {
     priorRejectionBoundary: "host-normalizer", priorRejectionCategory: "other", priorRejectionRule: "unknown",
     ...overrides,
   };
-  return Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS)
+  return { ...Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS)
+    .map(([field, header]) => [header, values[field]])),
+    ...pipelineDiagnosticHeaders(),
+  };
+}
+
+function pipelineDiagnosticHeaders(overrides = {}) {
+  const values = { retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear", ...overrides };
+  return Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS)
     .map(([field, header]) => [header, values[field]]));
 }
 
@@ -2031,7 +2040,20 @@ test("withheld canary diagnostics fail closed on missing, hostile, or incompatib
   const privateMarker = "PRIVATE-WITHHELD-DIAGNOSTIC-MUST-NOT-CROSS";
   const body = { result: unableResult([{ id: "candidate-withheld", passageId: "", atomIds: [], message: privateMarker }]), schema_version: 1 };
   const exact = withheldDiagnosticHeaders();
+  const withoutPipeline = Object.fromEntries(Object.entries(exact)
+    .filter(([header]) => !header.toLowerCase().startsWith("x-lattice-qualification-pipeline-")));
   const cases = [
+    ["pipeline retry and lineage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "regeneration", candidateLineage: "initial", initialDeterministic: "d14-only" }) }, /retry_path=regeneration; candidate_lineage=initial; initial_deterministic=d14-only/u],
+    ["missing pipeline group", body, 200, withoutPipeline, /without a pipeline diagnostic/u],
+    ["partial pipeline group", body, 200, { ...withoutPipeline, [LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.retryPath]: "none" }, /incomplete pipeline diagnostic/u],
+    ["pipeline without withheld", body, 200, pipelineDiagnosticHeaders(), /pipeline diagnostic without a withheld diagnostic/u],
+    ["pipeline unknown field", body, 200, { ...exact, "X-Lattice-Qualification-Pipeline-Unknown": privateMarker }, /invalid pipeline diagnostic/u],
+    ["pipeline bare family", body, 200, { ...exact, "X-Lattice-Qualification-Pipeline": privateMarker }, /invalid pipeline diagnostic/u],
+    ...["retryPath", "candidateLineage", "initialDeterministic"].map((field) => (
+      [`hostile pipeline ${field}`, body, 200, { ...exact, ...pipelineDiagnosticHeaders({ [field]: privateMarker }) }, /invalid pipeline diagnostic/u]
+    )),
+    ["pipeline impossible lineage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "none", candidateLineage: "repair" }) }, /invalid pipeline diagnostic/u],
+    ["pipeline duplicate enum", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "repair, repair" }) }, /invalid pipeline diagnostic/u],
     ["valid terminal observation", body, 200, exact, /terminal_failure=host-validation; stage=verification; attempt=2; validation=response-shape; prior_validation=evidence; rejection_boundary=wire-decoder; rejection_category=field-set; rejection_rule=V01F; prior_rejection_boundary=host-normalizer; prior_rejection_category=other; prior_rejection_rule=unknown; calls_used=4/u],
     ["reanalysis evidence predicates", body, 200, withheldDiagnosticHeaders({ stage: "re-atomization", validationCategory: "evidence", priorValidationCategory: "evidence", rejectionCategory: "reference", rejectionRule: "A02R", priorRejectionBoundary: "wire-decoder", priorRejectionCategory: "coverage", priorRejectionRule: "A03" }), /stage=re-atomization; attempt=2; validation=evidence; prior_validation=evidence; rejection_boundary=wire-decoder; rejection_category=reference; rejection_rule=A02R; prior_rejection_boundary=wire-decoder; prior_rejection_category=coverage; prior_rejection_rule=A03/u],
     ["analysis predicate wrong stage", body, 200, withheldDiagnosticHeaders({ rejectionCategory: "coverage", rejectionRule: "A01" }), /invalid withheld diagnostic/u],

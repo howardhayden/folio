@@ -1,4 +1,5 @@
 import { BATCH_PASSAGE_LIMIT, graphemeExcerpt, MODEL_SOURCE_SPAN_LIMIT } from "./segments.js";
+import { deterministicFindingRule } from "./rejectionDiagnostics.js";
 
 export const TEXT_TO_LATTICE_VERSION = "text-to-lattice.v7";
 export const PUBLIC_REGISTER_VERSION = "public-lattice-registers.v2";
@@ -958,11 +959,28 @@ export function analysisMessages(request, { responseDialect = "host-schema" } = 
   );
 }
 
+function regenerationFeedbackForModel(request) {
+  if (request.regenerationFromReanalysis !== true || !request.deterministicFindings?.length) return null;
+  // The prior D14 is bound to the actual host finding, not a model-provided
+  // name. Reanalysis can replace atom IDs and dispositions; carry only source
+  // passage positions that still require a rewrite under the replacement plan.
+  const nonmaterialIds = new Set(request.deterministicFindings
+    .filter((finding) => deterministicFindingRule(finding) === "D14")
+    .map((finding) => finding.passageId));
+  const nonmaterialPassagePositions = request.batch.passages.flatMap((passage, position) => (
+    nonmaterialIds.has(passage.id)
+      && request.analysis.passages.some((plan) => plan.passageId === passage.id && plan.disposition === "rewrite")
+      ? [position] : []
+  ));
+  return nonmaterialPassagePositions.length ? { nonmaterialPassagePositions } : null;
+}
+
 export function candidateMessages(request, { analysisPlanDialect = "host-schema" } = {}) {
   if (!ANALYSIS_RESPONSE_DIALECTS.has(analysisPlanDialect)) {
     throw new TypeError("Text to Lattice received an invalid analysis plan dialect.");
   }
   const compactPlan = analysisPlanDialect === "compact-wire-v2";
+  const regenerationFeedback = regenerationFeedbackForModel(request);
   return messages(
     "Translate every supplied passage according to its plan and atom graph.",
     {
@@ -976,9 +994,10 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
         documentLedgerCoverage: documentLedgerCoverageForModel(request.documentLedgerCoverage),
       } : {}),
       analysis: analysisForModel(request.analysis),
+      ...(regenerationFeedback ? { regenerationFeedback } : {}),
       ...(request.protocolFeedback ? { protocolFeedback: request.protocolFeedback } : {}),
     },
-    `${CANDIDATE_REALIZATION_INSTRUCTION} Analysis is [document kind, passages]. Analysis passages are [ID, discourse function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria, conformance spans, criterion-specific conformance assertions]; atoms are [ID, kind, value, priority, preservation, evidence IDs, relation-target pairs]. Source groups are [passage ID, ordered lossless spans, nested literal annotations].${directionFrameInstruction(request)} Source boundaries are passage-order gaps [before first, between each pair, after last], encoded as exact [unit,count] runs or a host-preserved repeat/summary. ${compactPlan ? LATTICE_COMPACT_REALIZATION_PLAN_INSTRUCTION : "Use each source-specific discourse function and rationale as the realization plan."} Cover every passage and atom. Rewrites must change at least one normalized word or its syntactic order in service of that plan; formatting, case, and punctuation alone do not count. Preserve exact literals and annotations, linked meaning, ambiguity, attribution, and structural boundaries. Do not move a source atom or unchanged source item to the other side of a line, paragraph, or stanza boundary; retained conformant text stays exact.`,
+    `${CANDIDATE_REALIZATION_INSTRUCTION} Analysis is [document kind, passages]. Analysis passages are [ID, discourse function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria, conformance spans, criterion-specific conformance assertions]; atoms are [ID, kind, value, priority, preservation, evidence IDs, relation-target pairs]. Source groups are [passage ID, ordered lossless spans, nested literal annotations].${directionFrameInstruction(request)} Source boundaries are passage-order gaps [before first, between each pair, after last], encoded as exact [unit,count] runs or a host-preserved repeat/summary. ${compactPlan ? LATTICE_COMPACT_REALIZATION_PLAN_INSTRUCTION : "Use each source-specific discourse function and rationale as the realization plan."} ${regenerationFeedback ? "regenerationFeedback.nonmaterialPassagePositions gives zero-based source passage positions whose previous draft failed the host normalized-word check and whose revised plan still requires rewrite. Resolve that prior defect in this fresh realization; it does not establish any other check or prescribe replacement wording. " : ""}Cover every passage and atom. Rewrites must change at least one normalized word or its syntactic order in service of that plan; formatting, case, and punctuation alone do not count. Preserve exact literals and annotations, linked meaning, ambiguity, attribution, and structural boundaries. Do not move a source atom or unchanged source item to the other side of a line, paragraph, or stanza boundary; retained conformant text stays exact.`,
   );
 }
 

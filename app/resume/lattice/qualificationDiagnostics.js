@@ -4,6 +4,32 @@ import {
   LATTICE_DETERMINISTIC_RULES, rejectionRuleIsConsistent,
 } from "./rejectionDiagnostics.js";
 
+// Separate from the historical terminal failure trace. These fields describe
+// actual post-verification control flow and committed candidate provenance.
+export const LATTICE_WITHHELD_PIPELINE_VALUES = Object.freeze({
+  retryPath: Object.freeze(["none", "repair", "reanalysis-only", "regeneration", "mixed"]),
+  candidateLineage: Object.freeze(["initial", "repair", "regeneration", "mixed"]),
+  initialDeterministic: Object.freeze(["clear", "d14-only", "other", "d14-and-other"]),
+});
+export const LATTICE_WITHHELD_PIPELINE_FIELDS = Object.freeze(Object.keys(LATTICE_WITHHELD_PIPELINE_VALUES));
+
+export function isClosedWithheldPipelineObservation(value) {
+  try {
+    if (value === null || typeof value !== "object" || Array.isArray(value)
+      || !Object.isFrozen(value) || Object.getPrototypeOf(value) !== Object.prototype
+      || Reflect.ownKeys(value).length !== LATTICE_WITHHELD_PIPELINE_FIELDS.length
+      || !LATTICE_WITHHELD_PIPELINE_FIELDS.every((field) => {
+        const descriptor = Object.getOwnPropertyDescriptor(value, field);
+        return descriptor?.enumerable === true && Object.hasOwn(descriptor, "value")
+          && LATTICE_WITHHELD_PIPELINE_VALUES[field].includes(descriptor.value);
+      })) return false;
+    if (["none", "reanalysis-only"].includes(value.retryPath)) return value.candidateLineage === "initial";
+    if (value.retryPath === "repair") return value.candidateLineage !== "regeneration";
+    if (value.retryPath === "regeneration") return value.candidateLineage !== "repair";
+    return true;
+  } catch { return false; }
+}
+
 // This optional observation is the first verifier rejection retained when its
 // correction provider call fails. It is not a verification or decoding result.
 export function isClosedPriorVerificationRejection(trace) {

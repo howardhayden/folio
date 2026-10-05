@@ -69,6 +69,7 @@ import {
 import {
   isClosedPriorVerificationRejection,
   isClosedWithheldTrace,
+  isClosedWithheldPipelineObservation,
 } from "./lattice/qualificationDiagnostics.js";
 import {
   rejectedResultDiagnostic,
@@ -153,6 +154,25 @@ const ANALYSIS_FAILURE_DIAGNOSTICS = new WeakMap();
 const STAGE_FAILURE_DIAGNOSTICS = new WeakMap();
 const FINDING_STAGE_FAILURE_DIAGNOSTICS = new WeakMap();
 const REVIEW_STAGE_FAILURE_DIAGNOSTICS = new WeakMap();
+const WITHHELD_PIPELINE_OBSERVATIONS = new WeakMap();
+
+export function getLatticeWithheldPipelineObservation(trace) {
+  return WITHHELD_PIPELINE_OBSERVATIONS.get(trace) ?? null;
+}
+
+function withheldPipelineObservation(state, finalCandidates) {
+  if (state === null) return null;
+  const paths = new Set(state.retryPaths.values());
+  const lineages = new Set(finalCandidates.map(({ candidate }) => state.candidateLineages.get(candidate)));
+  const observation = Object.freeze({
+    retryPath: paths.size === 0 ? "none" : paths.size === 1 ? [...paths][0] : "mixed",
+    candidateLineage: lineages.size === 1 ? [...lineages][0] : "mixed",
+    initialDeterministic: state.initialD14
+      ? state.initialOther ? "d14-and-other" : "d14-only"
+      : state.initialOther ? "other" : "clear",
+  });
+  return !lineages.has(undefined) && isClosedWithheldPipelineObservation(observation) ? observation : null;
+}
 const ANALYSIS_VALIDATION_MESSAGE_CATEGORIES = Object.freeze([
   Object.freeze({
     category: "provenance",
@@ -3012,6 +3032,7 @@ function resultFromState({
   documentFindings = [],
   wholeDocumentCertification = null,
   onCandidateWithheldDiagnostic,
+  pipelineObservation = null,
 }) {
   const replaceablePassages = passages.filter((passage) => passage.protected !== true);
   const protectedPassages = passages.filter((passage) => passage.protected === true);
@@ -3159,7 +3180,11 @@ function resultFromState({
             : wholeDocumentCertification.performed ? "performed-not-accepted" : "not-performed",
         ...failure,
       });
-      if (isClosedWithheldTrace(trace)) onCandidateWithheldDiagnostic(trace);
+      if (isClosedWithheldTrace(trace)) {
+        const observation = withheldPipelineObservation(pipelineObservation, finalCandidates);
+        if (observation !== null) WITHHELD_PIPELINE_OBSERVATIONS.set(trace, observation);
+        onCandidateWithheldDiagnostic(trace);
+      }
     } catch {
       // Qualification observation cannot affect the fail-closed public result.
     }
@@ -3236,7 +3261,10 @@ export async function runTextToLattice(value, options = {}) {
     && typeof onCandidateWithheldDiagnostic !== "function") {
     throw new TypeError("Text to Lattice received an invalid withheld diagnostic observer.");
   }
-  const terminalResult = (state) => resultFromState({ ...state, onCandidateWithheldDiagnostic });
+  const pipelineObservation = onCandidateWithheldDiagnostic === undefined ? null : {
+    retryPaths: new Map(), candidateLineages: new WeakMap(), initialD14: false, initialOther: false,
+  };
+  const terminalResult = (state) => resultFromState({ ...state, onCandidateWithheldDiagnostic, pipelineObservation });
   const clarificationAnswers = clarificationAnswersPayload(options.clarificationAnswers);
   if (!allowClarification && clarificationAnswers.length > 0) {
     throw new TypeError("Text to Lattice cannot accept clarification answers when clarification is disabled.");
@@ -3505,6 +3533,13 @@ export async function runTextToLattice(value, options = {}) {
       }
     }
     const deterministicFindings = deterministicBatchReview(request.batch, request.analysis, candidate);
+    if (pipelineObservation !== null) {
+      // Initial denotes the initial-candidate phase, including its bounded
+      // generation recovery; this observation concerns post-verification retry.
+      pipelineObservation.candidateLineages.set(candidate, "initial");
+      pipelineObservation.initialD14 ||= deterministicFindings.some((finding) => deterministicFindingRule(finding) === "D14");
+      pipelineObservation.initialOther ||= deterministicFindings.some((finding) => deterministicFindingRule(finding) !== "D14");
+    }
     candidates.push(Object.freeze({ ...request, candidate, deterministicFindings }));
     progress(onProgress, "generating", index + 1, analyses.length, request.batch.id);
   }
@@ -3666,6 +3701,7 @@ export async function runTextToLattice(value, options = {}) {
       signal,
     });
     try {
+      pipelineObservation?.retryPaths.set(entry.batch.id, "reanalysis-only");
       const normalizedAnalysis = await callNormalizedStage({
         stage: "re-atomization",
         analysisDiagnosticOrigin: "reanalysis",
@@ -3739,6 +3775,7 @@ export async function runTextToLattice(value, options = {}) {
     const replacementAnalysis = replacementEntry?.analysis ?? original.analysis;
     const retryRequest = Object.freeze({
       ...original,
+      ...(reanalyzedByBatch.has(original.batch.id) ? { regenerationFromReanalysis: true } : {}),
       // Repair only the host-proved defect; the unavailable review contains
       // placeholders, not independent semantic findings. Fresh verification
       // below must still establish every required condition for the new draft.
@@ -3754,6 +3791,7 @@ export async function runTextToLattice(value, options = {}) {
     });
     try {
       const stage = reanalyzedByBatch.has(original.batch.id) ? "regeneration" : "repair";
+      pipelineObservation?.retryPaths.set(original.batch.id, stage);
       const candidate = await callNormalizedStage({
         stage,
         request: retryRequest,
@@ -3764,6 +3802,7 @@ export async function runTextToLattice(value, options = {}) {
         signal,
       });
       const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate);
+      pipelineObservation?.candidateLineages.set(candidate, stage);
       retriedCandidates.push(Object.freeze({ ...retryRequest, candidate, deterministicFindings }));
     } catch (error) {
       throwIfAborted(signal);
