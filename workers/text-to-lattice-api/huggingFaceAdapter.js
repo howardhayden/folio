@@ -1,3 +1,4 @@
+import { beginLatticeAdmissionProviderFetch, endLatticeAdmissionProviderFetch } from "./admissionObservation.js";
 import {
   ANALYSIS_SCHEMA,
   CANDIDATE_SCHEMA,
@@ -2691,27 +2692,36 @@ export async function requestHuggingFaceJson({
   }
 
   const deadline = linkedDeadline(signal, callTimeoutMs);
+  let providerDispatch = null;
+  let providerResponseProcessed = false;
   try {
     let response;
     try {
-      const responsePromise = Promise.resolve(fetchImpl(providerUrl, {
-        method: "POST",
-        headers: {
-          ...JSON_HEADERS,
-          Authorization: `Bearer ${token}`,
-        },
-        body: providerRequestBody,
-        cache: "no-store",
-        credentials: "omit",
-        // Workerd does not implement Fetch's `error` redirect mode. Manual
-        // mode exposes a 3xx response for the explicit rejection below.
-        redirect: "manual",
-        referrerPolicy: "no-referrer",
-        signal: deadline.signal,
-      }));
+      providerDispatch = beginLatticeAdmissionProviderFetch(signal);
+      let responsePromise;
+      try {
+        responsePromise = Promise.resolve(fetchImpl(providerUrl, {
+          method: "POST",
+          headers: {
+            ...JSON_HEADERS,
+            Authorization: `Bearer ${token}`,
+          },
+          body: providerRequestBody,
+          cache: "no-store",
+          credentials: "omit",
+          // Workerd does not implement Fetch's `error` redirect mode. Manual
+          // mode exposes a 3xx response for the explicit rejection below.
+          redirect: "manual",
+          referrerPolicy: "no-referrer",
+          signal: deadline.signal,
+        }));
+      } catch (error) {
+        providerResponseProcessed = true;
+        throw error;
+      }
       void responsePromise.then((lateResponse) => {
         if (deadline.signal.aborted) discardResponseBody(lateResponse, deadline.signal.reason);
-      }, () => {});
+      }, () => { providerResponseProcessed = true; });
       response = await raceAbort(responsePromise, deadline.signal);
     } catch (error) {
       if (deadline.didTimeOut()) {
@@ -2723,6 +2733,7 @@ export async function requestHuggingFaceJson({
 
     try {
       if (!(response instanceof Response)) {
+        providerResponseProcessed = true;
         throw withProviderDiagnostic(
           providerError("provider_malformed_response", "The Lattice provider returned an invalid response."),
           { subtype: "response_type" },
@@ -2755,6 +2766,7 @@ export async function requestHuggingFaceJson({
         );
       }
       const boundedBody = await boundedResponseText(response, maximumResponseBytes, deadline.signal);
+      providerResponseProcessed = true;
       return parsedProviderContent(
         boundedBody.text,
         boundedBody.responseSize,
@@ -2788,6 +2800,9 @@ export async function requestHuggingFaceJson({
     }
     throw error;
   } finally {
+    // Headers alone do not settle a response. Discarded or unfinished bodies
+    // and stage aborts make this observation unavailable without adding waits.
+    endLatticeAdmissionProviderFetch(providerDispatch, providerResponseProcessed && !deadline.signal.aborted);
     deadline.dispose();
   }
 }

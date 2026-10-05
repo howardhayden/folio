@@ -3,8 +3,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { verifyLatticeProductionAdmissionEvidence } from "./verify-text-to-lattice-api-production.mjs";
+
 import {
   LATTICE_TRANSFORMATION_CAPACITY_BINDING,
+  LATTICE_TRANSFORMATION_CAPACITY_OBJECT_NAME,
 } from "../workers/text-to-lattice-api/capacityClient.js";
 import {
   LATTICE_API_VISITOR_COOKIE_SECRET_BINDING,
@@ -86,7 +89,7 @@ function isRecord(value) {
 function exactTimestamp(value, label) {
   if (typeof value !== "string" || value.length > 64) fail(`${label} is invalid.`);
   const date = new Date(value);
-  if (Number.isNaN(date.valueOf()) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u.test(value)) {
+  if (!value.endsWith("Z") || Number.isNaN(date.valueOf()) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u.test(value)) {
     fail(`${label} is invalid.`);
   }
   return date.toISOString();
@@ -227,6 +230,86 @@ export function sanitizeTextToLatticeApiVersion(raw, expectedVersionId, {
   });
 }
 
+const ADMISSION_ENVIRONMENT_FIELDS = Object.freeze([
+  "namespaceId", "className", "storageBackend", "migrationTag", "compatibilityDate",
+  "compatibilityFlags", "declaredObjectName", "namespaceIdentityBasis", "storageBackendBasis",
+]);
+
+function exactIdentifier(value) {
+  return typeof value === "string" && value.length >= 1 && value.length <= 128
+    && /^[A-Za-z0-9_-]+$/u.test(value) && !/[\r\n\u2028\u2029]/u.test(value);
+}
+
+function validateAdmissionEnvironment(value) {
+  exactObjectFields(value, ADMISSION_ENVIRONMENT_FIELDS, "admission environment");
+  if (!exactIdentifier(value.namespaceId) || value.namespaceId === "857321"
+    || value.className !== "LatticeTransformationBudget" || value.storageBackend !== "sqlite"
+    || value.migrationTag !== "v1" || value.compatibilityDate !== "2026-09-14"
+    || JSON.stringify(value.compatibilityFlags) !== JSON.stringify(["enable_request_signal"])
+    || value.declaredObjectName !== LATTICE_TRANSFORMATION_CAPACITY_OBJECT_NAME
+    || value.namespaceIdentityBasis !== "active-version-local-binding"
+    || value.storageBackendBasis !== "active-version-live-class-export") {
+    fail("The admission environment does not match the reviewed deployed runtime.");
+  }
+  return value;
+}
+
+export function sanitizeTextToLatticeAdmissionEnvironment(raw) {
+  const bindings = raw?.resources?.bindings;
+  if (!Array.isArray(bindings)) fail("The active API version lacks admission binding metadata.");
+  const binding = bindings.find((entry) => (
+    entry?.name === LATTICE_TRANSFORMATION_CAPACITY_BINDING
+  ));
+  const runtime = raw?.resources?.script_runtime;
+  const exported = runtime?.exports?.LatticeTransformationBudget;
+  if (!isRecord(binding) || binding.type !== "durable_object_namespace"
+    || binding.class_name !== "LatticeTransformationBudget"
+    || (binding.script_name !== undefined && binding.script_name !== null)
+    || ["preview", "dispatch_namespace", "environment"].some((key) => Object.hasOwn(binding, key))
+    || !isRecord(runtime) || !isRecord(exported)
+    || exported.type !== "durable-object" || exported.storage !== "sqlite"
+    || (Object.hasOwn(exported, "state") && exported.state !== "created")
+    || ["container", "transfer_from", "transferred_to", "renamed_to"].some((key) => Object.hasOwn(exported, key))) {
+    fail("The active API version lacks the exact local SQLite admission environment.");
+  }
+  // These are observed version metadata, not values inferred from wrangler.jsonc.
+  return Object.freeze(validateAdmissionEnvironment({
+    namespaceId: binding.namespace_id,
+    className: binding.class_name,
+    storageBackend: exported.storage,
+    migrationTag: runtime.migration_tag,
+    compatibilityDate: runtime.compatibility_date,
+    compatibilityFlags: Array.isArray(runtime.compatibility_flags)
+      ? Object.freeze([...runtime.compatibility_flags]) : null,
+    declaredObjectName: LATTICE_TRANSFORMATION_CAPACITY_OBJECT_NAME,
+    namespaceIdentityBasis: "active-version-local-binding",
+    storageBackendBasis: "active-version-live-class-export",
+  }));
+}
+
+export async function inspectTextToLatticeApiEnvironment({
+  apiDeploymentPath, apiVersionPath, qualificationExpiresAt = null,
+  environment = process.env, now = () => new Date(),
+} = {}) {
+  const [deploymentRaw, versionRaw] = await Promise.all([
+    readJson(apiDeploymentPath, "API deployment status"),
+    readJson(apiVersionPath, "API active version"),
+  ]);
+  const api = sanitizeTextToLatticeDeploymentStatus(deploymentRaw, API_WORKER);
+  sanitizeTextToLatticeApiVersion(versionRaw, api.versionId, { qualificationExpiresAt });
+  const admissionEnvironment = sanitizeTextToLatticeAdmissionEnvironment(versionRaw);
+  const instant = now();
+  if (!(instant instanceof Date) || Number.isNaN(instant.valueOf())) fail("API environment validation time is invalid.");
+  return Object.freeze({
+    format: "TEXT_TO_LATTICE_API_ENVIRONMENT_OBSERVATION",
+    schemaVersion: 1,
+    validatedAt: instant.toISOString(),
+    workflow: workflowIdentity(environment),
+    api,
+    admissionEnvironment,
+  });
+}
+
 function inspectEvidenceValue(value, path = "evidence") {
   if (typeof value === "string") {
     if (value.length > 2_048) fail(`${path} contains an unexpectedly long string.`);
@@ -250,7 +333,7 @@ function inspectEvidenceValue(value, path = "evidence") {
   }
 }
 
-async function readSanitizedEvidence(pathname, expectedFormat, expectedSchemaVersion = 1) {
+async function readSanitizedEvidence(pathname, expectedFormat, expectedSchemaVersion = 1, includeValue = false) {
   const bytes = await readFile(resolve(pathname));
   if (bytes.byteLength > MAXIMUM_EVIDENCE_BYTES) {
     fail(`${expectedFormat} exceeds the retained evidence-size boundary.`);
@@ -290,10 +373,11 @@ async function readSanitizedEvidence(pathname, expectedFormat, expectedSchemaVer
       fail(`${expectedFormat} has an invalid fixed provider contract.`);
     }
   }
-  return Object.freeze({
+  const reference = Object.freeze({
     basename: basename(pathname),
     sha256: createHash("sha256").update(bytes).digest("hex"),
   });
+  return includeValue ? { reference, value } : reference;
 }
 
 async function readJson(pathname, label) {
@@ -384,6 +468,7 @@ function verifyDeploymentWorker(value, {
 
 /** Validate the closed, sanitized deployment-index object retained by the workflow. */
 export function verifyTextToLatticeDeploymentEvidenceIndex(value) {
+  const hasAdmissionEnvironment = isRecord(value) && Object.hasOwn(value, "admissionEnvironment");
   const index = exactObjectFields(value, [
     "format",
     "schemaVersion",
@@ -399,6 +484,7 @@ export function verifyTextToLatticeDeploymentEvidenceIndex(value) {
     "qualifiedSourceSetSha256",
     "workers",
     "evidenceFiles",
+    ...(hasAdmissionEnvironment ? ["admissionEnvironment"] : []),
     "rawWranglerStatusRetained",
     "rawWranglerVersionRetained",
     "contentBodiesRetained",
@@ -460,6 +546,22 @@ export function verifyTextToLatticeDeploymentEvidenceIndex(value) {
     fail("API and response-policy Worker deployment identities must be distinct.");
   }
 
+  if (hasAdmissionEnvironment) {
+    const record = exactObjectFields(index.admissionEnvironment, [
+      "validatedBeforeAt", "validatedAfterAt", "liveCompletedAt", "deploymentId", "versionId",
+      "matchingBeforeAfterSnapshots", "runtime",
+    ], "admission environment custody");
+    const before = exactTimestamp(record.validatedBeforeAt, "admission environment before timestamp");
+    const after = exactTimestamp(record.validatedAfterAt, "admission environment after timestamp");
+    const completed = exactTimestamp(record.liveCompletedAt, "admission live completion timestamp");
+    if (before > completed || completed > after || after !== deployedAt
+      || record.deploymentId !== workers.api.deploymentId || record.versionId !== workers.api.versionId
+      || record.matchingBeforeAfterSnapshots !== true) {
+      fail("The admission environment snapshots do not bind the live deployment interval.");
+    }
+    validateAdmissionEnvironment(record.runtime);
+  }
+
   const evidenceFiles = exactObjectFields(
     index.evidenceFiles,
     ["secretBindings", "routeInventory", "liveBoundary"],
@@ -497,6 +599,8 @@ export function parseTextToLatticeDeploymentEvidenceIndexText(source) {
 export async function buildTextToLatticeDeploymentEvidence({
   apiDeploymentPath,
   apiVersionPath,
+  apiDeploymentAfterPath,
+  apiEnvironmentBeforePath,
   policyDeploymentPath,
   secretEvidencePath,
   routeEvidencePath,
@@ -512,6 +616,8 @@ export async function buildTextToLatticeDeploymentEvidence({
   for (const [label, pathname] of Object.entries({
     apiDeploymentPath,
     apiVersionPath,
+    apiDeploymentAfterPath,
+    apiEnvironmentBeforePath,
     policyDeploymentPath,
     secretEvidencePath,
     routeEvidencePath,
@@ -519,13 +625,15 @@ export async function buildTextToLatticeDeploymentEvidence({
   })) {
     if (typeof pathname !== "string" || pathname.length === 0) fail(`${label} is required.`);
   }
-  const [apiRaw, apiVersionRaw, policyRaw, secretFile, routeFile, liveFile] = await Promise.all([
+  const [apiRaw, apiVersionRaw, apiAfterRaw, environmentBefore, policyRaw, secretFile, routeFile, live] = await Promise.all([
     readJson(apiDeploymentPath, "API deployment status"),
     readJson(apiVersionPath, "API active version"),
+    readJson(apiDeploymentAfterPath, "API post-live deployment status"),
+    readJson(apiEnvironmentBeforePath, "API pre-live environment observation"),
     readJson(policyDeploymentPath, "response-policy deployment status"),
     readSanitizedEvidence(secretEvidencePath, "TEXT_TO_LATTICE_SECRET_BINDING_EVIDENCE"),
     readSanitizedEvidence(routeEvidencePath, "TEXT_TO_LATTICE_ROUTE_INVENTORY_EVIDENCE"),
-    readSanitizedEvidence(liveEvidencePath, "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE", 3),
+    readSanitizedEvidence(liveEvidencePath, "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE", 3, true),
   ]);
   const generatedAt = now();
   if (!(generatedAt instanceof Date) || Number.isNaN(generatedAt.valueOf())) {
@@ -549,6 +657,41 @@ export async function buildTextToLatticeDeploymentEvidence({
   const apiDeployment = sanitizeTextToLatticeDeploymentStatus(apiRaw, API_WORKER);
   const apiVersion = sanitizeTextToLatticeApiVersion(apiVersionRaw, apiDeployment.versionId, {
     qualificationExpiresAt: normalizedQualificationExpiresAt,
+  });
+  const apiAfter = sanitizeTextToLatticeDeploymentStatus(apiAfterRaw, API_WORKER);
+  const currentEnvironment = sanitizeTextToLatticeAdmissionEnvironment(apiVersionRaw);
+  exactObjectFields(environmentBefore, [
+    "format", "schemaVersion", "validatedAt", "workflow", "api", "admissionEnvironment",
+  ], "API pre-live environment observation");
+  const validatedBeforeAt = exactTimestamp(environmentBefore.validatedAt, "API pre-live validation time");
+  const liveStartedAt = exactTimestamp(live.value.verified_at, "live verification start");
+  verifyLatticeProductionAdmissionEvidence(live.value.request_admission, {
+    requireComplete: normalizedQualificationExpiresAt !== null,
+  });
+  const liveCompletedAt = exactTimestamp(live.value.request_admission.completed_at, "live admission completion");
+  const identity = workflowIdentity(environment);
+  if (environmentBefore.format !== "TEXT_TO_LATTICE_API_ENVIRONMENT_OBSERVATION"
+    || environmentBefore.schemaVersion !== 1
+    || live.value.deployment?.repository !== identity.repository
+    || live.value.deployment?.commit !== identity.commit
+    || live.value.deployment?.run_url !== identity.runUrl
+    || live.value.deployment?.run_attempt !== Number(identity.runAttempt)
+    || JSON.stringify(environmentBefore.workflow) !== JSON.stringify(workflowIdentity(environment))
+    || JSON.stringify(environmentBefore.api) !== JSON.stringify(apiDeployment)
+    || JSON.stringify(apiAfter) !== JSON.stringify(apiDeployment)
+    || JSON.stringify(validateAdmissionEnvironment(environmentBefore.admissionEnvironment))
+      !== JSON.stringify(currentEnvironment)
+    || validatedBeforeAt > liveStartedAt || liveStartedAt > liveCompletedAt || liveCompletedAt > deployedAt) {
+    fail("The API environment or matching snapshots do not bracket this live verification.");
+  }
+  const admissionEnvironment = Object.freeze({
+    validatedBeforeAt,
+    validatedAfterAt: deployedAt,
+    liveCompletedAt,
+    deploymentId: apiDeployment.deploymentId,
+    versionId: apiDeployment.versionId,
+    matchingBeforeAfterSnapshots: true,
+    runtime: currentEnvironment,
   });
   const evidence = Object.freeze({
     format: "TEXT_TO_LATTICE_DEPLOYMENT_EVIDENCE_INDEX",
@@ -577,8 +720,9 @@ export async function buildTextToLatticeDeploymentEvidence({
     evidenceFiles: Object.freeze({
       secretBindings: secretFile,
       routeInventory: routeFile,
-      liveBoundary: liveFile,
+      liveBoundary: live.reference,
     }),
+    admissionEnvironment,
     rawWranglerStatusRetained: false,
     rawWranglerVersionRetained: false,
     contentBodiesRetained: false,
@@ -589,10 +733,14 @@ export async function buildTextToLatticeDeploymentEvidence({
 }
 
 function cliArguments(argumentsList) {
-  const values = {};
+  const inspectMode = argumentsList[0] === "--inspect-api-environment";
+  if (inspectMode) argumentsList = argumentsList.slice(1);
+  const values = { inspectMode };
   const optionMap = new Map([
     ["--api-deployment", "apiDeploymentPath"],
     ["--api-version", "apiVersionPath"],
+    ["--api-deployment-after", "apiDeploymentAfterPath"],
+    ["--api-environment-before", "apiEnvironmentBeforePath"],
     ["--policy-deployment", "policyDeploymentPath"],
     ["--secret-evidence", "secretEvidencePath"],
     ["--route-evidence", "routeEvidencePath"],
@@ -614,7 +762,13 @@ function cliArguments(argumentsList) {
     values[key] = value;
     index += 1;
   }
-  for (const key of [...optionMap.values()].filter((value) => value !== "qualificationExpiresAt")) {
+  const required = inspectMode
+    ? ["apiDeploymentPath", "apiVersionPath", "outputPath"]
+    : [...optionMap.values()].filter((value) => value !== "qualificationExpiresAt");
+  if (inspectMode && Object.keys(values).some((key) => ![...required, "qualificationExpiresAt", "inspectMode"].includes(key))) {
+    fail("API environment inspection received an unsupported option.");
+  }
+  for (const key of required) {
     if (!values[key]) fail(`${key} is required.`);
   }
   return values;
@@ -624,8 +778,10 @@ const isCommand = process.argv[1]
   && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 
 if (isCommand) {
-  const { outputPath, ...inputs } = cliArguments(process.argv.slice(2));
-  const evidence = await buildTextToLatticeDeploymentEvidence(inputs);
+  const { outputPath, inspectMode, ...inputs } = cliArguments(process.argv.slice(2));
+  const evidence = inspectMode
+    ? await inspectTextToLatticeApiEnvironment(inputs)
+    : await buildTextToLatticeDeploymentEvidence(inputs);
   const resolvedOutput = resolve(outputPath);
   const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
   await mkdir(dirname(resolvedOutput), { recursive: true });

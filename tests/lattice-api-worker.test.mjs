@@ -85,6 +85,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
@@ -6817,7 +6818,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
 });
 
 test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
-  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v17");
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v18");
   const diagnosticHeaders = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
       LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -7024,7 +7025,7 @@ test("the terminal analysis diagnostic is all-or-none, bounded, and qualificatio
   }
 });
 
-test("the v17 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v18 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -8033,8 +8034,8 @@ test("strict Nscale reviews reject auxiliary fields and never interpret a compet
   });
 });
 
-test("Worker usage headers require an authentic completed adapter and the active v17 qualification marker", async () => {
-  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v17" };
+test("Worker usage headers require an authentic completed adapter and the active v18 qualification marker", async () => {
+  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v18" };
   const env = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
   const run = async ({ retain = false, headers = marked, environment = env, missing = false, forged = false } = {}) => {
     const bodies = [];
@@ -8104,7 +8105,7 @@ test("Worker usage headers require an authentic completed adapter and the active
 
 test("Worker usage headers remain absent on unable failed or expiry-during-work outcomes", async () => {
   const cutoff = Date.parse("2099-09-17T12:00:00.000Z");
-  const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v17" };
+  const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v18" };
   const env = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(cutoff).toISOString() };
   for (const outcome of ["unable", "failed", "expired"]) {
     let clock = cutoff - 1000;
@@ -8359,7 +8360,7 @@ test("S06 shape records reject content channels, accessors and impossible combin
   assert.equal(reads, 0);
 });
 
-test("S06 compatible review headers require v17 and an active window without exposing M01 headers", async () => {
+test("S06 compatible review headers require v18 and an active window without exposing M01 headers", async () => {
   const request = { ...minimalCertificationRequest() };
   Object.defineProperty(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
     value: Object.freeze({ attempt: "initial", priorValidationCategory: "none" }), enumerable: false,
@@ -9196,7 +9197,7 @@ test("strict verification preserves safe explicit content-envelope opt-ins and s
 
 test("pipeline headers bind actual withheld lineage and cannot be forged or outlive qualification", async () => {
   const active = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
-  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v17" };
+  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v18" };
   const run = async ({ regeneration = false, repairCorrection = false, retentionDowngrade = false, headers = marked, env = active, clone = false, duplicate = false, expiresDuring = false } = {}) => {
     const bodies = [];
     let verifies = 0;
@@ -9381,7 +9382,7 @@ test("always-on downgraded-retention recovery preserves fixed stages and fresh a
         return successfulProviderResponse(wire);
       } });
       const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: marked
-        ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v17" } : {} }),
+        ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v18" } : {} }),
       { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" });
       assert.equal(response.status, 200);assert.equal(analyses, 2);assert.equal(drafts, 2);assert.equal(reviews, 2);
       return { json: await json(response), bodies };
@@ -9390,4 +9391,146 @@ test("always-on downgraded-retention recovery preserves fixed stages and fresh a
     assert.equal(ordinary.json.result.status, retain ? "conformant-for-context" : "translated");
     assert.equal(ordinary.bodies.length, 7);assert.deepEqual(observed.bodies, ordinary.bodies);assert.deepEqual(observed.json, ordinary.json);
   });
+});
+
+test("qualification admission observations prove zero dispatch on the covered bodyless setup", async () => {
+  const instant = Date.parse("2026-10-05T12:00:00.000Z");
+  const worker = createProductionLatticeApiWorker({ now: () => instant });
+  const response = await worker.fetch(new Request(`${LATTICE_API_ORIGIN}${LATTICE_API_PATH}`, {
+    method: "POST", headers: { Origin: LATTICE_API_ORIGIN, Accept: LATTICE_VISITOR_SESSION_ACCEPT,
+      [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE },
+  }), { VISITOR_COOKIE_SECRET: TEST_VISITOR_SECRET,
+    [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(instant + 60_000).toISOString() });
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get("x-lattice-qualification-admission-status"), "complete");
+  assert.equal(response.headers.get("x-lattice-qualification-admission-claim"), "not-called");
+  assert.equal(response.headers.get("x-lattice-qualification-admission-order"), "not-called");
+  assert.equal(response.headers.get("x-lattice-qualification-admission-provider"), "not-started");
+});
+
+
+function admissionHeaders(response) {
+  return Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS)
+    .map(([field, header]) => [field, response.headers.get(header)]));
+}
+
+const admissionUnavailable = Object.freeze({ status: "unavailable", claim: "unavailable", order: "unavailable", provider: "unavailable" });
+const admissionNotCalled = Object.freeze({ status: "complete", claim: "not-called", order: "not-called", provider: "not-started" });
+
+test("qualification admission observes the default full pipeline once without changing request bytes or public results", async () => {
+  const run = async (marked) => {
+    const instant = Date.parse("2026-10-05T12:00:00.000Z");const events = [], bodies = [];
+    const visitor = await establishLatticeApiVisitor(new Headers(), TEST_VISITOR_SECRET);
+    const worker = createProductionLatticeApiWorker({ now: () => instant,
+      fetchImpl: async (_url, init) => {
+        events.push("provider");const body = JSON.parse(init.body);bodies.push(body);let wire;
+        if (isAnalysisBody(body)) wire = canaryAnalysisWire(body);
+        else if (isCandidateBody(body)) wire = canaryCandidateFromProviderBody(body,
+          "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.");
+        else if (isVerificationBody(body)) wire = canaryVerificationWire(body);
+        else { const data = inertModelPayload(body);wire = acceptingCertificationWire(data.certificateId, data.obligationIds); }
+        return successfulProviderResponse(wire);
+      },
+    });
+    const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: {
+      Cookie: `${LATTICE_API_VISITOR_COOKIE_NAME}=${visitor.cookieValue}`,
+      ...(marked ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE } : {}),
+    } }), { HF_TOKEN: "test-only", VISITOR_COOKIE_SECRET: TEST_VISITOR_SECRET,
+      LATTICE_API_RATE_LIMITER: { async limit() { events.push("edge");return { success: true }; } },
+      LATTICE_TRANSFORMATION_BUDGET: { getByName(name) { assert.equal(name, LATTICE_TRANSFORMATION_CAPACITY_OBJECT_NAME);return {
+        async fetch(request) { events.push("claim");assert.equal(request.url, LATTICE_TRANSFORMATION_CAPACITY_INTERNAL_URL);
+          return Response.json({ allowed: true, schema_version: 1 }); },
+      }; } },
+      [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(instant + 60_000).toISOString(),
+    });
+    assert.equal(response.status, 200);const result = await json(response);assert.equal(result.result.status, "translated");
+    assert.deepEqual(events, ["edge", "claim", "provider", "provider", "provider", "provider"]);
+    return { result, bodies, headers: admissionHeaders(response) };
+  };
+  const ordinary = await run(false), marked = await run(true);
+  assert.deepEqual(marked.result, ordinary.result);assert.deepEqual(marked.bodies, ordinary.bodies);
+  assert.deepEqual(ordinary.headers, { status: null, claim: null, order: null, provider: null });
+  assert.deepEqual(marked.headers, { status: "complete", claim: "allowed-once", order: "after-validation", provider: "after-admission" });
+});
+
+test("qualification admission covers missing and tampered cookies while earlier validation stays unobserved", async () => {
+  const instant = Date.parse("2026-10-05T12:00:00.000Z");const worker = createProductionLatticeApiWorker({ now: () => instant });
+  const env = { HF_TOKEN: "test-only", VISITOR_COOKIE_SECRET: TEST_VISITOR_SECRET,
+    [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(instant + 60_000).toISOString() };
+  const headers = { Origin: LATTICE_API_ORIGIN, Accept: "application/json", "Content-Type": "application/json",
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE };
+  for (const [patch, status, observed] of [[{}, 428, true], [{ Cookie: `${LATTICE_API_VISITOR_COOKIE_NAME}=${TEST_VISITOR_COOKIE_VALUE}` }, 403, true],
+    [{ Cookie: "undeclared=value" }, 403, true], [{ Origin: "https://invalid.example" }, 403, false]]) {
+    const response = await worker.fetch(new Request(`${LATTICE_API_ORIGIN}${LATTICE_API_PATH}`, {
+      method: "POST", headers: { ...headers, ...patch }, body: "{",
+    }), env);
+    assert.equal(response.status, status);
+    assert.deepEqual(admissionHeaders(response), observed ? admissionNotCalled : { status: null, claim: null, order: null, provider: null });
+  }
+});
+
+test("qualification admission is absent when unmarked inactive old-marked or expired", async () => {
+  const instant = Date.parse("2026-10-05T12:00:00.000Z");const worker = createProductionLatticeApiWorker({ now: () => instant });
+  for (const [marker, expiry] of [[undefined, instant + 60_000], ["v17", instant + 60_000],
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, undefined], [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, instant - 1]]) {
+    const response = await worker.fetch(new Request(`${LATTICE_API_ORIGIN}${LATTICE_API_PATH}`, {
+      method: "POST", headers: { Origin: LATTICE_API_ORIGIN, Accept: LATTICE_VISITOR_SESSION_ACCEPT,
+        ...(marker ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: marker } : {}) },
+    }), { VISITOR_COOKIE_SECRET: TEST_VISITOR_SECRET,
+      ...(expiry === undefined ? {} : { [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(expiry).toISOString() }) });
+    assert.equal(response.status, expiry === instant - 1 ? 503 : 204);
+    assert.deepEqual(admissionHeaders(response), { status: null, claim: null, order: null, provider: null });
+  }
+  for (const marked of [false, true]) {
+    let reads = 0;
+    const expiringWorker = createProductionLatticeApiWorker({ now: () => {
+      reads += 1;return reads <= 2 ? instant : instant + 60_001;
+    } });
+    const response = await expiringWorker.fetch(new Request(`${LATTICE_API_ORIGIN}${LATTICE_API_PATH}`, {
+      method: "POST", headers: { Origin: LATTICE_API_ORIGIN, Accept: LATTICE_VISITOR_SESSION_ACCEPT,
+        ...(marked ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE } : {}) },
+    }), { VISITOR_COOKIE_SECRET: TEST_VISITOR_SECRET,
+      [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(instant + 60_000).toISOString() });
+    assert.equal(response.status, 503);
+    assert.deepEqual(admissionHeaders(response), { status: null, claim: null, order: null, provider: null });
+    assert.deepEqual(await json(response), { error: "upstream_unavailable" });
+  }
+});
+
+test("qualification admission cannot inherit native authority from injected engine or admission shortcuts", async () => {
+  const instant = Date.parse("2026-10-05T12:00:00.000Z");
+  const visitor = await establishLatticeApiVisitor(new Headers(), TEST_VISITOR_SECRET);
+  for (const overrides of [{}, { admitTransformation: async () => ({ allowed: true, retryAfterSeconds: null }) },
+    { createAdapter: () => ({}) }]) {
+    const worker = createProductionLatticeApiWorker({ now: () => instant, runTextToLatticeImpl: async () => validLatticeResult(), ...overrides });
+    const response = await worker.fetch(apiRequest(validPayload, { headers: {
+      Cookie: `${LATTICE_API_VISITOR_COOKIE_NAME}=${visitor.cookieValue}`,
+      [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+    } }), { HF_TOKEN: "test-only", VISITOR_COOKIE_SECRET: TEST_VISITOR_SECRET,
+      LATTICE_API_RATE_LIMITER: { async limit() { return { success: true }; } },
+      LATTICE_TRANSFORMATION_BUDGET: { getByName: () => ({ fetch: async () => Response.json({ allowed: true, schema_version: 1 }) }) },
+      [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(instant + 60_000).toISOString(),
+    });
+    assert.equal(response.status, 200);assert.deepEqual(admissionHeaders(response), admissionUnavailable);
+  }
+});
+
+test("qualification admission stays unavailable when the Worker abort race beats the DO response body", async () => {
+  const instant = Date.parse("2026-10-05T12:00:00.000Z");let release, providerCalls = 0;
+  const visitor = await establishLatticeApiVisitor(new Headers(), TEST_VISITOR_SECRET);
+  const worker = createProductionLatticeApiWorker({ now: () => instant, requestTimeoutMs: 10,
+    fetchImpl: async () => { providerCalls += 1;throw new Error("No provider expected"); } });
+  const response = await worker.fetch(apiRequest(validPayload, { headers: {
+    Cookie: `${LATTICE_API_VISITOR_COOKIE_NAME}=${visitor.cookieValue}`,
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  } }), { HF_TOKEN: "test-only", VISITOR_COOKIE_SECRET: TEST_VISITOR_SECRET,
+    LATTICE_API_RATE_LIMITER: { async limit() { return { success: true }; } },
+    LATTICE_TRANSFORMATION_BUDGET: { getByName: () => ({ fetch: async () => new Response(new ReadableStream({ start(controller) {
+      release = () => { controller.enqueue(new TextEncoder().encode('{"allowed":true,"schema_version":1}'));controller.close(); };
+    } }), { headers: { "Content-Type": "application/json" } }) }) },
+    [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(instant + 60_000).toISOString(),
+  });
+  assert.equal(response.status, 504);assert.deepEqual(admissionHeaders(response), admissionUnavailable);
+  assert.equal(providerCalls, 0);release();await Promise.resolve();await Promise.resolve();
+  assert.deepEqual(admissionHeaders(response), admissionUnavailable);assert.equal(providerCalls, 0);
 });

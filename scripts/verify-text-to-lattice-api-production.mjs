@@ -55,6 +55,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS,
@@ -63,6 +64,7 @@ import {
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
+import { isClosedLatticeAdmissionObservation } from "../workers/text-to-lattice-api/admissionObservation.js";
 import {
   LATTICE_WITHHELD_TRACE_FIELDS,
   isClosedWithheldTrace,
@@ -421,6 +423,96 @@ export const LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT = Object.freeze(
     allow,
   })),
 );
+
+export const LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS = Object.freeze([
+  "missing-visitor-session", "malformed-json", "missing-text", "missing-requested-mode",
+  "missing-schema-version", "additional-field", "invalid-text-type", "invalid-mode",
+  "invalid-schema-version", "credential-cookie", "word-limit-701",
+  "request-byte-limit-exact", "request-byte-limit-plus-one",
+]);
+const ADMISSION_NEGATIVE_PROBE_SET = new Set(LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS);
+const ADMISSION_ZERO = Object.freeze({
+  status: "complete", claim: "not-called", order: "not-called", provider: "not-started",
+});
+const ADMISSION_CANARY = Object.freeze({
+  status: "complete", claim: "allowed-once", order: "after-validation", provider: "after-admission",
+});
+
+function observationMatches(value, expected) {
+  return isClosedLatticeAdmissionObservation(value)
+    && Object.keys(expected).every((field) => value[field] === expected[field]);
+}
+
+export function parseLatticeQualificationAdmissionHeaders(headers, { required = null } = {}) {
+  try {
+    if (![null, "zero", "canary", "absent"].includes(required)) throw new Error();
+    const names = Object.values(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS).map((name) => name.toLowerCase());
+    for (const name of headers.keys()) {
+      if (name.toLowerCase().startsWith("x-lattice-qualification-admission")
+        && !names.includes(name.toLowerCase())) throw new Error();
+    }
+    const value = Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS)
+      .map(([field, name]) => [field, headers.get(name)]));
+    if (Object.values(value).every((entry) => entry === null)) {
+      if (required !== null && required !== "absent") throw new Error();
+      return null;
+    }
+    if (required === "absent" || !isClosedLatticeAdmissionObservation(value)
+      || (required === "zero" && !observationMatches(value, ADMISSION_ZERO))
+      || (required === "canary" && !observationMatches(value, ADMISSION_CANARY))) throw new Error();
+    return Object.freeze(value);
+  } catch {
+    fail("qualification admission observation is absent, malformed or inconsistent");
+  }
+}
+
+function qualificationObservationPost(init) {
+  return { ...init, headers: { ...init.headers,
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+  } };
+}
+
+export function parseLatticeRequireAdmissionEvidence(value) {
+  if (value === undefined || value === "true") return true;
+  if (value === "false") return false;
+  fail("LATTICE_REQUIRE_ADMISSION_EVIDENCE must be true or false");
+}
+
+function closedAdmissionRecord(value, fields) {
+  try {
+    if (value === null || typeof value !== "object" || Array.isArray(value)
+      || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) return false;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    return Reflect.ownKeys(descriptors).length === fields.length
+      && fields.every((field) => Object.hasOwn(descriptors, field)
+        && Object.hasOwn(descriptors[field], "value") && descriptors[field].enumerable);
+  } catch { return false; }
+}
+
+export function verifyLatticeProductionAdmissionEvidence(value, { requireComplete = true } = {}) {
+  const complete = requireComplete === true;
+  const fields = ["status", "diagnostic_revision", "scope", "completed_at",
+    ...(complete ? ["setup", "negative_probes", "canary", "preservation", "tampered_cookie"] : [])];
+  if (typeof requireComplete !== "boolean" || !closedAdmissionRecord(value, fields)
+    || value.status !== (complete ? "complete" : "not-observed")
+    || value.diagnostic_revision !== LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE
+    || value.scope !== "request-scoped-host-observation"
+    || typeof value.completed_at !== "string"
+    || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value.completed_at)
+    || value.completed_at.length !== 24 || !Number.isFinite(Date.parse(value.completed_at))
+    || new Date(value.completed_at).toISOString() !== value.completed_at
+    || (complete && (
+      ![value.setup, value.preservation, value.tampered_cookie].every((item) => observationMatches(item, ADMISSION_ZERO))
+      || !observationMatches(value.canary, ADMISSION_CANARY)
+      || !Array.isArray(value.negative_probes)
+      || value.negative_probes.length !== LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS.length
+      || !value.negative_probes.every((entry, index) => closedAdmissionRecord(entry, ["id", "observation"])
+        && entry.id === LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS[index]
+        && observationMatches(entry.observation, ADMISSION_ZERO))))) {
+    fail("the request-scoped admission evidence is incomplete or inconsistent");
+  }
+  return value;
+}
 
 function assertOrigin(value) {
   let parsed;
@@ -811,7 +903,7 @@ function withVisitorCookie(init, visitorCookieHeader) {
 }
 
 async function verifyVisitorSessionSetup(
-  origin, fetchImpl, monotonicNow, now, visitorCookieHeader = null, priorClockObservation = null,
+  origin, fetchImpl, monotonicNow, now, visitorCookieHeader = null, priorClockObservation = null, requireAdmissionEvidence = true,
 ) {
   const label = visitorCookieHeader === null
     ? "content-free visitor-session setup" : "postflight visitor-session preservation";
@@ -823,7 +915,8 @@ async function verifyVisitorSessionSetup(
     fetchImpl,
     `${origin}${LATTICE_API_PATH}`,
     visitorCookieHeader === null
-      ? visitorSessionPost() : withVisitorCookie(visitorSessionPost(), visitorCookieHeader),
+      ? qualificationObservationPost(visitorSessionPost())
+      : qualificationObservationPost(withVisitorCookie(visitorSessionPost(), visitorCookieHeader)),
     NEGATIVE_PROBE_TIMEOUT_MS,
     label,
   );
@@ -857,6 +950,7 @@ async function verifyVisitorSessionSetup(
   if (bytes.byteLength !== 0) fail(`${label} returned an undeclared response body`);
   return Object.freeze({
     requestHeader: cookie.requestHeader,
+    admissionObservation: parseLatticeQualificationAdmissionHeaders(response.headers, { required: requireAdmissionEvidence ? "zero" : "absent" }),
     expiry,
     clockObservation: Object.freeze(responseClock),
     evidence: Object.freeze({
@@ -890,9 +984,9 @@ function mutatedCookieSignature(visitorCookieHeader) {
   return `${visitorCookieHeader.slice(0, offset)}${signatureBytes.toString("base64url")}`;
 }
 
-async function verifyVisitorSessionPostflight(origin, fetchImpl, monotonicNow, now, visitorSession) {
+async function verifyVisitorSessionPostflight(origin, fetchImpl, monotonicNow, now, visitorSession, requireAdmissionEvidence) {
   const preserved = await verifyVisitorSessionSetup(
-    origin, fetchImpl, monotonicNow, now, visitorSession.requestHeader, visitorSession.clockObservation,
+    origin, fetchImpl, monotonicNow, now, visitorSession.requestHeader, visitorSession.clockObservation, requireAdmissionEvidence,
   );
   const label = "postflight tampered visitor-session cookie";
   const startedAt = monotonicNow();
@@ -903,7 +997,7 @@ async function verifyVisitorSessionPostflight(origin, fetchImpl, monotonicNow, n
     headers: { Cookie: mutatedCookieSignature(visitorSession.requestHeader) },
   });
   const response = await fetchOnce(
-    fetchImpl, `${origin}${LATTICE_API_PATH}`, init, NEGATIVE_PROBE_TIMEOUT_MS, label,
+    fetchImpl, `${origin}${LATTICE_API_PATH}`, qualificationObservationPost(init), NEGATIVE_PROBE_TIMEOUT_MS, label,
   );
   if (response.status !== 403) {
     await response.body?.cancel().catch(() => {});
@@ -916,7 +1010,11 @@ async function verifyVisitorSessionPostflight(origin, fetchImpl, monotonicNow, n
   if (!isLatticeApiError(body) || !exactRecord(body, ["error"]) || body.error !== "invalid_request") {
     fail(`${label} returned an unexpected closed error envelope`);
   }
-  return Object.freeze({
+  const admissionObservations = Object.freeze({
+    preservation: preserved.admissionObservation,
+    tampered_cookie: parseLatticeQualificationAdmissionHeaders(response.headers, { required: requireAdmissionEvidence ? "zero" : "absent" }),
+  });
+  return Object.freeze({ admissionObservations, evidence: Object.freeze({
     scope: "backend-probes-after-successful-canary",
     request_count: 2,
     automatic_retry: false,
@@ -942,20 +1040,22 @@ async function verifyVisitorSessionPostflight(origin, fetchImpl, monotonicNow, n
       no_store: true,
       non_reflective: true,
     }),
-  });
+  }) });
 }
 
-async function verifyNegativeProbes(origin, fetchImpl, monotonicNow, visitorCookieHeader) {
+async function verifyNegativeProbes(origin, fetchImpl, monotonicNow, visitorCookieHeader, requireAdmissionEvidence) {
   const evidence = [];
+  const admissionObservations = [];
   for (const probe of NEGATIVE_PROBES) {
     const label = `negative probe ${probe.id}`;
     const startedAt = monotonicNow();
+    const requestInit = probe.visitorCookie === false
+      ? probe.init : withVisitorCookie(probe.init, visitorCookieHeader);
+    const covered = ADMISSION_NEGATIVE_PROBE_SET.has(probe.id);
     const response = await fetchOnce(
       fetchImpl,
       `${origin}${probe.pathname}`,
-      probe.visitorCookie === false
-        ? probe.init
-        : withVisitorCookie(probe.init, visitorCookieHeader),
+      covered ? qualificationObservationPost(requestInit) : requestInit,
       NEGATIVE_PROBE_TIMEOUT_MS,
       label,
     );
@@ -997,6 +1097,9 @@ async function verifyNegativeProbes(origin, fetchImpl, monotonicNow, visitorCook
     } else if (response.headers.has("allow")) {
       fail(`${label} returned an undeclared Allow header`);
     }
+    const observation = parseLatticeQualificationAdmissionHeaders(response.headers, { required: covered ? (requireAdmissionEvidence ? "zero" : "absent") : null });
+    if (!covered && observation !== null) fail("an uncovered negative probe returned admission evidence");
+    if (covered) admissionObservations.push(Object.freeze({ id: probe.id, observation }));
     evidence.push(Object.freeze({
       id: probe.id,
       status: response.status,
@@ -1007,10 +1110,10 @@ async function verifyNegativeProbes(origin, fetchImpl, monotonicNow, visitorCook
       non_reflective: true,
     }));
   }
-  return Object.freeze(evidence);
+  return Object.freeze({ outcomes: Object.freeze(evidence), admissionObservations: Object.freeze(admissionObservations) });
 }
 
-async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visitorCookieHeader) {
+async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visitorCookieHeader, requireAdmissionEvidence) {
   const label = "synthetic transformation canary";
   const startedAt = monotonicNow();
   const response = await fetchOnce(
@@ -1028,6 +1131,7 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   assertApiHeaders(response, label);
   const bytes = await boundedBytes(response, API_RESPONSE_LIMIT, label);
   const envelope = parseJson(bytes, label);
+  const admissionObservation = parseLatticeQualificationAdmissionHeaders(response.headers);
   const usageObservation = parseLatticeQualificationUsageHeaders(response.headers, {
     acceptedSuccess: response.status === 200
       && CERTIFICATION_CANARY_STATUS_SET.has(envelope?.result?.status),
@@ -1423,7 +1527,11 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     set_cookie_header_present: false,
     browser_quota_cookie_rotated: false,
   });
-  return Object.freeze({ canary, usageObservation });
+  if ((requireAdmissionEvidence && !observationMatches(admissionObservation, ADMISSION_CANARY))
+    || (!requireAdmissionEvidence && admissionObservation !== null)) {
+    fail("the successful canary lacks complete request-scoped admission evidence");
+  }
+  return Object.freeze({ canary, usageObservation, admissionObservation });
 }
 
 export function serializeLatticeProductionEvidence(evidence) {
@@ -1460,9 +1568,10 @@ export async function verifyTextToLatticeApiProduction({
   wait = waitMilliseconds,
   onPreflightEvidence,
   onUsageEvidence,
+  requireAdmissionEvidence = true,
   context,
 } = {}) {
-  if (typeof fetchImpl !== "function" || typeof now !== "function"
+  if (typeof requireAdmissionEvidence !== "boolean" || typeof fetchImpl !== "function" || typeof now !== "function"
     || typeof monotonicNow !== "function" || typeof wait !== "function"
     || (onPreflightEvidence !== undefined && typeof onPreflightEvidence !== "function")
     || (onUsageEvidence !== undefined && typeof onUsageEvidence !== "function")) {
@@ -1477,12 +1586,13 @@ export async function verifyTextToLatticeApiProduction({
 
   const documentPolicies = await verifyDocumentPolicies(exactOrigin, fetchImpl, monotonicNow);
   const deploymentReadiness = await verifyActiveApiReadiness(exactOrigin, fetchImpl, wait);
-  const visitorSession = await verifyVisitorSessionSetup(exactOrigin, fetchImpl, monotonicNow, now);
+  const visitorSession = await verifyVisitorSessionSetup(exactOrigin, fetchImpl, monotonicNow, now, null, null, requireAdmissionEvidence);
   const negativeProbes = await verifyNegativeProbes(
     exactOrigin,
     fetchImpl,
     monotonicNow,
     visitorSession.requestHeader,
+    requireAdmissionEvidence,
   );
   const runUrl = `${deployment.serverUrl}/${deployment.repository}/actions/runs/${deployment.runId}`;
   const commonEvidence = Object.freeze({
@@ -1550,10 +1660,10 @@ export async function verifyTextToLatticeApiProduction({
     }),
     deployment_readiness: deploymentReadiness,
     negative_probes: Object.freeze({
-      count: negativeProbes.length,
+      count: negativeProbes.outcomes.length,
       all_rejected: true,
       raw_request_or_response_content_recorded: false,
-      outcomes: negativeProbes,
+      outcomes: negativeProbes.outcomes,
     }),
     visitor_session_setup: visitorSession.evidence,
   });
@@ -1582,20 +1692,36 @@ export async function verifyTextToLatticeApiProduction({
     await onPreflightEvidence(preflightEvidence);
   }
 
-  const { canary: transformationCanary, usageObservation } = await verifyTransformationCanary(
+  const { canary: transformationCanary, usageObservation, admissionObservation } = await verifyTransformationCanary(
     exactOrigin,
     fetchImpl,
     monotonicNow,
     visitorSession.requestHeader,
+    requireAdmissionEvidence,
   );
   const visitorSessionPostflight = await verifyVisitorSessionPostflight(
-    exactOrigin, fetchImpl, monotonicNow, now, visitorSession,
+    exactOrigin, fetchImpl, monotonicNow, now, visitorSession, requireAdmissionEvidence,
   );
+  const completedAt = now();
+  if (!(completedAt instanceof Date) || !Number.isFinite(completedAt.valueOf())
+    || completedAt.valueOf() < verifiedAt.valueOf()) fail("the admission completion time is invalid");
+  const requestAdmission = Object.freeze(verifyLatticeProductionAdmissionEvidence({
+    status: requireAdmissionEvidence ? "complete" : "not-observed",
+    diagnostic_revision: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+    scope: "request-scoped-host-observation",
+    completed_at: completedAt.toISOString(),
+    ...(requireAdmissionEvidence ? { setup: visitorSession.admissionObservation,
+    negative_probes: negativeProbes.admissionObservations,
+    canary: admissionObservation,
+    preservation: visitorSessionPostflight.admissionObservations.preservation,
+    tampered_cookie: visitorSessionPostflight.admissionObservations.tampered_cookie } : {}),
+  }, { requireComplete: requireAdmissionEvidence }));
   const evidence = Object.freeze({
     format: LATTICE_PRODUCTION_EVIDENCE_SCHEMA,
     ...commonEvidence,
     transformation_canary: transformationCanary,
-    visitor_session_postflight: visitorSessionPostflight,
+    visitor_session_postflight: visitorSessionPostflight.evidence,
+    request_admission: requestAdmission,
   });
 
   if (JSON.stringify(evidence).includes(LATTICE_PRODUCTION_CANARY_TEXT)
@@ -1628,6 +1754,7 @@ async function main() {
   let usageEvidence;
   const evidence = await verifyTextToLatticeApiProduction({
     origin: process.env.LATTICE_API_BASE_URL,
+    requireAdmissionEvidence: parseLatticeRequireAdmissionEvidence(process.env.LATTICE_REQUIRE_ADMISSION_EVIDENCE),
     onUsageEvidence(value) { usageEvidence = value; },
     onPreflightEvidence: async (preflightEvidence) => {
       const serialized = await writeLatticeProductionEvidenceReceipt(
