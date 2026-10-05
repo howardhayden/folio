@@ -538,6 +538,21 @@ jobs:
           ./workers/node_modules/.bin/wrangler deployments status --json \
             --config workers/text-to-lattice-response-policy/wrangler.jsonc \
             > "$RUNNER_TEMP/text-to-lattice-policy-deployment.raw.json"
+      - name: Verify deployed admission environment before live probes
+        env:
+          QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
+          RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
+        run: |
+          EXPIRY_ARGUMENTS=()
+          if [[ "$RELEASE_PHASE" != "qualified" ]]; then
+            EXPIRY_ARGUMENTS=(--qualification-expires-at "$QUALIFICATION_EXPIRES_AT")
+          fi
+          node scripts/build-text-to-lattice-deployment-evidence.mjs \
+            --inspect-api-environment \
+            --api-deployment "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json" \
+            --api-version "$RUNNER_TEMP/text-to-lattice-api-version.raw.json" \
+            --output "$RUNNER_TEMP/text-to-lattice-api-environment-before.json" \
+            "${EXPIRY_ARGUMENTS[@]}"
       - name: Verify reversible preactivation route ownership
         if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
         env:
@@ -553,7 +568,16 @@ jobs:
         env:
           LATTICE_API_BASE_URL: https://hah.dev
           LATTICE_API_EVIDENCE_PATH: ${{ runner.temp }}/text-to-lattice-deployment-evidence/live-boundary.json
+          LATTICE_REQUIRE_ADMISSION_EVIDENCE: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
         run: node scripts/verify-text-to-lattice-api-production.mjs
+      - name: Inspect API deployment after live verification
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          ./workers/node_modules/.bin/wrangler deployments status --json
+          --config workers/text-to-lattice-api/wrangler.jsonc
+          > "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json"
       - name: Require current main before legacy surface retirement
         if: ${{ needs.publication-boundary.outputs.release_phase == 'qualified' }}
         env:
@@ -600,6 +624,8 @@ jobs:
           fi
           node scripts/build-text-to-lattice-deployment-evidence.mjs \
             --api-deployment "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json" \
+            --api-deployment-after "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json" \
+            --api-environment-before "$RUNNER_TEMP/text-to-lattice-api-environment-before.json" \
             --api-version "$RUNNER_TEMP/text-to-lattice-api-version.raw.json" \
             --policy-deployment "$RUNNER_TEMP/text-to-lattice-policy-deployment.raw.json" \
             --secret-evidence "$RUNNER_TEMP/text-to-lattice-deployment-evidence/secret-bindings.json" \

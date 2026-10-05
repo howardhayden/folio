@@ -8,11 +8,15 @@ import test from "node:test";
 
 import {
   buildTextToLatticeDeploymentEvidence,
+  inspectTextToLatticeApiEnvironment,
+  sanitizeTextToLatticeAdmissionEnvironment,
   parseTextToLatticeDeploymentEvidenceIndexText,
   sanitizeTextToLatticeApiVersion,
   sanitizeTextToLatticeDeploymentStatus,
   verifyTextToLatticeDeploymentEvidenceIndex,
 } from "../scripts/build-text-to-lattice-deployment-evidence.mjs";
+import { LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS } from "../scripts/verify-text-to-lattice-api-production.mjs";
+import { LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE } from "../workers/text-to-lattice-api/worker.js";
 import { hashRegularFileSha256 } from "../scripts/hash-regular-file-sha256.mjs";
 import { readTextToLatticeActiveVersion } from "../scripts/read-text-to-lattice-active-version.mjs";
 import {
@@ -80,6 +84,10 @@ function apiVersionView(overrides = {}) {
       source: "wrangler",
     },
     resources: {
+      script_runtime: {
+        compatibility_date: "2026-09-14", compatibility_flags: ["enable_request_signal"], migration_tag: "v1",
+        exports: { LatticeTransformationBudget: { type: "durable-object", storage: "sqlite" } },
+      },
       bindings: [
         { name: "HF_TOKEN", type: "secret_text" },
         { name: "VISITOR_COOKIE_SECRET", type: "secret_text" },
@@ -93,11 +101,15 @@ function apiVersionView(overrides = {}) {
           name: "LATTICE_TRANSFORMATION_BUDGET",
           type: "durable_object_namespace",
           class_name: "LatticeTransformationBudget",
-          namespace_id: "provider-budget-namespace-must-not-be-retained",
+          namespace_id: "0123456789abcdef0123456789abcdef",
         },
       ],
     },
     ...overrides,
+    ...(overrides.resources ? { resources: {
+      script_runtime: { compatibility_date: "2026-09-14", compatibility_flags: ["enable_request_signal"], migration_tag: "v1", exports: { LatticeTransformationBudget: { type: "durable-object", storage: "sqlite" } } },
+      ...overrides.resources,
+    } } : {}),
   };
 }
 
@@ -113,11 +125,29 @@ function environment(overrides = {}) {
   };
 }
 
+function environmentWorkflow() {
+  return { repository: "howardhayden/folio", commit: "a".repeat(40), ref: "refs/heads/main",
+    runId: "123456789", runAttempt: "2", runUrl: "https://github.com/howardhayden/folio/actions/runs/123456789" };
+}
+function admissionFixture(complete = false) {
+  const zero = { status: "complete", claim: "not-called", order: "not-called", provider: "not-started" };
+  const base = { status: complete ? "complete" : "not-observed", diagnostic_revision: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+    scope: "request-scoped-host-observation", completed_at: "2026-09-14T08:02:00.000Z" };
+  if (!complete) return base;
+  return { ...base,
+    scope: "request-scoped-host-observation", completed_at: "2026-09-14T08:02:00.000Z",
+    setup: { ...zero }, negative_probes: LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS.map((id) => ({ id, observation: { ...zero } })),
+    canary: { status: "complete", claim: "allowed-once", order: "after-validation", provider: "after-admission" },
+    preservation: { ...zero }, tampered_cookie: { ...zero } };
+}
+
 async function withEvidenceFiles(callback, overrides = {}) {
   const directory = await mkdtemp(join(tmpdir(), "lattice-deployment-evidence-"));
   const paths = {
     apiDeploymentPath: join(directory, "api.raw.json"),
     apiVersionPath: join(directory, "api-version.raw.json"),
+    apiDeploymentAfterPath: join(directory, "api-after.raw.json"),
+    apiEnvironmentBeforePath: join(directory, "api-before.json"),
     policyDeploymentPath: join(directory, "policy.raw.json"),
     secretEvidencePath: join(directory, "secret-bindings.json"),
     routeEvidencePath: join(directory, "route-inventory.json"),
@@ -126,6 +156,13 @@ async function withEvidenceFiles(callback, overrides = {}) {
   const values = {
     apiDeploymentPath: deployment(apiDeploymentId, apiVersion),
     apiVersionPath: apiVersionView(),
+    apiDeploymentAfterPath: deployment(apiDeploymentId, apiVersion),
+    apiEnvironmentBeforePath: {
+      format: "TEXT_TO_LATTICE_API_ENVIRONMENT_OBSERVATION", schemaVersion: 1,
+      validatedAt: "2026-09-14T08:00:01.000Z", workflow: { ...environmentWorkflow() },
+      api: sanitizeTextToLatticeDeploymentStatus(deployment(apiDeploymentId, apiVersion), "hahdev-text-to-lattice-api"),
+      admissionEnvironment: sanitizeTextToLatticeAdmissionEnvironment(apiVersionView()),
+    },
     policyDeploymentPath: deployment(policyDeploymentId, policyVersion),
     secretEvidencePath: {
       format: "TEXT_TO_LATTICE_SECRET_BINDING_EVIDENCE",
@@ -151,6 +188,9 @@ async function withEvidenceFiles(callback, overrides = {}) {
     liveEvidencePath: {
       format: "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE",
       schemaVersion: 3,
+      verified_at: "2026-09-14T08:01:00.000Z",
+      deployment: { repository: "howardhayden/folio", commit: "a".repeat(40), run_url: "https://github.com/howardhayden/folio/actions/runs/123456789", run_attempt: 2 },
+      request_admission: admissionFixture(Boolean(overrides.apiVersionPath?.resources?.bindings?.some((entry) => entry.name === "LATTICE_QUALIFICATION_EXPIRES_AT"))),
       declared_provider_contract: liveProviderContract,
       checks: [{ id: "wrong-method", status: 405, bodyRetained: false }],
     },
@@ -453,6 +493,8 @@ test("deployment-index CLI writes canonical JSON and its exact SHA-256 sidecar",
       resolve("scripts/build-text-to-lattice-deployment-evidence.mjs"),
       "--api-deployment", paths.apiDeploymentPath,
       "--api-version", paths.apiVersionPath,
+      "--api-deployment-after", paths.apiDeploymentAfterPath,
+      "--api-environment-before", paths.apiEnvironmentBeforePath,
       "--policy-deployment", paths.policyDeploymentPath,
       "--secret-evidence", paths.secretEvidencePath,
       "--route-evidence", paths.routeEvidencePath,
@@ -696,5 +738,118 @@ test("deployment evidence refuses to bind a non-main or malformed workflow ident
       ...deploymentCustody,
       environment: environment({ GITHUB_SHA: "abc123" }),
     }), /GITHUB_SHA is invalid/u);
+  });
+});
+
+test("admission environment comes from observed version metadata, including explicit SQLite backend", async (t) => {
+  const expected = sanitizeTextToLatticeAdmissionEnvironment(apiVersionView());
+  assert.equal(expected.namespaceId, "0123456789abcdef0123456789abcdef");
+  assert.equal(expected.storageBackend, "sqlite");
+  assert.equal(expected.migrationTag, "v1");
+  const created = apiVersionView(); created.resources.script_runtime.exports.LatticeTransformationBudget.state = "created";
+  assert.deepEqual(sanitizeTextToLatticeAdmissionEnvironment(created), expected);
+  for (const [label, change] of [
+    ["missing namespace", (v) => { delete v.resources.bindings.at(-1).namespace_id; }],
+    ["line-terminated namespace", (v) => { v.resources.bindings.at(-1).namespace_id += "\n"; }],
+    ["edge namespace", (v) => { v.resources.bindings.at(-1).namespace_id = "857321"; }],
+    ["foreign script", (v) => { v.resources.bindings.at(-1).script_name = "other"; }],
+    ["preview namespace", (v) => { v.resources.bindings.at(-1).preview = {}; }],
+    ["dispatch namespace", (v) => { v.resources.bindings.at(-1).dispatch_namespace = "other"; }],
+    ["binding environment", (v) => { v.resources.bindings.at(-1).environment = "preview"; }],
+    ["missing runtime", (v) => { delete v.resources.script_runtime; }],
+    ["missing exports", (v) => { delete v.resources.script_runtime.exports; }],
+    ["missing storage", (v) => { delete v.resources.script_runtime.exports.LatticeTransformationBudget.storage; }],
+    ["legacy storage", (v) => { v.resources.script_runtime.exports.LatticeTransformationBudget.storage = "legacy-kv"; }],
+    ["transfer", (v) => { v.resources.script_runtime.exports.LatticeTransformationBudget.state = "expecting-transfer"; }],
+    ["container", (v) => { v.resources.script_runtime.exports.LatticeTransformationBudget.container = "private"; }],
+    ["wrong migration", (v) => { v.resources.script_runtime.migration_tag = "v2"; }],
+    ["missing migration", (v) => { delete v.resources.script_runtime.migration_tag; }],
+    ["compatibility drift", (v) => { v.resources.script_runtime.compatibility_date = "2026-09-15"; }],
+    ["flag drift", (v) => { v.resources.script_runtime.compatibility_flags = []; }],
+  ]) await t.test(label, () => {
+    const changed = apiVersionView(); change(changed);
+    assert.throws(() => sanitizeTextToLatticeAdmissionEnvironment(changed), /admission environment|deployed runtime/u);
+  });
+});
+
+test("pre-live environment inspection is a bounded timestamped validation of the exact active version", async () => {
+  await withEvidenceFiles(async (paths) => {
+    const proof = await inspectTextToLatticeApiEnvironment({ ...paths, environment: environment(), now: () => new Date("2026-09-14T08:00:01.000Z") });
+    assert.equal(proof.validatedAt, "2026-09-14T08:00:01.000Z");
+    assert.equal(proof.api.versionId, apiVersion);
+    assert.equal(proof.admissionEnvironment.namespaceIdentityBasis, "active-version-local-binding");
+    assert.doesNotMatch(JSON.stringify(proof), /author_email|must-not-be-retained|secret_text/u);
+    const outputPath = join(dirname(paths.apiDeploymentPath), "inspected.json");
+    const command = spawnSync(process.execPath, [resolve("scripts/build-text-to-lattice-deployment-evidence.mjs"),
+      "--inspect-api-environment", "--api-deployment", paths.apiDeploymentPath,
+      "--api-version", paths.apiVersionPath, "--output", outputPath,
+    ], { encoding: "utf8", env: { ...process.env, ...environment() } });
+    assert.equal(command.status, 0, command.stderr);
+    assert.equal(JSON.parse(await readFile(outputPath, "utf8")).api.versionId, apiVersion);
+    const invalid = apiVersionView(); delete invalid.resources.script_runtime.exports;
+    await writeFile(paths.apiVersionPath, JSON.stringify(invalid));
+    const failed = spawnSync(process.execPath, [resolve("scripts/build-text-to-lattice-deployment-evidence.mjs"),
+      "--inspect-api-environment", "--api-deployment", paths.apiDeploymentPath,
+      "--api-version", paths.apiVersionPath, "--output", join(dirname(outputPath), "invalid.json"),
+    ], { encoding: "utf8", env: { ...process.env, ...environment() } });
+    assert.notEqual(failed.status, 0);
+    await assert.rejects(readFile(join(dirname(outputPath), "invalid.json")), /ENOENT/u);
+  });
+});
+
+test("assembly requires exact matching snapshots and current live receipt custody", async (t) => {
+  for (const [label, file, change] of [
+    ["post deployment changed", "apiDeploymentAfterPath", (v) => { v.id = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"; }],
+    ["post version changed", "apiDeploymentAfterPath", (v) => { v.versions[0].version_id = policyVersion; }],
+    ["split traffic", "apiDeploymentAfterPath", (v) => { v.versions[0].percentage = 99; }],
+    ["wrong namespace before", "apiEnvironmentBeforePath", (v) => { v.admissionEnvironment.namespaceId = "different-namespace"; }],
+    ["wrong before workflow", "apiEnvironmentBeforePath", (v) => { v.workflow.runAttempt = "3"; }],
+    ["before after live start", "apiEnvironmentBeforePath", (v) => { v.validatedAt = "2026-09-14T08:01:01.000Z"; }],
+    ["line-terminated before", "apiEnvironmentBeforePath", (v) => { v.validatedAt += "\n"; }],
+    ["live before start", "liveEvidencePath", (v) => { v.request_admission.completed_at = "2026-09-14T07:59:00.000Z"; }],
+    ["live after assembly", "liveEvidencePath", (v) => { v.request_admission.completed_at = "2026-09-14T08:06:00.000Z"; }],
+    ["live wrong commit", "liveEvidencePath", (v) => { v.deployment.commit = "b".repeat(40); }],
+    ["live wrong run", "liveEvidencePath", (v) => { v.deployment.run_attempt = 3; }],
+    ["missing additive group", "liveEvidencePath", (v) => { delete v.request_admission; }],
+    ["unexpected complete without expiry", "liveEvidencePath", (v) => { v.request_admission = admissionFixture(true); }],
+  ]) await t.test(label, () => withEvidenceFiles(async (paths) => {
+    const value = JSON.parse(await readFile(paths[file], "utf8")); change(value);
+    await writeFile(paths[file], JSON.stringify(value));
+    await assert.rejects(buildTextToLatticeDeploymentEvidence({ ...paths, ...deploymentCustody,
+      environment: environment(), now: () => new Date("2026-09-14T08:05:00.000Z"),
+    }), /bracket|timestamp|validation time|100 percent|incomplete or inconsistent/u);
+  }));
+});
+
+test("qualification assembly refuses absent or unavailable admission observations", async () => {
+  const qualificationExpiresAt = "2026-09-14T08:30:00.000Z";
+  const raw = apiVersionView(); raw.resources.bindings.push({ name: "LATTICE_QUALIFICATION_EXPIRES_AT", type: "plain_text", text: qualificationExpiresAt });
+  await withEvidenceFiles(async (paths) => {
+    const live = JSON.parse(await readFile(paths.liveEvidencePath, "utf8"));
+    for (const value of [admissionFixture(false), { ...admissionFixture(true), canary: { status: "unavailable", claim: "unavailable", order: "unavailable", provider: "unavailable" } }]) {
+      live.request_admission = value; await writeFile(paths.liveEvidencePath, JSON.stringify(live));
+      await assert.rejects(buildTextToLatticeDeploymentEvidence({ ...paths, ...deploymentCustody, qualificationExpiresAt,
+        environment: environment(), now: () => new Date("2026-09-14T08:05:00.000Z"),
+      }), /incomplete or inconsistent/u);
+    }
+  }, { apiVersionPath: raw });
+});
+
+test("legacy index absence retains its old meaning, while present partial or forged runtime custody fails", async () => {
+  await withEvidenceFiles(async (paths) => {
+    const current = await buildTextToLatticeDeploymentEvidence({ ...paths, ...deploymentCustody,
+      environment: environment(), now: () => new Date("2026-09-14T08:05:00.000Z"),
+    });
+    const legacy = structuredClone(current); delete legacy.admissionEnvironment;
+    assert.equal(verifyTextToLatticeDeploymentEvidenceIndex(legacy), legacy);
+    assert.equal(legacy.admissionEnvironment, undefined);
+    for (const change of [
+      (v) => { delete v.runtime.storageBackend; }, (v) => { v.runtime.extra = true; },
+      (v) => { v.versionId = policyVersion; }, (v) => { v.matchingBeforeAfterSnapshots = false; },
+      (v) => { v.liveCompletedAt = "2026-09-14T08:06:00.000Z"; },
+    ]) {
+      const invalid = structuredClone(current); change(invalid.admissionEnvironment);
+      assert.throws(() => verifyTextToLatticeDeploymentEvidenceIndex(invalid), /admission environment/u);
+    }
   });
 });

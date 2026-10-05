@@ -1,4 +1,9 @@
 import {
+  createLatticeAdmissionObservation, observeLatticeAdmissionTrustedStep,
+  observeLatticeAdmissionValidation, beginLatticeAdmissionClaim, endLatticeAdmissionClaim,
+  observeLatticeAdmissionPipeline, sealLatticeAdmissionObservation,
+} from "./admissionObservation.js";
+import {
   LATTICE_INPUT_SAFETY_LIMIT,
   LATTICE_INPUT_UTF8_LIMIT,
   LATTICE_WORD_LIMIT,
@@ -60,7 +65,13 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v17";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v18";
+export const LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS = Object.freeze({
+  status: "X-Lattice-Qualification-Admission-Status",
+  claim: "X-Lattice-Qualification-Admission-Claim",
+  order: "X-Lattice-Qualification-Admission-Order",
+  provider: "X-Lattice-Qualification-Admission-Provider",
+});
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
@@ -829,6 +840,18 @@ export function createLatticeApiWorker({
         scheduleTimeout,
         cancelTimeout,
       );
+      const admissionObservation = qualificationDiagnosticRequested
+        ? createLatticeAdmissionObservation(deadline.signal) : null;
+      const finishResponse = (value, responseTime) => {
+        const observation = sealLatticeAdmissionObservation(admissionObservation, deadline.signal.aborted);
+        if (observation !== null && qualificationDiagnosticRequested
+          && qualificationWindowAllowsOutput(qualificationWindow, responseTime ?? now())) {
+          for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS)) {
+            value.headers.set(header, observation[field]);
+          }
+        }
+        return value;
+      };
       let visitorCookieValue = null;
       let response;
       try {
@@ -839,6 +862,7 @@ export function createLatticeApiWorker({
           let visitor;
           try {
             assertRequestPhaseOpen(deadline, qualificationWindow, now());
+            observeLatticeAdmissionTrustedStep(admissionObservation, establishVisitor === establishLatticeApiVisitor);
             visitor = await raceAbort(
               establishVisitor(request.headers, env.VISITOR_COOKIE_SECRET),
               deadline.signal,
@@ -861,7 +885,7 @@ export function createLatticeApiWorker({
           response = visitorSessionResponse();
           const responseTime = now();
           assertRequestPhaseOpen(deadline, qualificationWindow, responseTime);
-          return withLatticeApiVisitorCookie(response, visitorCookieValue, responseTime);
+          return finishResponse(withLatticeApiVisitorCookie(response, visitorCookieValue, responseTime), responseTime);
         }
 
         if (!request.headers.has("cookie")) {
@@ -870,6 +894,7 @@ export function createLatticeApiWorker({
         let visitor;
         try {
           assertRequestPhaseOpen(deadline, qualificationWindow, now());
+          observeLatticeAdmissionTrustedStep(admissionObservation, resolveVisitor === resolveLatticeApiVisitor);
           visitor = await raceAbort(
             resolveVisitor(request.headers, env.VISITOR_COOKIE_SECRET),
             deadline.signal,
@@ -901,6 +926,7 @@ export function createLatticeApiWorker({
         }
         const payload = validateEnvelope(body);
         try {
+          observeLatticeAdmissionTrustedStep(admissionObservation, preflightLatticeInputImpl === preflightLatticeInput);
           preflightLatticeInputImpl(payload.text);
         } catch {
           const inputTooLarge = payload.text.length > LATTICE_INPUT_SAFETY_LIMIT
@@ -909,6 +935,8 @@ export function createLatticeApiWorker({
           throw apiError(inputTooLarge ? 413 : 400, inputTooLarge ? "input_too_large" : "invalid_request");
         }
 
+        observeLatticeAdmissionValidation(admissionObservation);
+        observeLatticeAdmissionTrustedStep(admissionObservation, enforceRateLimit === enforceLatticeApiRateLimit);
         assertRequestPhaseOpen(deadline, qualificationWindow, now());
         await raceAbort(enforceRateLimit(env.LATTICE_API_RATE_LIMITER), deadline.signal);
 
@@ -919,11 +947,13 @@ export function createLatticeApiWorker({
         let admission;
         try {
           assertRequestPhaseOpen(deadline, qualificationWindow, now());
+          const claim = beginLatticeAdmissionClaim(admissionObservation, admitTransformation === claimGlobalLatticeTransformation);
           admission = await raceAbort(admitTransformation(
             env.LATTICE_TRANSFORMATION_BUDGET,
             visitor.visitorId,
             deadline.signal,
           ), deadline.signal);
+          endLatticeAdmissionClaim(admissionObservation, claim, admission);
         } catch (error) {
           if (deadline.signal.aborted) throw error;
           throw apiError(500, "internal_error");
@@ -960,6 +990,8 @@ export function createLatticeApiWorker({
         if (providerResponseByteLimit !== undefined) {
           adapterOptions.maximumResponseBytes = providerResponseByteLimit;
         }
+        observeLatticeAdmissionPipeline(admissionObservation,
+          createAdapter === createHuggingFaceLatticeAdapter && runTextToLatticeImpl === runTextToLattice);
         const adapter = createAdapter(adapterOptions);
         let qualificationTerminalAnalysisDiagnosticValue = null;
         let qualificationTerminalAnalysisDiagnosticRejected = false;
@@ -1056,7 +1088,7 @@ export function createLatticeApiWorker({
       } finally {
         deadline.dispose();
       }
-      return response;
+      return finishResponse(response);
     },
   });
 }

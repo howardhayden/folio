@@ -1,4 +1,9 @@
 import {
+  beginLatticeCapacityDispatch,
+  endLatticeCapacityDispatch,
+  rememberLatticeCapacityAcknowledgment,
+} from "./admissionObservation.js";
+import {
   LATTICE_TRANSFORMATION_CAPACITY_DAY_MS,
   LATTICE_TRANSFORMATION_CAPACITY_SCHEMA_VERSION,
   isLatticeCapacityVisitorId,
@@ -36,78 +41,88 @@ function discardBody(response) {
 }
 
 export async function claimGlobalLatticeTransformation(namespace, visitorId, signal) {
-  if (!namespace || typeof namespace.getByName !== "function"
-    || !isLatticeCapacityVisitorId(visitorId)) throw unavailable();
-
-  let gate;
+  let dispatch = null;
   try {
-    gate = namespace.getByName(LATTICE_TRANSFORMATION_CAPACITY_OBJECT_NAME);
-  } catch {
-    throw unavailable();
-  }
-  if (!gate || typeof gate.fetch !== "function") throw unavailable();
+    if (!namespace || typeof namespace.getByName !== "function"
+      || !isLatticeCapacityVisitorId(visitorId)) throw unavailable();
 
-  let response;
-  try {
-    response = await gate.fetch(new Request(LATTICE_TRANSFORMATION_CAPACITY_INTERNAL_URL, {
-      method: "POST",
-      headers: { [LATTICE_TRANSFORMATION_VISITOR_HEADER]: visitorId },
-      cache: "no-store",
-      credentials: "omit",
-      // Workerd does not implement Fetch's `error` redirect mode. Manual mode
-      // keeps redirects observable so the closed 200/429 response contract
-      // below rejects them without following an unreviewed destination.
-      redirect: "manual",
-      referrer: "",
-      referrerPolicy: "no-referrer",
-      signal,
-    }));
-  } catch {
-    if (signal?.aborted) throw signal.reason;
-    throw unavailable();
-  }
-  if (!(response instanceof Response)
-    || ![200, 429].includes(response.status)
-    || !CAPACITY_JSON_CONTENT_TYPE.test(response.headers.get("content-type") ?? "")) {
-    discardBody(response);
-    throw unavailable();
-  }
+    let gate;
+    try {
+      gate = namespace.getByName(LATTICE_TRANSFORMATION_CAPACITY_OBJECT_NAME);
+    } catch {
+      throw unavailable();
+    }
+    if (!gate || typeof gate.fetch !== "function") throw unavailable();
 
-  let bodyText;
-  try {
-    bodyText = await response.text();
-  } catch {
-    if (signal?.aborted) throw signal.reason;
-    throw unavailable();
-  }
-  if (bodyText.length > CAPACITY_RESPONSE_CHARACTER_LIMIT) throw unavailable();
+    let response;
+    try {
+      dispatch = beginLatticeCapacityDispatch(signal);
+      response = await gate.fetch(new Request(LATTICE_TRANSFORMATION_CAPACITY_INTERNAL_URL, {
+        method: "POST",
+        headers: { [LATTICE_TRANSFORMATION_VISITOR_HEADER]: visitorId },
+        cache: "no-store",
+        credentials: "omit",
+        // Workerd does not implement Fetch's `error` redirect mode. Manual mode
+        // keeps redirects observable so the closed 200/429 response contract
+        // below rejects them without following an unreviewed destination.
+        redirect: "manual",
+        referrer: "",
+        referrerPolicy: "no-referrer",
+        signal,
+      }));
+    } catch {
+      if (signal?.aborted) throw signal.reason;
+      throw unavailable();
+    }
+    if (!(response instanceof Response)
+      || ![200, 429].includes(response.status)
+      || !CAPACITY_JSON_CONTENT_TYPE.test(response.headers.get("content-type") ?? "")) {
+      discardBody(response);
+      throw unavailable();
+    }
 
-  let body;
-  try {
-    body = JSON.parse(bodyText);
-  } catch {
+    let bodyText;
+    try {
+      bodyText = await response.text();
+    } catch {
+      if (signal?.aborted) throw signal.reason;
+      throw unavailable();
+    }
+    if (bodyText.length > CAPACITY_RESPONSE_CHARACTER_LIMIT) throw unavailable();
+
+    let body;
+    try {
+      body = JSON.parse(bodyText);
+    } catch {
+      throw unavailable();
+    }
+    if (response.status === 200
+      && exactRecord(body, ["allowed", "schema_version"])
+      && body.allowed === true
+      && body.schema_version === LATTICE_TRANSFORMATION_CAPACITY_SCHEMA_VERSION) {
+      const result = Object.freeze({ allowed: true, retryAfterSeconds: null });
+      rememberLatticeCapacityAcknowledgment(dispatch, result, true);
+      return result;
+    }
+    if (response.status === 429
+      && exactRecord(body, ["allowed", "scope", "retry_after_seconds", "schema_version"])
+      && body.allowed === false
+      && ["global-day", "visitor-day"].includes(body.scope)
+      && Number.isSafeInteger(body.retry_after_seconds)
+      && body.retry_after_seconds >= 1
+      && body.retry_after_seconds <= LATTICE_TRANSFORMATION_CAPACITY_DAY_MS / 1_000
+      && body.schema_version === LATTICE_TRANSFORMATION_CAPACITY_SCHEMA_VERSION) {
+      const result = Object.freeze({
+        allowed: false,
+        retryAfterSeconds: body.retry_after_seconds <= 300
+          ? body.retry_after_seconds
+          : null,
+      });
+      rememberLatticeCapacityAcknowledgment(dispatch, result, false);
+      return result;
+    }
     throw unavailable();
+  } finally {
+    endLatticeCapacityDispatch(dispatch);
   }
-  if (response.status === 200
-    && exactRecord(body, ["allowed", "schema_version"])
-    && body.allowed === true
-    && body.schema_version === LATTICE_TRANSFORMATION_CAPACITY_SCHEMA_VERSION) {
-    return Object.freeze({ allowed: true, retryAfterSeconds: null });
-  }
-  if (response.status === 429
-    && exactRecord(body, ["allowed", "scope", "retry_after_seconds", "schema_version"])
-    && body.allowed === false
-    && ["global-day", "visitor-day"].includes(body.scope)
-    && Number.isSafeInteger(body.retry_after_seconds)
-    && body.retry_after_seconds >= 1
-    && body.retry_after_seconds <= LATTICE_TRANSFORMATION_CAPACITY_DAY_MS / 1_000
-    && body.schema_version === LATTICE_TRANSFORMATION_CAPACITY_SCHEMA_VERSION) {
-    return Object.freeze({
-      allowed: false,
-      retryAfterSeconds: body.retry_after_seconds <= 300
-        ? body.retry_after_seconds
-        : null,
-    });
-  }
-  throw unavailable();
 }

@@ -404,7 +404,9 @@ test("the service graph proves held publication, qualifies reversibly, and resto
   const preactivationRoutes = workflow.indexOf("Verify reversible preactivation route ownership");
   const activeVersionRead = workflow.indexOf("read-text-to-lattice-active-version.mjs");
   const activeVersionInspect = workflow.indexOf("wrangler versions view");
+  const admissionEnvironment = workflow.indexOf("Verify deployed admission environment before live probes");
   const liveProbe = workflow.indexOf("Verify deployed Text to Lattice API boundary");
+  const postLiveDeployment = workflow.indexOf("Inspect API deployment after live verification");
   const retirement = workflow.indexOf("Retire exact legacy entry surfaces only after qualification");
   const finalRoutes = workflow.indexOf("Verify exact active and retired Text to Lattice routes");
   const evidenceAssembly = workflow.indexOf("Assemble sanitized Text to Lattice deployment evidence");
@@ -428,10 +430,11 @@ test("the service graph proves held publication, qualifies reversibly, and resto
   assert.ok(policyDeploy < deploymentInspect);
   assert.ok(deploymentInspect < activeVersionRead);
   assert.ok(activeVersionRead < activeVersionInspect);
-  assert.ok(activeVersionInspect < preactivationRoutes);
+  assert.ok(activeVersionInspect < admissionEnvironment && admissionEnvironment < preactivationRoutes);
   assert.ok(preactivationRoutes < liveProbe);
   assert.ok(policyDeploy < liveProbe);
-  assert.ok(liveProbe < retirement, "legacy surfaces stay intact through reversible live verification");
+  assert.ok(liveProbe < postLiveDeployment && postLiveDeployment < retirement,
+    "capture the post-live deployment before retirement or evidence assembly");
   assert.ok(retirement < finalRoutes && finalRoutes < evidenceAssembly);
   assert.ok(evidenceAssembly < postServiceGuard);
   assert.ok(postServiceGuard < successfulRestoration && successfulRestoration < rollback);
@@ -465,6 +468,21 @@ test("the service graph proves held publication, qualifies reversibly, and resto
   assert.equal(workflow.match(/--apply/gu)?.length, 1);
   assert.match(workflow, /wrangler versions view "\$API_VERSION_ID" --json/u);
   assert.match(workflow, /--api-version[\s\S]*?text-to-lattice-api-version\.raw\.json/u);
+  const admissionEnvironmentStep = workflow.slice(admissionEnvironment, preactivationRoutes);
+  const liveProbeStep = workflow.slice(liveProbe, postLiveDeployment);
+  const postLiveDeploymentStep = workflow.slice(postLiveDeployment, retirement);
+  assert.match(liveProbeStep, /LATTICE_REQUIRE_ADMISSION_EVIDENCE: \$\{\{ needs\.publication-boundary\.outputs\.release_phase != 'qualified' \}\}/u);
+  assert.match(admissionEnvironmentStep, /--inspect-api-environment/u);
+  assert.match(admissionEnvironmentStep, /--api-deployment "\$RUNNER_TEMP\/text-to-lattice-api-deployment\.raw\.json"/u);
+  assert.match(admissionEnvironmentStep, /--api-version "\$RUNNER_TEMP\/text-to-lattice-api-version\.raw\.json"/u);
+  assert.match(admissionEnvironmentStep, /--output "\$RUNNER_TEMP\/text-to-lattice-api-environment-before\.json"/u);
+  assert.match(admissionEnvironmentStep, /if \[\[ "\$RELEASE_PHASE" != "qualified" \]\]; then[\s\S]*?--qualification-expires-at/u);
+  assert.match(postLiveDeploymentStep, /CLOUDFLARE_ACCOUNT_ID:[\s\S]*?CLOUDFLARE_API_TOKEN:/u);
+  assert.match(postLiveDeploymentStep, /wrangler deployments status --json[\s\S]*?--config workers\/text-to-lattice-api\/wrangler\.jsonc[\s\S]*?text-to-lattice-api-deployment-after\.raw\.json/u);
+  assert.doesNotMatch(postLiveDeploymentStep, /if:.*always\(/u);
+  const assemblyStep = workflow.slice(evidenceAssembly, postServiceGuard);
+  assert.match(assemblyStep, /--api-environment-before "\$RUNNER_TEMP\/text-to-lattice-api-environment-before\.json"/u);
+  assert.match(assemblyStep, /--api-deployment-after "\$RUNNER_TEMP\/text-to-lattice-api-deployment-after\.raw\.json"/u);
   assert.match(workflow, /node scripts\/build-text-to-lattice-deployment-evidence\.mjs/u);
   assert.match(workflow, /pages_artifact_id: \$\{\{ steps\.pages-artifact\.outputs\.artifact_id \}\}/u);
   assert.match(workflow, /site_artifact_sha256: \$\{\{ steps\.site-artifact\.outputs\.sha256 \}\}/u);

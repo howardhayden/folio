@@ -10,6 +10,10 @@ import {
   LATTICE_PRODUCTION_EVIDENCE_SCHEMA,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS,
+  LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS,
+  parseLatticeQualificationAdmissionHeaders,
+  parseLatticeRequireAdmissionEvidence,
+  verifyLatticeProductionAdmissionEvidence,
   LATTICE_PRODUCTION_PREFLIGHT_EVIDENCE_SCHEMA,
   LATTICE_PRODUCTION_READINESS_CONTENT_TYPE,
   LATTICE_PRODUCTION_READINESS_CONTRACT,
@@ -31,6 +35,7 @@ import {
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER,
   LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS,
@@ -63,7 +68,11 @@ const apiHeaders = Object.freeze({
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
 });
+const admissionHeaders = (overrides = {}) => Object.fromEntries(Object.entries(
+  LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS,
+).map(([key, name]) => [name, ({ status: "complete", claim: "not-called", order: "not-called", provider: "not-started", ...overrides })[key]]));
 const setupApiHeaders = Object.freeze({
+  ...admissionHeaders(),
   "Cache-Control": "no-store",
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
@@ -83,7 +92,10 @@ const CANARY_FLOW_REQUEST_COUNT = 4
 function apiJson(value, status, headers = {}) {
   return new Response(JSON.stringify(value), {
     status,
-    headers: { ...apiHeaders, ...headers },
+    headers: { ...apiHeaders,
+      ...(status === 200 && ["translated", "conformant-for-context"].includes(value?.result?.status)
+        ? admissionHeaders({ claim: "allowed-once", order: "after-validation", provider: "after-admission" }) : {}),
+      ...headers },
   });
 }
 
@@ -260,14 +272,15 @@ function successfulFixture({ canaryResponse, readinessResponses, setupResponse, 
       const expected = LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT[negativeIndex];
       negativeIndex += 1;
       if (!expected.apiJson) return new Response("Not found", { status: expected.status });
-      return apiJson({ error: expected.error }, expected.status, expected.allow
-        ? { Allow: expected.allow }
-        : {});
+      return apiJson({ error: expected.error }, expected.status, {
+        ...(expected.allow ? { Allow: expected.allow } : {}),
+        ...(LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS.includes(expected.id) ? admissionHeaders() : {}),
+      });
     }
 
     if (canaryRequests > 0) {
       tamperedCookieRequests += 1;
-      return tamperedCookieResponse ?? apiJson({ error: "invalid_request" }, 403);
+      return tamperedCookieResponse ?? apiJson({ error: "invalid_request" }, 403, admissionHeaders());
     }
 
     canaryRequests += 1;
@@ -400,6 +413,7 @@ test("the production verifier preserves one setup and one canary before separate
     "visitor_session_setup",
     "transformation_canary",
     "visitor_session_postflight",
+    "request_admission",
   ]);
   assert.deepEqual(
     evidence.negative_probes.outcomes.map(({ id }) => id),
@@ -2336,7 +2350,7 @@ test("GATE02 postflight checks preserve the core flow and retain only finite coo
   assert.equal(Object.hasOwn(preservation.init.headers, "Content-Type"), false);
   assert.equal(tampered.init.body, "{");
   assert.equal(tampered.init.headers.Accept, "application/json");
-  assert.equal(tampered.init.headers[LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER], undefined);
+  assert.equal(tampered.init.headers[LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER], LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE);
   const originalParts = originalCookie.split(".");
   const changedParts = tampered.init.headers.Cookie.split(".");
   assert.deepEqual(changedParts.slice(0, 2), originalParts.slice(0, 2));
@@ -2451,7 +2465,7 @@ test("GATE02 tampered-cookie malformed payload cannot cause an extra admission e
     createAdapter() { providerFactories += 1; throw new Error("No provider factory permitted"); },
     async runTextToLatticeImpl() { pipelineCalls += 1; throw new Error("No pipeline permitted"); },
   });
-  const env = { HF_TOKEN: "synthetic-test-token", VISITOR_COOKIE_SECRET: "s".repeat(48) };
+  const env = { HF_TOKEN: "synthetic-test-token", VISITOR_COOKIE_SECRET: "s".repeat(48), LATTICE_QUALIFICATION_EXPIRES_AT: "2026-09-14T12:55:00.000Z" };
   let tamperedRequest;
   const fetchImpl = async (url, init) => {
     if (init.headers.Accept === LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT
@@ -2549,4 +2563,110 @@ test("GATE02 cookie expiry observation cannot outlive the bounded setup request"
   assert.equal(fixture.setupRequests, 1);
   assert.equal(fixture.negativeRequests, 0);
   assert.equal(fixture.canaryRequests, 0);
+});
+
+test("admission headers are a closed finite group with no implicit zero or raw error reflection", async (t) => {
+  const zero = { status: "complete", claim: "not-called", order: "not-called", provider: "not-started" };
+  assert.deepEqual(parseLatticeQualificationAdmissionHeaders(new Headers(admissionHeaders()), { required: "zero" }), zero);
+  assert.equal(parseLatticeQualificationAdmissionHeaders(new Headers()), null);
+  for (const [label, change] of [
+    ["absent", (h) => { for (const name of Object.values(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS)) h.delete(name); }],
+    ["partial", (h) => h.delete(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS.claim)],
+    ["unknown family", (h) => h.set("x-lattice-qualification-admission-extra", "UNTRUSTED_PRIVATE_TEXT")],
+    ["unknown claim", (h) => h.set(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS.claim, "UNTRUSTED_PRIVATE_TEXT")],
+    ["contradictory order", (h) => h.set(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS.order, "after-validation")],
+    ["unavailable", (h) => { for (const name of Object.values(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS)) h.set(name, "unavailable"); }],
+  ]) await t.test(label, () => {
+    const headers = new Headers(admissionHeaders()); change(headers);
+    assert.throws(() => parseLatticeQualificationAdmissionHeaders(headers, { required: "zero" }), (error) => {
+      assert.match(error.message, /qualification admission observation/u);
+      assert.doesNotMatch(error.message, /UNTRUSTED_PRIVATE_TEXT/u); return true;
+    });
+  });
+  for (const suffix of ["\n", "\r\n", "\u2028"]) {
+    const values = admissionHeaders(); values[LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS.claim] += suffix;
+    const fakeHeaders = { keys: () => Object.keys(values), get: (name) => values[name] ?? null };
+    assert.throws(() => parseLatticeQualificationAdmissionHeaders(fakeHeaders), /qualification admission observation/u);
+  }
+});
+
+test("admission evidence option is strict and cannot silently disable qualification", () => {
+  assert.equal(parseLatticeRequireAdmissionEvidence(undefined), true);
+  assert.equal(parseLatticeRequireAdmissionEvidence("true"), true);
+  assert.equal(parseLatticeRequireAdmissionEvidence("false"), false);
+  for (const value of ["", "TRUE", " false", "false\n", false, 0, null]) {
+    assert.throws(() => parseLatticeRequireAdmissionEvidence(value), /must be true or false/u);
+  }
+});
+
+function stripAdmissionFixture(fetchImpl) {
+  return async (...args) => {
+    const response = await fetchImpl(...args);
+    for (const name of Object.values(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS)) response.headers.delete(name);
+    return response;
+  };
+}
+
+test("already-qualified absence is explicitly not-observed while qualification requires all actual observations", async () => {
+  const fixture = successfulFixture();
+  const evidence = await verifyTextToLatticeApiProduction({
+    fetchImpl: stripAdmissionFixture(fixture.fetchImpl), context, now: fixedNow, wait: noWait,
+    requireAdmissionEvidence: false,
+  });
+  assert.deepEqual(evidence.request_admission, {
+    status: "not-observed", diagnostic_revision: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+    scope: "request-scoped-host-observation", completed_at: fixedNow().toISOString(),
+  });
+  assert.equal(fixture.canaryRequests, 1);
+  assert.equal(fixture.negativeRequests, 24);
+  assert.equal(verifyLatticeProductionAdmissionEvidence(evidence.request_admission, { requireComplete: false }), evidence.request_admission);
+  assert.throws(() => verifyLatticeProductionAdmissionEvidence(evidence.request_admission), /incomplete or inconsistent/u);
+  const missing = successfulFixture();
+  await assert.rejects(verifyTextToLatticeApiProduction({
+    fetchImpl: stripAdmissionFixture(missing.fetchImpl), context, now: fixedNow, wait: noWait,
+  }), /qualification admission observation/u);
+  assert.equal(missing.canaryRequests, 0);
+});
+
+test("already-qualified mode never turns present partial or unavailable groups into absence", async (t) => {
+  for (const fields of [
+    { status: "complete" },
+    { status: "unavailable", claim: "unavailable", order: "unavailable", provider: "unavailable" },
+    { status: "complete", claim: "allowed-once", order: "not-called", provider: "not-started" },
+    { status: "UNTRUSTED_PRIVATE_TEXT" },
+  ]) await t.test(JSON.stringify(fields), async () => {
+    const fixture = successfulFixture();
+    const stripped = stripAdmissionFixture(fixture.fetchImpl);
+    await assert.rejects(verifyTextToLatticeApiProduction({
+      fetchImpl: async (...args) => {
+        const response = await stripped(...args);
+        if (response.status === 204) for (const [key, value] of Object.entries(fields)) response.headers.set(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS[key], value);
+        return response;
+      }, context, now: fixedNow, wait: noWait, requireAdmissionEvidence: false,
+    }), /qualification admission observation/u);
+    assert.equal(fixture.canaryRequests, 0);
+  });
+});
+
+test("complete admission receipt accounts for the exact covered requests without adding admissions", async () => {
+  const fixture = successfulFixture();
+  const evidence = await verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait });
+  assert.equal(verifyLatticeProductionAdmissionEvidence(evidence.request_admission), evidence.request_admission);
+  assert.deepEqual(evidence.request_admission.negative_probes.map(({ id }) => id), LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS);
+  assert.deepEqual(evidence.request_admission.canary, { status: "complete", claim: "allowed-once", order: "after-validation", provider: "after-admission" });
+  assert.equal(fixture.calls.length, CANARY_FLOW_REQUEST_COUNT + 2);
+  for (const mutation of [
+    (x) => { x.negative_probes.pop(); },
+    (x) => { x.negative_probes[0].id = "wrong-path"; },
+    (x) => { x.setup.claim = "allowed-once"; },
+    (x) => { x.canary.provider = "not-started"; },
+    (x) => { x.diagnostic_revision = "v17"; },
+    (x) => { x.completed_at += "\n"; },
+    (x) => { x.unknown = true; },
+  ]) {
+    const changed = structuredClone(evidence.request_admission); mutation(changed);
+    assert.throws(() => verifyLatticeProductionAdmissionEvidence(changed), /incomplete or inconsistent/u);
+  }
+  const legacy = structuredClone(evidence); delete legacy.request_admission;
+  assert.equal(JSON.parse(serializeLatticeProductionEvidence(legacy).serialized).request_admission, undefined);
 });
