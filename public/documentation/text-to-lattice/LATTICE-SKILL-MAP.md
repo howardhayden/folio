@@ -206,6 +206,7 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-API-SECRET-BOOTSTRAP — Fail-closed API secret bootstrap:** `scripts/bootstrap-text-to-lattice-api-secrets.mjs`
 - **SRC-API-DEPLOYMENT-EVIDENCE — Text to Lattice API deployment-evidence builder:** `scripts/build-text-to-lattice-deployment-evidence.mjs`
 - **SRC-API-PRODUCTION-VERIFY — Text to Lattice production API verifier:** `scripts/verify-text-to-lattice-api-production.mjs`
+- **SRC-API-QUALIFICATION-USAGE — Qualification-only provider usage and catalog cost evidence:** `scripts/text-to-lattice-qualification-usage.mjs`
 - **SRC-SECRET-BOOTSTRAP — Historical inactive lease secret bootstrap:** `scripts/bootstrap-text-to-lattice-secrets.mjs`
 - **SRC-ROUTE-INVENTORY — Authenticated Worker route inventory verifier:** `scripts/verify-text-to-lattice-route-inventory.mjs`
 - **SRC-TEST-ENGINE — Engine executable contracts:** `tests/lattice-demo.test.mjs`

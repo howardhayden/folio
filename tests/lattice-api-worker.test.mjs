@@ -57,6 +57,7 @@ import {
   isClosedProviderEnvelopeShape,
   isClosedProviderStrictMessageShape,
   getLatticeProviderStrictMessageShape,
+  getLatticeQualificationUsage,
   LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS,
   LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS,
   requestHuggingFaceJson,
@@ -86,6 +87,7 @@ import {
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_EXPIRES_AT_BINDING,
@@ -789,6 +791,7 @@ test("the exact same-origin API accepts the three-field v1 request and returns t
   assert.equal(events.length, 2);
   assert.equal(events[0].options.token, "server_only_token");
   assert.equal(events[0].options.requestedMode, "operative");
+  assert.equal(events[0].options.observeQualificationUsage, false);
   assert.equal(Object.hasOwn(events[0].options, "claimProviderCall"), false);
   assert.equal(events[1].text, validPayload.text);
   assert.equal(events[1].options.adapter, adapter);
@@ -5614,7 +5617,7 @@ test("observed null stopped verification metadata is an explicit verification-on
     providerChoiceResponse({ finish_reason: "stop", message: {
       role: "assistant", content: "{}", name: null, reasoning_content: null,
     } }) });
-  await assert.rejects(adapter.certify(minimalCertificationRequest()), (error) => error.qualificationSubtype === "message_shape");
+  await assert.rejects(adapter.certify(minimalCertificationRequest()), (error) => error.qualificationSubtype === "S06");
   assert.equal(adapter.completionCapacity().used, 1);
 });
 
@@ -5624,30 +5627,30 @@ test("strict Nscale verification rejects legacy null metadata before content par
   const stopped = { role: "assistant", content, name: null, reasoning_content: null };
   const tool = providerToolCall({ name: VERIFICATION_TOOL_NAME, argumentsValue: content });
   const cases = [
-    ["observed pair", stopped, "message_shape"],
-    ["observed pair with empty calls", { ...stopped, tool_calls: [] }, "message_shape"],
-    ["observed pair with literal-null calls", { ...stopped, tool_calls: null }, "message_shape"],
-    ["legacy field remains rejected with a native call", { ...stopped, content: "PRIVATE", name: "PRIVATE", reasoning_content: "PRIVATE", function_call: null, tool_calls: [tool] }, "message_shape"],
-    ["one valid native call supplies no verification fallback", { ...stopped, tool_calls: [tool] }, "message_shape"],
-    ["nonempty native calls supply no verification fallback", { ...stopped, tool_calls: [{ ...tool, type: "PRIVATE" }] }, "message_shape"],
-    ["extra before competing native call", { ...stopped, tool_calls: [tool], unknown: null }, "message_shape"],
-    ["content type before competing native call", { ...stopped, tool_calls: [tool], content: null }, "message_shape"],
+    ["observed pair", stopped, "S06"],
+    ["observed pair with empty calls", { ...stopped, tool_calls: [] }, "S06"],
+    ["observed pair with literal-null calls", { ...stopped, tool_calls: null }, "S02N"],
+    ["legacy field remains rejected with a native call", { ...stopped, content: "PRIVATE", name: "PRIVATE", reasoning_content: "PRIVATE", function_call: null, tool_calls: [tool] }, "S05"],
+    ["one valid native call supplies no verification fallback", { ...stopped, tool_calls: [tool] }, "S06"],
+    ["nonempty native calls supply no verification fallback", { ...stopped, tool_calls: [{ ...tool, type: "PRIVATE" }] }, "S06"],
+    ["extra before competing native call", { ...stopped, tool_calls: [tool], unknown: null }, "S06"],
+    ["content type before competing native call", { ...stopped, tool_calls: [tool], content: null }, "S06"],
     ["finish before collection", { ...stopped, tool_calls: null }, "finish_reason", "tool_calls"],
-    ["literal-null calls do not excuse nonnull metadata", { ...stopped, tool_calls: null, name: "PRIVATE" }, "message_shape"],
-    ["multiple calls before metadata", { ...stopped, tool_calls: [tool, tool] }, "message_shape"],
-    ["legacy before metadata", { ...stopped, function_call: null, name: "PRIVATE" }, "message_shape"],
-    ["extra before content type", { ...stopped, unknown: null, content: null }, "message_shape"],
-    ["content type", { ...stopped, content: null }, "message_shape"],
-    ["empty content", { ...stopped, content: "" }, "message_shape"],
-    ["invalid JSON", { ...stopped, content: "{" }, "message_shape"],
+    ["literal-null calls do not excuse nonnull metadata", { ...stopped, tool_calls: null, name: "PRIVATE" }, "S02N"],
+    ["multiple calls before metadata", { ...stopped, tool_calls: [tool, tool] }, "S04"],
+    ["legacy before metadata", { ...stopped, function_call: null, name: "PRIVATE" }, "S05"],
+    ["extra before content type", { ...stopped, unknown: null, content: null }, "S06"],
+    ["content type", { ...stopped, content: null }, "S06"],
+    ["empty content", { ...stopped, content: "" }, "S06"],
+    ["invalid JSON", { ...stopped, content: "{" }, "S06"],
   ];
   for (const key of ["name", "reasoning_content"]) {
     for (const value of ["", "PRIVATE", [], ["PRIVATE"], {}, { private: true }, false, 0]) {
-      cases.push([`${key} rejects ${typeof value} ${JSON.stringify(value)}`, { ...stopped, [key]: value }, "message_shape"]);
+      cases.push([`${key} rejects ${typeof value} ${JSON.stringify(value)}`, { ...stopped, [key]: value }, "S06"]);
     }
   }
   for (const key of ["reasoning", "tool_call_id", "refusal", "audio", "annotations", "cache_control", "unknown"]) {
-    cases.push([`${key} remains rejected even when null`, { ...stopped, [key]: null }, "message_shape"]);
+    cases.push([`${key} remains rejected even when null`, { ...stopped, [key]: null }, "S06"]);
   }
   for (const [name, message, subtype, finish_reason = "stop"] of cases) {
     await context.test(name, async () => {
@@ -5747,16 +5750,16 @@ test("strict Nscale review stages reject literal-null and malformed collections"
       : acceptingCertificationWire(request.certificateId, request.obligationIds));
     const stopped = { role: "assistant", content };
     const cases = [
-      ["literal-null collection", { ...stopped, tool_calls: null }, "message_shape", "stop"],
+      ["literal-null collection", { ...stopped, tool_calls: null }, "S02N", "stop"],
       ...[{}, { secret: privateMarker }, "", privateMarker, false, true, 0, 7].map((value) => [
-        `${typeof value}:${JSON.stringify(value)}`, { ...stopped, tool_calls: value }, "message_shape", "stop",
+        `${typeof value}:${JSON.stringify(value)}`, { ...stopped, tool_calls: value }, "S02", "stop",
       ]),
-      ["null with legacy", { ...stopped, tool_calls: null, function_call: null }, "message_shape", "stop"],
-      ["null with extras", { ...stopped, tool_calls: null, [privateMarker]: true }, "message_shape", "stop"],
-      ["null with nonstring content", { ...stopped, tool_calls: null, content: null }, "message_shape", "stop"],
-      ["null with empty content", { ...stopped, tool_calls: null, content: "" }, "message_shape", "stop"],
-      ["null with invalid JSON", { ...stopped, tool_calls: null, content: "{" }, "message_shape", "stop"],
-      ["null with array JSON", { ...stopped, tool_calls: null, content: "[]" }, "message_shape", "stop"],
+      ["null with legacy", { ...stopped, tool_calls: null, function_call: null }, "S02N", "stop"],
+      ["null with extras", { ...stopped, tool_calls: null, [privateMarker]: true }, "S02N", "stop"],
+      ["null with nonstring content", { ...stopped, tool_calls: null, content: null }, "S02N", "stop"],
+      ["null with empty content", { ...stopped, tool_calls: null, content: "" }, "S02N", "stop"],
+      ["null with invalid JSON", { ...stopped, tool_calls: null, content: "{" }, "S02N", "stop"],
+      ["null with array JSON", { ...stopped, tool_calls: null, content: "[]" }, "S02N", "stop"],
       ["role precedes null", { ...stopped, role: "user", tool_calls: null }, "message_role", "stop"],
       ["finish precedes null", { ...stopped, tool_calls: null }, "finish_reason", "tool_calls"],
     ];
@@ -5810,7 +5813,7 @@ test("coded envelope observations remain confined to marked expiring qualificati
   assert.deepEqual(await json(ordinary), { error: "malformed_upstream_response" });
   assert.deepEqual(await json(marked), { error: "malformed_upstream_response" });
   for (const header of Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)) assert.equal(ordinary.headers.has(header), false);
-  assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "M01");
+  assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "S02N");
   assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stage), "certification");
   assert.equal(marked.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stageAttempt), "initial");
   assert.equal(JSON.stringify([...marked.headers]).includes(privateMarker), false);
@@ -5966,7 +5969,6 @@ test("production strict verification accepts only its closed stopped-content env
     ["null collection with array JSON", "stop", { role: "assistant", content: "[]", tool_calls: null }, "provider_malformed_response"],
     ["null collection with oversized content", "stop", { role: "assistant", content: "x".repeat(LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT + 1), tool_calls: null }, "provider_malformed_response"],
     ["null collection with truncated finish", "length", { role: "assistant", content, tool_calls: null }, "provider_output_limit"],
-    ["rejected empty stopped tool collection", "stop", { role: "assistant", content, tool_calls: [] }, "provider_malformed_response"],
     ["empty collection with legacy field", "stop", { role: "assistant", content, tool_calls: [], function_call: null }, "provider_malformed_response"],
     ["empty collection with auxiliary field", "stop", { role: "assistant", content, tool_calls: [], private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
     ["empty collection with wrong role", "stop", { role: "user", content, tool_calls: [] }, "provider_malformed_response"],
@@ -5974,7 +5976,7 @@ test("production strict verification accepts only its closed stopped-content env
     ["empty collection with empty content", "stop", { role: "assistant", content: "", tool_calls: [] }, "provider_malformed_response"],
     ["empty collection with invalid JSON", "stop", { role: "assistant", content: "{", tool_calls: [] }, "provider_malformed_response"],
     ["empty collection with array JSON", "stop", { role: "assistant", content: "[]", tool_calls: [] }, "provider_malformed_response"],
-    ["empty collection with oversized content", "stop", { role: "assistant", content: "x".repeat(LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT + 1), tool_calls: [] }, "provider_malformed_response"],
+    ["empty collection with oversized content", "stop", { role: "assistant", content: "x".repeat(LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT + 1), tool_calls: [] }, "provider_response_too_large"],
     ["empty collection with truncated finish", "length", { role: "assistant", content, tool_calls: [] }, "provider_output_limit"],
     ["legacy field", "stop", { role: "assistant", content, function_call: null }, "provider_malformed_response"],
     ["auxiliary field", "stop", { role: "assistant", content, private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
@@ -6768,7 +6770,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
 });
 
 test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
-  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v13");
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v14");
   const diagnosticHeaders = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
       LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -6975,7 +6977,7 @@ test("the terminal analysis diagnostic is all-or-none, bounded, and qualificatio
   }
 });
 
-test("the v13 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v14 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -7933,6 +7935,25 @@ test("qualification HTTP observations cannot escape expiry during provider work"
 });
 
 
+test("Nscale review stages accept only the observed empty tool-call array without changing their content", async () => {
+  for (const [method, request, wire] of [
+    ["verify", minimalVerificationRequest(), acceptingVerificationWire(minimalVerificationRequest())],
+    ["certify", minimalCertificationRequest(), acceptingCertificationWire(minimalCertificationRequest().certificateId, minimalCertificationRequest().obligationIds)],
+  ]) {
+    const results = [];
+    const bodies = [];
+    for (const extras of [{}, { tool_calls: [] }]) {
+      const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", fetchImpl: async (_url, init) => {
+        bodies.push(init.body);
+        return providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(wire), ...extras } });
+      } });
+      results.push(await adapter[method](request));
+      assert.equal(adapter.completionCapacity().used, 1);
+    }
+    assert.deepEqual(results[0], results[1]); assert.equal(bodies[0], bodies[1]);
+  }
+});
+
 test("strict Nscale reviews reject auxiliary fields and never interpret a competing tool channel", async (context) => {
   const values = [null, "", "PRIVATE-A", [], ["PRIVATE-B"], {}, { secret: "PRIVATE-C" }, true, 12345];
   const fields = [...LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS, "tool_calls", "function_call", "PRIVATE-UNKNOWN"];
@@ -7953,8 +7974,8 @@ test("strict Nscale reviews reject auxiliary fields and never interpret a compet
         fetchImpl: async () => { calls += 1; return providerChoiceResponse({ finish_reason: "stop", message }); } });
       await assert.rejects(adapter[method](request), (error) => {
         assert.equal(error.code, "provider_malformed_response");
-        assert.equal(error.qualificationSubtype, "message_shape");
-        assert.equal(error.qualificationEnvelopeShape, null);
+        assert.ok(["S02N", "S02", "S04", "S05", "S06", "message_shape"].includes(error.qualificationSubtype));
+        assert.equal(error.qualificationEnvelopeShape !== null, error.qualificationSubtype === "S06");
         assert.equal(Object.getOwnPropertyDescriptor(error, "qualificationSubtype").enumerable, false);
         assert.doesNotMatch(JSON.stringify(error) + error.message, /PRIVATE/u);
         return true;
@@ -7965,7 +7986,209 @@ test("strict Nscale reviews reject auxiliary fields and never interpret a compet
   });
 });
 
-test("M01 records the strict review key shape without changing rejection or exposing content", async (t) => {
+test("Worker usage headers require an authentic completed adapter and the active v14 qualification marker", async () => {
+  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v14" };
+  const env = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
+  const run = async ({ retain = false, headers = marked, environment = env, missing = false, forged = false } = {}) => {
+    const bodies = [];
+    let adapterOptions;
+    const worker = createLatticeApiWorker({
+      createAdapter(options) {
+        adapterOptions = options;
+        const adapter = createHuggingFaceLatticeAdapter(options);
+        return forged ? Object.freeze({ ...adapter, qualificationUsage: { status: "complete", generator: { calls: 2, promptTokens: 20, completionTokens: 6 }, verifier: { calls: 2, promptTokens: 20, completionTokens: 6 } } }) : adapter;
+      },
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body); bodies.push(body);
+        let wire;
+        if (isAnalysisBody(body)) wire = canaryAnalysisWire(body, { retain });
+        else if (isCandidateBody(body)) wire = canaryCandidateFromProviderBody(body, retain
+          ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1)
+          : "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.");
+        else if (isVerificationBody(body)) wire = canaryVerificationWire(body, { retain });
+        else {
+          const payload = inertModelPayload(body);
+          assert.equal(body.response_format.json_schema.name, CERTIFICATION_TOOL_NAME);
+          wire = acceptingCertificationWire(payload.certificateId, payload.obligationIds);
+        }
+        return new Response(JSON.stringify({
+          ...(!missing || bodies.length > 1 ? { usage: { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13, ignored: "PRIVATE-USAGE" } } : {}),
+          choices: [{ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(wire), tool_calls: [] } }],
+        }), { headers: { "Content-Type": "application/json" } });
+      },
+    });
+    const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers }), environment);
+    return { response, body: await json(response), bodies, adapterOptions };
+  };
+  for (const retain of [false, true]) {
+    const qualified = await run({ retain });
+    assert.equal(qualified.response.status, 200);
+    assert.equal(qualified.body.result.status, retain ? "conformant-for-context" : "translated");
+    assert.equal(qualified.adapterOptions.observeQualificationUsage, true);
+    assert.equal(qualified.bodies.length, 4);
+    assert.deepEqual(Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS)
+      .map(([field, header]) => [field, qualified.response.headers.get(header)])), {
+      status: "complete", generator: "2,20,6", verifier: "2,20,6",
+    });
+    for (const options of [
+      { environment: { HF_TOKEN: "test-only" } }, { headers: {} },
+      { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v13" } }, { forged: true },
+    ]) {
+      const ordinary = await run({ retain, ...options });
+      assert.equal(ordinary.response.status, 200);
+      assert.deepEqual(ordinary.body, qualified.body, "usage observation does not change public JSON");
+      assert.deepEqual(ordinary.bodies, qualified.bodies, "usage observation does not change provider request bytes");
+      assert.equal(ordinary.adapterOptions.observeQualificationUsage, Boolean(options.forged));
+      for (const header of Object.values(LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS)) assert.equal(ordinary.response.headers.has(header), false);
+    }
+    const unavailable = await run({ retain, missing: true });
+    assert.deepEqual(unavailable.body, qualified.body);
+    assert.equal(unavailable.response.headers.get(LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS.status), "unavailable");
+    assert.equal(unavailable.response.headers.has(LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS.generator), false);
+    assert.equal(unavailable.response.headers.has(LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS.verifier), false);
+    assert.doesNotMatch(JSON.stringify([...qualified.response.headers]) + JSON.stringify(qualified.body), /PRIVATE-USAGE|prompt_tokens|completion_tokens/u);
+  }
+  const expired = await run({ environment: { ...env, [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2020-09-17T12:00:00.000Z" } });
+  assert.equal(expired.response.status, 503); assert.equal(expired.bodies.length, 0);
+  for (const header of Object.values(LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS)) assert.equal(expired.response.headers.has(header), false);
+});
+
+test("Worker usage headers remain absent on unable failed or expiry-during-work outcomes", async () => {
+  const cutoff = Date.parse("2099-09-17T12:00:00.000Z");
+  const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v14" };
+  const env = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(cutoff).toISOString() };
+  for (const outcome of ["unable", "failed", "expired"]) {
+    let clock = cutoff - 1000;
+    let captured;
+    const request = minimalVerificationRequest();
+    const worker = createLatticeApiWorker({
+      now: () => clock,
+      createAdapter(options) { captured = createHuggingFaceLatticeAdapter(options); return captured; },
+      fetchImpl: async () => new Response(JSON.stringify({ usage: { prompt_tokens: 4, completion_tokens: 2 },
+        choices: [{ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(acceptingVerificationWire(request)), tool_calls: [] } }],
+      }), { headers: { "Content-Type": "application/json" } }),
+      runTextToLatticeImpl: async (_text, { adapter }) => {
+        await adapter.verify(request);
+        if (outcome === "failed") throw new Error("PRIVATE-USAGE-FAILURE");
+        if (outcome === "expired") { clock = cutoff; return validLatticeResult(); }
+        return unableLatticeResult();
+      },
+    });
+    const response = await worker.fetch(apiRequest(validPayload, { headers }), env);
+    assert.equal(response.status, { unable: 200, failed: 500, expired: 503 }[outcome]);
+    assert.equal(getLatticeQualificationUsage(captured).status, "complete", "valid usage exists but cannot cross the outcome gate");
+    for (const header of Object.values(LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS)) assert.equal(response.headers.has(header), false);
+    assert.doesNotMatch(await response.text(), /PRIVATE-USAGE|promptTokens|completionTokens/u);
+  }
+});
+
+test("qualification usage aggregates all actual model-role calls including correction repair and reverification", async () => {
+  const request = minimalVerificationRequest();
+  const certification = minimalCertificationRequest();
+  let verifies = 0;
+  const bodies = [];
+  const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", requestedMode: "operative", observeQualificationUsage: true,
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body); bodies.push(body);
+      let wire = { passages: [] };
+      if (isAnalysisBody(body)) wire = canaryAnalysisWire(body);
+      else if (isVerificationBody(body)) {
+        wire = structuredClone(acceptingVerificationWire(request));
+        if (++verifies === 1) delete wire.i;
+        assert.equal(body.max_tokens, 2048);
+      } else if (body.response_format?.json_schema?.name === CERTIFICATION_TOOL_NAME) {
+        wire = acceptingCertificationWire(certification.certificateId, certification.obligationIds);
+        assert.equal(body.max_tokens, 520);
+      }
+      return new Response(JSON.stringify({ usage: { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13, ignored: "PRIVATE-USAGE" },
+        choices: [{ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(wire), tool_calls: [] } }] }),
+      { headers: { "Content-Type": "application/json" } });
+    } });
+  assert.deepEqual(getLatticeQualificationUsage(adapter), { status: "unavailable" });
+  await adapter.analyze(analysisRequestWithDiagnostic());
+  const partial = getLatticeQualificationUsage(adapter);
+  assert.deepEqual(partial.verifier, { calls: 0, promptTokens: 0, completionTokens: 0 });
+  await adapter.generate(request);
+  const rejected = await adapter.verify(request);
+  assert.equal(rejectedResultDiagnostic(rejected).rule, "V01F");
+  await adapter.verify({ ...request, correction: { attempt: 1, instruction: "Return the full schema." } });
+  await adapter.repair({ ...request, verification: { decision: "repair", gates: {}, passages: [], issues: [], questions: [] } });
+  await adapter.verify(request);
+  await adapter.certify(certification);
+  const usage = getLatticeQualificationUsage(adapter);
+  assert.deepEqual(usage, { status: "complete", generator: { calls: 3, promptTokens: 30, completionTokens: 9 },
+    verifier: { calls: 4, promptTokens: 40, completionTokens: 12 } });
+  assert.equal(adapter.completionCapacity().used, 7);
+  assert.ok(Object.isFrozen(usage) && Object.isFrozen(usage.generator) && Object.isFrozen(usage.verifier));
+  assert.equal(partial.generator.calls, 1, "previous snapshots cannot mutate");
+  assert.doesNotMatch(JSON.stringify(usage) + JSON.stringify(bodies), /PRIVATE-USAGE|observeQualificationUsage|qualification-usage-observer/u);
+});
+
+test("qualification usage is unavailable for missing invalid or unreadable metadata without changing results", async () => {
+  const request = minimalVerificationRequest();
+  const wire = acceptingVerificationWire(request);
+  for (const usage of [undefined, null, "PRIVATE-USAGE", [], {}, { prompt_tokens: 1 },
+    ...[-1, 1.5, "1", 1_048_577].flatMap((value) => [
+      { prompt_tokens: value, completion_tokens: 1 }, { prompt_tokens: 1, completion_tokens: value },
+    ]), { prompt_tokens: 1, completion_tokens: 2, total_tokens: 4 },
+    { prompt_tokens: 1, completion_tokens: 2, total_tokens: "3" }]) {
+    let calls = 0;
+    const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationUsage: true,
+      fetchImpl: async () => {
+        calls += 1;
+        return new Response(JSON.stringify({ usage: calls === 1 ? usage : { prompt_tokens: 1, completion_tokens: 1 },
+          choices: [{ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(wire) } }] }),
+        { headers: { "Content-Type": "application/json" } });
+      } });
+    assert.equal((await adapter.verify(request)).decision, "accept");
+    assert.deepEqual(getLatticeQualificationUsage(adapter), { status: "unavailable" });
+    await adapter.verify(request);
+    assert.deepEqual(getLatticeQualificationUsage(adapter), { status: "unavailable" }, "later metadata cannot fill an earlier missing report");
+    assert.equal(calls, 2);
+  }
+  for (const response of [() => new Response("{", { headers: { "Content-Type": "application/json" } }),
+    () => new Response("PRIVATE-USAGE", { status: 429 })]) {
+    const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationUsage: true, fetchImpl: response });
+    await assert.rejects(adapter.verify(request));
+    assert.deepEqual(getLatticeQualificationUsage(adapter), { status: "unavailable" });
+  }
+});
+
+test("qualification usage is default-off identity-bound bounded metadata and leaves request bytes unchanged", async () => {
+  const request = minimalVerificationRequest();
+  const bodies = [];
+  const makeAdapter = (enabled) => createHuggingFaceLatticeAdapter({ token: "test-only",
+    ...(enabled ? { observeQualificationUsage: true } : {}), fetchImpl: async (_url, init) => {
+      bodies.push(init.body);
+      return new Response(JSON.stringify({ usage: { prompt_tokens: 1_048_576, completion_tokens: 1_048_576, total_tokens: 2_097_152 },
+        choices: [{ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(acceptingVerificationWire(request)), tool_calls: [] } }] }),
+      { headers: { "Content-Type": "application/json" } });
+    } });
+  const off = makeAdapter(false), on = makeAdapter(true);
+  assert.deepEqual(await off.verify(request), await on.verify(request));
+  assert.equal(bodies[0], bodies[1]); assert.equal(getLatticeQualificationUsage(off), null);
+  for (let i = 1; i < 32; i += 1) await on.verify(request);
+  assert.deepEqual(getLatticeQualificationUsage(on), { status: "complete", generator: { calls: 0, promptTokens: 0, completionTokens: 0 },
+    verifier: { calls: 32, promptTokens: 33_554_432, completionTokens: 33_554_432 } });
+  await assert.rejects(on.verify(request), (error) => error.code === "provider_call_limit");
+  assert.equal(getLatticeQualificationUsage(on).verifier.calls, 32);
+  let reads = 0;
+  const forged = Object.freeze({ get qualificationUsage() { reads += 1; return getLatticeQualificationUsage(on); } });
+  const { proxy, revoke } = Proxy.revocable(on, {}); revoke();
+  for (const value of [null, undefined, forged, { ...on }, new Proxy(on, {}), proxy]) assert.equal(getLatticeQualificationUsage(value), null);
+  assert.equal(reads, 0);
+  for (const invalid of [null, 1, "true"]) assert.throws(() => createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationUsage: invalid }));
+});
+
+function createStrictReviewHelper({ fetchImpl, observeQualificationStrictMessageShape = false }) {
+  const call = (schemaName) => requestHuggingFaceJson(providerRequestOptions(fetchImpl, {
+    role: "verifier", schemaName, responseFormat: "json_schema", requireMinimalVerificationContent: true,
+    observeQualificationStrictMessageShape,
+  }));
+  return { verify: () => call(VERIFICATION_TOOL_NAME), certify: () => call(CERTIFICATION_TOOL_NAME) };
+}
+
+test("M01 records the strict helper key shape without changing rejection or exposing content", async (t) => {
   const fields = [...LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS, "tool_calls", "function_call"];
   assert.deepEqual(LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS, fields);
   const values = [[null, "n"], ["", "s"], ["PRIVATE-VALUE", "S"], [[], "a"], [["PRIVATE-VALUE"], "A"],
@@ -7981,21 +8204,21 @@ test("M01 records the strict review key shape without changing rejection or expo
   for (const method of ["verify", "certify"]) await t.test(method, async () => {
     for (const { extras, shape } of cases) {
       let calls = 0;
-      const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationStrictMessageShape: true,
+      const adapter = createStrictReviewHelper({ token: "test-only", observeQualificationStrictMessageShape: true,
         fetchImpl: async () => { calls += 1; return providerChoiceResponse({ finish_reason: "stop", message: {
           role: "assistant", content: "PRIVATE-CONTENT", ...extras,
         } }); } });
       await assert.rejects(adapter[method](method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest()), (error) => {
-        assert.equal(error.qualificationSubtype, "M01");
+        assert.notEqual(getLatticeProviderStrictMessageShape(error), null);
         assert.equal(error.code, "provider_malformed_response");
         assert.doesNotMatch(JSON.stringify(error) + error.message, /PRIVATE/u);
-        assert.equal(error.qualificationEnvelopeShape, null);
+        assert.equal(error.qualificationEnvelopeShape, undefined);
         assert.deepEqual(getLatticeProviderStrictMessageShape(error), shape);
         assert.equal(Object.isFrozen(getLatticeProviderStrictMessageShape(error)), true);
         assert.doesNotMatch(JSON.stringify(getLatticeProviderStrictMessageShape(error)), /PRIVATE/u);
         return true;
       });
-      assert.equal(calls, 1); assert.equal(adapter.completionCapacity().used, 1);
+      assert.equal(calls, 1);
     }
   });
 });
@@ -8012,20 +8235,20 @@ test("M01 observation stays off by default and cannot change strict acceptance o
       [{ role: "assistant", content, tool_calls: null }, "length", "none"],
       [{ role: "assistant", content: "PRIVATE-NOT-JSON" }, "stop", "content_json"],
     ]) {
-      const adapter = createHuggingFaceLatticeAdapter({ token: "test-only",
+      const adapter = createStrictReviewHelper({ token: "test-only",
         ...(observed ? { observeQualificationStrictMessageShape: true } : {}),
         fetchImpl: async () => providerChoiceResponse({ finish_reason: finish, message }) });
       await assert.rejects(adapter.verify(request), (error) => {
-        assert.equal(error.qualificationSubtype, expected);
+        assert.equal(error.code, finish === "length" ? "provider_output_limit" : "provider_malformed_response");
         assert.equal(getLatticeProviderStrictMessageShape(error) !== null, expected === "M01");
         return true;
       });
-      assert.equal(adapter.completionCapacity().used, 1);
+
     }
-    const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationStrictMessageShape: observed,
+    const adapter = createStrictReviewHelper({ token: "test-only", observeQualificationStrictMessageShape: observed,
       fetchImpl: async () => successfulProviderResponse(acceptingVerificationWire(request)) });
     assert.ok(await adapter.verify(request));
-    assert.equal(adapter.completionCapacity().used, 1);
+
   }
   for (const invalid of [null, "true", 1]) assert.throws(() => createHuggingFaceLatticeAdapter({
     token: "test-only", observeQualificationStrictMessageShape: invalid,
@@ -8047,7 +8270,7 @@ test("M01 shape records and error identity reject accessors, copies and impossib
       .map((patch) => Object.freeze({ ...valid, ...patch }))]) {
     assert.equal(isClosedProviderStrictMessageShape(value), false);
   }
-  const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationStrictMessageShape: true,
+  const adapter = createStrictReviewHelper({ token: "test-only", observeQualificationStrictMessageShape: true,
     fetchImpl: async () => providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant", content: "PRIVATE", tool_calls: null } }) });
   let failure;
   try { await adapter.verify(minimalVerificationRequest()); } catch (error) { failure = error; }
@@ -8087,7 +8310,7 @@ test("S06 shape records reject content channels, accessors and impossible combin
   assert.equal(reads, 0);
 });
 
-test("M01 strict review headers require v13 and an active window without exposing legacy S06 headers", async () => {
+test("S06 compatible review headers require v14 and an active window without exposing M01 headers", async () => {
   const request = { ...minimalCertificationRequest() };
   Object.defineProperty(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
     value: Object.freeze({ attempt: "initial", priorValidationCategory: "none" }), enumerable: false,
@@ -8108,17 +8331,17 @@ test("M01 strict review headers require v13 and an active window without exposin
     const response = await worker.fetch(apiRequest(validPayload, { headers }), env);
     const legacy = Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS)
       .map(([field, header]) => [field, response.headers.get(header)]));
-    assert.deepEqual(legacy, { namedShape: null, unknownCount: null, unknownShapes: null });
+    assert.deepEqual(legacy, observed ? { namedShape: "--n-a---", unknownCount: "0", unknownShapes: "000000000" }
+      : { namedShape: null, unknownCount: null, unknownShapes: null });
     const strict = Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS)
       .map(([field, header]) => [field, response.headers.get(header)]));
-    assert.deepEqual(strict, observed ? { namedShape: "--n-a-----", unknownCount: "0", unknownShapes: "000000000" }
-      : { namedShape: null, unknownCount: null, unknownShapes: null });
+    assert.deepEqual(strict, { namedShape: null, unknownCount: null, unknownShapes: null });
     assert.doesNotMatch(JSON.stringify([...response.headers]) + await response.text(), /PRIVATE/u);
     assert.ok(calls <= 1);
   }
 });
 
-test("M01 observations cannot escape qualification expiry during strict review", async () => {
+test("Review envelope observations cannot escape qualification expiry", async () => {
   let instant = Date.parse("2026-10-05T12:00:00.000Z");
   let failure;
   const worker = createLatticeApiWorker({ now: () => instant,
@@ -8133,10 +8356,8 @@ test("M01 observations cannot escape qualification expiry during strict review",
   const response = await worker.fetch(apiRequest(validPayload, { headers: {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
   } }), { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2026-10-05T12:00:10.000Z" });
-  assert.equal(failure.qualificationSubtype, "M01");
-  assert.deepEqual(getLatticeProviderStrictMessageShape(failure), {
-    namedShape: "--------n-", unknownCount: "0", unknownShapes: "000000000",
-  });
+  assert.equal(failure.qualificationSubtype, "S02N");
+  assert.equal(getLatticeProviderStrictMessageShape(failure), null);
   for (const header of [...Object.values(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS),
     ...Object.values(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS)]) assert.equal(response.headers.has(header), false);
   assert.doesNotMatch(JSON.stringify([...response.headers]) + await response.text(), /PRIVATE/u);
@@ -8248,20 +8469,20 @@ async function run212PriorVerificationFailure({
   return { response, failure, bodies, verifies };
 }
 
-test("M01 retains authentic correction provenance and stops at the same bounded call", async () => {
+test("Rejected null tool calls retain authentic correction provenance and stop at the same bounded call", async () => {
   const { response, failure, bodies, verifies } = await run212PriorVerificationFailure({ correctionEnvelopeExtras: { tool_calls: null } });
   assert.equal(response.status, 502);
   assert.deepEqual(await json(response), { error: "malformed_upstream_response" });
   assert.equal(bodies.length, 4); assert.equal(verifies, 2);
   assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stageAttempt), "correction");
-  assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "M01");
+  assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.subtype), "S02N");
   assert.equal(response.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.callOrdinal), "4");
   assert.deepEqual(getLatticeVerificationPriorRejection(failure), { boundary: "wire-decoder", category: "field-set", rule: "V01F" });
   for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS)) {
     assert.equal(response.headers.get(header), getLatticeVerificationPriorRejection(failure)[field]);
   }
   for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS)) {
-    assert.equal(response.headers.get(header), getLatticeProviderStrictMessageShape(failure)[field]);
+    assert.equal(response.headers.get(header), null, field);
   }
   for (const body of bodies.filter(isVerificationBody)) {
     assert.equal(body.max_tokens, 2048); assert.equal(body.response_format.json_schema.strict, true);

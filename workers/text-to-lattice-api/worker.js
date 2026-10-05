@@ -32,6 +32,7 @@ import {
   isClosedProviderHttpHeaders,
   isClosedProviderEnvelopeShape,
   getLatticeProviderStrictMessageShape,
+  getLatticeQualificationUsage,
   providerEnvelopeSubtypeIsConsistent,
 } from "./huggingFaceAdapter.js";
 import {
@@ -58,7 +59,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v13";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v14";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
@@ -89,6 +90,11 @@ export const LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS = Objec
   namedShape: "X-Lattice-Qualification-Strict-Message-Named-Shape",
   unknownCount: "X-Lattice-Qualification-Strict-Message-Unknown-Count",
   unknownShapes: "X-Lattice-Qualification-Strict-Message-Unknown-Shapes",
+});
+export const LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS = Object.freeze({
+  status: "X-Lattice-Qualification-Usage-Status",
+  generator: "X-Lattice-Qualification-Generator-Usage",
+  verifier: "X-Lattice-Qualification-Verifier-Usage",
 });
 export const LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   mediaType: "X-Lattice-Qualification-Http-Media-Type",
@@ -604,6 +610,23 @@ function withQualificationProviderDiagnostic(response, error, enabled) {
   return response;
 }
 
+function withQualificationUsage(response, result, adapter, enabled) {
+  if (!enabled || !["translated", "conformant-for-context"].includes(result.status)) return response;
+  // Only the authentic adapter's private observation can supply these counts.
+  // Missing usage is explicit and never converted into an observed zero.
+  const usage = getLatticeQualificationUsage(adapter);
+  if (usage === null) return response;
+  response.headers.set(LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS.status, usage.status);
+  if (usage.status === "complete") {
+    for (const role of ["generator", "verifier"]) {
+      const { calls, promptTokens, completionTokens } = usage[role];
+      response.headers.set(LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS[role],
+        `${calls},${promptTokens},${completionTokens}`);
+    }
+  }
+  return response;
+}
+
 function qualificationTerminalAnalysisDiagnostic(trace, adapter) {
   try {
     if (trace === null
@@ -916,6 +939,7 @@ export function createLatticeApiWorker({
           observeQualificationHttpHeaders: qualificationDiagnosticRequested,
           observeQualificationEnvelopeShape: qualificationDiagnosticRequested,
           observeQualificationStrictMessageShape: qualificationDiagnosticRequested,
+          observeQualificationUsage: qualificationDiagnosticRequested,
         };
         if (providerCallTimeoutMs !== undefined) adapterOptions.callTimeoutMs = providerCallTimeoutMs;
         if (providerResponseByteLimit !== undefined) {
@@ -984,6 +1008,13 @@ export function createLatticeApiWorker({
           response,
           result,
           qualificationWithheldDiagnosticValue,
+          qualificationDiagnosticRequested
+            && qualificationWindowAllowsOutput(qualificationWindow, responseTime),
+        );
+        response = withQualificationUsage(
+          response,
+          result,
+          adapter,
           qualificationDiagnosticRequested
             && qualificationWindowAllowsOutput(qualificationWindow, responseTime),
         );

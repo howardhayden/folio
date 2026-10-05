@@ -83,6 +83,11 @@ import {
   LATTICE_PRODUCTION_CANARY_REQUEST,
   LATTICE_PRODUCTION_CANARY_TEXT,
 } from "./text-to-lattice-production-canary.mjs";
+import {
+  createLatticeQualificationUsageEvidence,
+  LATTICE_QUALIFICATION_USAGE_EVIDENCE_BASENAME,
+  parseLatticeQualificationUsageHeaders,
+} from "./text-to-lattice-qualification-usage.mjs";
 
 export {
   LATTICE_PRODUCTION_CANARY_REQUEST,
@@ -891,6 +896,10 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   assertApiHeaders(response, label);
   const bytes = await boundedBytes(response, API_RESPONSE_LIMIT, label);
   const envelope = parseJson(bytes, label);
+  const usageObservation = parseLatticeQualificationUsageHeaders(response.headers, {
+    acceptedSuccess: response.status === 200
+      && CERTIFICATION_CANARY_STATUS_SET.has(envelope?.result?.status),
+  });
   const diagnosticValues = Object.freeze(Object.fromEntries(
     Object.entries(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS).map(([field, header]) => (
       [field, response.headers.get(header)]
@@ -1229,7 +1238,7 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     || envelope.result.retainedPassageCount !== envelope.result.passageCount) {
     fail(`${label} did not prove an unchanged conformant accounted result`);
   }
-  return Object.freeze({
+  const canary = Object.freeze({
     request_count: 1,
     automatic_retry: false,
     elapsed_ms: elapsedMilliseconds(startedAt, monotonicNow, label),
@@ -1258,6 +1267,7 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     set_cookie_header_present: false,
     browser_quota_cookie_rotated: false,
   });
+  return Object.freeze({ canary, usageObservation });
 }
 
 export function serializeLatticeProductionEvidence(evidence) {
@@ -1293,11 +1303,13 @@ export async function verifyTextToLatticeApiProduction({
   monotonicNow = () => performance.now(),
   wait = waitMilliseconds,
   onPreflightEvidence,
+  onUsageEvidence,
   context,
 } = {}) {
   if (typeof fetchImpl !== "function" || typeof now !== "function"
     || typeof monotonicNow !== "function" || typeof wait !== "function"
-    || (onPreflightEvidence !== undefined && typeof onPreflightEvidence !== "function")) {
+    || (onPreflightEvidence !== undefined && typeof onPreflightEvidence !== "function")
+    || (onUsageEvidence !== undefined && typeof onUsageEvidence !== "function")) {
     throw new TypeError("The live API verifier received an invalid dependency.");
   }
   const exactOrigin = assertOrigin(origin);
@@ -1414,7 +1426,7 @@ export async function verifyTextToLatticeApiProduction({
     await onPreflightEvidence(preflightEvidence);
   }
 
-  const transformationCanary = await verifyTransformationCanary(
+  const { canary: transformationCanary, usageObservation } = await verifyTransformationCanary(
     exactOrigin,
     fetchImpl,
     monotonicNow,
@@ -1433,6 +1445,12 @@ export async function verifyTextToLatticeApiProduction({
     || JSON.stringify(evidence).includes(visitorCookieValue)) {
     fail("the evidence receipt contains probe content");
   }
+  if (onUsageEvidence !== undefined) {
+    await onUsageEvidence(createLatticeQualificationUsageEvidence(
+      new TextEncoder().encode(serializeLatticeProductionEvidence(evidence).serialized),
+      usageObservation,
+    ));
+  }
   return evidence;
 }
 
@@ -1443,11 +1461,14 @@ async function main() {
   }
   const resolvedEvidencePath = resolve(evidencePath);
   const preflightEvidencePath = resolve(dirname(resolvedEvidencePath), "preflight-boundary.json");
-  if (resolvedEvidencePath === preflightEvidencePath) {
-    fail("LATTICE_API_EVIDENCE_PATH must not use the reserved preflight receipt path");
+  const usageEvidencePath = resolve(dirname(resolvedEvidencePath), LATTICE_QUALIFICATION_USAGE_EVIDENCE_BASENAME);
+  if ([preflightEvidencePath, usageEvidencePath].includes(resolvedEvidencePath)) {
+    fail("LATTICE_API_EVIDENCE_PATH must not use a reserved sidecar receipt path");
   }
+  let usageEvidence;
   const evidence = await verifyTextToLatticeApiProduction({
     origin: process.env.LATTICE_API_BASE_URL,
+    onUsageEvidence(value) { usageEvidence = value; },
     onPreflightEvidence: async (preflightEvidence) => {
       const serialized = await writeLatticeProductionEvidenceReceipt(
         preflightEvidencePath,
@@ -1467,7 +1488,9 @@ async function main() {
     },
   });
   const serialized = await writeLatticeProductionEvidenceReceipt(resolvedEvidencePath, evidence);
+  const serializedUsage = await writeLatticeProductionEvidenceReceipt(usageEvidencePath, usageEvidence);
   process.stdout.write(`Text to Lattice live API verified; sanitized evidence SHA-256 ${serialized.payloadSha256}.\n`);
+  process.stdout.write(`Text to Lattice sanitized usage sidecar retained; evidence SHA-256 ${serializedUsage.payloadSha256}.\n`);
 }
 
 const isCommand = process.argv[1]
