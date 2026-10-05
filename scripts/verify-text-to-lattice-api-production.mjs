@@ -61,10 +61,12 @@ import {
   LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS,
 } from "../workers/text-to-lattice-api/worker.js";
 import {
   LATTICE_WITHHELD_TRACE_FIELDS,
   isClosedWithheldTrace,
+  isClosedWithheldPipelineObservation,
   isClosedPriorVerificationRejection,
 } from "../app/resume/lattice/qualificationDiagnostics.js";
 import {
@@ -1097,6 +1099,25 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     }
     withheldDiagnostic = Object.freeze({ ...trace, callsUsed });
   }
+  const pipelineHeaders = Object.values(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS)
+    .map((header) => header.toLowerCase());
+  for (const [header] of response.headers) {
+    if (header.toLowerCase().startsWith("x-lattice-qualification-pipeline")
+      && !pipelineHeaders.includes(header.toLowerCase())) {
+      fail(`${label} returned an invalid pipeline diagnostic`);
+    }
+  }
+  const pipelineValues = Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS)
+    .map(([field, header]) => [field, response.headers.get(header)]));
+  const pipelinePresent = Object.values(pipelineValues).filter((value) => value !== null).length;
+  let pipelineDiagnostic = null;
+  if (pipelinePresent !== 0) {
+    if (pipelinePresent !== pipelineHeaders.length) fail(`${label} returned an incomplete pipeline diagnostic`);
+    const observation = Object.freeze(pipelineValues);
+    if (!isClosedWithheldPipelineObservation(observation)) fail(`${label} returned an invalid pipeline diagnostic`);
+    if (withheldDiagnostic === null) fail(`${label} returned a pipeline diagnostic without a withheld diagnostic`);
+    pipelineDiagnostic = observation;
+  }
   if (terminalDiagnostic !== null && withheldDiagnostic !== null) {
     fail(`${label} returned incompatible terminal diagnostics`);
   }
@@ -1175,6 +1196,7 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     }
     if (unableClass === "post-candidate-withheld") {
       if (withheldDiagnostic === null) fail(`${label} returned a withheld result without a withheld diagnostic`);
+      if (pipelineDiagnostic === null) fail(`${label} returned a withheld result without a pipeline diagnostic`);
       fail(`${label} did not reach a non-error terminal transformation result (`
         + `class=${unableClass}; revision=${withheldDiagnostic.revision}; `
         + `deterministic=${withheldDiagnostic.deterministic}; verification=${withheldDiagnostic.verification}; `
@@ -1187,7 +1209,9 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
         + `prior_rejection_boundary=${withheldDiagnostic.priorRejectionBoundary}; prior_rejection_category=${withheldDiagnostic.priorRejectionCategory}; `
         + `prior_rejection_rule=${withheldDiagnostic.priorRejectionRule}; `
         + `calls_used=${withheldDiagnostic.callsUsed}; batch_count=${envelope.result.batchCount}; `
-        + `verification_passes=${envelope.result.verificationPasses}; finding_count=${envelope.result.findings.length})`);
+        + `verification_passes=${envelope.result.verificationPasses}; finding_count=${envelope.result.findings.length}; `
+        + `retry_path=${pipelineDiagnostic.retryPath}; candidate_lineage=${pipelineDiagnostic.candidateLineage}; `
+        + `initial_deterministic=${pipelineDiagnostic.initialDeterministic})`);
     }
     fail(`${label} did not reach a non-error terminal transformation result (`
       + `class=${unableClass}; `

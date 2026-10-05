@@ -13,6 +13,7 @@ import {
   LatticeProtocolError,
   countLatticeWords,
   preflightLatticeInput,
+  getLatticeWithheldPipelineObservation,
   runTextToLattice,
   validateLatticeClarificationAnswer,
   validateLatticeInput,
@@ -54,6 +55,7 @@ import {
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
 import { latticeProtectedLiteralMatches } from "../app/resume/lattice/protectedSpans.js";
 import { rememberRejectedResult, deterministicFindingRule } from "../app/resume/lattice/rejectionDiagnostics.js";
+import { isClosedWithheldPipelineObservation } from "../app/resume/lattice/qualificationDiagnostics.js";
 import {
   deterministicDocumentReview,
   deterministicPassageReview,
@@ -3194,6 +3196,83 @@ test("an adapter exception is never attributed to host normalization", async () 
   assert.equal(trace.priorRejectionBoundary, "unknown");
   assert.equal(trace.priorRejectionCategory, "other");
   assert.equal(JSON.stringify(trace).includes("PRIVATE-ADAPTER-FAILURE"), false);
+});
+
+test("withheld pipeline observations report actual retry paths and committed candidate lineage", async (context) => {
+  const identity = (request) => rawCandidate(request, { identity: true });
+  const unsupported = (request) => rawVerification(request, { gates: { languageSupported: false } });
+  const structural = (request) => rawVerification(request, { gates: { sourceCoverage: false } });
+  const wrongLayer = (request, unchanged) => {
+    const candidate = rawCandidate(request, { identity: unchanged });
+    candidate.passages[0].layer = "operative";
+    return candidate;
+  };
+  const cases = [
+    ["unattempted unsupported-language retry", { generate: identity, verify: unsupported }, "none", "initial", "d14-only"],
+    ["committed nonmaterial repair", { generate: identity, repair: identity }, "repair", "repair", "d14-only"],
+    ["invalid repair restores initial", { generate: identity, repair: () => ({}) }, "repair", "initial", "d14-only"],
+    ["invalid reverification restores initial", { generate: identity,
+      verify: (request, count) => count === 1 ? rawVerification(request) : {} }, "repair", "initial", "d14-only"],
+    ["committed regeneration", { generate: identity, verify: structural }, "regeneration", "regeneration", "d14-only"],
+    ["failed reanalysis prevents regeneration", { generate: identity, verify: structural,
+      analyze: (request, count) => count === 1 ? rawAnalysis(request) : {} }, "reanalysis-only", "initial", "d14-only"],
+    ["failed regeneration restores initial", { generate: (request, count) => count === 1 ? identity(request) : {}, verify: structural }, "regeneration", "initial", "d14-only"],
+    ["initial correction is not post-verification retry", { generate: (request, count) => count === 1 ? {} : identity(request), verify: unsupported }, "none", "initial", "d14-only"],
+    ["generation recovery remains initial lineage", { generate: () => ({}), repair: identity, verify: unsupported }, "none", "initial", "d14-only"],
+    ["other initial finding", { generate: (request) => wrongLayer(request, false), verify: unsupported }, "none", "initial", "other"],
+    ["D14 and other initial finding", { generate: (request) => wrongLayer(request, true), verify: unsupported }, "none", "initial", "d14-and-other"],
+    ["clear initial deterministic review", { verify: unsupported }, "none", "initial", "clear"],
+  ];
+  for (const [name, behavior, retryPath, candidateLineage, initialDeterministic] of cases) await context.test(name, async () => {
+    const source = opaqueWords(12);
+    const baselineAdapter = scriptedAdapter(behavior);
+    const baseline = await runTextToLattice(source, { adapter: baselineAdapter });
+    const observedAdapter = scriptedAdapter(behavior);
+    let trace;
+    let observation;
+    const observed = await runTextToLattice(source, { adapter: observedAdapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; observation = getLatticeWithheldPipelineObservation(value); },
+    });
+    assertCandidateWithheld(observed);
+    assert.deepEqual(observed, baseline);
+    assert.deepEqual(observedAdapter.calls, baselineAdapter.calls);
+    assert.deepEqual(observation, { retryPath, candidateLineage, initialDeterministic });
+    assert.equal(isClosedWithheldPipelineObservation(observation), true);
+    assert.equal(Object.isFrozen(observation), true);
+    assert.equal(Object.hasOwn(trace, "retryPath"), false, "the historical trace retains its original closed shape");
+    assert.equal(getLatticeWithheldPipelineObservation(observed), null);
+    assert.equal(getLatticeWithheldPipelineObservation(Object.freeze({ ...trace })), null);
+    assert.equal(getLatticeWithheldPipelineObservation(new Proxy(trace, {})), null);
+    assert.doesNotMatch(JSON.stringify(observed), /retryPath|candidateLineage|initialDeterministic/u);
+  });
+});
+
+test("withheld pipeline observations retain mixed actual paths without exposing identities", async () => {
+  const source = Array.from({ length: 5 }, () => opaqueWords(12)).join("\n\n");
+  const batches = preflightLatticeInput(source).batches;
+  assert.ok(batches.length > 1);
+  const structuralBatchId = batches.at(-1).id;
+  const flags = [];
+  const behavior = {
+    generate(request) { flags.push([request.batch.id, request.regenerationFromReanalysis === true]); return rawCandidate(request, { identity: true }); },
+    repair(request) { assert.equal(Object.hasOwn(request, "regenerationFromReanalysis"), false); return rawCandidate(request, { identity: true }); },
+    verify(request) { return rawVerification(request, { gates: { sourceCoverage: request.batch.id !== structuralBatchId } }); },
+  };
+  let trace;
+  const adapter = scriptedAdapter(behavior);
+  const result = await runTextToLattice(source, { adapter, onCandidateWithheldDiagnostic(value) { trace = value; } });
+  assertCandidateWithheld(result);
+  assert.deepEqual(getLatticeWithheldPipelineObservation(trace), {
+    retryPath: "mixed", candidateLineage: "mixed", initialDeterministic: "d14-only",
+  });
+  assert.deepEqual(flags.filter(([, regenerated]) => regenerated), [[structuralBatchId, true]]);
+  assert.ok(flags.filter(([, regenerated]) => !regenerated).length === batches.length);
+  let reads = 0;
+  const forged = Object.freeze({ get retryPath() { reads += 1; return "PRIVATE-PIPELINE"; } });
+  const { proxy, revoke } = Proxy.revocable({}, {}); revoke();
+  for (const value of [null, undefined, forged, proxy]) assert.equal(getLatticeWithheldPipelineObservation(value), null);
+  assert.equal(reads, 0);
+  assert.doesNotMatch(JSON.stringify(getLatticeWithheldPipelineObservation(trace)), /PRIVATE|b0|p0|a0|source/u);
 });
 
 test("withheld observations omit recovered failures and tolerate observer exceptions", async () => {

@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  isClosedWithheldPipelineObservation,
+  LATTICE_WITHHELD_PIPELINE_FIELDS,
+} from "../app/resume/lattice/qualificationDiagnostics.js";
 
 import {
   preflightLatticeInput,
@@ -16,6 +20,34 @@ import {
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 
 const SOURCE = "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
+
+test("withheld pipeline groups are complete finite metadata with consistent path and lineage", () => {
+  const value = { retryPath: "regeneration", candidateLineage: "initial", initialDeterministic: "d14-only" };
+  assert.deepEqual(LATTICE_WITHHELD_PIPELINE_FIELDS, ["retryPath", "candidateLineage", "initialDeterministic"]);
+  for (const item of [value,
+    { retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear" },
+    { retryPath: "reanalysis-only", candidateLineage: "initial", initialDeterministic: "other" },
+    { retryPath: "repair", candidateLineage: "repair", initialDeterministic: "d14-and-other" },
+    { retryPath: "mixed", candidateLineage: "mixed", initialDeterministic: "d14-only" },
+  ]) assert.equal(isClosedWithheldPipelineObservation(Object.freeze(item)), true);
+  let reads = 0;
+  const getter = { ...value };
+  Object.defineProperty(getter, "retryPath", { enumerable: true, get() { reads += 1; return "regeneration"; } });
+  const hidden = { ...value };
+  Object.defineProperty(hidden, "retryPath", { enumerable: false, value: "regeneration" });
+  const { proxy, revoke } = Proxy.revocable({}, {}); revoke();
+  for (const item of [null, undefined, [], { ...value }, proxy,
+    Object.freeze(getter), Object.freeze(hidden), Object.freeze(Object.assign(Object.create({}), value)),
+    ...LATTICE_WITHHELD_PIPELINE_FIELDS.map((field) => Object.freeze(Object.fromEntries(Object.entries(value).filter(([key]) => key !== field)))),
+    ...LATTICE_WITHHELD_PIPELINE_FIELDS.map((field) => Object.freeze({ ...value, [field]: "PRIVATE-UNKNOWN" })),
+    Object.freeze({ ...value, [Symbol("private")]: true }), Object.freeze({ ...value, detail: "PRIVATE-CONTENT" }),
+    Object.freeze({ ...value, retryPath: "none", candidateLineage: "repair" }),
+    Object.freeze({ ...value, retryPath: "reanalysis-only", candidateLineage: "regeneration" }),
+    Object.freeze({ ...value, retryPath: "repair", candidateLineage: "regeneration" }),
+    Object.freeze({ ...value, retryPath: "regeneration", candidateLineage: "repair" }),
+  ]) assert.equal(isClosedWithheldPipelineObservation(item), false);
+  assert.equal(reads, 0, "field descriptors cannot reflect attacker values");
+});
 const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v2";
 const QUALIFICATION_FIELDS = Object.freeze([
   "qualificationStage",
