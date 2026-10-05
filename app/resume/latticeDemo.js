@@ -70,6 +70,7 @@ import {
   isClosedPriorVerificationRejection,
   isClosedWithheldTrace,
   isClosedWithheldPipelineObservation,
+  LATTICE_SUCCESSFUL_CORRECTION_STAGES,
 } from "./lattice/qualificationDiagnostics.js";
 import {
   rejectedResultDiagnostic,
@@ -162,9 +163,13 @@ export function getLatticeWithheldPipelineObservation(trace) {
 
 function withheldPipelineObservation(state, finalCandidates) {
   if (state === null) return null;
+  const correctedStages = [...state.successfulCorrectionStages];
+  if (correctedStages.some((stage) => !LATTICE_SUCCESSFUL_CORRECTION_STAGES.includes(stage))) return null;
   const paths = new Set(state.retryPaths.values());
   const lineages = new Set(finalCandidates.map(({ candidate }) => state.candidateLineages.get(candidate)));
   const observation = Object.freeze({
+    successfulCorrectionStage: correctedStages.length === 0 ? "none"
+      : correctedStages.length === 1 ? correctedStages[0] : "mixed",
     retryPath: paths.size === 0 ? "none" : paths.size === 1 ? [...paths][0] : "mixed",
     candidateLineage: lineages.size === 1 ? [...lineages][0] : "mixed",
     initialDeterministic: state.initialD14
@@ -1471,6 +1476,7 @@ async function callNormalizedStage({
   signal,
   attempts = 2,
   analysisDiagnosticOrigin = null,
+  pipelineObservation = null,
 }) {
   let lastError = null;
   let firstError = null;
@@ -1486,7 +1492,11 @@ async function callNormalizedStage({
     try {
       const raw = await invoke(currentRequest);
       try {
-        return await normalize(raw, currentRequest);
+        const normalized = await normalize(raw, currentRequest);
+        // Protocol recovery is independent of semantic acceptance and final
+        // candidate lineage. Failed corrections never reach this point.
+        if (attempt === 2) pipelineObservation?.successfulCorrectionStages.add(stage);
+        return normalized;
       } catch (error) {
         // This catch surrounds normalization only. Decoder observations are
         // identity-bound; their absence never establishes successful decoding.
@@ -2328,6 +2338,7 @@ async function certifyWholeDocument({
   signal,
   onProgress,
   forceRequired = false,
+  pipelineObservation = null,
 }) {
   const required = forceRequired
     || batchCount > 1
@@ -2452,6 +2463,7 @@ async function certifyWholeDocument({
   try {
     certification = await callNormalizedStage({
       stage: "document-certification",
+      pipelineObservation,
       request,
       invoke: (currentRequest) => adapter.certify(currentRequest),
       normalize: (raw) => normalizeDocumentCertification(raw, request),
@@ -3267,6 +3279,7 @@ export async function runTextToLattice(value, options = {}) {
   }
   const pipelineObservation = onCandidateWithheldDiagnostic === undefined ? null : {
     retryPaths: new Map(), candidateLineages: new WeakMap(), initialD14: false, initialOther: false,
+    successfulCorrectionStages: new Set(),
   };
   const terminalResult = (state) => resultFromState({ ...state, onCandidateWithheldDiagnostic, pipelineObservation });
   const clarificationAnswers = clarificationAnswersPayload(options.clarificationAnswers);
@@ -3359,6 +3372,7 @@ export async function runTextToLattice(value, options = {}) {
       const analysis = await callClarifiableStage({
         clarificationAnswers,
         stage: "atomization",
+        pipelineObservation,
         analysisDiagnosticOrigin: adaptivelySplitAnalysisBatches.has(batch) ? "split" : "initial",
         request,
         invoke: (currentRequest) => options.adapter.analyze(currentRequest),
@@ -3460,6 +3474,7 @@ export async function runTextToLattice(value, options = {}) {
     try {
       candidate = await callNormalizedStage({
         stage: "generation",
+        pipelineObservation,
         request,
         invoke: (currentRequest) => options.adapter.generate(currentRequest),
         normalize: (raw) => normalizeCandidate(raw, request.batch, request.analysis),
@@ -3511,6 +3526,7 @@ export async function runTextToLattice(value, options = {}) {
       try {
         candidate = await callNormalizedStage({
           stage: "generation-recovery",
+          pipelineObservation,
           request: recoveryRequest,
           invoke: (currentRequest) => options.adapter.repair(currentRequest),
           normalize: (raw) => normalizeCandidate(raw, request.batch, request.analysis),
@@ -3580,6 +3596,7 @@ export async function runTextToLattice(value, options = {}) {
     try {
       verification = await callNormalizedStage({
         stage: "verification",
+        pipelineObservation,
         request: verificationRequest,
         invoke: (currentRequest) => options.adapter.verify(currentRequest),
         normalize: (raw) => normalizeVerification(
@@ -3632,6 +3649,7 @@ export async function runTextToLattice(value, options = {}) {
   if (assembly.documentFindings.length > 0 && failures.length === 0) failures = [...reviews];
   if (failures.length === 0) {
     const certification = await certifyWholeDocument({
+      pipelineObservation,
       source,
       candidate: assembly.text,
       batchCount: analyses.length,
@@ -3708,6 +3726,7 @@ export async function runTextToLattice(value, options = {}) {
       pipelineObservation?.retryPaths.set(entry.batch.id, "reanalysis-only");
       const normalizedAnalysis = await callNormalizedStage({
         stage: "re-atomization",
+        pipelineObservation,
         analysisDiagnosticOrigin: "reanalysis",
         request,
         invoke: (currentRequest) => options.adapter.analyze(currentRequest),
@@ -3800,6 +3819,7 @@ export async function runTextToLattice(value, options = {}) {
       pipelineObservation?.retryPaths.set(original.batch.id, stage);
       const candidate = await callNormalizedStage({
         stage,
+        pipelineObservation,
         request: retryRequest,
         invoke: (currentRequest) => reanalyzedByBatch.has(original.batch.id)
           ? options.adapter.generate(currentRequest)
@@ -3841,6 +3861,7 @@ export async function runTextToLattice(value, options = {}) {
     try {
       const verification = await callNormalizedStage({
         stage: "reverification",
+        pipelineObservation,
         request: verificationRequest,
         invoke: (currentRequest) => options.adapter.verify(currentRequest),
         normalize: (raw) => normalizeVerification(
@@ -3896,6 +3917,7 @@ export async function runTextToLattice(value, options = {}) {
     && finalReviews.some(hasExplicitReviewOnlyFailure);
   if (accepted || preliminarilySafeForReview) {
     wholeDocumentCertification = await certifyWholeDocument({
+      pipelineObservation,
       source,
       candidate: assembly.text,
       batchCount: analyses.length,

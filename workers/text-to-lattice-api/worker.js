@@ -60,7 +60,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v15";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v16";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS = Object.freeze({
   failureClass: "X-Lattice-Qualification-Failure-Class",
   upstreamStatus: "X-Lattice-Qualification-Upstream-Status",
@@ -136,6 +136,7 @@ export const LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS = Object
   retryPath: "X-Lattice-Qualification-Pipeline-Retry-Path",
   candidateLineage: "X-Lattice-Qualification-Pipeline-Candidate-Lineage",
   initialDeterministic: "X-Lattice-Qualification-Pipeline-Initial-Deterministic",
+  successfulCorrectionStage: "X-Lattice-Qualification-Pipeline-Successful-Correction-Stage",
 });
 
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset=utf-8)?$/iu;

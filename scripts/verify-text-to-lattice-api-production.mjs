@@ -1211,7 +1211,8 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
         + `calls_used=${withheldDiagnostic.callsUsed}; batch_count=${envelope.result.batchCount}; `
         + `verification_passes=${envelope.result.verificationPasses}; finding_count=${envelope.result.findings.length}; `
         + `retry_path=${pipelineDiagnostic.retryPath}; candidate_lineage=${pipelineDiagnostic.candidateLineage}; `
-        + `initial_deterministic=${pipelineDiagnostic.initialDeterministic})`);
+        + `initial_deterministic=${pipelineDiagnostic.initialDeterministic}; `
+        + `successful_correction_stage=${pipelineDiagnostic.successfulCorrectionStage})`);
     }
     fail(`${label} did not reach a non-error terminal transformation result (`
       + `class=${unableClass}; `

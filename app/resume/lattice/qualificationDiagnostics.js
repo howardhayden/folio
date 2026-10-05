@@ -5,11 +5,17 @@ import {
 } from "./rejectionDiagnostics.js";
 
 // Separate from the historical terminal failure trace. These fields describe
-// actual post-verification control flow and committed candidate provenance.
+// actual post-verification control flow, committed candidate provenance, and
+// successful protocol normalization on a correction anywhere in the run.
+export const LATTICE_SUCCESSFUL_CORRECTION_STAGES = Object.freeze([
+  "atomization", "generation", "generation-recovery", "verification", "re-atomization",
+  "repair", "regeneration", "reverification", "document-certification",
+]);
 export const LATTICE_WITHHELD_PIPELINE_VALUES = Object.freeze({
   retryPath: Object.freeze(["none", "repair", "reanalysis-only", "regeneration", "mixed"]),
   candidateLineage: Object.freeze(["initial", "repair", "regeneration", "mixed"]),
   initialDeterministic: Object.freeze(["clear", "d14-only", "other", "d14-and-other"]),
+  successfulCorrectionStage: Object.freeze(["none", ...LATTICE_SUCCESSFUL_CORRECTION_STAGES, "mixed"]),
 });
 export const LATTICE_WITHHELD_PIPELINE_FIELDS = Object.freeze(Object.keys(LATTICE_WITHHELD_PIPELINE_VALUES));
 
@@ -23,6 +29,13 @@ export function isClosedWithheldPipelineObservation(value) {
         return descriptor?.enumerable === true && Object.hasOwn(descriptor, "value")
           && LATTICE_WITHHELD_PIPELINE_VALUES[field].includes(descriptor.value);
       })) return false;
+    const correctionPaths = {
+      repair: ["repair", "mixed"], regeneration: ["regeneration", "mixed"],
+      "re-atomization": ["reanalysis-only", "regeneration", "mixed"],
+      reverification: ["repair", "regeneration", "mixed"],
+    };
+    if (Object.hasOwn(correctionPaths, value.successfulCorrectionStage)
+      && !correctionPaths[value.successfulCorrectionStage].includes(value.retryPath)) return false;
     if (["none", "reanalysis-only"].includes(value.retryPath)) return value.candidateLineage === "initial";
     if (value.retryPath === "repair") return value.candidateLineage !== "regeneration";
     if (value.retryPath === "regeneration") return value.candidateLineage !== "repair";

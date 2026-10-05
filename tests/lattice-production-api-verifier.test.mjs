@@ -150,7 +150,7 @@ function withheldDiagnosticHeaders(overrides = {}) {
 }
 
 function pipelineDiagnosticHeaders(overrides = {}) {
-  const values = { retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear", ...overrides };
+  const values = { retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear", successfulCorrectionStage: "none", ...overrides };
   return Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS)
     .map(([field, header]) => [header, values[field]]));
 }
@@ -2044,12 +2044,15 @@ test("withheld canary diagnostics fail closed on missing, hostile, or incompatib
     .filter(([header]) => !header.toLowerCase().startsWith("x-lattice-qualification-pipeline-")));
   const cases = [
     ["pipeline retry and lineage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "regeneration", candidateLineage: "initial", initialDeterministic: "d14-only" }) }, /retry_path=regeneration; candidate_lineage=initial; initial_deterministic=d14-only/u],
+    ["successful correction stage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "repair", successfulCorrectionStage: "repair" }) }, /successful_correction_stage=repair/u],
+    ["historical three-field group", body, 200, Object.fromEntries(Object.entries(exact).filter(([header]) => header !== LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.successfulCorrectionStage)), /incomplete pipeline diagnostic/u],
+    ["impossible successful correction path", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ successfulCorrectionStage: "repair" }) }, /invalid pipeline diagnostic/u],
     ["missing pipeline group", body, 200, withoutPipeline, /without a pipeline diagnostic/u],
     ["partial pipeline group", body, 200, { ...withoutPipeline, [LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.retryPath]: "none" }, /incomplete pipeline diagnostic/u],
     ["pipeline without withheld", body, 200, pipelineDiagnosticHeaders(), /pipeline diagnostic without a withheld diagnostic/u],
     ["pipeline unknown field", body, 200, { ...exact, "X-Lattice-Qualification-Pipeline-Unknown": privateMarker }, /invalid pipeline diagnostic/u],
     ["pipeline bare family", body, 200, { ...exact, "X-Lattice-Qualification-Pipeline": privateMarker }, /invalid pipeline diagnostic/u],
-    ...["retryPath", "candidateLineage", "initialDeterministic"].map((field) => (
+    ...["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage"].map((field) => (
       [`hostile pipeline ${field}`, body, 200, { ...exact, ...pipelineDiagnosticHeaders({ [field]: privateMarker }) }, /invalid pipeline diagnostic/u]
     )),
     ["pipeline impossible lineage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "none", candidateLineage: "repair" }) }, /invalid pipeline diagnostic/u],

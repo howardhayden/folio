@@ -22,14 +22,14 @@ import {
 const SOURCE = "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
 
 test("withheld pipeline groups are complete finite metadata with consistent path and lineage", () => {
-  const value = { retryPath: "regeneration", candidateLineage: "initial", initialDeterministic: "d14-only" };
-  assert.deepEqual(LATTICE_WITHHELD_PIPELINE_FIELDS, ["retryPath", "candidateLineage", "initialDeterministic"]);
+  const value = { retryPath: "regeneration", candidateLineage: "initial", initialDeterministic: "d14-only", successfulCorrectionStage: "none" };
+  assert.deepEqual(LATTICE_WITHHELD_PIPELINE_FIELDS, ["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage"]);
   for (const item of [value,
     { retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear" },
     { retryPath: "reanalysis-only", candidateLineage: "initial", initialDeterministic: "other" },
     { retryPath: "repair", candidateLineage: "repair", initialDeterministic: "d14-and-other" },
     { retryPath: "mixed", candidateLineage: "mixed", initialDeterministic: "d14-only" },
-  ]) assert.equal(isClosedWithheldPipelineObservation(Object.freeze(item)), true);
+  ]) assert.equal(isClosedWithheldPipelineObservation(Object.freeze({ successfulCorrectionStage: "none", ...item })), true);
   let reads = 0;
   const getter = { ...value };
   Object.defineProperty(getter, "retryPath", { enumerable: true, get() { reads += 1; return "regeneration"; } });
@@ -47,6 +47,58 @@ test("withheld pipeline groups are complete finite metadata with consistent path
     Object.freeze({ ...value, retryPath: "regeneration", candidateLineage: "repair" }),
   ]) assert.equal(isClosedWithheldPipelineObservation(item), false);
   assert.equal(reads, 0, "field descriptors cannot reflect attacker values");
+});
+
+test("successful correction metadata names only possible phases and paths, without implying surviving lineage", () => {
+  const paths = ["none", "repair", "reanalysis-only", "regeneration", "mixed"];
+  const allowedPaths = {
+    none: paths,
+    atomization: paths,
+    generation: paths,
+    "generation-recovery": paths,
+    verification: paths,
+    "re-atomization": ["reanalysis-only", "regeneration", "mixed"],
+    repair: ["repair", "mixed"],
+    regeneration: ["regeneration", "mixed"],
+    reverification: ["repair", "regeneration", "mixed"],
+    "document-certification": paths,
+    mixed: paths,
+  };
+  for (const [successfulCorrectionStage, possiblePaths] of Object.entries(allowedPaths)) {
+    for (const retryPath of paths) {
+      const observation = Object.freeze({
+        retryPath,
+        candidateLineage: "initial",
+        initialDeterministic: "d14-only",
+        successfulCorrectionStage,
+      });
+      assert.equal(isClosedWithheldPipelineObservation(observation), possiblePaths.includes(retryPath),
+        `${successfulCorrectionStage} with ${retryPath}; a normalized correction may later be discarded`);
+    }
+  }
+});
+
+test("successful correction metadata rejects historical, malformed, or accessor-bearing groups without reading values", () => {
+  const value = { retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear", successfulCorrectionStage: "generation" };
+  for (const successfulCorrectionStage of [
+    undefined, null, 2, {}, [], "", "analysis", "candidate", "certification", "unknown",
+    "document-window-certification", "document-relation-certification", "generation, generation",
+    "Generation", " generation", "generation\n", "generation\r\n", "generation\u2028",
+  ]) assert.equal(isClosedWithheldPipelineObservation(Object.freeze({ ...value, successfulCorrectionStage })), false);
+  const { successfulCorrectionStage: omitted, ...historicalV15 } = value;
+  assert.equal(omitted, "generation");
+  assert.equal(isClosedWithheldPipelineObservation(Object.freeze(historicalV15)), false);
+  let reads = 0;
+  const accessor = { ...value };
+  Object.defineProperty(accessor, "successfulCorrectionStage", {
+    enumerable: true,
+    get() { reads += 1; throw new Error("PRIVATE-CONTENT"); },
+  });
+  assert.equal(isClosedWithheldPipelineObservation(Object.freeze(accessor)), false);
+  assert.equal(reads, 0);
+  const hidden = { ...value };
+  Object.defineProperty(hidden, "successfulCorrectionStage", { enumerable: false, value: "generation" });
+  assert.equal(isClosedWithheldPipelineObservation(Object.freeze(hidden)), false);
 });
 const ANALYSIS_TOOL_NAME = "lattice_analysis_wire_v2";
 const QUALIFICATION_FIELDS = Object.freeze([
