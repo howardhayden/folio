@@ -106,6 +106,7 @@ const ERROR_RESPONSE_LIMIT = 4_096;
 const PAGE_RESPONSE_LIMIT = 2 * 1024 * 1024;
 const NEGATIVE_PROBE_TIMEOUT_MS = 15_000;
 const CANARY_TIMEOUT_MS = 255_000;
+const COOKIE_CLOCK_TOLERANCE_MS = 1_000;
 export const LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT = LATTICE_VISITOR_SESSION_ACCEPT;
 export const LATTICE_PRODUCTION_READINESS_CONTENT_TYPE = "application/json";
 export const LATTICE_PRODUCTION_READINESS_CONTRACT = Object.freeze({
@@ -458,6 +459,47 @@ function responseHeader(response, name, label) {
   return value;
 }
 
+function cookieWallTime(now, label) {
+  const value = now();
+  if (!(value instanceof Date) || !Number.isSafeInteger(value.valueOf()) || value.valueOf() < 0) {
+    fail(`${label} has an invalid cookie expiry observation time`);
+  }
+  return value.valueOf();
+}
+
+function assertCookieClockProgress(previous, current, label) {
+  const wallElapsed = current.wallTime - previous.wallTime;
+  const monotonicElapsed = current.monotonicTime - previous.monotonicTime;
+  if (!Number.isFinite(monotonicElapsed) || monotonicElapsed < 0 || wallElapsed < 0
+    || Math.abs(wallElapsed - monotonicElapsed) > COOKIE_CLOCK_TOLERANCE_MS) {
+    fail(`${label} has an inconsistent cookie expiry observation clock`);
+  }
+}
+
+function cookieExpiryEvidence(maxAgeSeconds, startedAt, receivedAt, label) {
+  const dayMilliseconds = 86_400_000;
+  if (receivedAt < startedAt
+    || Math.floor(startedAt / dayMilliseconds) !== Math.floor(receivedAt / dayMilliseconds)) {
+    fail(`${label} has a reversed or cross-midnight cookie expiry observation interval`);
+  }
+  const nextDay = (Math.floor(startedAt / dayMilliseconds) + 1) * dayMilliseconds;
+  const minimum = Math.ceil((nextDay - receivedAt) / 1_000);
+  const maximum = Math.ceil((nextDay - startedAt) / 1_000);
+  if (maxAgeSeconds < minimum || maxAgeSeconds > maximum) {
+    fail(`${label} returned a cookie expiry outside its next UTC-day boundary interval`);
+  }
+  return Object.freeze({
+    basis: "runner-wall-clock-interval",
+    request_started_at: new Date(startedAt).toISOString(),
+    response_received_at: new Date(receivedAt).toISOString(),
+    minimum_max_age_seconds: minimum,
+    maximum_max_age_seconds: maximum,
+    clock_tolerance_ms: COOKIE_CLOCK_TOLERANCE_MS,
+    wall_clock_consistent: true,
+    next_utc_boundary_matched: true,
+  });
+}
+
 function quotaCookie(response, label) {
   const header = response.headers.get("set-cookie");
   if (header === null) fail(`${label} omitted the browser quota cookie`);
@@ -468,7 +510,7 @@ function quotaCookie(response, label) {
     "u",
   ));
   const maxAgeSeconds = Number(match?.[1]);
-  if (!match || !Number.isSafeInteger(maxAgeSeconds)
+  if (!match || match[0].length !== header.length || !Number.isSafeInteger(maxAgeSeconds)
     || maxAgeSeconds < 1 || maxAgeSeconds > LATTICE_API_VISITOR_COOKIE_MAX_AGE_SECONDS) {
     fail(`${label} returned an invalid browser quota cookie`);
   }
@@ -768,16 +810,30 @@ function withVisitorCookie(init, visitorCookieHeader) {
   return Object.freeze({ ...init, headers: Object.freeze(headers) });
 }
 
-async function verifyVisitorSessionSetup(origin, fetchImpl, monotonicNow) {
-  const label = "content-free visitor-session setup";
+async function verifyVisitorSessionSetup(
+  origin, fetchImpl, monotonicNow, now, visitorCookieHeader = null, priorClockObservation = null,
+) {
+  const label = visitorCookieHeader === null
+    ? "content-free visitor-session setup" : "postflight visitor-session preservation";
   const startedAt = monotonicNow();
+  const requestedAt = cookieWallTime(now, label);
+  const requestClock = { wallTime: requestedAt, monotonicTime: startedAt };
+  if (priorClockObservation !== null) assertCookieClockProgress(priorClockObservation, requestClock, label);
   const response = await fetchOnce(
     fetchImpl,
     `${origin}${LATTICE_API_PATH}`,
-    visitorSessionPost(),
+    visitorCookieHeader === null
+      ? visitorSessionPost() : withVisitorCookie(visitorSessionPost(), visitorCookieHeader),
     NEGATIVE_PROBE_TIMEOUT_MS,
     label,
   );
+  const receivedAt = cookieWallTime(now, label);
+  const responseClock = { wallTime: receivedAt, monotonicTime: monotonicNow() };
+  assertCookieClockProgress(requestClock, responseClock, label);
+  if (responseClock.monotonicTime - startedAt > NEGATIVE_PROBE_TIMEOUT_MS) {
+    fail(`${label} exceeded its bounded cookie expiry observation interval`);
+  }
+  if (priorClockObservation !== null) assertCookieClockProgress(priorClockObservation, responseClock, label);
   if (response.status !== 204) {
     if (response.status === 503) {
       const disposition = await inspectApiReadinessResponse(response, label);
@@ -793,10 +849,16 @@ async function verifyVisitorSessionSetup(origin, fetchImpl, monotonicNow) {
     contentType: null,
     quotaCookie: "required",
   });
+  const expiry = cookieExpiryEvidence(cookie.metadata.max_age_seconds, requestedAt, receivedAt, label);
+  if (visitorCookieHeader !== null && cookie.requestHeader !== visitorCookieHeader) {
+    fail(`${label} rotated the established browser quota cookie`);
+  }
   const bytes = await boundedBytes(response, ERROR_RESPONSE_LIMIT, label);
   if (bytes.byteLength !== 0) fail(`${label} returned an undeclared response body`);
   return Object.freeze({
     requestHeader: cookie.requestHeader,
+    expiry,
+    clockObservation: Object.freeze(responseClock),
     evidence: Object.freeze({
       request_count: 1,
       automatic_retry: false,
@@ -811,6 +873,74 @@ async function verifyVisitorSessionSetup(origin, fetchImpl, monotonicNow) {
       response_body_present: false,
       response_body_bytes: 0,
       browser_quota: cookie.metadata,
+    }),
+  });
+}
+
+function mutatedCookieSignature(visitorCookieHeader) {
+  const offset = visitorCookieHeader.lastIndexOf(".") + 1;
+  const signature = visitorCookieHeader.slice(offset);
+  const signatureBytes = Buffer.from(signature, "base64url");
+  if (signatureBytes.byteLength !== 32 || signatureBytes.toString("base64url") !== signature) {
+    fail("postflight received a noncanonical browser quota signature");
+  }
+  // Change one actual signature bit, preserving the name, opaque visitor ID,
+  // decoded width and canonical base64url encoding. No secret is read.
+  signatureBytes[0] ^= 1;
+  return `${visitorCookieHeader.slice(0, offset)}${signatureBytes.toString("base64url")}`;
+}
+
+async function verifyVisitorSessionPostflight(origin, fetchImpl, monotonicNow, now, visitorSession) {
+  const preserved = await verifyVisitorSessionSetup(
+    origin, fetchImpl, monotonicNow, now, visitorSession.requestHeader, visitorSession.clockObservation,
+  );
+  const label = "postflight tampered visitor-session cookie";
+  const startedAt = monotonicNow();
+  // Deliberately invalid JSON keeps this probe pre-admission even if a future
+  // authentication regression were to accept the altered signature.
+  const init = apiPost("{", {
+    raw: true,
+    headers: { Cookie: mutatedCookieSignature(visitorSession.requestHeader) },
+  });
+  const response = await fetchOnce(
+    fetchImpl, `${origin}${LATTICE_API_PATH}`, init, NEGATIVE_PROBE_TIMEOUT_MS, label,
+  );
+  if (response.status !== 403) {
+    await response.body?.cancel().catch(() => {});
+    fail(`${label} returned HTTP ${response.status}; expected 403`);
+  }
+  assertApiHeaders(response, label);
+  if (response.headers.has("allow")) fail(`${label} returned an undeclared Allow header`);
+  const bytes = await boundedBytes(response, ERROR_RESPONSE_LIMIT, label);
+  const body = parseJson(bytes, label);
+  if (!isLatticeApiError(body) || !exactRecord(body, ["error"]) || body.error !== "invalid_request") {
+    fail(`${label} returned an unexpected closed error envelope`);
+  }
+  return Object.freeze({
+    scope: "backend-probes-after-successful-canary",
+    request_count: 2,
+    automatic_retry: false,
+    raw_request_or_response_content_recorded: false,
+    initial_setup_expiry: visitorSession.expiry,
+    preservation: Object.freeze({
+      ...preserved.evidence,
+      cookie_header_present: true,
+      cookie_value_preserved: true,
+      expiry: preserved.expiry,
+    }),
+    tampered_cookie: Object.freeze({
+      request_count: 1,
+      method: "POST",
+      path: LATTICE_API_PATH,
+      canonical_signature_mutation: true,
+      request_body_present: true,
+      request_body_bytes: 1,
+      elapsed_ms: elapsedMilliseconds(startedAt, monotonicNow, label),
+      http_status: response.status,
+      error: body.error,
+      response_bytes: bytes.byteLength,
+      no_store: true,
+      non_reflective: true,
     }),
   });
 }
@@ -1347,7 +1477,7 @@ export async function verifyTextToLatticeApiProduction({
 
   const documentPolicies = await verifyDocumentPolicies(exactOrigin, fetchImpl, monotonicNow);
   const deploymentReadiness = await verifyActiveApiReadiness(exactOrigin, fetchImpl, wait);
-  const visitorSession = await verifyVisitorSessionSetup(exactOrigin, fetchImpl, monotonicNow);
+  const visitorSession = await verifyVisitorSessionSetup(exactOrigin, fetchImpl, monotonicNow, now);
   const negativeProbes = await verifyNegativeProbes(
     exactOrigin,
     fetchImpl,
@@ -1458,10 +1588,14 @@ export async function verifyTextToLatticeApiProduction({
     monotonicNow,
     visitorSession.requestHeader,
   );
+  const visitorSessionPostflight = await verifyVisitorSessionPostflight(
+    exactOrigin, fetchImpl, monotonicNow, now, visitorSession,
+  );
   const evidence = Object.freeze({
     format: LATTICE_PRODUCTION_EVIDENCE_SCHEMA,
     ...commonEvidence,
     transformation_canary: transformationCanary,
+    visitor_session_postflight: visitorSessionPostflight,
   });
 
   if (JSON.stringify(evidence).includes(LATTICE_PRODUCTION_CANARY_TEXT)
