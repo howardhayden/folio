@@ -118,7 +118,7 @@
     "qualifiedSourceSetSha256": "615fe06a700fb5f908a53561445541b0d10925e4a01907b1d23692e150619346",
     "decidedOn": "2026-09-30",
     "record": "The site owner directs the remote Text to Lattice source candidate to remain held and documentation-only until the active production and canonical-browser release blockers close. Source review, Worker deployment preparation, and explicit historical evidence do not activate the public client.",
-    "note": "The earlier GATE-02 deployment record and GATE-06 canonical-browser lifecycle and privacy captures remain verbatim historical evidence for their browser-local revisions. They do not establish the /api/lattice route, HF_TOKEN and VISITOR_COOKIE_SECRET bindings, exact quota-cookie boundary, exact 30-global and scoped 3-cooperating-cookie-jar UTC-day admission, fixed Hugging Face router with Nscale-served generator and verifier targets, remote retention boundary, successful remote conversion, or current privacy trace."
+    "note": "The earlier GATE-02 deployment record and GATE-06 canonical-browser lifecycle and privacy captures remain verbatim historical evidence for their browser-local revisions. They do not establish the /api/lattice route, HF_TOKEN and VISITOR_COOKIE_SECRET bindings, exact quota-cookie boundary, exact 30-global and scoped 3-cooperating-cookie-jar UTC-day admission, fixed Hugging Face router with Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra as generator and meta-llama/Llama-3.1-8B-Instruct:nscale as verifier/certifier, remote retention boundary, successful remote conversion, or current privacy trace."
   },
   "artifactSet": {
     "activeCapability": {
