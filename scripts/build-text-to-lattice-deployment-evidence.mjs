@@ -351,7 +351,7 @@ async function readSanitizedEvidence(pathname, expectedFormat, expectedSchemaVer
   inspectEvidenceValue(value);
   if (expectedFormat === "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE") {
     // Historical v1/v2 receipts retain their captured DeepInfra contracts.
-    // Current assembly requires v3's fixed Nscale targets and strict review formats.
+    // Current assembly requires v3's fixed role targets and strict review formats.
     const expectedProvider = {
       endpoint: HUGGING_FACE_CHAT_COMPLETIONS_URL,
       verification_endpoint: HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL,

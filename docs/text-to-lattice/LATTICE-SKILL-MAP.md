@@ -197,7 +197,7 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-REMOTE-PROTOCOL — Remote request and response protocol:** `app/resume/lattice/remoteProtocol.js`
 - **SRC-REMOTE-CLIENT — Same-origin remote request client:** `app/resume/lattice/remoteRequest.js`
 - **SRC-API-WORKER — Same-origin Text to Lattice API Worker:** `workers/text-to-lattice-api/worker.js`
-- **SRC-HF-ADAPTER — Fixed Hugging Face and Nscale provider adapter:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
+- **SRC-HF-ADAPTER — Fixed Hugging Face, DeepInfra and Nscale provider adapter:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
 - **SRC-API-CONFIG — Text to Lattice API Worker configuration:** `workers/text-to-lattice-api/wrangler.jsonc`
 - **SRC-CAPACITY-POLICY — Atomic Text to Lattice request-admission policy:** `workers/text-to-lattice-api/capacityPolicy.js`
 - **SRC-CAPACITY-CLIENT — Text to Lattice request-admission client:** `workers/text-to-lattice-api/capacityClient.js`
@@ -249,6 +249,11 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-NSCALE-PRIVACY — Nscale public privacy policy:** [Reviewed source](https://www.nscale.com/policies/privacy-policy)
 - **SRC-NSCALE-SHARED-RESPONSIBILITY — Nscale shared responsibility model:** [Reviewed source](https://docs.nscale.com/docs/help/shared-responsibility)
 - **SRC-NSCALE-WEBSITE-TERMS — Nscale public website terms and their scope:** [Reviewed source](https://www.nscale.com/policies/terms-conditions)
+- **SRC-QWEN-NEXT-SOURCE — Qwen3 Next 80B A3B Instruct reviewed author revision:** [Reviewed source](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct/tree/9c7f2fbe84465e40164a94cc16cd30b6999b0cc7)
+- **SRC-DEEPINFRA-NEXT — DeepInfra Qwen3 Next model metadata:** [Reviewed source](https://deepinfra.com/Qwen/Qwen3-Next-80B-A3B-Instruct)
+- **SRC-DEEPINFRA-DATA-PRIVACY — DeepInfra public inference data-privacy statements:** [Reviewed source](https://docs.deepinfra.com/account/data-privacy)
+- **SRC-DEEPINFRA-TERMS — DeepInfra public service terms:** [Reviewed source](https://deepinfra.com/terms)
+- **SRC-DEEPINFRA-PRIVACY — DeepInfra public privacy policy:** [Reviewed source](https://deepinfra.com/privacy)
 
 ## Terms and provenance
 

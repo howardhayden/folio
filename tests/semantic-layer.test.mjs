@@ -972,15 +972,15 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   }
 
   const expectedGenerator = {
-    name: "Qwen3-4B-Instruct-2507 server-side generator",
+    name: "Qwen3-Next-80B-A3B-Instruct server-side generator",
     modelId: LATTICE_REMOTE_MODELS.generator,
     revision: "provider-managed remote serving revision",
-    repository: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507",
-    reviewedSourceRevision: "cdbee75f17c01a7cc42f958dc650907174af0554",
-    revisionUrl: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/tree/cdbee75f17c01a7cc42f958dc650907174af0554",
-    baseModelRepository: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507",
+    repository: "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct",
+    reviewedSourceRevision: "9c7f2fbe84465e40164a94cc16cd30b6999b0cc7",
+    revisionUrl: "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct/tree/9c7f2fbe84465e40164a94cc16cd30b6999b0cc7",
+    baseModelRepository: "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct",
     licenseName: "Apache License 2.0",
-    licenseUrl: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/blob/cdbee75f17c01a7cc42f958dc650907174af0554/LICENSE",
+    licenseUrl: "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct/blob/9c7f2fbe84465e40164a94cc16cd30b6999b0cc7/LICENSE",
     inference: {
       stages: {
         analysis: { maximumOutputTokens: 2_048 },
@@ -988,7 +988,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
         repair: { maximumOutputTokens: 800 },
       },
     },
-    inferenceSummary: "server-side bounded structured analysis and drafting through Hugging Face Inference Providers and Nscale; returned objects undergo deterministic closed-contract validation, and invalid or incomplete output fails closed; bounded stage-specific output limits",
+    inferenceSummary: "server-side bounded structured analysis and drafting through Hugging Face Inference Providers and DeepInfra; returned objects undergo deterministic closed-contract validation, and invalid or incomplete output fails closed; bounded stage-specific output limits",
   };
   const expectedVerifier = {
     name: "Llama 3.1 8B Instruct server-side verifier",
@@ -1013,7 +1013,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     },
   };
   const expectedRuntime = {
-    name: "Hugging Face Inference Providers with Nscale",
+    name: "Hugging Face Inference Providers with DeepInfra and Nscale",
     version: "provider-managed remote service",
     packageUrl: "https://huggingface.co/docs/inference-providers/",
     documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",

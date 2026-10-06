@@ -39,7 +39,7 @@ export const HUGGING_FACE_CHAT_COMPLETIONS_URL =
 export const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL = HUGGING_FACE_CHAT_COMPLETIONS_URL;
 
 export const LATTICE_REMOTE_MODELS = Object.freeze({
-  generator: "Qwen/Qwen3-4B-Instruct-2507:nscale",
+  generator: "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra",
   verifier: "meta-llama/Llama-3.1-8B-Instruct:nscale",
 });
 
@@ -2630,7 +2630,7 @@ export async function requestHuggingFaceJson({
     throw new TypeError("The Lattice provider received an invalid server configuration.");
   }
 
-  // Both fixed Nscale role selectors use the unified Hugging Face route.
+  // Both fixed role selectors use the unified Hugging Face route.
   // Review stages require their closed single-content strict-schema envelope;
   // legacy helper compatibility never selects an alternate route or model.
   const providerUrl = HUGGING_FACE_CHAT_COMPLETIONS_URL;
