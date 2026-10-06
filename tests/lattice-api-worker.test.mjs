@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import Ajv from "ajv";
 
 import { getLatticeVerificationPriorRejection, preflightLatticeInput, runTextToLattice } from "../app/resume/latticeDemo.js";
 import {
@@ -36,6 +37,7 @@ import {
 } from "../app/resume/lattice/rejectionDiagnostics.js";
 import {
   latticeSourceSpansForBatch,
+  MODEL_SOURCE_SPAN_LIMIT,
   splitLatticePassage,
 } from "../app/resume/lattice/segments.js";
 import {
@@ -2603,28 +2605,34 @@ test("compact verification publishes only the trusted fitted layout on initial a
   }
 });
 
-test("the complete fitted verifier request enforces its exact UTF-8 byte boundary", async () => {
-  const request = minimalVerificationRequest("Read \u2066https://example.test/note\u2069 and write café.");
-  let measuredBytes;
-  const response = () => successfulProviderResponse(acceptingVerificationWire(request));
-  await createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
-    measuredBytes = Buffer.byteLength(init.body, "utf8");
-    assert.ok(inertModelPayload(JSON.parse(init.body)).wireLayout);
-    return response();
-  } }).verify(request);
-  let allowedFetches = 0;
-  await createHuggingFaceLatticeAdapter({ token: "server-token", maximumRequestBytes: measuredBytes,
-    fetchImpl: async () => { allowedFetches += 1; return response(); },
-  }).verify(request);
-  assert.equal(allowedFetches, 1);
-  let rejectedFetches = 0;
-  const rejected = createHuggingFaceLatticeAdapter({ token: "server-token",
-    maximumRequestBytes: measuredBytes - 1,
-    fetchImpl: async () => { rejectedFetches += 1; return response(); },
+test("the complete fitted verifier request enforces its exact UTF-8 byte boundary", async (context) => {
+  for (const retained of [false, true]) await context.test(retained ? "retained criteria" : "rewrite", async () => {
+    const base = minimalVerificationRequest("Read \u2066https://example.test/note\u2069 and write café.");
+    const request = retained ? { ...base, analysis: { ...base.analysis, passages: [{
+      ...base.analysis.passages[0], disposition: "retain-if-conformant",
+      conformanceCriteria: [...LATTICE_CONFORMANCE_CRITERIA.universal, ...LATTICE_CONFORMANCE_CRITERIA.operative],
+    }] } } : base;
+    let measuredBytes;
+    const response = () => successfulProviderResponse(acceptingVerificationWire(request));
+    await createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+      measuredBytes = Buffer.byteLength(init.body, "utf8");
+      assert.ok(inertModelPayload(JSON.parse(init.body)).wireLayout);
+      return response();
+    } }).verify(request);
+    let allowedFetches = 0;
+    await createHuggingFaceLatticeAdapter({ token: "server-token", maximumRequestBytes: measuredBytes,
+      fetchImpl: async () => { allowedFetches += 1; return response(); },
+    }).verify(request);
+    assert.equal(allowedFetches, 1);
+    let rejectedFetches = 0;
+    const rejected = createHuggingFaceLatticeAdapter({ token: "server-token",
+      maximumRequestBytes: measuredBytes - 1,
+      fetchImpl: async () => { rejectedFetches += 1; return response(); },
+    });
+    await assert.rejects(rejected.verify(request), (error) => error instanceof LatticeProviderError
+      && error.code === "provider_request_too_large" && error.qualificationStage === "verification");
+    assert.equal(rejectedFetches, 0);
   });
-  await assert.rejects(rejected.verify(request), (error) => error instanceof LatticeProviderError
-    && error.code === "provider_request_too_large" && error.qualificationStage === "verification");
-  assert.equal(rejectedFetches, 0);
 });
 
 test("compact verification binds complete mask positions on initial and correction calls", async (context) => {
@@ -3857,6 +3865,177 @@ test("private verifier rejection observations identify the first failed structur
   assert.equal(result.decision, "accept");
   assert.equal(rejectedResultDiagnostic(result), null);
   assert.equal(successful.completionCapacity().used, 1);
+});
+
+test("retained criterion schemas preserve the decoder's conditional evidence obligation at every fitted width", async () => {
+  const ajv = new Ajv({ strict: false });
+  const base = minimalVerificationRequest("Read the note.");
+  const original = base.analysis.passages[0];
+  const criteria = [...LATTICE_CONFORMANCE_CRITERIA.universal, ...LATTICE_CONFORMANCE_CRITERIA.operative];
+  let exhaustiveCases = 0;
+  // These are adapter-boundary evidence fixtures, not claimed natural source segmentation.
+  for (let width = 1; width <= MODEL_SOURCE_SPAN_LIMIT; width += 1) {
+    const spans = Array.from({ length: width }, (_, index) => ({
+      id: `criterion-span-${index}`, kind: "source", text: "note",
+    }));
+    const atoms = Array.from({ length: Math.ceil(width / 3) }, (_, index) => ({
+      ...original.atoms[0], id: `criterion-atom-${index}`,
+      evidenceSpanIds: spans.slice(index * 3, index * 3 + 3).map(({ id }) => id),
+    }));
+    const request = { ...base,
+      sourceSpans: [{ passageId: original.passageId, spans, literalAnnotations: [] }],
+      analysis: { ...base.analysis, passages: [{ ...original, atoms,
+        disposition: "retain-if-conformant", conformanceCriteria: criteria }] },
+    };
+    const wire = structuredClone(acceptingVerificationWire(request));
+    let criterionSchema;
+    let fetches = 0;
+    const adapter = createHuggingFaceLatticeAdapter({ token: "server-token",
+      fetchImpl: async (url, init) => {
+        fetches += 1;
+        assert.equal(url, TEST_REVIEW_URL);
+        const body = JSON.parse(init.body);
+        assert.equal(body.max_tokens, 2_048);
+        criterionSchema = fittedVerificationSchemaForBody(body).properties.p.properties["0"]
+          .properties.c.properties.k.items;
+        return successfulProviderResponse(wire);
+      },
+    });
+    const positive = await adapter.verify(request);
+    assert.equal(positive.passages[0].criterionChecks[0].passed, true);
+    assert.equal(rejectedResultDiagnostic(positive), null);
+    const validate = ajv.compile(criterionSchema);
+    assert.equal(validate({ v: true, s: "0".repeat(width) }), false,
+      "strict schema must exclude exactly the evidence-free passed criterion rejected as V23M");
+    assert.equal(validate({ v: false, s: "0".repeat(width) }), true);
+    assert.equal(criterionSchema.anyOf.length, 2);
+    assert.deepEqual(criterionSchema.anyOf.map(({ properties }) => properties.v.enum), [[false], [true]]);
+    for (const branch of criterionSchema.anyOf) {
+      assert.equal(branch.additionalProperties, false);
+      assert.deepEqual(branch.required, ["v", "s"]);
+      assert.equal(fittedStringLength(branch.properties.s), width);
+      assert.equal(Object.hasOwn(branch.properties.s, "minLength"), false);
+      assert.equal(Object.hasOwn(branch.properties.s, "maxLength"), false);
+    }
+    assert.doesNotMatch(JSON.stringify(criterionSchema), /"(?:if|then|else|not|allOf|oneOf|default)":/u);
+    const masks = width <= 10
+      ? Array.from({ length: 2 ** width }, (_, bits) => bits.toString(2).padStart(width, "0"))
+      : ["0".repeat(width), "1".repeat(width), ...Array.from({ length: width }, (_, index) => (
+        "0".repeat(index) + "1" + "0".repeat(width - index - 1)
+      ))];
+    for (const mask of masks) for (const passed of [false, true]) {
+      assert.equal(validate({ v: passed, s: mask }), !passed || mask.includes("1"));
+      if (width <= 10) exhaustiveCases += 1;
+    }
+    for (const invalid of [null, [], {}, { v: true }, { s: "1".repeat(width) },
+      { v: 1, s: "1".repeat(width) }, { v: "true", s: "1".repeat(width) },
+      { v: true, s: false }, { v: true, s: "" }, { v: true, s: "1".repeat(width + 1) },
+      { v: true, s: "2".repeat(width) }, { v: true, s: "1".repeat(width), extra: false }]) {
+      assert.equal(validate(invalid), false);
+    }
+    wire.p["0"].c.k[0].s = "0".repeat(width);
+    const invalid = await adapter.verify(request);
+    assert.deepEqual(rejectedResultDiagnostic(invalid), { boundary: "wire-decoder", category: "coverage", rule: "V23M" });
+    wire.p["0"].c.k[0].v = false;
+    const negative = await adapter.verify(request);
+    assert.equal(negative.passages[0].criterionChecks[0].passed, false);
+    assert.deepEqual(negative.passages[0].criterionChecks[0].evidenceSpanIds, []);
+    assert.equal(rejectedResultDiagnostic(negative), null);
+    assert.equal(fetches, 3);
+    assert.equal(adapter.completionCapacity().used, 3);
+  }
+  assert.equal(exhaustiveCases, 4_092);
+});
+
+test("mixed retain and rewrite schemas constrain only existing retained criterion entries", async () => {
+  const base = minimalVerificationRequest("Read the note.\n\nSave the file.");
+  assert.equal(base.batch.passages.length, 2);
+  const original = base.analysis.passages[0];
+  const passages = base.batch.passages.map((passage, index) => ({
+    ...original, passageId: passage.id,
+    atoms: [{ ...original.atoms[0], id: `mixed-atom-${index}`,
+      evidenceSpanIds: base.sourceSpans[index].spans.map(({ id }) => id) }],
+    disposition: index === 0 ? "retain-if-conformant" : "rewrite",
+    conformanceCriteria: index === 0
+      ? [...LATTICE_CONFORMANCE_CRITERIA.universal, ...LATTICE_CONFORMANCE_CRITERIA.operative] : [],
+  }));
+  const request = { ...base, analysis: { ...base.analysis, passages } };
+  let calls = 0;
+  const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+    calls += 1;
+    const body = JSON.parse(init.body);
+    const schema = fittedVerificationSchemaForBody(body);
+    const layout = inertModelPayload(body).wireLayout;
+    const retained = schema.properties.p.properties["0"].properties.c;
+    const rewrite = schema.properties.p.properties["1"].properties.c;
+    assert.equal(retained.properties.k.items.anyOf.length, 2);
+    assert.equal(Object.hasOwn(rewrite.properties.k.items, "anyOf"), false);
+    assert.equal(rewrite.properties.k.minItems, 0);
+    assert.equal(rewrite.properties.k.maxItems, 0);
+    assert.deepEqual(rewrite.properties.v.enum, [false]);
+    assert.deepEqual(rewrite.properties.s.enum, ["0".repeat(base.sourceSpans[1].spans.length)]);
+    assert.equal(Object.hasOwn(layout.passages["0"].conformance, "fixedProtocolValue"), false);
+    assert.deepEqual(layout.passages["1"].conformance.fixedProtocolValue,
+      { v: false, s: rewrite.properties.s.enum[0], k: [] });
+    for (const record of Object.values(layout.passages)) assert.deepEqual(record.conformance.criterionFields, ["v", "s"]);
+    return successfulProviderResponse({});
+  } });
+  assert.deepEqual(await adapter.verify(request), {});
+  assert.equal(calls, 1);
+});
+
+test("retained criterion evidence remains required through actual correction, repair and reverification", async (context) => {
+  for (const outcome of ["repeated-malformed", "corrected", "repair"]) await context.test(outcome, async () => {
+    const calls = [];
+    let verifies = 0;
+    let drafts = 0;
+    const schemas = [];
+    const worker = createLatticeApiWorker({ fetchImpl: async (url, init) => {
+      const body = JSON.parse(init.body);
+      calls.push(body);
+      if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body, { retain: true }));
+      if (isCandidateBody(body)) {
+        drafts += 1;
+        return successfulProviderResponse(canaryCandidateFromProviderBody(body, LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1)));
+      }
+      assert.equal(url, TEST_REVIEW_URL);
+      if (isVerificationBody(body)) {
+        verifies += 1;
+        assert.equal(body.max_tokens, 2_048);
+        const schema = fittedVerificationSchemaForBody(body);
+        schemas.push(schema);
+        const wire = canaryVerificationWire(body, { retain: true });
+        const validate = new Ajv({ strict: false }).compile(schema);
+        assert.equal(validate(wire), true);
+        const unsupported = structuredClone(wire);
+        unsupported.p["0"].c.k[0].s = "0".repeat(unsupported.p["0"].c.k[0].s.length);
+        assert.equal(validate(unsupported), false);
+        if (verifies === 1 || outcome === "repeated-malformed") return successfulProviderResponse(unsupported);
+        if (verifies === 2) assert.match(body.messages[0].content, /one bounded correction attempt/u);
+        if (outcome === "repair" && verifies === 2) {
+          wire.d = 1;
+          wire.p["0"].f = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum
+            .map((check) => check === "clarity" ? "1" : "0").join("");
+          wire.i = [{ c: VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum.indexOf("clarity"), p: 0 }];
+        }
+        return successfulProviderResponse(wire);
+      }
+      assert.notEqual(outcome, "repeated-malformed", "malformed correction cannot reach certification");
+      strictReviewSchema(body, CERTIFICATION_TOOL_NAME);
+      assert.equal(body.max_tokens, 520);
+      const payload = inertModelPayload(body);
+      return successfulProviderResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds));
+    } });
+    const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
+    const envelope = await json(response);
+    assert.equal(response.status, 200);
+    assert.equal(verifies, outcome === "repair" ? 3 : 2);
+    assert.equal(drafts, outcome === "repair" ? 2 : 1);
+    assert.equal(calls.length, outcome === "repeated-malformed" ? 4 : outcome === "repair" ? 7 : 5);
+    assert.equal(envelope.result.text, outcome === "repeated-malformed" ? null : LATTICE_PRODUCTION_CANARY_TEXT);
+    if (outcome !== "repeated-malformed") assert.equal(envelope.result.status, "conformant-for-context");
+    for (const schema of schemas.slice(1)) assert.deepEqual(schema, schemas[0]);
+  });
 });
 
 test("private retained-conformance rejection observations preserve evidence obligations", async () => {

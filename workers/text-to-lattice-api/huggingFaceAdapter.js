@@ -1378,9 +1378,25 @@ function verificationWireSchemaForFit(fit) {
     const rewrite = plan.disposition === "rewrite";
     const criteria = rewrite ? Object.freeze([]) : plan.conformanceCriteria;
     const evidenceMask = wireBitMaskSchema(evidenceCount);
-    const criterionSchema = closedWireObject({
+    const criterionFields = closedWireObject({
       v: VERIFICATION_WIRE_CRITERION_SCHEMA.properties.v,
       s: evidenceMask,
+    });
+    // A passed retained-source criterion must cite at least one fitted span.
+    // Keep each alternative complete for grammar converters that select anyOf
+    // before processing sibling object properties. False may cite no evidence.
+    const criterionSchema = rewrite ? criterionFields : Object.freeze({
+      ...criterionFields,
+      anyOf: Object.freeze([
+        closedWireObject({
+          v: Object.freeze({ type: "boolean", enum: Object.freeze([false]) }),
+          s: evidenceMask,
+        }),
+        closedWireObject({
+          v: Object.freeze({ type: "boolean", enum: Object.freeze([true]) }),
+          s: wireBitMaskSchema(evidenceCount, { requireSelection: true }),
+        }),
+      ]),
     });
     const conformanceSchema = closedWireObject({
       v: rewrite
