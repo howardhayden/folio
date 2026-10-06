@@ -65,8 +65,8 @@
     },
     {
       "filename": "TEXT-TO-LATTICE-RELEASE-REGISTER.json",
-      "bytes": 2002292,
-      "sha256": "9cb081398b38d24721514d48367b1ba9df34a5635fc8eab703f8236836325a6e"
+      "bytes": 2002371,
+      "sha256": "ed844680c529132838e5cdd229eafcd9015c8f428e9ba18e18bbf49ff21e68e0"
     }
   ],
   "artifacts": [
@@ -132,8 +132,8 @@
     },
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
-      "bytes": 2002292,
-      "sha256": "9cb081398b38d24721514d48367b1ba9df34a5635fc8eab703f8236836325a6e"
+      "bytes": 2002371,
+      "sha256": "ed844680c529132838e5cdd229eafcd9015c8f428e9ba18e18bbf49ff21e68e0"
     },
     {
       "path": "public/documentation/text-to-lattice/text-to-lattice-security-model.html",
