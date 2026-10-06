@@ -142,7 +142,7 @@ async function establishVisitorSession({ baseOrigin, fetchImpl, signal }) {
       redirect: "error",
       cache: "no-store",
       keepalive: false,
-      mode: "same-origin",
+      mode: "cors",
       referrer: "",
       referrerPolicy: "same-origin",
     }, { fetchImpl, baseOrigin });
