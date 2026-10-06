@@ -151,10 +151,11 @@ async function establishVisitorSession({ baseOrigin, fetchImpl, signal }) {
     }, () => {});
     const response = await raceAbort(responsePromise, signal);
     const status = validateResponseShape(response);
-    if (status !== 204 || response.body !== null) {
+    if (status !== 204) {
       cancelReadable(response.body);
       throw visitorSessionFailure(status);
     }
+    await requireEmptyVisitorSessionBody(response, signal);
   } catch (cause) {
     if (cause instanceof LatticeRemoteError && cause.code === "visitor_session_required") {
       throw cause;
@@ -215,6 +216,70 @@ function cancelReadable(readable, reason) {
     }
   } catch {
     // Cleanup failure cannot replace the bounded public request failure.
+  }
+}
+
+async function requireEmptyVisitorSessionBody(response, signal) {
+  const body = response.body;
+  if (body === null) return;
+  if (!body || typeof body.getReader !== "function") {
+    cancelReadable(body);
+    throw visitorSessionFailure(response.status);
+  }
+  let reader;
+  try {
+    reader = body.getReader();
+  } catch (cause) {
+    cancelReadable(body);
+    throw visitorSessionFailure(response.status, cause);
+  }
+  let complete = false;
+  try {
+    if (!reader || typeof reader.read !== "function"
+      || typeof reader.cancel !== "function" || typeof reader.releaseLock !== "function") {
+      throw visitorSessionFailure(response.status);
+    }
+    const byteLength = Object.getOwnPropertyDescriptor(
+      Object.getPrototypeOf(Uint8Array.prototype), "byteLength",
+    ).get;
+    while (true) {
+      if (signal.aborted) throw abortReason(signal);
+      const part = await raceAbort(reader.read(), signal);
+      if (signal.aborted) throw abortReason(signal);
+      if (!part || typeof part !== "object" || Array.isArray(part)) {
+        throw visitorSessionFailure(response.status);
+      }
+      const done = part.done;
+      const chunk = part.value;
+      if (typeof done !== "boolean") throw visitorSessionFailure(response.status);
+      if (done) {
+        if (chunk !== undefined) throw visitorSessionFailure(response.status);
+        complete = true;
+        return;
+      }
+      // Fetched 204 responses may expose an empty stream. No returned byte is
+      // accepted, decoded or accumulated; only zero-byte EOF permits content.
+      if (!ArrayBuffer.isView(chunk)
+        || Object.prototype.toString.call(chunk) !== "[object Uint8Array]"
+        || byteLength.call(chunk) !== 0) {
+        throw visitorSessionFailure(response.status);
+      }
+      // Empty chunks are not EOF. Yield so an immediately resolving stream
+      // cannot starve the existing whole-request deadline or caller abort.
+      let turn;
+      try {
+        await raceAbort(new Promise((resolve) => { turn = setTimeout(resolve, 0); }), signal);
+      } finally {
+        clearTimeout(turn);
+      }
+    }
+  } finally {
+    if (!complete) cancelReadable(reader, signal.reason);
+    try {
+      reader.releaseLock();
+    } catch {
+      // Cleanup cannot replace the bounded setup failure or await cancellation.
+    }
   }
 }
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import vm from "node:vm";
 
 import {
   REMOTE_CAPABILITIES,
@@ -475,6 +476,243 @@ test("visitor-session setup failure sends no content request and is bounded for 
   assert.deepEqual(requests[0].init.headers, { Accept: LATTICE_VISITOR_SESSION_ACCEPT });
   assert.equal(Object.prototype.hasOwnProperty.call(requests[0].init, "body"), false);
   assert.equal(Object.prototype.hasOwnProperty.call(requests[0].init.headers, "Content-Type"), false);
+});
+
+test("a closed empty setup stream reaches EOF before the single content request", async () => {
+  const calls = [];
+  const setup = {
+    status: 204,
+    headers: new Headers(),
+    body: new ReadableStream({ start(controller) { controller.close(); } }),
+    text: async () => { throw new Error("setup text fallback must not run"); },
+  };
+  assert.notEqual(setup.body, null, "network responses can expose a non-null empty stream");
+  const returned = await requestRemoteLattice("Synthetic source", {
+    baseOrigin: ORIGIN,
+    fetchImpl: async (url, init) => {
+      calls.push({ url: url.href, init });
+      return calls.length === 1 ? setup : jsonResponse({ result, schema_version: 1 });
+    },
+  });
+  assert.equal(returned.text, result.text);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0].init.headers, { Accept: LATTICE_VISITOR_SESSION_ACCEPT });
+  assert.equal(Object.hasOwn(calls[0].init, "body"), false);
+  assert.equal(Object.hasOwn(calls[1].init, "body"), true);
+  assert.equal(calls[0].init.signal, calls[1].init.signal);
+  assert.equal(setup.body.locked, false);
+});
+
+function streamedVisitorSessionResponse(body) {
+  return {
+    status: 204,
+    headers: new Headers(),
+    body,
+    text: async () => { throw new Error("setup text fallback must not run"); },
+  };
+}
+
+function trackedSetupReader(read, cancel = () => {}) {
+  const state = { reads: 0, canceled: 0, released: 0 };
+  const reader = {
+    read() { state.reads += 1; return read(); },
+    cancel() { state.canceled += 1; return cancel(); },
+    releaseLock() { state.released += 1; },
+  };
+  return { state, reader, body: { getReader: () => reader } };
+}
+
+test("setup drain holds the same browser lock and sends no content before empty EOF", async () => {
+  let tail = Promise.resolve();
+  const locks = {
+    query: async () => ({ held: [], pending: [] }),
+    request(_name, _options, callback) {
+      const turn = tail.then(callback);
+      tail = turn.catch(() => {});
+      return turn;
+    },
+  };
+  let closeSetup;
+  let setupStarted;
+  const started = new Promise((resolve) => { setupStarted = resolve; });
+  const setupBody = new ReadableStream({ start(controller) { closeSetup = () => controller.close(); } });
+  const calls = [];
+  await withBrowserWindow({ location: { origin: ORIGIN }, navigator: { locks } }, async () => {
+    const fetchImpl = async (_url, init) => {
+      calls.push(init);
+      if (calls.length === 1) { setupStarted(); return streamedVisitorSessionResponse(setupBody); }
+      return init.headers.Accept === LATTICE_VISITOR_SESSION_ACCEPT
+        ? visitorSessionResponse() : jsonResponse({ result, schema_version: 1 });
+    };
+    const first = requestRemoteLattice("First source", { fetchImpl });
+    await started;
+    const second = requestRemoteLattice("Second source", { fetchImpl });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(calls.length, 1, "neither content nor the second setup precedes first EOF");
+    closeSetup();
+    await Promise.all([first, second]);
+  });
+  assert.equal(calls.length, 4);
+  assert.deepEqual(calls.map(({ headers }) => headers.Accept), [
+    LATTICE_VISITOR_SESSION_ACCEPT, "application/json", LATTICE_VISITOR_SESSION_ACCEPT, "application/json",
+  ]);
+  assert.equal(calls[0].signal, calls[1].signal);
+  assert.equal(setupBody.locked, false);
+});
+
+test("zero-size setup chunks require actual EOF and retain one content request", async () => {
+  let reads = 0;
+  const tracked = trackedSetupReader(async () => ++reads <= 3
+    ? { done: false, value: new Uint8Array(0) } : { done: true, value: undefined });
+  let calls = 0;
+  const returned = await requestRemoteLattice("Source", {
+    baseOrigin: ORIGIN,
+    fetchImpl: async () => ++calls === 1
+      ? streamedVisitorSessionResponse(tracked.body) : jsonResponse({ result, schema_version: 1 }),
+  });
+  assert.equal(returned.text, result.text);
+  assert.equal(calls, 2);
+  assert.deepEqual(tracked.state, { reads: 4, canceled: 0, released: 1 });
+});
+
+test("empty setup byte views are accepted structurally across realms", async () => {
+  const empty = vm.runInNewContext("new Uint8Array(0)");
+  assert.equal(empty instanceof Uint8Array, false);
+  let reads = 0;
+  const tracked = trackedSetupReader(async () => ++reads === 1
+    ? { done: false, value: empty } : { done: true });
+  let calls = 0;
+  const returned = await requestRemoteLattice("Source", {
+    baseOrigin: ORIGIN,
+    fetchImpl: async () => ++calls === 1
+      ? streamedVisitorSessionResponse(tracked.body) : jsonResponse({ result, schema_version: 1 }),
+  });
+  assert.equal(returned.text, result.text);
+  assert.equal(calls, 2);
+  assert.deepEqual(tracked.state, { reads: 2, canceled: 0, released: 1 });
+});
+
+test("first nonzero setup chunk is refused immediately without a second read or content", async () => {
+  for (const cancel of [() => {}, () => { throw new Error("cleanup failure"); }, () => new Promise(() => {})]) {
+    const tracked = trackedSetupReader(async () => ({ done: false, value: new Uint8Array([0]) }), cancel);
+    let calls = 0;
+    await assert.rejects(requestRemoteLattice("Source", {
+      baseOrigin: ORIGIN, timeoutMs: 25,
+      fetchImpl: async () => { calls += 1; return streamedVisitorSessionResponse(tracked.body); },
+    }), (error) => error.code === "visitor_session_required" && error.status === 204 && error.retryable === false);
+    assert.equal(calls, 1);
+    assert.deepEqual(tracked.state, { reads: 1, canceled: 1, released: 1 });
+  }
+});
+
+test("malformed setup chunks and EOF payloads cannot masquerade as an empty body", async () => {
+  const disguised = new Uint8Array([1]);
+  Object.defineProperty(disguised, "byteLength", { value: 0 });
+  const parts = [
+    null, {}, { done: "true" }, { done: 1 },
+    { done: false }, { done: false, value: { byteLength: 0 } },
+    { done: false, value: new DataView(new ArrayBuffer(0)) },
+    { done: false, value: disguised },
+    { done: true, value: new Uint8Array([1]) },
+    { done: true, value: new Uint8Array(0) },
+  ];
+  for (const part of parts) {
+    const tracked = trackedSetupReader(async () => part);
+    let calls = 0;
+    await assert.rejects(requestRemoteLattice("Source", {
+      baseOrigin: ORIGIN,
+      fetchImpl: async () => { calls += 1; return streamedVisitorSessionResponse(tracked.body); },
+    }), (error) => error.code === "visitor_session_required" && error.retryable === false);
+    assert.equal(calls, 1);
+    assert.deepEqual(tracked.state, { reads: 1, canceled: 1, released: 1 });
+  }
+});
+
+test("missing, locked, throwing and malformed setup readers fail before content", async () => {
+  let canceled = 0;
+  const locked = new ReadableStream();
+  const existingReader = locked.getReader();
+  const bodies = [undefined, {}, { cancel() { canceled += 1; }, getReader() { throw new Error("unavailable"); } },
+    { getReader: () => ({ cancel() {}, releaseLock() {} }) }, locked];
+  for (const body of bodies) {
+    let calls = 0;
+    await assert.rejects(requestRemoteLattice("Source", {
+      baseOrigin: ORIGIN,
+      fetchImpl: async () => { calls += 1; return streamedVisitorSessionResponse(body); },
+    }), (error) => error.code === "visitor_session_required");
+    assert.equal(calls, 1);
+  }
+  existingReader.releaseLock();
+  await locked.cancel();
+  assert.equal(canceled, 1);
+});
+
+test("a rejected setup read remains a closed setup failure and releases its reader", async () => {
+  const tracked = trackedSetupReader(async () => { throw new Error("private transport detail"); });
+  let calls = 0;
+  await assert.rejects(requestRemoteLattice("Source", {
+    baseOrigin: ORIGIN,
+    fetchImpl: async () => { calls += 1; return streamedVisitorSessionResponse(tracked.body); },
+  }), (error) => error.code === "visitor_session_required" && error.message === "visitor_session_required");
+  assert.equal(calls, 1);
+  assert.deepEqual(tracked.state, { reads: 1, canceled: 1, released: 1 });
+});
+
+test("caller abort and setup deadline bound pending reads and never await cancellation", async () => {
+  for (const callerAbort of [true, false]) {
+    const controller = new AbortController();
+    let lateRead;
+    const tracked = trackedSetupReader(() => {
+      if (callerAbort) queueMicrotask(() => controller.abort());
+      return new Promise((resolve) => { lateRead = resolve; });
+    }, () => new Promise(() => {}));
+    let calls = 0;
+    const states = [];
+    await assert.rejects(requestRemoteLattice("Source", {
+      baseOrigin: ORIGIN, signal: controller.signal, timeoutMs: 10,
+      onState: (state) => states.push(state),
+      fetchImpl: async () => { calls += 1; return streamedVisitorSessionResponse(tracked.body); },
+    }), (error) => callerAbort ? error.name === "AbortError"
+      : error.code === "visitor_session_required" && error.retryable === false);
+    assert.equal(calls, 1);
+    assert.deepEqual(tracked.state, { reads: 1, canceled: 1, released: 1 });
+    lateRead({ done: true, value: undefined });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls, 1);
+    assert.deepEqual(states, ["validating", "submitting"]);
+  }
+});
+
+test("an abort during reader acquisition prevents invoking read at all", async () => {
+  const controller = new AbortController();
+  const tracked = trackedSetupReader(async () => ({ done: true }));
+  let calls = 0;
+  await assert.rejects(requestRemoteLattice("Source", {
+    baseOrigin: ORIGIN, signal: controller.signal,
+    fetchImpl: async () => {
+      calls += 1;
+      return streamedVisitorSessionResponse({ getReader() { controller.abort(); return tracked.reader; } });
+    },
+  }), (error) => error.name === "AbortError");
+  assert.equal(calls, 1);
+  assert.deepEqual(tracked.state, { reads: 0, canceled: 1, released: 1 });
+});
+
+test("infinite immediately resolving empty chunks cannot starve the setup deadline", async () => {
+  let taskRan = false;
+  const task = setTimeout(() => { taskRan = true; }, 0);
+  const tracked = trackedSetupReader(async () => ({ done: false, value: new Uint8Array(0) }));
+  let calls = 0;
+  await assert.rejects(requestRemoteLattice("Source", {
+    baseOrigin: ORIGIN, timeoutMs: 10,
+    fetchImpl: async () => { calls += 1; return streamedVisitorSessionResponse(tracked.body); },
+  }), (error) => error.code === "visitor_session_required" && error.retryable === false);
+  clearTimeout(task);
+  assert.equal(taskRan, true);
+  assert.ok(tracked.state.reads >= 1);
+  assert.equal(tracked.state.canceled, 1);
+  assert.equal(tracked.state.released, 1);
+  assert.equal(calls, 1);
 });
 
 test("a missing setup cookie is rejected once before provider processing without duplicating content", async () => {
