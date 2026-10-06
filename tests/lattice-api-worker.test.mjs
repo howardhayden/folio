@@ -2811,7 +2811,7 @@ test("the adapter uses strict JSON Schema analysis and certification", async () 
   ]);
   assert.equal(
     LATTICE_REMOTE_MODELS.generator,
-    "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra",
+    "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
   );
   assert.equal(
     LATTICE_REMOTE_MODELS.verifier,

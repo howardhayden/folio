@@ -439,7 +439,7 @@ function validateAtlas(data) {
   const activeBlueprint = JSON.stringify(data.serviceBlueprint);
   for (const required of [
     "/api/lattice",
-    "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra",
+    "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
     "meta-llama/Llama-3.1-8B-Instruct:nscale",
     "HF_TOKEN",
     "VISITOR_COOKIE_SECRET",
@@ -636,7 +636,7 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || activeProvider?.verificationSchemaStrict !== true
     || activeProvider?.certificationResponseFormat !== "json_schema"
     || activeProvider?.certificationSchemaStrict !== true
-    || activeProvider?.generatorModel !== "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra"
+    || activeProvider?.generatorModel !== "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra"
     || activeProvider?.verifierModel !== "meta-llama/Llama-3.1-8B-Instruct:nscale"
     || JSON.stringify(activeProvider?.stageCallTimeoutsMs) !== JSON.stringify({
       analysis: 120_000,

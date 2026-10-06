@@ -593,6 +593,8 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-DEEPINFRA-DATA-PRIVACY — DeepInfra public inference data-privacy statements:** [Reviewed source](https://docs.deepinfra.com/account/data-privacy)
 - **SRC-DEEPINFRA-TERMS — DeepInfra public service terms:** [Reviewed source](https://deepinfra.com/terms)
 - **SRC-DEEPINFRA-PRIVACY — DeepInfra public privacy policy:** [Reviewed source](https://deepinfra.com/privacy)
+- **SRC-QWEN-235B-SOURCE — Qwen3 235B A22B Instruct 2507 reviewed author revision:** [Reviewed source](https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507/tree/ac9c66cc9b46af7306746a9250f23d47083d689e)
+- **SRC-DEEPINFRA-235B — DeepInfra Qwen3 235B Instruct 2507 model metadata:** [Reviewed source](https://deepinfra.com/Qwen/Qwen3-235B-A22B-Instruct-2507)
 
 ## Terms and provenance
 

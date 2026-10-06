@@ -2402,7 +2402,7 @@ test("the canonical no-JavaScript contract exposes remote capability and privacy
   assert.match(source, /id="text-to-lattice-usage"/u);
   assert.match(source, /Same-origin <code>POST \/api\/lattice<\/code>; no query string, redirect, or provider origin; one browser-owned API-scoped quota cookie/u);
   assert.match(source, /\{"\{text, requested_mode, schema_version: 1\}"\}/u);
-  assert.match(source, /Qwen3-Next-80B-A3B-Instruct generates through DeepInfra; Llama 3\.1 8B Instruct verifies through Nscale; both are fixed through Hugging Face Inference Providers/u);
+  assert.match(source, /Qwen3-235B-A22B-Instruct-2507 generates through DeepInfra; Llama 3\.1 8B Instruct verifies through Nscale; both are fixed through Hugging Face Inference Providers/u);
   assert.match(source, /No hah\.dev application storage, raw-content logging, caching, queueing, or analytics/u);
   assert.match(source, /no browser retry and no provider or model fallback/u);
   assert.match(source, /security\.api\.rules\.map/u);

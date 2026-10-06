@@ -245,6 +245,7 @@ const heldForbiddenExecutableStrings = Object.freeze([
   "meta-llama/Meta-Llama-3.1-8B-Instruct",
   "Qwen/Qwen3-4B-Instruct-2507:nscale",
   "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra",
+  "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
   "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
   "meta-llama/Llama-3.1-8B-Instruct:nscale",
 ]);

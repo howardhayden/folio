@@ -421,7 +421,7 @@ test("the release register honestly holds the remote capability and preserves hi
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.verificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.1-8B-Instruct:nscale");
-  assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra");
+  assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
   assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.1-8B-Instruct:nscale");
   assert.equal(capability.provider.certificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.1-8B-Instruct:nscale");
@@ -796,6 +796,10 @@ test("the held-site validator rejects executable bypasses outside the résumé",
   await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script>const model="Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra"</script>'),
     /contains Qwen\/Qwen3-Next-80B-A3B-Instruct:deepinfra/u,
+  );
+  await withHeldSiteFixture(
+    (site) => appendToHtml(route(site), '<script>const model="Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra"</script>'),
+    /contains Qwen\/Qwen3-235B-A22B-Instruct-2507:deepinfra/u,
   );
   await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script>fetch("/api/lattice")</script>'),

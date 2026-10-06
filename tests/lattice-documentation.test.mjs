@@ -84,7 +84,7 @@ test("the atlas models the held remote capability without promoting historical e
     "application/vnd.hah.text-to-lattice-visitor-session.v1+json",
     "428 visitor_session_required",
     "intentional cookie clearing",
-    "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra",
+    "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
     "meta-llama/Llama-3.1-8B-Instruct:nscale",
     "no automatic retry",
     "provider or model fallback",
