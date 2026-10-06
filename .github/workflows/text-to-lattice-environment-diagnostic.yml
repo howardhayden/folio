@@ -1,0 +1,54 @@
+name: Diagnose Text to Lattice admission metadata
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-recorded-version:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: text-to-lattice-production
+    concurrency:
+      group: text-to-lattice-services
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Verify held source boundary
+        id: release-state
+        run: node scripts/read-text-to-lattice-release-state.mjs
+      - name: Require documentation-only held phase
+        env:
+          RELEASE_PHASE: ${{ steps.release-state.outputs.release_phase }}
+          PUBLIC_CLIENT_STATUS: ${{ steps.release-state.outputs.public_client_status }}
+        run: >-
+          node -e 'if (process.env.RELEASE_PHASE !== "held" || process.env.PUBLIC_CLIENT_STATUS !== "held")
+          throw new Error("The metadata diagnostic requires the held documentation-only source boundary.")'
+      - name: Require current main before metadata reads
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-current-main-sha.mjs
+      - name: Read only the recorded version and bounded namespace metadata
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: >-
+          node scripts/diagnose-text-to-lattice-api-environment.mjs
+          --output "$RUNNER_TEMP/text-to-lattice-environment-diagnostic/diagnostic.json"
+      - name: Retain only the sanitized metadata diagnostic
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: text-to-lattice-environment-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/text-to-lattice-environment-diagnostic/diagnostic.json
+          if-no-files-found: error
+          retention-days: 30
