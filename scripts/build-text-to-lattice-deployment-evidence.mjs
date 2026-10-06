@@ -17,6 +17,8 @@ import {
 import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
   HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL,
+  LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
+  LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS,
   LATTICE_REMOTE_MODELS,
   LATTICE_VERIFICATION_REQUEST_MODEL,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
@@ -355,7 +357,21 @@ export async function inspectTextToLatticeApiEnvironment({
   });
 }
 
-function inspectEvidenceValue(value, path = "evidence") {
+const LIVE_STAGE_LIMIT_FIELDS = Object.freeze({
+  provider_stage_call_timeout_ms: LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS,
+  provider_stage_max_output_tokens: LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
+});
+
+function inspectEvidenceValue(value, path = "evidence", segments = [], allowLiveStageLimits = false) {
+  // Match actual traversal segments, never the display path: JSON keys can contain dots.
+  const stageLimits = allowLiveStageLimits && segments.length === 2
+    && segments[0] === "declared_hard_limits"
+    && Object.hasOwn(LIVE_STAGE_LIMIT_FIELDS, segments[1])
+    ? LIVE_STAGE_LIMIT_FIELDS[segments[1]] : null;
+  if (stageLimits !== null && (!isRecord(value) || !exactKeys(value, Object.keys(stageLimits))
+    || Object.entries(stageLimits).some(([stage, limit]) => value[stage] !== limit))) {
+    fail(`${path} is not the exact declared numeric stage-limit map.`);
+  }
   if (typeof value === "string") {
     if (value.length > 2_048) fail(`${path} contains an unexpectedly long string.`);
     if (/\bBearer\s+\S+|\bhf_[A-Za-z0-9]{8,}/u.test(value)) {
@@ -365,16 +381,18 @@ function inspectEvidenceValue(value, path = "evidence") {
   }
   if (value === null || typeof value === "boolean" || typeof value === "number") return;
   if (Array.isArray(value)) {
-    value.forEach((entry, index) => inspectEvidenceValue(entry, `${path}[${index}]`));
+    value.forEach((entry, index) => inspectEvidenceValue(
+      entry, `${path}[${index}]`, [...segments, index], allowLiveStageLimits,
+    ));
     return;
   }
   if (!isRecord(value)) fail(`${path} contains an unsupported value.`);
   for (const [key, entry] of Object.entries(value)) {
     const normalizedKey = key.replaceAll(/[^A-Za-z]/gu, "").toLowerCase();
-    if (PROHIBITED_CONTENT_KEYS.has(normalizedKey)) {
+    if (PROHIBITED_CONTENT_KEYS.has(normalizedKey) && !(stageLimits !== null && key === "candidate")) {
       fail(`${path}.${key} is not permitted in retained deployment evidence.`);
     }
-    inspectEvidenceValue(entry, `${path}.${key}`);
+    inspectEvidenceValue(entry, `${path}.${key}`, [...segments, key], allowLiveStageLimits);
   }
 }
 
@@ -393,7 +411,8 @@ async function readSanitizedEvidence(pathname, expectedFormat, expectedSchemaVer
     || !SAFE_EVIDENCE_FORMATS.has(value.format)) {
     fail(`${expectedFormat} has an invalid format or schema version.`);
   }
-  inspectEvidenceValue(value);
+  inspectEvidenceValue(value, "evidence", [],
+    expectedFormat === "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE" && expectedSchemaVersion === 3);
   if (expectedFormat === "TEXT_TO_LATTICE_REMOTE_DEPLOYMENT_EVIDENCE") {
     // Historical v1/v2 receipts retain their captured DeepInfra contracts.
     // Current assembly requires v3's fixed role targets and strict review formats.

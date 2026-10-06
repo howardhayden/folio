@@ -15,8 +15,21 @@ import {
   sanitizeTextToLatticeDeploymentStatus,
   verifyTextToLatticeDeploymentEvidenceIndex,
 } from "../scripts/build-text-to-lattice-deployment-evidence.mjs";
-import { LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS } from "../scripts/verify-text-to-lattice-api-production.mjs";
+import {
+  LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS,
+  LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT,
+  LATTICE_PRODUCTION_READINESS_CONTRACT,
+  LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
+  verifyTextToLatticeApiProduction,
+  writeLatticeProductionEvidenceReceipt,
+} from "../scripts/verify-text-to-lattice-api-production.mjs";
 import { LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE } from "../workers/text-to-lattice-api/worker.js";
+import {
+  LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
+  LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS,
+} from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
+import { TEXT_TO_LATTICE_DOCUMENT_POLICY } from "../workers/text-to-lattice-response-policy/worker.js";
+import { LATTICE_RESULT_VERSION } from "../app/resume/lattice/remoteProtocol.js";
 import { hashRegularFileSha256 } from "../scripts/hash-regular-file-sha256.mjs";
 import { readTextToLatticeActiveVersion } from "../scripts/read-text-to-lattice-active-version.mjs";
 import {
@@ -207,6 +220,10 @@ async function withEvidenceFiles(callback, overrides = {}) {
       deployment: { repository: "howardhayden/folio", commit: "a".repeat(40), run_url: "https://github.com/howardhayden/folio/actions/runs/123456789", run_attempt: 2 },
       request_admission: admissionFixture(Boolean(overrides.apiVersionPath?.resources?.bindings?.some((entry) => entry.name === "LATTICE_QUALIFICATION_EXPIRES_AT"))),
       declared_provider_contract: liveProviderContract,
+      declared_hard_limits: {
+        provider_stage_call_timeout_ms: LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS,
+        provider_stage_max_output_tokens: LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
+      },
       checks: [{ id: "wrong-method", status: 405, bodyRetained: false }],
     },
     ...overrides,
@@ -221,6 +238,189 @@ async function withEvidenceFiles(callback, overrides = {}) {
     await rm(directory, { recursive: true, force: true });
   }
 }
+
+async function producedLiveEvidence() {
+  const headers = {
+    "Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+  };
+  const apiJson = (value, status, extra = {}) => new Response(JSON.stringify(value), {
+    status, headers: { ...headers, "Content-Type": "application/json; charset=utf-8", ...extra },
+  });
+  let readiness = 0;
+  let negative = 0;
+  let canaries = 0;
+  const evidence = await verifyTextToLatticeApiProduction({
+    context: { commit: "a".repeat(40), runId: "123456789", runAttempt: "2",
+      job: "deploy_text_to_lattice_services", repository: "howardhayden/folio", serverUrl: "https://github.com" },
+    now: () => new Date("2026-09-14T08:01:00.000Z"),
+    monotonicNow: () => 100,
+    wait: async () => {},
+    requireAdmissionEvidence: false,
+    async fetchImpl(url, init) {
+      const pathname = new URL(url).pathname;
+      if (["/", "/index.html", "/resume/", "/resume/index.html"].includes(pathname)) {
+        return new Response("<main>Fixture</main>", { headers: {
+          ...TEXT_TO_LATTICE_DOCUMENT_POLICY, "Cache-Control": "public, max-age=60, no-transform",
+        } });
+      }
+      if (init.method === "POST" && init.headers.Accept === LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT
+        && init.headers["Content-Type"] === "application/json"
+        && readiness < LATTICE_PRODUCTION_READINESS_CONTRACT.requiredConsecutiveActiveSamples) {
+        readiness += 1;
+        return apiJson({ error: "invalid_request" }, 400);
+      }
+      if (init.headers.Accept === LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT) {
+        return new Response(null, { status: 204, headers: { ...headers,
+          "Set-Cookie": "__Secure-hah-lattice-api-visitor=v1.AAAAAAAAAAAAAAAAAAAAAAAA.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaA; Max-Age=57540; Path=/api/lattice; Secure; HttpOnly; SameSite=Strict",
+        } });
+      }
+      if (negative < LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT.length) {
+        const expected = LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT[negative++];
+        return expected.apiJson
+          ? apiJson({ error: expected.error }, expected.status, expected.allow ? { Allow: expected.allow } : {})
+          : new Response("Not found", { status: expected.status });
+      }
+      if (canaries > 0) return apiJson({ error: "invalid_request" }, 403);
+      canaries += 1;
+      return apiJson({ schema_version: 1, result: {
+        version: LATTICE_RESULT_VERSION, status: "translated",
+        text: "The notebook rests on the desk. The visitor reads its first page, then closes it.\n",
+        wordCount: 16, primaryLayer: "operative", layerId: "operative", layerLabel: "Operative layer",
+        layersUsed: ["operative"], passageCount: 1, revisedPassageCount: 1, retainedPassageCount: 0,
+        batchCount: 1, verificationPasses: 1, findings: [], questions: [],
+      } }, 200);
+    },
+  });
+  assert.equal(canaries, 1);
+  return evidence;
+}
+
+test("deployment assembly accepts the real live producer's numeric candidate-stage limits", async () => {
+  const evidence = await producedLiveEvidence();
+  assert.equal(evidence.declared_hard_limits.provider_stage_call_timeout_ms.candidate, 120_000);
+  assert.equal(evidence.declared_hard_limits.provider_stage_max_output_tokens.candidate, 800);
+  await withEvidenceFiles(async (paths) => {
+    const emitted = await writeLatticeProductionEvidenceReceipt(paths.liveEvidencePath, evidence);
+    const result = await buildTextToLatticeDeploymentEvidence({
+      ...paths, ...deploymentCustody, environment: environment(),
+      now: () => new Date("2026-09-14T08:05:00.000Z"),
+    });
+    assert.equal(result.evidenceFiles.liveBoundary.sha256, emitted.payloadSha256);
+    assert.equal(result.contentBodiesRetained, false);
+    assert.equal(JSON.stringify(result).includes("declared_hard_limits"), false);
+  });
+});
+
+test("live candidate-stage exceptions require exact closed numeric maps", async (context) => {
+  const evidence = await producedLiveEvidence();
+  for (const field of ["provider_stage_call_timeout_ms", "provider_stage_max_output_tokens"]) {
+    const expected = evidence.declared_hard_limits[field];
+    const mutations = [
+      ["map string", (value) => { value.declared_hard_limits[field] = "private-candidate-fixture"; }],
+      ["map array", (value) => { value.declared_hard_limits[field] = [expected]; }],
+      ["map null", (value) => { value.declared_hard_limits[field] = null; }],
+      ["extra stage", (value) => { value.declared_hard_limits[field].extra = 1; }],
+      ...["Candidate", "can_di_date", "candidate.", "candidate\n"].map((alias) => [
+        `candidate alias ${JSON.stringify(alias)}`, (value) => {
+          value.declared_hard_limits[field][alias] = expected.candidate;
+          delete value.declared_hard_limits[field].candidate;
+        },
+      ]),
+    ];
+    for (const stage of Object.keys(expected)) {
+      mutations.push([`missing ${stage}`, (value) => { delete value.declared_hard_limits[field][stage]; }]);
+      for (const [kind, wrong] of [
+        ["changed number", expected[stage] + 1], ["zero", 0], ["negative", -1],
+        ["fraction", expected[stage] + 0.5], ["numeric string", String(expected[stage])],
+        ["boolean", true], ["null", null], ["array", [expected[stage]]],
+        ["raw object", { text: "private-candidate-fixture" }],
+      ]) mutations.push([`${stage}: ${kind}`, (value) => { value.declared_hard_limits[field][stage] = wrong; }]);
+    }
+    for (const [label, mutate] of mutations) await context.test(`${field}: ${label}`, async () => {
+      await withEvidenceFiles(async (paths) => {
+        const value = structuredClone(evidence);
+        mutate(value);
+        await writeFile(paths.liveEvidencePath, JSON.stringify(value));
+        await assert.rejects(buildTextToLatticeDeploymentEvidence({
+          ...paths, ...deploymentCustody, environment: environment(),
+        }), (error) => {
+          assert.match(error.message, /exact declared numeric stage-limit map/u);
+          assert.doesNotMatch(error.message, /private-candidate-fixture/u);
+          return true;
+        });
+      });
+    });
+  }
+});
+
+test("candidate-stage exceptions cannot be moved or spoofed by JSON path strings", async (context) => {
+  const evidence = await producedLiveEvidence();
+  const limits = evidence.declared_hard_limits;
+  for (const [label, extra] of [
+    ["root numeric candidate", { candidate: 120_000 }],
+    ["root content candidate", { candidate: "private-candidate-fixture" }],
+    ["nested content candidate", { metadata: { candidate: "private-candidate-fixture" } }],
+    ["dotted root parent", { "declared_hard_limits.provider_stage_call_timeout_ms": { candidate: 120_000 } }],
+    ["nested prefix", { metadata: { declared_hard_limits: limits } }],
+    ["root array wrapper", { metadata: [{ declared_hard_limits: limits }] }],
+  ]) await context.test(label, () => withEvidenceFiles(async (paths) => {
+    await writeFile(paths.liveEvidencePath, JSON.stringify({ ...evidence, ...extra }));
+    await assert.rejects(buildTextToLatticeDeploymentEvidence({
+      ...paths, ...deploymentCustody, environment: environment(),
+    }), /not permitted in retained deployment evidence/u);
+  }));
+  for (const [label, replacement] of [
+    ["dotted map parent", { "provider_stage_call_timeout_ms.candidate": { candidate: 120_000 } }],
+    ["hard-limit array wrapper", [{ provider_stage_call_timeout_ms: limits.provider_stage_call_timeout_ms }]],
+    ["map name alias", { providerStageCallTimeoutMs: limits.provider_stage_call_timeout_ms }],
+  ]) await context.test(label, () => withEvidenceFiles(async (paths) => {
+    await writeFile(paths.liveEvidencePath, JSON.stringify({ ...evidence, declared_hard_limits: replacement }));
+    await assert.rejects(buildTextToLatticeDeploymentEvidence({
+      ...paths, ...deploymentCustody, environment: environment(),
+    }), /not permitted in retained deployment evidence/u);
+  }));
+  for (const key of ["source", "text", "prompt", "output", "body", "provider_body", "cookie", "authorization"]) {
+    await context.test(`other private key ${key}`, () => withEvidenceFiles(async (paths) => {
+      await writeFile(paths.liveEvidencePath, JSON.stringify({ ...evidence, [key]: "private-candidate-fixture" }));
+      await assert.rejects(buildTextToLatticeDeploymentEvidence({
+        ...paths, ...deploymentCustody, environment: environment(),
+      }), /not permitted in retained deployment evidence/u);
+    }));
+  }
+});
+
+test("candidate-stage exceptions apply only to current live evidence and preserve absent declarations", async (context) => {
+  const evidence = await producedLiveEvidence();
+  for (const field of ["secretEvidencePath", "routeEvidencePath"]) {
+    await context.test(field, () => withEvidenceFiles(async (paths) => {
+      const value = JSON.parse(await readFile(paths[field], "utf8"));
+      value.declared_hard_limits = evidence.declared_hard_limits;
+      await writeFile(paths[field], JSON.stringify(value));
+      await assert.rejects(buildTextToLatticeDeploymentEvidence({
+        ...paths, ...deploymentCustody, environment: environment(),
+      }), /not permitted in retained deployment evidence/u);
+    }));
+  }
+  for (const patch of [
+    { schemaVersion: 2 }, { schemaVersion: 4 }, { format: "TEXT_TO_LATTICE_REMOTE_PREFLIGHT_EVIDENCE" },
+  ]) await context.test(JSON.stringify(patch), () => withEvidenceFiles(async (paths) => {
+    await writeFile(paths.liveEvidencePath, JSON.stringify({ ...evidence, ...patch }));
+    await assert.rejects(buildTextToLatticeDeploymentEvidence({
+      ...paths, ...deploymentCustody, environment: environment(),
+    }), /invalid format or schema version/u);
+  }));
+  await context.test("legacy absence of declared limits is unchanged", () => withEvidenceFiles(async (paths) => {
+    const value = structuredClone(evidence);
+    delete value.declared_hard_limits;
+    await writeFile(paths.liveEvidencePath, JSON.stringify(value));
+    const result = await buildTextToLatticeDeploymentEvidence({
+      ...paths, ...deploymentCustody, environment: environment(),
+      now: () => new Date("2026-09-14T08:05:00.000Z"),
+    });
+    assert.equal(result.contentBodiesRetained, false);
+  }));
+});
 
 test("deployment status evidence requires one 100-percent immutable Worker version", () => {
   assert.deepEqual(
