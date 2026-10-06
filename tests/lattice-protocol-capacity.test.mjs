@@ -1251,10 +1251,28 @@ test("the complete legal production verifier allocation has an exhaustive pinned
         assert.equal(record.conformance.criterionCount, conformanceCriteria.length);
       }
     }
+    const previousBodies = capturedBodies.map(({ body }) => {
+      const previous = structuredClone(body);
+      for (const passage of Object.values(previous.response_format.json_schema.schema.properties.p.properties)) {
+        const criterion = passage.properties.c.properties.k.items;
+        assert.equal(criterion.anyOf.length, 2);
+        for (const alternative of criterion.anyOf) {
+          assert.deepEqual(alternative.required, ["v", "s"]);
+          assert.equal(alternative.additionalProperties, false);
+          assert.equal(fittedStringLength(alternative.properties.s), fittedStringLength(criterion.properties.s));
+        }
+        delete criterion.anyOf;
+      }
+      return previous;
+    });
     context.diagnostic(JSON.stringify({ fixture: "legal four-passage allocation",
       inputBytes: capturedBodies.map(({ bytes }) => bytes),
       serializedBodyTokens: capturedBodies.map(({ body }) => tokenizer.encode(JSON.stringify(body)).length),
-      note: "Actual request-body measurement; serialized-body token counts do not establish hosted chat-template context capacity.",
+      fittedSchemaBytes: capturedBodies.map(({ body }) => Buffer.byteLength(JSON.stringify(fittedStrictVerifierSchema(body)))),
+      previousInputBytes: previousBodies.map((body) => Buffer.byteLength(JSON.stringify(body))),
+      previousSerializedBodyTokens: previousBodies.map((body) => tokenizer.encode(JSON.stringify(body)).length),
+      addedSchemaBytes: capturedBodies.map(({ bytes }, index) => bytes - Buffer.byteLength(JSON.stringify(previousBodies[index]))),
+      note: "Actual request-body measurement; serialized-body token counts do not establish hosted chat-template context capacity. Previous shape removes only the new criterion alternatives.",
     }));
     assert.equal(decoded.decision, "reject");
     assert.equal(decoded.passages.length, BATCH_PASSAGE_LIMIT);
@@ -1387,6 +1405,59 @@ test("the complete legal production verifier allocation has an exhaustive pinned
         visitAtomAllocations(passageCount, visit, [...prefix, count], remaining - count);
       }
     };
+    // Measure the added schema over the entire fitted evidence-width domain,
+    // then maximize it across existing atom/evidence allocation bounds. These
+    // synthetic evidence records exercise schema shape; they are not claimed
+    // to be naturally segmented source fixtures or a hosted context maximum.
+    const criterionShapeGrowth = new Map();
+    for (let width = 1; width <= MODEL_SOURCE_SPAN_LIMIT; width += 1) {
+      const passage = preflight.batches[0].passages[0];
+      const spans = Array.from({ length: width }, (_, index) => ({
+        id: `schema-growth-${index}`, kind: "source", text: "source",
+      }));
+      const atoms = Array.from({ length: Math.ceil(width / maximumEvidencePerAtom) }, (_, index) => ({
+        ...analysis.passages[0].atoms[0], id: `schema-growth-atom-${index}`,
+        evidenceSpanIds: spans.slice(index * maximumEvidencePerAtom, (index + 1) * maximumEvidencePerAtom).map(({ id }) => id),
+      }));
+      const request = { ...verificationRequest,
+        batch: { ...verificationRequest.batch, passages: [passage] },
+        sourceSpans: [{ passageId: passage.id, spans, literalAnnotations: [] }],
+        analysis: { ...analysis, passages: [{ ...analysis.passages[0], atoms }] },
+        candidate: { passages: [candidate.passages[0]] },
+      };
+      let addedBytes;
+      const adapter = createHuggingFaceLatticeAdapter({ token: "server-test-token", fetchImpl: async (_url, init) => {
+        const schema = fittedStrictVerifierSchema(JSON.parse(init.body));
+        const criterion = schema.properties.p.properties["0"].properties.c.properties.k.items;
+        assert.equal(criterion.anyOf.length, 2);
+        assert.equal(fittedStringLength(criterion.anyOf[1].properties.s), width);
+        const previous = { ...criterion };
+        delete previous.anyOf;
+        addedBytes = Buffer.byteLength(JSON.stringify(criterion)) - Buffer.byteLength(JSON.stringify(previous));
+        return stoppedVerificationResponse(maximumLegalWireValue([atoms.length], [width]));
+      } });
+      assert.equal((await adapter.verify(request)).decision, "reject");
+      assert.equal(adapter.completionCapacity().used, 1);
+      assert.ok(width === 1 || addedBytes >= criterionShapeGrowth.get(width - 1));
+      criterionShapeGrowth.set(width, addedBytes);
+    }
+    let maximumSchemaGrowth = { addedBytes: 0 };
+    for (let passageCount = 1; passageCount <= BATCH_PASSAGE_LIMIT; passageCount += 1) {
+      visitAtomAllocations(passageCount, (allocation) => {
+        const evidence = allocation.map((count) => Math.min(MODEL_SOURCE_SPAN_LIMIT, count * maximumEvidencePerAtom));
+        const addedBytes = evidence.reduce((sum, width) => sum + criterionShapeGrowth.get(width), 0);
+        if (addedBytes > maximumSchemaGrowth.addedBytes) maximumSchemaGrowth = {
+          addedBytes, passageCount, atomCounts: [...allocation], evidenceWidths: evidence,
+        };
+      });
+    }
+    assert.ok(maximumSchemaGrowth.addedBytes < LATTICE_PROVIDER_REQUEST_BYTE_LIMIT);
+    assert.equal(criterionShapeGrowth.size, MODEL_SOURCE_SPAN_LIMIT);
+    context.diagnostic(JSON.stringify({ fixture: "fitted retained-criterion schema growth envelope",
+      maximum: maximumSchemaGrowth, largestSinglePassageAddedBytes: criterionShapeGrowth.get(MODEL_SOURCE_SPAN_LIMIT),
+      note: "Incremental serialized schema bytes over existing fitted atom/evidence bounds; not a maximum natural-source request or hosted context proof.",
+    }));
+
     const fixedTokenCounts = new Map();
     const nativeWrapperDeltas = new Set();
     for (let passageCount = 1; passageCount <= BATCH_PASSAGE_LIMIT; passageCount += 1) {
