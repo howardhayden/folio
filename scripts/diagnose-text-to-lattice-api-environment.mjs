@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 export const LATTICE_ENVIRONMENT_DIAGNOSTIC_VERSION = "80573274-1ae7-4ff1-97fb-c7351ab35508";
 export const LATTICE_ENVIRONMENT_DIAGNOSTIC_LIMITS = Object.freeze({
   responseBytes: 1_048_576, requestTimeoutMs: 10_000, operationTimeoutMs: 30_000,
-  namespacePages: 3, namespacePageSize: 1_000, metadataRequests: 4,
+  metadataRequests: 2,
 });
 const worker = "hahdev-text-to-lattice-api";
 const className = "LatticeTransformationBudget";
@@ -24,8 +24,7 @@ const choice = (value, values) => value === undefined ? "absent" : value === nul
   : values.includes(value) ? value : "other";
 const codes = new Set([
   "configuration", "deadline", "transport", "http", "media-type", "content-encoding", "body-limit", "body-length", "body-read",
-  "invalid-json", "api-result", "version-identity", "namespace-pagination", "namespace-limit",
-  "namespace-duplicate", "observation-clock", "unexpected",
+  "invalid-json", "api-result", "version-identity", "namespace-identity", "observation-clock", "unexpected",
 ]);
 class DiagnosticFailure extends Error {
   constructor(code) { super(code); this.code = code; }
@@ -209,35 +208,12 @@ export async function diagnoseTextToLatticeApiEnvironment({
     report.version = projected.observation;
     if (projected.namespaceId !== null) {
       report.namespaceLookup = "unavailable";
-      const matches = [];
-      const seen = new Set();
-      let pages = null;
-      let totalCount = null;
-      for (let page = 1; ; page += 1) {
-        if (page > LATTICE_ENVIRONMENT_DIAGNOSTIC_LIMITS.namespacePages) fail("namespace-limit");
-        const response = await get(`workers/durable_objects/namespaces?page=${page}&per_page=1000`, `namespace-page-${page}`);
-        const info = response.result_info;
-        if (!Array.isArray(response.result) || response.result.length > 1000 || !record(info)
-          || info.page !== page || info.per_page !== 1000 || !Number.isSafeInteger(info.total_pages)
-          || info.total_pages < 1 || info.total_pages > LATTICE_ENVIRONMENT_DIAGNOSTIC_LIMITS.namespacePages
-          || (pages !== null && pages !== info.total_pages)) fail("namespace-pagination");
-        pages = info.total_pages;
-        if (Object.hasOwn(info, "count") && info.count !== response.result.length) fail("namespace-pagination");
-        if (Object.hasOwn(info, "total_count")) {
-          if (!Number.isSafeInteger(info.total_count) || info.total_count < 0
-            || (totalCount !== null && totalCount !== info.total_count)) fail("namespace-pagination");
-          totalCount = info.total_count;
-        }
-        for (const item of response.result) {
-          if (!record(item) || !exactId(item.id) || seen.has(item.id)) fail("namespace-duplicate");
-          seen.add(item.id);
-          if (item.id === projected.namespaceId) matches.push(item);
-        }
-        if (page === pages) break;
-      }
-      if (totalCount !== null && totalCount !== seen.size) fail("namespace-pagination");
-      report.namespaceLookup = matches.length === 1 ? "one" : "absent";
-      if (matches.length === 1) report.namespace = namespaceProjection(matches[0], projected.namespaceId);
+      // The pinned Wrangler uses this exact namespace metadata endpoint.
+      // The path comes only from this version's validated binding ID.
+      const response = await get(`workers/durable_objects/namespaces/${projected.namespaceId}`, "bound-namespace");
+      if (!record(response.result) || response.result.id !== projected.namespaceId) fail("namespace-identity");
+      report.namespace = namespaceProjection(response.result, projected.namespaceId);
+      report.namespaceLookup = "one";
     } else report.namespaceLookup = "invalid-version-binding";
     const finished = monotonicNow();
     if (!Number.isFinite(finished) || finished < last) fail("observation-clock");
