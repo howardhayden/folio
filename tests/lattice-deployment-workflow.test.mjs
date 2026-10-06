@@ -475,13 +475,22 @@ test("the service graph proves held publication, qualifies reversibly, and resto
   assert.match(admissionEnvironmentStep, /--inspect-api-environment/u);
   assert.match(admissionEnvironmentStep, /--api-deployment "\$RUNNER_TEMP\/text-to-lattice-api-deployment\.raw\.json"/u);
   assert.match(admissionEnvironmentStep, /--api-version "\$RUNNER_TEMP\/text-to-lattice-api-version\.raw\.json"/u);
-  assert.match(admissionEnvironmentStep, /--output "\$RUNNER_TEMP\/text-to-lattice-api-environment-before\.json"/u);
+  assert.match(admissionEnvironmentStep, /--output "\$RUNNER_TEMP\/text-to-lattice-deployment-evidence\/api-environment-before\.json"/u);
   assert.match(admissionEnvironmentStep, /if \[\[ "\$RELEASE_PHASE" != "qualified" \]\]; then[\s\S]*?--qualification-expires-at/u);
   assert.match(postLiveDeploymentStep, /CLOUDFLARE_ACCOUNT_ID:[\s\S]*?CLOUDFLARE_API_TOKEN:/u);
   assert.match(postLiveDeploymentStep, /wrangler deployments status --json[\s\S]*?--config workers\/text-to-lattice-api\/wrangler\.jsonc[\s\S]*?text-to-lattice-api-deployment-after\.raw\.json/u);
+  assert.match(postLiveDeploymentStep, /wrangler versions view "\$API_VERSION_ID" --json/u);
+  assert.match(postLiveDeploymentStep, /--api-version "\$RUNNER_TEMP\/text-to-lattice-api-version-after\.raw\.json"/u);
+  assert.match(postLiveDeploymentStep, /--inspect-api-environment/u);
+  assert.match(postLiveDeploymentStep, /--output "\$RUNNER_TEMP\/text-to-lattice-deployment-evidence\/api-environment-after\.json"/u);
+  for (const step of [admissionEnvironmentStep, postLiveDeploymentStep]) {
+    assert.match(step, /CLOUDFLARE_ACCOUNT_ID:[\s\S]*?CLOUDFLARE_API_TOKEN:/u);
+    assert.match(step, /--qualified-source-set-sha256 "\$\{\{ needs\.build\.outputs\.qualified_source_set_sha256 \}\}"/u);
+  }
   assert.doesNotMatch(postLiveDeploymentStep, /if:.*always\(/u);
   const assemblyStep = workflow.slice(evidenceAssembly, postServiceGuard);
-  assert.match(assemblyStep, /--api-environment-before "\$RUNNER_TEMP\/text-to-lattice-api-environment-before\.json"/u);
+  assert.match(assemblyStep, /--api-environment-before "\$RUNNER_TEMP\/text-to-lattice-deployment-evidence\/api-environment-before\.json"/u);
+  assert.match(assemblyStep, /--api-environment-after "\$RUNNER_TEMP\/text-to-lattice-deployment-evidence\/api-environment-after\.json"/u);
   assert.match(assemblyStep, /--api-deployment-after "\$RUNNER_TEMP\/text-to-lattice-api-deployment-after\.raw\.json"/u);
   assert.match(workflow, /node scripts\/build-text-to-lattice-deployment-evidence\.mjs/u);
   assert.match(workflow, /pages_artifact_id: \$\{\{ steps\.pages-artifact\.outputs\.artifact_id \}\}/u);

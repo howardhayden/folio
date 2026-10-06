@@ -141,6 +141,12 @@ function admissionFixture(complete = false) {
     preservation: { ...zero }, tampered_cookie: { ...zero } };
 }
 
+async function writeObservation(pathname, value) {
+  const bytes = `${JSON.stringify(value, null, 2)}\n`;
+  await writeFile(pathname, bytes);
+  await writeFile(`${pathname}.sha256`, `${createHash("sha256").update(bytes).digest("hex")}  ${pathname.split("/").at(-1)}\n`);
+}
+
 async function withEvidenceFiles(callback, overrides = {}) {
   const directory = await mkdtemp(join(tmpdir(), "lattice-deployment-evidence-"));
   const paths = {
@@ -148,6 +154,7 @@ async function withEvidenceFiles(callback, overrides = {}) {
     apiVersionPath: join(directory, "api-version.raw.json"),
     apiDeploymentAfterPath: join(directory, "api-after.raw.json"),
     apiEnvironmentBeforePath: join(directory, "api-before.json"),
+    apiEnvironmentAfterPath: join(directory, "api-after.json"),
     policyDeploymentPath: join(directory, "policy.raw.json"),
     secretEvidencePath: join(directory, "secret-bindings.json"),
     routeEvidencePath: join(directory, "route-inventory.json"),
@@ -158,8 +165,16 @@ async function withEvidenceFiles(callback, overrides = {}) {
     apiVersionPath: apiVersionView(),
     apiDeploymentAfterPath: deployment(apiDeploymentId, apiVersion),
     apiEnvironmentBeforePath: {
-      format: "TEXT_TO_LATTICE_API_ENVIRONMENT_OBSERVATION", schemaVersion: 1,
+      format: "TEXT_TO_LATTICE_API_ENVIRONMENT_OBSERVATION", schemaVersion: 2,
       validatedAt: "2026-09-14T08:00:01.000Z", workflow: { ...environmentWorkflow() },
+      qualifiedSourceSetSha256: deploymentCustody.qualifiedSourceSetSha256,
+      api: sanitizeTextToLatticeDeploymentStatus(deployment(apiDeploymentId, apiVersion), "hahdev-text-to-lattice-api"),
+      admissionEnvironment: sanitizeTextToLatticeAdmissionEnvironment(apiVersionView()),
+    },
+    apiEnvironmentAfterPath: {
+      format: "TEXT_TO_LATTICE_API_ENVIRONMENT_OBSERVATION", schemaVersion: 2,
+      validatedAt: "2026-09-14T08:03:00.000Z", workflow: { ...environmentWorkflow() },
+      qualifiedSourceSetSha256: deploymentCustody.qualifiedSourceSetSha256,
       api: sanitizeTextToLatticeDeploymentStatus(deployment(apiDeploymentId, apiVersion), "hahdev-text-to-lattice-api"),
       admissionEnvironment: sanitizeTextToLatticeAdmissionEnvironment(apiVersionView()),
     },
@@ -198,7 +213,8 @@ async function withEvidenceFiles(callback, overrides = {}) {
   };
   try {
     await Promise.all(Object.entries(paths).map(([key, pathname]) => (
-      writeFile(pathname, `${JSON.stringify(values[key])}\n`, "utf8")
+      key.startsWith("apiEnvironment") ? writeObservation(pathname, values[key])
+        : writeFile(pathname, `${JSON.stringify(values[key])}\n`, "utf8")
     )));
     await callback(paths);
   } finally {
@@ -495,6 +511,7 @@ test("deployment-index CLI writes canonical JSON and its exact SHA-256 sidecar",
       "--api-version", paths.apiVersionPath,
       "--api-deployment-after", paths.apiDeploymentAfterPath,
       "--api-environment-before", paths.apiEnvironmentBeforePath,
+      "--api-environment-after", paths.apiEnvironmentAfterPath,
       "--policy-deployment", paths.policyDeploymentPath,
       "--secret-evidence", paths.secretEvidencePath,
       "--route-evidence", paths.routeEvidencePath,
@@ -775,7 +792,7 @@ test("admission environment comes from observed version metadata, including expl
 
 test("pre-live environment inspection is a bounded timestamped validation of the exact active version", async () => {
   await withEvidenceFiles(async (paths) => {
-    const proof = await inspectTextToLatticeApiEnvironment({ ...paths, environment: environment(), now: () => new Date("2026-09-14T08:00:01.000Z") });
+    const proof = await inspectTextToLatticeApiEnvironment({ ...paths, qualifiedSourceSetSha256: deploymentCustody.qualifiedSourceSetSha256, environment: environment(), now: () => new Date("2026-09-14T08:00:01.000Z") });
     assert.equal(proof.validatedAt, "2026-09-14T08:00:01.000Z");
     assert.equal(proof.api.versionId, apiVersion);
     assert.equal(proof.admissionEnvironment.namespaceIdentityBasis, "active-version-local-binding");
@@ -783,7 +800,7 @@ test("pre-live environment inspection is a bounded timestamped validation of the
     const outputPath = join(dirname(paths.apiDeploymentPath), "inspected.json");
     const command = spawnSync(process.execPath, [resolve("scripts/build-text-to-lattice-deployment-evidence.mjs"),
       "--inspect-api-environment", "--api-deployment", paths.apiDeploymentPath,
-      "--api-version", paths.apiVersionPath, "--output", outputPath,
+      "--api-version", paths.apiVersionPath, "--qualified-source-set-sha256", deploymentCustody.qualifiedSourceSetSha256, "--output", outputPath,
     ], { encoding: "utf8", env: { ...process.env, ...environment() } });
     assert.equal(command.status, 0, command.stderr);
     assert.equal(JSON.parse(await readFile(outputPath, "utf8")).api.versionId, apiVersion);
@@ -791,7 +808,7 @@ test("pre-live environment inspection is a bounded timestamped validation of the
     await writeFile(paths.apiVersionPath, JSON.stringify(invalid));
     const failed = spawnSync(process.execPath, [resolve("scripts/build-text-to-lattice-deployment-evidence.mjs"),
       "--inspect-api-environment", "--api-deployment", paths.apiDeploymentPath,
-      "--api-version", paths.apiVersionPath, "--output", join(dirname(outputPath), "invalid.json"),
+      "--api-version", paths.apiVersionPath, "--qualified-source-set-sha256", deploymentCustody.qualifiedSourceSetSha256, "--output", join(dirname(outputPath), "invalid.json"),
     ], { encoding: "utf8", env: { ...process.env, ...environment() } });
     assert.notEqual(failed.status, 0);
     await assert.rejects(readFile(join(dirname(outputPath), "invalid.json")), /ENOENT/u);
@@ -815,7 +832,8 @@ test("assembly requires exact matching snapshots and current live receipt custod
     ["unexpected complete without expiry", "liveEvidencePath", (v) => { v.request_admission = admissionFixture(true); }],
   ]) await t.test(label, () => withEvidenceFiles(async (paths) => {
     const value = JSON.parse(await readFile(paths[file], "utf8")); change(value);
-    await writeFile(paths[file], JSON.stringify(value));
+    if (file.startsWith("apiEnvironment")) await writeObservation(paths[file], value);
+    else await writeFile(paths[file], JSON.stringify(value));
     await assert.rejects(buildTextToLatticeDeploymentEvidence({ ...paths, ...deploymentCustody,
       environment: environment(), now: () => new Date("2026-09-14T08:05:00.000Z"),
     }), /bracket|timestamp|validation time|100 percent|incomplete or inconsistent/u);
@@ -853,4 +871,185 @@ test("legacy index absence retains its old meaning, while present partial or for
       assert.throws(() => verifyTextToLatticeDeploymentEvidenceIndex(invalid), /admission environment/u);
     }
   });
+});
+
+test("absent declarative exports require exact observed namespace SQLite proof", () => {
+  const version = apiVersionView();
+  delete version.resources.script_runtime.exports;
+  version.resources.script = { named_handlers: [{ name: "LatticeTransformationBudget", handlers: [] }] };
+  const namespace = { id: version.resources.bindings.at(-1).namespace_id,
+    script: "hahdev-text-to-lattice-api", class: "LatticeTransformationBudget", use_sqlite: true };
+  const observed = sanitizeTextToLatticeAdmissionEnvironment(version, namespace);
+  assert.equal(observed.storageBackendBasis, "active-version-local-class-and-observed-namespace-sqlite");
+  assert.throws(() => sanitizeTextToLatticeAdmissionEnvironment(version), /admission environment/u);
+});
+
+function namespaceVersion() {
+  const version = apiVersionView();
+  delete version.resources.script_runtime.exports;
+  version.resources.script = { named_handlers: [{ name: "LatticeTransformationBudget", handlers: [] }] };
+  return version;
+}
+function namespaceMetadata() {
+  return { id: "0123456789abcdef0123456789abcdef", script: "hahdev-text-to-lattice-api",
+    class: "LatticeTransformationBudget", use_sqlite: true };
+}
+
+test("observed namespace cannot bypass present exports or exact local class/runtime evidence", async (t) => {
+  for (const [label, mutate] of [
+    ["null exports", (v) => { v.resources.script_runtime.exports = null; }],
+    ["empty exports", (v) => { v.resources.script_runtime.exports = {}; }],
+    ["array exports", (v) => { v.resources.script_runtime.exports = []; }],
+    ["wrong class export", (v) => { v.resources.script_runtime.exports = { Other: { type: "durable-object", storage: "sqlite" } }; }],
+    ["conflicting backend", (v) => { v.resources.script_runtime.exports = { LatticeTransformationBudget: { type: "durable-object", storage: "legacy-kv" } }; }],
+    ["deleted class", (v) => { v.resources.script_runtime.exports = { LatticeTransformationBudget: { type: "durable-object", storage: "sqlite", state: "deleted" } }; }],
+    ["class transfer", (v) => { v.resources.script_runtime.exports = { LatticeTransformationBudget: { type: "durable-object", storage: "sqlite", transfer_from: "other" } }; }],
+    ["missing named class", (v) => { v.resources.script.named_handlers = []; }],
+    ["duplicate named class", (v) => { v.resources.script.named_handlers.push({ ...v.resources.script.named_handlers[0] }); }],
+    ["missing named handlers", (v) => { delete v.resources.script.named_handlers[0].handlers; }],
+    ["non-array named handlers", (v) => { v.resources.script.named_handlers[0].handlers = "fetch"; }],
+    ["non-string named handler", (v) => { v.resources.script.named_handlers[0].handlers = [false]; }],
+    ["duplicate binding", (v) => { v.resources.bindings.push({ ...v.resources.bindings.at(-1) }); }],
+    ["wrong namespace", (v) => { v.resources.bindings.at(-1).namespace_id = "f".repeat(32); }],
+    ["invalid namespace path", (v) => { v.resources.bindings.at(-1).namespace_id = "../../other"; }],
+    ["foreign class", (v) => { v.resources.bindings.at(-1).class_name = "Other"; }],
+    ["foreign script", (v) => { v.resources.bindings.at(-1).script_name = "other"; }],
+    ["binding preview even null", (v) => { v.resources.bindings.at(-1).preview = null; }],
+    ["runtime migration drift", (v) => { v.resources.script_runtime.migration_tag = "v2"; }],
+    ["runtime date drift", (v) => { v.resources.script_runtime.compatibility_date = "2026-10-05"; }],
+    ["runtime flags drift", (v) => { v.resources.script_runtime.compatibility_flags.push("other"); }],
+  ]) await t.test(label, () => {
+    const version = namespaceVersion(); mutate(version);
+    assert.throws(() => sanitizeTextToLatticeAdmissionEnvironment(version, namespaceMetadata()), /admission environment|deployed runtime/u);
+  });
+});
+
+test("namespace proof requires exact returned identity and explicit Boolean SQLite without auxiliary scope", async (t) => {
+  for (const [label, mutate] of [
+    ["missing ID", (v) => { delete v.id; }], ["wrong ID", (v) => { v.id = "f".repeat(32); }],
+    ["missing script", (v) => { delete v.script; }], ["wrong script", (v) => { v.script = "other"; }],
+    ["missing class", (v) => { delete v.class; }], ["wrong class", (v) => { v.class = "Other"; }],
+    ["missing backend", (v) => { delete v.use_sqlite; }], ["false backend", (v) => { v.use_sqlite = false; }],
+    ["string backend", (v) => { v.use_sqlite = "true"; }], ["numeric backend", (v) => { v.use_sqlite = 1; }],
+    ["preview null", (v) => { v.preview = null; }], ["dispatch null", (v) => { v.dispatch_namespace = null; }],
+    ["environment null", (v) => { v.environment = null; }],
+  ]) await t.test(label, () => {
+    const metadata = namespaceMetadata(); mutate(metadata);
+    assert.throws(() => sanitizeTextToLatticeAdmissionEnvironment(namespaceVersion(), metadata), /admission environment/u);
+  });
+});
+
+test("fresh namespace inspections emit closed source-bound v2 records, then assembly checks both exact samples", async () => {
+  await withEvidenceFiles(async (paths) => {
+    const requests = [];
+    const options = { ...paths, qualifiedSourceSetSha256: deploymentCustody.qualifiedSourceSetSha256,
+      environment: environment({ CLOUDFLARE_ACCOUNT_ID: "e".repeat(32), CLOUDFLARE_API_TOKEN: "synthetic-private-credential" }),
+      fetchImpl: async (url, request) => {
+        requests.push({ url, request });
+        return new Response(JSON.stringify({ success: true, result: { ...namespaceMetadata(),
+          incidental: "RAW-NAMESPACE-MUST-NOT-SURVIVE" } }), { headers: { "content-type": "application/json" } });
+      } };
+    const before = await inspectTextToLatticeApiEnvironment({ ...options, now: () => new Date("2026-09-14T08:00:01.000Z") });
+    const after = await inspectTextToLatticeApiEnvironment({ ...options, apiDeploymentPath: paths.apiDeploymentAfterPath,
+      now: () => new Date("2026-09-14T08:03:00.000Z") });
+    assert.equal(requests.length, 2, "each sample performs a fresh exact namespace read");
+    for (const { url, request } of requests) {
+      assert.equal(url, `https://api.cloudflare.com/client/v4/accounts/${"e".repeat(32)}/workers/durable_objects/namespaces/${namespaceMetadata().id}`);
+      assert.equal(request.method, "GET"); assert.equal(request.redirect, "error");
+      assert.equal(request.body, undefined); assert.equal(request.headers["Accept-Encoding"], "identity");
+    }
+    assert.deepEqual(Object.keys(before), ["format", "schemaVersion", "validatedAt", "workflow", "qualifiedSourceSetSha256", "api", "admissionEnvironment"]);
+    assert.equal(before.schemaVersion, 2);
+    assert.doesNotMatch(JSON.stringify([before, after]), /RAW-NAMESPACE|synthetic-private|author_email|use_sqlite|secret_text/u);
+    await writeObservation(paths.apiEnvironmentBeforePath, before);
+    await writeObservation(paths.apiEnvironmentAfterPath, after);
+    const index = await buildTextToLatticeDeploymentEvidence({ ...paths, ...deploymentCustody,
+      environment: environment(), now: () => new Date("2026-09-14T08:05:00.000Z") });
+    assert.equal(index.schemaVersion, 1);
+    assert.equal(index.admissionEnvironment.runtime.storageBackendBasis, "active-version-local-class-and-observed-namespace-sqlite");
+    assert.equal(index.admissionEnvironment.validatedAfterAt, index.deployedAt);
+    assert.notEqual(index.admissionEnvironment.validatedAfterAt, after.validatedAt, "assembly time retains its historical meaning");
+    assert.equal(verifyTextToLatticeDeploymentEvidenceIndex(index), index);
+  }, { apiVersionPath: namespaceVersion() });
+});
+
+test("inspection rejects malformed version before any metadata GET and rejects mismatched GET without output", async () => {
+  await withEvidenceFiles(async (paths) => {
+    let calls = 0;
+    const options = { ...paths, qualifiedSourceSetSha256: deploymentCustody.qualifiedSourceSetSha256,
+      environment: environment({ CLOUDFLARE_ACCOUNT_ID: "e".repeat(32), CLOUDFLARE_API_TOKEN: "synthetic-token" }),
+      fetchImpl: async () => { calls += 1; return new Response(JSON.stringify({ success: true, result: { ...namespaceMetadata(), id: "f".repeat(32) } }), { headers: { "content-type": "application/json" } }); } };
+    const bad = namespaceVersion(); bad.resources.script_runtime.exports = null;
+    await writeFile(paths.apiVersionPath, JSON.stringify(bad));
+    await assert.rejects(inspectTextToLatticeApiEnvironment(options), /admission environment/u);
+    assert.equal(calls, 0);
+    await writeFile(paths.apiVersionPath, JSON.stringify(namespaceVersion()));
+    await assert.rejects(inspectTextToLatticeApiEnvironment(options), /namespace-identity/u);
+    assert.equal(calls, 1);
+  });
+});
+
+test("current assembly rejects stale source, post sample replay, schema and exact byte-custody defects", async (t) => {
+  for (const [label, file, change] of [
+    ["v1 before", "apiEnvironmentBeforePath", (v) => { v.schemaVersion = 1; delete v.qualifiedSourceSetSha256; }],
+    ["v1 after", "apiEnvironmentAfterPath", (v) => { v.schemaVersion = 1; }],
+    ["wrong before source", "apiEnvironmentBeforePath", (v) => { v.qualifiedSourceSetSha256 = "f".repeat(64); }],
+    ["wrong after source", "apiEnvironmentAfterPath", (v) => { v.qualifiedSourceSetSha256 = "f".repeat(64); }],
+    ["missing source", "apiEnvironmentAfterPath", (v) => { delete v.qualifiedSourceSetSha256; }],
+    ["post run replay", "apiEnvironmentAfterPath", (v) => { v.workflow.runAttempt = "1"; }],
+    ["post workflow commit", "apiEnvironmentAfterPath", (v) => { v.workflow.commit = "b".repeat(40); }],
+    ["post version drift", "apiEnvironmentAfterPath", (v) => { v.api.versionId = policyVersion; }],
+    ["post deployment drift", "apiEnvironmentAfterPath", (v) => { v.api.deploymentId = policyDeploymentId; }],
+    ["post split traffic", "apiEnvironmentAfterPath", (v) => { v.api.percentage = 50; }],
+    ["post namespace drift", "apiEnvironmentAfterPath", (v) => { v.admissionEnvironment.namespaceId = "f".repeat(32); }],
+    ["post basis drift", "apiEnvironmentAfterPath", (v) => { v.admissionEnvironment.storageBackendBasis = "active-version-local-class-and-observed-namespace-sqlite"; }],
+    ["post class drift", "apiEnvironmentAfterPath", (v) => { v.admissionEnvironment.className = "Other"; }],
+    ["before replayed as after", "apiEnvironmentAfterPath", (v) => { v.validatedAt = "2026-09-14T08:00:01.000Z"; }],
+    ["after before live completion", "apiEnvironmentAfterPath", (v) => { v.validatedAt = "2026-09-14T08:01:59.999Z"; }],
+    ["after after assembly", "apiEnvironmentAfterPath", (v) => { v.validatedAt = "2026-09-14T08:05:00.001Z"; }],
+    ["post unknown raw field", "apiEnvironmentAfterPath", (v) => { v.raw = "PRIVATE-METADATA"; }],
+  ]) await t.test(label, () => withEvidenceFiles(async (paths) => {
+    const value = JSON.parse(await readFile(paths[file], "utf8")); change(value);
+    await writeObservation(paths[file], value);
+    await assert.rejects(buildTextToLatticeDeploymentEvidence({ ...paths, ...deploymentCustody,
+      environment: environment(), now: () => new Date("2026-09-14T08:05:00.000Z") }));
+  }));
+  for (const file of ["apiEnvironmentBeforePath", "apiEnvironmentAfterPath"]) {
+    for (const defect of ["missing file", "missing sidecar", "wrong digest", "wrong basename", "extra newline", "stale bytes"]) {
+      await t.test(`${file}: ${defect}`, () => withEvidenceFiles(async (paths) => {
+        const path = paths[file];
+        const sidecar = await readFile(`${path}.sha256`, "utf8");
+        if (defect === "missing file") await rm(path);
+        else if (defect === "missing sidecar") await rm(`${path}.sha256`);
+        else if (defect === "wrong digest") await writeFile(`${path}.sha256`, `${"f".repeat(64)}${sidecar.slice(64)}`);
+        else if (defect === "wrong basename") await writeFile(`${path}.sha256`, `${sidecar.slice(0, 66)}other.json\n`);
+        else if (defect === "extra newline") await writeFile(`${path}.sha256`, `${sidecar}\n`);
+        else await writeFile(path, `${await readFile(path, "utf8")} `);
+        await assert.rejects(buildTextToLatticeDeploymentEvidence({ ...paths, ...deploymentCustody,
+          environment: environment(), now: () => new Date("2026-09-14T08:05:00.000Z") }));
+      }));
+    }
+  }
+});
+
+test("second namespace inspection independently rejects mismatch and operation expiry instead of reusing preflight", async (t) => {
+  for (const defect of ["identity", "operation-expiry"]) await t.test(defect, () => withEvidenceFiles(async (paths) => {
+    let calls = 0;
+    const options = { ...paths, qualifiedSourceSetSha256: deploymentCustody.qualifiedSourceSetSha256,
+      environment: environment({ CLOUDFLARE_ACCOUNT_ID: "e".repeat(32), CLOUDFLARE_API_TOKEN: "synthetic-token" }),
+      fetchImpl: async () => {
+        calls += 1;
+        return new Response(JSON.stringify({ success: true, result: { ...namespaceMetadata(),
+          ...(calls === 2 && defect === "identity" ? { id: "f".repeat(32) } : {}) } }),
+        { headers: { "content-type": "application/json" } });
+      } };
+    const before = await inspectTextToLatticeApiEnvironment({ ...options, now: () => new Date("2026-09-14T08:00:01.000Z") });
+    let clocks = 0;
+    await assert.rejects(inspectTextToLatticeApiEnvironment({ ...options,
+      now: () => new Date("2026-09-14T08:03:00.000Z"),
+      monotonicNow: () => { clocks += 1; return defect === "operation-expiry" && clocks === 3 ? 30_001 : 0; },
+    }), defect === "identity" ? /namespace-identity/u : /deadline/u);
+    assert.equal(calls, 2);
+    assert.equal(before.validatedAt, "2026-09-14T08:00:01.000Z");
+  }, { apiVersionPath: namespaceVersion() }));
 });
