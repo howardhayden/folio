@@ -206,8 +206,8 @@ export async function capabilityFetch(
   if (referrerPolicy !== undefined && referrerPolicy !== "same-origin") {
     throw new NetworkPolicyError("referrer policy is not permitted");
   }
-  if (mode !== undefined && mode !== "same-origin") {
-    throw new NetworkPolicyError("cross-origin request mode is not permitted");
+  if (mode !== undefined && mode !== "cors") {
+    throw new NetworkPolicyError("undeclared request mode");
   }
 
   const operation = validateTextToLatticeRequest(policy, headers, body);
@@ -229,10 +229,11 @@ export async function capabilityFetch(
     redirect: "error",
     cache: "no-store",
     keepalive: false,
-    mode: "same-origin",
+    // Fixed CORS mode uses browser-owned CORS Origin handling. The canonical
+    // origin/path guards above fix the destination, and redirects stay forbidden.
+    mode: "cors",
     referrer: "",
-    // An empty referrer suppresses Referer. `same-origin` keeps the browser-owned
-    // Origin header at https://hah.dev; `no-referrer` would serialize it as null.
+    // An empty referrer suppresses Referer independently of the fixed fetch mode.
     referrerPolicy: "same-origin",
   });
 }

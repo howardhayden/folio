@@ -68,6 +68,102 @@ async function withBrowserWindow(windowValue, operation) {
   }
 }
 
+test("fixed cors mode sends setup and content only to the canonical browser route under one lock", async () => {
+  let held = false;
+  let lockCalls = 0;
+  const calls = [];
+  const lockManager = {
+    async query() { return { held: [], pending: [] }; },
+    async request(name, options, callback) {
+      assert.equal(name, LATTICE_BROWSER_QUOTA_LOCK_NAME);
+      assert.equal(options.mode, "exclusive");
+      assert.equal(held, false);
+      lockCalls += 1;
+      held = true;
+      try { return await callback(); } finally { held = false; }
+    },
+  };
+  await withBrowserWindow({ location: { origin: ORIGIN }, navigator: { locks: lockManager } }, async () => {
+    const returned = await requestRemoteLattice("Source", {
+      fetchImpl: async (url, init) => {
+        assert.equal(held, true);
+        assert.equal(url.href, `${ORIGIN}${LATTICE_API_PATH}`);
+        assert.equal(init.method, "POST");
+        assert.equal(init.mode, "cors");
+        assert.equal(init.credentials, "same-origin");
+        assert.equal(init.redirect, "error");
+        assert.equal(init.cache, "no-store");
+        assert.equal(init.keepalive, false);
+        assert.equal(init.referrer, "");
+        assert.equal(init.referrerPolicy, "same-origin");
+        assert.ok(init.signal instanceof AbortSignal);
+        calls.push(init);
+        if (calls.length === 1) {
+          assert.deepEqual(init.headers, { Accept: LATTICE_VISITOR_SESSION_ACCEPT });
+          assert.equal(Object.hasOwn(init, "body"), false);
+          return streamedVisitorSessionResponse(new ReadableStream({ start(controller) { controller.close(); } }));
+        }
+        assert.equal(init.signal, calls[0].signal);
+        assert.deepEqual(init.headers, { Accept: "application/json", "Content-Type": "application/json" });
+        assert.deepEqual(JSON.parse(init.body), makeLatticeRequest("Source"));
+        return jsonResponse({ result, schema_version: 1 });
+      },
+    });
+    assert.equal(returned.text, result.text);
+  });
+  assert.equal(calls.length, 2);
+  assert.equal(lockCalls, 1);
+  assert.equal(held, false);
+});
+
+test("fixed cors mode refuses destination, origin, redirect and mode overrides before fetch", async () => {
+  let calls = 0;
+  const fetchImpl = async () => { calls += 1; return visitorSessionResponse(); };
+  const valid = { method: "POST", headers: { Accept: LATTICE_VISITOR_SESSION_ACCEPT }, mode: "cors" };
+  await withBrowserWindow({ location: { origin: ORIGIN } }, async () => {
+    for (const path of ["https://other.example/api/lattice", `${ORIGIN}${LATTICE_API_PATH}`, "//hah.dev/api/lattice", "/api/lattice?x=1", "/api/lattice#x", "/api/%6cattice", "/api/lattice/../other"]) {
+      await assert.rejects(capabilityFetch("text-to-lattice", path, valid, { fetchImpl }), NetworkPolicyError);
+    }
+    for (const baseOrigin of ["https://other.example", "http://hah.dev", "https://preview.hah.dev", `${ORIGIN}/`]) {
+      await assert.rejects(capabilityFetch("text-to-lattice", LATTICE_API_PATH, valid, { baseOrigin, fetchImpl }), NetworkPolicyError);
+    }
+    for (const override of [
+      { mode: "same-origin" }, { mode: "no-cors" }, { mode: "navigate" }, { mode: "CORS" }, { mode: null },
+      { redirect: "follow" }, { redirect: "manual" }, { credentials: "include" }, { credentials: "omit" },
+      { referrer: `${ORIGIN}/resume/` }, { referrerPolicy: "no-referrer" },
+      { headers: { ...valid.headers, Origin: ORIGIN } },
+      { headers: { ...valid.headers, Referer: `${ORIGIN}/resume/` } },
+      { headers: { ...valid.headers, Cookie: "ambient=1" } },
+    ]) {
+      await assert.rejects(capabilityFetch("text-to-lattice", LATTICE_API_PATH, { ...valid, ...override }, { fetchImpl }), NetworkPolicyError);
+    }
+  });
+  for (const browserOrigin of ["http://localhost:3000", "https://preview.hah.dev", "https://other.example", "null"]) {
+    await withBrowserWindow({ location: { origin: browserOrigin } }, async () => {
+      for (const baseOrigin of [undefined, ORIGIN]) {
+        await assert.rejects(capabilityFetch("text-to-lattice", LATTICE_API_PATH, valid, { baseOrigin, fetchImpl }), NetworkPolicyError);
+      }
+    });
+  }
+  assert.equal(calls, 0);
+  await withBrowserWindow({ location: { origin: ORIGIN } }, async () => {
+    await capabilityFetch("text-to-lattice", LATTICE_API_PATH, valid, { fetchImpl });
+  });
+  assert.equal(calls, 1, "the same otherwise-valid cors envelope reaches only its exact fixed route");
+});
+
+test("fixed cors setup keeps redirect error and never retries a refused redirect transport", async () => {
+  const calls = [];
+  await assert.rejects(requestRemoteLattice("Source", {
+    baseOrigin: ORIGIN,
+    fetchImpl: async (url, init) => {
+      calls.push({ url: url.href, mode: init.mode, redirect: init.redirect });
+      throw new TypeError("synthetic redirect refusal");
+    },
+  }), (error) => error.code === "visitor_session_required" && error.retryable === false);
+  assert.deepEqual(calls, [{ url: `${ORIGIN}${LATTICE_API_PATH}`, mode: "cors", redirect: "error" }]);
+});
+
 test("the production capability manifest contains one purpose-bound content route", () => {
   assert.deepEqual(REMOTE_CAPABILITIES, {
     textToLattice: {
@@ -160,7 +256,7 @@ test("capabilityFetch fixes an exact browser-owned origin and allows only its sa
   assert.equal(observed.init.cache, "no-store");
   assert.equal(observed.init.redirect, "error");
   assert.equal(observed.init.keepalive, false);
-  assert.equal(observed.init.mode, "same-origin");
+  assert.equal(observed.init.mode, "cors");
   assert.equal(observed.init.referrer, "");
   assert.equal(observed.init.referrerPolicy, "same-origin");
   assert.deepEqual(observed.init.headers, {
@@ -175,7 +271,7 @@ test("capabilityFetch fixes an exact browser-owned origin and allows only its sa
     { method: "POST", cache: "force-cache" },
     { method: "POST", redirect: "follow" },
     { method: "POST", keepalive: true },
-    { method: "POST", mode: "cors" },
+    { method: "POST", mode: "same-origin" },
     { method: "POST", referrer: "https://hah.dev/resume/" },
     { method: "POST", referrerPolicy: "no-referrer" },
   ]) {
@@ -198,7 +294,7 @@ test("capabilityFetch permits only the declared bodyless visitor-session setup o
     cache: "no-store",
     redirect: "error",
     keepalive: false,
-    mode: "same-origin",
+    mode: "cors",
     referrer: "",
     referrerPolicy: "same-origin",
   }, {
@@ -217,7 +313,7 @@ test("capabilityFetch permits only the declared bodyless visitor-session setup o
   assert.equal(observed.init.cache, "no-store");
   assert.equal(observed.init.redirect, "error");
   assert.equal(observed.init.keepalive, false);
-  assert.equal(observed.init.mode, "same-origin");
+  assert.equal(observed.init.mode, "cors");
   assert.equal(observed.init.referrer, "");
   assert.equal(observed.init.referrerPolicy, "same-origin");
 
