@@ -27,8 +27,8 @@ function version() {
       script_runtime: { compatibility_date: "2026-09-14", compatibility_flags: ["enable_request_signal"], migration_tag: "v1" },
     } } };
 }
-function page(items = [{ id: namespaceId, script: "hahdev-text-to-lattice-api", class: "LatticeTransformationBudget", name: sentinel, use_sqlite: true }], number = 1, total = 1) {
-  return { success: true, result: items, result_info: { page: number, per_page: 1000, total_pages: total } };
+function namespace(value = { id: namespaceId, script: "hahdev-text-to-lattice-api", class: "LatticeTransformationBudget", name: sentinel, use_sqlite: true }) {
+  return { success: true, result: value };
 }
 const json = (payload) => new Response(JSON.stringify(payload), { headers: { "Content-Type": "application/json" } });
 async function observe(responses, extra = {}) {
@@ -46,7 +46,7 @@ async function observe(responses, extra = {}) {
 test("historical-version diagnostic records missing exports and explicit current namespace facts without accepting D15", async () => {
   const raw = version();
   assert.throws(() => sanitizeTextToLatticeAdmissionEnvironment(raw.result), /exact local SQLite/u);
-  const { report, calls } = await observe([json(raw), json(page())]);
+  const { report, calls } = await observe([json(raw), json(namespace())]);
   assert.equal(report.diagnosticStatus, "observed");
   assert.equal(report.failure, null);
   assert.equal(report.version.exportsShape, "absent");
@@ -64,7 +64,9 @@ test("historical-version diagnostic records missing exports and explicit current
   assert.deepEqual(report.workflow, workflow);
   assert.equal(calls.length, 2);
   assert.match(calls[0].url, new RegExp(`/workers/scripts/hahdev-text-to-lattice-api/versions/${LATTICE_ENVIRONMENT_DIAGNOSTIC_VERSION}$`, "u"));
-  assert.match(calls[1].url, /\/workers\/durable_objects\/namespaces\?page=1&per_page=1000$/u);
+  assert.equal(calls[1].url, `https://api.cloudflare.com/client/v4/accounts/${options.accountId}/workers/durable_objects/namespaces/${namespaceId}`);
+  assert.equal(new URL(calls[1].url).search, "");
+  assert.equal(report.responses[1].request, "bound-namespace");
   for (const { url, init } of calls) {
     assert.equal(new URL(url).origin, "https://api.cloudflare.com");
     assert.equal(init.method, "GET"); assert.equal(init.redirect, "error");
@@ -97,7 +99,7 @@ test("finite projection distinguishes every current admission rejection branch w
   ];
   for (const [label, change, key, expected] of cases) await t.test(label, async () => {
     const raw = version(); change(raw);
-    const { report } = await observe([json(raw), json(page())]);
+    const { report } = await observe([json(raw), json(namespace())]);
     assert.equal(report.diagnosticStatus, "observed");
     assert.equal(report.version[key], expected);
     assert.equal(report.acceptedAdmissionEnvironmentProof, false);
@@ -105,7 +107,7 @@ test("finite projection distinguishes every current admission rejection branch w
   const raw = version();
   raw.result.resources.bindings[1].preview = sentinel;
   raw.result.resources.script_runtime.exports = { LatticeTransformationBudget: { type: "durable-object", storage: "sqlite", container: sentinel } };
-  const { report } = await observe([json(raw), json(page())]);
+  const { report } = await observe([json(raw), json(namespace())]);
   assert.equal(report.version.bindingAuxiliaryPresence.preview, true);
   assert.equal(report.version.exportAuxiliaryPresence.container, true);
 });
@@ -123,60 +125,67 @@ test("missing, ambiguous or malformed namespace binding never guesses an account
   });
 });
 
-test("namespace selection traverses complete bounded pages, preserves explicit false and exposes no unrelated records", async () => {
-  const { report, calls } = await observe([json(version()),
-    json(page([{ id: otherId, class: sentinel, script: sentinel, use_sqlite: true }], 1, 2)),
-    json(page([{ id: namespaceId, script: sentinel, class: sentinel, use_sqlite: false }], 2, 2))]);
-  assert.equal(calls.length, 3); assert.equal(report.namespaceLookup, "one");
+test("exact namespace response preserves explicit false and exposes only allowlisted target metadata", async () => {
+  const { report, calls } = await observe([json(version()), json(namespace({ id: namespaceId, script: sentinel, class: sentinel, name: sentinel, use_sqlite: false }))]);
+  assert.equal(calls.length, 2); assert.equal(report.namespaceLookup, "one");
   assert.equal(report.namespace.useSqlite, false); assert.equal(report.namespace.script, null);
   assert.equal(report.namespace.class, null); assert.equal(report.namespace.scriptMatches, false);
-  assert.doesNotMatch(JSON.stringify(report), new RegExp(otherId, "u"));
-  const missing = await observe([json(version()), json(page([]))]);
-  assert.equal(missing.report.namespaceLookup, "absent"); assert.equal(missing.report.namespace, null);
-  const untyped = await observe([json(version()), json(page([{ id: namespaceId, use_sqlite: "true" }]))]);
-  assert.equal(untyped.report.namespace.useSqlite, null); assert.equal(untyped.report.namespace.useSqliteTypeValid, false);
+  for (const value of [undefined, null, "true", 1, {}]) {
+    const raw = { id: namespaceId, use_sqlite: value };
+    const untyped = await observe([json(version()), json(namespace(raw))]);
+    assert.equal(untyped.report.namespace.useSqlite, null);
+    assert.equal(untyped.report.namespace.useSqliteTypeValid, false);
+    assert.equal(untyped.report.acceptedAdmissionEnvironmentProof, false);
+  }
 });
 
-test("three namespace pages use the exact four-request ceiling and complete response-byte custody", async () => {
+test("two exact GETs preserve response-byte custody without requiring a declared fetch handler", async () => {
   const raw = version();
+  raw.result.resources.script.named_handlers[0].handlers = [];
   const bytes = JSON.stringify(raw);
   const identity = new Response(bytes, { headers: { "Content-Type": "application/json", "Content-Encoding": "identity", "Content-Length": String(Buffer.byteLength(bytes)) } });
-  const { report, calls } = await observe([identity, json(page([], 1, 3)), json(page([], 2, 3)), json(page(undefined, 3, 3))]);
-  assert.equal(report.diagnosticStatus, "observed"); assert.equal(calls.length, 4);
-  assert.equal(report.responses.length, 4); assert.equal(report.namespaceLookup, "one");
+  const { report, calls } = await observe([identity, json(namespace())]);
+  assert.equal(report.diagnosticStatus, "observed"); assert.equal(calls.length, 2);
+  assert.equal(LATTICE_ENVIRONMENT_DIAGNOSTIC_LIMITS.metadataRequests, 2);
+  assert.equal(report.version.namedClassFetchHandler, false);
+  assert.equal(report.responses.length, 2); assert.equal(report.namespaceLookup, "one");
   assert.equal(report.responseDigestBasis, "received-response-body-bytes-with-identity-content-encoding");
+  assert.equal(report.acceptedAdmissionEnvironmentProof, false);
 });
 
-test("namespace truncation, duplicate identity, unstable pagination and invalid version identity remain unavailable", async (t) => {
-  for (const [label, responses, code] of [
-    ["wrong version", [json({ success: true, result: { id: "0".repeat(36) } })], "version-identity"],
-    ["missing pagination", [json(version()), json({ success: true, result: [] })], "namespace-pagination"],
-    ["excess pages", [json(version()), json(page([], 1, 4))], "namespace-pagination"],
-    ["wrong page", [json(version()), json(page([], 2, 2))], "namespace-pagination"],
-    ["duplicate", [json(version()), json(page([{ id: namespaceId }, { id: namespaceId }]))], "namespace-duplicate"],
-    ["cross-page duplicate", [json(version()), json(page([{ id: namespaceId }], 1, 2)), json(page([{ id: namespaceId }], 2, 2))], "namespace-duplicate"],
-    ["changed total", [json(version()), json(page([], 1, 2)), json(page([], 2, 1))], "namespace-pagination"],
+test("namespace result must be a single object with the exact observed binding identity", async (t) => {
+  for (const [label, value] of [
+    ["wrong namespace", { id: otherId, use_sqlite: true }],
+    ["missing identity", { use_sqlite: true }],
+    ["line-terminated identity", { id: `${namespaceId}\n`, use_sqlite: true }],
+    ["array", [{ id: namespaceId, use_sqlite: true }]],
+    ["null", null], ["string", sentinel],
   ]) await t.test(label, async () => {
-    const { report, calls } = await observe(responses);
-    assert.equal(report.diagnosticStatus, "unavailable"); assert.equal(report.failure, code);
-    assert.equal(report.namespace, null); assert.ok(calls.length <= 4);
+    const { report, calls } = await observe([json(version()), json(namespace(value))]);
+    assert.equal(report.diagnosticStatus, "unavailable");
+    assert.equal(report.failure, "namespace-identity");
+    assert.equal(report.namespaceLookup, "unavailable"); assert.equal(report.namespace, null);
+    assert.equal(calls.length, 2); assert.equal(report.responses.length, 2);
+    assert.doesNotMatch(JSON.stringify(report), new RegExp(otherId, "u"));
   });
+  const wrong = await observe([json({ success: true, result: { id: "0".repeat(36) } })]);
+  assert.equal(wrong.report.failure, "version-identity"); assert.equal(wrong.calls.length, 1);
 });
 
-test("optional pagination totals must agree with each page and the completed unique inventory", async (t) => {
-  for (const [label, change] of [
-    ["wrong page count", (p) => { p.result_info.count = 2; }],
-    ["wrong total", (p) => { p.result_info.total_count = 2; }],
-    ["negative total", (p) => { p.result_info.total_count = -1; }],
-    ["untyped total", (p) => { p.result_info.total_count = "1"; }],
+test("namespace endpoint errors are bounded, keep prior version facts, and never issue a list or object request", async (t) => {
+  for (const [label, response, code] of [
+    ["missing namespace", new Response(sentinel, { status: 404 }), "http"],
+    ["API failure", json({ success: false, errors: [{ message: sentinel }] }), "api-result"],
+    ["unwrapped object", json({ id: namespaceId, use_sqlite: true }), "api-result"],
+    ["redirect", { status: 302, body: new ReadableStream() }, "http"],
+    ["transport", () => { throw new Error(sentinel); }, "transport"],
   ]) await t.test(label, async () => {
-    const raw = page(); change(raw);
-    const { report } = await observe([json(version()), json(raw)]);
-    assert.equal(report.failure, "namespace-pagination");
-    assert.equal(report.namespace, null);
+    const { report, calls } = await observe([json(version()), response]);
+    assert.equal(report.failure, code); assert.equal(report.namespace, null);
+    assert.equal(report.version.exportsShape, "absent");
+    assert.equal(calls.length, 2);
+    assert.ok(calls.every(({ url }) => !url.includes("?") && !url.endsWith("/namespaces") && !url.includes("/objects")));
   });
-  const exact = page(); exact.result_info.count = 1; exact.result_info.total_count = 1;
-  assert.equal((await observe([json(version()), json(exact)])).report.diagnosticStatus, "observed");
 });
 
 test("bounded reads discard HTTP errors, redirects, oversized bodies and malformed JSON without raw error output", async (t) => {
@@ -224,10 +233,10 @@ test("operation deadline, clock reversal and invalid configuration cannot issue 
   const reversed = await observe([], { monotonicNow: () => clocks.shift() });
   assert.equal(reversed.report.failure, "observation-clock"); assert.equal(reversed.calls.length, 0);
   clocks = [0, 0, 0, 30_001];
-  const lateFinal = await observe([json(version()), json(page())], { monotonicNow: () => clocks.shift() });
+  const lateFinal = await observe([json(version()), json(namespace())], { monotonicNow: () => clocks.shift() });
   assert.equal(lateFinal.report.failure, "deadline"); assert.equal(lateFinal.report.diagnosticStatus, "unavailable");
   clocks = [0, 1, 2, 1];
-  const reverseFinal = await observe([json(version()), json(page())], { monotonicNow: () => clocks.shift() });
+  const reverseFinal = await observe([json(version()), json(namespace())], { monotonicNow: () => clocks.shift() });
   assert.equal(reverseFinal.report.failure, "observation-clock");
   for (const extra of [{ accountId: "bad" }, { workflow: { ...workflow, ref: "refs/heads/topic" } },
     { workflow: { ...workflow, runId: "12\n" } }, { requestTimeoutMs: 10_001 }]) {
