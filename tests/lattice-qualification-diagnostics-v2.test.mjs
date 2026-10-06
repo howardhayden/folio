@@ -23,15 +23,27 @@ import {
 
 const SOURCE = "A visitor places a blue notebook on the desk, reads the first page, and closes it.";
 
+// Fill explicit coherent synthetic control-flow fixtures for the historical
+// field cross-product. Runtime provenance is tested at the engine/Worker layer.
+function controlFlowFixture(value) {
+  return {
+    initialRetainedPlan: "none",
+    structuralRetryReason: ["none", "repair"].includes(value.retryPath) ? "none" : "plan-fit",
+    committedRetainOverride: value.candidateLineage === "regeneration"
+      || value.retryPath === "regeneration" && value.candidateLineage === "mixed" ? "none" : "not-applicable",
+    ...value,
+  };
+}
+
 test("withheld pipeline groups are complete finite metadata with consistent path and lineage", () => {
-  const value = { retryPath: "regeneration", candidateLineage: "initial", initialDeterministic: "d14-only", successfulCorrectionStage: "none", initialRetentionDowngrade: "none" };
-  assert.deepEqual(LATTICE_WITHHELD_PIPELINE_FIELDS, ["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage", "initialRetentionDowngrade"]);
+  const value = controlFlowFixture({ retryPath: "regeneration", candidateLineage: "initial", initialDeterministic: "d14-only", successfulCorrectionStage: "none", initialRetentionDowngrade: "none" });
+  assert.deepEqual(LATTICE_WITHHELD_PIPELINE_FIELDS, ["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage", "initialRetentionDowngrade", "initialRetainedPlan", "structuralRetryReason", "committedRetainOverride"]);
   for (const item of [value,
     { retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear" },
     { retryPath: "reanalysis-only", candidateLineage: "initial", initialDeterministic: "other" },
     { retryPath: "repair", candidateLineage: "repair", initialDeterministic: "d14-and-other" },
     { retryPath: "mixed", candidateLineage: "mixed", initialDeterministic: "d14-only" },
-  ]) assert.equal(isClosedWithheldPipelineObservation(Object.freeze({ successfulCorrectionStage: "none", initialRetentionDowngrade: "none", ...item })), true);
+  ]) assert.equal(isClosedWithheldPipelineObservation(Object.freeze(controlFlowFixture({ successfulCorrectionStage: "none", initialRetentionDowngrade: "none", ...item }))), true);
   let reads = 0;
   const getter = { ...value };
   Object.defineProperty(getter, "retryPath", { enumerable: true, get() { reads += 1; return "regeneration"; } });
@@ -78,9 +90,9 @@ test("pipeline metadata preserves path and lineage rules for either authenticate
       for (const candidateLineage of ["initial", "repair", "regeneration", "mixed"]) {
         for (const initialRetentionDowngrade of ["none", "present"]) {
           for (const initialDeterministic of ["clear", "d14-only", "other", "d14-and-other"]) {
-            const observation = Object.freeze({
+            const observation = Object.freeze(controlFlowFixture({
               retryPath, candidateLineage, initialDeterministic, successfulCorrectionStage, initialRetentionDowngrade,
-            });
+            }));
             assert.equal(isClosedWithheldPipelineObservation(observation),
               possiblePaths.includes(retryPath) && allowedLineages[retryPath].includes(candidateLineage),
               JSON.stringify(observation));
@@ -92,15 +104,15 @@ test("pipeline metadata preserves path and lineage rules for either authenticate
 });
 
 test("successful correction metadata rejects historical, malformed, or accessor-bearing groups without reading values", () => {
-  const value = { retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear", successfulCorrectionStage: "generation", initialRetentionDowngrade: "none" };
+  const value = controlFlowFixture({ retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear", successfulCorrectionStage: "generation", initialRetentionDowngrade: "none" });
   for (const successfulCorrectionStage of [
     undefined, null, 2, {}, [], "", "analysis", "candidate", "certification", "unknown",
     "document-window-certification", "document-relation-certification", "generation, generation",
     "Generation", " generation", "generation\n", "generation\r\n", "generation\u2028",
   ]) assert.equal(isClosedWithheldPipelineObservation(Object.freeze({ ...value, successfulCorrectionStage })), false);
-  const { successfulCorrectionStage: omitted, initialRetentionDowngrade: omittedRetention, ...historicalV15 } = value;
-  assert.equal(omitted, "generation");
-  assert.equal(omittedRetention, "none");
+  const historicalV15 = Object.fromEntries(Object.entries(value)
+    .filter(([key]) => ["retryPath", "candidateLineage", "initialDeterministic"].includes(key)));
+  assert.equal(Object.keys(historicalV15).length, 3);
   assert.equal(isClosedWithheldPipelineObservation(Object.freeze(historicalV15)), false);
   let reads = 0;
   const accessor = { ...value };
@@ -116,13 +128,14 @@ test("successful correction metadata rejects historical, malformed, or accessor-
 });
 
 test("retention downgrade metadata rejects missing, inferred, malformed, or accessor-bearing observations", () => {
-  const value = { retryPath: "repair", candidateLineage: "repair", initialDeterministic: "d14-only", successfulCorrectionStage: "none", initialRetentionDowngrade: "present" };
+  const value = controlFlowFixture({ retryPath: "repair", candidateLineage: "repair", initialDeterministic: "d14-only", successfulCorrectionStage: "none", initialRetentionDowngrade: "present" });
   for (const initialRetentionDowngrade of [
     undefined, null, false, true, 0, 1, {}, [], "", "unknown", "unavailable", "mixed", "absent",
     "retained", "rewrite", "Present", " present", "present ", "present\n", "present\r\n", "present\u2028",
   ]) assert.equal(isClosedWithheldPipelineObservation(Object.freeze({ ...value, initialRetentionDowngrade })), false);
-  const { initialRetentionDowngrade: omitted, ...historicalV16 } = value;
-  assert.equal(omitted, "present");
+  const historicalV16 = Object.fromEntries(Object.entries(value)
+    .filter(([key]) => ["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage"].includes(key)));
+  assert.equal(Object.keys(historicalV16).length, 4);
   assert.equal(isClosedWithheldPipelineObservation(Object.freeze(historicalV16)), false);
   let reads = 0;
   const accessor = { ...value };
@@ -136,6 +149,54 @@ test("retention downgrade metadata rejects missing, inferred, malformed, or acce
   Object.defineProperty(hidden, "initialRetentionDowngrade", { enumerable: false, value: "present" });
   assert.equal(isClosedWithheldPipelineObservation(Object.freeze(hidden)), false);
   assert.equal(isClosedWithheldPipelineObservation(Object.freeze({ ...historicalV16, [Symbol("initialRetentionDowngrade")]: "present" })), false);
+});
+
+test("v19 preserves three distinct control-flow meanings and refuses historical or invented evidence", () => {
+  const base = controlFlowFixture({ retryPath: "regeneration", candidateLineage: "regeneration",
+    initialDeterministic: "clear", successfulCorrectionStage: "none", initialRetentionDowngrade: "none" });
+  for (const valid of [
+    base,
+    { ...base, initialRetainedPlan: "present", committedRetainOverride: "present" },
+    { ...base, initialRetainedPlan: "present", structuralRetryReason: "retained-conformance" },
+    { ...base, retryPath: "mixed", candidateLineage: "mixed", committedRetainOverride: "not-applicable" },
+    { ...base, candidateLineage: "mixed", committedRetainOverride: "none" },
+    { ...base, candidateLineage: "mixed", initialRetainedPlan: "present", committedRetainOverride: "present" },
+    { ...base, retryPath: "repair", candidateLineage: "mixed", structuralRetryReason: "none", committedRetainOverride: "not-applicable" },
+    { ...base, retryPath: "none", candidateLineage: "initial", structuralRetryReason: "not-reached", committedRetainOverride: "not-applicable" },
+    { ...base, retryPath: "repair", candidateLineage: "repair", structuralRetryReason: "none", committedRetainOverride: "not-applicable" },
+  ]) assert.equal(isClosedWithheldPipelineObservation(Object.freeze(valid)), true);
+  for (const invalid of [
+    { ...base, candidateLineage: "mixed", committedRetainOverride: "not-applicable" },
+    { ...base, retryPath: "repair", candidateLineage: "mixed", structuralRetryReason: "none", committedRetainOverride: "none" },
+    { ...base, retryPath: "repair", candidateLineage: "mixed", structuralRetryReason: "none", initialRetainedPlan: "present", committedRetainOverride: "present" },
+    { ...base, structuralRetryReason: "not-reached" },
+    { ...base, structuralRetryReason: "none" },
+    { ...base, committedRetainOverride: "not-applicable" },
+    { ...base, committedRetainOverride: "present" },
+    { ...base, structuralRetryReason: "retained-conformance" },
+    { ...base, candidateLineage: "initial" },
+    { ...base, retryPath: "repair", candidateLineage: "repair", structuralRetryReason: "not-reached", committedRetainOverride: "not-applicable" },
+    { ...base, retryPath: "none", candidateLineage: "initial", committedRetainOverride: "not-applicable" },
+  ]) assert.equal(isClosedWithheldPipelineObservation(Object.freeze(invalid)), false);
+  const additions = ["initialRetainedPlan", "structuralRetryReason", "committedRetainOverride"];
+  const historicalV18 = Object.fromEntries(Object.entries(base).filter(([key]) => !additions.includes(key)));
+  assert.equal(Object.keys(historicalV18).length, 5);
+  assert.equal(isClosedWithheldPipelineObservation(Object.freeze(historicalV18)), false);
+  for (const field of additions) {
+    for (const invalid of [undefined, null, true, 0, {}, [], "", "unavailable", "unknown", "PRIVATE-CONTENT", "none, present", "none\n", "none\r\n", "none\u2028"]) {
+      assert.equal(isClosedWithheldPipelineObservation(Object.freeze({ ...base, [field]: invalid })), false);
+    }
+    const partial = { ...base }; delete partial[field];
+    assert.equal(isClosedWithheldPipelineObservation(Object.freeze(partial)), false);
+    let reads = 0;
+    const accessor = { ...base };
+    Object.defineProperty(accessor, field, { enumerable: true, get() { reads += 1; throw new Error("PRIVATE-CONTENT"); } });
+    assert.equal(isClosedWithheldPipelineObservation(Object.freeze(accessor)), false);
+    assert.equal(reads, 0);
+    const hidden = { ...base };
+    Object.defineProperty(hidden, field, { enumerable: false, value: base[field] });
+    assert.equal(isClosedWithheldPipelineObservation(Object.freeze(hidden)), false);
+  }
 });
 
 test("retention provenance is first-write-only private identity metadata without payload mutation", () => {

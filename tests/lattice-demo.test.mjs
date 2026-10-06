@@ -2781,7 +2781,10 @@ test("rejected candidate prose cannot be laundered into the re-atomization graph
       return rawVerification(request, {
         gates: { sourceCoverage: false },
         passage: {
-          unsupportedClaims: [{ claim: candidateOnlyMarker, evidence: candidateOnlyMarker }],
+          unsupportedClaims: [
+            { claim: candidateOnlyMarker, evidence: candidateOnlyMarker },
+            { claim: `another-${candidateOnlyMarker}`, evidence: candidateOnlyMarker },
+          ],
         },
         issues: [{
           id: candidateOnlyMarker,
@@ -2797,6 +2800,9 @@ test("rejected candidate prose cannot be laundered into the re-atomization graph
   assert.ok(reanalysisPayloads.length > 0);
   for (const payload of reanalysisPayloads) {
     assert.doesNotMatch(JSON.stringify(payload), new RegExp(candidateOnlyMarker, "u"));
+    assert.deepEqual(payload.request.reanalysisFeedback.passages[0].unsupportedClaims,
+      ["unsupported-meaning"]);
+    assert.match(JSON.stringify(payload.messages), /unsupported-meaning/u);
   }
   assert.equal(result.status, "translated");
   assert.doesNotMatch(result.text, new RegExp(candidateOnlyMarker, "u"));
@@ -3435,7 +3441,9 @@ test("withheld pipeline observations report actual retry paths and committed can
     assert.deepEqual(observed, baseline);
     assert.deepEqual(observedAdapter.calls, baselineAdapter.calls);
     assert.deepEqual(observation, { retryPath, candidateLineage, initialDeterministic,
-      successfulCorrectionStage: name === "initial correction is not post-verification retry" ? "generation" : "none", initialRetentionDowngrade: "none" });
+      successfulCorrectionStage: name === "initial correction is not post-verification retry" ? "generation" : "none", initialRetentionDowngrade: "none",
+      initialRetainedPlan: "none", structuralRetryReason: ["reanalysis-only", "regeneration"].includes(retryPath) ? "source-coverage" : "none",
+      committedRetainOverride: candidateLineage === "regeneration" ? "none" : "not-applicable" });
     assert.equal(isClosedWithheldPipelineObservation(observation), true);
     assert.equal(Object.isFrozen(observation), true);
     assert.equal(Object.hasOwn(trace, "retryPath"), false, "the historical trace retains its original closed shape");
@@ -3443,6 +3451,151 @@ test("withheld pipeline observations report actual retry paths and committed can
     assert.equal(getLatticeWithheldPipelineObservation(Object.freeze({ ...trace })), null);
     assert.equal(getLatticeWithheldPipelineObservation(new Proxy(trace, {})), null);
     assert.doesNotMatch(JSON.stringify(observed), /retryPath|candidateLineage|initialDeterministic/u);
+  });
+});
+
+test("structural retry observations preserve actual short-circuit and passage order", async (context) => {
+  const identity = (request) => rawCandidate(request, { identity: true });
+  const cases = [
+    ["first global gate", "source-coverage", (request) => rawVerification(request,
+      { gates: { sourceCoverage: false, atomCoverage: false, registerFit: false } })],
+    ["atom gate", "atom-coverage", (request) => rawVerification(request, { gates: { atomCoverage: false } })],
+    ["register gate", "register-fit", (request) => rawVerification(request, { gates: { registerFit: false } })],
+    ["unmodeled precedes plan", "unmodeled-evidence", (request) => rawVerification(request,
+      { passage: { unmodeledSpanIds: [request.sourceSpans[0].spans[0].id], planFit: false } })],
+    ["plan", "plan-fit", (request) => rawVerification(request, { passage: { planFit: false } })],
+    ["normalized layer mismatch first fails register gate", "register-fit", (request) => rawVerification(request,
+      { passage: { independentLayer: "operative" } })],
+  ];
+  for (const [name, reason, firstReview] of cases) await context.test(name, async () => {
+    const behavior = { generate: identity,
+      verify: (request, count) => count === 1 ? firstReview(request) : rawVerification(request) };
+    const baselineAdapter = scriptedAdapter(behavior);
+    const baseline = await runTextToLattice(opaqueWords(12), { adapter: baselineAdapter });
+    let trace;
+    const adapter = scriptedAdapter(behavior);
+    const result = await runTextToLattice(opaqueWords(12), { adapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assert.deepEqual(result, baseline);
+    assert.deepEqual(adapter.calls, baselineAdapter.calls);
+    const observation = getLatticeWithheldPipelineObservation(trace);
+    assert.equal(observation.structuralRetryReason, reason);
+    assert.equal(observation.initialRetainedPlan, "none");
+    assert.equal(observation.committedRetainOverride, "none");
+    assert.equal(observation.candidateLineage, "regeneration");
+  });
+  await context.test("earlier passage plan failure precedes later passage unmodeled evidence", async () => {
+    let trace;
+    const adapter = scriptedAdapter({ generate: identity, verify(request, count) {
+      const review = rawVerification(request);
+      if (count === 1) {
+        assert.equal(review.passages.length, 2);
+        review.passages[0].failedChecks.push("planFit");
+        review.passages[1].unmodeledSpanIds = [request.sourceSpans[1].spans[0].id];
+        review.decision = "repair";
+      }
+      return review;
+    } });
+    await runTextToLattice(`${opaqueWords(6)}\n\n${opaqueWords(6)}`, { adapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assert.equal(getLatticeWithheldPipelineObservation(trace).structuralRetryReason, "plan-fit");
+  });
+  await context.test("different selected batches aggregate mixed reasons", async () => {
+    const source = Array.from({ length: 5 }, () => opaqueWords(12)).join("\n\n");
+    const firstBatch = preflightLatticeInput(source).batches[0].id;
+    let trace;
+    const adapter = scriptedAdapter({ generate: identity, verify: (request) => rawVerification(request,
+      { gates: request.batch.id === firstBatch ? { sourceCoverage: false } : { atomCoverage: false } }) });
+    await runTextToLattice(source, { adapter, onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assert.equal(getLatticeWithheldPipelineObservation(trace).structuralRetryReason, "mixed");
+  });
+});
+
+test("retained-plan and override observations follow only surviving regenerated identities", async (context) => {
+  for (const mode of ["committed negative review", "explicit rewrite", "failed reanalysis", "failed regeneration", "failed reverification"]) await context.test(mode, async () => {
+    let trace;
+    const adapter = scriptedAdapter({
+      analyze(request, count) {
+        if (count > 1 && mode === "failed reanalysis") return {};
+        return rawAnalysis(request, { disposition: count > 1 && mode === "explicit rewrite"
+          ? "rewrite" : "retain-if-conformant" });
+      },
+      generate(request, count) {
+        if (count > 1 && mode === "failed regeneration") return {};
+        return rawCandidate(request, { identity: true });
+      },
+      verify(request, count) {
+        if (count > 1 && mode === "failed reverification") return {};
+        return rawVerification(request, count === 1 ? { passage: { conformanceConfirmed: false } }
+          : { gates: { semanticFidelity: false } });
+      },
+      repair() { assert.fail("structural reanalysis must not add direct repair"); },
+    });
+    const result = await runTextToLattice(opaqueWords(12), { adapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assertCandidateWithheld(result);
+    const observation = getLatticeWithheldPipelineObservation(trace);
+    assert.equal(observation.initialRetainedPlan, "present");
+    assert.equal(observation.initialRetentionDowngrade, "none");
+    assert.equal(observation.structuralRetryReason, "retained-conformance");
+    assert.equal(observation.committedRetainOverride, mode.startsWith("failed") ? "not-applicable"
+      : mode === "explicit rewrite" ? "none" : "present");
+    assert.equal(observation.candidateLineage, mode.startsWith("failed") ? "initial" : "regeneration");
+    assert.doesNotMatch(JSON.stringify(result), /initialRetainedPlan|structuralRetryReason|committedRetainOverride/u);
+  });
+  await context.test("certification failure before selection is not-reached", async () => {
+    let trace;
+    const adapter = scriptedAdapter({ certify(request) {
+      return { certificateId: request.certificateId, obligationIds: request.obligationIds, decision: "reject",
+        checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, name !== "boundaryFidelity"])), issues: [] };
+    } });
+    const result = await runTextToLattice(`${opaqueWords(12)}\n`, { adapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assertCandidateWithheld(result);
+    const observation = getLatticeWithheldPipelineObservation(trace);
+    assert.equal(observation.structuralRetryReason, "not-reached");
+    assert.equal(observation.retryPath, "none");
+    assert.equal(observation.committedRetainOverride, "not-applicable");
+  });
+});
+
+test("unknown structural reasons and missing surviving override provenance suppress the private group", async (context) => {
+  for (const mode of ["unknown reason beside known", "missing override", "cloned analysis origin"]) await context.test(mode, async () => {
+    const behavior = {
+      generate: (request) => rawCandidate(request, { identity: true }),
+      verify: (request) => rawVerification(request, { gates: { sourceCoverage: false } }),
+    };
+    const baseline = await runTextToLattice(opaqueWords(12), { adapter: scriptedAdapter(behavior) });
+    const originalAdd = Set.prototype.add;
+    const originalGet = WeakMap.prototype.get;
+    let trace;
+    let observation;
+    let result;
+    try {
+      Set.prototype.add = function add(value) {
+        if (mode === "unknown reason beside known" && value === "source-coverage") {
+          originalAdd.call(this, "UNKNOWN-INTERNAL-REASON");
+        }
+        return originalAdd.call(this, value);
+      };
+      WeakMap.prototype.get = function get(key) {
+        const value = originalGet.call(this, key);
+        if (mode !== "unknown reason beside known" && value && typeof value === "object"
+          && Object.hasOwn(value, "overridden") && Object.hasOwn(value, "analysis") && Object.hasOwn(value, "batch")) {
+          return mode === "missing override" ? undefined : { ...value, analysis: { ...value.analysis } };
+        }
+        return value;
+      };
+      result = await runTextToLattice(opaqueWords(12), { adapter: scriptedAdapter(behavior),
+        onCandidateWithheldDiagnostic(value) { trace = value; observation = getLatticeWithheldPipelineObservation(value); } });
+    } finally {
+      Set.prototype.add = originalAdd;
+      WeakMap.prototype.get = originalGet;
+    }
+    assert.ok(trace);
+    assert.equal(observation, null);
+    assert.deepEqual(result, baseline);
+    assert.doesNotMatch(JSON.stringify(result), /UNKNOWN-INTERNAL-REASON|overridden/u);
   });
 });
 
@@ -3463,6 +3616,7 @@ test("withheld pipeline observations retain mixed actual paths without exposing 
   assertCandidateWithheld(result);
   assert.deepEqual(getLatticeWithheldPipelineObservation(trace), {
     retryPath: "mixed", candidateLineage: "mixed", initialDeterministic: "d14-only", successfulCorrectionStage: "none", initialRetentionDowngrade: "none",
+    initialRetainedPlan: "none", structuralRetryReason: "source-coverage", committedRetainOverride: "none",
   });
   assert.deepEqual(flags.filter(([, regenerated]) => regenerated), [[structuralBatchId, true]]);
   assert.ok(flags.filter(([, regenerated]) => !regenerated).length === batches.length);
@@ -3471,7 +3625,7 @@ test("withheld pipeline observations retain mixed actual paths without exposing 
   const { proxy, revoke } = Proxy.revocable({}, {}); revoke();
   for (const value of [null, undefined, forged, proxy]) assert.equal(getLatticeWithheldPipelineObservation(value), null);
   assert.equal(reads, 0);
-  assert.doesNotMatch(JSON.stringify(getLatticeWithheldPipelineObservation(trace)), /PRIVATE|b0|p0|a0|source/u);
+  assert.doesNotMatch(JSON.stringify(getLatticeWithheldPipelineObservation(trace)), /PRIVATE|b0|p0|a0/u);
 });
 
 test("withheld observations omit recovered failures and tolerate observer exceptions", async () => {
@@ -4342,7 +4496,8 @@ test("post-repair certification correction is protocol recovery even when its va
   assertCandidateWithheld(result);
   assert.equal(certificateCalls, 2);
   assert.deepEqual(getLatticeWithheldPipelineObservation(trace), { retryPath: "repair", candidateLineage: "repair",
-    initialDeterministic: "d14-only", successfulCorrectionStage: "document-certification", initialRetentionDowngrade: "none" });
+    initialDeterministic: "d14-only", successfulCorrectionStage: "document-certification", initialRetentionDowngrade: "none",
+    initialRetainedPlan: "none", structuralRetryReason: "none", committedRetainOverride: "not-applicable" });
   assert.equal(trace.certification, "performed-not-accepted");
 });
 
@@ -4359,7 +4514,8 @@ test("repeated successful corrections in one phase aggregate without retaining a
   assertCandidateWithheld(result);
   assert.equal(adapter.calls.generate, batches.length * 2);
   assert.deepEqual(getLatticeWithheldPipelineObservation(trace), { retryPath: "none", candidateLineage: "initial",
-    initialDeterministic: "d14-only", successfulCorrectionStage: "generation", initialRetentionDowngrade: "none" });
+    initialDeterministic: "d14-only", successfulCorrectionStage: "generation", initialRetentionDowngrade: "none",
+    initialRetainedPlan: "none", structuralRetryReason: "none", committedRetainOverride: "not-applicable" });
 });
 
 
@@ -4384,7 +4540,7 @@ test("initial retention downgrade observations follow consumed normalized analys
       const raw = rawAnalysis(request); Object.defineProperty(raw, "initialRetentionDowngrade", { value: "none" }); return raw;
     } }, null],
     ["failed first normalization excluded", { analyze: (request, count) => count === 1
-      ? rememberLatticeAnalysisRetentionDowngrade({ ...rawAnalysis(request), extra: true }, "present")
+      ? rememberLatticeAnalysisRetentionDowngrade({ ...rawAnalysis(request, { disposition: "retain-if-conformant" }), extra: true }, "present")
       : tagged(request) }, "none"],
   ];
   for (const [name, behavior, expected] of cases) await context.test(name, async () => {
@@ -4398,6 +4554,7 @@ test("initial retention downgrade observations follow consumed normalized analys
     const observation = getLatticeWithheldPipelineObservation(trace);
     assert.equal(observation?.initialRetentionDowngrade ?? null, expected);
     if (expected === null) assert.equal(observation, null, "unknown provenance suppresses the complete group");
+    else assert.equal(observation.initialRetainedPlan, name === "complete retention remains none" ? "present" : "none");
     assert.doesNotMatch(JSON.stringify(result), /initialRetentionDowngrade|PRIVATE/u);
   });
 
@@ -4425,6 +4582,22 @@ test("initial retention downgrade observations follow consumed normalized analys
       onCandidateWithheldDiagnostic(value) { trace = value; } });
     assertCandidateWithheld(result); assert.equal(adapter.calls.analyze, 3); assert.equal(adapter.calls.generate, 2);
     assert.equal(getLatticeWithheldPipelineObservation(trace).initialRetentionDowngrade, markChild ? "present" : "none");
+    assert.equal(getLatticeWithheldPipelineObservation(trace).initialRetainedPlan, "none");
+  });
+
+  await context.test("a retained surviving split child establishes initial plan presence", async () => {
+    let trace;
+    const adapter = scriptedAdapter({ generate: identity, verify: unsupported, analyze(request, count) {
+      if (count === 1) { const error = new Error("synthetic limit"); error.code = "provider_output_limit"; throw error; }
+      return rawAnalysis(request, { disposition: count === 2 ? "retain-if-conformant" : "rewrite" });
+    } });
+    const result = await runTextToLattice(LATTICE_PRODUCTION_CANARY_TEXT, { adapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assertCandidateWithheld(result);
+    assert.equal(adapter.calls.analyze, 3);
+    assert.equal(adapter.calls.generate, 2);
+    assert.equal(getLatticeWithheldPipelineObservation(trace).initialRetainedPlan, "present");
+    assert.equal(getLatticeWithheldPipelineObservation(trace).initialRetentionDowngrade, "none");
   });
 
   await context.test("any unknown consumed batch suppresses a known present batch", async () => {
@@ -4458,4 +4631,5 @@ test("clarification replacement excludes the superseded initial retention observ
     onCandidateWithheldDiagnostic(value) { trace = value; } });
   assertCandidateWithheld(result); assert.equal(adapter.calls.analyze, 2); assert.equal(adapter.calls.generate, 1);
   assert.equal(getLatticeWithheldPipelineObservation(trace).initialRetentionDowngrade, "none");
+  assert.equal(getLatticeWithheldPipelineObservation(trace).initialRetainedPlan, "none");
 });

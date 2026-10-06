@@ -65,7 +65,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v18";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v19";
 export const LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS = Object.freeze({
   status: "X-Lattice-Qualification-Admission-Status",
   claim: "X-Lattice-Qualification-Admission-Claim",
@@ -149,6 +149,9 @@ export const LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS = Object
   initialDeterministic: "X-Lattice-Qualification-Pipeline-Initial-Deterministic",
   successfulCorrectionStage: "X-Lattice-Qualification-Pipeline-Successful-Correction-Stage",
   initialRetentionDowngrade: "X-Lattice-Qualification-Pipeline-Initial-Retention-Downgrade",
+  initialRetainedPlan: "X-Lattice-Qualification-Pipeline-Initial-Retained-Plan",
+  structuralRetryReason: "X-Lattice-Qualification-Pipeline-Structural-Retry-Reason",
+  committedRetainOverride: "X-Lattice-Qualification-Pipeline-Committed-Retain-Override",
 });
 
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset=utf-8)?$/iu;

@@ -1447,7 +1447,10 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
         + `retry_path=${pipelineDiagnostic.retryPath}; candidate_lineage=${pipelineDiagnostic.candidateLineage}; `
         + `initial_deterministic=${pipelineDiagnostic.initialDeterministic}; `
         + `successful_correction_stage=${pipelineDiagnostic.successfulCorrectionStage}; `
-        + `initial_retention_downgrade=${pipelineDiagnostic.initialRetentionDowngrade})`);
+        + `initial_retention_downgrade=${pipelineDiagnostic.initialRetentionDowngrade}; `
+        + `initial_retained_plan=${pipelineDiagnostic.initialRetainedPlan}; `
+        + `structural_retry_reason=${pipelineDiagnostic.structuralRetryReason}; `
+        + `committed_retain_override=${pipelineDiagnostic.committedRetainOverride})`);
     }
     fail(`${label} did not reach a non-error terminal transformation result (`
       + `class=${unableClass}; `
