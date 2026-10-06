@@ -972,15 +972,15 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   }
 
   const expectedGenerator = {
-    name: "Qwen3-Next-80B-A3B-Instruct server-side generator",
+    name: "Qwen3-235B-A22B-Instruct-2507 server-side generator",
     modelId: LATTICE_REMOTE_MODELS.generator,
     revision: "provider-managed remote serving revision",
-    repository: "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct",
-    reviewedSourceRevision: "9c7f2fbe84465e40164a94cc16cd30b6999b0cc7",
-    revisionUrl: "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct/tree/9c7f2fbe84465e40164a94cc16cd30b6999b0cc7",
-    baseModelRepository: "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct",
+    repository: "https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507",
+    reviewedSourceRevision: "ac9c66cc9b46af7306746a9250f23d47083d689e",
+    revisionUrl: "https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507/tree/ac9c66cc9b46af7306746a9250f23d47083d689e",
+    baseModelRepository: "https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507",
     licenseName: "Apache License 2.0",
-    licenseUrl: "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct/blob/9c7f2fbe84465e40164a94cc16cd30b6999b0cc7/LICENSE",
+    licenseUrl: "https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507/blob/ac9c66cc9b46af7306746a9250f23d47083d689e/LICENSE",
     inference: {
       stages: {
         analysis: { maximumOutputTokens: 2_048 },

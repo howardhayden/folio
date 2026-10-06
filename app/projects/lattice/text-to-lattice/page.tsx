@@ -96,7 +96,7 @@ export default function TextToLatticePage() {
             <dl className="paper-meta">
               <div className="paper-meta-item"><dt>Browser destination</dt><dd>Same-origin <code>POST /api/lattice</code>; no query string, redirect, or provider origin; one browser-owned API-scoped quota cookie</dd></div>
               <div className="paper-meta-item"><dt>Exact request</dt><dd><code>{"{text, requested_mode, schema_version: 1}"}</code>; requested mode is auto, operative, or experiential</dd></div>
-              <div className="paper-meta-item"><dt>Server-side roles</dt><dd>Qwen3-Next-80B-A3B-Instruct generates through DeepInfra; Llama 3.1 8B Instruct verifies through Nscale; both are fixed through Hugging Face Inference Providers</dd></div>
+              <div className="paper-meta-item"><dt>Server-side roles</dt><dd>Qwen3-235B-A22B-Instruct-2507 generates through DeepInfra; Llama 3.1 8B Instruct verifies through Nscale; both are fixed through Hugging Face Inference Providers</dd></div>
               <div className="paper-meta-item"><dt>Retention</dt><dd>No hah.dev application storage, raw-content logging, caching, queueing, or analytics for the source, prompts, candidates, or result</dd></div>
               <div className="paper-meta-item"><dt>Failure</dt><dd>Bounded machine-readable error; no browser retry and no provider or model fallback</dd></div>
             </dl>

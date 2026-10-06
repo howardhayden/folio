@@ -50,7 +50,7 @@ test("the modal discloses the external boundary before the user can submit", () 
 });
 
 test("model identity, limitations, and acceptable-use boundaries remain visible", () => {
-  assert.match(resumeProjectsSource, /Model-assisted result: Qwen3-Next-80B-A3B-Instruct drafts and Llama 3\.1 8B Instruct checks through the configured external service/u);
+  assert.match(resumeProjectsSource, /Model-assisted result: Qwen3-235B-A22B-Instruct-2507 drafts and Llama 3\.1 8B Instruct checks through the configured external service/u);
   assert.match(resumeProjectsSource, /The service may apply its own processing terms/u);
   assert.match(resumeProjectsSource, /Review every result before relying on it/u);
   assert.match(resumeProjectsSource, />Built with Llama<\/a>/u);

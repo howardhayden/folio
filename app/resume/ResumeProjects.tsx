@@ -885,7 +885,7 @@ export default function ResumeProjects() {
               This text leaves hah.dev for processing by the configured external Hugging Face inference service only when you choose <strong>Process with external service</strong>. hah.dev does not retain your sample or result. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. <a href="/projects/lattice/text-to-lattice/#text-to-lattice-privacy">Privacy details</a>.
             </p>
             <p id="lattice-model-disclosure" className="lattice-local-note">
-              Model-assisted result: Qwen3-Next-80B-A3B-Instruct drafts and Llama 3.1 8B Instruct checks through the configured external service. The service may apply its own processing terms. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_1_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
+              Model-assisted result: Qwen3-235B-A22B-Instruct-2507 drafts and Llama 3.1 8B Instruct checks through the configured external service. The service may apply its own processing terms. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_1_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
             </p>
             <p className="lattice-usage-note" id="lattice-demonstration-profile">
               Demonstration profile: after explicit confirmation, the browser sends one

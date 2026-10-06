@@ -12,9 +12,9 @@ import { LATTICE_BATCH_LIMIT, LATTICE_PASSAGE_LIMIT } from "../resume/lattice/se
 import { LATTICE_USAGE_POLICY as HISTORICAL_LATTICE_USAGE_POLICY } from "../resume/lattice/usagePolicy.js";
 
 const HUGGING_FACE_CHAT_COMPLETIONS_URL = "https://router.huggingface.co/v1/chat/completions";
-const REMOTE_GENERATOR_ID = "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra";
+const REMOTE_GENERATOR_ID = "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra";
 const REMOTE_VERIFIER_ID = "meta-llama/Llama-3.1-8B-Instruct:nscale";
-const REMOTE_GENERATOR_REVIEWED_REVISION = "9c7f2fbe84465e40164a94cc16cd30b6999b0cc7";
+const REMOTE_GENERATOR_REVIEWED_REVISION = "ac9c66cc9b46af7306746a9250f23d47083d689e";
 const REMOTE_VERIFIER_REVIEWED_REVISION = "0e9e39f249a16976918f6564b8830bc894c89659";
 
 // Keep the former lease-policy shape temporarily available to older semantic
@@ -49,15 +49,15 @@ export const textToLatticeContract = Object.freeze({
   ]),
   implementation: Object.freeze({
     generator: Object.freeze({
-      name: "Qwen3-Next-80B-A3B-Instruct server-side generator",
+      name: "Qwen3-235B-A22B-Instruct-2507 server-side generator",
       modelId: REMOTE_GENERATOR_ID,
       revision: "provider-managed remote serving revision",
-      repository: "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct",
+      repository: "https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507",
       reviewedSourceRevision: REMOTE_GENERATOR_REVIEWED_REVISION,
-      revisionUrl: `https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct/tree/${REMOTE_GENERATOR_REVIEWED_REVISION}`,
-      baseModelRepository: "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct",
+      revisionUrl: `https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507/tree/${REMOTE_GENERATOR_REVIEWED_REVISION}`,
+      baseModelRepository: "https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507",
       licenseName: "Apache License 2.0",
-      licenseUrl: `https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct/blob/${REMOTE_GENERATOR_REVIEWED_REVISION}/LICENSE`,
+      licenseUrl: `https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507/blob/${REMOTE_GENERATOR_REVIEWED_REVISION}/LICENSE`,
       inference: Object.freeze({
         stages: Object.freeze({
           analysis: Object.freeze({
@@ -141,7 +141,7 @@ export const textToLatticeContract = Object.freeze({
       ]),
     }),
     huggingFace: Object.freeze({
-      summary: "After explicit confirmation, hah.dev sends server-created prompts containing the submitted text to the Hugging Face Inference Providers chat-completions router, configured to use DeepInfra for the fixed Qwen3-Next-80B-A3B-Instruct generator and Nscale for the fixed Llama 3.1 8B Instruct verifier.",
+      summary: "After explicit confirmation, hah.dev sends server-created prompts containing the submitted text to the Hugging Face Inference Providers chat-completions router, configured to use DeepInfra for the fixed Qwen3-235B-A22B-Instruct-2507 generator and Nscale for the fixed Llama 3.1 8B Instruct verifier.",
       protections: Object.freeze([
         `The server uses only ${HUGGING_FACE_CHAT_COMPLETIONS_URL} for all stages, including verification, its bounded correction or reverification, and certification. User text cannot select a URL, provider, model, header, or credential.`,
         `The generator is fixed to ${REMOTE_GENERATOR_ID}; verification and certification are fixed to ${REMOTE_VERIFIER_ID} with strict JSON-schema content and mandatory closed host decoding. There is no automatic provider or model fallback.`,
