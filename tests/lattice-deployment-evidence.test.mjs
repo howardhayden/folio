@@ -44,7 +44,7 @@ const liveProviderContract = Object.freeze({
   certification_request_model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
   certification_response_format: "json_schema",
   certification_schema_strict: true,
-  generator_model: "Qwen/Qwen3-4B-Instruct-2507:nscale",
+  generator_model: "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra",
   verifier_model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
   automatic_retry: false,
   alternate_provider_or_model_fallback: false,
@@ -673,6 +673,7 @@ test("deployment evidence binds format-specific versions and the complete curren
   });
   for (const [name, patch] of [
     ["old verification route", { verification_endpoint: "https://router.huggingface.co/deepinfra/v1/openai/chat/completions" }],
+    ["old generator selector", { generator_model: "Qwen/Qwen3-4B-Instruct-2507:nscale" }],
     ["old verifier selector", { verifier_model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra" }],
     ["old verification format", { verification_response_format: "json_object" }],
     ["non-strict verification", { verification_schema_strict: false }],

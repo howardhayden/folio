@@ -145,11 +145,11 @@ test("usage sidecar binds the exact live v3 bytes and computes the dated catalog
   const evidence = createLatticeQualificationUsageEvidence(liveBytes, observed);
   assert.equal(evidence.live_boundary.sha256, createHash("sha256").update(liveBytes).digest("hex"));
   assert.deepEqual(evidence.deployment, liveReceipt().deployment);
-  assert.equal(evidence.catalog.source_sha256, "66ddf6b1c936c65d0282372ffe181ecb3ef4145fe2954eeb3f9ae489a8862c00");
-  assert.equal(evidence.catalog.observed_on, "2026-10-04");
-  assert.equal(evidence.cost.generator_usd, "0.00001600");
+  assert.equal(evidence.catalog.source_sha256, "d7b7bb1ff1333ad9b0f0c8259180fe0d374e2ef6ac65647b99d4aebe0838ecb0");
+  assert.equal(evidence.catalog.observed_on, "2026-10-05");
+  assert.equal(evidence.cost.generator_usd, "0.00031000");
   assert.equal(evidence.cost.verifier_usd, "0.00012600");
-  assert.equal(evidence.cost.total_usd, "0.00014200");
+  assert.equal(evidence.cost.total_usd, "0.00043600");
   assert.equal(evidence.cost.billed_cost_observed, false);
   assert.equal(evidence.cost.complete_account_cost_observed, false);
   assert.equal(evidence.cost.discounts_credits_taxes_and_other_charges_included, false);
@@ -200,6 +200,7 @@ test("only a current-model successful live v3 receipt can carry a usage sidecar"
     ["failed canary", (v) => { v.transformation_canary.http_status = 502; }],
     ["uncertified", (v) => { v.transformation_canary.terminal_status = "unable-to-attempt"; }],
     ["no strict result", (v) => { v.transformation_canary.strict_result_valid = false; }],
+    ["old generator", (v) => { v.declared_provider_contract.generator_model = "Qwen/Qwen3-4B-Instruct-2507:nscale"; }],
     ["old provider", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.1-8B-Instruct:deepinfra"; }],
     ["missing timestamp", (v) => { delete v.verified_at; }],
     ["content retained", (v) => { v.transformation_canary.input_content_recorded = true; }],

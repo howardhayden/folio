@@ -2803,7 +2803,7 @@ test("the adapter uses strict JSON Schema analysis and certification", async () 
   ]);
   assert.equal(
     LATTICE_REMOTE_MODELS.generator,
-    "Qwen/Qwen3-4B-Instruct-2507:nscale",
+    "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra",
   );
   assert.equal(
     LATTICE_REMOTE_MODELS.verifier,
@@ -9110,7 +9110,7 @@ test("fixed provider transport is selected by actual stage and cannot be changed
   });
 });
 
-test("legacy content helper options cannot select a route or model outside fixed Nscale", async (context) => {
+test("legacy content helper options cannot select a route or model outside fixed role selectors", async (context) => {
   for (const [label, overrides, url, model, format] of [
     ["generic generator JSON", {}, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_object"],
     ["generic generator strict", { responseFormat: "json_schema" }, HUGGING_FACE_CHAT_COMPLETIONS_URL, LATTICE_REMOTE_MODELS.generator, "json_schema"],

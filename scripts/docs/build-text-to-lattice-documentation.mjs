@@ -148,7 +148,7 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     /VISITOR_COOKIE_SECRET/u,
     /__Secure-hah-lattice-api-visitor/u,
     /fixed Hugging Face router/iu,
-    /Nscale-qualified Qwen generator and Llama verifier\/certifier targets/iu,
+    /DeepInfra-qualified Qwen generator and Nscale-qualified Llama verifier\/certifier targets/iu,
     /Cache-Control: no-store/iu,
     /no application content storage or logging/iu,
     /no automatic retry/iu,
@@ -158,7 +158,7 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
   ];
   if (productionBoundaryGate.label !== "Remote API origin, secret, and privacy boundary"
     || gate02Required.some((pattern) => !pattern.test(gate02ActiveBoundary))) {
-    fail("release gate GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed Nscale targets, restrictive CSP, application nonretention, bounded no-store errors, and no retry or fallback.");
+    fail("release gate GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed DeepInfra generator and Nscale review targets, restrictive CSP, application nonretention, bounded no-store errors, and no retry or fallback.");
   }
 
   const gate03ActiveBoundary = [
@@ -439,7 +439,7 @@ function validateAtlas(data) {
   const activeBlueprint = JSON.stringify(data.serviceBlueprint);
   for (const required of [
     "/api/lattice",
-    "Qwen/Qwen3-4B-Instruct-2507:nscale",
+    "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra",
     "meta-llama/Llama-3.1-8B-Instruct:nscale",
     "HF_TOKEN",
     "VISITOR_COOKIE_SECRET",
@@ -636,7 +636,7 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || activeProvider?.verificationSchemaStrict !== true
     || activeProvider?.certificationResponseFormat !== "json_schema"
     || activeProvider?.certificationSchemaStrict !== true
-    || activeProvider?.generatorModel !== "Qwen/Qwen3-4B-Instruct-2507:nscale"
+    || activeProvider?.generatorModel !== "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra"
     || activeProvider?.verifierModel !== "meta-llama/Llama-3.1-8B-Instruct:nscale"
     || JSON.stringify(activeProvider?.stageCallTimeoutsMs) !== JSON.stringify({
       analysis: 120_000,
@@ -1721,7 +1721,7 @@ function indexHtml(data, releaseRegister) {
   const productionLifecycleSatisfied = releaseRegister.gates
     .some(({ id, status }) => id === "GATE-06" && status === "satisfied-in-production");
   const releaseSummary = releaseRegister.overallStatus === "held"
-    ? "The remote interactive client is held and documentation-only because GATE-02, GATE-03, and GATE-06 remain open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face router with fixed Nscale targets. Required production qualification remains incomplete; current bounded evidence is recorded in the release register. Historical WebLLM, Turnstile, and lease records remain inactive."
+    ? "The remote interactive client is held and documentation-only because GATE-02, GATE-03, and GATE-06 remain open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face router with fixed DeepInfra generator and Nscale review targets. Required production qualification remains incomplete; current bounded evidence is recorded in the release register. Historical WebLLM, Turnstile, and lease records remain inactive."
     : releaseRegister.overallStatus === "qualification-pending"
       ? "The interactive client is deployed only for immediate canonical-browser qualification and is not qualified. GATE-06 remains in post-deployment verification; failed, incomplete, or delayed structured browser evidence requires immediate rollback to the held documentation-only artifact."
     : productionLifecycleSatisfied
@@ -1752,7 +1752,7 @@ function validateGeneratedMarkdown(filename, markdown, data, expectedIds, releas
     if (!markdown.includes(id)) fail(`${filename} omits record ${id}.`);
   }
   if (filename === "TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md") {
-    for (const requirement of ["Backstage client/server", "POST /api/lattice", "HF_TOKEN", "Hugging Face and Nscale", "no automatic retry", "no alternate provider or model fallback"]) {
+    for (const requirement of ["Backstage client/server", "POST /api/lattice", "HF_TOKEN", "Hugging Face, DeepInfra and Nscale", "no automatic retry", "no alternate provider or model fallback"]) {
       if (!markdown.includes(requirement)) fail(`${filename} omits the active remote-service boundary: ${requirement}.`);
     }
     if (markdown.includes("Backstage browser-local")) fail(`${filename} renders the historical browser-local architecture as active.`);
@@ -1809,7 +1809,7 @@ function validateGeneratedHtml(filename, html, {
     if (!html.includes(id)) fail(`${filename} omits pre-rendered record ${id}.`);
   }
   if (filename === "text-to-lattice-service-blueprint.html") {
-    for (const requirement of ["Backstage client/server", "POST /api/lattice", "HF_TOKEN", "Hugging Face and Nscale", "no automatic retry", "no alternate provider or model fallback"]) {
+    for (const requirement of ["Backstage client/server", "POST /api/lattice", "HF_TOKEN", "Hugging Face, DeepInfra and Nscale", "no automatic retry", "no alternate provider or model fallback"]) {
       if (!html.includes(requirement)) fail(`${filename} omits the active remote-service boundary: ${requirement}.`);
     }
     if (html.includes("Backstage browser-local")) fail(`${filename} renders the historical browser-local architecture as active.`);
