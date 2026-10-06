@@ -17,6 +17,13 @@ export const LATTICE_WITHHELD_PIPELINE_VALUES = Object.freeze({
   initialDeterministic: Object.freeze(["clear", "d14-only", "other", "d14-and-other"]),
   successfulCorrectionStage: Object.freeze(["none", ...LATTICE_SUCCESSFUL_CORRECTION_STAGES, "mixed"]),
   initialRetentionDowngrade: Object.freeze(["none", "present"]),
+  initialRetainedPlan: Object.freeze(["none", "present"]),
+  structuralRetryReason: Object.freeze([
+    "not-reached", "none", "downgraded-retention", "source-coverage", "atom-coverage",
+    "register-fit", "unmodeled-evidence", "plan-fit", "layer-grounding", "layer-mismatch",
+    "retained-conformance", "mixed",
+  ]),
+  committedRetainOverride: Object.freeze(["not-applicable", "none", "present"]),
 });
 export const LATTICE_WITHHELD_PIPELINE_FIELDS = Object.freeze(Object.keys(LATTICE_WITHHELD_PIPELINE_VALUES));
 
@@ -53,6 +60,18 @@ export function isClosedWithheldPipelineObservation(value) {
     };
     if (Object.hasOwn(correctionPaths, value.successfulCorrectionStage)
       && !correctionPaths[value.successfulCorrectionStage].includes(value.retryPath)) return false;
+    if (value.structuralRetryReason === "not-reached" && value.retryPath !== "none") return false;
+    if (value.structuralRetryReason === "none" && !["none", "repair"].includes(value.retryPath)) return false;
+    if (!["not-reached", "none"].includes(value.structuralRetryReason)
+      && !["reanalysis-only", "regeneration", "mixed"].includes(value.retryPath)) return false;
+    if (value.structuralRetryReason === "retained-conformance" && value.initialRetainedPlan !== "present") return false;
+    if (["initial", "repair"].includes(value.candidateLineage)
+      && value.committedRetainOverride !== "not-applicable") return false;
+    if (value.candidateLineage === "regeneration" && value.committedRetainOverride === "not-applicable") return false;
+    if (value.retryPath === "repair" && value.committedRetainOverride !== "not-applicable") return false;
+    if (value.retryPath === "regeneration" && value.candidateLineage === "mixed"
+      && value.committedRetainOverride === "not-applicable") return false;
+    if (value.committedRetainOverride === "present" && value.initialRetainedPlan !== "present") return false;
     if (["none", "reanalysis-only"].includes(value.retryPath)) return value.candidateLineage === "initial";
     if (value.retryPath === "repair") return value.candidateLineage !== "regeneration";
     if (value.retryPath === "regeneration") return value.candidateLineage !== "repair";

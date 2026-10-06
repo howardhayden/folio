@@ -163,7 +163,12 @@ function withheldDiagnosticHeaders(overrides = {}) {
 }
 
 function pipelineDiagnosticHeaders(overrides = {}) {
-  const values = { retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear", successfulCorrectionStage: "none", initialRetentionDowngrade: "none", ...overrides };
+  const values = {
+    retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear",
+    successfulCorrectionStage: "none", initialRetentionDowngrade: "none",
+    initialRetainedPlan: "none", structuralRetryReason: "none", committedRetainOverride: "not-applicable",
+    ...overrides,
+  };
   return Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS)
     .map(([field, header]) => [header, values[field]]));
 }
@@ -2066,18 +2071,55 @@ test("withheld canary diagnostics fail closed on missing, hostile, or incompatib
   const withoutPipeline = Object.fromEntries(Object.entries(exact)
     .filter(([header]) => !header.toLowerCase().startsWith("x-lattice-qualification-pipeline-")));
   const cases = [
-    ["pipeline retry and lineage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "regeneration", candidateLineage: "initial", initialDeterministic: "d14-only" }) }, /retry_path=regeneration; candidate_lineage=initial; initial_deterministic=d14-only/u],
+    ["pipeline retry and lineage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "regeneration", candidateLineage: "initial", initialDeterministic: "d14-only", structuralRetryReason: "plan-fit" }) }, /retry_path=regeneration; candidate_lineage=initial; initial_deterministic=d14-only/u],
     ["successful correction stage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "repair", successfulCorrectionStage: "repair" }) }, /successful_correction_stage=repair/u],
     ["retention downgrade observed", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ initialRetentionDowngrade: "present" }) }, /initial_retention_downgrade=present/u],
-    ["historical v16 four-field group", body, 200, Object.fromEntries(Object.entries(exact).filter(([header]) => header !== LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.initialRetentionDowngrade)), /incomplete pipeline diagnostic/u],
-    ["historical three-field group", body, 200, Object.fromEntries(Object.entries(exact).filter(([header]) => ![LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.successfulCorrectionStage, LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.initialRetentionDowngrade].includes(header))), /incomplete pipeline diagnostic/u],
+    ["initial normalized retained plan observed", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ initialRetainedPlan: "present" }) }, /initial_retained_plan=present/u],
+    ["selection not reached", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ structuralRetryReason: "not-reached" }) }, /structural_retry_reason=not-reached/u],
+    ["committed override after normalized recheck", body, 200, { ...exact, ...pipelineDiagnosticHeaders({
+      retryPath: "regeneration", candidateLineage: "regeneration", initialRetainedPlan: "present",
+      structuralRetryReason: "retained-conformance", committedRetainOverride: "present",
+    }) }, /initial_retained_plan=present; structural_retry_reason=retained-conformance; committed_retain_override=present/u],
+    ...["downgraded-retention", "source-coverage", "atom-coverage", "register-fit", "unmodeled-evidence", "plan-fit", "layer-grounding", "layer-mismatch", "mixed"].map((reason) => (
+      [`first structural reason ${reason}`, body, 200, { ...exact, ...pipelineDiagnosticHeaders({
+        retryPath: "reanalysis-only", structuralRetryReason: reason,
+      }) }, new RegExp(`structural_retry_reason=${reason}; committed_retain_override=not-applicable`, "u")]
+    )),
+    ...[
+      ["v18 five-field", ["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage", "initialRetentionDowngrade"]],
+      ["v16 four-field", ["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage"]],
+      ["v15 three-field", ["retryPath", "candidateLineage", "initialDeterministic"]],
+    ].map(([revision, fields]) => [
+      `historical ${revision} group`, body, 200,
+      { ...withoutPipeline, ...Object.fromEntries(fields.map((field) => {
+        const header = LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS[field];
+        return [header, exact[header]];
+      })) }, /incomplete pipeline diagnostic/u,
+    ]),
+    ...["initialRetainedPlan", "structuralRetryReason", "committedRetainOverride"].map((field) => [
+      `missing v19 ${field}`, body, 200,
+      Object.fromEntries(Object.entries(exact).filter(([header]) => header !== LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS[field])),
+      /incomplete pipeline diagnostic/u,
+    ]),
+    ["not-reached cannot describe a recorded repair", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "repair", structuralRetryReason: "not-reached" }) }, /invalid pipeline diagnostic/u],
+    ["completed no-match cannot describe regeneration", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "regeneration" }) }, /invalid pipeline diagnostic/u],
+    ["structural match cannot describe no retry", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ structuralRetryReason: "plan-fit" }) }, /invalid pipeline diagnostic/u],
+    ["override cannot describe initial lineage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ initialRetainedPlan: "present", committedRetainOverride: "present" }) }, /invalid pipeline diagnostic/u],
+    ["surviving regeneration requires applicable override provenance", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "regeneration", candidateLineage: "regeneration", structuralRetryReason: "plan-fit" }) }, /invalid pipeline diagnostic/u],
+    ["override requires an initial retained plan", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "regeneration", candidateLineage: "regeneration", structuralRetryReason: "plan-fit", committedRetainOverride: "present" }) }, /invalid pipeline diagnostic/u],
+    ["retained-conformance reason requires initial retention", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "reanalysis-only", structuralRetryReason: "retained-conformance" }) }, /invalid pipeline diagnostic/u],
+    ["mixed initial and repair survivors have no applicable regeneration override", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "repair", candidateLineage: "mixed" }) }, /committed_retain_override=not-applicable/u],
+    ["mixed initial and regeneration survivors require complete override provenance", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "regeneration", candidateLineage: "mixed", structuralRetryReason: "plan-fit", committedRetainOverride: "none" }) }, /committed_retain_override=none/u],
+    ["mixed repair lineage cannot claim observed no override", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "repair", candidateLineage: "mixed", committedRetainOverride: "none" }) }, /invalid pipeline diagnostic/u],
+    ["mixed repair lineage cannot claim a committed override", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "repair", candidateLineage: "mixed", initialRetainedPlan: "present", committedRetainOverride: "present" }) }, /invalid pipeline diagnostic/u],
+    ["mixed regeneration lineage cannot claim override inapplicability", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "regeneration", candidateLineage: "mixed", structuralRetryReason: "plan-fit" }) }, /invalid pipeline diagnostic/u],
     ["impossible successful correction path", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ successfulCorrectionStage: "repair" }) }, /invalid pipeline diagnostic/u],
     ["missing pipeline group", body, 200, withoutPipeline, /without a pipeline diagnostic/u],
     ["partial pipeline group", body, 200, { ...withoutPipeline, [LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.retryPath]: "none" }, /incomplete pipeline diagnostic/u],
     ["pipeline without withheld", body, 200, pipelineDiagnosticHeaders(), /pipeline diagnostic without a withheld diagnostic/u],
     ["pipeline unknown field", body, 200, { ...exact, "X-Lattice-Qualification-Pipeline-Unknown": privateMarker }, /invalid pipeline diagnostic/u],
     ["pipeline bare family", body, 200, { ...exact, "X-Lattice-Qualification-Pipeline": privateMarker }, /invalid pipeline diagnostic/u],
-    ...["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage", "initialRetentionDowngrade"].map((field) => (
+    ...Object.keys(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS).map((field) => (
       [`hostile pipeline ${field}`, body, 200, { ...exact, ...pipelineDiagnosticHeaders({ [field]: privateMarker }) }, /invalid pipeline diagnostic/u]
     )),
     ["pipeline impossible lineage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "none", candidateLineage: "repair" }) }, /invalid pipeline diagnostic/u],
@@ -2661,6 +2703,7 @@ test("complete admission receipt accounts for the exact covered requests without
     (x) => { x.setup.claim = "allowed-once"; },
     (x) => { x.canary.provider = "not-started"; },
     (x) => { x.diagnostic_revision = "v17"; },
+    (x) => { x.diagnostic_revision = "v18"; },
     (x) => { x.completed_at += "\n"; },
     (x) => { x.unknown = true; },
   ]) {

@@ -72,6 +72,7 @@ import {
   isClosedWithheldTrace,
   isClosedWithheldPipelineObservation,
   LATTICE_SUCCESSFUL_CORRECTION_STAGES,
+  LATTICE_WITHHELD_PIPELINE_VALUES,
   getLatticeAnalysisRetentionDowngrade,
 } from "./lattice/qualificationDiagnostics.js";
 import {
@@ -167,13 +168,31 @@ export function getLatticeWithheldPipelineObservation(trace) {
 }
 
 function withheldPipelineObservation(state, finalCandidates) {
-  if (state === null || state.initialRetentions.size === 0
+  if (state === null || state.initialRetentions.size === 0 || state.initialRetainedPlans.size === 0
     || state.initialRetentions.has("unavailable")) return null;
   const correctedStages = [...state.successfulCorrectionStages];
   if (correctedStages.some((stage) => !LATTICE_SUCCESSFUL_CORRECTION_STAGES.includes(stage))) return null;
   const paths = new Set(state.retryPaths.values());
   const lineages = new Set(finalCandidates.map(({ candidate }) => state.candidateLineages.get(candidate)));
+  const structuralReasons = [...state.structuralReasons];
+  if (typeof state.structuralSelectionReached !== "boolean"
+    || structuralReasons.some((reason) => !LATTICE_WITHHELD_PIPELINE_VALUES.structuralRetryReason.includes(reason)
+      || ["not-reached", "none", "mixed"].includes(reason))
+    || !state.structuralSelectionReached && structuralReasons.length > 0
+    || [...state.initialRetainedPlans].some((value) => !["none", "present"].includes(value))) return null;
+  const regenerated = finalCandidates.filter(({ candidate }) => state.candidateLineages.get(candidate) === "regeneration");
+  const overrides = regenerated.map(({ candidate, analysis, batch }) => {
+    const origin = state.regenerationOverrides.get(candidate);
+    return origin?.analysis === analysis && origin.batch === batch ? origin.overridden : null;
+  });
+  if (overrides.some((value) => typeof value !== "boolean")) return null;
   const observation = Object.freeze({
+    initialRetainedPlan: state.initialRetainedPlans.has("present") ? "present" : "none",
+    structuralRetryReason: !state.structuralSelectionReached ? "not-reached"
+      : structuralReasons.length === 0 ? "none"
+        : structuralReasons.length === 1 ? structuralReasons[0] : "mixed",
+    committedRetainOverride: overrides.length === 0 ? "not-applicable"
+      : overrides.some(Boolean) ? "present" : "none",
     initialRetentionDowngrade: state.initialRetentions.has("present") ? "present" : "none",
     successfulCorrectionStage: correctedStages.length === 0 ? "none"
       : correctedStages.length === 1 ? correctedStages[0] : "mixed",
@@ -3050,7 +3069,9 @@ function closedReanalysisFeedback(verification) {
     passages: Object.freeze(verification.passages.map((passage) => Object.freeze({
       passageId: passage.passageId,
       missingAtomIds: Object.freeze([...passage.missingAtomIds]),
-      unsupportedClaims: Object.freeze([]),
+      // Retain only whether unsupported meaning was reported, never its prose.
+      unsupportedClaims: Object.freeze(passage.unsupportedClaims.length > 0
+        ? ["unsupported-meaning"] : []),
       unmodeledSpanIds: Object.freeze([...passage.unmodeledSpanIds]),
       conformanceEvidenceSpanIds: Object.freeze([...passage.conformanceEvidenceSpanIds]),
       requiresPositiveConformance: passage.requiresPositiveConformance === true,
@@ -3323,7 +3344,9 @@ export async function runTextToLattice(value, options = {}) {
   }
   const pipelineObservation = onCandidateWithheldDiagnostic === undefined ? null : {
     retryPaths: new Map(), candidateLineages: new WeakMap(), initialD14: false, initialOther: false,
-    successfulCorrectionStages: new Set(), initialRetentions: new Set(),
+    successfulCorrectionStages: new Set(), initialRetentions: new Set(), initialRetainedPlans: new Set(),
+    structuralSelectionReached: false, structuralReasons: new Set(),
+    reanalysisOverrides: new WeakMap(), regenerationOverrides: new WeakMap(),
   };
   const terminalResult = (state) => resultFromState({ ...state, onCandidateWithheldDiagnostic, pipelineObservation });
   const clarificationAnswers = clarificationAnswersPayload(options.clarificationAnswers);
@@ -3611,6 +3634,9 @@ export async function runTextToLattice(value, options = {}) {
     pipelineObservation?.initialRetentions.add(
       NORMALIZED_ANALYSIS_RETENTION_DOWNGRADES.get(request.analysis) ?? "unavailable",
     );
+    pipelineObservation?.initialRetainedPlans.add(request.analysis.passages.some(({ disposition }) => (
+      disposition === "retain-if-conformant"
+    )) ? "present" : "none");
     INITIAL_CANDIDATE_ANALYSES.set(candidate, Object.freeze({ analysis: request.analysis, batch: request.batch }));
     candidates.push(Object.freeze({ ...request, candidate, deterministicFindings }));
     progress(onProgress, "generating", index + 1, analyses.length, request.batch.id);
@@ -3728,19 +3754,26 @@ export async function runTextToLattice(value, options = {}) {
     });
   }
 
+  // Observe only the first true predicate actually reached by this existing
+  // short-circuit selection. The reason never becomes a routing input.
+  const observedStructuralMatch = (matches, reason) => {
+    if (matches) pipelineObservation?.structuralReasons.add(reason);
+    return matches;
+  };
+  if (pipelineObservation !== null) pipelineObservation.structuralSelectionReached = true;
   const structurallyFailed = failures.filter((entry) => entry.verification.available !== false && entry.verification.gates.languageSupported && (
-    hasOnlyBoundDowngradedRetentionFindings(entry)
-    || !entry.verification.gates.sourceCoverage
-    || !entry.verification.gates.atomCoverage
-    || !entry.verification.gates.registerFit
+    observedStructuralMatch(hasOnlyBoundDowngradedRetentionFindings(entry), "downgraded-retention")
+    || observedStructuralMatch(!entry.verification.gates.sourceCoverage, "source-coverage")
+    || observedStructuralMatch(!entry.verification.gates.atomCoverage, "atom-coverage")
+    || observedStructuralMatch(!entry.verification.gates.registerFit, "register-fit")
     || entry.verification.passages.some((passage) => (
-      passage.unmodeledEvidence.length > 0
-      || !passage.planFit
-      || !passage.layerEvidenceGrounded
-      || passage.independentLayer !== entry.analysis.passages.find(({ passageId }) => (
+      observedStructuralMatch(passage.unmodeledEvidence.length > 0, "unmodeled-evidence")
+      || observedStructuralMatch(!passage.planFit, "plan-fit")
+      || observedStructuralMatch(!passage.layerEvidenceGrounded, "layer-grounding")
+      || observedStructuralMatch(passage.independentLayer !== entry.analysis.passages.find(({ passageId }) => (
         passageId === passage.passageId
-      ))?.layer
-      || passage.requiresPositiveConformance && !passage.conformanceConfirmed
+      ))?.layer, "layer-mismatch")
+      || observedStructuralMatch(passage.requiresPositiveConformance && !passage.conformanceConfirmed, "retained-conformance")
     ))
   ));
   const structuralIds = new Set(structurallyFailed.map((entry) => entry.batch.id));
@@ -3805,23 +3838,29 @@ export async function runTextToLattice(value, options = {}) {
           ))?.layer
         ))
         .map((passage) => passage.passageId));
+      let retainOverridden = false;
+      const retainOverride = (passage) => {
+        retainOverridden = true;
+        return Object.freeze({
+          ...passage,
+          disposition: "rewrite",
+          conformanceCriteria: Object.freeze([]),
+          conformanceEvidenceSpanIds: Object.freeze([]),
+          conformanceEvidence: Object.freeze([]),
+          conformanceAssertions: Object.freeze([]),
+        });
+      };
       const analysis = rejectedRetains.size === 0
         ? normalizedAnalysis
         : Object.freeze({
           ...normalizedAnalysis,
           passages: Object.freeze(normalizedAnalysis.passages.map((passage) => (
             rejectedRetains.has(passage.passageId) && passage.disposition === "retain-if-conformant"
-              ? Object.freeze({
-                ...passage,
-                disposition: "rewrite",
-                conformanceCriteria: Object.freeze([]),
-                conformanceEvidenceSpanIds: Object.freeze([]),
-                conformanceEvidence: Object.freeze([]),
-                conformanceAssertions: Object.freeze([]),
-              })
+              ? retainOverride(passage)
               : passage
           ))),
         });
+      pipelineObservation?.reanalysisOverrides.set(analysis, retainOverridden);
       reanalyzedByBatch.set(entry.batch.id, Object.freeze({ ...request, analysis }));
     } catch (error) {
       throwIfAborted(signal);
@@ -3882,6 +3921,14 @@ export async function runTextToLattice(value, options = {}) {
       });
       const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate);
       pipelineObservation?.candidateLineages.set(candidate, stage);
+      if (stage === "regeneration" && pipelineObservation !== null) {
+        const overridden = pipelineObservation.reanalysisOverrides.get(replacementAnalysis);
+        if (typeof overridden === "boolean") {
+          pipelineObservation.regenerationOverrides.set(candidate, Object.freeze({
+            analysis: replacementAnalysis, batch: original.batch, overridden,
+          }));
+        }
+      }
       retriedCandidates.push(Object.freeze({ ...retryRequest, candidate, deterministicFindings }));
     } catch (error) {
       throwIfAborted(signal);
