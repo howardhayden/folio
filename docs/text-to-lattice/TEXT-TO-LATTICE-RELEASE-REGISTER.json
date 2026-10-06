@@ -17,7 +17,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "763f3c195ae3c0ba6144433b30e7cecb23de62dadcbfc0f2c5f9800c5fb3d338",
+    "qualificationDossierSha256": "e6c96abc3a9eafb9f72dcaddb37721ed6e0473cd7597497af2ca94820f21f907",
     "browserEvidence": {
       "status": "not-collected",
       "path": null,
