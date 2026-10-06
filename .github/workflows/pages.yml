@@ -540,6 +540,8 @@ jobs:
             > "$RUNNER_TEMP/text-to-lattice-policy-deployment.raw.json"
       - name: Verify deployed admission environment before live probes
         env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
           QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
           RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
         run: |
@@ -551,7 +553,8 @@ jobs:
             --inspect-api-environment \
             --api-deployment "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json" \
             --api-version "$RUNNER_TEMP/text-to-lattice-api-version.raw.json" \
-            --output "$RUNNER_TEMP/text-to-lattice-api-environment-before.json" \
+            --qualified-source-set-sha256 "${{ needs.build.outputs.qualified_source_set_sha256 }}" \
+            --output "$RUNNER_TEMP/text-to-lattice-deployment-evidence/api-environment-before.json" \
             "${EXPIRY_ARGUMENTS[@]}"
       - name: Verify reversible preactivation route ownership
         if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
@@ -574,10 +577,28 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
-        run: >-
-          ./workers/node_modules/.bin/wrangler deployments status --json
-          --config workers/text-to-lattice-api/wrangler.jsonc
-          > "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json"
+          QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
+          RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
+        run: |
+          ./workers/node_modules/.bin/wrangler deployments status --json \
+            --config workers/text-to-lattice-api/wrangler.jsonc \
+            > "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json"
+          API_VERSION_ID="$(node scripts/read-text-to-lattice-active-version.mjs \
+            "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json")"
+          ./workers/node_modules/.bin/wrangler versions view "$API_VERSION_ID" --json \
+            --config workers/text-to-lattice-api/wrangler.jsonc \
+            > "$RUNNER_TEMP/text-to-lattice-api-version-after.raw.json"
+          EXPIRY_ARGUMENTS=()
+          if [[ "$RELEASE_PHASE" != "qualified" ]]; then
+            EXPIRY_ARGUMENTS=(--qualification-expires-at "$QUALIFICATION_EXPIRES_AT")
+          fi
+          node scripts/build-text-to-lattice-deployment-evidence.mjs \
+            --inspect-api-environment \
+            --api-deployment "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json" \
+            --api-version "$RUNNER_TEMP/text-to-lattice-api-version-after.raw.json" \
+            --qualified-source-set-sha256 "${{ needs.build.outputs.qualified_source_set_sha256 }}" \
+            --output "$RUNNER_TEMP/text-to-lattice-deployment-evidence/api-environment-after.json" \
+            "${EXPIRY_ARGUMENTS[@]}"
       - name: Require current main before legacy surface retirement
         if: ${{ needs.publication-boundary.outputs.release_phase == 'qualified' }}
         env:
@@ -625,7 +646,8 @@ jobs:
           node scripts/build-text-to-lattice-deployment-evidence.mjs \
             --api-deployment "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json" \
             --api-deployment-after "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json" \
-            --api-environment-before "$RUNNER_TEMP/text-to-lattice-api-environment-before.json" \
+            --api-environment-before "$RUNNER_TEMP/text-to-lattice-deployment-evidence/api-environment-before.json" \
+            --api-environment-after "$RUNNER_TEMP/text-to-lattice-deployment-evidence/api-environment-after.json" \
             --api-version "$RUNNER_TEMP/text-to-lattice-api-version.raw.json" \
             --policy-deployment "$RUNNER_TEMP/text-to-lattice-policy-deployment.raw.json" \
             --secret-evidence "$RUNNER_TEMP/text-to-lattice-deployment-evidence/secret-bindings.json" \

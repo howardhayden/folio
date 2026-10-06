@@ -8,6 +8,7 @@ import {
   LATTICE_ENVIRONMENT_DIAGNOSTIC_VERSION,
   LATTICE_ENVIRONMENT_DIAGNOSTIC_LIMITS,
 } from "../scripts/diagnose-text-to-lattice-api-environment.mjs";
+import { createLatticeCloudflareMetadataReader } from "../scripts/text-to-lattice-cloudflare-metadata.mjs";
 import { sanitizeTextToLatticeAdmissionEnvironment } from "../scripts/build-text-to-lattice-deployment-evidence.mjs";
 
 const namespaceId = "0123456789abcdef0123456789abcdef";
@@ -263,4 +264,28 @@ test("manual diagnostic workflow is held, current-main guarded and incapable of 
   assert.match(source, /name: text-to-lattice-environment-diagnostic-\$\{\{ github.run_id \}\}-\$\{\{ github.run_attempt \}\}/u);
   assert.match(source, /path: \$\{\{ runner.temp \}\}\/text-to-lattice-environment-diagnostic\/diagnostic.json/u);
   assert.doesNotMatch(source, /wrangler|npm |curl |POST|deploy-text-to-lattice|verify-text-to-lattice-api-production|pages: write|id-token: write|push:|pull_request:/u);
+});
+
+
+test("shared metadata reader bounds actual dispatches even when no successful receipt exists", async () => {
+  let calls = 0;
+  const reader = createLatticeCloudflareMetadataReader({
+    accountId: "a".repeat(32), token: "synthetic-token", monotonicNow: () => 0,
+    fetchImpl: async () => { calls += 1; throw new Error("PRIVATE-TRANSPORT-DETAIL"); },
+  });
+  for (let index = 0; index < 2; index += 1) {
+    await assert.rejects(reader.namespace("b".repeat(32)), /^Error: transport$/u);
+  }
+  await assert.rejects(reader.namespace("b".repeat(32)), /^Error: deadline$/u);
+  assert.equal(calls, 2);
+  assert.deepEqual(reader.receipts(), []);
+});
+
+
+test("shared transport extraction preserves diagnostic invalid-clock no-dispatch boundary", async () => {
+  const { report, calls } = await observe([json(version()), json(namespace())], { now: null });
+  assert.equal(report.failure, "configuration");
+  assert.equal(report.diagnosticStatus, "unavailable");
+  assert.equal(calls.length, 0);
+  assert.deepEqual(report.responses, []);
 });

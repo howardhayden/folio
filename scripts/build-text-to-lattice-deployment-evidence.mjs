@@ -3,6 +3,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { createLatticeCloudflareMetadataReader, isLatticeCloudflareNamespaceId } from "./text-to-lattice-cloudflare-metadata.mjs";
+
 import { verifyLatticeProductionAdmissionEvidence } from "./verify-text-to-lattice-api-production.mjs";
 
 import {
@@ -248,63 +250,106 @@ function validateAdmissionEnvironment(value) {
     || JSON.stringify(value.compatibilityFlags) !== JSON.stringify(["enable_request_signal"])
     || value.declaredObjectName !== LATTICE_TRANSFORMATION_CAPACITY_OBJECT_NAME
     || value.namespaceIdentityBasis !== "active-version-local-binding"
-    || value.storageBackendBasis !== "active-version-live-class-export") {
+    || !["active-version-live-class-export", "active-version-local-class-and-observed-namespace-sqlite"].includes(value.storageBackendBasis)
+    || (value.storageBackendBasis === "active-version-local-class-and-observed-namespace-sqlite"
+      && !isLatticeCloudflareNamespaceId(value.namespaceId))) {
     fail("The admission environment does not match the reviewed deployed runtime.");
   }
   return value;
 }
 
-export function sanitizeTextToLatticeAdmissionEnvironment(raw) {
+function admissionVersionFacts(raw) {
   const bindings = raw?.resources?.bindings;
   if (!Array.isArray(bindings)) fail("The active API version lacks admission binding metadata.");
-  const binding = bindings.find((entry) => (
-    entry?.name === LATTICE_TRANSFORMATION_CAPACITY_BINDING
-  ));
+  const matches = bindings.filter((entry) => entry?.name === LATTICE_TRANSFORMATION_CAPACITY_BINDING);
+  const binding = matches[0];
   const runtime = raw?.resources?.script_runtime;
-  const exported = runtime?.exports?.LatticeTransformationBudget;
-  if (!isRecord(binding) || binding.type !== "durable_object_namespace"
+  if (matches.length !== 1 || !isRecord(binding) || binding.type !== "durable_object_namespace"
     || binding.class_name !== "LatticeTransformationBudget"
     || (binding.script_name !== undefined && binding.script_name !== null)
     || ["preview", "dispatch_namespace", "environment"].some((key) => Object.hasOwn(binding, key))
-    || !isRecord(runtime) || !isRecord(exported)
-    || exported.type !== "durable-object" || exported.storage !== "sqlite"
-    || (Object.hasOwn(exported, "state") && exported.state !== "created")
-    || ["container", "transfer_from", "transferred_to", "renamed_to"].some((key) => Object.hasOwn(exported, key))) {
+    || !isRecord(runtime)) {
     fail("The active API version lacks the exact local SQLite admission environment.");
   }
-  // These are observed version metadata, not values inferred from wrangler.jsonc.
+  const hasExports = Object.hasOwn(runtime, "exports");
+  if (hasExports) {
+    const exported = isRecord(runtime.exports) ? runtime.exports.LatticeTransformationBudget : null;
+    if (!isRecord(exported) || exported.type !== "durable-object" || exported.storage !== "sqlite"
+      || (Object.hasOwn(exported, "state") && exported.state !== "created")
+      || ["container", "transfer_from", "transferred_to", "renamed_to"].some((key) => Object.hasOwn(exported, key))) {
+      fail("The active API version lacks the exact local SQLite admission environment.");
+    }
+  } else {
+    const handlers = raw?.resources?.script?.named_handlers;
+    const named = Array.isArray(handlers)
+      ? handlers.filter((entry) => isRecord(entry) && entry.name === "LatticeTransformationBudget") : [];
+    if (!isLatticeCloudflareNamespaceId(binding.namespace_id) || named.length !== 1
+      || !Array.isArray(named[0].handlers) || named[0].handlers.some((value) => typeof value !== "string")) {
+      fail("The active API version lacks the exact local SQLite admission environment.");
+    }
+  }
+  // This projection states the expected proof, not proof that a namespace GET occurred.
+  // Current assembly separately requires both byte-bound observation records.
   return Object.freeze(validateAdmissionEnvironment({
     namespaceId: binding.namespace_id,
     className: binding.class_name,
-    storageBackend: exported.storage,
+    storageBackend: "sqlite",
     migrationTag: runtime.migration_tag,
     compatibilityDate: runtime.compatibility_date,
     compatibilityFlags: Array.isArray(runtime.compatibility_flags)
       ? Object.freeze([...runtime.compatibility_flags]) : null,
     declaredObjectName: LATTICE_TRANSFORMATION_CAPACITY_OBJECT_NAME,
     namespaceIdentityBasis: "active-version-local-binding",
-    storageBackendBasis: "active-version-live-class-export",
+    storageBackendBasis: hasExports ? "active-version-live-class-export"
+      : "active-version-local-class-and-observed-namespace-sqlite",
   }));
 }
 
+export function sanitizeTextToLatticeAdmissionEnvironment(raw, namespaceMetadata = null) {
+  const expected = admissionVersionFacts(raw);
+  if (expected.storageBackendBasis === "active-version-local-class-and-observed-namespace-sqlite"
+    && (!isRecord(namespaceMetadata) || namespaceMetadata.id !== expected.namespaceId
+      || namespaceMetadata.script !== API_WORKER || namespaceMetadata.class !== expected.className
+      || namespaceMetadata.use_sqlite !== true
+      || ["preview", "dispatch_namespace", "environment"].some((key) => Object.hasOwn(namespaceMetadata, key)))) {
+    fail("The active API version lacks the exact local SQLite admission environment.");
+  }
+  return expected;
+}
+
 export async function inspectTextToLatticeApiEnvironment({
-  apiDeploymentPath, apiVersionPath, qualificationExpiresAt = null,
-  environment = process.env, now = () => new Date(),
+  apiDeploymentPath, apiVersionPath, qualifiedSourceSetSha256, qualificationExpiresAt = null,
+  environment = process.env, now = () => new Date(), fetchImpl = globalThis.fetch,
+  monotonicNow = () => performance.now(),
 } = {}) {
+  const identity = workflowIdentity(environment);
+  const sourceHash = nonzeroSha256(qualifiedSourceSetSha256, "qualifiedSourceSetSha256");
   const [deploymentRaw, versionRaw] = await Promise.all([
     readJson(apiDeploymentPath, "API deployment status"),
     readJson(apiVersionPath, "API active version"),
   ]);
   const api = sanitizeTextToLatticeDeploymentStatus(deploymentRaw, API_WORKER);
   sanitizeTextToLatticeApiVersion(versionRaw, api.versionId, { qualificationExpiresAt });
-  const admissionEnvironment = sanitizeTextToLatticeAdmissionEnvironment(versionRaw);
+  const expected = admissionVersionFacts(versionRaw);
+  let namespaceMetadata = null;
+  let reader = null;
+  if (expected.storageBackendBasis === "active-version-local-class-and-observed-namespace-sqlite") {
+    reader = createLatticeCloudflareMetadataReader({
+      accountId: environment.CLOUDFLARE_ACCOUNT_ID, token: environment.CLOUDFLARE_API_TOKEN,
+      fetchImpl, monotonicNow,
+    });
+    namespaceMetadata = (await reader.namespace(expected.namespaceId)).result;
+  }
+  const admissionEnvironment = sanitizeTextToLatticeAdmissionEnvironment(versionRaw, namespaceMetadata);
   const instant = now();
   if (!(instant instanceof Date) || Number.isNaN(instant.valueOf())) fail("API environment validation time is invalid.");
+  reader?.finish();
   return Object.freeze({
     format: "TEXT_TO_LATTICE_API_ENVIRONMENT_OBSERVATION",
-    schemaVersion: 1,
+    schemaVersion: 2,
     validatedAt: instant.toISOString(),
-    workflow: workflowIdentity(environment),
+    workflow: identity,
+    qualifiedSourceSetSha256: sourceHash,
     api,
     admissionEnvironment,
   });
@@ -378,6 +423,26 @@ async function readSanitizedEvidence(pathname, expectedFormat, expectedSchemaVer
     sha256: createHash("sha256").update(bytes).digest("hex"),
   });
   return includeValue ? { reference, value } : reference;
+}
+
+async function readEnvironmentObservation(pathname) {
+  const bytes = await readFile(resolve(pathname));
+  const sidecar = await readFile(resolve(`${pathname}.sha256`), "utf8");
+  if (bytes.byteLength > MAXIMUM_EVIDENCE_BYTES
+    || sidecar !== `${createHash("sha256").update(bytes).digest("hex")}  ${basename(pathname)}\n`) {
+    fail("The API environment observation byte custody is invalid.");
+  }
+  let value;
+  try { value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
+  catch { fail("The API environment observation is not UTF-8 JSON."); }
+  exactObjectFields(value, ["format", "schemaVersion", "validatedAt", "workflow",
+    "qualifiedSourceSetSha256", "api", "admissionEnvironment"], "API environment observation");
+  if (value.format !== "TEXT_TO_LATTICE_API_ENVIRONMENT_OBSERVATION" || value.schemaVersion !== 2
+    || bytes.toString("utf8") !== `${JSON.stringify(value, null, 2)}\n`) {
+    fail("The API environment observation format or canonical bytes are invalid.");
+  }
+  inspectEvidenceValue(value);
+  return value;
 }
 
 async function readJson(pathname, label) {
@@ -601,6 +666,7 @@ export async function buildTextToLatticeDeploymentEvidence({
   apiVersionPath,
   apiDeploymentAfterPath,
   apiEnvironmentBeforePath,
+  apiEnvironmentAfterPath,
   policyDeploymentPath,
   secretEvidencePath,
   routeEvidencePath,
@@ -618,6 +684,7 @@ export async function buildTextToLatticeDeploymentEvidence({
     apiVersionPath,
     apiDeploymentAfterPath,
     apiEnvironmentBeforePath,
+    apiEnvironmentAfterPath,
     policyDeploymentPath,
     secretEvidencePath,
     routeEvidencePath,
@@ -625,11 +692,12 @@ export async function buildTextToLatticeDeploymentEvidence({
   })) {
     if (typeof pathname !== "string" || pathname.length === 0) fail(`${label} is required.`);
   }
-  const [apiRaw, apiVersionRaw, apiAfterRaw, environmentBefore, policyRaw, secretFile, routeFile, live] = await Promise.all([
+  const [apiRaw, apiVersionRaw, apiAfterRaw, environmentBefore, environmentAfter, policyRaw, secretFile, routeFile, live] = await Promise.all([
     readJson(apiDeploymentPath, "API deployment status"),
     readJson(apiVersionPath, "API active version"),
     readJson(apiDeploymentAfterPath, "API post-live deployment status"),
-    readJson(apiEnvironmentBeforePath, "API pre-live environment observation"),
+    readEnvironmentObservation(apiEnvironmentBeforePath),
+    readEnvironmentObservation(apiEnvironmentAfterPath),
     readJson(policyDeploymentPath, "response-policy deployment status"),
     readSanitizedEvidence(secretEvidencePath, "TEXT_TO_LATTICE_SECRET_BINDING_EVIDENCE"),
     readSanitizedEvidence(routeEvidencePath, "TEXT_TO_LATTICE_ROUTE_INVENTORY_EVIDENCE"),
@@ -659,11 +727,9 @@ export async function buildTextToLatticeDeploymentEvidence({
     qualificationExpiresAt: normalizedQualificationExpiresAt,
   });
   const apiAfter = sanitizeTextToLatticeDeploymentStatus(apiAfterRaw, API_WORKER);
-  const currentEnvironment = sanitizeTextToLatticeAdmissionEnvironment(apiVersionRaw);
-  exactObjectFields(environmentBefore, [
-    "format", "schemaVersion", "validatedAt", "workflow", "api", "admissionEnvironment",
-  ], "API pre-live environment observation");
+  const currentEnvironment = admissionVersionFacts(apiVersionRaw);
   const validatedBeforeAt = exactTimestamp(environmentBefore.validatedAt, "API pre-live validation time");
+  const sampledAfterAt = exactTimestamp(environmentAfter.validatedAt, "API post-live validation time");
   const liveStartedAt = exactTimestamp(live.value.verified_at, "live verification start");
   verifyLatticeProductionAdmissionEvidence(live.value.request_admission, {
     requireComplete: normalizedQualificationExpiresAt !== null,
@@ -671,7 +737,13 @@ export async function buildTextToLatticeDeploymentEvidence({
   const liveCompletedAt = exactTimestamp(live.value.request_admission.completed_at, "live admission completion");
   const identity = workflowIdentity(environment);
   if (environmentBefore.format !== "TEXT_TO_LATTICE_API_ENVIRONMENT_OBSERVATION"
-    || environmentBefore.schemaVersion !== 1
+    || environmentBefore.schemaVersion !== 2
+    || environmentAfter.schemaVersion !== 2
+    || environmentBefore.qualifiedSourceSetSha256 !== normalizedQualifiedSourceSetSha256
+    || environmentAfter.qualifiedSourceSetSha256 !== normalizedQualifiedSourceSetSha256
+    || JSON.stringify(environmentAfter.workflow) !== JSON.stringify(identity)
+    || JSON.stringify(environmentAfter.api) !== JSON.stringify(apiDeployment)
+    || JSON.stringify(validateAdmissionEnvironment(environmentAfter.admissionEnvironment)) !== JSON.stringify(currentEnvironment)
     || live.value.deployment?.repository !== identity.repository
     || live.value.deployment?.commit !== identity.commit
     || live.value.deployment?.run_url !== identity.runUrl
@@ -681,7 +753,7 @@ export async function buildTextToLatticeDeploymentEvidence({
     || JSON.stringify(apiAfter) !== JSON.stringify(apiDeployment)
     || JSON.stringify(validateAdmissionEnvironment(environmentBefore.admissionEnvironment))
       !== JSON.stringify(currentEnvironment)
-    || validatedBeforeAt > liveStartedAt || liveStartedAt > liveCompletedAt || liveCompletedAt > deployedAt) {
+    || validatedBeforeAt > liveStartedAt || liveStartedAt > liveCompletedAt || liveCompletedAt > sampledAfterAt || sampledAfterAt > deployedAt) {
     fail("The API environment or matching snapshots do not bracket this live verification.");
   }
   const admissionEnvironment = Object.freeze({
@@ -741,6 +813,7 @@ function cliArguments(argumentsList) {
     ["--api-version", "apiVersionPath"],
     ["--api-deployment-after", "apiDeploymentAfterPath"],
     ["--api-environment-before", "apiEnvironmentBeforePath"],
+    ["--api-environment-after", "apiEnvironmentAfterPath"],
     ["--policy-deployment", "policyDeploymentPath"],
     ["--secret-evidence", "secretEvidencePath"],
     ["--route-evidence", "routeEvidencePath"],
@@ -763,7 +836,7 @@ function cliArguments(argumentsList) {
     index += 1;
   }
   const required = inspectMode
-    ? ["apiDeploymentPath", "apiVersionPath", "outputPath"]
+    ? ["apiDeploymentPath", "apiVersionPath", "qualifiedSourceSetSha256", "outputPath"]
     : [...optionMap.values()].filter((value) => value !== "qualificationExpiresAt");
   if (inspectMode && Object.keys(values).some((key) => ![...required, "qualificationExpiresAt", "inspectMode"].includes(key))) {
     fail("API environment inspection received an unsupported option.");
