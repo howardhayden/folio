@@ -5,7 +5,7 @@
   "algorithm": "SHA-256",
   "authority": {
     "canonicalSource": "docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json",
-    "canonicalSourceSha256": "f2338e0894fded3a571a3350d57f3dc6bc4b5907f150fe2c2c2f2fcee0234a2b",
+    "canonicalSourceSha256": "4b019a37cbd6b85148a2381dc6b3b49ce07f8ff6d3e538971fb1082224a85d51",
     "builder": "scripts/docs/build-text-to-lattice-documentation.mjs",
     "builderSha256": "f80778d72e8beb16dda911f3951451f1c0b8d67ced53ec8d7544b40f01e62990"
   },
@@ -61,12 +61,12 @@
     {
       "filename": "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
       "bytes": 318681,
-      "sha256": "9a9e9383ba0316d1e536a268ea5d8ec4d8b78241a19cc6a6304716f46c757a34"
+      "sha256": "d52b51fbfbd900961623289839b06443f3bf9c5ad862314e01e32721ec8be51e"
     },
     {
       "filename": "TEXT-TO-LATTICE-RELEASE-REGISTER.json",
       "bytes": 1718772,
-      "sha256": "6b57c887aa7afe7b595a3c6d88128b0da2e893f28e746934e6b500164ccb546f"
+      "sha256": "1f079c1418990f91296cf039a0ed51f86408e7e6dce4567fea128998b47f8a32"
     }
   ],
   "artifacts": [
@@ -92,8 +92,8 @@
     },
     {
       "path": "public/documentation/text-to-lattice/documentation-atlas.json",
-      "bytes": 1806125,
-      "sha256": "f2338e0894fded3a571a3350d57f3dc6bc4b5907f150fe2c2c2f2fcee0234a2b"
+      "bytes": 1806122,
+      "sha256": "4b019a37cbd6b85148a2381dc6b3b49ce07f8ff6d3e538971fb1082224a85d51"
     },
     {
       "path": "public/documentation/text-to-lattice/index.html",
@@ -128,12 +128,12 @@
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
       "bytes": 318681,
-      "sha256": "9a9e9383ba0316d1e536a268ea5d8ec4d8b78241a19cc6a6304716f46c757a34"
+      "sha256": "d52b51fbfbd900961623289839b06443f3bf9c5ad862314e01e32721ec8be51e"
     },
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
       "bytes": 1718772,
-      "sha256": "6b57c887aa7afe7b595a3c6d88128b0da2e893f28e746934e6b500164ccb546f"
+      "sha256": "1f079c1418990f91296cf039a0ed51f86408e7e6dce4567fea128998b47f8a32"
     },
     {
       "path": "public/documentation/text-to-lattice/text-to-lattice-security-model.html",

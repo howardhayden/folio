@@ -14,7 +14,7 @@
   "historicalBoundary": {
     "status": "inactive",
     "supersededArchitecture": "Browser-local WebLLM inference with Turnstile admission and a renewable usage lease.",
-    "currentArchitecture": "After explicit visitor authorization, one named same-origin /api/lattice capability performs a bodyless visitor-session setup and then exactly one content-bearing POST under the same browser Web Lock, followed by fixed server-side Hugging Face router calls served by Nscale for Qwen generation and DeepInfra for Llama verification.",
+    "currentArchitecture": "After explicit visitor authorization, one named same-origin /api/lattice capability performs a bodyless visitor-session setup and then exactly one content-bearing POST under the same browser Web Lock, followed by fixed server-side Hugging Face router calls served by Nscale for Qwen generation and Nscale for Llama verification.",
     "evidencePolicy": "Historical source identifiers, blueprint records, gate records, and qualification evidence remain available for audit, but they do not satisfy the current remote-service release gates."
   },
   "artifacts": [
