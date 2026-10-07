@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isClosedWithheldPipelineObservation,
+  withheldPipelineTraceIsConsistent,
+  LATTICE_WITHHELD_PIPELINE_VALUES,
   LATTICE_WITHHELD_PIPELINE_FIELDS,
   getLatticeAnalysisRetentionDowngrade,
   rememberLatticeAnalysisRetentionDowngrade,
@@ -27,6 +29,7 @@ const SOURCE = "A visitor places a blue notebook on the desk, reads the first pa
 // field cross-product. Runtime provenance is tested at the engine/Worker layer.
 function controlFlowFixture(value) {
   return {
+    finalD14Comparison: "not-applicable",
     initialRetainedPlan: "none",
     structuralRetryReason: ["none", "repair"].includes(value.retryPath) ? "none" : "plan-fit",
     committedRetainOverride: value.candidateLineage === "regeneration"
@@ -37,7 +40,7 @@ function controlFlowFixture(value) {
 
 test("withheld pipeline groups are complete finite metadata with consistent path and lineage", () => {
   const value = controlFlowFixture({ retryPath: "regeneration", candidateLineage: "initial", initialDeterministic: "d14-only", successfulCorrectionStage: "none", initialRetentionDowngrade: "none" });
-  assert.deepEqual(LATTICE_WITHHELD_PIPELINE_FIELDS, ["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage", "initialRetentionDowngrade", "initialRetainedPlan", "structuralRetryReason", "committedRetainOverride"]);
+  assert.deepEqual(LATTICE_WITHHELD_PIPELINE_FIELDS, ["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage", "initialRetentionDowngrade", "initialRetainedPlan", "structuralRetryReason", "committedRetainOverride", "finalD14Comparison"]);
   for (const item of [value,
     { retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear" },
     { retryPath: "reanalysis-only", candidateLineage: "initial", initialDeterministic: "other" },
@@ -179,7 +182,7 @@ test("v19 preserves three distinct control-flow meanings and refuses historical 
     { ...base, retryPath: "none", candidateLineage: "initial", committedRetainOverride: "not-applicable" },
   ]) assert.equal(isClosedWithheldPipelineObservation(Object.freeze(invalid)), false);
   const additions = ["initialRetainedPlan", "structuralRetryReason", "committedRetainOverride"];
-  const historicalV18 = Object.fromEntries(Object.entries(base).filter(([key]) => !additions.includes(key)));
+  const historicalV18 = Object.fromEntries(Object.entries(base).filter(([key]) => !additions.includes(key) && key !== "finalD14Comparison"));
   assert.equal(Object.keys(historicalV18).length, 5);
   assert.equal(isClosedWithheldPipelineObservation(Object.freeze(historicalV18)), false);
   for (const field of additions) {
@@ -1121,4 +1124,42 @@ test("non-analysis correction diagnostics preserve generator and repair feedback
       /lattice-stage-diagnostic-context|priorValidationCategory|stageAttempt/u,
     );
   }
+});
+
+
+test("v20 D14 comparison is closed and joins only implications proved by the final trace", () => {
+  const base = Object.freeze(controlFlowFixture({ retryPath: "none", candidateLineage: "initial",
+    initialDeterministic: "clear", successfulCorrectionStage: "none", initialRetentionDowngrade: "none" }));
+  const clear = Object.freeze({ revision: "coherent", deterministic: "clear", firstDeterministicRule: "none",
+    verification: "semantic-rejection", certification: "not-reached", failureCause: "none", stage: "none",
+    attempt: "none", validationCategory: "none", priorValidationCategory: "none", rejectionBoundary: "none",
+    rejectionCategory: "none", rejectionRule: "none", priorRejectionBoundary: "none", priorRejectionCategory: "none",
+    priorRejectionRule: "none" });
+  const d14 = Object.freeze({ ...clear, deterministic: "blocked", firstDeterministicRule: "D14" });
+  const otherFirst = Object.freeze({ ...d14, firstDeterministicRule: "D04" });
+  assert.deepEqual(LATTICE_WITHHELD_PIPELINE_VALUES.finalD14Comparison, ["exact-source", "material-form-equal",
+    "typography-form-equal", "presentation-stripped-equal", "mixed", "not-applicable"]);
+  for (const value of LATTICE_WITHHELD_PIPELINE_VALUES.finalD14Comparison) {
+    const observation = Object.freeze({ ...base, finalD14Comparison: value });
+    assert.equal(isClosedWithheldPipelineObservation(observation), true);
+    assert.equal(withheldPipelineTraceIsConsistent(observation, d14), value !== "not-applicable");
+    assert.equal(withheldPipelineTraceIsConsistent(observation, clear), value === "not-applicable");
+    assert.equal(withheldPipelineTraceIsConsistent(observation, otherFirst), true,
+      "a non-D14 first finding cannot establish the absence of a later D14");
+  }
+  const historicalV19 = { ...base }; delete historicalV19.finalD14Comparison;
+  assert.equal(Object.keys(historicalV19).length, 8);
+  assert.equal(isClosedWithheldPipelineObservation(Object.freeze(historicalV19)), false);
+  for (const invalid of [undefined, null, true, 0, {}, [], "", "unknown", "exact", "PRIVATE-CANDIDATE",
+    "Exact-source", " exact-source", "exact-source ", "exact-source, exact-source", "exact-source\n"]) {
+    assert.equal(isClosedWithheldPipelineObservation(Object.freeze({ ...base, finalD14Comparison: invalid })), false);
+  }
+  let reads = 0;
+  const accessor = { ...base };
+  Object.defineProperty(accessor, "finalD14Comparison", { enumerable: true, get() { reads++;throw Error("PRIVATE-CONTENT"); } });
+  assert.equal(withheldPipelineTraceIsConsistent(Object.freeze(accessor), d14), false);
+  const traceAccessor = { ...d14 };
+  Object.defineProperty(traceAccessor, "deterministic", { enumerable: true, get() { reads++;throw Error("PRIVATE-CONTENT"); } });
+  assert.equal(withheldPipelineTraceIsConsistent(base, Object.freeze(traceAccessor)), false);
+  assert.equal(reads, 0);
 });

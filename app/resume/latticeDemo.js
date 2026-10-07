@@ -65,12 +65,14 @@ import {
   deterministicBatchReview,
   deterministicDocumentReview,
   foldLatticePresentationLetters,
+  getLatticeBatchD14Comparison,
   materiallyDifferent,
 } from "./lattice/validators.js";
 import {
   isClosedPriorVerificationRejection,
   isClosedWithheldTrace,
   isClosedWithheldPipelineObservation,
+  withheldPipelineTraceIsConsistent,
   LATTICE_SUCCESSFUL_CORRECTION_STAGES,
   LATTICE_WITHHELD_PIPELINE_VALUES,
   getLatticeAnalysisRetentionDowngrade,
@@ -186,7 +188,14 @@ function withheldPipelineObservation(state, finalCandidates) {
     return origin?.analysis === analysis && origin.batch === batch ? origin.overridden : null;
   });
   if (overrides.some((value) => typeof value !== "boolean")) return null;
+  const finalComparisons = finalCandidates.map(({ batch, analysis, candidate, deterministicFindings }) => (
+    getLatticeBatchD14Comparison(batch, analysis, candidate, deterministicFindings)
+  ));
+  if (finalComparisons.some((value) => value === null)) return null;
+  const comparisons = new Set(finalComparisons.filter((value) => value !== "not-applicable"));
   const observation = Object.freeze({
+    finalD14Comparison: comparisons.size === 0 ? "not-applicable"
+      : comparisons.size === 1 ? [...comparisons][0] : "mixed",
     initialRetainedPlan: state.initialRetainedPlans.has("present") ? "present" : "none",
     structuralRetryReason: !state.structuralSelectionReached ? "not-reached"
       : structuralReasons.length === 0 ? "none"
@@ -3263,7 +3272,9 @@ function resultFromState({
       });
       if (isClosedWithheldTrace(trace)) {
         const observation = withheldPipelineObservation(pipelineObservation, finalCandidates);
-        if (observation !== null) WITHHELD_PIPELINE_OBSERVATIONS.set(trace, observation);
+        if (observation !== null && withheldPipelineTraceIsConsistent(observation, trace)) {
+          WITHHELD_PIPELINE_OBSERVATIONS.set(trace, observation);
+        }
         onCandidateWithheldDiagnostic(trace);
       }
     } catch {
@@ -3620,7 +3631,7 @@ export async function runTextToLattice(value, options = {}) {
         });
       }
     }
-    const deterministicFindings = deterministicBatchReview(request.batch, request.analysis, candidate);
+    const deterministicFindings = deterministicBatchReview(request.batch, request.analysis, candidate, pipelineObservation !== null);
     if (pipelineObservation !== null) {
       // Initial denotes the initial-candidate phase, including its bounded
       // generation recovery; this observation concerns post-verification retry.
@@ -3919,7 +3930,7 @@ export async function runTextToLattice(value, options = {}) {
         normalize: (raw) => normalizeCandidate(raw, original.batch, replacementAnalysis),
         signal,
       });
-      const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate);
+      const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate, pipelineObservation !== null);
       pipelineObservation?.candidateLineages.set(candidate, stage);
       if (stage === "regeneration" && pipelineObservation !== null) {
         const overridden = pipelineObservation.reanalysisOverrides.get(replacementAnalysis);

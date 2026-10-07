@@ -6997,7 +6997,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
 });
 
 test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
-  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v19");
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v20");
   const diagnosticHeaders = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
       LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -7204,7 +7204,7 @@ test("the terminal analysis diagnostic is all-or-none, bounded, and qualificatio
   }
 });
 
-test("the v19 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v20 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -8213,8 +8213,8 @@ test("strict Nscale reviews reject auxiliary fields and never interpret a compet
   });
 });
 
-test("Worker usage headers require an authentic completed adapter and the active v19 qualification marker", async () => {
-  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v19" };
+test("Worker usage headers require an authentic completed adapter and the active v20 qualification marker", async () => {
+  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v20" };
   const env = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
   const run = async ({ retain = false, headers = marked, environment = env, missing = false, forged = false } = {}) => {
     const bodies = [];
@@ -8284,7 +8284,7 @@ test("Worker usage headers require an authentic completed adapter and the active
 
 test("Worker usage headers remain absent on unable failed or expiry-during-work outcomes", async () => {
   const cutoff = Date.parse("2099-09-17T12:00:00.000Z");
-  const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v19" };
+  const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v20" };
   const env = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(cutoff).toISOString() };
   for (const outcome of ["unable", "failed", "expired"]) {
     let clock = cutoff - 1000;
@@ -8539,7 +8539,7 @@ test("S06 shape records reject content channels, accessors and impossible combin
   assert.equal(reads, 0);
 });
 
-test("S06 compatible review headers require v19 and an active window without exposing M01 headers", async () => {
+test("S06 compatible review headers require v20 and an active window without exposing M01 headers", async () => {
   const request = { ...minimalCertificationRequest() };
   Object.defineProperty(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
     value: Object.freeze({ attempt: "initial", priorValidationCategory: "none" }), enumerable: false,
@@ -9376,8 +9376,8 @@ test("strict verification preserves safe explicit content-envelope opt-ins and s
 
 test("pipeline headers bind actual withheld lineage and cannot be forged or outlive qualification", async () => {
   const active = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
-  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v19" };
-  const run = async ({ regeneration = false, repairCorrection = false, retentionDowngrade = false, retainedPlan = false, headers = marked, env = active, clone = false, duplicate = false, expiresDuring = false } = {}) => {
+  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v20" };
+  const run = async ({ regeneration = false, repairCorrection = false, retentionDowngrade = false, retainedPlan = false, finalCandidateText = null, rejectFinal = false, headers = marked, env = active, clone = false, duplicate = false, expiresDuring = false } = {}) => {
     const bodies = [];
     let verifies = 0;
     let drafts = 0;
@@ -9401,13 +9401,14 @@ test("pipeline headers bind actual withheld lineage and cannot be forged or outl
           drafts += 1;
           if (repairCorrection && drafts === 2) return successfulProviderResponse({});
           return successfulProviderResponse(canaryCandidateFromProviderBody(body,
-            LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1)));
+            drafts > 1 && finalCandidateText !== null ? finalCandidateText : LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1)));
         }
         assert.equal(isVerificationBody(body), true, "withheld copies cannot reach certification");
         verifies += 1;
         const wire = canaryVerificationWire(body, { retain: retainedPlan && verifies === 1 });
         if (retainedPlan && verifies === 1) { wire.d = 1; wire.p["0"].c.v = false; }
         if (regeneration && verifies === 1) { wire.d = 1; wire.g = "00010000000"; }
+        if (rejectFinal && verifies > 1) { wire.d = 1; wire.g = "00010000000"; }
         return successfulProviderResponse(wire);
       },
     });
@@ -9417,9 +9418,27 @@ test("pipeline headers bind actual withheld lineage and cannot be forged or outl
   const retained = await run({ retainedPlan: true });
   assert.equal(retained.json.result.status, "unable-to-attempt");
   assert.equal(retained.bodies.length, 6);
+  assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.finalD14Comparison), "exact-source");
   assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.initialRetainedPlan), "present");
   assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.structuralRetryReason), "retained-conformance");
   assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.committedRetainOverride), "present");
+  const source = LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1);
+  for (const [expected, finalCandidateText, rejectFinal] of [
+    ["material-form-equal", source.toLowerCase(), false],
+    ["typography-form-equal", source.replace("visitor", "v\u0332isitor"), false],
+    ["presentation-stripped-equal", source.replace("visitor", "vis.itor"), false],
+    ["not-applicable", "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.", true],
+  ]) {
+    const qualified = await run({ finalCandidateText, rejectFinal });
+    const ordinary = await run({ finalCandidateText, rejectFinal, headers: {} });
+    assert.equal(qualified.json.result.status, "unable-to-attempt");
+    assert.equal(qualified.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.finalD14Comparison), expected);
+    assert.equal(ordinary.response.headers.has(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.finalD14Comparison), false);
+    assert.deepEqual(qualified.bodies, ordinary.bodies, "observation must not alter provider messages or limits");
+    assert.deepEqual(qualified.json, ordinary.json, "observation must not enter the public result");
+    assert.equal(qualified.response.headers.get("Access-Control-Expose-Headers"), null);
+    assert.doesNotMatch(JSON.stringify(qualified.json), /finalD14Comparison|final_d14_comparison/u);
+  }
   const unmarkedRetained = await run({ retainedPlan: true, headers: {} });
   assert.deepEqual(unmarkedRetained.bodies, retained.bodies);
   assert.deepEqual(unmarkedRetained.json, retained.json);
@@ -9452,7 +9471,7 @@ test("pipeline headers bind actual withheld lineage and cannot be forged or outl
     const expected = { retryPath: regeneration ? "regeneration" : "repair",
       candidateLineage: regeneration ? "regeneration" : "repair", initialDeterministic: "d14-only", successfulCorrectionStage: "none", initialRetentionDowngrade: "none",
       initialRetainedPlan: "none", structuralRetryReason: regeneration ? "source-coverage" : "none",
-      committedRetainOverride: regeneration ? "none" : "not-applicable" };
+      committedRetainOverride: regeneration ? "none" : "not-applicable", finalD14Comparison: "exact-source" };
     for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS)) {
       assert.equal(qualified.response.headers.get(header), expected[field]);
     }
@@ -9476,6 +9495,7 @@ test("pipeline headers bind actual withheld lineage and cannot be forged or outl
       { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v15" } },
       { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v16" } },
       { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v18" } },
+      { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v19" } },
       { env: { HF_TOKEN: "test-only" } },
       { expiresDuring: true, env: { ...active, [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2026-10-05T12:00:10.000Z" } }]) {
       const other = await run({ regeneration, ...options });
@@ -9488,7 +9508,7 @@ test("pipeline headers bind actual withheld lineage and cannot be forged or outl
         assert.equal(other.response.headers.has(header), false);
       }
     }
-    assert.doesNotMatch(JSON.stringify(qualified.json), /retryPath|candidateLineage|initialDeterministic|successfulCorrectionStage|regenerationFeedback/u);
+    assert.doesNotMatch(JSON.stringify(qualified.json), /retryPath|candidateLineage|initialDeterministic|successfulCorrectionStage|regenerationFeedback|finalD14Comparison/u);
   }
 });
 
@@ -9640,7 +9660,7 @@ test("always-on downgraded-retention recovery preserves fixed stages and fresh a
         return successfulProviderResponse(wire);
       } });
       const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: marked
-        ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v19" } : {} }),
+        ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v20" } : {} }),
       { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" });
       assert.equal(response.status, 200);assert.equal(analyses, 2);assert.equal(drafts, 2);assert.equal(reviews, 2);
       return { json: await json(response), bodies };
