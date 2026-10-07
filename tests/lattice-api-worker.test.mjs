@@ -61,6 +61,7 @@ import {
   isClosedProviderEnvelopeShape,
   isClosedProviderStrictMessageShape,
   getLatticeProviderStrictMessageShape,
+  getLatticeProviderOutputLimitShape,
   getLatticeQualificationUsage,
   LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS,
   LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS,
@@ -92,6 +93,7 @@ import {
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
@@ -6997,7 +6999,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
 });
 
 test("the terminal analysis diagnostic is all-or-none, bounded, and qualification-only", async (contextTest) => {
-  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v20");
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v21");
   const diagnosticHeaders = {
     [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
       LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -7204,7 +7206,7 @@ test("the terminal analysis diagnostic is all-or-none, bounded, and qualificatio
   }
 });
 
-test("the v20 provider diagnostic is opt-in and confined to an active qualification window", async () => {
+test("the v21 provider diagnostic is opt-in and confined to an active qualification window", async () => {
   const privateBody = "PRIVATE-UPSTREAM-BODY-MUST-NOT-CROSS";
   const createFailureWorker = (overrides = {}) => createLatticeApiWorker({
     fetchImpl: async () => new Response(privateBody, {
@@ -8213,8 +8215,8 @@ test("strict Nscale reviews reject auxiliary fields and never interpret a compet
   });
 });
 
-test("Worker usage headers require an authentic completed adapter and the active v20 qualification marker", async () => {
-  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v20" };
+test("Worker usage headers require an authentic completed adapter and the active v21 qualification marker", async () => {
+  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v21" };
   const env = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
   const run = async ({ retain = false, headers = marked, environment = env, missing = false, forged = false } = {}) => {
     const bodies = [];
@@ -8284,7 +8286,7 @@ test("Worker usage headers require an authentic completed adapter and the active
 
 test("Worker usage headers remain absent on unable failed or expiry-during-work outcomes", async () => {
   const cutoff = Date.parse("2099-09-17T12:00:00.000Z");
-  const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v20" };
+  const headers = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v21" };
   const env = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: new Date(cutoff).toISOString() };
   for (const outcome of ["unable", "failed", "expired"]) {
     let clock = cutoff - 1000;
@@ -8539,7 +8541,7 @@ test("S06 shape records reject content channels, accessors and impossible combin
   assert.equal(reads, 0);
 });
 
-test("S06 compatible review headers require v20 and an active window without exposing M01 headers", async () => {
+test("S06 compatible review headers require v21 and an active window without exposing M01 headers", async () => {
   const request = { ...minimalCertificationRequest() };
   Object.defineProperty(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
     value: Object.freeze({ attempt: "initial", priorValidationCategory: "none" }), enumerable: false,
@@ -9376,7 +9378,7 @@ test("strict verification preserves safe explicit content-envelope opt-ins and s
 
 test("pipeline headers bind actual withheld lineage and cannot be forged or outlive qualification", async () => {
   const active = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
-  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v20" };
+  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v21" };
   const run = async ({ regeneration = false, repairCorrection = false, retentionDowngrade = false, retainedPlan = false, finalCandidateText = null, rejectFinal = false, headers = marked, env = active, clone = false, duplicate = false, expiresDuring = false } = {}) => {
     const bodies = [];
     let verifies = 0;
@@ -9660,7 +9662,7 @@ test("always-on downgraded-retention recovery preserves fixed stages and fresh a
         return successfulProviderResponse(wire);
       } });
       const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: marked
-        ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v20" } : {} }),
+        ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v21" } : {} }),
       { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" });
       assert.equal(response.status, 200);assert.equal(analyses, 2);assert.equal(drafts, 2);assert.equal(reviews, 2);
       return { json: await json(response), bodies };
@@ -9811,4 +9813,69 @@ test("qualification admission stays unavailable when the Worker abort race beats
   assert.equal(response.status, 504);assert.deepEqual(admissionHeaders(response), admissionUnavailable);
   assert.equal(providerCalls, 0);release();await Promise.resolve();await Promise.resolve();
   assert.deepEqual(admissionHeaders(response), admissionUnavailable);assert.equal(providerCalls, 0);
+});
+
+test("Worker output-limit shape uses the authentic verification failure and current qualification window", async () => {
+  const marked = { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v21" };
+  const active = { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" };
+  const expected = { syntax: "complete-object", rootShape: "verification-root-fields", leadingWhitespace: "1-63", trailingWhitespace: "64-1023" };
+  const content = "  " + JSON.stringify({ d: "PRIVATE-OUTPUT-LIMIT", g: null, p: {}, i: [] }) + " ".repeat(64);
+  const run = async ({ headers = marked, environment = active } = {}) => {
+    const bodies = []; let options;
+    const worker = createLatticeApiWorker({
+      createAdapter: (value) => { options = value; return createHuggingFaceLatticeAdapter(value); },
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body); bodies.push(body);
+        if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body, { retain: false }));
+        if (isCandidateBody(body)) return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+          "A guest sets a blue notebook on the desk, reviews the first page, then shuts it."));
+        assert.equal(isVerificationBody(body), true);
+        return providerChoiceResponse({ finish_reason: "length", message: { role: "assistant", content } });
+      },
+    });
+    const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers }), environment);
+    return { response, body: await json(response), bodies, options };
+  };
+  const observed = await run();
+  assert.equal(observed.response.status, 502);
+  assert.deepEqual(observed.body, { error: "malformed_upstream_response" });
+  assert.equal(observed.options.observeQualificationOutputLimitShape, true);
+  assert.equal(observed.bodies.length, 3);
+  assert.deepEqual(Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS)
+    .map(([field, header]) => [field, observed.response.headers.get(header)])), expected);
+  assert.doesNotMatch(JSON.stringify([...observed.response.headers]) + JSON.stringify(observed.body), /PRIVATE-OUTPUT-LIMIT/u);
+  for (const options of [{ headers: {} }, { headers: { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v20" } },
+    { environment: { HF_TOKEN: "test-only" } }]) {
+    const ordinary = await run(options);
+    assert.equal(ordinary.options.observeQualificationOutputLimitShape, false);
+    assert.deepEqual(ordinary.body, observed.body);
+    assert.deepEqual(ordinary.bodies, observed.bodies, "observation cannot alter provider request JSON");
+    for (const header of Object.values(LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS)) assert.equal(ordinary.response.headers.has(header), false);
+  }
+  const expired = await run({ environment: { ...active, [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2020-09-17T12:00:00.000Z" } });
+  assert.equal(expired.response.status, 503); assert.equal(expired.bodies.length, 0);
+  for (const header of Object.values(LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS)) assert.equal(expired.response.headers.has(header), false);
+});
+
+test("Worker never emits an output-limit shape copied onto an unauthenticated error", async () => {
+  const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationOutputLimitShape: true,
+    fetchImpl: async () => providerChoiceResponse({ finish_reason: "length", message: { role: "assistant", content: "{}" } }) });
+  const request = { ...minimalVerificationRequest() };
+  Object.defineProperty(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
+    value: Object.freeze({ attempt: "initial", priorValidationCategory: "none" }), enumerable: false,
+  }); Object.freeze(request);
+  let failure;
+  try { await adapter.verify(request); } catch (error) { failure = error; }
+  assert.notEqual(getLatticeProviderOutputLimitShape(failure), null);
+  const spoof = new LatticeProviderError("provider_output_limit", "PRIVATE-OUTPUT-LIMIT");
+  Object.defineProperties(spoof, Object.getOwnPropertyDescriptors(failure));
+  let reads = 0;
+  Object.defineProperty(spoof, "outputLimitShape", { get() { reads += 1; return getLatticeProviderOutputLimitShape(failure); } });
+  const worker = createLatticeApiWorker({ createAdapter: () => ({}), runTextToLatticeImpl: async () => { throw spoof; } });
+  const response = await worker.fetch(apiRequest(validPayload, { headers: {
+    [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v21",
+  } }), { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z" });
+  assert.equal(response.status, 502);
+  for (const header of Object.values(LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS)) assert.equal(response.headers.has(header), false);
+  assert.equal(reads, 0); assert.doesNotMatch(await response.text(), /PRIVATE-OUTPUT-LIMIT/u);
 });

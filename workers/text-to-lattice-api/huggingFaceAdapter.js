@@ -199,6 +199,67 @@ export function isClosedProviderStrictMessageShape(value) {
   return isClosedProviderMessageShape(value, LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS.length);
 }
 
+export const LATTICE_PROVIDER_OUTPUT_LIMIT_SHAPE_VALUES = Object.freeze({
+  syntax: Object.freeze(["complete-object", "complete-nonobject", "invalid-or-incomplete", "unavailable"]),
+  rootShape: Object.freeze(["verification-root-fields", "schema-root-fields", "other", "not-applicable"]),
+  leadingWhitespace: Object.freeze(["none", "1-63", "64-1023", "1024+", "unavailable"]),
+  trailingWhitespace: Object.freeze(["none", "1-63", "64-1023", "1024+", "unavailable"]),
+});
+
+export function isClosedProviderOutputLimitShape(value) {
+  try {
+    if (!record(value) || !Object.isFrozen(value)
+      || Object.getPrototypeOf(value) !== Object.prototype
+      || Reflect.ownKeys(value).length !== 4
+      || !Object.entries(LATTICE_PROVIDER_OUTPUT_LIMIT_SHAPE_VALUES).every(([field, values]) => {
+        const descriptor = Object.getOwnPropertyDescriptor(value, field);
+        return descriptor?.enumerable === true && Object.hasOwn(descriptor, "value")
+          && values.includes(descriptor.value);
+      })) return false;
+    if (value.syntax === "unavailable") return value.rootShape === "not-applicable"
+      && value.leadingWhitespace === "unavailable" && value.trailingWhitespace === "unavailable";
+    return value.leadingWhitespace !== "unavailable" && value.trailingWhitespace !== "unavailable"
+      && ((value.syntax === "complete-object") === (value.rootShape !== "not-applicable"));
+  } catch { return false; }
+}
+
+function qualificationOutputLimitShape(message) {
+  // Observe only an already rejected length finish. Parsing cannot validate or
+  // rescue the response; root labels describe own field sets, never validity.
+  // The existing content bound also limits this optional parse and allocation.
+  try {
+    const descriptor = record(message) ? Object.getOwnPropertyDescriptor(message, "content") : undefined;
+    const content = descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
+    if (typeof content !== "string" || content.length > LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT) {
+      return Object.freeze({ syntax: "unavailable", rootShape: "not-applicable",
+        leadingWhitespace: "unavailable", trailingWhitespace: "unavailable" });
+    }
+    const whitespace = (index) => {
+      const code = content.charCodeAt(index);
+      return code === 32 || code === 9 || code === 10 || code === 13;
+    };
+    let leading = 0, trailing = 0;
+    while (leading < content.length && whitespace(leading)) leading += 1;
+    while (trailing < content.length && whitespace(content.length - trailing - 1)) trailing += 1;
+    const bucket = (count) => count === 0 ? "none" : count < 64 ? "1-63" : count < 1024 ? "64-1023" : "1024+";
+    let syntax = "invalid-or-incomplete", rootShape = "not-applicable";
+    try {
+      const parsed = JSON.parse(content);
+      syntax = record(parsed) ? "complete-object" : "complete-nonobject";
+      if (syntax === "complete-object") {
+        const keys = Object.keys(parsed);
+        const exact = (expected) => keys.length === expected.length && expected.every((key) => Object.hasOwn(parsed, key));
+        rootShape = exact(["d", "g", "p", "i"]) ? "verification-root-fields"
+          : exact(["type", "properties", "required", "additionalProperties"]) ? "schema-root-fields" : "other";
+      }
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      // Incomplete or invalid JSON remains the original output-limit failure.
+    }
+    return Object.freeze({ syntax, rootShape, leadingWhitespace: bucket(leading), trailingWhitespace: bucket(trailing) });
+  } catch { return null; }
+}
+
 function qualificationMessageShape(message, fields, allowedKeys) {
   // Called only after the envelope has already been rejected.
   // Strict emptiness, no trimming, recursive inspection, names, values or hashes.
@@ -334,6 +395,12 @@ export function getLatticeProviderStrictMessageShape(error) {
   const diagnostic = PROVIDER_DIAGNOSTICS.get(error);
   return diagnostic?.subtype === "M01" && isClosedProviderStrictMessageShape(diagnostic.strictMessageShape)
     ? diagnostic.strictMessageShape : null;
+}
+
+export function getLatticeProviderOutputLimitShape(error) {
+  const diagnostic = PROVIDER_DIAGNOSTICS.get(error);
+  return diagnostic?.finishReason === "length" && isClosedProviderOutputLimitShape(diagnostic.outputLimitShape)
+    ? diagnostic.outputLimitShape : null;
 }
 const ANALYSIS_DECODER_FAILURE_CATEGORY_SET = new Set([
   "response-shape",
@@ -838,6 +905,8 @@ function withProviderDiagnostic(error, patch) {
     && isClosedProviderEnvelopeShape(patch.envelopeShape)) next.envelopeShape = patch.envelopeShape;
   if (error.code === "provider_malformed_response" && next.subtype === "M01"
     && isClosedProviderStrictMessageShape(patch.strictMessageShape)) next.strictMessageShape = patch.strictMessageShape;
+  if (error.code === "provider_output_limit" && next.finishReason === "length"
+    && isClosedProviderOutputLimitShape(patch.outputLimitShape)) next.outputLimitShape = patch.outputLimitShape;
   if (error.code !== "provider_malformed_response") next.subtype = "none";
   PROVIDER_DIAGNOSTICS.set(error, Object.freeze(next));
   return error;
@@ -2264,7 +2333,7 @@ function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedT
   return "message_shape";
 }
 
-function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls, requireMinimalVerificationContent, compatibleVerificationContent, observeQualificationEnvelopeShape, observeQualificationStrictMessageShape, observeUsage) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls, requireMinimalVerificationContent, compatibleVerificationContent, observeQualificationEnvelopeShape, observeQualificationStrictMessageShape, observeQualificationOutputLimitShape, observeUsage) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -2322,6 +2391,8 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
         responseSize,
         contentSize: providerContentSize,
         completionTokens,
+        outputLimitShape: observeQualificationOutputLimitShape && code === "provider_output_limit"
+          ? qualificationOutputLimitShape(choice.message) : null,
       },
     );
   }
@@ -2570,6 +2641,7 @@ export async function requestHuggingFaceJson({
   observeQualificationHttpHeaders = false,
   observeQualificationEnvelopeShape = false,
   observeQualificationStrictMessageShape = false,
+  observeQualificationOutputLimitShape = false,
   [QUALIFICATION_USAGE_OBSERVER]: observeUsage,
   presencePenalty,
   signal,
@@ -2621,6 +2693,7 @@ export async function requestHuggingFaceJson({
     || typeof observeQualificationHttpHeaders !== "boolean"
     || typeof observeQualificationEnvelopeShape !== "boolean"
     || typeof observeQualificationStrictMessageShape !== "boolean"
+    || typeof observeQualificationOutputLimitShape !== "boolean"
     || (requireMinimalVerificationContent
       && (role !== "verifier"
         || !(schemaName === VERIFICATION_TOOL_NAME
@@ -2795,6 +2868,8 @@ export async function requestHuggingFaceJson({
         compatibleVerificationContent,
         observeQualificationEnvelopeShape,
         observeQualificationStrictMessageShape,
+        observeQualificationOutputLimitShape && role === "verifier"
+          && schemaName === VERIFICATION_TOOL_NAME && requireMinimalVerificationContent,
         observeUsage,
       );
     } catch (error) {
@@ -2850,11 +2925,13 @@ export function createHuggingFaceLatticeAdapter({
   observeQualificationHttpHeaders = false,
   observeQualificationEnvelopeShape = false,
   observeQualificationStrictMessageShape = false,
+  observeQualificationOutputLimitShape = false,
   observeQualificationUsage = false,
   observeQualificationRetentionDowngrade = false,
 } = {}) {
   if (!REQUESTED_MODES.has(requestedMode) || typeof observeQualificationHttpHeaders !== "boolean"
     || typeof observeQualificationEnvelopeShape !== "boolean" || typeof observeQualificationStrictMessageShape !== "boolean"
+    || typeof observeQualificationOutputLimitShape !== "boolean"
     || typeof observeQualificationUsage !== "boolean"
     || typeof observeQualificationRetentionDowngrade !== "boolean") {
     throw new TypeError("The Lattice provider received an invalid requested mode.");
@@ -2917,6 +2994,7 @@ export function createHuggingFaceLatticeAdapter({
         observeQualificationHttpHeaders,
         observeQualificationEnvelopeShape,
         observeQualificationStrictMessageShape,
+        observeQualificationOutputLimitShape: observeQualificationOutputLimitShape && stageName === "verification",
         [QUALIFICATION_USAGE_OBSERVER]: usage === null ? undefined : (reported) => {
           if (usageObserved || reported === null) return;
           usageObserved = true;

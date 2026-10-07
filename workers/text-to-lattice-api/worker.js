@@ -38,6 +38,7 @@ import {
   isClosedProviderHttpHeaders,
   isClosedProviderEnvelopeShape,
   getLatticeProviderStrictMessageShape,
+  getLatticeProviderOutputLimitShape,
   getLatticeQualificationUsage,
   providerEnvelopeSubtypeIsConsistent,
 } from "./huggingFaceAdapter.js";
@@ -65,7 +66,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v20";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v21";
 export const LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS = Object.freeze({
   status: "X-Lattice-Qualification-Admission-Status",
   claim: "X-Lattice-Qualification-Admission-Claim",
@@ -102,6 +103,12 @@ export const LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS = Objec
   namedShape: "X-Lattice-Qualification-Strict-Message-Named-Shape",
   unknownCount: "X-Lattice-Qualification-Strict-Message-Unknown-Count",
   unknownShapes: "X-Lattice-Qualification-Strict-Message-Unknown-Shapes",
+});
+export const LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS = Object.freeze({
+  syntax: "X-Lattice-Qualification-Output-Limit-Syntax",
+  rootShape: "X-Lattice-Qualification-Output-Limit-Root-Shape",
+  leadingWhitespace: "X-Lattice-Qualification-Output-Limit-Leading-Whitespace",
+  trailingWhitespace: "X-Lattice-Qualification-Output-Limit-Trailing-Whitespace",
 });
 export const LATTICE_QUALIFICATION_USAGE_RESPONSE_HEADERS = Object.freeze({
   status: "X-Lattice-Qualification-Usage-Status",
@@ -625,6 +632,14 @@ function withQualificationProviderDiagnostic(response, error, enabled) {
       response.headers.set(header, shape[field]);
     }
   }
+  if (diagnostic.failureClass === "provider_output_limit" && diagnostic.stage === "verification") {
+    const shape = getLatticeProviderOutputLimitShape(error);
+    if (shape !== null) {
+      for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS)) {
+        response.headers.set(header, shape[field]);
+      }
+    }
+  }
   if (error.code === "provider_http_error" && isClosedProviderHttpHeaders(error.qualificationHttpHeaders)) {
     for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS)) {
       response.headers.set(header, error.qualificationHttpHeaders[field]);
@@ -988,6 +1003,7 @@ export function createLatticeApiWorker({
           observeQualificationHttpHeaders: qualificationDiagnosticRequested,
           observeQualificationEnvelopeShape: qualificationDiagnosticRequested,
           observeQualificationStrictMessageShape: qualificationDiagnosticRequested,
+          observeQualificationOutputLimitShape: qualificationDiagnosticRequested,
           observeQualificationUsage: qualificationDiagnosticRequested,
           observeQualificationRetentionDowngrade: qualificationDiagnosticRequested,
         };
