@@ -10,7 +10,7 @@ import {
   LATTICE_FORMAT_CONTROL_LIMIT,
   LATTICE_INPUT_SAFETY_LIMIT,
 } from "./inputPolicy.js";
-import { rememberDeterministicFinding } from "./rejectionDiagnostics.js";
+import { deterministicFindingRule, rememberDeterministicFinding } from "./rejectionDiagnostics.js";
 import { latticeProtectedLiteralMatches } from "./protectedSpans.js";
 const URL = /https?:\/\/[^\s<>"'`]+/gu;
 const EMAIL = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/gu;
@@ -511,6 +511,84 @@ export function materiallyDifferent(source, candidate) {
     && normalizedWithoutPresentationCharacters(source) !== normalizedWithoutPresentationCharacters(candidate);
 }
 
+const D14_COMPARISONS = new WeakMap();
+const BATCH_D14_COMPARISONS = new WeakMap();
+
+function nonmaterialComparison(source, candidate) {
+  // Refine exact equality first, then preserve the materiality predicate's
+  // existing comparison order. No normalized text leaves this function.
+  if (source === candidate) return "exact-source";
+  if (normalizedMaterialRepresentation(source) === normalizedMaterialRepresentation(candidate)) return "material-form-equal";
+  if (normalizedTypographyRepresentation(source) === normalizedTypographyRepresentation(candidate)) return "typography-form-equal";
+  if (normalizedWithoutPresentationCharacters(source) === normalizedWithoutPresentationCharacters(candidate)) return "presentation-stripped-equal";
+  return null;
+}
+
+function frozenData(value, key) {
+  if (!value || typeof value !== "object" || !Object.isFrozen(value)) return undefined;
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
+}
+
+function frozenPassages(value) {
+  const passages = frozenData(value, "passages");
+  if (!Array.isArray(passages) || !Object.isFrozen(passages)) return null;
+  const result = [];
+  for (let index = 0; index < passages.length; index += 1) {
+    const passage = frozenData(passages, index);
+    if (!passage || typeof passage !== "object" || !Object.isFrozen(passage)) return null;
+    result.push(passage);
+  }
+  return result;
+}
+
+function frozenDataFields(value, keys) {
+  return keys.every((key) => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && Object.hasOwn(descriptor, "value");
+  });
+}
+
+function rememberBatchD14Comparison(batch, analysis, candidate, findings) {
+  const sources = frozenPassages(batch);
+  const plans = frozenPassages(analysis);
+  const outputs = frozenPassages(candidate);
+  if (!sources || !plans || !outputs) return;
+  // A negative observation needs the same immutable input premise as a D14
+  // observation. Frozen accessors and inherited fields are not stable data.
+  // Explicit undefined/null candidate text remains a valid immutable D02 case.
+  if (sources.some((source) => !frozenDataFields(source, ["id", "text"]))
+    || plans.some((plan) => !frozenDataFields(plan, ["passageId", "disposition"]))
+    || outputs.some((output) => !frozenDataFields(output, ["passageId", "text"]))) return;
+  const values = new Set();
+  for (const finding of findings) {
+    if (deterministicFindingRule(finding) !== "D14") continue;
+    const origin = D14_COMPARISONS.get(finding);
+    if (!origin || !sources.includes(origin.sourcePassage) || !plans.includes(origin.plan)
+      || !outputs.includes(origin.candidate)
+      || frozenData(origin.sourcePassage, "id") !== finding.passageId
+      || frozenData(origin.plan, "passageId") !== finding.passageId
+      || frozenData(origin.candidate, "passageId") !== finding.passageId
+      || typeof frozenData(origin.sourcePassage, "text") !== "string"
+      || typeof frozenData(origin.candidate, "text") !== "string"
+      || frozenData(origin.plan, "disposition") !== "rewrite"
+      || origin.comparison === null) return;
+    values.add(origin.comparison);
+  }
+  BATCH_D14_COMPARISONS.set(findings, Object.freeze({
+    batch, analysis, candidate,
+    comparison: values.size === 0 ? "not-applicable" : values.size === 1 ? [...values][0] : "mixed",
+  }));
+}
+
+export function getLatticeBatchD14Comparison(batch, analysis, candidate, findings) {
+  // Object identity, including the authentic immutable review array, binds the
+  // observation to the exact surviving source, plan and normalized candidate.
+  const origin = BATCH_D14_COMPARISONS.get(findings);
+  return origin && origin.batch === batch && origin.analysis === analysis && origin.candidate === candidate
+    ? origin.comparison : null;
+}
+
 const DETERMINISTIC_FINDING_RULES = Object.freeze({
   "deterministic-protected-literal": "D00",
   "deterministic-protected-literal-order": "D01",
@@ -669,7 +747,7 @@ function sameIdSet(expected, actual) {
   return expected.every((id) => actualSet.has(id));
 }
 
-export function deterministicPassageReview(sourcePassage, plan, candidate) {
+export function deterministicPassageReview(sourcePassage, plan, candidate, observeD14Comparison = false) {
   const findings = [];
   const passageId = sourcePassage.id;
   if (typeof candidate?.text !== "string" || candidate.text.length === 0) {
@@ -730,7 +808,18 @@ export function deterministicPassageReview(sourcePassage, plan, candidate) {
   findings.push(...protectedLiteralFindings(sourcePassage.text, candidate.text, passageId));
 
   if (plan.disposition === "rewrite" && !materiallyDifferent(sourcePassage.text, candidate.text)) {
-    findings.push(finding("candidate-not-material", passageId, "The planned rewrite changed only presentation, not language."));
+    const nonmaterial = finding("candidate-not-material", passageId, "The planned rewrite changed only presentation, not language.");
+    findings.push(nonmaterial);
+    if (observeD14Comparison === true) {
+      try {
+        D14_COMPARISONS.set(nonmaterial, Object.freeze({
+          sourcePassage, plan, candidate,
+          comparison: nonmaterialComparison(sourcePassage.text, candidate.text),
+        }));
+      } catch {
+        // Optional qualification observation cannot affect acceptance.
+      }
+    }
   }
   if (plan.disposition === "retain-if-conformant" && candidate.text !== sourcePassage.text) {
     findings.push(finding("candidate-retained-changed", passageId, "A passage asserted to be positively conformant was changed."));
@@ -739,7 +828,7 @@ export function deterministicPassageReview(sourcePassage, plan, candidate) {
   return Object.freeze(findings);
 }
 
-export function deterministicBatchReview(batch, analysis, candidate) {
+export function deterministicBatchReview(batch, analysis, candidate, observeD14Comparison = false) {
   const analysisById = new Map(analysis.passages.map((passage) => [passage.passageId, passage]));
   const candidateById = new Map(candidate.passages.map((passage) => [passage.passageId, passage]));
   const findings = [];
@@ -753,13 +842,21 @@ export function deterministicBatchReview(batch, analysis, candidate) {
       findings.push(finding("candidate-passage-missing", sourcePassage.id, "A source passage was omitted."));
       continue;
     }
-    findings.push(...deterministicPassageReview(sourcePassage, plan, output));
+    findings.push(...deterministicPassageReview(sourcePassage, plan, output, observeD14Comparison));
   }
   const totalLength = candidate.passages.reduce((sum, passage) => sum + String(passage.text ?? "").length, 0);
   if (totalLength > LATTICE_INPUT_SAFETY_LIMIT + 8_000) {
     findings.push(finding("candidate-document-size", "", "The candidate exceeds the document safety boundary."));
   }
-  return Object.freeze(findings);
+  const result = Object.freeze(findings);
+  if (observeD14Comparison === true) {
+    try {
+      rememberBatchD14Comparison(batch, analysis, candidate, result);
+    } catch {
+      // Missing diagnostic provenance suppresses observation, not review.
+    }
+  }
+  return result;
 }
 
 export function deterministicDocumentReview(source, candidate) {

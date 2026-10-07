@@ -167,6 +167,7 @@ function pipelineDiagnosticHeaders(overrides = {}) {
     retryPath: "none", candidateLineage: "initial", initialDeterministic: "clear",
     successfulCorrectionStage: "none", initialRetentionDowngrade: "none",
     initialRetainedPlan: "none", structuralRetryReason: "none", committedRetainOverride: "not-applicable",
+    finalD14Comparison: "not-applicable",
     ...overrides,
   };
   return Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS)
@@ -2072,6 +2073,23 @@ test("withheld canary diagnostics fail closed on missing, hostile, or incompatib
     .filter(([header]) => !header.toLowerCase().startsWith("x-lattice-qualification-pipeline-")));
   const cases = [
     ["pipeline retry and lineage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "regeneration", candidateLineage: "initial", initialDeterministic: "d14-only", structuralRetryReason: "plan-fit" }) }, /retry_path=regeneration; candidate_lineage=initial; initial_deterministic=d14-only/u],
+    ...["exact-source", "material-form-equal", "typography-form-equal", "presentation-stripped-equal", "mixed"].map((comparison) => [
+      `finite final D14 comparison ${comparison}`, body, 200,
+      { ...withheldDiagnosticHeaders({ deterministic: "blocked", firstDeterministicRule: "D14" }),
+        ...pipelineDiagnosticHeaders({ finalD14Comparison: comparison }) },
+      new RegExp(`final_d14_comparison=${comparison}\\)`, "u"),
+    ]),
+    ["not applicable with clear final deterministic trace", body, 200, exact, /final_d14_comparison=not-applicable\)/u],
+    ["later D14 after another first rule", body, 200,
+      { ...withheldDiagnosticHeaders({ deterministic: "blocked", firstDeterministicRule: "D04" }),
+        ...pipelineDiagnosticHeaders({ finalD14Comparison: "typography-form-equal" }) },
+      /first_deterministic_rule=D04.*final_d14_comparison=typography-form-equal/u],
+    ["D14 cannot lack its comparison", body, 200,
+      withheldDiagnosticHeaders({ deterministic: "blocked", firstDeterministicRule: "D14" }), /inconsistent pipeline diagnostic/u],
+    ...["exact-source", "material-form-equal", "typography-form-equal", "presentation-stripped-equal", "mixed"].map((comparison) => [
+      `clear trace cannot claim ${comparison}`, body, 200,
+      { ...exact, ...pipelineDiagnosticHeaders({ finalD14Comparison: comparison }) }, /inconsistent pipeline diagnostic/u,
+    ]),
     ["successful correction stage", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ retryPath: "repair", successfulCorrectionStage: "repair" }) }, /successful_correction_stage=repair/u],
     ["retention downgrade observed", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ initialRetentionDowngrade: "present" }) }, /initial_retention_downgrade=present/u],
     ["initial normalized retained plan observed", body, 200, { ...exact, ...pipelineDiagnosticHeaders({ initialRetainedPlan: "present" }) }, /initial_retained_plan=present/u],
@@ -2086,6 +2104,7 @@ test("withheld canary diagnostics fail closed on missing, hostile, or incompatib
       }) }, new RegExp(`structural_retry_reason=${reason}; committed_retain_override=not-applicable`, "u")]
     )),
     ...[
+      ["v19 eight-field", Object.keys(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS).filter((field) => field !== "finalD14Comparison")],
       ["v18 five-field", ["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage", "initialRetentionDowngrade"]],
       ["v16 four-field", ["retryPath", "candidateLineage", "initialDeterministic", "successfulCorrectionStage"]],
       ["v15 three-field", ["retryPath", "candidateLineage", "initialDeterministic"]],
@@ -2096,8 +2115,8 @@ test("withheld canary diagnostics fail closed on missing, hostile, or incompatib
         return [header, exact[header]];
       })) }, /incomplete pipeline diagnostic/u,
     ]),
-    ...["initialRetainedPlan", "structuralRetryReason", "committedRetainOverride"].map((field) => [
-      `missing v19 ${field}`, body, 200,
+    ...["initialRetainedPlan", "structuralRetryReason", "committedRetainOverride", "finalD14Comparison"].map((field) => [
+      `missing current ${field}`, body, 200,
       Object.fromEntries(Object.entries(exact).filter(([header]) => header !== LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS[field])),
       /incomplete pipeline diagnostic/u,
     ]),

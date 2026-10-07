@@ -3443,7 +3443,8 @@ test("withheld pipeline observations report actual retry paths and committed can
     assert.deepEqual(observation, { retryPath, candidateLineage, initialDeterministic,
       successfulCorrectionStage: name === "initial correction is not post-verification retry" ? "generation" : "none", initialRetentionDowngrade: "none",
       initialRetainedPlan: "none", structuralRetryReason: ["reanalysis-only", "regeneration"].includes(retryPath) ? "source-coverage" : "none",
-      committedRetainOverride: candidateLineage === "regeneration" ? "none" : "not-applicable" });
+      committedRetainOverride: candidateLineage === "regeneration" ? "none" : "not-applicable",
+      finalD14Comparison: ["other", "clear"].includes(initialDeterministic) ? "not-applicable" : "exact-source" });
     assert.equal(isClosedWithheldPipelineObservation(observation), true);
     assert.equal(Object.isFrozen(observation), true);
     assert.equal(Object.hasOwn(trace, "retryPath"), false, "the historical trace retains its original closed shape");
@@ -3617,6 +3618,7 @@ test("withheld pipeline observations retain mixed actual paths without exposing 
   assert.deepEqual(getLatticeWithheldPipelineObservation(trace), {
     retryPath: "mixed", candidateLineage: "mixed", initialDeterministic: "d14-only", successfulCorrectionStage: "none", initialRetentionDowngrade: "none",
     initialRetainedPlan: "none", structuralRetryReason: "source-coverage", committedRetainOverride: "none",
+    finalD14Comparison: "exact-source",
   });
   assert.deepEqual(flags.filter(([, regenerated]) => regenerated), [[structuralBatchId, true]]);
   assert.ok(flags.filter(([, regenerated]) => !regenerated).length === batches.length);
@@ -3626,6 +3628,127 @@ test("withheld pipeline observations retain mixed actual paths without exposing 
   for (const value of [null, undefined, forged, proxy]) assert.equal(getLatticeWithheldPipelineObservation(value), null);
   assert.equal(reads, 0);
   assert.doesNotMatch(JSON.stringify(getLatticeWithheldPipelineObservation(trace)), /PRIVATE|b0|p0|a0/u);
+});
+
+test("final D14 comparisons expose only the authentic first equality and preserve public results and calls", async (context) => {
+  const cases = [
+    ["exact-source", (text) => text],
+    ["material-form-equal", (text) => text.toUpperCase()],
+    ["typography-form-equal", (text) => text.replace("u", "u\u0332")],
+    ["presentation-stripped-equal", (text) => text.replace("u", "u.")],
+    ["not-applicable", changedText],
+  ];
+  for (const [expected, transform] of cases) await context.test(expected, async () => {
+    const behavior = {
+      generate(request) {
+        const candidate = rawCandidate(request, { identity: true });
+        candidate.passages[0].text = transform(candidate.passages[0].text);
+        return candidate;
+      },
+      verify: (request) => rawVerification(request, { gates: { languageSupported: false } }),
+    };
+    const baselineAdapter = scriptedAdapter(behavior);
+    const baseline = await runTextToLattice(opaqueWords(12), { adapter: baselineAdapter });
+    const adapter = scriptedAdapter(behavior);
+    let trace;
+    const result = await runTextToLattice(opaqueWords(12), { adapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assertCandidateWithheld(result);
+    assert.deepEqual(result, baseline);
+    assert.deepEqual(adapter.calls, baselineAdapter.calls);
+    const observation = getLatticeWithheldPipelineObservation(trace);
+    assert.equal(observation.finalD14Comparison, expected);
+    assert.equal(Object.hasOwn(trace, "finalD14Comparison"), false);
+    assert.doesNotMatch(JSON.stringify(result), /finalD14Comparison|exact-source|form-equal/u);
+    assert.doesNotMatch(JSON.stringify(observation), /u0000|passageId|atomId|candidateFingerprint/u);
+  });
+});
+
+test("final D14 comparison follows the surviving repaired or regenerated candidate, including restoration", async (context) => {
+  for (const mode of ["repair", "regeneration", "discarded repair", "material repair", "retained initial"]) await context.test(mode, async () => {
+    const behavior = {
+      analysisOptions: mode === "regeneration" || mode === "retained initial" ? { disposition: "retain-if-conformant" } : undefined,
+      generate(request, count) {
+        const candidate = rawCandidate(request, { identity: true });
+        if (count > 1) candidate.passages[0].text = candidate.passages[0].text.toUpperCase();
+        return candidate;
+      },
+      repair(request) {
+        const candidate = rawCandidate(request, { identity: mode !== "material repair" });
+        if (mode !== "material repair") candidate.passages[0].text = candidate.passages[0].text.toUpperCase();
+        return candidate;
+      },
+      verify(request, count) {
+        if (mode === "discarded repair" && count > 1) return {};
+        return rawVerification(request, mode === "regeneration" && count === 1
+          ? { passage: { conformanceConfirmed: false } }
+          : mode === "retained initial" ? { gates: { languageSupported: false } }
+            : { gates: { semanticFidelity: false } });
+      },
+    };
+    const baselineAdapter = scriptedAdapter(behavior);
+    const baseline = await runTextToLattice(opaqueWords(12), { adapter: baselineAdapter });
+    const adapter = scriptedAdapter(behavior);
+    let trace;
+    const result = await runTextToLattice(opaqueWords(12), { adapter,
+      onCandidateWithheldDiagnostic(value) { trace = value; } });
+    assert.deepEqual(result, baseline);
+    assert.deepEqual(adapter.calls, baselineAdapter.calls);
+    const observation = getLatticeWithheldPipelineObservation(trace);
+    assert.equal(observation.finalD14Comparison, mode === "discarded repair" ? "exact-source"
+      : ["material repair", "retained initial"].includes(mode) ? "not-applicable" : "material-form-equal");
+    assert.equal(observation.candidateLineage, ["discarded repair", "retained initial"].includes(mode) ? "initial"
+      : mode === "regeneration" ? "regeneration" : "repair");
+  });
+});
+
+test("final D14 comparison aggregates different surviving passages without content or finding-order assumptions", async () => {
+  const source = Array.from({ length: 5 }, () => opaqueWords(12)).join("\n\n");
+  const firstBatch = preflightLatticeInput(source).batches[0].id;
+  const adapter = scriptedAdapter({ generate(request) {
+    const candidate = rawCandidate(request, { identity: true });
+    if (request.batch.id !== firstBatch) {
+      candidate.passages[0].text = candidate.passages[0].text.toUpperCase();
+    } else {
+      candidate.passages[0].layer = "operative";
+    }
+    return candidate;
+  }, verify: (request) => rawVerification(request, { gates: { languageSupported: false } }) });
+  let trace;
+  await runTextToLattice(source, { adapter, onCandidateWithheldDiagnostic(value) { trace = value; } });
+  assert.equal(trace.firstDeterministicRule, "D12");
+  assert.equal(getLatticeWithheldPipelineObservation(trace).finalD14Comparison, "mixed");
+});
+
+test("missing or mismatched final D14 review provenance suppresses the entire private observation", async (context) => {
+  for (const mode of ["missing", "batch", "analysis", "candidate"]) await context.test(mode, async () => {
+    const behavior = { generate: (request) => rawCandidate(request, { identity: true }),
+      verify: (request) => rawVerification(request, { gates: { languageSupported: false } }) };
+    const baselineAdapter = scriptedAdapter(behavior);
+    const baseline = await runTextToLattice(opaqueWords(12), { adapter: baselineAdapter });
+    const adapter = scriptedAdapter(behavior);
+    const originalGet = WeakMap.prototype.get;
+    let trace;
+    let observation;
+    let result;
+    try {
+      WeakMap.prototype.get = function get(key) {
+        const origin = originalGet.call(this, key);
+        if (origin && typeof origin === "object" && Object.hasOwn(origin, "comparison") && Object.hasOwn(origin, "batch")) {
+          return mode === "missing" ? undefined : { ...origin, [mode]: Object.freeze({ ...origin[mode] }) };
+        }
+        return origin;
+      };
+      result = await runTextToLattice(opaqueWords(12), { adapter,
+        onCandidateWithheldDiagnostic(value) { trace = value; observation = getLatticeWithheldPipelineObservation(value); } });
+    } finally {
+      WeakMap.prototype.get = originalGet;
+    }
+    assert.ok(trace);
+    assert.equal(observation, null);
+    assert.deepEqual(result, baseline);
+    assert.deepEqual(adapter.calls, baselineAdapter.calls);
+  });
 });
 
 test("withheld observations omit recovered failures and tolerate observer exceptions", async () => {
@@ -4497,7 +4620,8 @@ test("post-repair certification correction is protocol recovery even when its va
   assert.equal(certificateCalls, 2);
   assert.deepEqual(getLatticeWithheldPipelineObservation(trace), { retryPath: "repair", candidateLineage: "repair",
     initialDeterministic: "d14-only", successfulCorrectionStage: "document-certification", initialRetentionDowngrade: "none",
-    initialRetainedPlan: "none", structuralRetryReason: "none", committedRetainOverride: "not-applicable" });
+    initialRetainedPlan: "none", structuralRetryReason: "none", committedRetainOverride: "not-applicable",
+    finalD14Comparison: "not-applicable" });
   assert.equal(trace.certification, "performed-not-accepted");
 });
 
@@ -4515,7 +4639,8 @@ test("repeated successful corrections in one phase aggregate without retaining a
   assert.equal(adapter.calls.generate, batches.length * 2);
   assert.deepEqual(getLatticeWithheldPipelineObservation(trace), { retryPath: "none", candidateLineage: "initial",
     initialDeterministic: "d14-only", successfulCorrectionStage: "generation", initialRetentionDowngrade: "none",
-    initialRetainedPlan: "none", structuralRetryReason: "none", committedRetainOverride: "not-applicable" });
+    initialRetainedPlan: "none", structuralRetryReason: "none", committedRetainOverride: "not-applicable",
+    finalD14Comparison: "exact-source" });
 });
 
 

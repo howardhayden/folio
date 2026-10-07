@@ -24,6 +24,10 @@ export const LATTICE_WITHHELD_PIPELINE_VALUES = Object.freeze({
     "retained-conformance", "mixed",
   ]),
   committedRetainOverride: Object.freeze(["not-applicable", "none", "present"]),
+  finalD14Comparison: Object.freeze([
+    "exact-source", "material-form-equal", "typography-form-equal",
+    "presentation-stripped-equal", "mixed", "not-applicable",
+  ]),
 });
 export const LATTICE_WITHHELD_PIPELINE_FIELDS = Object.freeze(Object.keys(LATTICE_WITHHELD_PIPELINE_VALUES));
 
@@ -191,4 +195,14 @@ export function isClosedWithheldTrace(trace) {
   } catch {
     return false;
   }
+}
+
+// The first deterministic rule does not enumerate every final finding: an
+// earlier non-D14 rule can coexist with an authenticated later D14. This join
+// checks only implications established by the two complete observations.
+export function withheldPipelineTraceIsConsistent(observation, trace) {
+  if (!isClosedWithheldPipelineObservation(observation) || !isClosedWithheldTrace(trace)) return false;
+  if (observation.finalD14Comparison !== "not-applicable" && trace.deterministic !== "blocked") return false;
+  if (trace.firstDeterministicRule === "D14" && observation.finalD14Comparison === "not-applicable") return false;
+  return true;
 }

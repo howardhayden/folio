@@ -69,6 +69,7 @@ import {
   LATTICE_WITHHELD_TRACE_FIELDS,
   isClosedWithheldTrace,
   isClosedWithheldPipelineObservation,
+  withheldPipelineTraceIsConsistent,
   isClosedPriorVerificationRejection,
 } from "../app/resume/lattice/qualificationDiagnostics.js";
 import {
@@ -1350,6 +1351,9 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     const observation = Object.freeze(pipelineValues);
     if (!isClosedWithheldPipelineObservation(observation)) fail(`${label} returned an invalid pipeline diagnostic`);
     if (withheldDiagnostic === null) fail(`${label} returned a pipeline diagnostic without a withheld diagnostic`);
+    const trace = Object.freeze(Object.fromEntries(LATTICE_WITHHELD_TRACE_FIELDS
+      .map((field) => [field, withheldDiagnostic[field]])));
+    if (!withheldPipelineTraceIsConsistent(observation, trace)) fail(`${label} returned an inconsistent pipeline diagnostic`);
     pipelineDiagnostic = observation;
   }
   if (terminalDiagnostic !== null && withheldDiagnostic !== null) {
@@ -1450,7 +1454,8 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
         + `initial_retention_downgrade=${pipelineDiagnostic.initialRetentionDowngrade}; `
         + `initial_retained_plan=${pipelineDiagnostic.initialRetainedPlan}; `
         + `structural_retry_reason=${pipelineDiagnostic.structuralRetryReason}; `
-        + `committed_retain_override=${pipelineDiagnostic.committedRetainOverride})`);
+        + `committed_retain_override=${pipelineDiagnostic.committedRetainOverride}; `
+        + `final_d14_comparison=${pipelineDiagnostic.finalD14Comparison})`);
     }
     fail(`${label} did not reach a non-error terminal transformation result (`
       + `class=${unableClass}; `

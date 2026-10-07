@@ -44,7 +44,7 @@ import {
 import {
   LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
 } from "../../app/resume/lattice/promptContract.js";
-import { isClosedWithheldTrace } from "../../app/resume/lattice/qualificationDiagnostics.js";
+import { isClosedWithheldTrace, withheldPipelineTraceIsConsistent } from "../../app/resume/lattice/qualificationDiagnostics.js";
 import {
   claimGlobalLatticeTransformation,
 } from "./capacityClient.js";
@@ -65,7 +65,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v19";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v20";
 export const LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS = Object.freeze({
   status: "X-Lattice-Qualification-Admission-Status",
   claim: "X-Lattice-Qualification-Admission-Claim",
@@ -152,6 +152,7 @@ export const LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS = Object
   initialRetainedPlan: "X-Lattice-Qualification-Pipeline-Initial-Retained-Plan",
   structuralRetryReason: "X-Lattice-Qualification-Pipeline-Structural-Retry-Reason",
   committedRetainOverride: "X-Lattice-Qualification-Pipeline-Committed-Retain-Override",
+  finalD14Comparison: "X-Lattice-Qualification-Pipeline-Final-D14-Comparison",
 });
 
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset=utf-8)?$/iu;
@@ -719,8 +720,9 @@ function qualificationWithheldDiagnostic(trace, adapter) {
     if (capacity === null || typeof capacity !== "object" || Array.isArray(capacity)) return null;
     const used = capacity?.used;
     if (!Number.isSafeInteger(used) || used < 1 || used > LATTICE_PROVIDER_CALL_LIMIT) return null;
+    const pipeline = getLatticeWithheldPipelineObservation(trace);
     return Object.freeze({ ...trace, callsUsed: `${used}`,
-      pipeline: getLatticeWithheldPipelineObservation(trace) });
+      pipeline: withheldPipelineTraceIsConsistent(pipeline, trace) ? pipeline : null });
   } catch {
     return null;
   }
