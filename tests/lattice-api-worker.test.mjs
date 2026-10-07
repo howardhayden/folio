@@ -9424,6 +9424,17 @@ test("pipeline headers bind actual withheld lineage and cannot be forged or outl
   assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.initialRetainedPlan), "present");
   assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.structuralRetryReason), "retained-conformance");
   assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.committedRetainOverride), "present");
+  const retainedDrafts = retained.bodies.filter(isCandidateBody);
+  assert.equal(Object.hasOwn(inertModelPayload(retainedDrafts[0]), "regenerationFeedback"), false);
+  assert.deepEqual(inertModelPayload(retainedDrafts[1]).regenerationFeedback,
+    { retentionNotConfirmedPassagePositions: [0] });
+  assert.match(retainedDrafts[1].messages[0].content,
+    /previous unchanged retention did not obtain required positive conformance/u);
+  assert.doesNotMatch(retainedDrafts[1].messages[0].content, /regenerationFeedback\.nonmaterialPassagePositions/u);
+  assert.equal(inertModelPayload(retainedDrafts[1]).analysis[1][0][3], "rewrite");
+  assert.deepEqual(retainedDrafts[1].response_format, { type: "json_object" });
+  assert.equal(retainedDrafts[1].max_tokens, 800);
+  assert.doesNotMatch(JSON.stringify(retained.json), /retentionNotConfirmedPassagePositions|regenerationFeedback/u);
   const source = LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1);
   for (const [expected, finalCandidateText, rejectFinal] of [
     ["material-form-equal", source.toLowerCase(), false],

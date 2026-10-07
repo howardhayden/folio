@@ -1,4 +1,5 @@
 import { getLatticeAnalysisPassageRetentionDowngrade } from "./lattice/analysisProvenance.js";
+import { withLatticeRegenerationRetentionContext } from "./lattice/regenerationContext.js";
 import {
   LATTICE_CLARIFICATION_SAFETY_LIMIT,
   LATTICE_CLARIFICATION_SERIALIZED_UTF8_LIMIT,
@@ -3925,7 +3926,10 @@ export async function runTextToLattice(value, options = {}) {
         pipelineObservation,
         request: retryRequest,
         invoke: (currentRequest) => reanalyzedByBatch.has(original.batch.id)
-          ? options.adapter.generate(currentRequest)
+          ? withLatticeRegenerationRetentionContext(
+            currentRequest, original.batch, original.verification, replacementAnalysis,
+            () => options.adapter.generate(currentRequest),
+          )
           : options.adapter.repair(currentRequest),
         normalize: (raw) => normalizeCandidate(raw, original.batch, replacementAnalysis),
         signal,

@@ -1,4 +1,5 @@
 import { beginLatticeAdmissionProviderFetch, endLatticeAdmissionProviderFetch } from "./admissionObservation.js";
+import { carryLatticeRegenerationRetentionContext } from "../../app/resume/lattice/regenerationContext.js";
 import {
   ANALYSIS_SCHEMA,
   CANDIDATE_SCHEMA,
@@ -2906,12 +2907,12 @@ function parseRetryAfterSeconds(value) {
 }
 
 function messagesWithMode(factory, request, requestedMode) {
-  const messages = factory(Object.freeze({
+  const messages = factory(carryLatticeRegenerationRetentionContext(request, Object.freeze({
     ...request,
     requestedMode,
     allowClarification: false,
     clarificationAnswers: Object.freeze([]),
-  }));
+  })));
   return Object.freeze(messages.map((message) => Object.freeze({ ...message })));
 }
 
