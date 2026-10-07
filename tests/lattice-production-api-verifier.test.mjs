@@ -39,6 +39,7 @@ import {
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
@@ -2303,7 +2304,11 @@ test("first verification rejection on a correction provider failure is finite, c
     stageAttempt: "correction", analysisOrigin: "none", analysisAttempt: "none",
     priorValidationCategory: "other",
   };
-  const diagnostic = qualificationDiagnosticHeaders(base);
+  const diagnostic = { ...qualificationDiagnosticHeaders(base),
+    ...Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS)
+      .map(([field, header]) => [header, { syntax: "invalid-or-incomplete", rootShape: "not-applicable",
+        leadingWhitespace: "none", trailingWhitespace: "none" }[field]])),
+  };
   const headerNames = LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS;
   const priorHeaders = (overrides = {}) => {
     const values = { boundary: "wire-decoder", category: "field-set", rule: "V01F", ...overrides };
@@ -2731,4 +2736,49 @@ test("complete admission receipt accounts for the exact covered requests without
   }
   const legacy = structuredClone(evidence); delete legacy.request_admission;
   assert.equal(JSON.parse(serializeLatticeProductionEvidence(legacy).serialized).request_admission, undefined);
+});
+
+test("verification output-limit shape is complete, applicable and content-free", async (t) => {
+  const marker = "PRIVATE-OUTPUT-LIMIT-MUST-NOT-CROSS";
+  const h = LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS;
+  const d = LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS;
+  const base = qualificationDiagnosticHeaders({ failureClass: "provider_output_limit", stage: "verification",
+    finishReason: "length", callOrdinal: "3", analysisOrigin: "none", analysisAttempt: "none" });
+  const values = { syntax: "complete-object", rootShape: "verification-root-fields",
+    leadingWhitespace: "none", trailingWhitespace: "64-1023" };
+  const shape = (patch = {}) => Object.fromEntries(Object.entries(h).map(([k, header]) => [header, ({ ...values, ...patch })[k]]));
+  const exact = { ...base, ...shape() };
+  const cases = [
+    ["expected root fields are no acceptance claim", exact, 502, /output_limit_syntax=complete-object; output_limit_root_shape=verification-root-fields; output_limit_leading_whitespace=none; output_limit_trailing_whitespace=64-1023/u],
+    ...["schema-root-fields", "other"].map((rootShape) => [rootShape, { ...base, ...shape({ rootShape }) }, 502,
+      new RegExp(`output_limit_root_shape=${rootShape}`, "u")]),
+    ...["complete-nonobject", "invalid-or-incomplete"].map((syntax) => [syntax,
+      { ...base, ...shape({ syntax, rootShape: "not-applicable" }) }, 502, new RegExp(`output_limit_syntax=${syntax}`, "u")]),
+    ["authentic unavailable", { ...base, ...shape({ syntax: "unavailable", rootShape: "not-applicable",
+      leadingWhitespace: "unavailable", trailingWhitespace: "unavailable" }) }, 502, /output_limit_syntax=unavailable/u],
+    ["missing group", base, 502, /incomplete qualification output-limit shape/u],
+    ["unknown header", { ...exact, [`X-Lattice-Qualification-Output-Limit-${marker}`]: marker }, 502, /invalid qualification output-limit shape/u],
+    ["bare family", { ...exact, "X-Lattice-Qualification-Output-Limit": marker }, 502, /invalid qualification output-limit shape/u],
+    ["wrong error class", { ...exact, [d.failureClass]: "provider_unavailable", [d.finishReason]: "none" }, 502, /incompatible qualification output-limit shape/u],
+    ["wrong stage", { ...exact, [d.stage]: "candidate" }, 502, /incompatible qualification output-limit shape/u],
+    ["nonobject cannot have root fields", { ...base, ...shape({ syntax: "complete-nonobject" }) }, 502, /invalid qualification output-limit shape/u],
+    ["unavailable cannot have measured whitespace", { ...base, ...shape({ syntax: "unavailable", rootShape: "not-applicable" }) }, 502, /invalid qualification output-limit shape/u],
+    ["object cannot have unavailable root", { ...base, ...shape({ rootShape: "not-applicable" }) }, 502, /invalid qualification output-limit shape/u],
+    ["joined duplicate", { ...exact, [h.syntax]: "complete-object, complete-object" }, 502, /invalid qualification output-limit shape/u],
+    ["no base", shape(), 502, /incompatible qualification output-limit shape/u],
+    ["success", exact, 200, /incompatible qualification output-limit shape/u],
+  ];
+  for (const [field, header] of Object.entries(h)) {
+    const partial = { ...exact }; delete partial[header];
+    cases.push([`missing ${field}`, partial, 502, /incomplete qualification output-limit shape/u]);
+    cases.push([`private ${field}`, { ...exact, [header]: marker }, 502, /invalid qualification output-limit shape/u]);
+  }
+  for (const [name, headers, status, expected] of cases) await t.test(name, async () => {
+    const body = status === 200 ? { result: validResult(), schema_version: 1 } : { error: "malformed_upstream_response" };
+    const fixture = successfulFixture({ canaryResponse: apiJson(body, status, headers) });
+    await assert.rejects(verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait }), (error) => {
+      assert.match(error.message, expected); assert.equal(error.message.includes(marker), false); return true;
+    });
+    assert.equal(fixture.canaryRequests, 1); assert.equal(fixture.setupRequests, 1);
+  });
 });

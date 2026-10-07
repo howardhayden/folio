@@ -38,6 +38,7 @@ import {
   isClosedProviderHttpHeaders,
   isClosedProviderEnvelopeShape,
   isClosedProviderStrictMessageShape,
+  isClosedProviderOutputLimitShape,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
   LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
@@ -59,6 +60,7 @@ import {
   LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_ENVELOPE_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS,
+  LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_PRIOR_VERIFICATION_REJECTION_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS,
   LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS,
@@ -1278,6 +1280,29 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     }
     priorVerificationRejection = priorVerificationValues;
   }
+  const outputLimitHeaders = new Set(Object.values(LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS)
+    .map((header) => header.toLowerCase()));
+  for (const header of response.headers.keys()) {
+    if (header.startsWith("x-lattice-qualification-output-limit") && !outputLimitHeaders.has(header)) {
+      fail(`${label} returned an invalid qualification output-limit shape`);
+    }
+  }
+  const outputLimitValues = Object.freeze(Object.fromEntries(Object.entries(
+    LATTICE_QUALIFICATION_OUTPUT_LIMIT_SHAPE_RESPONSE_HEADERS,
+  ).map(([field, header]) => [field, response.headers.get(header)])));
+  const outputLimitPresent = Object.values(outputLimitValues).filter((value) => value !== null).length;
+  const expectsOutputLimitShape = response.status !== 200
+    && diagnostic?.failureClass === "provider_output_limit" && diagnostic.stage === "verification";
+  if (expectsOutputLimitShape) {
+    if (outputLimitPresent !== outputLimitHeaders.size) {
+      fail(`${label} returned an incomplete qualification output-limit shape`);
+    }
+    if (!isClosedProviderOutputLimitShape(outputLimitValues)) {
+      fail(`${label} returned an invalid qualification output-limit shape`);
+    }
+  } else if (outputLimitPresent !== 0) {
+    fail(`${label} returned an incompatible qualification output-limit shape`);
+  }
   const terminalDiagnosticValues = Object.freeze(Object.fromEntries(
     Object.entries(LATTICE_QUALIFICATION_TERMINAL_ANALYSIS_DIAGNOSTIC_RESPONSE_HEADERS)
       .map(([field, header]) => [field, response.headers.get(header)]),
@@ -1384,6 +1409,12 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
       + `stage_attempt=${diagnostic.stageAttempt}; `
       + `analysis_origin=${diagnostic.analysisOrigin}; `
       + `analysis_attempt=${diagnostic.analysisAttempt}; `
+      + (expectsOutputLimitShape
+        ? `output_limit_syntax=${outputLimitValues.syntax}; `
+          + `output_limit_root_shape=${outputLimitValues.rootShape}; `
+          + `output_limit_leading_whitespace=${outputLimitValues.leadingWhitespace}; `
+          + `output_limit_trailing_whitespace=${outputLimitValues.trailingWhitespace}; `
+        : "")
       + `prior_validation=${diagnostic.priorValidationCategory}`
       + (priorVerificationRejection === null ? ""
         : `; prior_rejection_boundary=${priorVerificationRejection.boundary}`
