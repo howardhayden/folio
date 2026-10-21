@@ -21,7 +21,9 @@ import {
   normalizeAsciiArt,
   validateAsciiCharacterDefinition,
 } from "../app/components/asciiCharacter.js";
-import { ASCII_CAT_DRAWING_DESCRIPTION } from "../app/components/catDrawing.js";
+import { ASCII_CAT_DRAWING_DESCRIPTION, DRAWING_COLUMNS, DRAWING_ROWS } from "../app/components/catDrawing.js";
+import { REST_POSE } from "../app/components/catMotion.js";
+import { renderCatFrame } from "../app/components/catRenderer.js";
 import {
   arrangeShelfPapers,
   filterShelfPapers,
@@ -604,6 +606,24 @@ test("renders the ASCII character accessibly before client hydration", async () 
   assert.ok(html.includes(`aria-label="${ASCII_CAT_DRAWING_DESCRIPTION}"`));
   assert.match(html, /<pre[^>]*aria-hidden="true"/);
   assert.match(html, /<pre[^>]*style="[^"]*line-height:1\.05/);
+});
+
+test("keeps both cat text layers on a fixed-aspect row grid before hydration", async () => {
+  const { html } = await render("/");
+  const frame = renderCatFrame({ ...REST_POSE, tailPhase: 0 });
+  const escape = (text) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#x27;");
+  for (const [className, text] of [["ascii-cat-drawing", frame.body], ["ascii-cat-whiskers", frame.hair]]) {
+    const pre = html.match(new RegExp(`<pre[^>]*class="${className}"[^>]*>([\\s\\S]*?)</pre>`));
+    assert.ok(pre, className);
+    assert.ok(pre[0].includes("display:grid"), `${className} uses row tracks, not accumulated line boxes`);
+    assert.ok(pre[0].includes(`aspect-ratio:${DRAWING_COLUMNS} / ${DRAWING_ROWS * 1.73}`));
+    assert.ok(pre[0].includes(`grid-template-rows:repeat(${DRAWING_ROWS}, minmax(0, 1fr))`));
+    const rows = [...pre[1].matchAll(/<span[^>]*>([\s\S]*?)<\/span>/g)]
+      .map((row) => row[1].replaceAll("<!-- -->", ""));
+    assert.equal(rows.length, DRAWING_ROWS, className);
+    assert.equal(rows.join(""), escape(text), `${className} retains the complete generated character grid`);
+  }
 });
 
 test("renders legacy stateful views and stable canonical route documents", async () => {
