@@ -4,7 +4,6 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   ASCII_ANATOMY,
-  ASCII_CHARACTER_DESCRIPTION,
   ASCII_COLUMNS,
   ASCII_GAZE_ANCHOR,
   ASCII_INTERACTION_TIMING,
@@ -22,6 +21,7 @@ import {
   normalizeAsciiArt,
   validateAsciiCharacterDefinition,
 } from "../app/components/asciiCharacter.js";
+import { ASCII_CAT_DRAWING_DESCRIPTION } from "../app/components/catDrawing.js";
 import {
   arrangeShelfPapers,
   filterShelfPapers,
@@ -596,11 +596,12 @@ test("renders document metadata", async () => {
 test("renders the ASCII character accessibly before client hydration", async () => {
   const { html } = await render("/");
 
-  assert.match(html, /data-ascii-character="glass-table-cat"/);
-  assert.match(html, /data-ascii-interaction="pointer-bat"/);
-  assert.match(html, /data-ascii-frame="loaf-center"/);
+  assert.match(html, /data-ascii-character="stately-cat-study"/);
+  assert.match(html, /data-ascii-mode="idle"/);
+  assert.match(html, /data-ascii-interaction="long-arm-batting"/);
+  assert.doesNotMatch(html, /data-ascii-interaction="pointer-bat"/);
   assert.match(html, /role="img"/);
-  assert.ok(html.includes(`aria-label="${ASCII_CHARACTER_DESCRIPTION}"`));
+  assert.ok(html.includes(`aria-label="${ASCII_CAT_DRAWING_DESCRIPTION}"`));
   assert.match(html, /<pre[^>]*aria-hidden="true"/);
   assert.match(html, /<pre[^>]*style="[^"]*line-height:1\.05/);
 });
@@ -1070,7 +1071,7 @@ test("renders the exact nine-card Skill Stacks hierarchy with native Read More f
   assert.doesNotMatch(css, /:has\([^)]*skill-stack[^)]*open/iu, "no-JavaScript disclosure use does not trigger the JavaScript focus blur");
 });
 
-test("uses foreground background-gradient static for SVGs, colored text, ASCII text, and Teaching Assistant bars", async () => {
+test("uses foreground background-gradient static for SVGs, colored text, and Teaching Assistant bars", async () => {
   const [{ html: home }, { html: resume }, { html: tools }] = await Promise.all([
     render("/"),
     render("/?view=resume"),
@@ -1079,7 +1080,7 @@ test("uses foreground background-gradient static for SVGs, colored text, ASCII t
 
   assert.match(home, /class="pulse-effect text-center"[^>]*id="qa-title"|id="qa-title"[^>]*class="pulse-effect text-center"/);
   assert.match(home, /<span class="signal-fuzz signal-fuzz--pulse">Q &amp; A<\/span>/);
-  assert.match(home, /<pre[^>]*class="signal-fuzz signal-fuzz--ascii"/);
+  assert.match(home, /<pre[^>]*class="ascii-cat-drawing"/);
   assert.match(resume, /class="text-red text-center signal-fuzz"/);
   assert.match(resume, /href="\/projects\/chorus\/">CHORUS<\/a>/);
   assert.match(tools, /class="tool-icon tools-card-accent signal-fuzz"/);

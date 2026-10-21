@@ -10,11 +10,13 @@
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `b6e616acabdf57a180cea7bf1e0beed5790a4b5237bdd3539bb068e174405e28`
+**Qualified source-set SHA-256:** `f1029bc23a786227ce76220d1ae3456ed4c6196519ff856ad6b233e294b9097a`
 
 **Artifact-set projection SHA-256:** `632bdd4709874f2b647b13f2c8499076ac3c531af132c12dcf3a1cdd604f8867`
 
 Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence.
+
+Portfolio maintenance, 2026-10-21: the current held source identity includes the generated ASCII cat, its anatomical interaction and transition tests, the accessible home-page integration, and matching portfolio documentation and license routing. The Text to Lattice executable, provider contracts, workflow controls, gate statuses, historical evidence, and held documentation-only publication are unchanged. This source-identity refresh establishes no production qualification, public-client activation, service deployment, or new canonical-browser evidence.
 
 Run #286 (https://github.com/howardhayden/folio/actions/runs/37591793359), attempt 1, consumed the selected U27/D24 single-operation packet on main ab7f6ff18a76965564d926b4e35d595328d07603, tree 0f90219c822d5f66f242ce49c9b96ff2ae1e72b3, qualified source 7a3f12788a558ea63e9c0aa8e677aa7d548cd3b5169e0798fe0e622d8357dfb0 and original deployed dossier faa64809465579d20fceb9a4ca2a7215a1c86d11e7ece4981c393792f18d9d86. Service job 112696049859 failed at the live API boundary check. At 2026-10-07T08:13:38.1883347Z the source-closed HTTP observation reported 502 malformed_upstream_response, provider_output_limit at initial verification, finish_reason length and call ordinal 3. Subtype, prior validation, analysis origin/attempt and upstream HTTP status were none. Request bytes were in 16385-65536, response bytes in 4097-16384, content string length in 4097-16384 and provider-reported completion tokens in 2048-3071. No optional diagnostic group was omitted from this actual record. The workflow failed and interactive publication was skipped; no accepted transformation or completed qualification was retained.
 

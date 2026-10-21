@@ -17,7 +17,7 @@ A progressively enhanced portfolio for Hayden Howard, centered on systems, infor
 - Native navigation between canonical pages; legacy query/hash state remains a client-side compatibility path
 - Reusable shared chrome and conditionally mounted view components
 - Typed data for skills, roles, tools, and shelf records
-- A fixed-geometry, patch-based ASCII character with writing, attention, directional swat, recovery, and collision states
+- An ASCII cat generated from a small 3D skeleton, with continuous tracking, long reaches, repeated bats, grooming, petting, and settling
 - One focused client component for shelf filtering and sorting
 - Bootstrap 4.6.2 styling retained locally for visual compatibility
 - React-managed interactions in place of jQuery and page-global DOM scripts
@@ -57,7 +57,7 @@ The test command validates every ASCII pose, performs a production build, valida
 - Visible focus treatment and keyboard-native controls
 - Accessible labels and keyboard dismissal for Shelf search
 - Stable accessible description for changing ASCII frames, with the character data hidden from repeated assistive-technology announcements
-- Fine-pointer collision behavior, touch-safe ambient writing, and a reduced-motion static/glance mode
+- Fine-pointer anatomical touch regions, touch-safe ambient motion, and a reduced-motion resting pose
 - Pointer input is sampled at most once per animation frame; frame changes bypass React renders while retaining fixed geometry
 - Search, blur, cards, timeline, and modal behavior retained
 - Modal information remains present in structured source data

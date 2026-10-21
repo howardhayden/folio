@@ -1,5 +1,4 @@
-import { AsciiArt } from "./AsciiArt";
-import { asciiPortrait } from "./asciiCharacter.js";
+import { AsciiDrawing } from "./AsciiDrawing";
 import { homeIntroduction, homeQuestions, homeTitle } from "../content/siteContent.js";
 
 function QuestionAnswer({ question, answer }: { question: string; answer: string | readonly string[] }) {
@@ -16,7 +15,6 @@ function QuestionAnswer({ question, answer }: { question: string; answer: string
 export default function HomeView() {
   return (
     <>
-      <noscript dangerouslySetInnerHTML={{ __html: "<style>#ascii{container-type:inline-size;overflow:hidden}#ascii pre{font-size:min(14px,2cqw);max-width:none;white-space:pre;width:max-content}</style>" }} />
       <main className="page-view page-view--home" data-page-view="home" id="view-home" tabIndex={-1}>
         <section className="container mt-4 container-vertical-center" aria-labelledby="home-title">
           <div className="row">
@@ -25,7 +23,7 @@ export default function HomeView() {
               {homeIntroduction.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
             </div>
             <div className="col-lg-6 order-lg-1 ascii-container" id="ascii">
-              <AsciiArt art={asciiPortrait} />
+              <AsciiDrawing />
             </div>
           </div>
         </section>
