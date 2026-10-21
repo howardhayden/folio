@@ -6,7 +6,7 @@ import {
   TOOLS_CONTENT_UPDATED,
   TOOLS_CONTENT_VERSION,
 } from "../data.ts";
-import { ASCII_CHARACTER_DESCRIPTION } from "../components/asciiCharacter.js";
+import { ASCII_CAT_DRAWING_DESCRIPTION as ASCII_CHARACTER_DESCRIPTION } from "../components/catDrawing.js";
 import {
   homeIntroduction, homeQuestions, homeTitle, person, practiceStandards,
   resumeEducationOverview, sharedRequirements, shelfNotice,
