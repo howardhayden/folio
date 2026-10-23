@@ -1,5 +1,6 @@
 import { beginLatticeAdmissionProviderFetch, endLatticeAdmissionProviderFetch } from "./admissionObservation.js";
 import { carryLatticeRegenerationRetentionContext } from "../../app/resume/lattice/regenerationContext.js";
+import { getLatticeVerificationCorrection } from "../../app/resume/lattice/verificationCorrection.js";
 import {
   ANALYSIS_SCHEMA,
   CANDIDATE_SCHEMA,
@@ -701,6 +702,8 @@ function verificationWireMessages(request, wireLayout, wireCorrection) {
 }
 
 function verificationWireCorrectionForRequest(request) {
+  const correction = getLatticeVerificationCorrection(request);
+  if (correction) return correction;
   const diagnostic = stageCorrectionRequestDiagnostic(request);
   if (diagnostic?.boundary !== "wire-decoder") return null;
   if (["V06L", "V12L", "V13L", "V14L", "V14LE", "V14LS", "V14LG", "V16L", "V17L", "V18L", "V23L"].includes(diagnostic.rule)) {

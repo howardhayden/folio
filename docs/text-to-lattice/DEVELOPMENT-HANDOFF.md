@@ -1,3 +1,19 @@
+# Text to Lattice continuation — 2026-10-23
+
+The owner resumed release-readiness work. This snapshot supersedes the historical October 7 stop below; the complete earlier handoff is preserved verbatim.
+
+PR #114 merged as `af72677c05defe2ebaa8264314d643bc690c1ea3`, preserving later portfolio maintenance. Exact-head CI #296 and combined local checks passed: 2,403 tests passed, 15 optional fixtures skipped and zero failed. The original D26 local runtime result was independently reviewed under its original source identity.
+
+The sole D26 qualification, run #298 (`39978738155`), failed after four calls. Its initial candidate exactly matched source and failed D14; both verification attempts failed host issue/check/scope alignment normalization. No regeneration occurred, so D26 feedback was not exercised. Rollback and final API enforcement each recorded three held responses, zero active responses and zero errors; held Pages were verified. Successful live, complete usage, paired environment, deployment-index and canonical browser evidence remain absent.
+
+D27 is implemented on `fix/lattice-verifier-issue-correction`. It restores the omitted host alignment context only during the existing second verification/reverification invocation, bound to the exact stage, batch, analysis and candidate, with automatic expiry. Independent implementation review passed. Full local checks passed 2,422 tests, skipped 15 optional fixtures and failed zero; lint, build, type checking, required tokenizer capacity, documentation/source/site checks and all three Worker dry-run builds passed. Initial and unrelated provider requests remain byte-identical. The current 254-file qualified source is `58cb74e733dcd766d5cdc297d5b50911966b9c3f4be6a014a0fd7984aa8d8184`; dossier is `d2bba6530c25c8f6b52ef96026aa69762eb00d095bb0addaaaa844cbd210a68e`. No hosted success or new paid qualification is claimed. Run #298 retains its original deployed source and dossier above.
+
+Resume by verifying the exact final PR head and CI, merging the reviewed held-source change, and verifying its original held publication. Then review a separately bounded current-source qualification under U27 and reassess its actual result. D26 remains consumed. Only accepted service prerequisites permit the existing U13 guarded canonical browser procedure.
+
+Keep the fixed models, providers, schemas, limits, admission, semantic acceptance, privacy and rights unchanged. D26 and older grants remain consumed. Standing U27 continues through separately justified bounded work; GATE-02, GATE-03 and GATE-06 remain open and public release held. U13 guarded canonical-browser activation stays conditional on accepted service prerequisites. Final public release is not authorized.
+
+---
+
 # Text to Lattice development handoff — 2026-10-07
 
 Work stopped at the owner's request to preserve the remaining usage allowance. Continue from this checkpoint when instructed. The public client remains held; this document grants no deployment or release authority.

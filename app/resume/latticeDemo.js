@@ -1,6 +1,10 @@
 import { getLatticeAnalysisPassageRetentionDowngrade } from "./lattice/analysisProvenance.js";
 import { withLatticeRegenerationRetentionContext } from "./lattice/regenerationContext.js";
 import {
+  rememberLatticeVerificationIssueAlignmentError,
+  withLatticeVerificationCorrection,
+} from "./lattice/verificationCorrection.js";
+import {
   LATTICE_CLARIFICATION_SAFETY_LIMIT,
   LATTICE_CLARIFICATION_SERIALIZED_UTF8_LIMIT,
   LATTICE_CLARIFICATION_UTF8_LIMIT,
@@ -1042,6 +1046,8 @@ function normalizeVerification(
   batch,
   analysis,
   deterministicFindings,
+  candidate,
+  stage,
 ) {
   protocol(record(raw) && DECISIONS.has(raw.decision), "The verifier returned an invalid decision.");
   exactKeys(raw, ["decision", "failedGates", "passages", "issues", "questions"], "Verification response");
@@ -1211,7 +1217,11 @@ function normalizeVerification(
     protocol(passageId === "" || sourceById.has(passageId), "A verifier issue references an unknown passage.");
     const checkFailedGlobally = failedGateSet.has(rawIssue.check);
     const checkFailedLocally = passageId !== "" && byId.get(passageId)?.[rawIssue.check] === false;
-    protocol(checkFailedGlobally || checkFailedLocally, "A verifier issue must identify a failed gate or passage check.");
+    if (!checkFailedGlobally && !checkFailedLocally) {
+      throw rememberLatticeVerificationIssueAlignmentError(new LatticeProtocolError(
+        "A verifier issue must identify a failed gate or passage check.",
+      ), batch, analysis, candidate, stage);
+    }
     const atomIds = uniqueStrings(rawIssue.atomIds, "Verifier issue atoms", 12);
     protocol(atomIds.every((id) => allAtomIds.has(id)), "A verifier issue references an unknown atom.");
     stringValue(rawIssue.id, "Verifier issue identifier", { maximum: 120 });
@@ -1551,7 +1561,9 @@ async function callNormalizedStage({
       analysisDiagnosticOrigin,
     );
     try {
-      const raw = await invoke(currentRequest);
+      const raw = attempt === 2 && ["verification", "reverification"].includes(stage)
+        ? await withLatticeVerificationCorrection(currentRequest, lastError, () => invoke(currentRequest))
+        : await invoke(currentRequest);
       try {
         const normalized = await normalize(raw, currentRequest);
         // Protocol recovery is independent of semantic acceptance and final
@@ -3694,13 +3706,8 @@ export async function runTextToLattice(value, options = {}) {
           request.batch,
           request.analysis,
           request.deterministicFindings,
-          `verification:1:${request.batch.id}`,
-          {
-            sourceFingerprint,
-            analysisRevisionId: request.analysisRevisionId,
-            committedProvenance: request.clarificationDocumentProvenance,
-            candidateFingerprint,
-          },
+          request.candidate,
+          "verification",
         ),
         signal,
       });
@@ -3984,13 +3991,8 @@ export async function runTextToLattice(value, options = {}) {
           request.batch,
           request.analysis,
           request.deterministicFindings,
-          `verification:2:${request.batch.id}`,
-          {
-            sourceFingerprint,
-            analysisRevisionId: request.analysisRevisionId,
-            committedProvenance: request.clarificationDocumentProvenance,
-            candidateFingerprint,
-          },
+          request.candidate,
+          "reverification",
         ),
         signal,
       });
