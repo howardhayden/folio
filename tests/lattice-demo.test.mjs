@@ -59,6 +59,8 @@ import { latticeProtectedLiteralMatches } from "../app/resume/lattice/protectedS
 import { rememberRejectedResult, deterministicFindingRule } from "../app/resume/lattice/rejectionDiagnostics.js";
 import { isClosedWithheldPipelineObservation, rememberLatticeAnalysisRetentionDowngrade } from "../app/resume/lattice/qualificationDiagnostics.js";
 import { rememberLatticeAnalysisPassageOrigins } from "../app/resume/lattice/analysisProvenance.js";
+import { getLatticeRegenerationRetentionPositions } from "../app/resume/lattice/regenerationContext.js";
+import { createHuggingFaceLatticeAdapter } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
   deterministicDocumentReview,
   deterministicPassageReview,
@@ -3898,6 +3900,125 @@ test("failed positive conformance escapes retain through re-planning and regener
   const result = await runTextToLattice(source, { adapter });
   assert.equal(result.status, "translated");
   assert.notEqual(result.text, source);
+  assert.deepEqual(adapter.calls, { analyze: 2, generate: 2, verify: 2, repair: 0 });
+});
+
+test("D26 actual regeneration carries unconfirmed retention through provider mode-copy and existing correction", async (context) => {
+  for (const mode of ["exact copy", "material", "explicit rewrite", "protocol correction", "positive retention", "ordinary rewrite"]) {
+    await context.test(mode, async () => {
+      const drafts = [], requests = [];
+      let responseCandidate, certifications = 0;
+      const provider = createHuggingFaceLatticeAdapter({ token: "synthetic-only", requestedMode: "operative",
+        fetchImpl: async (_url, init) => {
+          drafts.push(JSON.parse(init.body));
+          return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: {
+            role: "assistant", content: JSON.stringify(responseCandidate),
+          } }] }), { headers: { "Content-Type": "application/json" } });
+        } });
+      const expectedCue = !["positive retention", "ordinary rewrite"].includes(mode);
+      const adapter = scriptedAdapter({
+        analyze(request, count) {
+          if (count === 2 && expectedCue) {
+            assert.equal(request.reanalysisFeedback.passages[0].requiresPositiveConformance, true);
+            assert.equal(request.reanalysisFeedback.passages[0].conformanceConfirmed, false);
+          }
+          return rawAnalysis(request, { layer: "operative", disposition: mode === "ordinary rewrite"
+            || count === 2 && mode === "explicit rewrite" ? "rewrite" : "retain-if-conformant" });
+        },
+        async generate(request, count) {
+          requests.push(request);
+          const payload = JSON.parse(candidateMessages(request)[1].content.slice(12, -13));
+          const expected = count > 1 && expectedCue ? { retentionNotConfirmedPassagePositions: [0] } : undefined;
+          assert.deepEqual(payload.regenerationFeedback, expected);
+          assert.equal(Object.hasOwn(payload, "candidate"), false);
+          assert.equal(Object.hasOwn(payload, "verification"), false);
+          if (count > 1) {
+            assert.equal(request.regenerationFromReanalysis, true);
+            assert.equal(request.deterministicFindings.length, 0);
+            assert.notEqual(request.analysis, requests[0].analysis);
+            for (const clone of [Object.freeze({ ...request }), Object.freeze({ ...request,
+              analysis: Object.freeze({ ...request.analysis }) })]) {
+              assert.equal(Object.hasOwn(JSON.parse(candidateMessages(clone)[1].content.slice(12, -13)),
+                "regenerationFeedback"), false);
+            }
+          }
+          responseCandidate = mode === "protocol correction" && count === 2 ? {}
+            : rawCandidate(request, { identity: mode === "exact copy" });
+          return provider.generate(request);
+        },
+        verify(request, count) {
+          for (const prior of requests) assert.deepEqual(getLatticeRegenerationRetentionPositions(prior), []);
+          return rawVerification(request, count === 1
+            ? expectedCue ? { passage: { conformanceConfirmed: false, clarity: false }, issues: [{
+              id: "synthetic-private-id", check: "clarity", passageId: request.batch.passages[0].id,
+              atomIds: [], message: "SYNTHETIC-PRIVATE-REVIEW-PROSE",
+            }] } : { gates: { sourceCoverage: false } }
+            : {});
+        },
+        repair() { assert.fail("regeneration must not create a repair opportunity"); },
+        certify(request) {
+          certifications += 1;
+          return { certificateId: request.certificateId, obligationIds: request.obligationIds, decision: "accept",
+            checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name, true])), issues: [] };
+        },
+      });
+      const result = await runTextToLattice(`${opaqueWords(12)}\n`, { adapter, requestedMode: "operative" });
+      assert.deepEqual(adapter.calls, { analyze: 2, generate: mode === "protocol correction" ? 3 : 2,
+        verify: 2, repair: 0 });
+      assert.equal(certifications, mode === "exact copy" ? 0 : 1);
+      if (mode === "exact copy") assertCandidateWithheld(result);
+      else assert.equal(result.status, mode === "positive retention" ? "conformant-for-context" : "translated");
+      assert.equal(provider.completionCapacity().used, drafts.length);
+      for (const [index, body] of drafts.entries()) {
+        const payload = JSON.parse(body.messages[1].content.slice(12, -13));
+        assert.deepEqual(payload.regenerationFeedback, index > 0 && expectedCue
+          ? { retentionNotConfirmedPassagePositions: [0] } : undefined);
+        assert.equal(body.messages[0].content.includes("previous unchanged retention did not obtain required positive conformance"),
+          index > 0 && expectedCue);
+        assert.doesNotMatch(body.messages[0].content, /regenerationFeedback\.nonmaterialPassagePositions/u);
+        assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
+        assert.equal(body.max_tokens, 800);assert.equal(body.temperature, 0.45);assert.equal(body.top_p, 0.9);
+        assert.deepEqual(body.response_format, { type: "json_object" });
+        assert.doesNotMatch(JSON.stringify(body), /SYNTHETIC-PRIVATE-REVIEW-PROSE|synthetic-private-id/u);
+      }
+      assert.doesNotMatch(JSON.stringify(result), /retentionNotConfirmedPassagePositions|regenerationFeedback/u);
+      for (const request of requests) assert.deepEqual(getLatticeRegenerationRetentionPositions(request), []);
+    });
+  }
+});
+
+test("D26 mixed passage regeneration keeps prior D14 and unconfirmed retention positions independent", async () => {
+  let regenerated = 0;
+  const adapter = scriptedAdapter({
+    analyze(request, count) {
+      const raw = rawAnalysis(request, { layer: "operative", disposition: "retain-if-conformant" });
+      raw.passages[1] = rawAnalysis(request, { layer: "operative" }).passages[1];
+      if (count === 2) assert.equal(request.reanalysisFeedback.passages[0].conformanceConfirmed, false);
+      return raw;
+    },
+    generate(request, count) {
+      if (count === 2) {
+        regenerated += 1;
+        assert.deepEqual(request.deterministicFindings.map((finding) => finding.passageId), [request.batch.passages[1].id]);
+        const messages = candidateMessages(request, { analysisPlanDialect: "compact-wire-v2" });
+        const payload = JSON.parse(messages[1].content.slice(12, -13));
+        assert.deepEqual(payload.regenerationFeedback, {
+          nonmaterialPassagePositions: [1], retentionNotConfirmedPassagePositions: [0],
+        });
+        assert.match(messages[0].content, /previous draft failed the host normalized-word check/u);
+        assert.match(messages[0].content, /previous unchanged retention did not obtain required positive conformance/u);
+      }
+      return rawCandidate(request, { identity: count === 1 });
+    },
+    verify(request, count) {
+      const raw = rawVerification(request);
+      if (count === 1) { raw.passages[0].conformanceConfirmed = false; raw.decision = "repair"; }
+      return raw;
+    },
+    repair() { assert.fail("mixed structural failure uses existing regeneration only"); },
+  });
+  const result = await runTextToLattice(`${opaqueWords(12)}\n\n${opaqueWords(12, "z")}\n`, { adapter });
+  assert.equal(regenerated, 1);assert.equal(result.status, "translated");
   assert.deepEqual(adapter.calls, { analyze: 2, generate: 2, verify: 2, repair: 0 });
 });
 
