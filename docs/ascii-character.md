@@ -1,78 +1,29 @@
-# Index ASCII Cat
+# ASCII cat motion study
 
-The index illustration is a fixed 70 × 34 ASCII character system. It depicts a cat loafing on a glass table while the viewer looks up from beneath it. The torso stays broad and low across the glass, the forepaws remain tucked close to the underside of the chest, and the cat lowers its head to look down rather than sitting upright to face the viewer. The surrounding hah.dev layout, copy, routes, and interactions are unchanged.
+The home page keeps the accepted abstract head, broad curved ears, pale underside, and fine monochrome coat. `catDrawing.js` defines the canonical coat coordinates at four times the original hah.dev sampling resolution. Its tail is longer and fuller. There are no defined eyes, nose, mouth, or face mask.
 
-The cat is built procedurally from tonal character density. Its volume comes from irregular fields of light and dark fur characters, not an outlined mascot shell. The loaf is a low, asymmetric superellipse with distinct shoulder and haunch volume instead of a round body stamp. The lowered head has small ears integrated into its upper contour but deliberately has no explicit eyes, nose, mouth, smile, or other distinct face. Attention is communicated by pivoting and reshaping the whole head around a fixed neck blend.
+`catAnatomy.js` shapes the reclining torso from smoothly joined chest, ribcage, haunch, and folded rear-thigh volumes. The chest tucks beneath the head, the shoulder slopes into one gentle back curve, and the rump rounds off toward the tail root. Broad overlap between the ribs and hips removes the pinched dip and separate humps. The broad front slab exposed during rightward head turns remains removed. The coat silhouette and renderer depth come from the same anatomical surface, so turns and rolls preserve that shape in depth.
 
-## Behavior model
+Resting torso height is compressed by 25% toward its underside, keeping the feet planted and the back near the head's crown. The proximal tail sits inside the lowered rump instead of making a raised bump. Back-petting landmarks follow this lower profile.
 
-The controller has five visible states:
+`catSkeleton.js` supplies an orthographic 3D skeleton with depth, a deforming spine, hip and shoulder frames, independent head yaw and pitch, ear joints, and shoulder–elbow–wrist chains. Body rolls change the shape and occlusion of the coat. Head turns change projected volume and the relative position of the ears. The whiskers use the same head coordinates as the coat. A quiet side-roll joins the sleepy stretches, ear rub, drowsy nod, and paw washing. During ear grooming the head yaws toward the rubbing paw, and follows that paw back toward rest.
 
-1. `idle` — the cat holds its loaf while its rump-rooted tail moves through five silhouettes in an eight-phase out-and-back swish;
-2. `track` — entering or moving within the ASCII frame turns the lowered head toward one of four pointer quadrants while the tail continues moving;
-3. `bat` — a short dwell or sufficient pointer movement produces a readable shoulder-to-paw reach and glass contact, sometimes followed by zero to three smaller taps;
-4. `settle` — the reaching paw recoils and tucks back into the loaf;
-5. `follow` — after the pointer leaves the ASCII frame, the head continues following its external direction briefly before the cat returns to ambient rest.
+The head turns around the skull base, supported by the shoulders. A short cubic cervical spine joins the local shoulder tangent to the skull orientation. Coat offsets follow this curve into the head, preserving a continuous neckline through leftward turns, lifts, and rolls. The fuller ruff fills the nape without raising the resting back.
 
-Pointer direction is sampled relative to the lowered head at row 20, column 21. Points at least three rows above that anchor map to an upper quadrant; all others map left or right. The same mapping accepts coordinates outside the 70 × 34 frame, allowing the cat to follow the pointer after it moves away. External following lasts up to two seconds after departure and refreshes as the pointer continues moving. Bat frames retain the precise in-frame row and column, including edge and corner cells, so the compact contact lands at the pointer rather than at one fixed endpoint for the whole quadrant.
+`catRenderer.js` projects front and back coat surfaces into a depth buffer and generates a fresh 320 × 136 character grid. Curved furry tubes join shoulders to wrists; rounded, flattened paw volumes finish each foreleg. The forelegs taper gradually and overlap the paws without rectangular seams or clipped ends. Fur stays attached to material coordinates, so movement changes the generated characters without random texture flicker. Whiskers and ear wisps use a faint aligned character layer at 32% opacity.
 
-The action direction is locked for each bat, so one reach cannot reverse halfway through. Ready, reach, contact, and recoil form a 530 millisecond primary gesture. A deterministic cadence pattern adds zero, one, two, or three compact `mini-in`/`mini-contact` pairs before recoil; the first interaction is always a clean single bat. Complete gestures last between 530 and 1,115 milliseconds. This produces natural variation and occasional paw flurries without animation randomness or unreadably fast motion. The tail keeps its current phase throughout the bat and settle, then resumes from the adjacent ambient position. A pointer that stays over the illustration can invite another bat after the post-gesture cooldown.
+Dense, short tufts overlap around the coat silhouette, with a shallow, softly shaded edge and a slightly fuller pile around the ruff. The tufts spread along the surface and remain attached to the same material coordinates through movement. Slightly fuller foreleg volumes have softly broken fur edges; paw contours stay rounded and flattened. The whisker layer keeps its existing weight.
 
-## Anatomy and under-glass perspective
+`AsciiDrawing.tsx` writes those two character grids on a deliberate 24 fps clock. Text is rendered directly at approximately 2.5–3px per character, with no moving image, canvas, SVG, masks, or transformed text pieces. The initial server output is one accessible image; character grids are hidden from screen readers. The existing page composition has no extra controls or demonstration interface.
 
-- the torso forms a horizontal, foreshortened loaf across the middle of the frame;
-- the head remains lowered into the near side of the loaf and pivots around a fixed posterior neck mass;
-- small, tapered ears grow directly from the lowered head contour and rotate with it without becoming separate blobs or a cartoon face;
-- all head and body surfaces use the same tonal fur vocabulary: ` .,:;clodxkO0KXNM`;
-- compact forepaw contacts are centered at row 23, columns 28 and 40, close to the chest rather than spread like oversized icons;
-- a bat begins at the authored left or right shoulder, unfolds as a broad three-to-five-cell fur band through a close elbow and wrist, and ends in a small `K`-centered glass contact at the pointer;
-- the non-batting paw remains tucked against the glass;
-- moving limbs use fur-density bands rather than slash-built sticks;
-- the long, tapered tail originates at the right rump, hugs the haunch through a fixed proximal curve, reaches column 69, and arcs through rows 12–22 across five ambient silhouettes.
+`catMotion.js` retains idle, tracking, batting, settling, and a two-second follow after departure. Batting reuses `createAsciiBatSequence` from the original hah.dev engine, including ready, reach, contact, recoil, and the authored zero-through-three follow-up pattern. Timings are interpolated and slightly lengthened for distant reaches. Targets span the drawing and a surrounding interaction margin; contact targets are inset slightly from canvas edges. Movement or dwelling can trigger batting, and the original 1100ms cooldown allows repeated play.
 
-From below, glass compresses the nearest paw and belly surfaces while the body spreads laterally above them. The silhouette therefore reads as weight resting across a transparent plane, not as a cat sitting upright in front of the viewer. No pupil landmarks or facial symbols are used to fake attention.
+`catInteraction.js` classifies touch against projected anatomical landmarks and the current tail curve. Gentle cursor motion on the forehead, nose, cheeks, and ears earns a lean toward the hand; nose and forehead rubs lift the head. Longitudinal back strokes arch the spine and raise the hindquarters. Petting responds to movement rather than an invented stroke on hover, fades after the hand leaves, and suppresses play-batting at the cat's own head or back. An existing reach retracts from its current position when petting begins.
 
-## Rendering and performance
+`catPoseTransition.js` handles changes between all responses: tracking, petting regions, grooming, stretches, rolls, batting, interruptions, and settling. Each handoff starts at the currently visible pose and carries its outgoing velocity into the moving destination. Paws blend in world space, preventing a change of gesture from teleporting a raised paw. Gentle handoffs allow more time for larger anatomical travel, with a slower pace for the spine. Rapid interruptions capture the current blended pose. Tracking, petting strength, ear flicks, and tail speed also evolve continuously within a response. Internal batting phases retain their authored cadence, including the sharper tail strikes.
 
-Each semantic pose is composed from the procedural loaf, directionally rotated head and ears, compact paw contacts, broad foreleg paths, and rump-rooted tail. It is then reduced to patches against the base `loaf-center` frame. Ambient and tracking frames are precomputed once; a bat's small frame set is generated at gesture start for the current pointer cell. A deterministic motion clock advances an eight-phase tail cycle built from five silhouettes independently from head direction, follow deadlines, and paw cooldowns. Repeated midpoint phases preserve whether the swish is traveling outward or returning; a bat freezes that exact phase and resumes it with a short post-settle buffer. Animation writes directly to the `<pre>` element's `textContent`, so pointer motion does not trigger React rendering or alter the fixed 70 × 34 geometry.
+Touching the exposed tail switches to shorter, sharper batting phases, deeper between-tap withdrawals, alert ears, and faster tail swishes. The normal zero-through-three follow-up count is retained in this faster variant. A tail disturbance can interrupt grooming through a brief retraction. Touching the rump counts as a back stroke rather than accidentally activating the tail behind it. These are invisible touch landmarks; no facial features or interface were added.
 
-The entire rendered frame, including its whitespace, is interactive. This matches the glass-table premise: the cat is reacting to a pointer moving across the apparent transparent surface, not only to collisions with visible fur characters.
+Reduced motion freezes a generated resting pose and disables interaction. Touch does not trigger cursor play. Hidden tabs and hidden page views pause active time. Cleanup removes animation frames and event listeners. `AsciiArt.tsx` and `asciiCharacter.js` remain unchanged; the latter still supplies the original batting cadence.
 
-## Pointer cadence
-
-- entering the frame starts directional head tracking immediately;
-- 16 pixels of accumulated pointer movement or a 520 millisecond dwell can initiate a bat;
-- the primary bat uses 105, 115, and 165 millisecond ready/reach/contact poses;
-- a fixed ordinal pattern distributes zero through three mini-bat follow-ups, with 80–100 millisecond inward and 95–115 millisecond contact poses;
-- recoil takes 145 milliseconds, settle takes 190 milliseconds, and the 1,100 millisecond cooldown starts after the bat completes;
-- leaving the frame samples the departure coordinates, then window-level pointer movement updates the head direction during the two-second follow interval.
-
-The fixed mini-bat pattern makes the variation repeatable in tests while avoiding a mechanical identical response on every attempt.
-
-## Accessibility and input modes
-
-The changing ASCII text is hidden from repeated assistive-technology announcements. The stable image description is exported with the character system and rendered before client hydration:
-
-> A cat loafs on a glass table above the viewer, turns its lowered head toward the pointer, swishes its tail, and bats with a tucked paw.
-
-- fine hover pointers receive head tracking, dwell-aware batting, follow-up taps, and brief tracking after departure;
-- touch and coarse pointers retain the ambient loaf and tail cycle without a hover-only batting interaction;
-- `prefers-reduced-motion: reduce` suppresses tail and paw animation while retaining a static directional head pose during pointer tracking and brief follow behavior.
-
-## Validation
-
-The build-time validator and rendered tests reject:
-
-- incorrect row counts, row widths, tabs, or out-of-grid patches;
-- missing idle, tracking, batting, retracting, or settling sequences;
-- missing direction coverage for any pointer quadrant;
-- direction mapping that fails for pointer coordinates outside the ASCII frame;
-- fewer than five distinct connected tail silhouettes, an incorrect eight-phase order, abrupt adjacent transitions, loss of the full outer span, or a blunt terminal stack;
-- loss of the dense procedural loaf or either compact resting paw contact;
-- a bat detached from its authored shoulder, missing its compact contact, or rendered as a line-art limb;
-- a targeted bat whose central contact does not land on the sampled pointer cell;
-- mini-bat patterns that omit zero through three follow-up counts, become nondeterministic, or fall outside the readable 530–1,115 millisecond gesture envelope;
-- circular loaf silhouettes, unstable tail roots, broad whole-tail swings, or an inherited line height that stretches the cat vertically;
-- tracking poses that fail to change the lowered head region distinctly for all four directions;
-- facial-cartoon glyphs, oversized mascot paws, or the superseded human hand, pen, and arm motifs;
-- changes to the site's established shell, route distinctions, page copy, project records, shelf records, or accessible markup.
+Run `npm ci`, then `npm run dev -- --host 127.0.0.1 --port 5173` and open `/`. Tests cover torso proportions and exposure during head turns and rolls, character geometry, determinism, joint connections, moving whisker roots, long-reach contacts, follow expiry, cooldown, every authored mini-bat count, all 400 response pairs, velocity continuity, interrupted transitions, cervical spine tangents, the leftward nape silhouette, and connected neck fur. Run `npm run lint` and `npm test` before publication. The Pages workflow enforces the Text to Lattice release boundary; this portfolio update retains its held, documentation-only status.

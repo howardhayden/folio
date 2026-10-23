@@ -10,11 +10,13 @@
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `b624133582f3303be892a31f9af2a0d550ade468d0401b46d850c9c208a80d27`
+**Qualified source-set SHA-256:** `b0a1f3809a205a0465e7039a24e9942b462a3223f8b4a528c3faa2c527a50d34`
 
 **Artifact-set projection SHA-256:** `632bdd4709874f2b647b13f2c8499076ac3c531af132c12dcf3a1cdd604f8867`
 
 Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence.
+
+Portfolio maintenance, 2026-10-21: the current held source identity includes the generated ASCII cat, its anatomical interaction and transition tests, the accessible home-page integration, matching portfolio documentation and license routing, and fixed-aspect text-row layout for Safari. The Text to Lattice executable, provider contracts, workflow controls, gate statuses, historical evidence, and held documentation-only publication are unchanged. This source-identity refresh establishes no production qualification, public-client activation, service deployment, or new canonical-browser evidence.
 
 Run #289 (https://github.com/howardhayden/folio/actions/runs/37596920429), attempt 1, consumed the selected U27/D25 packet on main c35b1ed89458c8c4dab0884303b4ad91675ce0dd, tree 1a7b92ee8ed49356a36de21614cf0a4140f26a00, qualified source b6e616acabdf57a180cea7bf1e0beed5790a4b5237bdd3539bb068e174405e28 and deployed dossier c5175d8cb1dcb0c8f1cec17b1f57d0bd73550b37d3a6c510450c725b7771b416. Service job 112712832587 failed at the live API boundary check. At 2026-10-07T08:58:36.0938631Z the finite result was post-candidate-withheld, coherent revision, deterministic blocked with first rule D14, normalized semantic-rejection, certification not-reached, six used calls, one batch, zero public verification passes and one finding. The pipeline recorded regeneration retry and candidate lineage, initial deterministic clear, no successful correction or initial retention downgrade, initial retained plan present, retained-conformance structural retry, committed retain override present and final_d14_comparison exact-source. Terminal-failure and rejection diagnostic groups were none. Interactive publication was skipped. No D25 verification output-limit shape was observed on this different failure branch.
 
