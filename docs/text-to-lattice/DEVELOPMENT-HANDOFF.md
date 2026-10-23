@@ -1,3 +1,25 @@
+# Current checkpoint — API still under diagnosis after failed #305, 2026-10-23
+
+GATE-02 (API/privacy boundary), GATE-03 (capacity/cost) and GATE-06 (canonical browser lifecycle/privacy) remain open with null acceptance bases. The public client is held; final release is not authorized.
+
+PR #118 merged D28 as ed093b6239e3152ea757c625b275b46e9e8a8c49, reviewed tree 5c21d28afccd83b09773e1469d086ef437836db8. Its 254-file source c92be32334c8cd694e92943f473caac57e136c90d5bfc26d2825a36ef4465eb9, deployed dossier dfd90318a9855ca6ba6af8896a342c633f57cf03c6c190ff3c74e5576f03ce0a, 2,468 local passes/15 optional skips/zero failures, CI #303 and routine held publication #304 retain their original scope. This checkpoint changes documentation only; it does not establish a new service qualification.
+
+The separately selected sole D28 POST returned 204 at 18:42:14.650726 UTC. Run #305 / 40005472274, attempt 1, failed at 18:47:12.7452406 UTC after retained-conformance selected reanalysis/regeneration and both reverifications failed host decision consistency. Seven adapter budget slots are not token usage or billing. Failed reverification discarded the regenerated candidate and restored the initial candidate, analysis and available review. Discarded materiality/text, each actual predicate, actual D27/D28 cue and provider cause remain unknown. Live/admission/complete usage/after-environment/index evidence is absent; unknown cost is not zero.
+
+Initial failure rollback failed and has no verification receipt. Separate final enforcement verified three held API samples, zero active/errors, at 18:47:41.337 UTC; held Pages passed at 18:47:25.492 UTC. The bounded closed log projection retains only an API marker and unassociated literal10500 from a possibly overlapping step window; association, underlying cause and initial restoration time remain unknown. These are dated final samples, not continuous hold.
+
+Eight actual-engine/adapter offline retained-conformance regeneration controls passed and were independently rerun with identical complete body hashes and 58 mocked completions. Both authentic predicate cues, crossed failures, correction ownership/expiry, discard/restoration, valid corrected acceptance/certification and valid negative handling passed. No routing gap was found in that tested path. The private HV01/HV02 diagnostic design was independently reviewed and deferred because neither label currently changes a supported next remedy; no diagnostic implementation, prompt/model/provider change or later paid operation is selected. No live predicate or provider remedy follows from the synthetic cases.
+
+A later anonymous primary Hugging Face catalog GET completed at 2026-10-23T19:16:22.102555Z with the exact current meta-llama/Llama-3.1-8B-Instruct:nscale pair listed live and supports_structured_output=true at the same $0.06 input/$0.06 output per million tokens. The retained 16:57:15.368948Z observation reported false. Original later catalog SHA-256 is 82b7089e5c934b26a3c2d9baab3162842d204ea9269a28cf922b9b4706e59680. This is a dated declared-metadata difference, not the time of an actual runtime change, native grammar enforcement, provider recovery or a cause of run305. Earlier false observations retain their original scope. Any later observation still needs separate bounded selection/review; no repeat is selected here.
+
+Retain work/evidence/run305-* original sanitized artifacts, finite failure and independent/root semantic/custody/outcome reviews, plus the reviewed/applied/postverified run305-terminal-current four-alias checkpoint. The canonical dossier names the exact ZIP/projection/review hashes. D28/#305, A1/#302, D27/#301 and older grants remain spent, one used and zero remaining. U27 permits separately justified bounded work; it does not authorize blind reruns or a new model/provider choice. Any proposed fixed verifier change needs an exact reviewed owner decision before selection or paid execution. Do not reuse historical successful checks for changed source.
+
+Native Safari/Brave preparation remains paused after the locked-Mac refusal. Manual unlock and fresh ownership/state observations are still required; canonical network, persistence, CSP and native-pixel proof remain incomplete. U13 activation remains conditional on accepted service prerequisites. Firefox's earlier 14 local input checks did not reproduce the click issue and retain their original scope.
+
+The complete preceding checkpoint follows verbatim as history.
+
+---
+
 # Current checkpoint — D28 locally validated, 2026-10-23
 
 API debugging is unfinished. GATE-02 (API/privacy boundary), GATE-03 (capacity/cost) and GATE-06 (canonical browser lifecycle/privacy) remain open with null acceptance bases. The public client is held, and final release is not authorized.
