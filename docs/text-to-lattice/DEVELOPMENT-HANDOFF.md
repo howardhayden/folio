@@ -1,3 +1,29 @@
+# Current documentation checkpoint — #310 failed; API work unfinished; three gates open
+
+This outcome-only documentation update freezes current 254-file source `358275ca3faba1b44e26960574a9c6eff35578feb1c1289b0bacbd70f43a7a83` and dossier `cafb6bc314febc1ca9222abd58686080a4417415fd7c022d3567426513c36503`. The qualified-source change is the appended requirements history; runtime code, model selectors, caps and acceptance checks remain unchanged. Build/pages/type/documentation/source/site checks and all 17 focused documentation/release tests passed, with zero failures or skips, including a repeat after restoring unrelated atlas formatting. Actual final execution: work/evidence/run310-docs-validation-final.json. Exact-head remote CI and delivery for this documentation commit are pending; read the later merge commit message and original evidence before treating those as complete.
+
+The last actual qualification remains failed run #310/40025548479/attempt 1 on main `e651f1226855aff88d017b7e05d446139799d5ce`, deployed source `21ba04859958d53550ad181597913501e2fe45d75a221a85178b6e3dd5f6a581` and deployed dossier `21503abb9d85f7d3b0a49737da45154f3c7d52f0d9ca2494dea9d00bed571ca0`. Do not relabel that observation as qualification of the new documentation source. Root outcome: work/evidence/run310-root-outcome-review.json. Operator aliases carry an additive qualification_d29_terminal_current record; prior #305/readiness/pretrigger records remain historical snapshots. D29 is spent 1/0; no replacement, model/provider change or new paid operation is selected. Local remedy and conditional model eligibility research remain unapproved proposals.
+
+Public client held; GATE-02, GATE-03 and GATE-06 remain open with null acceptance bases. Canonical browser prerequisites are unmet and Mac unlock is unconfirmed. Firefox's 14 local input checks did not reproduce the reported click issue; hosted Firefox regression and canonical Safari/Brave evidence remain incomplete. Preserve privacy, proprietary ownership and valid earlier/third-party rights.
+
+The complete earlier handoff follows verbatim.
+
+---
+
+# Current release work — D29 delivered; qualification #310 failed; client held
+
+PR #120 merged as main e651f1226855aff88d017b7e05d446139799d5ce after exact-head CI #308 passed. The reviewed tree is 704eb0f7133bfdcfcf64ed642a38ed54b087ef16, source 21ba04859958d53550ad181597913501e2fe45d75a221a85178b6e3dd5f6a581 (254 files), and actual deployed dossier 21503abb9d85f7d3b0a49737da45154f3c7d52f0d9ca2494dea9d00bed571ca0. Routine held publication #309 passed. Full local validation, three Worker dry runs and the later final-documentation build with 17 focused checks retain their original scopes; delivery is complete, not pending.
+
+The separately selected sole D29 POST returned HTTP 204 at 2026-10-23T21:16:29.360057Z and produced run #310/40025548479, attempt 1, service job 120661986757. Qualification failed after retained-conformance reanalysis/regeneration and two host reverification decision-consistency failures. The provisional regeneration was discarded, restoring initial lineage. Exact predicates, raw judgments, private cue use, discarded text and provider cause remain unknown. Successful atomization correction does not establish successful verification correction. Eight logical budget slots are not complete provider-reported calls, usage or cost; no accepted canary, usage sidecar, environment-after proof or deployment index exists.
+
+Failure rollback passed at 21:21:16.876 UTC; separate final held API enforcement passed at 21:21:44.657 UTC, with three held responses, zero active responses and zero errors at 100 percent deployment. Final held Pages passed at 21:21:28.293 UTC. Preserve the distinction between these dated samples and continuity, and between actual #310 cleanup and #305’s separate unknown rollback failure.
+
+Resume from the root outcome, independent semantic/custody and dispatch-discovery reviews under work/evidence/run310-* and work/evidence/u27-d29-*. D29 is spent one used/zero remaining; earlier D27/A1/D28 and prior grants remain spent. No replacement run, fixed-model/provider change, native activation or final release is selected. Local remedy/model research is proposal-only and supplies no approved remedy. GATE-02, GATE-03 and GATE-06 remain open with null acceptance bases; the public client stays held. Mac unlock remains unconfirmed after the latest retained lock refusal. Firefox’s original 14 local input checks did not reproduce the click issue and do not establish canonical-browser or hosted acceptance. Privacy, proprietary ownership and valid earlier/third-party rights remain unchanged.
+
+The complete prior handoff follows verbatim; its former pending statements retain their historical scope.
+
+---
+
 # Current release work — D29 validated locally; API and three gates still open
 
 The D29 scope-schema patch is complete and independently reviewed. Full local validation passed 2,481 tests with zero failures and 15 historical optional skips; lint passed with one existing warning. All three Worker dry runs passed. Final documentation, held-site rebuild and all 17 focused documentation/release checks passed after the documentation-only addendum. The exact 254-file source remains 21ba04859958d53550ad181597913501e2fe45d75a221a85178b6e3dd5f6a581; the final documentation dossier is 21503abb9d85f7d3b0a49737da45154f3c7d52f0d9ca2494dea9d00bed571ca0. The full suite's earlier ec638 dossier retains its original scope; final documentation is covered by the subsequent build and focused checks. This final handoff prefix changes no qualified source or dossier bytes.
