@@ -1,3 +1,37 @@
+# Current checkpoint — D28 locally validated, 2026-10-23
+
+API debugging is unfinished. GATE-02 (API/privacy boundary), GATE-03 (capacity/cost) and GATE-06 (canonical browser lifecycle/privacy) remain open with null acceptance bases. The public client is held, and final release is not authorized.
+
+The D28 decision-alignment correction is implemented and independently reviewed. The actual negative-decision/no-failed-condition predicate now carries fixed, neutral guidance into its existing second attempt with exact request ownership and expiry. Independent judgment, both rejection guards, D27 issue guidance, two-attempt exhaustion, models/providers, limits, admission, privacy and rights remain unchanged. The separate offline defect is established; the actual #302 predicate, discarded repair and cue remain unknown.
+
+Current qualified source: c92be32334c8cd694e92943f473caac57e136c90d5bfc26d2825a36ef4465eb9, 254 files. Dossier: dfd90318a9855ca6ba6af8896a342c633f57cf03c6c190ff3c74e5576f03ce0a. Requirements main was freshly verified at 5a12659150eaa33fb91810176ef775ab29bab976. Full local validation passed 2,468 tests with 15 optional historical skips and zero failures; build, type checking, documentation/source/site checks and required active tokenizer capacity passed. Lint exited successfully with one existing warning. All three Worker dry-run builds passed from a fresh 138-input verified copy. Independent implementation, capacity, full-validation and source/artifact-freeze reviews passed. The collector and assembler now bind the current 24/43 inputs; exactly three runtime inputs changed, and their focused four/six controls passed. All 102 historical snapshot files, 51 native bindings and both native installers remain preserved.
+
+Retain work/evidence/d28-* reviews and original run301/run302 custody. Verify actual commit/PR/exact-head CI/current-main merge and held publication before considering a separately selected, independently reviewed one-shot D28 service qualification under U27. No paid D28 qualification is selected by this source checkpoint. D27/#301 and A1/#302 remain consumed, one used and zero remaining each. A later success must be assessed against the unchanged gates; it cannot by itself identify the correction cue or prove provider grammar enforcement.
+
+Native Safari/Brave preparation remains paused after the actual Mac-lock refusal, pending manual unlock and fresh ownership/state observations. Canonical network, persistence and native-pixel proof remain incomplete; U13 activation is still conditional on accepted service prerequisites. Firefox's earlier 14 local input checks did not reproduce the click issue and retain their original scope.
+
+The complete preceding checkpoint follows verbatim as history.
+
+---
+
+# Text to Lattice continuation — D28, 2026-10-23
+
+The owner resumed release-readiness work. All three gates remain open: GATE-02 API/privacy boundary, GATE-03 capacity/cost, and GATE-06 canonical lifecycle/privacy. Public release remains held; final release is not authorized.
+
+PR #117 merged D27 as main 8e4bfbbdcfd3e49a7ddfa4a48d60ab7292d63c30, tree 59bfe20d6642c89f0362253155ae3ecdce29b9dd, 254-file source 58cb74e733dcd766d5cdc297d5b50911966b9c3f4be6a014a0fd7984aa8d8184 and dossier d2bba6530c25c8f6b52ef96026aa69762eb00d095bb0addaaaa844cbd210a68e. For that source, local validation passed 2,422 tests with 15 optional skips and zero failures; all three Worker builds and exact-head CI #299 passed.
+
+D27's sole qualification #301 (39988552462) failed on initial verification upstream HTTP 504, ordinal 3, before its correction was reached. The separately selected same-source A1/#302 (39993255454) passed that transport boundary but failed after seven budget slots: initial verification correction normalized, repair ran, both reverification attempts failed host decision consistency, certification not reached. The failed provisional repair was discarded; final exact-source D14 is the restored initial candidate. Repaired materiality/text, each actual failed predicate and D27 cue use remain unknown. Both original held rollback and final enforcement passed three held responses, zero active responses and zero errors per run; held Pages verified. Complete live/usage/after-environment/index evidence remains absent; unknown cost is not zero. Both packets stay consumed (used 1 / remaining 0).
+
+D28 is selected on fix/lattice-verifier-decision-correction. Four real-engine/current-adapter offline cases with 20 mocked completions and no provider or network calls reproduced a separate missing failure-specific context on the actual negative-decision/no-failed-condition correction path. Baseline consistency guidance already exists. Neutral dedicated context must preserve independent judgment, both rejection guards, D27 cue, exact ownership/expiry, two attempts and every fixed contract/invariant. Independent design and adjudication support this bounded source correction; it does not identify #302's exact cause. Implementation, review, required validation and new source/dossier freeze are in progress. No paid D28 qualification is selected.
+
+Native Safari/Brave ordinary owned profiles were observed blank without hah.dev entry/submission/collector arming. A later native action was refused because the Mac locked; manual unlock and actual ownership/state reobservation remain required. Brave Sync-chain/extension checks, Safari relevant sync/extension controls, versions/cache/writers and canonical CSP/network/persistence/nativePNG proofs remain incomplete. Firefox's 14 earlier local input checks did not reproduce the click issue; keep their original scope. U13 activation remains conditional on accepted service prerequisites.
+
+Retain work/evidence/run301-* and run302-* originals/reviews, D28 pre-fix reproduction/design/adjudication/implementation packet, and d28-before-offline-import-refresh/manifest.json. Root applied terminal302 four-alias checkpoint before source edits. Refresh only affected files in the collector's 24 imports and assembler's 43 imports after the final candidate is frozen; native bundles remain separately source-bound. Then independently review exact implementation/validation/CI and held publication before considering a separately bounded current-source qualification under U27. No blind repeat, standalone probe, fallback, cap/acceptance change or old-grant replenishment.
+
+The complete earlier handoff follows verbatim; its past checkpoints retain historical scope.
+
+---
+
 # Text to Lattice continuation — 2026-10-23
 
 The owner resumed release-readiness work. This snapshot supersedes the historical October 7 stop below; the complete earlier handoff is preserved verbatim.

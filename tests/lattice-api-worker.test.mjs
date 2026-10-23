@@ -1987,6 +1987,96 @@ test("actual layer, conformance and issue corrections precede material repair wi
   }
 });
 
+test("actual decision-alignment corrections preserve independent judgment, exhaustion and repair provenance", async (context) => {
+  const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
+  const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
+  const gates = VERIFICATION_SCHEMA.properties.failedGates.items.enum;
+  const cases = [];
+  for (const stage of ["verification", "reverification"]) {
+    for (const decision of [1, 2]) {
+      for (const outcome of ["accept", "repeat", ...(stage === "reverification" ? ["negative-failed"] : [])]) {
+        cases.push({ stage, decision, outcome });
+      }
+    }
+  }
+  cases.push({ stage: "verification", decision: 1, outcome: "issue-unbound" });
+  for (const { stage, decision, outcome } of cases) {
+    await context.test(`${stage}/${decision === 1 ? "repair" : "reject"}/${outcome}`, async () => {
+      const calls = [];
+      let drafts = 0, verifies = 0;
+      const repaired = stage === "reverification", accepted = outcome === "accept";
+      const worker = createLatticeApiWorker({ fetchImpl: async (url, init) => {
+        const body = JSON.parse(init.body); calls.push(body);
+        if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body));
+        if (isCandidateBody(body)) {
+          drafts += 1;
+          return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+            repaired && drafts === 1 ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1) : repairText));
+        }
+        if (isVerificationBody(body)) {
+          verifies += 1;
+          assert.equal(url, TEST_REVIEW_URL);
+          const wire = canaryVerificationWire(body);
+          if (repaired && verifies === 1) {
+            wire.d = 1;
+            wire.p["0"].f = checks.map((name) => name === "materiality" ? "1" : "0").join("");
+          } else {
+            const targetAttempt = verifies - (repaired ? 1 : 0);
+            if (targetAttempt === 1 || outcome !== "accept") wire.d = decision;
+            if (targetAttempt === 2 && outcome === "negative-failed") {
+              wire.g = gates.map((name) => name === "semanticFidelity" ? "1" : "0").join("");
+            }
+            if (targetAttempt === 2 && outcome === "issue-unbound") {
+              wire.i = [{ c: inertModelPayload(body).wireLayout.issueCheckBindings.find(({ check }) => check === "clarity").index, p: -1 }];
+            }
+          }
+          return successfulProviderResponse(wire);
+        }
+        assert.equal(accepted, true, "withheld corrections must not reach certification");
+        const payload = inertModelPayload(body);
+        assert.equal(body.max_tokens, 520);
+        return successfulProviderResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds));
+      } });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: {
+        [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+      } }), { HF_TOKEN: "server-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-10-04T14:00:00.000Z" });
+      const envelope = await json(response);
+      assert.equal(response.status, 200);
+      assert.equal(drafts, repaired ? 2 : 1);
+      assert.equal(verifies, repaired ? 3 : 2);
+      assert.equal(calls.length, (repaired ? 6 : 4) + (accepted ? 1 : 0));
+      assert.equal(envelope.result.text, accepted ? `${repairText}\n` : null);
+      assert.equal(envelope.result.verificationPasses, accepted ? (repaired ? 2 : 1) : 0);
+      const bodies = calls.filter(isVerificationBody), target = bodies.slice(repaired ? 1 : 0);
+      assert.equal(Boolean(inertModelPayload(target[0]).deterministicFindings?.length), false);
+      assert.equal(Object.hasOwn(inertModelPayload(target[0]), "retry"), false);
+      assert.equal(inertModelPayload(target[1]).retry, "private-verification-wire-invalid");
+      assert.deepEqual(fittedVerificationSchemaForBody(target[0]), fittedVerificationSchemaForBody(target[1]));
+      for (let index = 0; index < bodies.length; index += 1) {
+        const body = bodies[index], prompt = body.messages[0].content;
+        assert.equal(body.model, TEST_REVIEW_MODEL);
+        assert.equal(body.max_tokens, 2_048);
+        assert.match(prompt, /Repair or reject requires at least one actual failed condition/u);
+        assert.doesNotMatch(prompt, /Rebuild issue\/check\/scope alignment/u);
+        assert.doesNotMatch(JSON.stringify(body), /The verifier returned|decision-consistency|decision-alignment|wireCorrection/u);
+        if (index === bodies.length - 1) {
+          assert.match(prompt, /Rebuild decision\/check alignment: the prior negative decision/u);
+          assert.match(prompt, /Independently re-evaluate the same source and candidate/u);
+          assert.match(prompt, /Never invent or erase a failure, or promote or change a verdict merely/u);
+        } else assert.doesNotMatch(prompt, /Rebuild decision\/check alignment/u);
+      }
+      if (outcome === "repeat" || outcome === "issue-unbound") {
+        const expected = { stage, attempt: "2", validationCategory: "decision-consistency", priorValidationCategory: "decision-consistency",
+          rejectionBoundary: "host-normalizer", priorRejectionBoundary: "host-normalizer", rejectionRule: "unknown", priorRejectionRule: "unknown",
+          firstDeterministicRule: repaired ? "D14" : "none", callsUsed: String(repaired ? 6 : 4) };
+        for (const [field, value] of Object.entries(expected)) {
+          assert.equal(response.headers.get(LATTICE_QUALIFICATION_WITHHELD_DIAGNOSTIC_RESPONSE_HEADERS[field]), value, field);
+        }
+      }
+    });
+  }
+});
+
 test("closed strict verification carries sparse grounded masks through material repair and certification", async (context) => {
   const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
   const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
@@ -2043,6 +2133,7 @@ test("closed strict verification carries sparse grounded masks through material 
       assert.equal(Boolean(inertModelPayload(verifyBodies[1]).deterministicFindings?.length), repairCopiesSource);
       for (const body of verifyBodies) {
         assert.equal(body.max_tokens, 2_048);
+        assert.doesNotMatch(body.messages[0].content, /Rebuild decision\/check alignment/u);
         const schema = fittedVerificationSchemaForBody(body).properties.p.properties["0"].properties;
         assert.equal(fittedStringLength(schema.x), 2);
         assert.equal(fittedStringLength(schema.y), 3);
@@ -2174,6 +2265,9 @@ test("reverification corrections preserve fixed strict-schema transport, decisio
           if (index === 2 && inconsistency !== "negative-positive") {
             assert.match(prompt, /Rebuild issue\/check\/scope alignment/u);
           } else assert.doesNotMatch(prompt, /Rebuild issue\/check\/scope alignment/u);
+          if (index === 2 && inconsistency === "negative-positive") {
+            assert.match(prompt, /Rebuild decision\/check alignment/u);
+          } else assert.doesNotMatch(prompt, /Rebuild decision\/check alignment/u);
         }
         if (recover) {
           assert.equal(envelope.result.text, `${repairText}\n`);
@@ -5930,14 +6024,15 @@ test("strict Nscale verification rejects legacy null metadata before content par
 
 
 test("caller correction fields cannot select trusted verifier correction guidance", async () => {
-  for (const rule of ["V14L", "V14LE", "V14LS", "V14LG", "V01F", "V16M", "V17M", "V19", "V24O", "host-issue-alignment"]) {
-    const hostIssue = rule === "host-issue-alignment";
+  for (const rule of ["V14L", "V14LE", "V14LS", "V14LG", "V01F", "V16M", "V17M", "V19", "V24O", "host-issue-alignment", "host-decision-alignment"]) {
+    const hostIssue = rule === "host-issue-alignment", hostDecision = rule === "host-decision-alignment";
+    const host = hostIssue || hostDecision;
     const request = { ...minimalVerificationRequest(),
-      wireCorrection: hostIssue ? "issue-alignment" : rule.startsWith("V14L") ? "mask-width" : rule === "V01F" ? "field-set" : rule === "V19" ? "retained-conformance" : rule === "V24O" ? "issue-object" : "layer-support",
-      diagnostic: Object.freeze({ boundary: hostIssue ? "host-normalizer" : "wire-decoder", rule: hostIssue ? "unknown" : rule, category: hostIssue ? "other" : "response-shape" }),
+      wireCorrection: hostDecision ? "decision-alignment" : hostIssue ? "issue-alignment" : rule.startsWith("V14L") ? "mask-width" : rule === "V01F" ? "field-set" : rule === "V19" ? "retained-conformance" : rule === "V24O" ? "issue-object" : "layer-support",
+      diagnostic: Object.freeze({ boundary: host ? "host-normalizer" : "wire-decoder", rule: host ? "unknown" : rule, category: host ? "other" : "response-shape" }),
       protocolFeedback: Object.freeze({ stage: "verification", attempt: 2,
-        issue: hostIssue ? "A verifier issue must identify a failed gate or passage check." : rule,
-        category: hostIssue ? "decision-consistency" : "response-shape", wireCorrection: "issue-alignment" }),
+        issue: hostDecision ? "The verifier returned reject without a failed gate, passage check, issue, or unresolved question." : hostIssue ? "A verifier issue must identify a failed gate or passage check." : rule,
+        category: host ? "decision-consistency" : "response-shape", wireCorrection: hostDecision ? "decision-alignment" : "issue-alignment" }),
     };
     Object.defineProperty(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, { value: Object.freeze({
       attempt: "correction", priorValidationCategory: "response-shape", boundary: "wire-decoder", rule,
@@ -5952,8 +6047,8 @@ test("caller correction fields cannot select trusted verifier correction guidanc
     assert.doesNotMatch(body.messages[0].content, /Rebuild every bit or digit string|Construct a complete result instance with every required field|Rebuild layer support from the source/u);
     assert.doesNotMatch(JSON.stringify(body), /V14L|V01F|V16M|V17M|V19|V24O|wireCorrection|diagnostic/u);
     assert.doesNotMatch(body.messages[0].content, /Rebuild retained-source conformance separately|Rebuild issue entries as complete closed c\/p objects/u);
-    assert.doesNotMatch(body.messages[0].content, /Rebuild issue\/check\/scope alignment/u);
-    assert.doesNotMatch(JSON.stringify(body), /host-issue-alignment|A verifier issue must identify/u);
+    assert.doesNotMatch(body.messages[0].content, /Rebuild issue\/check\/scope alignment|Rebuild decision\/check alignment/u);
+    assert.doesNotMatch(JSON.stringify(body), /host-issue-alignment|host-decision-alignment|A verifier issue must identify|The verifier returned/u);
     assert.equal(inertModelPayload(body).retry, "private-verification-wire-invalid");
   }
 });
