@@ -18,17 +18,24 @@ function matches(request, context) {
     && data(feedback, "attempt") === 2;
 }
 
-// Called only at the actual issue-to-failed-check host predicate, using the
-// batch, analysis and candidate currently being normalized.
-export function rememberLatticeVerificationIssueAlignmentError(error, batch, analysis, candidate, stage) {
+function remember(error, batch, analysis, candidate, stage, kind) {
   if (error !== null && typeof error === "object"
     && ["verification", "reverification"].includes(stage)
     && [batch, analysis, candidate].every((value) => value !== null
       && typeof value === "object" && Object.isFrozen(value))
     && !FAILURES.has(error)) {
-    FAILURES.set(error, Object.freeze({ batch, analysis, candidate, stage }));
+    FAILURES.set(error, Object.freeze({ batch, analysis, candidate, stage, kind }));
   }
   return error;
+}
+
+// Each producer fixes its own kind at the actual rejecting host predicate.
+export function rememberLatticeVerificationIssueAlignmentError(error, batch, analysis, candidate, stage) {
+  return remember(error, batch, analysis, candidate, stage, "issue-alignment");
+}
+
+export function rememberLatticeVerificationDecisionAlignmentError(error, batch, analysis, candidate, stage) {
+  return remember(error, batch, analysis, candidate, stage, "decision-alignment");
 }
 
 export async function withLatticeVerificationCorrection(request, error, invoke) {
@@ -36,7 +43,8 @@ export async function withLatticeVerificationCorrection(request, error, invoke) 
   let context = null;
   if (origin && matches(request, origin) && !REQUESTS.has(request)) {
     context = { ...origin, active: true };
-    FAILURES.delete(error);
+    // Consume before invocation and prevent either producer from remarking it.
+    FAILURES.set(error, null);
     REQUESTS.set(request, context);
   }
   try {
@@ -52,5 +60,5 @@ export async function withLatticeVerificationCorrection(request, error, invoke) 
 // The adapter selects this before its mode-only copy; no alias is authorized.
 export function getLatticeVerificationCorrection(request) {
   const context = REQUESTS.get(request);
-  return context?.active && matches(request, context) ? "issue-alignment" : null;
+  return context?.active && matches(request, context) ? context.kind : null;
 }

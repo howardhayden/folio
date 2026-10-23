@@ -2,6 +2,7 @@ import { getLatticeAnalysisPassageRetentionDowngrade } from "./lattice/analysisP
 import { withLatticeRegenerationRetentionContext } from "./lattice/regenerationContext.js";
 import {
   rememberLatticeVerificationIssueAlignmentError,
+  rememberLatticeVerificationDecisionAlignmentError,
   withLatticeVerificationCorrection,
 } from "./lattice/verificationCorrection.js";
 import {
@@ -1248,9 +1249,10 @@ function normalizeVerification(
   const decision = raw.decision === "accept" && !reportedChecksPass ? "repair" : raw.decision;
   if (decision === "accept") {
     protocol(reportedChecksPass, "The verifier accepted while reporting a failed check, issue, or question.");
-  } else {
-    protocol(!reportedChecksPass,
-      `The verifier returned ${decision} without a failed gate, passage check, issue, or unresolved question.`);
+  } else if (reportedChecksPass) {
+    throw rememberLatticeVerificationDecisionAlignmentError(new LatticeProtocolError(
+      `The verifier returned ${decision} without a failed gate, passage check, issue, or unresolved question.`,
+    ), batch, analysis, candidate, stage);
   }
   const accepted = deterministicFindings.length === 0 && decision === "accept" && allGatesPass
     && passageChecksPass && issues.length === 0 && questions.length === 0;
