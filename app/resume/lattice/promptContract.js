@@ -1011,7 +1011,7 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     throw new TypeError("Text to Lattice received an invalid verification response dialect.");
   }
   const compactWire = responseDialect === "compact-wire-v2";
-  if (![null, "mask-width", "field-set", "layer-support", "retained-conformance", "issue-object"].includes(wireCorrection)) {
+  if (![null, "mask-width", "field-set", "layer-support", "retained-conformance", "issue-object", "issue-alignment"].includes(wireCorrection)) {
     throw new TypeError("Text to Lattice received invalid verification correction guidance.");
   }
   const correctionInstruction = !compactWire || !request.protocolFeedback ? ""
@@ -1023,6 +1023,8 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     ? " Rebuild layer support from the source: independently select its supported layer, identify supplied atoms that support that layer, and locate source evidence cited by those selected atoms. Encode those atom positions in x and their genuinely supporting source-evidence positions in y, preserving every fitted zero position. Both masks require actual support and at least one selection for every decision; a failed candidate or negative rewrite conformance does not erase source-layer evidence. Never select an unsupported atom or span merely to satisfy the minimum. Replace the complete d/g/p/i result, including every passage field and required empty array; keep negative rewrite conformance only in c. This is the inapplicable unchanged-retention proof, never the candidate verdict or the source-layer support."
     : wireCorrection === "issue-object"
     ? " Rebuild issue entries as complete closed c/p objects, not non-object placeholders; use [] when no issue record is needed. Use issueCheckBindings to resolve each actual failed check's issue index and scope; a passage-check bit position is not its issue index, and a check without a global gate cannot support p=-1. Preserve actual failed conditions and the independent verdict. Replace the complete d/g/p/i result without inventing or erasing a failure to satisfy shape."
+    : wireCorrection === "issue-alignment"
+    ? " Rebuild issue/check/scope alignment: the prior result included an issue that did not identify a failed check in its reported scope. Independently re-evaluate the source and candidate, preserving every actual failure in g or the corresponding passage record. Resolve each issue's c through wireLayout.issueCheckBindings, never a mask position; p must identify the passage with that failed check, or -1 only for a failed global gate. Use i=[] when the failed conditions are fully represented and no additional issue is needed. Never invent or erase a failure or change the independent verdict merely to make an issue consistent. Replace the complete d/g/p/i result."
     : wireCorrection === "retained-conformance"
     ? " Rebuild retained-source conformance separately from candidate judgment. A planned rewrite cannot certify unchanged retention; use only its schema-fixed c value and keep actual independent source-layer support in x and y. Replace the complete d/g/p/i result without changing a semantic verdict merely to satisfy layout."
     : "";
