@@ -1501,12 +1501,33 @@ function verificationWireSchemaForFit(fit) {
       c: conformanceSchema,
     });
   });
-  const issueSchema = closedWireObject({
-    c: VERIFICATION_WIRE_ISSUE_SCHEMA.properties.c,
-    p: Object.freeze({
-      ...VERIFICATION_WIRE_ISSUE_SCHEMA.properties.p,
-      maximum: fit.passages.length - 1,
+  const issueSchema = Object.freeze({
+    ...closedWireObject({
+      c: VERIFICATION_WIRE_ISSUE_SCHEMA.properties.c,
+      p: Object.freeze({
+        ...VERIFICATION_WIRE_ISSUE_SCHEMA.properties.p,
+        maximum: fit.passages.length - 1,
+      }),
     }),
+    // Local-only checks cannot support a document-wide issue. Keep both
+    // alternatives complete; neither selects a failure or an issue default.
+    anyOf: Object.freeze([
+      closedWireObject({
+        c: Object.freeze({ type: "integer", enum: Object.freeze(
+          VERIFICATION_ISSUE_CHECK_BINDINGS.filter(({ gatePosition }) => gatePosition !== null)
+            .map(({ index }) => index),
+        ) }),
+        p: Object.freeze({ type: "integer", enum: Object.freeze([-1]) }),
+      }),
+      closedWireObject({
+        c: Object.freeze({ type: "integer", enum: Object.freeze(
+          VERIFICATION_ISSUE_CHECK_BINDINGS.map(({ index }) => index),
+        ) }),
+        p: Object.freeze({ type: "integer", enum: Object.freeze(
+          fit.passages.map((_passage, index) => index),
+        ) }),
+      }),
+    ]),
   });
   const passageProperties = Object.fromEntries(
     passageSchemas.map((schema, index) => [String(index), schema]),

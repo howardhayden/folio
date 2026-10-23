@@ -1,3 +1,47 @@
+# Current release work — D29 validated locally; API and three gates still open
+
+The D29 scope-schema patch is complete and independently reviewed. Full local validation passed 2,481 tests with zero failures and 15 historical optional skips; lint passed with one existing warning. All three Worker dry runs passed. Final documentation, held-site rebuild and all 17 focused documentation/release checks passed after the documentation-only addendum. The exact 254-file source remains 21ba04859958d53550ad181597913501e2fe45d75a221a85178b6e3dd5f6a581; the final documentation dossier is 21503abb9d85f7d3b0a49737da45154f3c7d52f0d9ca2494dea9d00bed571ca0. The full suite's earlier ec638 dossier retains its original scope; final documentation is covered by the subsequent build and focused checks. This final handoff prefix changes no qualified source or dossier bytes.
+
+Continue from branch fix/lattice-issue-scope-schema based on main 6726c90ce32e0987c6ba61b3edb7f8ccbeb6d3a8. Finish actual commit/push, exact-head CI, reviewed integration and held delivery. A proposed new single-use D29 hosted compatibility/regression qualification remains only a candidate pending independent review, actual delivery, root selection and fresh guards; no operation or allowance is selected here. Never reuse spent D27/A1/D28 packets or treat a new-source result as reconstruction of #305.
+
+The API remains under diagnosis. D29 removes three demonstrated impossible issue scopes, while actual #305's predicates/cues/discarded regeneration and full usage/cost remain unknown. GATE-02 (API/privacy), GATE-03 (capacity/cost) and GATE-06 (canonical lifecycle/privacy) remain open with null acceptance bases. Public release is held. The Mac-lock refusal still blocks native continuation until manual unlock and fresh ownership/state checks; Firefox's earlier 14 local input checks did not reproduce the click problem and do not establish hosted or canonical browser proof. No public activation or final release is authorized.
+
+Current local evidence: d29-implementation-independent-review.json, d29-validation-and-worker-builds-independent-review.json, d29-postapply-controls-independent-review.json and d29-final-docs-validation.json under work/evidence. The complete prior handoff follows verbatim with its historical scope.
+
+---
+
+# Current work — D29 local validation complete, delivery pending, 2026-10-23
+
+D29's narrow static issue-scope correction passed independent implementation review and full local validation: 2,481 passed, 15 historical optional skips and zero failures out of 2,496 tests. Lint exited zero with one existing candidateFingerprint warning. Three Wrangler --dry-run bundles passed with 138 inputs; no deployment or provider inference was requested. The exact tested 254-file source is 21ba04859958d53550ad181597913501e2fe45d75a221a85178b6e3dd5f6a581 and its original validation dossier is ec638c80a296a2c60b55195dcad88ca3cc76da1b987fe97249e78a8e78f61066. A later documentation-only addendum must not rewrite that historical scope.
+
+Independent implementation review 8dca9bd0a6a9578745a39c878d34b8c4b425415b51b94c6ca5b4d9cc0fb00bc1 and full-results/builds review 67160cd19fdd6c33cad284bedf1bfbff70a45fcdd2d8efc6737f903dc32d9ca8 preserve the original evidence and setup refusals. Exact 24/43 import manifests were applied; four collector plus six assembler offline controls passed. Postapply review 9ae4437b36614e78b30d4df6cec88c55965eb41e798a806c1f2cc0ae0880955e confirms current inputs, 51 native bindings and two native bundles, without a new browser observation.
+
+Root must finish the final documentation freeze/mirrors and focused documentation/release checks, then obtain actual exact-head CI, reviewed integration and held delivery for D29. Those future results and digests are not claimed here. Existing base PR #119, CI #306 and held publication #307 retain their original source/dossier scope. No new paid qualification or model/provider change is selected; D27/#301, A1/#302, D28/#305 and earlier grants remain spent.
+
+Actual #305's private predicates/cues/discarded regeneration and complete usage/cost remain unknown. D29 removes a demonstrated static schema-domain gap without identifying the actual failed-run cause or guaranteeing managed grammar adherence. GATE-02, GATE-03 and GATE-06 remain open with null acceptance bases, and the public client stays held. The latest retained native attempt refused at the Mac lock; canonical browser proof remains incomplete. Firefox's original 14 optimized local input checks did not reproduce the click issue and retain their limited scope. U13 activation remains conditional; final release is not authorized.
+
+The complete previous handoff follows verbatim; its preparation statements remain historical.
+
+---
+
+# Current work — D29 static issue-scope schema implementation, 2026-10-23
+
+D29 is selected for source implementation only on fix/lattice-issue-scope-schema. Implementation, independent review, full validation and a new source/dossier freeze remain in progress. No new paid operation or model/provider change is selected. GATE-02, GATE-03 and GATE-06 stay open with null acceptance bases; the public client is held and final release is not authorized.
+
+The base is actual documentation PR #119 main 6726c90ce32e0987c6ba61b3edb7f8ccbeb6d3a8, reviewed tree 3a7f48ac02500d0858adf70152770fd725b39c8b. Exact-head CI #306 and routine held publication #307 passed. Base source (254 files) c92be32334c8cd694e92943f473caac57e136c90d5bfc26d2825a36ef4465eb9 and documentation dossier 0e90e080cd655888516c0210650ce414057a88cf6d5ab57955c524f037dc43cc retain their base scope; D29 has no final digest yet. Held API at 19:40:23.071 UTC recorded three held responses, zero active responses and zero errors; held Pages at 19:40:05.229 UTC passed. This routine publication performed no service qualification or interactive deployment.
+
+Eight independently repeated pre-fix offline engine/current-HF-adapter cases used 16 mocked completions. The four-passage strict schema admitted all 70 typed issue pairs, including document p=-1 for local-only planFit, materiality and boundaryFidelity; those three decoded and necessarily hit the unchanged host guard. Valid local negatives, retained-materiality behavior and the positive certified control remain preserved. Independent review SHA-256 806df097c1ac25693080b62623d8e0a511e94579e90bf1f5dadd184c72aadb28 and prospective union proof SHA-256 8c75bf1b18d7cd0b5e4755c01d424dddd33ae01a454509779d1d9fdec500a2ab establish the bounded source-domain gap, not the actual #305 cause.
+
+D29 keeps outer issue metadata and adds two complete closed anyOf branches with explicit numeric enums from the fixed crosswalk and actual fit: global p=-1 only for gate-bearing checks, local fitted positions for all checks. Exactly three impossible pairs are removed in each fit; the four-passage example retains 67 potential pairs without declaring them all host-valid. No host/decoder, prompt/layout/cue, model/provider, wire-instance/public API, resource/margin, diagnostic v21/live v3, privacy or rights change is selected. Full issue-to-failed-detail and negative-decision consistency stay host checks.
+
+Preserve work/evidence/u27-d29-implementation-packet.json, pre-fix reproduction/replay/design proofs, PR119/CI306/held307 originals and work/evidence/d29-before-source-and-offline-import-refresh/manifest.json. Finish the meaningful one-to-four-fit/negative/body-parity/capacity controls, independent implementation review and required full validation; then root refreezes source/dossier, updates affected 24/43 offline closures while preserving 51 native bindings, and reviews exact-head CI/held delivery before any later operation decision. Do not reuse old qualification artifacts for the new source.
+
+Actual #305 still failed after retained-conformance reanalysis/regeneration and two host reverification failures. Its provisional regeneration was discarded; private predicates/cues/text and usage/cost remain unknown. Initial rollback failed; separate later final held enforcement passed. D27/#301, A1/#302 and D28/#305 remain spent one used/zero remaining; no replacement or new qualification is selected. Latest retained native work refused at the Mac lock; actual canonical browser proof remains incomplete. Firefox’s 14 original optimized local input checks did not reproduce the click issue, with no hosted/CSP or gate transfer.
+
+The complete previous handoff follows verbatim; its checkpoints retain their historical scope.
+
+---
+
 # Current checkpoint — API still under diagnosis after failed #305, 2026-10-23
 
 GATE-02 (API/privacy boundary), GATE-03 (capacity/cost) and GATE-06 (canonical browser lifecycle/privacy) remain open with null acceptance bases. The public client is held; final release is not authorized.

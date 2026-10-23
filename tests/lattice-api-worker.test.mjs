@@ -735,6 +735,203 @@ test("production verifier uses its fixed Nscale route and fitted strict schema o
   }
 });
 
+test("fitted issue scope alternatives remove only impossible document pairs for every supported fit", async (context) => {
+  const sourcePassages = ["Read the note.", "Save the page.", "Close the book.", "Open the door."];
+  const allChecks = EXPECTED_ISSUE_CHECK_BINDINGS.map(({ index }) => index);
+  const globalChecks = EXPECTED_ISSUE_CHECK_BINDINGS
+    .filter(({ gatePosition }) => gatePosition !== null).map(({ index }) => index);
+  for (let count = 1; count <= 4; count += 1) await context.test(`${count} fitted passages`, async () => {
+    const base = minimalVerificationRequest(sourcePassages[0]);
+    const batch = preflightLatticeInput(sourcePassages.slice(0, count).join("\n\n")).batches[0];
+    const sourceSpans = latticeSourceSpansForBatch(batch);
+    const plans = batch.passages.map((passage, index) => ({
+      ...base.analysis.passages[0], passageId: passage.id,
+      atoms: [{ ...base.analysis.passages[0].atoms[0], id: `scope-a${index}`,
+        evidenceSpanIds: [...sourceSpans[index].spans, ...(sourceSpans[index].literalAnnotations ?? [])]
+          .map(({ id }) => id) }],
+    }));
+    const request = { ...base, batch, sourceSpans, analysis: { ...base.analysis, passages: plans },
+      candidate: { passages: batch.passages.map((passage, index) => ({
+        passageId: passage.id, layer: "operative", text: passage.text,
+        preservedAtomIds: plans[index].atoms.map(({ id }) => id),
+      })) } };
+    const wire = { ...acceptingVerificationWire(base), p: Object.fromEntries(plans.map((plan, index) => [
+      String(index), acceptingVerificationWire({ ...request, sourceSpans: [sourceSpans[index]],
+        analysis: { passages: [plan] } }).p["0"],
+    ])) };
+    const bodies = [];
+    const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+      bodies.push(JSON.parse(init.body)); return successfulProviderResponse(wire);
+    } });
+    await adapter.verify(request);
+    await adapter.verify({ ...request, protocolFeedback: { stage: "verification", attempt: 2,
+      issue: "PRIVATE-SCOPE-FEEDBACK", instruction: "PRIVATE-SCOPE-INSTRUCTION" } });
+    assert.equal(bodies.length, 2);
+    const schema = fittedVerificationSchemaForBody(bodies[0]);
+    assert.deepEqual(fittedVerificationSchemaForBody(bodies[1]), schema);
+    const item = schema.properties.i.items, { anyOf, ...outer } = item;
+    assert.deepEqual(outer, { type: "object", additionalProperties: false,
+      properties: { c: { type: "integer", minimum: 0, maximum: 13 },
+        p: { type: "integer", minimum: -1, maximum: count - 1 } }, required: ["c", "p"] });
+    assert.deepEqual(anyOf, [
+      { type: "object", additionalProperties: false, properties: {
+        c: { type: "integer", enum: globalChecks }, p: { type: "integer", enum: [-1] },
+      }, required: ["c", "p"] },
+      { type: "object", additionalProperties: false, properties: {
+        c: { type: "integer", enum: allChecks },
+        p: { type: "integer", enum: Array.from({ length: count }, (_value, index) => index) },
+      }, required: ["c", "p"] },
+    ]);
+    const ajv = new Ajv({ strict: false }), validate = ajv.compile(schema);
+    const branchValidators = anyOf.map((branch) => ajv.compile(branch));
+    const validPairs = [], removed = [];
+    for (const c of allChecks) for (let p = -1; p < count; p += 1) {
+      const pair = { c, p }, permitted = p >= 0 || globalChecks.includes(c);
+      assert.equal(validate({ ...wire, i: [pair] }), permitted, `${c}/${p}`);
+      assert.equal(branchValidators[0](pair), p === -1 && globalChecks.includes(c));
+      assert.equal(branchValidators[1](pair), p >= 0);
+      (permitted ? validPairs : removed).push(pair);
+    }
+    assert.deepEqual(removed, [{ c: 11, p: -1 }, { c: 12, p: -1 }, { c: 13, p: -1 }]);
+    assert.equal(validPairs.length, allChecks.length * (count + 1) - 3);
+    assert.equal(validate({ ...wire, i: [] }), true);
+    assert.equal(validate({ ...wire, i: [{ c: globalChecks[0], p: -1 }, { c: 13, p: count - 1 }] }), true);
+    assert.equal(validate({ ...wire, i: validPairs.slice(0, 24) }), true);
+    assert.equal(validate({ ...wire, i: validPairs.slice(0, 25) }), false);
+    for (const invalid of [null, [], "issue", 0, { c: 0 }, { p: -1 }, { c: 0, p: -1, extra: true },
+      { c: "0", p: -1 }, { c: 0, p: "-1" }, { c: -1, p: 0 }, { c: 14, p: 0 },
+      { c: 0, p: -2 }, { c: 0, p: count }, { c: 0.5, p: 0 }, { c: 0, p: 0.5 }]) {
+      assert.equal(validate({ ...wire, i: [invalid] }), false);
+      for (const validateBranch of branchValidators) assert.equal(validateBranch(invalid), false);
+    }
+    for (const body of bodies) {
+      assert.deepEqual(inertModelPayload(body).wireLayout.issueCheckBindings, EXPECTED_ISSUE_CHECK_BINDINGS);
+      assert.equal(body.max_tokens, 2_048);
+      assert.ok(Buffer.byteLength(JSON.stringify(body)) < LATTICE_PROVIDER_REQUEST_BYTE_LIMIT);
+      assert.doesNotMatch(JSON.stringify(body), /PRIVATE-SCOPE-/u);
+    }
+    // This necessary scope condition deliberately leaves actual failed-check
+    // alignment and negative-decision consistency to the unchanged host.
+    assert.equal(validate({ ...wire, d: 2, i: [] }), true);
+    assert.equal(validate({ ...wire, i: [{ c: 11, p: 0 }] }), true);
+  });
+});
+
+test("issue scope schemas preserve actual host exhaustion, retained negatives and accept demotion", async (context) => {
+  const source = "Read the note.";
+  const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
+  const issueChecks = VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum;
+  const cases = [
+    ...["planFit", "materiality", "boundaryFidelity"].map((check) => ({ check, kind: "local-negative" })),
+    { check: "materiality", kind: "document-scope" },
+    { check: "materiality", kind: "negative-without-issue" },
+    { check: "materiality", kind: "demoted-accept" },
+    { check: null, kind: "positive" },
+  ];
+  for (const { check, kind } of cases) await context.test(`${kind}/${check ?? "all-positive"}`, async () => {
+    const calls = { analysis: 0, generation: 0, repair: 0, verification: 0, certification: 0 };
+    const requests = [], bodies = [], normalized = [];
+    let current, trace;
+    const expectedDecision = kind === "demoted-accept" ? "repair" : "reject";
+    const observeNormalized = (verification) => {
+      assert.equal(verification.decision, expectedDecision);
+      assert.equal(verification.accepted, false);
+      assert.equal(verification.available, true);
+      assert.equal(verification.issues.length, 1);
+      assert.equal(verification.issues[0].check, check);
+      assert.equal(verification.issues[0].passageId, verification.passages[0].passageId);
+      assert.equal(verification.passages[0][check], false);
+      assert.equal(verification.passages[0].complete, check === "materiality");
+      assert.equal(Object.values(verification.gates).every(Boolean), true);
+      normalized.push(verification);
+    };
+    const remote = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body); bodies.push(body);
+      const payload = inertModelPayload(body);
+      if (!isVerificationBody(body)) return successfulProviderResponse(
+        acceptingCertificationWire(payload.certificateId, payload.obligationIds),
+      );
+      const wire = canaryVerificationWire(body, { retain: true });
+      wire.d = kind === "positive" || kind === "demoted-accept" ? 0 : 2;
+      if (kind === "document-scope") wire.i = [{ c: issueChecks.indexOf(check), p: -1 }];
+      else if (kind !== "positive") {
+        wire.p["0"].f = checks.map((name) => name === check ? "1" : "0").join("");
+        if (kind !== "negative-without-issue") wire.i = [{ c: issueChecks.indexOf(check), p: 0 }];
+      }
+      const validate = new Ajv({ strict: false }).compile(fittedVerificationSchemaForBody(body));
+      assert.equal(validate(wire), kind !== "document-scope");
+      if (current.protocolFeedback) {
+        assert.equal(current.protocolFeedback.attempt, 2);
+        assert.match(body.messages[0].content, kind === "document-scope"
+          ? /Rebuild issue\/check\/scope alignment/u : /Rebuild decision\/check alignment/u);
+      }
+      return successfulProviderResponse(wire);
+    } });
+    const draft = (request) => ({ passages: request.batch.passages.map((passage) => ({
+      passageId: passage.id, layer: "operative", text: passage.text,
+      preservedAtomIds: request.analysis.passages.find(({ passageId }) => passageId === passage.id)
+        .atoms.map(({ id }) => id),
+    })) });
+    const adapter = {
+      analyze: async (request) => {
+        calls.analysis += 1;
+        const criteria = [...LATTICE_CONFORMANCE_CRITERIA.universal, ...LATTICE_CONFORMANCE_CRITERIA.operative];
+        const evidence = [...request.sourceSpans[0].spans, ...(request.sourceSpans[0].literalAnnotations ?? [])]
+          .map(({ id }) => id);
+        return { documentKind: "instruction", passages: [{ passageId: request.batch.passages[0].id,
+          discourseFunction: "directs one action", layer: "operative", disposition: "retain-if-conformant",
+          rationale: "Retain independently conformant source.", atoms: [{ id: "scope-atom", kind: "action",
+            value: source, priority: "semantic", preservation: "equivalent", evidenceSpanIds: evidence, links: [] }],
+          ambiguityAtomIds: [], conformanceCriteria: criteria, conformanceEvidenceSpanIds: evidence,
+          conformanceAssertions: criteria.map((criterion) => ({ criterion, evidenceSpanIds: evidence })),
+        }], questions: [] };
+      },
+      generate: async (request) => {
+        calls.generation += 1;
+        if (request.verification) observeNormalized(request.verification);
+        return draft(request);
+      },
+      repair: async (request) => { calls.repair += 1; observeNormalized(request.verification); return draft(request); },
+      verify: async (request) => {
+        calls.verification += 1; current = request; requests.push(request);
+        assert.equal(request.deterministicFindings.length, 0);
+        const decoded = await remote.verify(request);
+        assert.equal(decoded.decision, kind === "positive" || kind === "demoted-accept" ? "accept" : "reject");
+        if (kind === "document-scope") assert.equal(decoded.issues[0].passageId, "");
+        return decoded;
+      },
+      certify: async (request) => { calls.certification += 1; return remote.certify(request); },
+    };
+    const result = await runTextToLattice(source, { adapter, allowClarification: false,
+      onCandidateWithheldDiagnostic: (value) => { trace = value; } });
+    const exhausted = kind === "document-scope" || kind === "negative-without-issue";
+    assert.equal(calls.verification, kind === "positive" ? 1 : 2);
+    assert.equal(calls.certification, kind === "positive" ? 1 : 0);
+    if (exhausted) {
+      assert.equal(calls.generation, 1);
+      assert.equal(calls.repair, 0);
+      assert.equal(trace.stage, "verification");
+      assert.equal(trace.attempt, "2");
+      assert.equal(trace.validationCategory, "decision-consistency");
+      assert.equal(trace.priorValidationCategory, "decision-consistency");
+      assert.equal(trace.rejectionBoundary, "host-normalizer");
+      assert.equal(trace.priorRejectionBoundary, "host-normalizer");
+      assert.equal(requests[0].batch, requests[1].batch);
+      assert.equal(requests[0].analysis, requests[1].analysis);
+      assert.equal(requests[0].candidate, requests[1].candidate);
+    } else if (kind !== "positive") {
+      assert.equal(normalized.length, 1);
+      assert.equal(requests.every((request) => !request.protocolFeedback), true);
+      assert.equal(calls.generation, check === "planFit" ? 2 : 1);
+      assert.equal(calls.repair, check === "planFit" ? 0 : 1);
+    }
+    assert.equal(result.text, kind === "positive" ? source : null);
+    assert.equal(result.status === "conformant-for-context", kind === "positive");
+    assert.equal(remote.completionCapacity().used, bodies.length);
+    assert.equal(bodies.length, 2);
+  });
+});
+
 function minimalCertificationRequest() {
   return { certificateId: "certificate:envelope-test", obligationIds: ["document:whole"],
     source: "Original source.", candidate: "Candidate source.", analysis: null,
