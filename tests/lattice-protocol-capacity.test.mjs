@@ -1163,8 +1163,9 @@ test("the complete legal production verifier allocation has an exhaustive pinned
     };
 
     const issueLimit = VERIFICATION_SCHEMA.properties.issues.maxItems;
-    const issueCheckCount = VERIFICATION_SCHEMA.properties.issues.items
-      .properties.check.enum.length;
+    const issueChecks = VERIFICATION_SCHEMA.properties.issues.items.properties.check.enum;
+    const issueCheckCount = issueChecks.length;
+    const globalIssueChecks = new Set(LATTICE_VERIFICATION_GATES);
     const maximumIssues = (passageCount) => {
       const issues = [];
       for (let checkIndex = 0; checkIndex < issueCheckCount; checkIndex += 1) {
@@ -1172,7 +1173,10 @@ test("the complete legal production verifier allocation has an exhaustive pinned
           let passageIndex = -1;
           passageIndex < passageCount && issues.length < issueLimit;
           passageIndex += 1
-        ) issues.push({ c: checkIndex, p: passageIndex });
+        ) {
+          if (passageIndex === -1 && !globalIssueChecks.has(issueChecks[checkIndex])) continue;
+          issues.push({ c: checkIndex, p: passageIndex });
+        }
       }
       assert.equal(issues.length, issueLimit);
       return issues;
@@ -1312,8 +1316,8 @@ test("the complete legal production verifier allocation has an exhaustive pinned
       );
     }
 
-    // Enumerate the complete fitted issue-object Cartesian product, including
-    // all document-wide p=-1 objects and the two-digit check indices. Exhausting
+    // Enumerate every fitted schema-valid issue pair, excluding document-wide
+    // positions for local-only checks, and including two-digit check indices. Exhausting
     // every ordered pair binds both object orders at the JSON separator, so
     // selection cannot make a 24-item issue array wider than the fixture below.
     const legalIssueObjects = Array.from(
@@ -1322,14 +1326,15 @@ test("the complete legal production verifier allocation has an exhaustive pinned
         { length: BATCH_PASSAGE_LIMIT + 1 },
         (_passageValue, passageOffset) => ({ c: checkIndex, p: passageOffset - 1 }),
       ),
-    ).flat();
+    ).flat().filter(({ c, p }) => p >= 0 || globalIssueChecks.has(issueChecks[c]));
     assert.equal(
       legalIssueObjects.length,
-      issueCheckCount * (BATCH_PASSAGE_LIMIT + 1),
+      (issueCheckCount * (BATCH_PASSAGE_LIMIT + 1))
+        - issueChecks.filter((check) => !globalIssueChecks.has(check)).length,
     );
     assert.equal(
       legalIssueObjects.filter(({ p }) => p === -1).length,
-      issueCheckCount,
+      globalIssueChecks.size,
     );
     assert.deepEqual(
       [...new Set(legalIssueObjects.map(({ c }) => c))],
