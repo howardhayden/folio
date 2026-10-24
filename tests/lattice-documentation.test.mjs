@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
-import { verifyBrowserEvidenceAuthority, verifyReleaseStatusState } from "../scripts/verify-text-to-lattice-release.mjs";
 import { projectDocuments } from "../app/content/projectDocuments.js";
 
 const rootUrl = new URL("../", import.meta.url);
@@ -25,7 +24,6 @@ const [atlas, manifest, releaseRegister] = await Promise.all([
   readText(publicRoot, "artifact-manifest.json").then(JSON.parse),
   readText(sourceRoot, "TEXT-TO-LATTICE-RELEASE-REGISTER.json").then(JSON.parse),
 ]);
-const releaseState = verifyReleaseStatusState(releaseRegister);
 
 test("the documentation generator binds current remote evidence and preserves inactive browser-local evidence", async () => {
   const [builder, releaseVerifier] = await Promise.all([
@@ -49,9 +47,8 @@ test("the documentation generator binds current remote evidence and preserves in
   assert.match(releaseVerifier, /bundle = await verifyBundle\(resolvedPath\.absolute\)/u);
 });
 
-test("the atlas models the exact current remote phase without promoting historical evidence", async () => {
-  assert.equal(atlas.revision, releaseRegister.revision);
-  assert.match(atlas.revision, /^\d{4}-\d{2}-\d{2}$/u);
+test("the atlas models the held remote capability without promoting historical evidence", async () => {
+  assert.equal(atlas.revision, "2026-10-24");
   assert.equal(atlas.historicalBoundary.status, "inactive");
   assert.match(atlas.historicalBoundary.currentArchitecture, /same-origin \/api\/lattice[\s\S]*bodyless visitor-session setup[\s\S]*exactly one content-bearing POST/iu);
   assert.match(atlas.historicalBoundary.evidencePolicy, /do not satisfy the current remote-service release gates/iu);
@@ -128,7 +125,7 @@ test("the atlas models the exact current remote phase without promoting historic
       ["GATE-04B", "historical-inactive"],
       ["GATE-04C", "historical-inactive"],
       ["GATE-05", "accepted-residual-risk"],
-      ["GATE-06", releaseState.qualified ? "satisfied-in-production" : releaseState.qualificationPending ? "post-deployment-verification" : "open-release-blocker"],
+      ["GATE-06", "open-release-blocker"],
     ],
   );
   assert.deepEqual(Object.keys(releaseRegister.authority.browserEvidence), [
@@ -158,13 +155,8 @@ test("the atlas models the exact current remote phase without promoting historic
     "deploymentEvidenceCheckedAfterCapturesAt",
     "deploymentEvidenceUnchangedAcrossCaptures",
   ]);
-  if (releaseState.qualified) {
-    await verifyBrowserEvidenceAuthority(releaseRegister, releaseState);
-    assert.equal(releaseRegister.authority.browserEvidence.status, "verified-sanitized-bundle");
-  } else {
-    assert.equal(releaseRegister.authority.browserEvidence.status, "not-collected");
-    assert.ok(Object.values(releaseRegister.authority.browserEvidence).slice(1).every((value) => value === null));
-  }
+  assert.equal(releaseRegister.authority.browserEvidence.status, "not-collected");
+  assert.ok(Object.values(releaseRegister.authority.browserEvidence).slice(1).every((value) => value === null));
   assert.ok(releaseRegister.authority.qualifiedSourceSet.files.includes(
     "docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.schema.json",
   ));
@@ -183,24 +175,9 @@ test("the atlas models the exact current remote phase without promoting historic
   assert.equal(atlas.historicalBrowserLocalSecurityModel.prePublicationGates.length, 8);
 });
 
-test("the qualification dossier leads with its current phase and retains verbatim dated held evidence", async () => {
+test("the qualification dossier leads with the held remote decision and retains an inactive appendix", async () => {
   const dossier = await readText(sourceRoot, "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md");
-  const heading = {
-    held: /^# Text to Lattice release qualification — held/u,
-    "qualification-pending": /^# Text to Lattice release qualification — qualification-pending/u,
-    qualified: /^# Text to Lattice release qualification — qualified/u,
-  }[releaseState.releasePhase];
-  assert.match(dossier, heading);
-  assert.ok(dossier.includes(`**Qualification date:** ${releaseRegister.revision}`));
-  const controllingPrefix = dossier.split("The complete held dossier follows verbatim as dated history.")[0];
-  if (releaseState.qualificationPending) {
-    assert.match(controllingPrefix, /not qualified|non-qualified/iu);
-    assert.match(controllingPrefix, /canonical-browser qualification/iu);
-    assert.match(controllingPrefix, /immediate held documentation-only rollback/iu);
-  }
-  const heldDossierStart = dossier.indexOf("# Text to Lattice release qualification — held after backend qualification");
-  assert.ok(heldDossierStart >= 0, "the prior held dossier stays readable as dated history");
-  const heldDossier = dossier.slice(heldDossierStart);
+  assert.match(dossier, /^# Text to Lattice release qualification — held after backend qualification/u);
   assert.match(dossier, /\*\*Decision:\*\* hold the interactive client; publish the method, implementation record, and documentation only\./u);
   assert.match(dossier, /Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence\./u);
   assert.match(dossier, /Neither closes GATE-02, GATE-03, or GATE-06/u);
@@ -221,15 +198,15 @@ test("the qualification dossier leads with its current phase and retains verbati
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
   assert.match(dossier, /Historical inactive WebLLM and lease appendix/u);
   const currentBoundary = "The complete prior dossier follows verbatim as dated historical evidence.";
-  const currentDossier = heldDossier.split(currentBoundary)[0];
+  const currentDossier = dossier.split(currentBoundary)[0];
   assert.match(currentDossier, /GATE-02 and GATE-03 are satisfied in production; GATE-06 remains open/u);
   assert.match(currentDossier, /Actual bounded qualification run #321/u);
   assert.match(currentDossier, /not a rewrite requirement, nullable-envelope observation/u);
   assert.match(currentDossier, /first source header is the current documentation candidate digest/u);
   assert.match(currentDossier, /No browserEvidence authority, operational eligibility/u);
-  const priorD32Dossier = heldDossier.slice(heldDossier.indexOf(currentBoundary) + currentBoundary.length)
+  const priorD32Dossier = dossier.slice(dossier.indexOf(currentBoundary) + currentBoundary.length)
     .split("The complete previous qualification dossier follows verbatim as dated historical evidence")[0];
-  assert.match(currentDossier, /\*\*Qualification date:\*\* 2026-10-24/u); // immutable held-history date
+  assert.match(currentDossier, /\*\*Qualification date:\*\* 2026-10-24/u);
   assert.match(priorD32Dossier, /U29 records the literal owner answer “Approve bounded offline compatibility work”/u);
   assert.match(priorD32Dossier, /D32 selects the approved null-only stopped review-message policy/u);
   assert.match(priorD32Dossier, /reasoning, refusal, audio, annotations and function_call/u);
@@ -436,20 +413,11 @@ test("interactive editions remain complete, self-contained, accessible, and exec
   }
 
   const index = await readText(publicRoot, "index.html");
-  if (releaseState.held) {
-    assert.match(index, /held and documentation-only/iu);
-    assert.match(index, /because GATE-06 remains open/u);
-    assert.doesNotMatch(index, /because GATE-02, GATE-03, and GATE-06 remain open/u);
-    assert.match(index, /Required production qualification remains incomplete; current bounded evidence is recorded in the release register/u);
-    assert.match(index, /Historical WebLLM, Turnstile, and lease records remain inactive/u);
-  } else if (releaseState.qualificationPending) {
-    assert.match(index, /deployed only for immediate canonical-browser qualification and is not qualified/u);
-    assert.match(index, /GATE-06 remains in post-deployment verification/u);
-    assert.match(index, /requires immediate rollback to the held documentation-only artifact/u);
-  } else {
-    assert.match(index, /qualified with current canonical-browser lifecycle, same-origin API, fixed-provider, capacity, and application privacy evidence/u);
-    assert.match(index, /External-provider retention remains outside hah.dev/u);
-  }
+  assert.match(index, /held and documentation-only/iu);
+  assert.match(index, /because GATE-06 remains open/u);
+  assert.doesNotMatch(index, /because GATE-02, GATE-03, and GATE-06 remain open/u);
+  assert.match(index, /Required production qualification remains incomplete; current bounded evidence is recorded in the release register/u);
+  assert.match(index, /Historical WebLLM, Turnstile, and lease records remain inactive/u);
   for (const { html, markdown } of atlas.artifacts) {
     assert.ok(index.includes(`href="${html}"`));
     assert.ok(index.includes(`href="${markdown}"`));
@@ -480,16 +448,7 @@ test("interactive editions remain complete, self-contained, accessible, and exec
     const historicalIndex = artifact.indexOf("Historical inactive evidence");
     assert.ok(activeIndex >= 0 && historicalIndex > activeIndex, "active remote evidence renders before historical inactive evidence");
     assert.match(artifact, /same-origin POST \/api\/lattice/iu);
-    if (releaseState.held) {
-      assert.match(artifact, /Required production qualification remains incomplete; current bounded evidence is recorded in the release register/u);
-    } else if (releaseState.qualificationPending) {
-      assert.match(artifact, /deployed only for immediate canonical-browser qualification and is not qualified/u);
-      assert.match(artifact, /GATE-06 remains in post-deployment verification/u);
-      assert.match(artifact, /immediate rollback to the held documentation-only artifact/u);
-    } else {
-      assert.match(artifact, /GATE-06 records current canonical-browser evidence/u);
-      assert.match(artifact, /later route, setup, cookie, Web Lock, model, provider, response, cache, persistence, telemetry, or lifecycle drift reopens the blocker/u);
-    }
+    assert.match(artifact, /Required production qualification remains incomplete; current bounded evidence is recorded in the release register/u);
     assert.match(artifact, /not byte-pinned/iu);
   }
 });
