@@ -2,6 +2,38 @@
 
 **Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
 
+**Qualification date:** 2026-10-24
+
+**Evidence updated:** 2026-10-24
+
+These dates identify the current documentation revision, not a successful qualification or release acceptance. D31 implementation and required validation remain in progress.
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `8c77a0e81703184587c98b66f80a38c26293a0636aba8e48b5f8bc248002ef46`
+
+**Artifact-set projection SHA-256:** `3f7cde89bef9878f854b3de096b45b2dd71095940a1f8b0fb84483c268db77a3`
+
+Header digests are initialized from the prior declared bindings for the standard root refreeze. They do not establish a final D31 candidate; root must replace the first current source/artifact header and bind the final dossier after implementation and required validation. Actual #315 identities in the paragraphs and historical file below retain their original scope.
+
+Actual U28 delivery and outcome, 2026-10-24: PR #122 merged as main cecd36545882dd2e1973a2a00dc9a6d81932844d, reviewed tree 126d8462080ea81640487bf370144a55be785674. Exact-head CI #313 and routine held publication #314 passed. The separate single qualification #315 (40065199833), original attempt 1, failed on deployed 256-file source 75920f8928b29232928f75cdfcd916f64eada203c6dd499e18984260efb6e5b0 and dossier ec965f2ca817787303119a58748c3496b58c69946792932df7f9e153c557f1ee. Its sole dispatch returned HTTP 204 at 2026-10-24T05:10:13.018730+00:00. Root outcome SHA-256 a115d9703c392fc148a5016eaf52d18a175ff147184c773d57dc6861023b3cc6 binds the original terminal, finite and independent reviews. These actual deployed identities remain historical evidence for #315; the new D31 candidate has no final source/dossier, validation, CI, merge, hosted result or qualification grant yet.
+
+Run #315 failed during initial verification with HTTP 502 malformed_upstream_response, provider_malformed_response subtype S05 and finish_reason=stop. The already-parsed stopped assistant envelope had an own function_call property, so the unchanged guard rejected it before content JSON parsing, wire decoding or host semantic normalization. The property value/nullness, other competing keys, candidate/verdict and unique provider cause remain unknown; S05 alone does not exclude singleton tool_calls. Logical call ordinal 3 is not a billed-call count. Request/response size buckets count UTF-8 bytes, content_size counts UTF-16 code units, and completion_tokens is only the 1–255 bucket. No second verification, correction cue, reanalysis, certification or semantic acceptance was established. Finite evidence SHA-256 ad45656f54a58013eb3c2cec4040f8850ef6c0c0405a66dc356b978484404eea and independent semantic review b399df74fd1acf138fa6d6304cb67573cdf86499ddbf603b92572ae07efcacfa preserve those limits.
+
+D31 selects source-only, content-free strict-message shape observation under continuing U27 implementation authority. The prospective qualification marker is v22; stale v21 must not enable the new contract. Preserve M01 behavior and extend observation only to authentic already-rejected S05 at both existing rejection sites, with the explicit active expiring qualification flag and private original-error identity. Reuse exactly namedShape, unknownCount and unknownShapes: ten fixed named positions [reasoning, tool_call_id, refusal, audio, annotations, name, reasoning_content, cache_control, tool_calls, function_call], the unchanged -nsSaAoObd alphabet, count 0/1/2/3-plus and nine presence bits in nsSaAoObd order. For S05, function_call position 9 must be present and tool_calls position 8 must be -, a or A under the existing rejection precedence. These are type/emptiness observations, not valid arguments, intent or accepted content. Reject partial, forged, stale or inconsistent groups; keep observation state out of prompts/cues and acceptance. Design review e2ae998529f07ebb71093ce1a9b5086ac53628dc099d093dc0ed5474f00d8e53 authorizes no null-field compatibility relaxation or retrospective reconstruction of #315. Provider bodies, models/routes, strict schemas, host guards, retry/repair opportunities, all limits/margins, public JSON 1/result v7/live receipt 3, privacy and rights remain unchanged. Implementation, independent review and required validation are in progress; root owns final source/dossier freeze and generated projections.
+
+The original #315 artifacts retain one source-bound before-environment observation, 24 rejected preflight negatives, successful bodyless setup metadata and encrypted binding names without values. They contain no after-environment, accepted live receipt, complete admission bracket, usage sidecar or deployment index. Complete provider usage and cost are unknown, not zero; finite buckets and dated rates cannot reconstruct them. Initial failure rollback passed at 2026-10-24T05:14:51.656Z on API version a4a4a9c3-7405-4905-b7a0-7db4ab6b481b / deployment d4cf7eb8-4285-4c66-8801-8975cadbb8c6. Separate final enforcement passed at 05:15:19.700Z on version a905e080-a02f-4219-92fd-4ef5e0ce59bd / deployment 49e1a532-bfbc-4acc-a01e-8b41ab8ec667; both report 100 percent, three held, zero active and zero errors. Pages at 05:15:02.099Z returned HTTP 200 and 153,921 held bytes with no interactive surface. These dated samples establish neither continuous hold nor a remedy for #305 initial rollback failure. Original artifact custody review d3e740aaacba5b35bca751ebbdd58cec9e522409bbcfb87274691fa872e06893 and partial backend review 65a0e3915c1977daab2348d520feb3763baadb14dea70a646871d2788872e99d establish custody and partial scope, not gate acceptance.
+
+U28 is spent, one used and zero remaining; all earlier D29/#310, D28/#305 and other consumed grants remain spent. Authority review 96b2b13346932b5094a0401ff926531c381930911985b4b9b0c5df63a3ce7524 permits necessary offline diagnosis, implementation and provider-free held delivery under U27, but another Scaleway qualification requires a new exact owner decision after a concrete reviewed proposal. No paid operation, alternate fixture, isolated probe, fallback, model/provider change, browser activation or final release is selected. GATE-02, GATE-03 and GATE-06 remain open with null acceptance bases; API debugging is unfinished and the public client stays held. The owner said “Mac unlocked; continue browser preparation”; current 51/51 native bindings establish offline custody only and owned-profile preparation remains partial. Firefox’s 14 historical local input checks did not reproduce the reported click issue; hosted Firefox regression and canonical Safari/Brave evidence remain pending. Preserve hah.dev application nonretention, disclosed external-provider retention/cache uncertainties, proprietary ownership and valid earlier/third-party rights. Old pretrigger POST-false/run-unknown snapshots remain exact creation history; actual dispatch/terminal #315 records control execution state.
+
+The complete previous qualification dossier follows verbatim as dated historical evidence, including its original headers and pending-at-that-time statements.
+
+---
+
+# Text to Lattice release qualification — held remote candidate
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
 **Reviewed baseline:** `bc29dc62f4847e3daecabe1f3077d7e5259d50f5`
 
 **Qualification date:** 2026-10-23

@@ -48,7 +48,7 @@ test("the documentation generator binds current remote evidence and preserves in
 });
 
 test("the atlas models the held remote capability without promoting historical evidence", async () => {
-  assert.equal(atlas.revision, "2026-10-23");
+  assert.equal(atlas.revision, "2026-10-24");
   assert.equal(atlas.historicalBoundary.status, "inactive");
   assert.match(atlas.historicalBoundary.currentArchitecture, /same-origin \/api\/lattice[\s\S]*bodyless visitor-session setup[\s\S]*exactly one content-bearing POST/iu);
   assert.match(atlas.historicalBoundary.evidencePolicy, /do not satisfy the current remote-service release gates/iu);
@@ -197,8 +197,10 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /no alternate provider or model fallback/iu);
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
   assert.match(dossier, /Historical inactive WebLLM and lease appendix/u);
-  assert.match(dossier, /\*\*Qualification date:\*\* 2026-10-23/u);
-  assert.match(dossier, /current documentation revision records the approved U28\/D30 integration; it is not a successful service qualification or release acceptance/u);
+  const currentDossier = dossier.split("The complete previous qualification dossier follows verbatim as dated historical evidence")[0];
+  assert.match(currentDossier, /\*\*Qualification date:\*\* 2026-10-24/u);
+  assert.match(currentDossier, /D31 selects source-only, content-free strict-message shape observation/u);
+  assert.match(currentDossier, /U28 is spent, one used and zero remaining/u);
   assert.match(dossier, /bounded qualification,[\s\S]{0,120}run #162[\s\S]{0,240}`be20fab7dbf312deef5ccc77997932f077b21f6e`/iu);
   assert.match(dossier, /exact tree `2a7130b71189bb790f84ff8809b51542b6baf056`[\s\S]{0,100}deployed source-set digest `7419de535c9d3b35b74a7455e11dad52073618403c874d33631759d04f119ca2`/u);
   assert.match(dossier, /deployed qualification-dossier digest `d642e6f1bd47b5cdd92a139ea1653f7fe931fc84f9558f5f427626b53ebb5663`/u);

@@ -2782,3 +2782,39 @@ test("verification output-limit shape is complete, applicable and content-free",
     assert.equal(fixture.canaryRequests, 1); assert.equal(fixture.setupRequests, 1);
   });
 });
+
+test("v22 S05 strict shapes require complete legacy-presence and collection-consistent groups", async (t) => {
+  assert.equal(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE, "v22");
+  const h = LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS;
+  const d = LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS;
+  const base = qualificationDiagnosticHeaders({ failureClass: "provider_malformed_response", upstreamStatus: "none",
+    stage: "verification", subtype: "S05", finishReason: "stop", analysisOrigin: "none", analysisAttempt: "none" });
+  const shape = (namedShape, patch = {}) => Object.fromEntries(Object.entries(h)
+    .map(([field, header]) => [header, { namedShape, unknownCount: "0", unknownShapes: "000000000", ...patch }[field]]));
+  const exact = { ...base, ...shape("---------n") };
+  const partial = { ...exact }; delete partial[h.unknownCount];
+  const cases = [
+    ...[..."nsSaAoObd"].map((code) => [`absent collection/${code}`, { ...base, ...shape(`---------${code}`) }, /subtype=S05.*strict_message_namedShape=/u]),
+    ...["a", "A"].map((code) => [`array collection/${code}`, { ...base, ...shape(`--------${code}n`) }, /subtype=S05.*strict_message_namedShape=/u]),
+    ["certification", { ...exact, [d.stage]: "certification" }, /stage=certification.*subtype=S05/u],
+    ["correction", { ...exact, [d.stageAttempt]: "correction", [d.priorValidationCategory]: "response-shape", [d.callOrdinal]: "4" }, /subtype=S05/u],
+    ["all missing", base, /incomplete qualification strict message shape/u],
+    ["partial", partial, /incomplete qualification strict message shape/u],
+    ["legacy absent", { ...base, ...shape("--n-------") }, /invalid qualification strict message shape/u],
+    ...[..."nsSoObd"].map((code) => [`impossible tool collection/${code}`, { ...base, ...shape(`--------${code}n`) }, /invalid qualification strict message shape/u]),
+    ["bad unknown count", { ...exact, [h.unknownShapes]: "100000000" }, /invalid qualification strict message shape/u],
+    ["private shape", { ...exact, [h.namedShape]: "PRIVATE-VALUE" }, /invalid qualification strict message shape/u],
+    ["private unknown header", { ...exact, "X-Lattice-Qualification-Strict-Message-PRIVATE": "PRIVATE-VALUE" }, /invalid qualification strict message shape/u],
+    ["wrong stage", { ...exact, [d.stage]: "analysis" }, /invalid qualification diagnostic/u],
+    ["wrong finish", { ...exact, [d.finishReason]: "tool_calls" }, /invalid qualification diagnostic/u],
+    ["wrong subtype", { ...exact, [d.subtype]: "S04" }, /incompatible qualification strict message shape/u],
+    ["inconsistent initial", { ...exact, [d.priorValidationCategory]: "response-shape" }, /invalid qualification diagnostic/u],
+  ];
+  for (const [name, headers, expected] of cases) await t.test(name, async () => {
+    const fixture = successfulFixture({ canaryResponse: apiJson({ error: "malformed_upstream_response" }, 502, headers) });
+    await assert.rejects(verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait }), (error) => {
+      assert.match(error.message, expected); assert.doesNotMatch(error.message, /PRIVATE/u); return true;
+    });
+    assert.equal(fixture.canaryRequests, 1); assert.equal(fixture.setupRequests, 1);
+  });
+});
