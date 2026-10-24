@@ -173,7 +173,6 @@ const qualifiedSourceSetAlgorithm = "sha256-path-and-bytes-v1";
 const qualifiedSourceFiles = Object.freeze([
   ".github/workflows/pages.yml",
   ".github/workflows/text-to-lattice-environment-diagnostic.yml",
-  ".github/workflows/text-to-lattice-qualification-context.yml",
   "CNAME",
   "COMMERCIAL-LICENSE.md",
   "COMMERCIAL_BASELINE.md",
@@ -292,11 +291,6 @@ const heldForbiddenExecutableStrings = Object.freeze([
   "meta-llama/Llama-3.3-70B-Instruct:scaleway",
 ]);
 const staleEnabledPublicationPattern = /release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)|sole open (?:release )?blocker|held solely because|hold the interactive client/iu;
-const datedHeldDossierPublicationPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHeldDossierBoundary = Buffer.from("The complete held dossier follows verbatim as dated history.");
-const datedHeldDossierSeparator = Buffer.from("The complete held dossier follows verbatim as dated history.\n\n---\n\n");
-const datedHeldDossierBytes = 500890;
-const datedHeldDossierSha256 = "71ecdf46afb200964f0b791e94bf20b819766c818b685cd974422d5dbccb5980";
 const serializedVinextRscScript = /^\s*\(\(self\[Symbol\.for\("vinext\.navigationRuntime"\)\]\?\?=\{bootstrap:\{routeManifest:null\},functions:\{\}\}\)\.bootstrap\.rsc\?\?=\{rsc:\[\]\}\)\.rsc\.push\(("(?:\\[\s\S]|[^"\\])*")\)\s*;?\s*$/u;
 const expectedLlamaUseCases = new Map([
   ["AUP-DENY-01", ["operational-harm", false]],
@@ -2266,31 +2260,6 @@ export async function verifyHistoricalBrowserLocalEnabledBuiltBoundary(site, fil
   }
 }
 
-export function verifyEnabledPublicationCopy(relativePath, publishedBytes, canonicalDossierBytes) {
-  if (!Buffer.isBuffer(publishedBytes)) fail("enabled publication copy must be verified as raw bytes.");
-  let currentBytes = publishedBytes;
-  if (relativePath === datedHeldDossierPublicationPath) {
-    if (!Buffer.isBuffer(canonicalDossierBytes) || !publishedBytes.equals(canonicalDossierBytes)) {
-      fail("enabled release dossier is not byte-identical to its canonical source.");
-    }
-    const boundary = publishedBytes.indexOf(datedHeldDossierBoundary);
-    if (boundary < 0
-      || publishedBytes.indexOf(datedHeldDossierBoundary, boundary + datedHeldDossierBoundary.length) !== -1
-      || (boundary > 0 && publishedBytes[boundary - 1] !== 10)
-      || !publishedBytes.subarray(boundary, boundary + datedHeldDossierSeparator.length).equals(datedHeldDossierSeparator)) {
-      fail("enabled release dossier must retain its unique exact dated-history boundary.");
-    }
-    const historyBytes = publishedBytes.subarray(boundary + datedHeldDossierSeparator.length);
-    if (historyBytes.length !== datedHeldDossierBytes || digest(historyBytes) !== datedHeldDossierSha256) {
-      fail("enabled release dossier dated history differs from the independently pinned held dossier.");
-    }
-    currentBytes = publishedBytes.subarray(0, boundary);
-  }
-  if (staleEnabledPublicationPattern.test(currentBytes.toString("utf8"))) {
-    fail(`enabled release artifact contains stale held-gate copy in ${relativePath}.`);
-  }
-}
-
 async function verifyEnabledBuiltBoundary(site, files) {
   const [resume, project] = await Promise.all([
     readFile(join(site, "resume/index.html"), "utf8"),
@@ -2313,13 +2282,11 @@ async function verifyEnabledBuiltBoundary(site, files) {
     fail("enabled canonical project page lacks its direct Text to Lattice launch path.");
   }
 
-  const canonicalDossierBytes = await readFile(join(root, canonicalQualificationSource));
   const renderedEvidence = await Promise.all(files
     .filter((path) => [".html", ".json", ".jsonld", ".md", ".txt"].includes(extname(path).toLowerCase()))
-    .map(async (path) => [relative(site, path).split("\\").join("/"), await readFile(path)]));
-  for (const [path, publishedBytes] of renderedEvidence) {
-    verifyEnabledPublicationCopy(path, publishedBytes, canonicalDossierBytes);
-  }
+    .map(async (path) => [relative(site, path).split("\\").join("/"), await readFile(path, "utf8")]));
+  const staleEvidence = renderedEvidence.find(([, source]) => staleEnabledPublicationPattern.test(source));
+  if (staleEvidence) fail(`enabled release artifact contains stale held-gate copy in ${staleEvidence[0]}.`);
 
   const executableEntries = await Promise.all(files
     .filter((path) => heldExecutableExtensions.has(extname(path).toLowerCase()))
