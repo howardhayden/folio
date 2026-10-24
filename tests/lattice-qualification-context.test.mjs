@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { observeQualificationContext, parseExpectedQualificationContext, publishQualificationContextObservation } from "../scripts/observe-text-to-lattice-qualification-context.mjs";
 import { TEXT_TO_LATTICE_DOCUMENT_POLICY } from "../workers/text-to-lattice-response-policy/worker.js";
+import { verifyReleaseStatusState } from "../scripts/verify-text-to-lattice-release.mjs";
 const historicalShapeOnly = {
   "format": "TEXT_TO_LATTICE_DEPLOYMENT_EVIDENCE_INDEX",
   "schemaVersion": 1,
@@ -148,6 +149,16 @@ function fixture() {
   const deployments = Object.fromEntries(Object.entries(index.workers).map(([key, v]) => [key, { id: v.deploymentId, created_on: v.createdAt, versions: [{ version_id: v.versionId, percentage: 100 }] }]));
   const routes = [{ pattern: "hah.dev/api/lattice", script: "hahdev-text-to-lattice-api" }, ...["hah.dev/", "hah.dev/index.html", "hah.dev/resume/", "hah.dev/resume/index.html"].map(pattern => ({ pattern, script: "hahdev-text-to-lattice-response-policy" }))];
   const register = structuredClone(originalRegister); register.authority.qualifiedSourceSet.sha256 = S;
+  // This fixture models an active qualification, independently of the actual held source phase.
+  register.overallStatus = "qualification-pending";
+  register.publicClient.status = "enabled"; register.publicClient.publicationMode = "interactive-client";
+  delete register.publicClient.heldBoundary;
+  register.ownerDisposition.status = "release-directed";
+  for (const gate of register.gates) if (["GATE-02", "GATE-03", "GATE-06"].includes(gate.id)) {
+    gate.status = gate.id === "GATE-06" ? "post-deployment-verification" : "satisfied-in-production";
+    gate.acceptanceBasis = null;
+  }
+  assert.equal(verifyReleaseStatusState(register).releasePhase, "qualification-pending");
   return { index, payload, env, body, run, jobs, deployments, routes, register };
 }
 function harness(f = fixture(), change = null) {
@@ -197,7 +208,8 @@ for (const [name, mutate] of [
 for (const [name, text] of [["whitespace", s => s+"\n"], ["BOM", s => Buffer.concat([Buffer.from([239,187,191]),Buffer.from(s,"base64")]).toString("base64")], ["duplicate", s => Buffer.from(Buffer.from(s,"base64").toString().replace('"schemaVersion": 1,','"schemaVersion": 1, "schemaVersion": 1,')).toString("base64")], ["oversize", () => "A".repeat(60004)]])
   test(`payload transport refuses ${name}`, () => { const f = fixture(); assert.throws(() => parseExpectedQualificationContext(text(encode(f.payload)))); });
 for (const [name, mutate] of [
- ["held phase", f => { f.register.overallStatus = "held"; }], ["openG06 while enabled", f => f.register.gates.find(g => g.id === "GATE-06").status = "open-release-blocker"],
+ ["held phase", f => { f.register.overallStatus = "held"; f.register.publicClient.status = "held"; f.register.publicClient.publicationMode = "documentation-only"; f.register.ownerDisposition.status = "hold-directed"; f.register.gates.find(g => g.id === "GATE-06").status = "open-release-blocker"; assert.equal(verifyReleaseStatusState(f.register).releasePhase, "held"); }],
+ ["qualified phase", f => { f.register.overallStatus = "qualified"; f.register.gates.find(g => g.id === "GATE-06").status = "satisfied-in-production"; assert.equal(verifyReleaseStatusState(f.register).releasePhase, "qualified"); }], ["openG06 while enabled", f => f.register.gates.find(g => g.id === "GATE-06").status = "open-release-blocker"],
  ["G02 not production", f => f.register.gates.find(g => g.id === "GATE-02").status = "open-release-blocker"],
  ["acceptance basis fabricated", f => f.register.gates.find(g => g.id === "GATE-03").acceptanceBasis = "invented"],
  ["observer attempt2", f => f.env.GITHUB_RUN_ATTEMPT = "2"], ["wrong source", f => f.payload.index.qualifiedSourceSetSha256 = "b".repeat(64)],

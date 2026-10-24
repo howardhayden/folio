@@ -1,3 +1,46 @@
+# Text to Lattice release qualification — held after run #339 and restoration #340
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only. The actual conditional qualification failed and its included zero-canary restoration completed. This new source state does not establish a successful successor qualification, a native GATE-06 result or final release.
+
+**Qualification date:** 2026-10-24
+
+**Evidence updated:** 2026-10-24
+
+**Reviewed baseline:** `980637bc9841437dbe13aa2774017c4366198ed5`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `9a801670b56fcda4463ab4ae837f8cc5124b8b2d2fb99504762e7f22cff03740`
+
+**Artifact-set projection SHA-256:** `8146acd363b5c600626a65d161f560885e9c2e1a5e5fe4761e8e5d1ca99b055c`
+
+The first current headers bind this held source candidate and its artifact projection; actual delivery requires its own reviewed commit, CI and held-publication evidence. No future identity or deployment is invented. The actual failed run #339 retains original source `180a163194ef2d46a84fe495e39b1fa4fd18c9ead52f1926f31bb3efef280ffe`, dossier `8d823734260e4318fd1194107c8c32900d8c556d6967f05b3e61b0ae0356258a` and main `980637bc9841437dbe13aa2774017c4366198ed5`.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+Actual original run #339 / 40112265120 / attempt 1 on main 980637bc9841437dbe13aa2774017c4366198ed5 failed the fixed backend canary; interactive Pages were not deployed. The v22 finite result is post-candidate-withheld: initial deterministic D14-only, final normalized exact-source repair, broad semantic-rejection, certification not reached, five reported logical calls and one batch. Public verification_passes=0 and finding_count=1 are withheld-response placeholders, not private verifier activity or raw findings. This does not establish a unique failed private predicate, an envelope/parser/transport defect or a causal implementation fix. No successful qualification usage/live/after/deployment-index artifact or invoice is established. Included zero-canary original #340 / 40112926934 / attempt 1 completed successfully: held API at 2026-10-24T16:44:42.214Z, then held Pages at 2026-10-24T16:45:03.463Z. These are dated witnesses and job order, not continuous hold. Root reconciliation: work/evidence/u13r333-run339-and340-root-outcome.json / SHA-256 e76c0bed0ed1e362e8f4de466e10bb081f07bf6db658c0f92cbb91e2867dc52d.
+
+U13-AFTER-RUN333-A1 is spent (1 used, 0 remaining), as are its predecessor units. No unused operator or metadata slot transfers or refunds an activation unit. There were zero metadata POSTs, hosted Firefox checks, Safari or Brave startBlank attempts, native source entries, consent actions, submissions or capture seals. Both collectors were disposed unarmed, Safari Allow Inspecting Web Inspector was restored off and the owned Inspectors were closed. Offline diagnosis and an ordinary fixed-contract source fix may continue under the existing implementation authority, but no additional paid qualification, public window, acceptance/prompt change or final release is selected. The proposed v23 diagnostic extension remains unselected offline history after independent review; retain v22 with no extension and no prompt or API code change. It is not a release prerequisite. A future paid qualification requires a new exact bounded decision; no causal fix, success guarantee or automatic repeat is inferred.
+
+Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence. GATE-02 and GATE-03 preserve their exact previously accepted bounded run #321 production evidence with null acceptance bases. The failed run #339 neither replaces that evidence nor establishes general quality, managed context fitness or complete usage/cost. GATE-06 is open-release-blocker/null, not post-deployment-verification, in the established held tuple. Its complete prior pending record remains typed dated history. Browser authority remains not-collected/null, and no actual I4 interval or native result is inferred.
+
+Included restoration is independently witnessed by the API-before-Pages job order and the dated samples above. Failure was observed at 16:41:06.846254Z; restoration was dispatched at 16:44:05.655414Z, about 178.809 seconds later. This is not an instantaneous-restoration or continuous-hold claim. The final API sample was 100 percent held, three held requests, zero active and zero network errors; the Pages sample was HTTP 200 with held copy/module and no interactive client.
+
+The qualified source edits restore the two established publication switches, `ResumeView.tsx` and `projects.js`, to the exact reviewed held implementation and correct two existing phase-specific test fixtures. The enabled-publication validator still rejects the actual held prefix; positive synthetic enabled/qualified fixtures preserve the exact unique 500,890-byte historical suffix and all negative controls remain active. The context observer fixture explicitly models the existing qualification-pending tuple, independent of this actual held source phase; valid held and qualified tuples remain zero-GET refusals. The production observer and release verifier are unchanged. All 259 source members are retained, including the metadata observer/workflow/test; API/provider/prompt/acceptance/caps/privacy/native behavior is unchanged. The new 259-member held digest above is honestly distinct from original interactive source `180a163194ef2d46a84fe495e39b1fa4fd18c9ead52f1926f31bb3efef280ffe`. The earlier exact 256-member held source `e63c66072b7b0b63ad1b37ff3dde6d3dc2d6ba965dbd208e5bb3a98e1828e2dc` is a comparison baseline, not an equivalent new digest or hosted successor claim.
+
+The complete preceding qualification dossier follows verbatim as dated history, including immutable earlier success, failure and qualification-pending records.
+
+---
+
 # Text to Lattice release qualification — qualification-pending renewed identity
 
 **Decision:** qualification-pending, not qualified. This source renewal prepares a concrete future NEW-unit owner decision. It is not an approval, reservation, interactive deployment or canonical-browser acceptance. GATE-02/GATE-03 retain their satisfied-in-production/null history; GATE-06 remains post-deployment-verification/null. Failed, incomplete or delayed qualification requires immediate held documentation-only rollback.
