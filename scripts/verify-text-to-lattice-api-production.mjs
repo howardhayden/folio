@@ -38,6 +38,7 @@ import {
   isClosedProviderHttpHeaders,
   isClosedProviderEnvelopeShape,
   isClosedProviderStrictMessageShape,
+  providerStrictMessageShapeIsConsistent,
   isClosedProviderOutputLimitShape,
 } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
@@ -1225,12 +1226,15 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
   ).map(([field, header]) => [field, response.headers.get(header)])));
   const strictShapePresent = Object.values(strictShapeValues).filter((value) => value !== null).length;
   const expectsStrictShapeObservation = diagnostic?.failureClass === "provider_malformed_response"
-    && diagnostic.subtype === "M01";
+    && ["M01", "S05"].includes(diagnostic.subtype);
   if (expectsStrictShapeObservation) {
     if (strictShapePresent !== Object.keys(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS).length) {
       fail(`${label} returned an incomplete qualification strict message shape`);
     }
-    if (!isClosedProviderStrictMessageShape(strictShapeValues)) fail(`${label} returned an invalid qualification strict message shape`);
+    if (!isClosedProviderStrictMessageShape(strictShapeValues)
+      || !providerStrictMessageShapeIsConsistent(diagnostic.subtype, strictShapeValues)) {
+      fail(`${label} returned an invalid qualification strict message shape`);
+    }
   } else if (strictShapePresent !== 0) {
     fail(`${label} returned an incompatible qualification strict message shape`);
   }

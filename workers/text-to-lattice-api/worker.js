@@ -66,7 +66,7 @@ export const LATTICE_API_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 export const LATTICE_QUALIFICATION_EXPIRES_AT_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
 export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER =
   "X-Lattice-Qualification-Diagnostic";
-export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v21";
+export const LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE = "v22";
 export const LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS = Object.freeze({
   status: "X-Lattice-Qualification-Admission-Status",
   claim: "X-Lattice-Qualification-Admission-Claim",
@@ -558,7 +558,7 @@ function qualificationProviderDiagnostic(error) {
     || !LATTICE_PROVIDER_MALFORMED_SUBTYPE_SET.has(subtype)
     || !LATTICE_PROVIDER_FINISH_REASON_SET.has(finishReason)
     || !providerEnvelopeSubtypeIsConsistent(subtype, stage, finishReason)
-    || (subtype === "M01" && getLatticeProviderStrictMessageShape(error) === null)
+    || (["M01", "S05"].includes(subtype) && getLatticeProviderStrictMessageShape(error) === null)
     || !LATTICE_PROVIDER_SIZE_BUCKET_SET.has(requestSize)
     || !LATTICE_PROVIDER_SIZE_BUCKET_SET.has(responseSize)
     || !LATTICE_PROVIDER_SIZE_BUCKET_SET.has(contentSize)
@@ -626,7 +626,7 @@ function withQualificationProviderDiagnostic(response, error, enabled) {
       response.headers.set(header, error.qualificationEnvelopeShape[field]);
     }
   }
-  if (diagnostic.failureClass === "provider_malformed_response" && diagnostic.subtype === "M01") {
+  if (diagnostic.failureClass === "provider_malformed_response" && ["M01", "S05"].includes(diagnostic.subtype)) {
     const shape = getLatticeProviderStrictMessageShape(error);
     for (const [field, header] of Object.entries(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS)) {
       response.headers.set(header, shape[field]);

@@ -1,6 +1,6 @@
 ---
 title: Text to Lattice service blueprint
-revision: 2026-10-23
+revision: 2026-10-24
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
@@ -238,6 +238,8 @@ Repository tests support the as-built rows. They do not establish that the remot
 - **SRC-SCALEWAY-PRIVACY — Scaleway processing, investigation retention and cache policy:** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/reference-content/data-privacy/)
 - **SRC-SCALEWAY-AI-CONDITIONS — Scaleway AI Specific Conditions reviewed for U28:** [Reviewed source](https://www-uploads.scaleway.com/Specific_Conditions_AI_Services_275907180f.pdf)
 - **SRC-SCALEWAY-LIFECYCLE — Scaleway model lifecycle and replacement boundary:** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/reference-content/model-lifecycle/)
+- **SRC-D31-REQUIREMENTS — D31 source-only v22 strict-message shape contract and spent U28 boundary:** `docs/lattice-resume-demo-requirements.md`
+- **SRC-D31-EVIDENCE — Actual #315 partial failure evidence and D31 diagnostic claim boundaries:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
 
 ## Terms and provenance
 

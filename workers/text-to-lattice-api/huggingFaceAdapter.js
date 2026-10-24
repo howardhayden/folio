@@ -201,6 +201,14 @@ export function isClosedProviderStrictMessageShape(value) {
   return isClosedProviderMessageShape(value, LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS.length);
 }
 
+export function providerStrictMessageShapeIsConsistent(subtype, shape) {
+  if (!isClosedProviderStrictMessageShape(shape)) return false;
+  // S05 is decided before observation: the legacy field exists and earlier
+  // tool-collection checks permit only absence, empty or singleton arrays.
+  return subtype === "M01" || (subtype === "S05"
+    && shape.namedShape[9] !== "-" && "-aA".includes(shape.namedShape[8]));
+}
+
 export const LATTICE_PROVIDER_OUTPUT_LIMIT_SHAPE_VALUES = Object.freeze({
   syntax: Object.freeze(["complete-object", "complete-nonobject", "invalid-or-incomplete", "unavailable"]),
   rootShape: Object.freeze(["verification-root-fields", "schema-root-fields", "other", "not-applicable"]),
@@ -394,7 +402,8 @@ function providerReportedUsage(envelope) {
 
 export function getLatticeProviderStrictMessageShape(error) {
   const diagnostic = PROVIDER_DIAGNOSTICS.get(error);
-  return diagnostic?.subtype === "M01" && isClosedProviderStrictMessageShape(diagnostic.strictMessageShape)
+  return diagnostic?.finishReason === "stop"
+    && providerStrictMessageShapeIsConsistent(diagnostic.subtype, diagnostic.strictMessageShape)
     ? diagnostic.strictMessageShape : null;
 }
 
@@ -907,8 +916,10 @@ function withProviderDiagnostic(error, patch) {
   }
   if (error.code === "provider_malformed_response" && next.subtype === "S06"
     && isClosedProviderEnvelopeShape(patch.envelopeShape)) next.envelopeShape = patch.envelopeShape;
-  if (error.code === "provider_malformed_response" && next.subtype === "M01"
-    && isClosedProviderStrictMessageShape(patch.strictMessageShape)) next.strictMessageShape = patch.strictMessageShape;
+  if (error.code === "provider_malformed_response"
+    && providerStrictMessageShapeIsConsistent(next.subtype, patch.strictMessageShape)) {
+    next.strictMessageShape = patch.strictMessageShape;
+  }
   if (error.code === "provider_output_limit" && next.finishReason === "length"
     && isClosedProviderOutputLimitShape(patch.outputLimitShape)) next.outputLimitShape = patch.outputLimitShape;
   if (error.code !== "provider_malformed_response") next.subtype = "none";
@@ -2462,7 +2473,8 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
         subtype,
         envelopeShape: observeQualificationEnvelopeShape && subtype === "S06"
           ? qualificationEnvelopeShape(choice.message) : null,
-        strictMessageShape,
+        strictMessageShape: observeQualificationStrictMessageShape && subtype === "S05"
+          ? qualificationStrictMessageShape(choice.message) : strictMessageShape,
         finishReason: providerFinishReason,
         responseSize,
         contentSize: providerContentSize,
@@ -2519,6 +2531,8 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
           subtype,
           envelopeShape: observeQualificationEnvelopeShape && subtype === "S06"
             ? qualificationEnvelopeShape(choice.message) : null,
+          strictMessageShape: observeQualificationStrictMessageShape && subtype === "S05"
+            ? qualificationStrictMessageShape(choice.message) : null,
           finishReason: providerFinishReason,
           responseSize,
           contentSize: providerContentSize,
