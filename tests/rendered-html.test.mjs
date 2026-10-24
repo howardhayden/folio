@@ -31,6 +31,10 @@ import {
 } from "../app/shelf/shelfLogic.js";
 import { tools } from "../app/data.ts";
 import { projects } from "../app/resume/projects.js";
+import { verifyReleaseStatusState } from "../scripts/verify-text-to-lattice-release.mjs";
+
+const releaseRegister = JSON.parse(await readFile(new URL("../docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json", import.meta.url), "utf8"));
+const releaseState = verifyReleaseStatusState(releaseRegister);
 
 const BAT_DIRECTIONS = ["left", "right", "upper-left", "upper-right"];
 const TAIL_POSITIONS = ["left", "left-mid", "center", "right-mid", "right"];
@@ -1407,18 +1411,32 @@ test("renders current projects and terminal resource manifests without documenta
     html,
     /href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/,
   );
-  assert.match(
-    html,
-    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/,
-  );
-  assert.equal((html.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 0);
-  assert.doesNotMatch(html, /id="lattice-demo-dialog"/u);
-  assert.doesNotMatch(html, /id="lattice-demo-input"/u);
-  assert.doesNotMatch(html, /id="lattice-use-confirmation"/u);
-  assert.match(
-    html,
-    /Text to Lattice remains held while deployment and end-to-end privacy evidence for the remote-provider candidate are incomplete\./u,
-  );
+  if (releaseState.held) {
+    assert.match(
+      html,
+      /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/,
+    );
+    assert.equal((html.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 0);
+    assert.doesNotMatch(html, /id="lattice-demo-dialog"/u);
+    assert.doesNotMatch(html, /id="lattice-demo-input"/u);
+    assert.doesNotMatch(html, /id="lattice-use-confirmation"/u);
+    assert.match(html, /Text to Lattice remains held while deployment and end-to-end privacy evidence for the remote-provider candidate are incomplete\./u);
+  } else {
+    assert.match(
+      documentMarkup,
+      /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Use Text to Lattice")(?=[^>]*aria-haspopup="dialog")(?=[^>]*data-lattice-launch="text-to-lattice")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
+    );
+    assert.equal((documentMarkup.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 1);
+    assert.match(documentMarkup, /<div(?=[^>]*id="lattice-demo-dialog")(?=[^>]*role="dialog")(?=[^>]*aria-modal="true")[^>]*>/u);
+    assert.match(documentMarkup, /<label[^>]*for="lattice-demo-input"/u);
+    assert.match(documentMarkup, /<textarea(?=[^>]*id="lattice-demo-input")(?=[^>]*dir="auto")[^>]*>/u);
+    const consent = documentMarkup.match(/<input(?=[^>]*id="lattice-use-confirmation")[^>]*>/u)?.[0];
+    assert.ok(consent, "explicit external-service consent is pre-rendered");
+    assert.match(consent, /type="checkbox"/u);
+    assert.doesNotMatch(consent, /\bchecked(?:=|\s|>)/u);
+    assert.match(documentMarkup, /This text leaves hah.dev for processing/u);
+    assert.match(documentMarkup, /Process with external service/u);
+  }
   assert.match(
     html,
     /Lattice makes linguistic register explicit, testable, and accountable to meaning\./,
