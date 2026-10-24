@@ -1,0 +1,55 @@
+name: Observe current Text to Lattice qualification context
+
+on:
+  workflow_dispatch:
+    inputs:
+      checkpoint:
+        description: Reviewed original observation checkpoint
+        required: true
+        type: choice
+        options:
+          - before
+          - after
+      expected_context_base64:
+        description: Reviewed canonical expected index and Pages member metadata
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  observe-context:
+    name: Observe current qualification context
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: text-to-lattice-production
+    # Independent read-only job: no deployment/cleanup concurrency lock or needs.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Observe exact source and current scoped Pages and Worker context
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+          LATTICE_CONTEXT_CHECKPOINT: ${{ inputs.checkpoint }}
+          LATTICE_CONTEXT_BASE64: ${{ inputs.expected_context_base64 }}
+        run: >-
+          node scripts/observe-text-to-lattice-qualification-context.mjs
+          --output "$RUNNER_TEMP/text-to-lattice-context-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/observation.json"
+      - name: Retain only the sanitized point observation or finite refusal
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: text-to-lattice-context-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/text-to-lattice-context-${{ github.run_id }}-${{ github.run_attempt }}/observation.json
+          if-no-files-found: error
+          retention-days: 7
