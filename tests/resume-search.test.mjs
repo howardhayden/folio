@@ -14,6 +14,11 @@ import {
   resumeSearchIndex,
 } from "../app/resume/resumeSearchOntology.ts";
 
+import { verifyReleaseStatusState } from "../scripts/verify-text-to-lattice-release.mjs";
+
+const releaseRegister = JSON.parse(await readFile(new URL("../docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json", import.meta.url), "utf8"));
+const releaseState = verifyReleaseStatusState(releaseRegister);
+
 const search = (query) => searchOntology(resumeSearchIndex, query);
 
 test("Resume Search covers every canonical content class and preserves evidence provenance", () => {
@@ -635,7 +640,13 @@ test("Resume Search keeps one compact control row and reverses Shelf's five-pixe
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/resume/ResumeView.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(view, /<ResumeSearch>[\s\S]*?<ResumeProjectsHeld \/>[\s\S]*?<SkillStacks \/>[\s\S]*?<ResumeExperience \/>/u);
+  if (releaseState.held) {
+    assert.match(view, /<ResumeSearch>[\s\S]*?<ResumeProjectsHeld \/>[\s\S]*?<SkillStacks \/>[\s\S]*?<ResumeExperience \/>/u);
+    assert.doesNotMatch(view, /<ResumeProjects \/>/u);
+  } else {
+    assert.match(view, /<ResumeSearch>[\s\S]*?<ResumeProjects \/>[\s\S]*?<SkillStacks \/>[\s\S]*?<ResumeExperience \/>/u);
+    assert.doesNotMatch(view, /<ResumeProjectsHeld \/>/u);
+  }
   assert.match(source, /className="resume-search-entry"[\s\S]*?className="form-control shelf-search-entry resume-search-input"/u);
   assert.match(source, /placeholder="Search"/u);
   assert.match(

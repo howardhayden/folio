@@ -3,6 +3,42 @@ import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { stripBootstrapSourceMapReference } from "../postcss.config.mjs";
+import { verifyReleaseStatusState } from "../scripts/verify-text-to-lattice-release.mjs";
+
+const releaseRegister = JSON.parse(await readFile(new URL("../docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json", import.meta.url), "utf8"));
+const releaseState = verifyReleaseStatusState(releaseRegister);
+
+const heldInteractiveMarkers = [
+  "requestRemoteLattice", "LatticeRemoteError", "capabilityFetch(",
+  "data-lattice-launch", "lattice-demo-dialog",
+];
+const foreignClientMarkers = [
+  "https://router.huggingface.co/", "https://verify.hah.dev", "/api/text-to-lattice/lease",
+  "@mlc-ai/web-llm", "CreateWebWorkerMLCEngine", "HF_TOKEN",
+  "meta-llama/Llama-3.3-70B-Instruct:scaleway",
+  "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
+];
+
+function assertResumeClientBoundary(register, names, client) {
+  const phase = verifyReleaseStatusState(register);
+  assert.ok(names.includes("ResumeSearch"));
+  if (phase.held) {
+    assert.ok(names.includes("ResumeProjectsHeld"));
+    assert.equal(names.includes("ResumeProjects"), false);
+    for (const marker of heldInteractiveMarkers) {
+      assert.equal(client.includes(marker), false, `${marker} is absent from the held client graph`);
+    }
+  } else {
+    assert.ok(names.includes("ResumeProjects"), "the interactive renderer is reachable");
+    // These are stable emitted contracts; minification need not retain function names.
+    for (const marker of ["LatticeRemoteError", "/api/lattice", "data-lattice-launch", "lattice-demo-dialog", "lattice-demo-input", "lattice-use-confirmation"]) {
+      assert.ok(client.includes(marker), `${marker} is present in the interactive client graph`);
+    }
+  }
+  for (const marker of foreignClientMarkers) {
+    assert.equal(client.includes(marker), false, `${marker} is a forbidden foreign boundary`);
+  }
+}
 
 async function sourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -49,8 +85,13 @@ test("the HTML-only Pages artifact uses native anchors for application navigatio
   ]);
   assert.match(chrome, /<a className="navbar-brand" href="\/"/u);
   assert.match(chrome, /<a[\s\S]*?className="nav-link"[\s\S]*?href=\{route\.href\}/u);
-  assert.match(resumeView, /from "\.\/ResumeProjectsHeld"/u);
-  assert.doesNotMatch(resumeView, /from "\.\/ResumeProjects"/u);
+  if (releaseState.held) {
+    assert.match(resumeView, /from "\.\/ResumeProjectsHeld"/u);
+    assert.doesNotMatch(resumeView, /from "\.\/ResumeProjects"/u);
+  } else {
+    assert.match(resumeView, /from "\.\/ResumeProjects"/u);
+    assert.doesNotMatch(resumeView, /from "\.\/ResumeProjectsHeld"/u);
+  }
   assert.match(resumeSearch, /from "\.\/ResumeProjectsHeld"/u);
   assert.doesNotMatch(resumeSearch, /from "\.\/ResumeProjects"/u);
   assert.match(
@@ -67,7 +108,7 @@ test("the HTML-only Pages artifact uses native anchors for application navigatio
   assert.doesNotMatch(resumeSearch, /onLatticeLaunch|data-lattice-launch|requestRemoteLattice/u);
 });
 
-test("the held Resume client bundle excludes the interactive Lattice executable path", async () => {
+test("the Resume client bundle enforces its authoritative held or interactive boundary", async () => {
   const manifest = JSON.parse(await readFile(
     new URL("../dist/client/.vite/manifest.json", import.meta.url),
     "utf8",
@@ -88,21 +129,31 @@ test("the held Resume client bundle excludes the interactive Lattice executable 
   visit("app/components/PortfolioShell.tsx");
 
   const names = [...reachable].map((key) => manifest[key].name);
-  assert.ok(names.includes("ResumeProjectsHeld"));
-  assert.ok(names.includes("ResumeSearch"));
-  assert.equal(names.includes("ResumeProjects"), false);
-
   const sources = await Promise.all([...reachable].map((key) => (
     readFile(new URL(`../dist/client/${manifest[key].file}`, import.meta.url), "utf8")
   )));
   const client = sources.join("\n");
-  for (const marker of [
-    "requestRemoteLattice",
-    "LatticeRemoteError",
-    "capabilityFetch(",
-    "data-lattice-launch",
-    "lattice-demo-dialog",
-  ]) assert.equal(client.includes(marker), false, `${marker} is absent from the held client graph`);
+  assertResumeClientBoundary(releaseRegister, names, client);
+
+  // Exercise the held exclusions even while the actual build is interactive.
+  // This validates the assertion oracle, not a second compiled artifact.
+  const heldFixture = structuredClone(releaseRegister);
+  heldFixture.overallStatus = "held";
+  heldFixture.publicClient.status = "held";
+  heldFixture.publicClient.publicationMode = "documentation-only";
+  heldFixture.gates.find(({ id }) => id === "GATE-06").status = "open-release-blocker";
+  const heldNames = ["ResumeProjectsHeld", "ResumeSearch"];
+  assert.doesNotThrow(() => assertResumeClientBoundary(heldFixture, heldNames, "ResumeSearch"));
+  for (const marker of heldInteractiveMarkers) {
+    assert.throws(() => assertResumeClientBoundary(heldFixture, heldNames, `ResumeSearch ${marker}`), /held client graph/u);
+  }
+  assert.throws(() => assertResumeClientBoundary(heldFixture, [...heldNames, "ResumeProjects"], "ResumeSearch"));
+  for (const marker of foreignClientMarkers) {
+    assert.throws(() => assertResumeClientBoundary(releaseRegister, names, `${client} ${marker}`), /foreign boundary/u);
+  }
+  const invalidFixture = structuredClone(heldFixture);
+  invalidFixture.publicClient.status = "enabled";
+  assert.throws(() => assertResumeClientBoundary(invalidFixture, heldNames, "ResumeSearch"), /exactly one held, qualification-pending, or qualified/u);
 });
 
 test("Pages CI verifies the remote privacy boundary before the held build", async () => {
