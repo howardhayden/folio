@@ -72,6 +72,15 @@ function verifyEqualDossierCopies(bytes) {
   verifyEnabledPublicationCopy(publishedDossierPath, bytes, Buffer.from(bytes));
 }
 
+function enabledPublicationDossierFixture(dossier) {
+  const boundary = dossier.indexOf(datedHistorySeparator);
+  assert.ok(boundary > 0);
+  return Buffer.concat([
+    Buffer.from("# Synthetic enabled publication fixture\n\nThis is a test fixture, not an actual release disposition.\n\n"),
+    dossier.subarray(boundary),
+  ]);
+}
+
 test("enabled publication history permits only the exact bound canonical held dossier", async () => {
   const dossier = await canonicalPublicationDossier();
   const boundary = dossier.indexOf(datedHistorySeparator);
@@ -80,12 +89,15 @@ test("enabled publication history permits only the exact bound canonical held do
   assert.equal(history.length, 500890);
   assert.equal(sha256(history), "71ecdf46afb200964f0b791e94bf20b819766c818b685cd974422d5dbccb5980");
   assert.match(history.toString("utf8"), /hold the interactive client/iu);
-  assert.doesNotThrow(() => verifyEqualDossierCopies(dossier));
+  const phase = verifyReleaseStatusState(await releaseRegister());
+  if (phase.enabled) assert.doesNotThrow(() => verifyEqualDossierCopies(dossier));
+  else assert.throws(() => verifyEqualDossierCopies(dossier), /stale held-gate copy/u);
+  assert.doesNotThrow(() => verifyEqualDossierCopies(enabledPublicationDossierFixture(dossier)));
   assert.throws(() => verifyEnabledPublicationCopy(publishedDossierPath, dossier.toString("utf8"), dossier), /raw bytes/u);
 });
 
 test("enabled publication history rejects every stale current claim even when canonical copies agree", async () => {
-  const dossier = await canonicalPublicationDossier();
+  const dossier = enabledPublicationDossierFixture(await canonicalPublicationDossier());
   for (const claim of staleEnabledClaims) {
     const bytes = Buffer.concat([Buffer.from(`Current owner decision: ${claim}.\n\n`), dossier]);
     assert.throws(() => verifyEqualDossierCopies(bytes), /stale held-gate copy/u, claim);
@@ -93,7 +105,7 @@ test("enabled publication history rejects every stale current claim even when ca
 });
 
 test("enabled publication history rejects changed, shortened, extended, or relocated held bytes", async () => {
-  const dossier = await canonicalPublicationDossier();
+  const dossier = enabledPublicationDossierFixture(await canonicalPublicationDossier());
   const boundary = dossier.indexOf(datedHistorySeparator);
   const historyStart = boundary + datedHistorySeparator.length;
   const changed = Buffer.from(dossier);
@@ -111,7 +123,7 @@ test("enabled publication history rejects changed, shortened, extended, or reloc
 });
 
 test("enabled publication history rejects missing, duplicate, altered, or ambiguous boundaries", async () => {
-  const dossier = await canonicalPublicationDossier();
+  const dossier = enabledPublicationDossierFixture(await canonicalPublicationDossier());
   const boundary = dossier.indexOf(datedHistorySeparator);
   const cases = [
     Buffer.concat([dossier.subarray(0, boundary), dossier.subarray(boundary + datedHistoryBoundary.length)]),
@@ -126,7 +138,7 @@ test("enabled publication history rejects missing, duplicate, altered, or ambigu
 });
 
 test("enabled publication history refuses raw canonical mismatch before projecting any history", async () => {
-  const dossier = await canonicalPublicationDossier();
+  const dossier = enabledPublicationDossierFixture(await canonicalPublicationDossier());
   const mismatch = Buffer.concat([Buffer.from("Different current text.\n"), dossier]);
   assert.throws(() => verifyEnabledPublicationCopy(publishedDossierPath, dossier, mismatch), /not byte-identical/u);
   assert.throws(() => verifyEnabledPublicationCopy(publishedDossierPath, mismatch, dossier), /not byte-identical/u);
@@ -134,7 +146,7 @@ test("enabled publication history refuses raw canonical mismatch before projecti
 });
 
 test("enabled publication history grants no exception to other paths, formats, or historical JSON labels", async () => {
-  const dossier = await canonicalPublicationDossier();
+  const dossier = enabledPublicationDossierFixture(await canonicalPublicationDossier());
   const paths = [
     "other.md", "other.html", "other.json", "other.jsonld", "other.txt",
     "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION-OLD.md",
@@ -149,9 +161,11 @@ test("enabled publication history grants no exception to other paths, formats, o
 
 test("enabled publication history permits a future truthful qualified prefix without changing the held pin", async () => {
   const dossier = await canonicalPublicationDossier();
+  const boundary = dossier.indexOf(datedHistorySeparator);
+  assert.ok(boundary > 0);
   const future = Buffer.concat([
     Buffer.from("# Future qualification record fixture\n\nCurrent browser evidence is qualified only when independently verified. This is a test fixture, not an actual release disposition.\n\n"),
-    dossier,
+    dossier.subarray(boundary),
   ]);
   assert.doesNotThrow(() => verifyEqualDossierCopies(future));
   for (const claim of staleEnabledClaims) {
