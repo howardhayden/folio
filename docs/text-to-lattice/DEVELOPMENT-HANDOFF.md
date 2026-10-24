@@ -1,3 +1,13 @@
+# U13 metadata-only context dependency — 2026-10-24
+
+Scratch source `180a163194ef2d46a84fe495e39b1fa4fd18c9ead52f1926f31bb3efef280ffe` / dossier `8ad586f8375eaba0b4d7545f90bde32f1ce4205c6e0a57d53ac816849af7f5ce` adds a scoped production-role metadata observer because no local Cloudflare authorization is available. Immutable archive recustody alone cannot fill the existing before/after active-state producer. The new workflow, observer and mocked controls make no provider, lease, setup/content API, browser or activation call. Its 14 application GETs exclude platform/action traffic; one original before and one original after attempt include any refusal, and cleanup is never blocked or extended. Actual supplied index/member custody remains separately reviewed; the observer cannot authenticate its own expected artifact input.
+
+The combined candidate still needs independent source/canonical review and complete root validation/delivery. The earlier f392/ead98 validation is preserved for its original source, not relabeled as this candidate. GATE-02/03 remain satisfied in production with null acceptance bases; GATE-06 remains post-deployment-verification/null. Actual run321 evidence stays bound to its deployed a57d source/M65ef and does not qualify this new source. Conditional U13 remains unused, 0 used / 1 remaining, prior grants stay spent, and actual native context/I0-I6/capture readiness and the held ca5bc immediate first parent remain prerequisites. No observer dispatch, paid reservation, source entry, public activation, gate closure or final release occurred here.
+
+The complete preceding handoff follows verbatim as dated history.
+
+---
+
 # U13 phase-aware test dependency correction — 2026-10-24
 
 Current source `ead98d0d6e85928c7254659671c4908d12023f9fd377086c56e4e4991ba7af34` / dossier `1097e7401fbcb627fcf2ba77a2a6006f3412536cda5bcd2620c16d91aa7e151a` include only four necessary existing test-file corrections beyond source47bc/8ff. The prior full validation ran2569 tests with2549pass/5stalephaseassertionfail/15historicaloptional skips and lint0; originals are retained. This candidate has not completed a new full suite or hosted delivery. All runtime/provider/request/acceptance/null-policy/privacy/caps/rights and workflows remain unchanged. Existing held exclusions and meaningful enabled accessibility/navigation/resource/boundary assertions remain. The source state is qualification-pending only; G02/G03satisfied/null and G06post-deployment-verification/null. The U13grant remains unconsumed, with native interval/capture prerequisites and exactfirstparentca5bc still mandatory.

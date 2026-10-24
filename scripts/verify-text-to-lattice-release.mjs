@@ -173,6 +173,7 @@ const qualifiedSourceSetAlgorithm = "sha256-path-and-bytes-v1";
 const qualifiedSourceFiles = Object.freeze([
   ".github/workflows/pages.yml",
   ".github/workflows/text-to-lattice-environment-diagnostic.yml",
+  ".github/workflows/text-to-lattice-qualification-context.yml",
   "CNAME",
   "COMMERCIAL-LICENSE.md",
   "COMMERCIAL_BASELINE.md",

@@ -606,6 +606,8 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-D31-EVIDENCE — Actual #315 partial failure evidence and D31 diagnostic claim boundaries:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
 - **SRC-D32-REQUIREMENTS — U29/D32 approved source-only optional null review-message contract and zero paid scope:** `docs/lattice-resume-demo-requirements.md`
 - **SRC-D32-EVIDENCE — Actual #318 finite shape, partial failure and held scope; approved D32 validation pending:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
+- **SRC-D33-REQUIREMENTS — D33 scoped metadata-only active-context method under the conditional U13 window:** `docs/lattice-resume-demo-requirements.md`
+- **SRC-D33-EVIDENCE — Source-only current-context method, exact point-observation limits and pending actual native evidence:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
 
 ## Terms and provenance
 
