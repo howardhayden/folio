@@ -50,14 +50,19 @@ test("the modal discloses the external boundary before the user can submit", () 
 });
 
 test("model identity, limitations, and acceptable-use boundaries remain visible", () => {
-  assert.match(resumeProjectsSource, /Model-assisted result: Qwen3-235B-A22B-Instruct-2507 drafts and Llama 3\.1 8B Instruct checks through the configured external service/u);
-  assert.match(resumeProjectsSource, /The service may apply its own processing terms/u);
+  assert.match(resumeProjectsSource, /Model-assisted result: Qwen3-235B-A22B-Instruct-2507 drafts and Llama 3\.3 70B Instruct checks through the configured external service/u);
+  assert.match(resumeProjectsSource, /Scaleway states that content is not used for training by default[\s\S]{0,150}full HTTP requests for up to 14 days/u);
+  assert.match(resumeProjectsSource, /ephemeral prefix cache that cannot be disabled/u);
+  assert.match(resumeProjectsSource, /processing policies are separate from hah\.dev’s application no-retention rule/u);
   assert.match(resumeProjectsSource, /Review every result before relying on it/u);
   assert.match(resumeProjectsSource, />Built with Llama<\/a>/u);
   assert.match(resumeProjectsSource, /from "\.\/lattice\/publicTerms\.js"/u);
   assert.doesNotMatch(resumeProjectsSource, /\.\/lattice\/modelContract\.js/u);
-  assert.match(resumeProjectsSource, /LLAMA_3_1_PUBLIC_TERMS/u);
-  assert.match(resumeProjectsSource, /Llama 3\.1 Acceptable Use Policy/u);
+  assert.match(resumeProjectsSource, /LLAMA_3_3_PUBLIC_TERMS/u);
+  assert.match(resumeProjectsSource, /Llama 3\.3 Acceptable Use Policy/u);
+  assert.match(publicTermsSource, /https:\/\/huggingface\.co\/meta-llama\/Llama-3\.3-70B-Instruct\/blob\/6f6073b423013f6a7d4d9f39144961bfbfbc386b\/LICENSE/u);
+  assert.match(publicTermsSource, /https:\/\/www\.llama\.com\/llama3_3\/use-policy/u);
+  assert.match(publicTermsSource, /LLAMA_3_1_PUBLIC_TERMS/u, "historical remote terms remain public");
   assert.match(publicTermsSource, /https:\/\/developer\.meta\.com\/ai\/llama3_1\/license\//u);
   assert.match(publicTermsSource, /https:\/\/developer\.meta\.com\/ai\/llama3_1\/use-policy\//u);
   assert.match(publicTermsSource, /LLAMA_3_2_PUBLIC_TERMS/u, "historical inactive terms remain public");

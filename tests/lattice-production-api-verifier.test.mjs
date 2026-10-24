@@ -323,7 +323,7 @@ test("the production verifier emits separate exact-byte-bound usage evidence wit
   assert.equal(sidecars[0].observation.status, "complete");
   assert.equal(sidecars[0].observation.generator.calls, 2);
   assert.equal(sidecars[0].observation.verifier.calls, 2);
-  assert.equal(sidecars[0].cost.total_usd, "0.00032600");
+  assert.equal(sidecars[0].cost.total_usd, "0.002354600");
   assert.equal(JSON.stringify(sidecars[0]).includes(LATTICE_PRODUCTION_CANARY_TEXT), false);
   assert.equal(JSON.stringify(sidecars[0]).includes(validResult().text), false);
   assert.equal(fixture.canaryRequests, 1);
@@ -383,7 +383,7 @@ test("the production verifier preserves one setup and one canary before separate
       assert.equal(preflightEvidence.declared_provider_contract.verification_endpoint,
         "https://router.huggingface.co/v1/chat/completions");
       assert.equal(preflightEvidence.declared_provider_contract.verification_request_model,
-        "meta-llama/Llama-3.1-8B-Instruct:nscale");
+        "meta-llama/Llama-3.3-70B-Instruct:scaleway");
     },
   });
 
@@ -392,15 +392,15 @@ test("the production verifier preserves one setup and one canary before separate
   assert.deepEqual(evidence.declared_provider_contract, {
     endpoint: "https://router.huggingface.co/v1/chat/completions",
     verification_endpoint: "https://router.huggingface.co/v1/chat/completions",
-    verification_request_model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
+    verification_request_model: "meta-llama/Llama-3.3-70B-Instruct:scaleway",
     verification_response_format: "json_schema",
     verification_schema_strict: true,
     certification_endpoint: "https://router.huggingface.co/v1/chat/completions",
-    certification_request_model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
+    certification_request_model: "meta-llama/Llama-3.3-70B-Instruct:scaleway",
     certification_response_format: "json_schema",
     certification_schema_strict: true,
     generator_model: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-    verifier_model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
+    verifier_model: "meta-llama/Llama-3.3-70B-Instruct:scaleway",
     automatic_retry: false,
     alternate_provider_or_model_fallback: false,
   });

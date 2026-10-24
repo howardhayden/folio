@@ -45,7 +45,7 @@ jobs:
         env:
           LATTICE_REQUIRE_ACTIVE_VERIFIER_CAPACITY: "1"
         run: >-
-          node scripts/fetch-lattice-tokenizers.mjs --verifier-only &&
+          node scripts/fetch-lattice-tokenizers.mjs --active-verifier-only &&
           node --test tests/lattice-protocol-capacity.test.mjs
       - name: Enforce Text to Lattice network privacy boundary
         run: >-
@@ -117,7 +117,7 @@ jobs:
         env:
           LATTICE_REQUIRE_ACTIVE_VERIFIER_CAPACITY: "1"
         run: >-
-          node scripts/fetch-lattice-tokenizers.mjs --verifier-only &&
+          node scripts/fetch-lattice-tokenizers.mjs --active-verifier-only &&
           node --test tests/lattice-protocol-capacity.test.mjs
       - name: Enforce Text to Lattice network privacy boundary
         run: >-

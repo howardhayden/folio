@@ -42,7 +42,7 @@ export const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL = HUGGING_FACE_CHAT_
 
 export const LATTICE_REMOTE_MODELS = Object.freeze({
   generator: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-  verifier: "meta-llama/Llama-3.1-8B-Instruct:nscale",
+  verifier: "meta-llama/Llama-3.3-70B-Instruct:scaleway",
 });
 
 export const LATTICE_PROVIDER_FAILURE_CLASSES = Object.freeze([
@@ -140,9 +140,9 @@ const HTTP_HEADER_VALUE_SETS = Object.freeze(Object.fromEntries(
 ));
 const HTTP_HEADER_CHARACTER_LIMIT = 256;
 const HTTP_TOKEN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
-const VERIFIER_MAPPED_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct";
+// Public HF mapping for the fixed Scaleway pair, not a serving-identity proof.
+const VERIFIER_MAPPED_MODEL = "llama-3.3-70b-instruct";
 export const LATTICE_VERIFICATION_REQUEST_MODEL = LATTICE_REMOTE_MODELS.verifier;
-const VERIFIER_ADVERTISED_REPLACEMENT = "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo";
 
 export function isClosedProviderHttpHeaders(value) {
   try {
@@ -345,7 +345,6 @@ function qualificationHttpHeaders(response, role) {
       if (value === selector) return "expected-selector";
       if (value === expectedModel) return "expected-model";
       if (role === "verifier" && value === VERIFIER_MAPPED_MODEL) return "mapped-model";
-      if (role === "verifier" && value === VERIFIER_ADVERTISED_REPLACEMENT) return "replacement-literal";
       return "other";
     }),
     inferenceProvider: observe("x-inference-provider", (value) => {
@@ -598,14 +597,15 @@ function wireBitMaskSchema(width, { requireSelection = false } = {}) {
   });
 }
 
-function nscaleReviewJsonSchema(value) {
-  if (Array.isArray(value)) return value.map(nscaleReviewJsonSchema);
+function providerReviewJsonSchema(value) {
+  if (Array.isArray(value)) return value.map(providerReviewJsonSchema);
   if (!record(value)) return value;
-  const projected = Object.fromEntries(Object.entries(value).map(([key, item]) => [key, nscaleReviewJsonSchema(item)]));
+  const projected = Object.fromEntries(Object.entries(value).map(([key, item]) => [key, providerReviewJsonSchema(item)]));
   const width = value.minLength;
   if (value.type !== "string" || !Number.isSafeInteger(width) || width < 1 || value.maxLength !== width) return projected;
-  // As with analysisWireBitMaskSchema, avoid XGrammar's pattern-plus-length
-  // incompatibility. Keep the fitted internal schema and decoder unchanged.
+  // Retain the inherited pattern-only compatibility projection, as with
+  // analysisWireBitMaskSchema. This does not identify Scaleway's compiler or
+  // prove hosted grammar support. Keep internal schema and decoder unchanged.
   // Partition nonempty binary masks by the first 1: every branch has the exact
   // fitted width, preserving the same legal fixed-width binary masks.
   if (value.pattern === "^[01]*1[01]*$") {
@@ -633,10 +633,10 @@ function analysisWireBitMaskSchema(width) {
   if (!Number.isSafeInteger(width) || width < 1) {
     throw new TypeError("The Lattice provider received an invalid analysis wire-mask width.");
   }
-  // Nscale's structured-output backend may route strict schemas through
-  // XGrammar. Keep the provider-facing analysis mask to the exact-width
-  // pattern alone: some XGrammar versions reject a pattern combined with
-  // minLength/maxLength. decodeAnalysisWire independently enforces the same
+  // Retain the existing provider-facing exact-width pattern projection:
+  // some grammar converters reject pattern combined with minLength/maxLength.
+  // This does not identify the current provider's grammar implementation.
+  // decodeAnalysisWire independently enforces the same
   // width and binary alphabet before the value can reach the host schema.
   return Object.freeze({
     type: "string",
@@ -2766,7 +2766,7 @@ export async function requestHuggingFaceJson({
               description: schemaDescription
                 ?? responseGuide
                 ?? "Supply one complete structured response.",
-              schema: requireMinimalVerificationContent ? nscaleReviewJsonSchema(schema) : schema,
+              schema: requireMinimalVerificationContent ? providerReviewJsonSchema(schema) : schema,
               strict: true,
             },
           }

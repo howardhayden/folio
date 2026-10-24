@@ -186,7 +186,7 @@ test("the release register honestly holds the remote capability and preserves hi
   );
   assert.ok(register.publicClient.heldBoundary.allow.length > 0);
   assert.ok(register.publicClient.heldBoundary.deny.some((item) => item.includes("/api/lattice")));
-  assert.equal(register.revision, "2026-10-05");
+  assert.equal(register.revision, "2026-10-23");
   assert.match(register.qualificationScope, /last pulled hah\.dev deployment and ancestry baseline/u);
   assert.match(register.publicClient.reason, /run #162[\s\S]{0,140}diagnostic revision 5 merged by PR #51/iu);
   assert.match(register.publicClient.reason, /terminal_failure=host-validation, stage=verification, attempt=2, validation=response-shape, prior_validation=response-shape, calls_used=5, batch_count=1, verification_passes=0, and finding_count=1/u);
@@ -420,11 +420,11 @@ test("the release register honestly holds the remote capability and preserves hi
   );
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.verificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
-  assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.1-8B-Instruct:nscale");
+  assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
   assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
-  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.1-8B-Instruct:nscale");
+  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
   assert.equal(capability.provider.certificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
-  assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.1-8B-Instruct:nscale");
+  assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
   assert.equal(capability.provider.verificationResponseFormat, "json_schema");
   assert.equal(capability.provider.verificationSchemaStrict, true);
   assert.equal(capability.provider.certificationResponseFormat, "json_schema");
@@ -457,6 +457,33 @@ test("the release register honestly holds the remote capability and preserves hi
   assert.equal(capability.provider.historicalByteEquivalenceEstablished, false);
   assert.equal(register.artifactSet.historicalBrowserLocalArtifacts.status, "historical-inactive");
   assert.deepEqual(register.artifactSet.llamaTerms.active, {
+  "status": "active",
+  "version": "Llama 3.3",
+  "model": "meta-llama/Llama-3.3-70B-Instruct:scaleway",
+  "modelRepository": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
+  "modelRepositoryRevision": "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
+  "modelRepositoryRevisionUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/tree/6f6073b423013f6a7d4d9f39144961bfbfbc386b",
+  "license": {
+    "path": "LICENSES/Llama-3.3-Community-License.txt",
+    "sha256": "fb58d9a630ccc1dc0d08f8c00232de56bc73309020f59c8181d0c12ef28d9f8c",
+    "gitBlob": "2c97b69e3c309cbaa55bf7e4a4c48b8c18ff8276",
+    "sourceUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/LICENSE",
+    "canonicalUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/LICENSE"
+  },
+  "acceptableUsePolicy": {
+    "path": "LICENSES/Llama-3.3-Acceptable-Use-Policy.md",
+    "sha256": "99299d72ac39fd55c461d497cefc23938b1945cd97277d83df32587799666239",
+    "gitBlob": "2b5602b4faeaee48c52a33951f4036ab86a0406b",
+    "sourceUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/USE_POLICY.md",
+    "canonicalUrl": "https://www.llama.com/llama3_3/use-policy"
+  },
+  "officialSourceCommit": "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
+  "termsMatchStatus": "byte-identical-to-reviewed-model-repository-files",
+  "reviewedAt": "2026-10-23"
+});
+  assert.deepEqual(Object.keys(register.artifactSet.llamaTerms.historicalRemote).sort(), ["claimBoundary", "priorActiveRecord", "status"]);
+  assert.equal(register.artifactSet.llamaTerms.historicalRemote.status, "historical-inactive");
+  assert.deepEqual(register.artifactSet.llamaTerms.historicalRemote.priorActiveRecord, {
     status: "active",
     version: "Llama 3.1",
     model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
@@ -496,9 +523,63 @@ test("the release register honestly holds the remote capability and preserves hi
     register.artifactSet.llamaBehaviorEvaluation.targetVerifier.modelRepositoryRevision,
     register.artifactSet.llamaTerms.active.modelRepositoryRevision,
   );
-  assert.equal(register.artifactSet.llamaBehaviorEvaluation.evidenceResetAt, "2026-10-04");
-  assert.match(register.artifactSet.llamaBehaviorEvaluation.evidenceResetReason, /another provider or serving revision/iu);
+  assert.equal(register.artifactSet.llamaBehaviorEvaluation.evidenceResetAt, "2026-10-23");
+  assert.match(register.artifactSet.llamaBehaviorEvaluation.evidenceResetReason, /another (?:model, )?provider or serving revision/iu);
   assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionPerformed, false);
+  assert.deepEqual(register.artifactSet.llamaBehaviorEvaluation.historicalEvaluationRecord, {
+  "path": "docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json",
+  "sha256": "86aad271f8e6a5befb978d6146fbbf9ce7b1c7eca16b8c1b5d7681e3d99294a7",
+  "caseCount": 10,
+  "expectedAllowCount": 5,
+  "expectedDenyCount": 5,
+  "fixtureStatus": "defined-and-machine-checked",
+  "targetVerifier": {
+    "model": "meta-llama/Llama-3.1-8B-Instruct:nscale",
+    "modelRepositoryRevision": "0e9e39f249a16976918f6564b8830bc894c89659"
+  },
+  "evidenceResetAt": "2026-10-04",
+  "evidenceResetReason": "The owner-approved provider for the same Llama 3.1 8B Instruct verifier changed from DeepInfra to Nscale; no behavioral result from another provider or serving revision is carried forward.",
+  "exactModelExecutionStatus": "accepted-residual-risk",
+  "exactModelExecutionPerformed": false,
+  "claimBoundary": "A balanced non-operational fixture defines expected dispositions; it does not establish how the exact active Llama 3.1 8B Instruct verifier behaves until the cases are run and reviewed against that provider-served model."
+});
+  assert.deepEqual(register.artifactSet.historicalRemoteProvider.priorActiveProvider, {
+  "endpoint": "https://router.huggingface.co/v1/chat/completions",
+  "generatorModel": "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
+  "verifierModel": "meta-llama/Llama-3.1-8B-Instruct:nscale",
+  "stageCallTimeoutsMs": {
+    "analysis": 120000,
+    "candidate": 120000,
+    "verification": 180000,
+    "certification": 120000,
+    "repair": 120000
+  },
+  "maximumCallTimeoutMs": 180000,
+  "callLimit": 32,
+  "stageMaximumOutputTokens": {
+    "analysis": 2048,
+    "candidate": 800,
+    "verification": 2048,
+    "certification": 520,
+    "repair": 800
+  },
+  "maximumRequestedOutputTokensPerCall": 2048,
+  "maximumRequestedOutputTokensPerAdmittedRequest": 65536,
+  "maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay": 1966080,
+  "maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay": 196608,
+  "responseByteLimit": 262144,
+  "contentCharacterLimit": 128000,
+  "revisionStatus": "provider-managed-not-byte-pinned",
+  "historicalByteEquivalenceEstablished": false,
+  "verificationEndpoint": "https://router.huggingface.co/v1/chat/completions",
+  "verificationRequestModel": "meta-llama/Llama-3.1-8B-Instruct:nscale",
+  "certificationEndpoint": "https://router.huggingface.co/v1/chat/completions",
+  "certificationRequestModel": "meta-llama/Llama-3.1-8B-Instruct:nscale",
+  "verificationResponseFormat": "json_schema",
+  "verificationSchemaStrict": true,
+  "certificationResponseFormat": "json_schema",
+  "certificationSchemaStrict": true
+});
 
   for (const id of ["GATE-02", "GATE-03", "GATE-06"]) {
     const gate = register.gates.find((item) => item.id === id);

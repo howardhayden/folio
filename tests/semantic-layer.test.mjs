@@ -991,16 +991,16 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     inferenceSummary: "server-side bounded structured analysis and drafting through Hugging Face Inference Providers and DeepInfra; returned objects undergo deterministic closed-contract validation, and invalid or incomplete output fails closed; bounded stage-specific output limits",
   };
   const expectedVerifier = {
-    name: "Llama 3.1 8B Instruct server-side verifier",
+    name: "Llama 3.3 70B Instruct server-side verifier",
     modelId: LATTICE_REMOTE_MODELS.verifier,
     revision: "provider-managed remote serving revision",
-    repository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
-    reviewedSourceRevision: "0e9e39f249a16976918f6564b8830bc894c89659",
-    revisionUrl: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/tree/0e9e39f249a16976918f6564b8830bc894c89659",
-    baseModelRepository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
-    licenseName: "Llama 3.1 Community License Agreement",
-    licenseUrl: "https://developer.meta.com/ai/llama3_1/license/",
-    acceptableUseUrl: "https://developer.meta.com/ai/llama3_1/use-policy/",
+    repository: "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
+    reviewedSourceRevision: "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
+    revisionUrl: "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/tree/6f6073b423013f6a7d4d9f39144961bfbfbc386b",
+    baseModelRepository: "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
+    licenseName: "Llama 3.3 Community License Agreement",
+    licenseUrl: "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/LICENSE",
+    acceptableUseUrl: "https://www.llama.com/llama3_3/use-policy",
     inference: {
       stages: {
         verification: {
@@ -1013,7 +1013,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     },
   };
   const expectedRuntime = {
-    name: "Hugging Face Inference Providers with DeepInfra and Nscale",
+    name: "Hugging Face Inference Providers with DeepInfra and Scaleway",
     version: "provider-managed remote service",
     packageUrl: "https://huggingface.co/docs/inference-providers/",
     documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
@@ -1168,7 +1168,9 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
     "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
     "https://huggingface.co/docs/inference-providers/en/security",
-    "https://huggingface.co/docs/inference-providers/en/providers/nscale",
+    "https://huggingface.co/docs/inference-providers/en/providers/scaleway",
+    "https://www.scaleway.com/en/docs/generative-apis/reference-content/data-privacy/",
+    "https://www.scaleway.com/en/docs/generative-apis/reference-content/model-lifecycle/",
   ]) assert.ok(upstreamUrls.has(required), required);
   for (const id of ["securityAndPrivacy", "interactiveRelease", "publicationMode"]) {
     assert.ok(namespaceTerms.some((term) => term.id === id), `${id} has a vocabulary definition`);

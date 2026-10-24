@@ -586,7 +586,7 @@ function isCandidateBody(body) {
 }
 
 const TEST_REVIEW_URL = "https://router.huggingface.co/v1/chat/completions";
-const TEST_REVIEW_MODEL = "meta-llama/Llama-3.1-8B-Instruct:nscale";
+const TEST_REVIEW_MODEL = "meta-llama/Llama-3.3-70B-Instruct:scaleway";
 
 function isVerificationBody(body) {
   return body.model === TEST_REVIEW_MODEL
@@ -614,7 +614,7 @@ function fittedVerificationSchemaForBody(body) {
   return schema;
 }
 
-test("Nscale review schema projection preserves exhaustive legal binary masks without mutating fitted constraints", async () => {
+test("Inherited review schema projection preserves exhaustive legal binary masks without mutating fitted constraints", async () => {
   for (const width of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
     const mask = (requireSelection) => ({ type: "string", minLength: width, maxLength: width,
       pattern: requireSelection ? "^[01]*1[01]*$" : `^[01]{${width}}$` });
@@ -663,7 +663,7 @@ test("projected strict schemas retain decoder rejection of nonbinary and wrong-w
   }
 });
 
-test("Nscale review stages use closed strict-schema content on the fixed unified route", async (context) => {
+test("Scaleway review stages use closed strict-schema content on the fixed unified route", async (context) => {
   for (const [method, request, name, wire, limit] of [
     ["verify", minimalVerificationRequest(), VERIFICATION_TOOL_NAME, acceptingVerificationWire(minimalVerificationRequest()), 2_048],
     ["certify", minimalCertificationRequest(), CERTIFICATION_TOOL_NAME,
@@ -674,7 +674,7 @@ test("Nscale review stages use closed strict-schema content on the fixed unified
       calls += 1;
       const body = JSON.parse(init.body);
       assert.equal(url, HUGGING_FACE_CHAT_COMPLETIONS_URL);
-      assert.equal(body.model, "meta-llama/Llama-3.1-8B-Instruct:nscale");
+      assert.equal(body.model, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
       assert.equal(body.response_format.type, "json_schema");
       assert.equal(body.response_format.json_schema.name, name);
       assert.equal(body.response_format.json_schema.strict, true);
@@ -692,7 +692,7 @@ test("Nscale review stages use closed strict-schema content on the fixed unified
   });
 });
 
-test("production verifier uses its fixed Nscale route and fitted strict schema on initial and correction calls", async (t) => {
+test("production verifier uses its fixed Scaleway route and fitted strict schema on initial and correction calls", async (t) => {
   for (const corrected of [false, true]) {
     await t.test(corrected ? "correction" : "initial", async () => {
       const calls = [];
@@ -3130,7 +3130,7 @@ test("the adapter uses strict JSON Schema analysis and certification", async () 
   );
   assert.equal(
     LATTICE_REMOTE_MODELS.verifier,
-    "meta-llama/Llama-3.1-8B-Instruct:nscale",
+    "meta-llama/Llama-3.3-70B-Instruct:scaleway",
   );
   assert.deepEqual(calls.map(({ body }) => body.max_tokens), [768, 520]);
   assert.deepEqual(calls.map(({ body }) => body.temperature), [0.7, 0]);
@@ -6163,7 +6163,7 @@ test("observed null stopped verification metadata is an explicit verification-on
   assert.equal(adapter.completionCapacity().used, 1);
 });
 
-test("strict Nscale verification rejects legacy null metadata before content parsing", async (context) => {
+test("strict Scaleway verification rejects legacy null metadata before content parsing", async (context) => {
   const request = minimalVerificationRequest();
   const content = JSON.stringify(acceptingVerificationWire(request));
   const stopped = { role: "assistant", content, name: null, reasoning_content: null };
@@ -6288,7 +6288,7 @@ test("provider envelope observation failure preserves the original malformed-res
   assert.equal(calls, 1);
 });
 
-test("strict Nscale review stages reject literal-null and malformed collections", async (context) => {
+test("strict Scaleway review stages reject literal-null and malformed collections", async (context) => {
   const privateMarker = "PRIVATE-COLLECTION-MUST-NOT-CROSS";
   for (const stage of ["verification", "certification"]) {
     const request = stage === "verification" ? minimalVerificationRequest() : minimalCertificationRequest();
@@ -8338,13 +8338,15 @@ test("qualification HTTP header observations are finite, bounded, exception-isol
     ["route presence", { "x-router-route": "PRIVATE-ROUTE-MUST-NOT-CROSS" }, { routerRoute: "present" }],
     ["empty route", { "x-router-route": "" }, { routerRoute: "invalid" }],
     ["configured selector", { "x-router-model": LATTICE_REMOTE_MODELS.verifier }, { routerModel: "expected-selector" }],
-    ["hub model literal", { "x-router-model": "meta-llama/Llama-3.1-8B-Instruct" }, { routerModel: "expected-model" }],
-    ["mapped model literal", { "x-router-model": "meta-llama/Meta-Llama-3.1-8B-Instruct" }, { routerModel: "mapped-model" }],
-    ["metadata replacement literal", { "x-router-model": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo" }, { routerModel: "replacement-literal" }],
+    ["hub model literal", { "x-router-model": "meta-llama/Llama-3.3-70B-Instruct" }, { routerModel: "expected-model" }],
+    ["mapped model literal", { "x-router-model": "llama-3.3-70b-instruct" }, { routerModel: "mapped-model" }],
+    ["historical mapped8B is not current", { "x-router-model": "meta-llama/Meta-Llama-3.1-8B-Instruct" }, { routerModel: "other" }],
+    ["historical replacement is not approved", { "x-router-model": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo" }, { routerModel: "other" }],
     ["model case mismatch", { "x-router-model": "meta-llama/llama-3.1-8b-instruct" }, { routerModel: "other" }],
     ["model prefix", { "x-router-model": `${LATTICE_REMOTE_MODELS.verifier}-extra` }, { routerModel: "other" }],
     ["model whitespace", { "x-router-model": "PRIVATE MODEL" }, { routerModel: "invalid" }],
-    ["configured provider", { "x-inference-provider": "nscale" }, { inferenceProvider: "expected" }],
+    ["configured provider", { "x-inference-provider": "scaleway" }, { inferenceProvider: "expected" }],
+    ["historical provider is not current", { "x-inference-provider": "nscale" }, { inferenceProvider: "other" }],
     ["provider case mismatch", { "x-inference-provider": "DeepInfra" }, { inferenceProvider: "other" }],
     ["empty provider", { "x-inference-provider": "" }, { inferenceProvider: "invalid" }],
     ["256 character route", { "x-router-route": "x".repeat(256) }, { routerRoute: "present" }],
@@ -8449,7 +8451,7 @@ test("qualification HTTP 405 preserves verification call-four provenance and one
       providerCalls += 1;
       if (providerCalls < 4) return successfulProviderResponse({ d: 2, p: [], l: [] });
       return new Response(new ReadableStream({ pull() { bodyReads += 1; }, cancel() { cancellations += 1; } }, { highWaterMark: 0 }), {
-        status: 405, headers: { Allow: "POST", "Content-Type": "application/json", "x-router-model": "meta-llama/Meta-Llama-3.1-8B-Instruct", "x-inference-provider": "nscale" },
+        status: 405, headers: { Allow: "POST", "Content-Type": "application/json", "x-router-model": "llama-3.3-70b-instruct", "x-inference-provider": "scaleway" },
       });
     },
     runTextToLatticeImpl: async (_text, { adapter }) => {
@@ -8483,7 +8485,7 @@ test("qualification HTTP observations cannot escape expiry during provider work"
 });
 
 
-test("Nscale review stages accept only the observed empty tool-call array without changing their content", async () => {
+test("Scaleway review stages preserve the inherited bounded empty tool-call envelope", async () => {
   for (const [method, request, wire] of [
     ["verify", minimalVerificationRequest(), acceptingVerificationWire(minimalVerificationRequest())],
     ["certify", minimalCertificationRequest(), acceptingCertificationWire(minimalCertificationRequest().certificateId, minimalCertificationRequest().obligationIds)],
@@ -8502,7 +8504,7 @@ test("Nscale review stages accept only the observed empty tool-call array withou
   }
 });
 
-test("strict Nscale reviews reject auxiliary fields and never interpret a competing tool channel", async (context) => {
+test("strict Scaleway reviews reject auxiliary fields and never interpret a competing tool channel", async (context) => {
   const values = [null, "", "PRIVATE-A", [], ["PRIVATE-B"], {}, { secret: "PRIVATE-C" }, true, 12345];
   const fields = [...LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS, "tool_calls", "function_call", "PRIVATE-UNKNOWN"];
   for (const method of ["verify", "certify"]) await context.test(method, async () => {

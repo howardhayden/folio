@@ -18,8 +18,8 @@ export const LATTICE_QUALIFICATION_USAGE_EVIDENCE_BASENAME = "qualification-usag
 // The retained full catalog's bytes were independently hashed before extraction.
 export const LATTICE_QUALIFICATION_CATALOG = Object.freeze({
   source_url: "https://router.huggingface.co/v1/models",
-  observed_on: "2026-10-06",
-  source_sha256: "558f77423f195a611fd60411cde5cef062d3ed80b7ec70116c2c67e10ce617de",
+  observed_on: "2026-10-23",
+  source_sha256: "4ab9b2499255a81cf89105efc4660eb56a40a76b65cf55043513cc5070f2e574",
   unit: "USD-per-million-tokens",
   unit_documentation_url: "https://huggingface.co/docs/inference-providers/en/hub-api",
   generator: Object.freeze({
@@ -28,9 +28,9 @@ export const LATTICE_QUALIFICATION_CATALOG = Object.freeze({
     output_rate: "0.55",
   }),
   verifier: Object.freeze({
-    model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
-    input_rate: "0.06",
-    output_rate: "0.06",
+    model: "meta-llama/Llama-3.3-70B-Instruct:scaleway",
+    input_rate: "1.026",
+    output_rate: "1.026",
   }),
 });
 
@@ -142,13 +142,19 @@ function catalogCost(observation) {
     guaranteed_cost_bound: false,
   };
   if (observation.status !== "complete") return Object.freeze({ status: "unavailable", ...common });
-  // Rates are cents per million tokens, so the exact integer unit is 10^-8 USD.
+  // Dated rates have at most three decimal places per million tokens.
+  // Millidollars per million tokens are exact nano-USD per token; preserve
+  // the third decimal rather than truncating it or using floating point.
+  const nanoUsdPerToken = (rate) => {
+    const [whole, fraction = ""] = rate.split(".");
+    return BigInt(whole) * 1_000n + BigInt(fraction.padEnd(3, "0"));
+  };
   const roleUnits = ROLES.map((role) => {
     const rate = LATTICE_QUALIFICATION_CATALOG[role];
-    return BigInt(observation[role].prompt_tokens) * BigInt(rate.input_rate.replace(".", ""))
-      + BigInt(observation[role].completion_tokens) * BigInt(rate.output_rate.replace(".", ""));
+    return BigInt(observation[role].prompt_tokens) * nanoUsdPerToken(rate.input_rate)
+      + BigInt(observation[role].completion_tokens) * nanoUsdPerToken(rate.output_rate);
   });
-  const dollars = (units) => `${units / 100_000_000n}.${`${units % 100_000_000n}`.padStart(8, "0")}`;
+  const dollars = (units) => `${units / 1_000_000_000n}.${`${units % 1_000_000_000n}`.padStart(9, "0")}`;
   return Object.freeze({
     status: "estimated",
     ...common,

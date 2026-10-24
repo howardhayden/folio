@@ -118,7 +118,7 @@ test("Pages CI verifies the remote privacy boundary before the held build", asyn
   const testStep = workflow.indexOf("npm test");
   assert.ok(boundarySteps.every((step) => step >= 0 && step < testStep));
   const tokenizerFetchSteps = [...workflow.matchAll(
-    /node scripts\/fetch-lattice-tokenizers\.mjs --verifier-only/gu,
+    /node scripts\/fetch-lattice-tokenizers\.mjs --active-verifier-only/gu,
   )].map(({ index }) => index);
   const mandatoryCapacityFlags = [...workflow.matchAll(
     /LATTICE_REQUIRE_ACTIVE_VERIFIER_CAPACITY: "1"/gu,

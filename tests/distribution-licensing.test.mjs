@@ -183,12 +183,16 @@ test("active Llama terms, required attribution, and historical artifacts are reg
     notices,
     activeLicense,
     activeAcceptableUse,
+    historicalRemoteLicense,
+    historicalRemoteAcceptableUse,
     historicalLicense,
     historicalAcceptableUse,
     registerSource,
   ] = await Promise.all([
     readText("NOTICE"),
     readText("THIRD_PARTY_NOTICES.md"),
+    readFile(sourceUrl("LICENSES/Llama-3.3-Community-License.txt")),
+    readFile(sourceUrl("LICENSES/Llama-3.3-Acceptable-Use-Policy.md")),
     readFile(sourceUrl("LICENSES/Llama-3.1-Community-License.txt")),
     readFile(sourceUrl("LICENSES/Llama-3.1-Acceptable-Use-Policy.md")),
     readFile(sourceUrl("LICENSES/Llama-3.2-Community-License.txt")),
@@ -197,20 +201,52 @@ test("active Llama terms, required attribution, and historical artifacts are reg
   ]);
   const register = JSON.parse(registerSource);
   const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
-  const { active, historicalBrowserLocal } = register.artifactSet.llamaTerms;
+  const { active, historicalRemote, historicalBrowserLocal } = register.artifactSet.llamaTerms;
   const copiedSources = new Set(staticSourceCopies.map(({ source }) => source));
 
   assert.equal(active.status, "active");
-  assert.equal(active.version, "Llama 3.1");
-  assert.equal(active.model, "meta-llama/Llama-3.1-8B-Instruct:nscale");
-  assert.equal(active.modelRepositoryRevision, "0e9e39f249a16976918f6564b8830bc894c89659");
+  assert.equal(active.version, "Llama 3.3");
+  assert.equal(active.model, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
+  assert.equal(active.modelRepositoryRevision, "6f6073b423013f6a7d4d9f39144961bfbfbc386b");
   assert.equal(sha256(activeLicense), active.license.sha256);
   assert.equal(sha256(activeAcceptableUse), active.acceptableUsePolicy.sha256);
-  assert.equal(active.license.gitBlob, "a7c3ca16cee30425ed6ad841a809590f2bcbf290");
-  assert.equal(active.acceptableUsePolicy.gitBlob, "81ebb55902285e8dd5804ccf423d17ffb2a622ee");
+  assert.equal(active.license.gitBlob, "2c97b69e3c309cbaa55bf7e4a4c48b8c18ff8276");
+  assert.equal(active.acceptableUsePolicy.gitBlob, "2b5602b4faeaee48c52a33951f4036ab86a0406b");
   assert.ok(copiedSources.has(active.license.path));
   assert.ok(copiedSources.has(active.acceptableUsePolicy.path));
 
+  assert.equal(historicalRemote.status, "historical-inactive");
+  assert.deepEqual(historicalRemote.priorActiveRecord, {
+  "status": "active",
+  "version": "Llama 3.1",
+  "model": "meta-llama/Llama-3.1-8B-Instruct:nscale",
+  "modelRepository": "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+  "modelRepositoryRevision": "0e9e39f249a16976918f6564b8830bc894c89659",
+  "modelRepositoryRevisionUrl": "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/tree/0e9e39f249a16976918f6564b8830bc894c89659",
+  "license": {
+    "path": "LICENSES/Llama-3.1-Community-License.txt",
+    "sha256": "64e1b2889b7892e6bbe7a7ed5bfe6ff793c61f9d584345f8f41cf9f5cb30a369",
+    "gitBlob": "a7c3ca16cee30425ed6ad841a809590f2bcbf290",
+    "sourceUrl": "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/LICENSE",
+    "canonicalUrl": "https://developer.meta.com/ai/llama3_1/license/"
+  },
+  "acceptableUsePolicy": {
+    "path": "LICENSES/Llama-3.1-Acceptable-Use-Policy.md",
+    "sha256": "a568f2ebc73cec3fd74ba2afd992d4e945a8c7a9d851f9b66163aac834b7b859",
+    "gitBlob": "81ebb55902285e8dd5804ccf423d17ffb2a622ee",
+    "sourceUrl": "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/USE_POLICY.md",
+    "canonicalUrl": "https://developer.meta.com/ai/llama3_1/use-policy/"
+  },
+  "officialSourceCommit": "1f0feb795a4130697ced243fb53051670d591653",
+  "termsMatchStatus": "byte-identical-to-reviewed-model-repository-files",
+  "reviewedAt": "2026-09-25"
+});
+  assert.equal(sha256(historicalRemoteLicense), historicalRemote.priorActiveRecord.license.sha256);
+  assert.equal(sha256(historicalRemoteAcceptableUse), historicalRemote.priorActiveRecord.acceptableUsePolicy.sha256);
+  assert.ok(copiedSources.has(historicalRemote.priorActiveRecord.license.path));
+  assert.ok(copiedSources.has(historicalRemote.priorActiveRecord.acceptableUsePolicy.path));
+  assert.deepEqual(await readFile(sourceUrl("public/LICENSES/Llama-3.3-Community-License.txt")), activeLicense);
+  assert.deepEqual(await readFile(sourceUrl("public/LICENSES/Llama-3.3-Acceptable-Use-Policy.md")), activeAcceptableUse);
   assert.equal(historicalBrowserLocal.status, "historical-inactive");
   assert.equal(historicalBrowserLocal.version, "Llama 3.2");
   assert.equal(sha256(historicalLicense), historicalBrowserLocal.license.sha256);
@@ -218,6 +254,7 @@ test("active Llama terms, required attribution, and historical artifacts are reg
   assert.ok(copiedSources.has(historicalBrowserLocal.license.path));
   assert.ok(copiedSources.has(historicalBrowserLocal.acceptableUsePolicy.path));
   assert.match(notice, /Built with Llama\./u);
+  assert.match(notice, /Llama 3\.3 is licensed under the Llama 3\.3 Community License, Copyright © Meta Platforms, Inc\. All Rights Reserved\./u);
   assert.match(notice, /Llama 3\.1 is licensed under the Llama 3\.1 Community License, Copyright © Meta Platforms, Inc\. All Rights Reserved\./u);
   assert.match(notice, /Llama 3\.2 is licensed under the Llama 3\.2 Community License, Copyright © Meta Platforms, Inc\. All Rights Reserved\./u);
   assert.match(notices, new RegExp(active.modelRepositoryRevision, "u"));
@@ -226,6 +263,9 @@ test("active Llama terms, required attribution, and historical artifacts are reg
   assert.match(notices, /developer\.meta\.com\/ai\/llama3_1\/license\//u);
   assert.match(notices, /developer\.meta\.com\/ai\/llama3_1\/use-policy\//u);
   assert.match(notices, /historical inactive Llama 3\.2/u);
+  assert.match(notices, /full HTTP requests for up to 14 days/iu);
+  assert.match(notices, /ephemeral prefix\/KV caching cannot be disabled/iu);
+  assert.match(notices, /6,020 bytes[\s\S]{0,150}exactly one final LF/u);
   assert.match(notices, new RegExp(register.artifactSet.wasm.files.generator.sha256, "u"));
   assert.match(notices, new RegExp(register.artifactSet.wasm.files.verifier.sha256, "u"));
   assert.equal(register.artifactSet.wasm.reproducibility.status, "accepted-residual-risk");
