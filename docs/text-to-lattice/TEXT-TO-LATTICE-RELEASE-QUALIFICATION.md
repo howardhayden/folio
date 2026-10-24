@@ -6,6 +6,38 @@
 
 **Evidence updated:** 2026-10-24
 
+These dates identify the documentation revision, not successful hosted qualification or gate acceptance. U29/D32 implementation, independent review and required validation are in progress.
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `a57d0a270006f84d005e591da154714d2c852adc2868efe2c1b609b8811dc38f`
+
+**Artifact-set projection SHA-256:** `3f7cde89bef9878f854b3de096b45b2dd71095940a1f8b0fb84483c268db77a3`
+
+Interpret the first current headers together with the actual root source/dossier refreeze and independent validation receipts for the same candidate. A declared digest by itself establishes neither completed D32 validation nor hosted qualification or gate acceptance. The complete prior dossier and all actual #318 identities below remain historical evidence for their recorded revision.
+
+Actual D31 delivery and run #318 outcome, 2026-10-24: PR #123 merged as main bead4fe75670c84e3a77899e8ff6c9e749d2c624, reviewed tree 5b0a7d861804e5bdfa9603ef9b56a3952f924679. Exact-head CI #316 and routine held publication #317 passed. The separate D31-V22-A1 qualification #318 (40071957139), original attempt 1, failed on 256-file source 8c77a0e81703184587c98b66f80a38c26293a0636aba8e48b5f8bc248002ef46 and dossier 4deceb879daf3dec3ba12531225d11000cedebf9c435b31b98103b3bc83c5a60. These remain actual #318 identities, not final D32 bindings. U29 records the literal owner answer “Approve bounded offline compatibility work” to exact question call_1ab4b1876fd542eda0d205fe0201f9cf. Approval receipt dca5d1e360a11a22bb7cc254af7b9865d5e8ed4582b5cceeee02553e2dc67bd6 binds reviewed owner packet c19e15bc81b1d845b899571ee2e81eaf51fc6441cd7bd6756e860f307cfdadeb and exact technical proposal f5e71a55e59874918cce658c1ff4a43f039739a0bbea8ba57b79f394560eda39. It authorizes only the narrow source change, required offline validation and independently reviewed provider-free held delivery. Implementation and required validation are in progress; final D32 source/dossier, CI and delivery bindings are pending root freeze and actual results.
+
+Run #318 failed during initial verification at logical call ordinal 3 with HTTP 502 malformed_upstream_response, provider_malformed_response/S05 and finish_reason=stop, before content JSON parsing, wire decoding or host semantic review. Its v22 named shape n-nnn----n records literal null for reasoning, refusal, audio, annotations and function_call; tool_call_id, name, reasoning_content, cache_control and tool_calls were absent, with zero unknown own message keys. The existing whitelist rejected this complete observed shape; allowing function_call alone would leave four other null names rejected. Content, candidate/verdict, certification and provider cause remain unknown. Finite receipt b040ff6cc5cbe1ea875b6cdec1848b9393b3c3ef775c4ea125976900f68f5b52 and independent semantic review 7efb778de5c7168b45f0ce09699be181d75c42c1ee31a0cd1bab58c6be5fa88f preserve this scope. No null facts are backfilled into #315, whose S05 evidence remains presence-only.
+
+D32 selects the approved null-only stopped review-message policy: reasoning, refusal, audio, annotations and function_call are independently optional and every present value must be literally null. This is 31 new nonempty presence subsets plus the existing all-absent case, not 32 observed responses. A new default-off trusted server flag may be enabled only for the exact meta-llama/Llama-3.3-70B-Instruct:scaleway verifier role, fixed Hugging Face endpoint, minimal strict json_schema and lattice_verification_wire_v2 or lattice_certification_wire_v2, without tools/tool choice or either legacy nullable flag. The policy applies to verification, its existing bounded correction/reverification, and certification with only its existing eligible correction; ordinary and qualification requests have identical acceptance. Certification inclusion is prospective; run #318 reached only verification. tool_calls stays absent or exactly empty under its existing independent flag. Non-null values, unknown or other auxiliary names, null/nonempty tool collections and competing channels remain rejected. Keep one stopped assistant message and the unchanged content string, fitted schemas, wire decoding, host semantic/materiality/conformance checks, provider requests/prompts/cues, models/router and all bounds. Do not strip, rewrite or merge metadata into content. Newly admitted envelopes may reach later existing work within those limits; no hosted remedy or unchanged total-call/cost claim follows. D6 and D31 remain verbatim historical decisions except for this later precisely scoped envelope exception; no new diagnostic fields or marker revision are selected.
+
+Original #318 artifacts retain one source-bound before-environment sample, 24 rejected negative probes, accepted bodyless setup and value-free binding/route evidence. Accepted live-boundary, after-environment, complete admission/usage and deployment-index receipts are absent. Logical ordinal 3, UTF-8 request/response buckets, the UTF-16 content bucket and the 1–255 completion-token bucket cannot reconstruct complete provider usage or cost; both remain unknown, not zero. Initial rollback passed at 2026-10-24T06:57:16.340Z on API version 076e6142-f4c4-4785-a445-5da128635ecb / deployment 058774e8-10ff-420b-885c-29a887c96786. Separate final enforcement passed at 06:57:42.069Z on version 4a7a3622-1a2d-4aef-a986-faeb92c5411c / deployment 031fd784-fb64-43ab-995e-42ad40a9247d; both recorded 100 percent, three held, zero active and zero network errors. Pages at 06:57:27.457Z returned HTTP 200 with 153,921 held bytes. These are dated samples, not continuity or a remedy for #305 rollback failure. Preserve all call/token/byte/deadline/admission limits, capacity margins, no refund, application nonretention and disclosed external-provider retention/cache uncertainties.
+
+U28 and D31-V22-A1 remain spent, one used and zero remaining each; all earlier grants remain spent. U29/D32 grants zero new paid qualifications or provider probes, no API, browser or public activation, no gate closure and no final release. Stop at reviewed held delivery; any later paid qualification requires a separate exact owner decision. GATE-02, GATE-03 and GATE-06 remain open with null acceptance bases; API debugging is unfinished and the public client remains held. Current 51/51 native bindings establish offline custody only; owned-profile preparation remains partial. Firefox’s 14 historical local input checks did not reproduce the reported click issue; hosted Firefox regression and canonical Safari/Brave evidence remain pending. Preserve proprietary ownership, valid earlier/third-party rights, all actual failed records and creation-time pretrigger snapshots. No provider quality, grammar, managed context/tokenizer or future compatibility guarantee follows.
+
+The complete previous qualification dossier follows verbatim as dated historical evidence, including its original headers and pending-at-that-time statements.
+
+---
+
+# Text to Lattice release qualification — held remote candidate
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Qualification date:** 2026-10-24
+
+**Evidence updated:** 2026-10-24
+
 These dates identify the current documentation revision, not a successful qualification or release acceptance. D31 implementation and required validation remain in progress.
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)

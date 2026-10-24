@@ -250,7 +250,10 @@ test("TEST-PRIV-013 and 015: the API Worker owns the provider and no content sin
     capacityGateSource, capacityPolicySource, visitorCookieSource, entrySource].join("\n");
   const config = JSON.parse(configSource);
 
-  assert.equal((serverSource.match(/https:\/\/router\.huggingface\.co\/v1\/chat\/completions/gu) ?? []).length, 1);
+  const compatibilityRoutePin = 'const SCALEWAY_NULL_REVIEW_METADATA_URL = "https://router.huggingface.co/v1/chat/completions";';
+  assert.equal(adapterSource.split(compatibilityRoutePin).length, 2);
+  assert.equal((serverSource.replace(compatibilityRoutePin, "").match(/https:\/\/router\.huggingface\.co\/v1\/chat\/completions/gu) ?? []).length, 1,
+    "one operational route plus an independent equality-only compatibility pin");
   assert.match(serverSource, /env\.HF_TOKEN/u);
   assert.doesNotMatch(serverSource, /env\.(?:PROVIDER|UPSTREAM|TARGET)_(?:URL|ORIGIN)|(?:payload|body|requestBody)\.(?:url|origin|endpoint|provider|target)/iu);
   assert.doesNotMatch(serverSource, /\bconsole\s*\./u);

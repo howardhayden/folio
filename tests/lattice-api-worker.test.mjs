@@ -6518,7 +6518,8 @@ test("production strict verification accepts only its closed stopped-content env
     ["null collection with array JSON", "stop", { role: "assistant", content: "[]", tool_calls: null }, "provider_malformed_response"],
     ["null collection with oversized content", "stop", { role: "assistant", content: "x".repeat(LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT + 1), tool_calls: null }, "provider_malformed_response"],
     ["null collection with truncated finish", "length", { role: "assistant", content, tool_calls: null }, "provider_output_limit"],
-    ["empty collection with legacy field", "stop", { role: "assistant", content, tool_calls: [], function_call: null }, "provider_malformed_response"],
+    ["empty collection with scoped null metadata", "stop", { role: "assistant", content, tool_calls: [], function_call: null }, null],
+    ["empty collection with substantive legacy field", "stop", { role: "assistant", content, tool_calls: [], function_call: {} }, "provider_malformed_response"],
     ["empty collection with auxiliary field", "stop", { role: "assistant", content, tool_calls: [], private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
     ["empty collection with wrong role", "stop", { role: "user", content, tool_calls: [] }, "provider_malformed_response"],
     ["empty collection with tool finish", "tool_calls", { role: "assistant", content, tool_calls: [] }, "provider_malformed_response"],
@@ -6527,7 +6528,8 @@ test("production strict verification accepts only its closed stopped-content env
     ["empty collection with array JSON", "stop", { role: "assistant", content: "[]", tool_calls: [] }, "provider_malformed_response"],
     ["empty collection with oversized content", "stop", { role: "assistant", content: "x".repeat(LATTICE_PROVIDER_CONTENT_CHARACTER_LIMIT + 1), tool_calls: [] }, "provider_response_too_large"],
     ["empty collection with truncated finish", "length", { role: "assistant", content, tool_calls: [] }, "provider_output_limit"],
-    ["legacy field", "stop", { role: "assistant", content, function_call: null }, "provider_malformed_response"],
+    ["scoped null metadata", "stop", { role: "assistant", content, function_call: null }, null],
+    ["substantive legacy field", "stop", { role: "assistant", content, function_call: {} }, "provider_malformed_response"],
     ["auxiliary field", "stop", { role: "assistant", content, private: "PRIVATE-AUXILIARY" }, "provider_malformed_response"],
     ["tool finish with valid content", "tool_calls", { role: "assistant", content }, "provider_malformed_response"],
     ["only tool arguments are rejected", "stop", { role: "assistant", tool_calls: [tool] }, "provider_malformed_response"],
@@ -8179,7 +8181,10 @@ test("server sources store only aggregate capacity, with no content logging, fal
   assert.doesNotMatch(sources, /\bconsole\s*\./u);
   assert.doesNotMatch(sources, /\b(?:localStorage|sessionStorage|indexedDB|caches\.(?:open|default)|env\.(?:KV|DB|D1|R2))\b/u);
   assert.doesNotMatch(sources, /hf_[A-Za-z0-9]{8,}/u);
-  assert.equal(sources.split(HUGGING_FACE_CHAT_COMPLETIONS_URL).length - 1, 1);
+  const compatibilityRoutePin = `const SCALEWAY_NULL_REVIEW_METADATA_URL = "${HUGGING_FACE_CHAT_COMPLETIONS_URL}";`;
+  assert.equal(adapterSource.split(compatibilityRoutePin).length, 2);
+  assert.equal(sources.replace(compatibilityRoutePin, "").split(HUGGING_FACE_CHAT_COMPLETIONS_URL).length - 1, 1,
+    "one operational route plus an independent equality-only compatibility pin");
   assert.match(workerSource, /env\.HF_TOKEN/u);
   assert.equal(wrangler.send_metrics, false);
   assert.deepEqual(wrangler.compatibility_flags, ["enable_request_signal"]);
@@ -8515,7 +8520,11 @@ test("strict Scaleway reviews reject auxiliary fields and never interpret a comp
     const content = JSON.stringify(wire);
     const messages = values.map((value) => ({ role: "assistant", content,
       ...Object.fromEntries(fields.map((field) => [field, value])) }));
-    for (const field of fields) messages.push({ role: "assistant", content, [field]: null });
+    // The five separately tested D32 null-only fields are now eligible here;
+    // every other null field and every substantive/combined envelope stays rejected.
+    for (const field of fields.filter((field) => !["reasoning", "refusal", "audio", "annotations", "function_call"].includes(field))) {
+      messages.push({ role: "assistant", content, [field]: null });
+    }
     messages.push({ role: "assistant", content: "PRIVATE-NOT-JSON", tool_calls: [providerToolCall({
       name: method === "verify" ? VERIFICATION_TOOL_NAME : CERTIFICATION_TOOL_NAME, argumentsValue: content,
     })] });
@@ -10275,11 +10284,11 @@ test("S05 consistency and original-error provenance reject forged, accessor and 
     get namedShape() { reads += 1; return "---------n"; } })), false);
   const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationStrictMessageShape: true,
     fetchImpl: async () => providerChoiceResponse({ finish_reason: "stop", message: {
-      role: "assistant", content: "PRIVATE-CONTENT", function_call: null,
+      role: "assistant", content: "PRIVATE-CONTENT", function_call: {},
     } }) });
   let original;
   try { await adapter.verify(minimalVerificationRequest()); } catch (error) { original = error; }
-  assert.deepEqual(getLatticeProviderStrictMessageShape(original), valid);
+  assert.deepEqual(getLatticeProviderStrictMessageShape(original), { ...valid, namedShape: "---------o" });
   const forged = new LatticeProviderError("provider_malformed_response", "PRIVATE-ERROR");
   Object.defineProperties(forged, Object.getOwnPropertyDescriptors(original));
   Object.defineProperty(forged, "strictMessageShape", { get() { reads += 1; return valid; } });
@@ -10317,7 +10326,7 @@ test("S05 Worker shapes require v22, an active window and the original rejected 
       }); Object.freeze(request);
       const worker = createLatticeApiWorker({ now: () => instant, fetchImpl: async () => {
         calls += 1; if (expiresDuringFetch) instant += 61_000;
-        return providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant", content: "PRIVATE-CONTENT", function_call: null } });
+        return providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant", content: "PRIVATE-CONTENT", function_call: {} } });
       }, runTextToLatticeImpl: async (_text, { adapter }) => adapter[method](request) });
       const response = await worker.fetch(apiRequest(validPayload, { headers: marker === null ? {} : {
         [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: marker,
@@ -10325,7 +10334,7 @@ test("S05 Worker shapes require v22, an active window and the original rejected 
       assert.equal(calls, callsExpected);
       const shape = Object.fromEntries(Object.entries(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS)
         .map(([field, header]) => [field, response.headers.get(header)]));
-      assert.deepEqual(shape, observed ? { namedShape: "---------n", unknownCount: "0", unknownShapes: "000000000" }
+      assert.deepEqual(shape, observed ? { namedShape: "---------o", unknownCount: "0", unknownShapes: "000000000" }
         : { namedShape: null, unknownCount: null, unknownShapes: null });
       if (observed) {
         assert.equal(response.status, 502);
@@ -10354,7 +10363,7 @@ test("S05 on a real repair reverification correction leaves all provider bytes a
         }
         if (calls.verification === 2) { delete wire.i; return successfulProviderResponse(wire); }
         return providerChoiceResponse({ finish_reason: "stop", message: {
-          role: "assistant", content: "PRIVATE-CONTENT", function_call: null,
+          role: "assistant", content: "PRIVATE-CONTENT", function_call: {},
         } });
       } });
     const draft = (request) => ({ passages: request.batch.passages.map((passage) => ({ passageId: passage.id,
@@ -10386,7 +10395,7 @@ test("S05 on a real repair reverification correction leaves all provider bytes a
     assert.deepEqual(calls, { analysis: 1, generation: 1, repair: 1, verification: 3, certification: 0 });
     assert.equal(remote.completionCapacity().used, 3); assert.equal(bodies.length, 3);
     assert.deepEqual(getLatticeProviderStrictMessageShape(failure), observed
-      ? { namedShape: "---------n", unknownCount: "0", unknownShapes: "000000000" } : null);
+      ? { namedShape: "---------o", unknownCount: "0", unknownShapes: "000000000" } : null);
     runs.push(bodies);
   }
   assert.deepEqual(runs[0], runs[1], "complete initial/reverification/correction provider bodies stay identical");
@@ -10396,7 +10405,7 @@ test("S05 real engine initial and second verification failures have identical un
   for (const first of ["initial-provider", "V01F"]) {
     const runs = [];
     for (const observed of [false, true]) {
-      const run = await run212PriorVerificationFailure({ first, correctionEnvelopeExtras: { function_call: null },
+      const run = await run212PriorVerificationFailure({ first, correctionEnvelopeExtras: { function_call: {} },
         headers: observed ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v22" } : {} });
       assert.equal(run.response.status, 502);
       assert.deepEqual(await json(run.response), { error: "malformed_upstream_response" });
@@ -10404,7 +10413,7 @@ test("S05 real engine initial and second verification failures have identical un
       assert.equal(run.rawBodies.length, first === "initial-provider" ? 3 : 4);
       assert.equal(run.failure.qualificationSubtype, "S05");
       assert.deepEqual(getLatticeProviderStrictMessageShape(run.failure), observed
-        ? { namedShape: "---------n", unknownCount: "0", unknownShapes: "000000000" } : null);
+        ? { namedShape: "---------o", unknownCount: "0", unknownShapes: "000000000" } : null);
       runs.push(run.rawBodies);
     }
     assert.deepEqual(runs[0], runs[1], first);
@@ -10427,5 +10436,220 @@ test("S05 observation cannot displace earlier collection, finish, role or succes
       });
       assert.equal(adapter.completionCapacity().used, 1);
     }
+  }
+});
+
+const D32_NULL_REVIEW_FIELDS = Object.freeze(["reasoning", "refusal", "audio", "annotations", "function_call"]);
+const D32_NULL_REVIEW_MESSAGE = Object.freeze(Object.fromEntries(D32_NULL_REVIEW_FIELDS.map((key) => [key, null])));
+
+function d32StrictRequestOptions(fetchImpl, overrides = {}) {
+  return providerRequestOptions(fetchImpl, { role: "verifier", schemaName: VERIFICATION_TOOL_NAME,
+    responseFormat: "json_schema", requireMinimalVerificationContent: true, allowEmptyStoppedToolCalls: true,
+    allowNullStoppedScalewayReviewMetadata: true, ...overrides });
+}
+
+test("D32 both strict review stages admit exactly the 32 optional null patterns without request-body changes", async () => {
+  for (const method of ["verify", "certify"]) {
+    const request = method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest();
+    let baselineBody, baselineResult;
+    for (let mask = 0; mask < 32; mask += 1) for (const emptyTools of [false, true]) {
+      let calls = 0, rawBody;
+      const metadata = Object.fromEntries(D32_NULL_REVIEW_FIELDS.filter((_key, index) => mask & (1 << index)).map((key) => [key, null]));
+      const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationStrictMessageShape: true,
+        fetchImpl: async (_url, init) => {
+          calls += 1; rawBody = init.body;
+          const body = JSON.parse(rawBody);
+          assert.equal(body.model, TEST_REVIEW_MODEL);
+          assert.equal(body.response_format.type, "json_schema");
+          assert.equal(body.response_format.json_schema.strict, true);
+          assert.equal(body.response_format.json_schema.name, method === "verify" ? VERIFICATION_TOOL_NAME : CERTIFICATION_TOOL_NAME);
+          assert.equal(body.max_tokens, method === "verify" ? 2048 : 520);
+          for (const key of ["tools", "tool_choice", "allowNullStoppedScalewayReviewMetadata"]) assert.equal(Object.hasOwn(body, key), false);
+          const wire = method === "verify" ? acceptingVerificationWire(request)
+            : acceptingCertificationWire(request.certificateId, request.obligationIds);
+          return providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(wire),
+            ...metadata, ...(emptyTools ? { tool_calls: [] } : {}) } });
+        } });
+      const result = await adapter[method](request);
+      assert.equal(calls, 1); assert.equal(adapter.completionCapacity().used, 1);
+      if (baselineBody === undefined) { baselineBody = rawBody; baselineResult = result; }
+      assert.equal(rawBody, baselineBody, `${method}/${mask}/${emptyTools}: complete provider body`);
+      assert.deepEqual(result, baselineResult, `${method}/${mask}/${emptyTools}: decoded independent result`);
+    }
+  }
+});
+
+test("D32 null review compatibility is default-off and rejects every nonmatching server profile before fetch", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return providerChoiceResponse({ finish_reason: "stop", message: {
+      role: "assistant", content: '{"accepted":true}', ...D32_NULL_REVIEW_MESSAGE,
+    } });
+  };
+  for (const flag of [false, undefined]) {
+    await assert.rejects(requestHuggingFaceJson(d32StrictRequestOptions(fetchImpl, {
+      allowNullStoppedScalewayReviewMetadata: flag,
+    })), (error) => error.code === "provider_malformed_response");
+  }
+  assert.equal(calls, 2);
+  const invalid = [
+    { role: "generator" }, { schemaName: "lattice_test_v1" }, { schemaName: "lattice_candidate_v1" },
+    { responseFormat: "json_object" }, { responseFormat: undefined }, { requireMinimalVerificationContent: false },
+    { allowEmptyStoppedToolCalls: false }, { toolName: VERIFICATION_TOOL_NAME }, { toolChoice: "named" },
+    { allowStoppedToolContent: true }, { allowNullStoppedVerificationMetadata: true },
+    { allowNullJsonObjectVerificationToolCalls: true },
+    ...[null, 0, 1, "true"].map((value) => ({ allowNullStoppedScalewayReviewMetadata: value })),
+  ];
+  for (const overrides of invalid) await assert.rejects(
+    requestHuggingFaceJson(d32StrictRequestOptions(fetchImpl, overrides)),
+    (error) => error instanceof TypeError && /invalid server configuration/u.test(error.message),
+  );
+  assert.equal(calls, 2, "invalid profiles never dispatch");
+  for (const overrides of [{}, { role: "verifier", responseFormat: "json_object" }]) {
+    assert.deepEqual(await requestHuggingFaceJson(providerRequestOptions(fetchImpl, overrides)), { accepted: true },
+      "unrestricted generic JSON helper retains its existing content-only behavior");
+  }
+  await assert.rejects(requestHuggingFaceJson(providerRequestOptions(fetchImpl, {
+    role: "verifier", toolName: VERIFICATION_TOOL_NAME, toolChoice: "named", allowStoppedToolContent: true,
+  })), (error) => error.code === "provider_malformed_response");
+  assert.equal(calls, 5, "existing generator/json-object/named-tool behavior stays unchanged");
+});
+
+test("D32 nullable policy is independently pinned to the exact selector and router", async () => {
+  const fileUrl = new URL("../workers/text-to-lattice-api/huggingFaceAdapter.js", import.meta.url);
+  const original = await readFile(fileUrl, "utf8");
+  const rebased = original.replace(/(from\s+["'])(\.\.?\/[^"']+)(["'])/gu,
+    (_match, prefix, path, suffix) => `${prefix}${new URL(path, fileUrl).href}${suffix}`);
+  for (const [before, after] of [
+    ['verifier: "meta-llama/Llama-3.3-70B-Instruct:scaleway"', 'verifier: "meta-llama/Llama-3.1-8B-Instruct:nscale"'],
+    ['export const HUGGING_FACE_CHAT_COMPLETIONS_URL =\n  "https://router.huggingface.co/v1/chat/completions"',
+      'export const HUGGING_FACE_CHAT_COMPLETIONS_URL =\n  "https://example.invalid/chat/completions"'],
+  ]) {
+    assert.equal(rebased.split(before).length, 2, "replace exactly the active mutable configuration");
+    const changed = rebased.replace(before, after);
+    const changedAdapter = await import(`data:text/javascript;base64,${Buffer.from(changed).toString("base64")}`);
+    let calls = 0;
+    const adapter = changedAdapter.createHuggingFaceLatticeAdapter({ token: "test-only", fetchImpl: async () => {
+      calls += 1; throw new Error("A changed model or router must fail before fetch");
+    } });
+    for (const method of ["verify", "certify"]) await assert.rejects(
+      adapter[method](method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest()),
+      (error) => error instanceof TypeError && /invalid server configuration/u.test(error.message),
+    );
+    assert.equal(calls, 0);
+  }
+});
+
+test("D32 substantive, unknown and legacy metadata stay rejected with the existing predicate precedence", async () => {
+  for (const field of D32_NULL_REVIEW_FIELDS) for (const value of ["", "PRIVATE", [], [null], {}, { private: true }, false, 0]) {
+    for (const method of ["verify", "certify"]) {
+      let calls = 0;
+      const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationStrictMessageShape: true,
+        fetchImpl: async () => {
+          calls += 1;
+          return providerChoiceResponse({ finish_reason: "stop", message: {
+            role: "assistant", content: '{"accepted":true}', [field]: value,
+          } });
+        } });
+      await assert.rejects(adapter[method](method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest()), (error) => {
+        assert.equal(error.code, "provider_malformed_response");
+        assert.equal(error.qualificationSubtype, field === "function_call" ? "S05" : "S06");
+        assert.doesNotMatch(JSON.stringify(error) + error.message, /PRIVATE/u); return true;
+      });
+      assert.equal(calls, 1);
+    }
+  }
+  for (const [extras, subtype] of [
+    [{ ...D32_NULL_REVIEW_MESSAGE, unknown: null }, "S05"],
+    [{ reasoning: null, unknown: null }, "S06"],
+    [{ ...D32_NULL_REVIEW_MESSAGE, reasoning: "PRIVATE" }, "S05"],
+    [{ ...D32_NULL_REVIEW_MESSAGE, name: null }, "S05"],
+    [{ name: null }, "S06"], [{ reasoning_content: null }, "S06"], [{ cache_control: null }, "S06"],
+    [{ tool_call_id: null }, "S06"],
+    [{ ...D32_NULL_REVIEW_MESSAGE, tool_calls: null }, "S02N"],
+    [{ ...D32_NULL_REVIEW_MESSAGE, tool_calls: [providerToolCall()] }, "S05"],
+    [{ ...D32_NULL_REVIEW_MESSAGE, tool_calls: [null, null] }, "S04"],
+  ]) for (const method of ["verify", "certify"]) {
+    const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationStrictMessageShape: true,
+      fetchImpl: async () => providerChoiceResponse({ finish_reason: "stop", message: {
+        role: "assistant", content: "PRIVATE-CONTENT", ...extras,
+      } }) });
+    await assert.rejects(adapter[method](method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest()), (error) => {
+      assert.equal(error.code, "provider_malformed_response"); assert.equal(error.qualificationSubtype, subtype);
+      assert.doesNotMatch(JSON.stringify(error) + error.message + JSON.stringify(getLatticeProviderStrictMessageShape(error)), /PRIVATE/u);
+      return true;
+    });
+  }
+});
+
+test("D32 admitted null metadata cannot bypass content, role, finish, wire or independent negative review", async () => {
+  for (const method of ["verify", "certify"]) {
+    for (const [content, finish_reason, role, subtype, code] of [
+      ["{", "stop", "assistant", "content_json", "provider_malformed_response"],
+      ["", "stop", "assistant", "content_empty", "provider_malformed_response"],
+      ["[]", "stop", "assistant", "content_shape", "provider_malformed_response"],
+      [null, "stop", "assistant", "S05", "provider_malformed_response"],
+      ["{}", "length", "assistant", "none", "provider_output_limit"],
+      ["{}", "stop", "user", "message_role", "provider_malformed_response"],
+    ]) {
+      const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", observeQualificationStrictMessageShape: true,
+        fetchImpl: async () => providerChoiceResponse({ finish_reason, message: { role, content, ...D32_NULL_REVIEW_MESSAGE } }) });
+      await assert.rejects(adapter[method](method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest()), (error) => {
+        assert.equal(error.code, code); assert.equal(error.qualificationSubtype, subtype);
+        assert.deepEqual(getLatticeProviderStrictMessageShape(error), subtype === "S05"
+          ? { namedShape: "n-nnn----n", unknownCount: "0", unknownShapes: "000000000" } : null); return true;
+      });
+    }
+    const request = method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest();
+    const malformed = createHuggingFaceLatticeAdapter({ token: "test-only", fetchImpl: async () =>
+      providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant", content: "{}", ...D32_NULL_REVIEW_MESSAGE } }) });
+    const invalidWire = await malformed[method](request);
+    assert.deepEqual(invalidWire, {});
+    assert.equal(rejectedResultDiagnostic(invalidWire).boundary, "wire-decoder");
+  }
+  const request = minimalVerificationRequest();
+  const negative = structuredClone(acceptingVerificationWire(request));
+  negative.d = 2; negative.p[0].f = "100000000";
+  const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", fetchImpl: async () => providerChoiceResponse({
+    finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(negative), ...D32_NULL_REVIEW_MESSAGE },
+  }) });
+  const result = await adapter.verify(request);
+  assert.equal(result.decision, "reject"); assert.deepEqual(result.passages[0].failedChecks, ["semanticFidelity"]);
+});
+
+test("D32 ordinary and qualification API paths preserve body, wire correction, host rejection and certification boundaries", async () => {
+  for (const scenario of ["positive", "wire-corrected", "wire-exhausted", "host-exhausted", "certificate-exhausted"]) {
+    const runs = [];
+    for (const nulls of [false, true]) for (const marked of [false, true]) {
+      const bodies = []; let reviews = 0, certificates = 0;
+      const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+        bodies.push(init.body); const body = JSON.parse(init.body); let wire;
+        if (isAnalysisBody(body)) wire = canaryAnalysisWire(body);
+        else if (isCandidateBody(body)) wire = canaryCandidateFromProviderBody(body,
+          "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.");
+        else if (isVerificationBody(body)) {
+          reviews += 1; wire = canaryVerificationWire(body);
+          if (scenario === "wire-exhausted" || (scenario === "wire-corrected" && reviews === 1)) delete wire.i;
+          if (scenario === "host-exhausted") wire.d = 2;
+        } else {
+          certificates += 1; const payload = inertModelPayload(body);
+          wire = scenario === "certificate-exhausted" ? {} : acceptingCertificationWire(payload.certificateId, payload.obligationIds);
+        }
+        return providerChoiceResponse({ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(wire),
+          ...(nulls && body.model === TEST_REVIEW_MODEL ? D32_NULL_REVIEW_MESSAGE : {}) } });
+      } });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: marked
+        ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v22" } : {} }),
+      { HF_TOKEN: "test-only", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-10-24T12:00:00.000Z" });
+      assert.equal(response.status, 200, scenario);
+      const envelope = await json(response);
+      assert.equal(envelope.result.status, ["positive", "wire-corrected"].includes(scenario) ? "translated" : "unable-to-attempt", scenario);
+      assert.equal(reviews, scenario === "positive" || scenario === "certificate-exhausted" ? 1 : 2);
+      assert.equal(certificates, scenario === "positive" || scenario === "wire-corrected" ? 1 : scenario === "certificate-exhausted" ? 2 : 0);
+      for (const header of Object.values(LATTICE_QUALIFICATION_STRICT_MESSAGE_SHAPE_RESPONSE_HEADERS)) assert.equal(response.headers.has(header), false);
+      runs.push({ bodies, envelope });
+    }
+    for (const run of runs.slice(1)) assert.deepEqual(run, runs[0], `${scenario}: full provider bodies and public outcomes are equal`);
   }
 });
