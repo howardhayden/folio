@@ -2363,6 +2363,10 @@ test("the UI makes one consented same-origin content request after bodyless visi
   assert.match(source, /<form className="lattice-form" onSubmit=\{runLattice\} noValidate>/u);
   assert.match(source, /id="lattice-use-confirmation"[\s\S]*?checked=\{latticeUseConfirmed\}[\s\S]*?required/u);
   assert.match(source, /Process with external service/u);
+  assert.match(source, /Scaleway states that content is not used for training by default[\s\S]{0,150}full HTTP requests for up to 14 days/iu);
+  assert.match(source, /ephemeral prefix cache that cannot be disabled/iu);
+  assert.match(source, /LLAMA_3_3_PUBLIC_TERMS\.acceptableUseUrl/u);
+  assert.ok(source.indexOf("full HTTP requests for up to 14 days") < source.indexOf('id="lattice-use-confirmation"'), "material processor terms are visible before confirmation");
 
   assert.match(remoteProtocolSource, /LATTICE_API_PATH = "\/api\/lattice"/u);
   assert.equal((remoteRequestSource.match(/capabilityFetch\(/gu) ?? []).length, 2);
@@ -2402,13 +2406,15 @@ test("the canonical no-JavaScript contract exposes remote capability and privacy
   assert.match(source, /id="text-to-lattice-usage"/u);
   assert.match(source, /Same-origin <code>POST \/api\/lattice<\/code>; no query string, redirect, or provider origin; one browser-owned API-scoped quota cookie/u);
   assert.match(source, /\{"\{text, requested_mode, schema_version: 1\}"\}/u);
-  assert.match(source, /Qwen3-235B-A22B-Instruct-2507 generates through DeepInfra; Llama 3\.1 8B Instruct verifies through Nscale; both are fixed through Hugging Face Inference Providers/u);
+  assert.match(source, /Qwen3-235B-A22B-Instruct-2507 generates through DeepInfra; Llama 3\.3 70B Instruct verifies through Scaleway; both are fixed through Hugging Face Inference Providers/u);
   assert.match(source, /No hah\.dev application storage, raw-content logging, caching, queueing, or analytics/u);
   assert.match(source, /no browser retry and no provider or model fallback/u);
   assert.match(source, /security\.api\.rules\.map/u);
   assert.match(source, /The Hugging Face token is an encrypted server-side Worker secret and never enters the browser or response/u);
   assert.match(source, /WebLLM\/MLC download path, bodyless quota lease, Turnstile attestation frame, renewal, and release protocol are inactive/u);
-  assert.match(source, /Hugging Face, DeepInfra, Nscale, and their infrastructure process submitted content under their own policies/u);
+  assert.match(source, /Hugging Face, DeepInfra, Scaleway, and their infrastructure process submitted content under their own policies/u);
+  assert.match(source, /full HTTP requests may be retained for up to 14 days/iu);
+  assert.match(source, /ephemeral prefix caching cannot be disabled/iu);
   assert.match(source, /<noscript><p className="lattice-noscript-note">/u);
   assert.doesNotMatch(source, /policy\.(?:globalRequests|globalDailyRequests|globalAttempts|globalGrants|activeLeases|enforcement|freeTierBasis)/u);
 });

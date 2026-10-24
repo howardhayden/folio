@@ -1,6 +1,6 @@
 ---
 title: Lattice concept and ecosystem map
-revision: 2026-10-05
+revision: 2026-10-23
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
@@ -417,7 +417,7 @@ Products that apply or interpret Lattice under their own contracts.
 <details id="lat-n-021">
 <summary><strong>LAT-N-021</strong> · Text to Lattice — Probabilistic remote wrapper, distinct authority model</summary>
 
-The hah.dev demonstrator sends visitor-authorized text through a same-origin API to fixed server-side DeepInfra-served Qwen generation and Nscale-served Llama verification models. It does not inherit the upstream engine's typed caller-authority guarantee and must state its weaker semantic and external-processing boundary separately.
+U28/D30 current qualification scope: fixed DeepInfra Qwen generation and Scaleway Llama 3.3 verification/certification through the same-origin API and fixed Hugging Face router; integration and exact-target qualification remain pending. Earlier Nscale role wording below is retained for historical scope. The hah.dev demonstrator sends visitor-authorized text through a same-origin API to fixed server-side DeepInfra-served Qwen generation and Nscale-served Llama verification models. It does not inherit the upstream engine's typed caller-authority guarantee and must state its weaker semantic and external-processing boundary separately.
 
 - **Group:** Ecosystem
 - **Authority:** Wrapper claim boundary
@@ -559,8 +559,8 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-PROJECTS — Portfolio project and ecosystem register:** `app/resume/projects.js`
 - **SRC-RELEASE-REGISTER — Machine-enforced Text to Lattice release register:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json`
 - **SRC-RELEASE-QUALIFICATION — Text to Lattice release qualification:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
-- **SRC-LLAMA-3-1-LICENSE — Active Llama 3.1 Community License at the reviewed model revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/LICENSE)
-- **SRC-LLAMA-3-1-AUP — Active Llama 3.1 Acceptable Use Policy at the reviewed model revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/USE_POLICY.md)
+- **SRC-LLAMA-3-1-LICENSE — Historical predecessor source; original label: Active Llama 3.1 Community License at the reviewed model revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/LICENSE)
+- **SRC-LLAMA-3-1-AUP — Historical predecessor source; original label: Active Llama 3.1 Acceptable Use Policy at the reviewed model revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/USE_POLICY.md)
 - **SRC-LLAMA-LICENSE — Historical Llama 3.2 Community License:** [Reviewed source](https://developer.meta.com/ai/llama3_2/license/)
 - **SRC-LLAMA-AUP — Historical Llama 3.2 Acceptable Use Policy:** [Reviewed source](https://developer.meta.com/ai/llama3_2/use-policy/)
 - **SRC-LLAMA-EVAL — Non-operational Llama-use evaluation cases:** `docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json`
@@ -578,16 +578,16 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-HF-CHAT — Hugging Face OpenAI-compatible chat-completions API:** [Reviewed source](https://huggingface.co/docs/inference-providers/tasks/chat-completion)
 - **SRC-HF-STRUCTURED — Hugging Face structured-output guidance:** [Reviewed source](https://huggingface.co/docs/inference-providers/guides/structured-output)
 - **SRC-HF-SECURITY — Hugging Face security and privacy policy:** [Reviewed source](https://huggingface.co/security)
-- **SRC-HF-NSCALE — Hugging Face Nscale provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/nscale)
+- **SRC-HF-NSCALE — Historical predecessor source; original label: Hugging Face Nscale provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/nscale)
 - **SRC-HF-DEEPINFRA — Hugging Face DeepInfra provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/deepinfra)
 - **SRC-LATTICE-UPSTREAM — Lattice upstream repository:** [Reviewed source](https://github.com/howardhayden/lattice)
 - **SRC-HF-MODEL-CATALOG — Hugging Face current routed model/provider metadata:** [Reviewed source](https://router.huggingface.co/v1/models)
-- **SRC-HF-NSCALE-MAPPING — Hugging Face Nscale model mapping:** [Reviewed source](https://huggingface.co/api/partners/nscale/models)
-- **SRC-NSCALE-CHAT — Nscale chat-completion schema contract:** [Reviewed source](https://docs.nscale.com/api-reference/inference/create-chat-completion)
+- **SRC-HF-NSCALE-MAPPING — Historical predecessor source; original label: Hugging Face Nscale model mapping:** [Reviewed source](https://huggingface.co/api/partners/nscale/models)
+- **SRC-NSCALE-CHAT — Historical predecessor source; original label: Nscale chat-completion schema contract:** [Reviewed source](https://docs.nscale.com/api-reference/inference/create-chat-completion)
 - **SRC-HF-PROVIDER-SECURITY — Hugging Face inference-provider security boundary:** [Reviewed source](https://huggingface.co/docs/inference-providers/security)
-- **SRC-NSCALE-PRIVACY — Nscale public privacy policy:** [Reviewed source](https://www.nscale.com/policies/privacy-policy)
-- **SRC-NSCALE-SHARED-RESPONSIBILITY — Nscale shared responsibility model:** [Reviewed source](https://docs.nscale.com/docs/help/shared-responsibility)
-- **SRC-NSCALE-WEBSITE-TERMS — Nscale public website terms and their scope:** [Reviewed source](https://www.nscale.com/policies/terms-conditions)
+- **SRC-NSCALE-PRIVACY — Historical predecessor source; original label: Nscale public privacy policy:** [Reviewed source](https://www.nscale.com/policies/privacy-policy)
+- **SRC-NSCALE-SHARED-RESPONSIBILITY — Historical predecessor source; original label: Nscale shared responsibility model:** [Reviewed source](https://docs.nscale.com/docs/help/shared-responsibility)
+- **SRC-NSCALE-WEBSITE-TERMS — Historical predecessor source; original label: Nscale public website terms and their scope:** [Reviewed source](https://www.nscale.com/policies/terms-conditions)
 - **SRC-QWEN-NEXT-SOURCE — Qwen3 Next 80B A3B Instruct reviewed author revision:** [Reviewed source](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct/tree/9c7f2fbe84465e40164a94cc16cd30b6999b0cc7)
 - **SRC-DEEPINFRA-NEXT — DeepInfra Qwen3 Next model metadata:** [Reviewed source](https://deepinfra.com/Qwen/Qwen3-Next-80B-A3B-Instruct)
 - **SRC-DEEPINFRA-DATA-PRIVACY — DeepInfra public inference data-privacy statements:** [Reviewed source](https://docs.deepinfra.com/account/data-privacy)
@@ -595,6 +595,13 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-DEEPINFRA-PRIVACY — DeepInfra public privacy policy:** [Reviewed source](https://deepinfra.com/privacy)
 - **SRC-QWEN-235B-SOURCE — Qwen3 235B A22B Instruct 2507 reviewed author revision:** [Reviewed source](https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507/tree/ac9c66cc9b46af7306746a9250f23d47083d689e)
 - **SRC-DEEPINFRA-235B — DeepInfra Qwen3 235B Instruct 2507 model metadata:** [Reviewed source](https://deepinfra.com/Qwen/Qwen3-235B-A22B-Instruct-2507)
+- **SRC-LLAMA-3-3-LICENSE — U28 Llama 3.3 Community License at reviewed author revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/LICENSE)
+- **SRC-LLAMA-3-3-AUP — U28 Llama 3.3 Acceptable Use Policy at reviewed author revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/USE_POLICY.md)
+- **SRC-HF-SCALEWAY — Hugging Face Scaleway provider routing:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/scaleway)
+- **SRC-SCALEWAY-STRUCTURED — Scaleway documented structured output capabilities:** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/how-to/use-structured-outputs/)
+- **SRC-SCALEWAY-PRIVACY — Scaleway processing, investigation retention and cache policy:** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/reference-content/data-privacy/)
+- **SRC-SCALEWAY-AI-CONDITIONS — Scaleway AI Specific Conditions reviewed for U28:** [Reviewed source](https://www-uploads.scaleway.com/Specific_Conditions_AI_Services_275907180f.pdf)
+- **SRC-SCALEWAY-LIFECYCLE — Scaleway model lifecycle and replacement boundary:** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/reference-content/model-lifecycle/)
 
 ## Terms and provenance
 

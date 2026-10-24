@@ -131,7 +131,7 @@ test("D25 leaves provider request bytes, public error properties and default beh
   assert.deepEqual(publicProperties(on.error), publicProperties(defaultError));
   const body = JSON.parse(on.calls[0].body);
   assert.equal(body.max_tokens, 2048);
-  assert.equal(body.model, "meta-llama/Llama-3.1-8B-Instruct:nscale");
+  assert.equal(body.model, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
   assert.equal(body.stream, false);
 });
 

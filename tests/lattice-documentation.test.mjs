@@ -33,7 +33,7 @@ test("the documentation generator binds current remote evidence and preserves in
   assert.match(builder, /productionSatisfiedGateIds = new Set\(\["GATE-02", "GATE-03", "GATE-06"\]\)/u);
   assert.match(builder, /"historical-inactive"/u);
   assert.match(builder, /"historicalInactiveRecord",[\s\S]{0,100}"activeCurrentEvidence",[\s\S]{0,100}"activeEvidence"/u);
-  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed DeepInfra generator and Nscale review targets/u);
+  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed DeepInfra generator and Scaleway review targets/u);
   assert.match(builder, /GATE-03 must keep the provider call, stage, response, limiter, cost, generic-proxy, retry, fallback/u);
   assert.match(builder, /GATE-06 must require one explicit canonical-browser setup-plus-content lifecycle/u);
   assert.match(builder, /verifyReleaseStatusState\(releaseRegister\)/u);
@@ -48,7 +48,7 @@ test("the documentation generator binds current remote evidence and preserves in
 });
 
 test("the atlas models the held remote capability without promoting historical evidence", async () => {
-  assert.equal(atlas.revision, "2026-10-05");
+  assert.equal(atlas.revision, "2026-10-23");
   assert.equal(atlas.historicalBoundary.status, "inactive");
   assert.match(atlas.historicalBoundary.currentArchitecture, /same-origin \/api\/lattice[\s\S]*bodyless visitor-session setup[\s\S]*exactly one content-bearing POST/iu);
   assert.match(atlas.historicalBoundary.evidencePolicy, /do not satisfy the current remote-service release gates/iu);
@@ -67,6 +67,8 @@ test("the atlas models the held remote capability without promoting historical e
     sources.get("SRC-LLAMA-3-1-AUP").url,
     "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/USE_POLICY.md",
   );
+  assert.equal(sources.get("SRC-LLAMA-3-3-LICENSE").url, "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/LICENSE");
+  assert.equal(sources.get("SRC-LLAMA-3-3-AUP").url, "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/USE_POLICY.md");
   assert.match(sources.get("SRC-LLAMA-LICENSE").label, /^Historical Llama 3\.2/u);
   assert.match(sources.get("SRC-LLAMA-AUP").label, /^Historical Llama 3\.2/u);
   for (const id of ["SRC-LOCAL-MODEL", "SRC-MODEL-WORKER", "SRC-ATTESTATION", "SRC-USAGE-LEASE", "SRC-LEASE-WORKER", "SRC-FRAME"]) {
@@ -85,7 +87,7 @@ test("the atlas models the held remote capability without promoting historical e
     "428 visitor_session_required",
     "intentional cookie clearing",
     "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-    "meta-llama/Llama-3.1-8B-Instruct:nscale",
+    "meta-llama/Llama-3.3-70B-Instruct:scaleway",
     "no automatic retry",
     "provider or model fallback",
     "questions required to be empty",
@@ -102,8 +104,8 @@ test("the atlas models the held remote capability without promoting historical e
   assert.deepEqual(atlas.securityModel.threats.map(({ id }) => id), Array.from({ length: 12 }, (_, index) => `SEC-${String(index + 1).padStart(2, "0")}`));
   assert.deepEqual(atlas.securityModel.prePublicationGates, releaseRegister.gates);
   const activeUseThreat = atlas.securityModel.threats.find(({ id }) => id === "SEC-11");
-  assert.ok(activeUseThreat.sourceIds.includes("SRC-LLAMA-3-1-LICENSE"));
-  assert.ok(activeUseThreat.sourceIds.includes("SRC-LLAMA-3-1-AUP"));
+  assert.ok(activeUseThreat.sourceIds.includes("SRC-LLAMA-3-3-LICENSE"));
+  assert.ok(activeUseThreat.sourceIds.includes("SRC-LLAMA-3-3-AUP"));
   assert.ok(!activeUseThreat.sourceIds.includes("SRC-LLAMA-LICENSE"));
   assert.ok(!activeUseThreat.sourceIds.includes("SRC-LLAMA-AUP"));
   const historicalUseThreat = atlas.historicalBrowserLocalSecurityModel.threats.find(({ id }) => id === "SEC-11");
@@ -190,12 +192,13 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /__Secure-hah-lattice-api-visitor/u);
   assert.match(dossier, /30[^.]*globally per UTC day/iu);
   assert.match(dossier, /3[^.]*browser cookie jar per UTC day/iu);
-  assert.match(dossier, /Hugging Face[\s\S]{0,300}Nscale/iu);
+  assert.match(dossier, /Hugging Face[\s\S]{0,300}Scaleway/iu);
   assert.match(dossier, /no automatic retry/iu);
   assert.match(dossier, /no alternate provider or model fallback/iu);
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
   assert.match(dossier, /Historical inactive WebLLM and lease appendix/u);
-  assert.match(dossier, /\*\*Qualification date:\*\* 2026-10-05/u);
+  assert.match(dossier, /\*\*Qualification date:\*\* 2026-10-23/u);
+  assert.match(dossier, /current documentation revision records the approved U28\/D30 integration; it is not a successful service qualification or release acceptance/u);
   assert.match(dossier, /bounded qualification,[\s\S]{0,120}run #162[\s\S]{0,240}`be20fab7dbf312deef5ccc77997932f077b21f6e`/iu);
   assert.match(dossier, /exact tree `2a7130b71189bb790f84ff8809b51542b6baf056`[\s\S]{0,100}deployed source-set digest `7419de535c9d3b35b74a7455e11dad52073618403c874d33631759d04f119ca2`/u);
   assert.match(dossier, /deployed qualification-dossier digest `d642e6f1bd47b5cdd92a139ea1653f7fe931fc84f9558f5f427626b53ebb5663`/u);
@@ -413,7 +416,7 @@ test("interactive editions remain complete, self-contained, accessible, and exec
     assert.match(artifact, /Backstage client\/server/u);
     assert.match(artifact, /POST \/api\/lattice/u);
     assert.match(artifact, /HF_TOKEN/u);
-    assert.match(artifact, /Hugging Face, DeepInfra and Nscale/u);
+    assert.match(artifact, /Hugging Face, DeepInfra and Scaleway/u);
     assert.match(artifact, /no automatic retry/iu);
     assert.match(artifact, /no alternate provider or model fallback/iu);
     assert.doesNotMatch(artifact, /Backstage browser-local/u);

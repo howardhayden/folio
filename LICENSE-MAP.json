@@ -94,6 +94,7 @@
     {
       "paths": [
         "LICENSES/**",
+        "public/LICENSES/**",
         "THIRD_PARTY_LICENSES.txt",
         "THIRD_PARTY_NOTICES.md",
         "SBOM*.json",

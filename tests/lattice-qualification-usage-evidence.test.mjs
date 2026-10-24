@@ -145,15 +145,40 @@ test("usage sidecar binds the exact live v3 bytes and computes the dated catalog
   const evidence = createLatticeQualificationUsageEvidence(liveBytes, observed);
   assert.equal(evidence.live_boundary.sha256, createHash("sha256").update(liveBytes).digest("hex"));
   assert.deepEqual(evidence.deployment, liveReceipt().deployment);
-  assert.equal(evidence.catalog.source_sha256, "558f77423f195a611fd60411cde5cef062d3ed80b7ec70116c2c67e10ce617de");
-  assert.equal(evidence.catalog.observed_on, "2026-10-06");
-  assert.equal(evidence.cost.generator_usd, "0.00020000");
-  assert.equal(evidence.cost.verifier_usd, "0.00012600");
-  assert.equal(evidence.cost.total_usd, "0.00032600");
+  assert.equal(evidence.catalog.source_sha256, "4ab9b2499255a81cf89105efc4660eb56a40a76b65cf55043513cc5070f2e574");
+  assert.equal(evidence.catalog.observed_on, "2026-10-23");
+  assert.equal(evidence.cost.generator_usd, "0.000200000");
+  assert.equal(evidence.cost.verifier_usd, "0.002154600");
+  assert.equal(evidence.cost.total_usd, "0.002354600");
   assert.equal(evidence.cost.billed_cost_observed, false);
   assert.equal(evidence.cost.complete_account_cost_observed, false);
   assert.equal(evidence.cost.discounts_credits_taxes_and_other_charges_included, false);
   assert.equal(verifyLatticeQualificationUsageEvidence(evidence, liveBytes, { requireComplete: true }), evidence);
+});
+
+test("three-decimal reviewer rates preserve individual nano-USD units and reported zero usage", () => {
+  assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.model,
+    "meta-llama/Llama-3.3-70B-Instruct:scaleway");
+  assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.input_rate, "1.026");
+  assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.output_rate, "1.026");
+  const oneEach = createLatticeQualificationUsageEvidence(bytes(), {
+    status: "complete",
+    generator: { calls: 1, prompt_tokens: 1, completion_tokens: 1 },
+    verifier: { calls: 1, prompt_tokens: 1, completion_tokens: 1 },
+  });
+  assert.equal(oneEach.cost.generator_usd, "0.000000640");
+  assert.equal(oneEach.cost.verifier_usd, "0.000002052");
+  assert.equal(oneEach.cost.total_usd, "0.000002692");
+  const singleInput = createLatticeQualificationUsageEvidence(bytes(), {
+    status: "complete",
+    generator: { calls: 1, prompt_tokens: 0, completion_tokens: 0 },
+    verifier: { calls: 1, prompt_tokens: 1, completion_tokens: 0 },
+  });
+  assert.equal(singleInput.cost.generator_usd, "0.000000000");
+  assert.equal(singleInput.cost.verifier_usd, "0.000001026");
+  assert.equal(singleInput.cost.total_usd, "0.000001026");
+  assert.equal(singleInput.schemaVersion, 1);
+  assert.equal(verifyLatticeQualificationUsageEvidence(singleInput, bytes(), { requireComplete: true }), singleInput);
 });
 
 test("usage sidecar never converts unavailable observations into numeric or zero cost", () => {
@@ -203,6 +228,8 @@ test("only a current-model successful live v3 receipt can carry a usage sidecar"
     ["prior Next80B generator", (v) => { v.declared_provider_contract.generator_model = "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra"; }],
     ["old generator", (v) => { v.declared_provider_contract.generator_model = "Qwen/Qwen3-4B-Instruct-2507:nscale"; }],
     ["old provider", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.1-8B-Instruct:deepinfra"; }],
+    ["prior Nscale reviewer", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.1-8B-Instruct:nscale"; }],
+    ["unselected3.3 provider", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.3-70B-Instruct:ovhcloud"; }],
     ["missing timestamp", (v) => { delete v.verified_at; }],
     ["content retained", (v) => { v.transformation_canary.input_content_recorded = true; }],
   ];

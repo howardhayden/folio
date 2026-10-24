@@ -75,7 +75,7 @@ const LLAMA_TOKENIZER_PATH = process.env.LATTICE_LLAMA_TOKENIZER_JSON ?? "/tmp/l
 const ACTIVE_QWEN_REPOSITORY_TOKENIZER_PATH =
   process.env.LATTICE_QWEN_2507_REPOSITORY_TOKENIZER_JSON ?? QWEN_TOKENIZER_PATH;
 const ACTIVE_LLAMA_REPOSITORY_TOKENIZER_PATH =
-  process.env.LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON ?? LLAMA_TOKENIZER_PATH;
+  process.env.LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON ?? "/tmp/llama33-lattice-tokenizer.json";
 const TOKENIZER_FIXTURES_AVAILABLE = existsSync(QWEN_TOKENIZER_PATH) && existsSync(LLAMA_TOKENIZER_PATH);
 const ACTIVE_GENERATOR_TOKENIZER_FIXTURE_AVAILABLE = existsSync(ACTIVE_QWEN_REPOSITORY_TOKENIZER_PATH);
 const ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE = existsSync(ACTIVE_LLAMA_REPOSITORY_TOKENIZER_PATH);
@@ -94,11 +94,11 @@ const REVIEWED_QWEN_2507_REPOSITORY_TOKENIZER = Object.freeze({
   bytes: 11_422_654,
   sha256: "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
 });
-const REVIEWED_LLAMA_3_1_REPOSITORY_TOKENIZER = Object.freeze({
-  revision: "0e9e39f249a16976918f6564b8830bc894c89659",
-  gitBlob: "5cc5f00a5b203e90a27a3bd60d1ec393b07971e8",
-  bytes: 9_085_657,
-  sha256: "79e3e522635f3171300913bb421464a87de6222182a0570b9b2ccba2a964b2b4",
+const REVIEWED_LLAMA_3_3_REPOSITORY_TOKENIZER = Object.freeze({
+  revision: "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
+  gitBlob: "475b31150454dc05e90b9c4c1adbd699f4e2774b",
+  bytes: 17_209_920,
+  sha256: "6b9e4e7fb171f92fd137b777cc2714bf87d11576700a1dcd7a399e7bbe39537b",
 });
 test("the production adapter exposes an immutable live completion-capacity snapshot", () => {
   const completionBudget = { used: 17, limit: 512 };
@@ -109,6 +109,79 @@ test("the production adapter exposes an immutable live completion-capacity snaps
   assert.equal(Object.isFrozen(initial), true);
   completionBudget.used = 19;
   assert.deepEqual(adapter.completionCapacity(), { used: 19, limit: 512, remaining: 493 });
+});
+
+test("the separate active tokenizer loader pins public bytes and preserves historical download bounds", {
+  skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
+    ? false
+    : "set LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON to run the pinned loader controls",
+}, async () => {
+  const fixture = await readFile(ACTIVE_LLAMA_REPOSITORY_TOKENIZER_PATH);
+  assert.equal(fixture.length, 17_209_920);
+  assert.equal(createHash("sha256").update(fixture).digest("hex"),
+    "6b9e4e7fb171f92fd137b777cc2714bf87d11576700a1dcd7a399e7bbe39537b");
+  const directory = await mkdtemp(join(tmpdir(), "lattice-active-tokenizer-loader-"));
+  const loader = new URL("../scripts/fetch-lattice-tokenizers.mjs", import.meta.url);
+  const savedArguments = process.argv;
+  const savedFetch = globalThis.fetch;
+  const savedActivePath = process.env.LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON;
+  const savedHistoricalPath = process.env.LATTICE_LLAMA_TOKENIZER_JSON;
+  let serial = 0;
+  try {
+    const cases = [
+      { name: "pinned", mode: "active", calls: 1 },
+      { name: "digest mismatch", mode: "active", calls: 1, error: /digest did not match/u },
+      { name: "declared overflow", mode: "active", calls: 3, error: /byte limit/u },
+      { name: "streamed overflow", mode: "active", calls: 3, error: /byte limit/u },
+      { name: "historical limit", mode: "historical", calls: 3, error: /byte limit/u },
+      { name: "conflicting modes", mode: "conflict", calls: 0, error: /Usage/u },
+    ];
+    for (const entry of cases) {
+      const destination = join(directory, `${serial}.json`);
+      process.env.LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON = destination;
+      process.env.LATTICE_LLAMA_TOKENIZER_JSON = destination;
+      process.argv = [process.execPath, fileURLToPath(loader),
+        ...(entry.mode === "historical" ? ["--verifier-only"]
+          : entry.mode === "conflict" ? ["--active-verifier-only", "--verifier-only"]
+            : ["--active-verifier-only"])];
+      let calls = 0;
+      globalThis.fetch = async (url, init) => {
+        calls += 1;
+        if (entry.mode === "active") assert.equal(String(url),
+          "https://huggingface.co/unsloth/Llama-3.3-70B-Instruct/resolve/99cd0d2c829e92a67c844f9144c2509632e5c87f/tokenizer.json");
+        assert.equal(init.credentials, "omit");
+        assert.equal(init.referrerPolicy, "no-referrer");
+        assert.equal(Object.hasOwn(init, "headers"), false);
+        if (["declared overflow", "historical limit"].includes(entry.name)) {
+          return new Response(null, { headers: { "Content-Length": "17209921" } });
+        }
+        if (entry.name === "streamed overflow") return new Response(new Uint8Array(17_209_921));
+        if (entry.name === "digest mismatch") {
+          const wrong = Buffer.from(fixture); wrong[0] ^= 1;
+          return new Response(wrong);
+        }
+        return new Response(fixture, { headers: { "Content-Length": String(fixture.length) } });
+      };
+      const invocation = import(`${loader.href}?loader-control=${serial++}`);
+      if (entry.error) {
+        await assert.rejects(invocation, entry.error, entry.name);
+        assert.equal(existsSync(destination), false, entry.name);
+      } else {
+        await invocation;
+        assert.deepEqual(await readFile(destination), fixture);
+      }
+      assert.equal(calls, entry.calls, entry.name);
+      assert.equal(existsSync(`${destination}.partial`), false, entry.name);
+    }
+  } finally {
+    process.argv = savedArguments;
+    globalThis.fetch = savedFetch;
+    if (savedActivePath === undefined) delete process.env.LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON;
+    else process.env.LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON = savedActivePath;
+    if (savedHistoricalPath === undefined) delete process.env.LATTICE_LLAMA_TOKENIZER_JSON;
+    else process.env.LATTICE_LLAMA_TOKENIZER_JSON = savedHistoricalPath;
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 function opaqueWord(prefix, index) {
@@ -326,21 +399,21 @@ async function pinnedTokenizers() {
 async function reviewedActiveVerifierRepositoryTokenizer() {
   const Tokenizer = await tokenizerRuntime();
   const bytes = await readFile(ACTIVE_LLAMA_REPOSITORY_TOKENIZER_PATH);
-  // The reusable historical fixture is accepted only because its content address
-  // is identical to tokenizer.json at the reviewed Llama 3.1 repository revision.
-  // This repository-file comparator does not identify Nscale's managed
-  // tokenizer, chat template, or tool-call wrapper accounting.
-  assert.equal(bytes.byteLength, REVIEWED_LLAMA_3_1_REPOSITORY_TOKENIZER.bytes);
+  // This separate active fixture matches the author's pinned Llama3.3 LFS
+  // payload, downloaded from a pinned public ungated mirror. The historical
+  // fixture above remains unchanged. Repository bytes do not identify Scaleway's
+  // managed tokenizer, chat template, or tool-call wrapper accounting.
+  assert.equal(bytes.byteLength, REVIEWED_LLAMA_3_3_REPOSITORY_TOKENIZER.bytes);
   assert.equal(
     createHash("sha256").update(bytes).digest("hex"),
-    REVIEWED_LLAMA_3_1_REPOSITORY_TOKENIZER.sha256,
+    REVIEWED_LLAMA_3_3_REPOSITORY_TOKENIZER.sha256,
   );
   assert.equal(
     createHash("sha1")
       .update(`blob ${bytes.byteLength}\0`)
       .update(bytes)
       .digest("hex"),
-    REVIEWED_LLAMA_3_1_REPOSITORY_TOKENIZER.gitBlob,
+    REVIEWED_LLAMA_3_3_REPOSITORY_TOKENIZER.gitBlob,
   );
   return Tokenizer.fromJSON(bufferArray(bytes));
 }
@@ -348,7 +421,7 @@ async function reviewedActiveVerifierRepositoryTokenizer() {
 async function reviewedActiveGeneratorRepositoryTokenizer() {
   const Tokenizer = await tokenizerRuntime();
   const bytes = await readFile(ACTIVE_QWEN_REPOSITORY_TOKENIZER_PATH);
-  // This binds the reviewed Qwen repository file only, not Nscale's managed
+  // This binds the reviewed Qwen repository file only, not DeepInfra's managed
   // tokenizer, chat template, or structured-output token accounting.
   assert.equal(bytes.byteLength, REVIEWED_QWEN_2507_REPOSITORY_TOKENIZER.bytes);
   assert.equal(
@@ -683,7 +756,7 @@ function maximalFittedWireValue(schema, stringValue) {
 }
 
 function fittedStrictVerifierSchema(body, schemaName = "lattice_verification_wire_v2") {
-  assert.equal(body.model, "meta-llama/Llama-3.1-8B-Instruct:nscale");
+  assert.equal(body.model, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
   assert.equal(body.response_format.type, "json_schema");
   assert.equal(body.response_format.json_schema.name, schemaName);
   assert.equal(body.response_format.json_schema.strict, true);
@@ -816,10 +889,10 @@ function representativeSerializedProviderEnvelope(
   });
 }
 
-test("a production-reachable verifier boundary wire fits the bounded budget under the reviewed Llama 3.1 repository tokenizer", {
+test("a production-reachable verifier boundary wire fits the bounded budget under the reviewed Llama 3.3 repository tokenizer", {
   skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
     ? false
-    : "set LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
+    : "set LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
 }, async () => {
   const tokenizer = await reviewedActiveVerifierRepositoryTokenizer();
   try {
@@ -1072,7 +1145,7 @@ test("a production-reachable verifier boundary wire fits the bounded budget unde
 test("the complete legal production verifier allocation has an exhaustive pinned-tokenizer maximum", {
   skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
     ? false
-    : "set LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
+    : "set LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
 }, async (context) => {
   const tokenizer = await reviewedActiveVerifierRepositoryTokenizer();
   try {
@@ -1715,10 +1788,10 @@ test("the complete legal production verifier allocation has an exhaustive pinned
   }
 });
 
-test("the production-reachable maximum-token relation certifier wire fits the bounded budget under the reviewed Llama 3.1 repository tokenizer", {
+test("the production-reachable maximum-token relation certifier wire fits the bounded budget under the reviewed Llama 3.3 repository tokenizer", {
   skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
     ? false
-    : "set LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
+    : "set LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
 }, async () => {
   const tokenizer = await reviewedActiveVerifierRepositoryTokenizer();
   try {
@@ -1992,7 +2065,7 @@ test("the production-reachable maximum-token relation certifier wire fits the bo
 test("the production-reachable maximum-character split-window certifier wire is bounded exactly", {
   skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
     ? false
-    : "set LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
+    : "set LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
 }, async () => {
   const tokenizer = await reviewedActiveVerifierRepositoryTokenizer();
   try {
@@ -2313,13 +2386,13 @@ test("the production-reachable maximum-character split-window certifier wire is 
   }
 });
 
-test("conservative decoder-valid verifier and certifier argument wires fit configured caps under the reviewed Llama 3.1 repository tokenizer", {
+test("conservative decoder-valid verifier and certifier argument wires fit configured caps under the reviewed Llama 3.3 repository tokenizer", {
   skip: ACTIVE_VERIFIER_TOKENIZER_FIXTURE_AVAILABLE
     ? false
-    : "set LATTICE_LLAMA31_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
+    : "set LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON to run the reviewed repository-tokenizer check",
 }, async () => {
   assert.equal(
-    REVIEWED_LLAMA_3_1_REPOSITORY_TOKENIZER.revision,
+    REVIEWED_LLAMA_3_3_REPOSITORY_TOKENIZER.revision,
     textToLatticeContract.implementation.verifier.reviewedSourceRevision,
   );
   assert.equal(
@@ -2528,7 +2601,7 @@ test("conservative decoder-valid verifier and certifier argument wires fit confi
       prettyAdversarialCertificationWire,
     ).length;
     // Named-tool wrappers remain historical sensitivity checks for both stages.
-    // They do not claim how Nscale counts provider-managed chat templates or
+    // They do not claim how Scaleway counts provider-managed chat templates or
     // control tokens. Both active stages return stopped JSON content. The
     // serialized response envelope also
     // contains gateway metadata, so it is representative and is not part of

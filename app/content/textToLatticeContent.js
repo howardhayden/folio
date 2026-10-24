@@ -13,9 +13,9 @@ import { LATTICE_USAGE_POLICY as HISTORICAL_LATTICE_USAGE_POLICY } from "../resu
 
 const HUGGING_FACE_CHAT_COMPLETIONS_URL = "https://router.huggingface.co/v1/chat/completions";
 const REMOTE_GENERATOR_ID = "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra";
-const REMOTE_VERIFIER_ID = "meta-llama/Llama-3.1-8B-Instruct:nscale";
+const REMOTE_VERIFIER_ID = "meta-llama/Llama-3.3-70B-Instruct:scaleway";
 const REMOTE_GENERATOR_REVIEWED_REVISION = "ac9c66cc9b46af7306746a9250f23d47083d689e";
-const REMOTE_VERIFIER_REVIEWED_REVISION = "0e9e39f249a16976918f6564b8830bc894c89659";
+const REMOTE_VERIFIER_REVIEWED_REVISION = "6f6073b423013f6a7d4d9f39144961bfbfbc386b";
 
 // Keep the former lease-policy shape temporarily available to older semantic
 // renderers, but mark every use as historical. It does not govern /api/lattice.
@@ -42,7 +42,7 @@ export const textToLatticeContract = Object.freeze({
     "After explicit confirmation, send one content-free cookie setup POST with no body or Content-Type to the same-origin /api/lattice capability; after its 204 response, send exactly one content-bearing POST with text, requested_mode, and schema_version 1.",
     "On the server, atomize actors, events, states, relationships, causality, chronology, modality, polarity, uncertainty, quantities, knowledge, instructions, institutional conditions, and ethical stakes.",
     "Select operative, experiential, interpretive, mixed, or accessibility treatment passage by passage under the Relational Systems Register; an operative or experiential request remains a preference subordinate to evidence, semantic fidelity, and safety.",
-    "Use the fixed DeepInfra-served Qwen generator to draft and the fixed Nscale-served Llama 3.1 verifier to check source coverage, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament through the Hugging Face router.",
+    "Use the fixed DeepInfra-served Qwen generator to draft and the fixed Scaleway-served Llama 3.3 verifier to check source coverage, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament through the Hugging Face router.",
     "Re-atomize incomplete passages or repair a rejected draft within bounded passes against the same fixed models; do not switch providers or models.",
     "Certify required multi-batch candidates against the complete source for distant identity, attribution, chronology, causality, modality, polarity, ambiguity, and document consistency.",
     "Return one bounded result or an explicit terminal error; the browser performs no automatic retry or fallback.",
@@ -70,16 +70,16 @@ export const textToLatticeContract = Object.freeze({
       inferenceSummary: "server-side bounded structured analysis and drafting through Hugging Face Inference Providers and DeepInfra; returned objects undergo deterministic closed-contract validation, and invalid or incomplete output fails closed; bounded stage-specific output limits",
     }),
     verifier: Object.freeze({
-      name: "Llama 3.1 8B Instruct server-side verifier",
+      name: "Llama 3.3 70B Instruct server-side verifier",
       modelId: REMOTE_VERIFIER_ID,
       revision: "provider-managed remote serving revision",
-      repository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+      repository: "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
       reviewedSourceRevision: REMOTE_VERIFIER_REVIEWED_REVISION,
-      revisionUrl: `https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/tree/${REMOTE_VERIFIER_REVIEWED_REVISION}`,
-      baseModelRepository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
-      licenseName: "Llama 3.1 Community License Agreement",
-      licenseUrl: "https://developer.meta.com/ai/llama3_1/license/",
-      acceptableUseUrl: "https://developer.meta.com/ai/llama3_1/use-policy/",
+      revisionUrl: `https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/tree/${REMOTE_VERIFIER_REVIEWED_REVISION}`,
+      baseModelRepository: "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
+      licenseName: "Llama 3.3 Community License Agreement",
+      licenseUrl: "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/LICENSE",
+      acceptableUseUrl: "https://www.llama.com/llama3_3/use-policy",
       inference: Object.freeze({
         stages: Object.freeze({
           verification: Object.freeze({
@@ -92,7 +92,7 @@ export const textToLatticeContract = Object.freeze({
       }),
     }),
     runtime: Object.freeze({
-      name: "Hugging Face Inference Providers with DeepInfra and Nscale",
+      name: "Hugging Face Inference Providers with DeepInfra and Scaleway",
       version: "provider-managed remote service",
       packageUrl: "https://huggingface.co/docs/inference-providers/",
       documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
@@ -141,15 +141,15 @@ export const textToLatticeContract = Object.freeze({
       ]),
     }),
     huggingFace: Object.freeze({
-      summary: "After explicit confirmation, hah.dev sends server-created prompts containing the submitted text to the Hugging Face Inference Providers chat-completions router, configured to use DeepInfra for the fixed Qwen3-235B-A22B-Instruct-2507 generator and Nscale for the fixed Llama 3.1 8B Instruct verifier.",
+      summary: "After explicit confirmation, hah.dev sends server-created prompts containing the submitted text to the Hugging Face Inference Providers chat-completions router, configured to use DeepInfra for the fixed Qwen3-235B-A22B-Instruct-2507 generator and Scaleway for the fixed Llama 3.3 70B Instruct verifier.",
       protections: Object.freeze([
         `The server uses only ${HUGGING_FACE_CHAT_COMPLETIONS_URL} for all stages, including verification, its bounded correction or reverification, and certification. User text cannot select a URL, provider, model, header, or credential.`,
         `The generator is fixed to ${REMOTE_GENERATOR_ID}; verification and certification are fixed to ${REMOTE_VERIFIER_ID} with strict JSON-schema content and mandatory closed host decoding. There is no automatic provider or model fallback.`,
         "The Hugging Face token is a server-side encrypted Worker secret and is never sent to the browser. Browser Content Security Policy limits connect-src to the hah.dev origin.",
-        "Provider calls omit caches and reject redirects. Request, response, token, and time limits remain bounded. hah.dev deterministically validates every returned object against its closed contract, and invalid, incomplete, or unknown data fails closed. A schema-correction pass may call the same fixed model again within the pipeline budget and never switches providers.",
+        "hah.dev provider fetches request no storage cache and reject redirects; this does not disable Scaleway’s automatic ephemeral prefix cache. Request, response, token, and time limits remain bounded. hah.dev deterministically validates every returned object against its closed contract, and invalid, incomplete, or unknown data fails closed. A schema-correction pass may call the same fixed model again within the pipeline budget and never switches providers.",
         "The hah.dev application does not persist source text, prompts, candidates, results, or raw provider bodies and does not write them to application logs or analytics. Responses use Cache-Control: no-store.",
       ]),
-      residualDisclosure: "This text leaves hah.dev for external processing. Hugging Face, DeepInfra, Nscale, and their infrastructure receive the content and ordinary connection metadata under their own policies; hah.dev's no-retention statement does not promise their retention behavior. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Browser extensions, security products, DNS providers, and networks selected by the visitor remain outside hah.dev's control.",
+      residualDisclosure: "This text leaves hah.dev for external processing. Hugging Face, DeepInfra, Scaleway, and their infrastructure receive the content and ordinary connection metadata under their own policies; hah.dev's no-retention statement does not promise their retention behavior. Scaleway states that content is not used for training by default, but full HTTP requests may be retained for up to 14 days for error, malicious-activity, or service-quality investigations; its project-isolated ephemeral prefix/KV cache is automatic and cannot be disabled. Aggregated anonymized usage metadata may be retained for up to six months. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Browser extensions, security products, DNS providers, and networks selected by the visitor remain outside hah.dev's control.",
       sources: Object.freeze([
         Object.freeze({ label: "Hugging Face Inference Providers chat completion", url: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion" }),
         Object.freeze({ label: "Hugging Face structured outputs", url: "https://huggingface.co/docs/inference-providers/en/guides/structured-output" }),
@@ -158,7 +158,9 @@ export const textToLatticeContract = Object.freeze({
         Object.freeze({ label: "DeepInfra data privacy", url: "https://docs.deepinfra.com/account/data-privacy" }),
         Object.freeze({ label: "DeepInfra Privacy Policy", url: "https://deepinfra.com/privacy" }),
         Object.freeze({ label: "DeepInfra Terms of Service", url: "https://deepinfra.com/terms" }),
-        Object.freeze({ label: "Hugging Face Nscale provider documentation", url: "https://huggingface.co/docs/inference-providers/en/providers/nscale" }),
+        Object.freeze({ label: "Hugging Face Scaleway provider documentation", url: "https://huggingface.co/docs/inference-providers/en/providers/scaleway" }),
+        Object.freeze({ label: "Scaleway Generative APIs data privacy", url: "https://www.scaleway.com/en/docs/generative-apis/reference-content/data-privacy/" }),
+        Object.freeze({ label: "Scaleway model lifecycle", url: "https://www.scaleway.com/en/docs/generative-apis/reference-content/model-lifecycle/" }),
         Object.freeze({ label: "Hugging Face Privacy Policy", url: "https://huggingface.co/privacy" }),
         Object.freeze({ label: "Hugging Face Terms of Service", url: "https://huggingface.co/terms-of-service" }),
       ]),
@@ -197,7 +199,7 @@ export const textToLatticeContract = Object.freeze({
     "After the user explicitly chooses Process with external service, the browser sends one content-free cookie setup POST and then exactly one content-bearing POST to the same-origin /api/lattice path. Only the second contains this text or can initiate external-provider processing, and its body is exactly {text, requested_mode, schema_version: 1}.",
     "Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information.",
     "hah.dev application code does not retain source text, prompts, candidates, results, or raw provider responses in storage, logs, caches, queues, or analytics. The bounded Worker and browser keep only transient in-memory state needed for the request and display.",
-    "Hugging Face, DeepInfra, Nscale, and their infrastructure process the submitted content under their own policies; hah.dev does not claim that its application-level no-retention rule governs those external systems.",
+    "Hugging Face, DeepInfra, Scaleway, and their infrastructure process the submitted content under their own policies; hah.dev does not claim that its application-level no-retention rule governs those external systems.",
     "Provider endpoints, stage routing, the generator, and the verifier are fixed server-side. There is no automatic provider or model fallback, and a terminal failure requires another deliberate submission.",
     "The service admits at most 30 transformations globally per UTC day and 3 from one ordinary persistent cookie jar per UTC day. Its API-scoped opaque HttpOnly cookie contains no submitted content and expires at the next UTC-day boundary; no IP or browser fingerprint is used as a second quota identity.",
     "The active remote runtime may differ in weights, tokenizer behavior, kernels, numerical behavior, and serving configuration from the historical pinned MLC/WebGPU artifacts; byte-for-byte equivalence is not claimed.",

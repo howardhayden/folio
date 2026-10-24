@@ -59,7 +59,7 @@ const qualificationPath = join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEA
 const llamaEvaluationPath = join(root, "docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json");
 const canonicalRegisterSource = "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json";
 const canonicalQualificationSource = "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const activeLlamaTermsProvenance = Object.freeze({
+const historicalRemoteLlamaTermsProvenance = Object.freeze({
   version: "Llama 3.1",
   model: "meta-llama/Llama-3.1-8B-Instruct:nscale",
   modelRepository: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
@@ -81,6 +81,46 @@ const activeLlamaTermsProvenance = Object.freeze({
     sourceUrl: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/USE_POLICY.md",
     canonicalUrl: "https://developer.meta.com/ai/llama3_1/use-policy/",
   }),
+});
+const activeLlamaTermsProvenance = Object.freeze({
+  "version": "Llama 3.3",
+  "model": "meta-llama/Llama-3.3-70B-Instruct:scaleway",
+  "modelRepository": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
+  "modelRepositoryRevision": "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
+  "modelRepositoryRevisionUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/tree/6f6073b423013f6a7d4d9f39144961bfbfbc386b",
+  "license": {
+    "path": "LICENSES/Llama-3.3-Community-License.txt",
+    "sha256": "fb58d9a630ccc1dc0d08f8c00232de56bc73309020f59c8181d0c12ef28d9f8c",
+    "gitBlob": "2c97b69e3c309cbaa55bf7e4a4c48b8c18ff8276",
+    "sourceUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/LICENSE",
+    "canonicalUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/LICENSE"
+  },
+  "acceptableUsePolicy": {
+    "path": "LICENSES/Llama-3.3-Acceptable-Use-Policy.md",
+    "sha256": "99299d72ac39fd55c461d497cefc23938b1945cd97277d83df32587799666239",
+    "gitBlob": "2b5602b4faeaee48c52a33951f4036ab86a0406b",
+    "sourceUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/USE_POLICY.md",
+    "canonicalUrl": "https://www.llama.com/llama3_3/use-policy"
+  },
+  "officialSourceCommit": "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
+  "reviewedAt": "2026-10-23"
+});
+const historicalLlamaBehaviorEvaluation = Object.freeze({
+  "path": "docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json",
+  "sha256": "86aad271f8e6a5befb978d6146fbbf9ce7b1c7eca16b8c1b5d7681e3d99294a7",
+  "caseCount": 10,
+  "expectedAllowCount": 5,
+  "expectedDenyCount": 5,
+  "fixtureStatus": "defined-and-machine-checked",
+  "targetVerifier": {
+    "model": "meta-llama/Llama-3.1-8B-Instruct:nscale",
+    "modelRepositoryRevision": "0e9e39f249a16976918f6564b8830bc894c89659"
+  },
+  "evidenceResetAt": "2026-10-04",
+  "evidenceResetReason": "The owner-approved provider for the same Llama 3.1 8B Instruct verifier changed from DeepInfra to Nscale; no behavioral result from another provider or serving revision is carried forward.",
+  "exactModelExecutionStatus": "accepted-residual-risk",
+  "exactModelExecutionPerformed": false,
+  "claimBoundary": "A balanced non-operational fixture defines expected dispositions; it does not establish how the exact active Llama 3.1 8B Instruct verifier behaves until the cases are run and reviewed against that provider-served model."
 });
 const expectedGateIds = Object.freeze([
   "GATE-01",
@@ -248,6 +288,7 @@ const heldForbiddenExecutableStrings = Object.freeze([
   "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
   "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
   "meta-llama/Llama-3.1-8B-Instruct:nscale",
+  "meta-llama/Llama-3.3-70B-Instruct:scaleway",
 ]);
 const staleEnabledPublicationPattern = /release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)|sole open (?:release )?blocker|held solely because|hold the interactive client/iu;
 const serializedVinextRscScript = /^\s*\(\(self\[Symbol\.for\("vinext\.navigationRuntime"\)\]\?\?=\{bootstrap:\{routeManifest:null\},functions:\{\}\}\)\.bootstrap\.rsc\?\?=\{rsc:\[\]\}\)\.rsc\.push\(("(?:\\[\s\S]|[^"\\])*")\)\s*;?\s*$/u;
@@ -998,20 +1039,35 @@ async function readJson(path, label) {
   }
 }
 
+function sameJson(left, right) {
+  return JSON.stringify(canonicalJson(left)) === JSON.stringify(canonicalJson(right));
+}
+
 async function verifyTerms(register) {
   const terms = register.artifactSet.llamaTerms;
-  if (terms.active?.status !== "active" || terms.historicalBrowserLocal?.status !== "historical-inactive") {
-    fail("active Llama 3.1 and historical browser-local Llama 3.2 terms must remain explicitly split.");
+  if (terms.active?.status !== "active"
+    || terms.historicalRemote?.status !== "historical-inactive"
+    || terms.historicalBrowserLocal?.status !== "historical-inactive") {
+    fail("active Llama 3.3, historical remote Llama 3.1, and historical browser-local Llama 3.2 terms must remain explicitly split.");
   }
-  for (const [scope, termsRecord] of [["active", terms.active], ["historical browser-local", terms.historicalBrowserLocal]]) {
+  const historicalRemote = terms.historicalRemote.priorActiveRecord;
+  if (!sameJson(Object.keys(terms.historicalRemote).sort(), ["claimBoundary", "priorActiveRecord", "status"])
+    || !sameJson(historicalRemote, { status: "active", ...historicalRemoteLlamaTermsProvenance, termsMatchStatus: "byte-identical-to-reviewed-model-repository-files" })) {
+    fail("historical remote Llama 3.1 terms must preserve the entire prior active record.");
+  }
+  requireString(terms.historicalRemote.claimBoundary, "historical remote terms claim boundary");
+  for (const [scope, termsRecord] of [["active", terms.active], ["historical remote", historicalRemote], ["historical browser-local", terms.historicalBrowserLocal]]) {
     for (const [key, label] of [["license", "license"], ["acceptableUsePolicy", "acceptable-use policy"]]) {
       const record = termsRecord[key];
       requireString(record.path, `${scope} Llama ${label} path`);
       if (!sha256Pattern.test(record.sha256)) fail(`${scope} Llama ${label} must carry a lowercase SHA-256 digest.`);
       const bytes = await readFile(join(root, record.path));
       if (digest(bytes) !== record.sha256) fail(`${scope} Llama ${label} digest does not match ${record.path}.`);
-      if (!new URL(record.canonicalUrl).hostname.endsWith("meta.com")) fail(`${scope} Llama ${label} canonical URL must be a Meta origin.`);
-      if (scope === "active" && (!gitRevisionPattern.test(record.gitBlob) || gitBlobDigest(bytes) !== record.gitBlob)) {
+      const expectedCanonical = scope === "active" ? activeLlamaTermsProvenance[key].canonicalUrl
+        : scope === "historical remote" ? historicalRemoteLlamaTermsProvenance[key].canonicalUrl
+          : key === "license" ? LLAMA_3_2_TERMS_PROVENANCE.licenseUrl : LLAMA_3_2_TERMS_PROVENANCE.acceptableUseUrl;
+      if (record.canonicalUrl !== expectedCanonical) fail(`${scope} Llama ${label} canonical URL drifted from its reviewed source.`);
+      if (scope !== "historical browser-local" && (!gitRevisionPattern.test(record.gitBlob) || gitBlobDigest(bytes) !== record.gitBlob)) {
         fail(`${scope} Llama ${label} git blob does not match ${record.path}.`);
       }
     }
@@ -1027,8 +1083,9 @@ async function verifyLlamaUseEvaluation(register) {
   }
   if (record.targetVerifier?.model !== register.artifactSet.activeCapability.provider.verifierModel
     || record.targetVerifier?.modelRepositoryRevision !== register.artifactSet.llamaTerms.active.modelRepositoryRevision
-    || record.evidenceResetAt !== "2026-10-04"
-    || !/another provider or serving revision/iu.test(record.evidenceResetReason ?? "")) {
+    || record.evidenceResetAt !== "2026-10-23"
+    || !/another (?:model, )?provider or serving revision/iu.test(record.evidenceResetReason ?? "")
+    || !sameJson(record.historicalEvaluationRecord, historicalLlamaBehaviorEvaluation)) {
     fail("Llama-use evaluation evidence must be reset and bound to the exact active verifier model and reviewed repository revision.");
   }
   requireString(evaluation.claimBoundary, "Llama-use evaluation claim boundary");
@@ -1190,7 +1247,7 @@ async function verifyQualificationDossier(register) {
     || !/__Secure-hah-lattice-api-visitor/u.test(source)
     || !/30[^.]*globally per UTC day/iu.test(source)
     || !/3[^.]*browser cookie jar per UTC day/iu.test(source)
-    || !/Hugging Face[\s\S]{0,300}Nscale/iu.test(source)
+    || !/Hugging Face[\s\S]{0,300}Scaleway/iu.test(source)
     || !/no automatic retry/iu.test(source)
     || !/no (?:alternate )?provider or model fallback/iu.test(source)
     || !/provider-managed[\s\S]{0,240}not byte/iu.test(source)
@@ -1452,7 +1509,7 @@ function verifyArtifactSet(register) {
     || activeLlamaTerms.reviewedAt !== activeLlamaTermsProvenance.reviewedAt
     || ["license", "acceptableUsePolicy"].some((key) => Object.entries(activeLlamaTermsProvenance[key])
       .some(([field, value]) => activeLlamaTerms[key]?.[field] !== value))) {
-    fail("active Llama 3.1 terms provenance drifted from the exact reviewed model repository snapshot.");
+    fail("active Llama 3.3 terms provenance drifted from the exact reviewed model repository snapshot.");
   }
   const historicalLlamaTerms = artifacts.llamaTerms.historicalBrowserLocal;
   if (historicalLlamaTerms.version !== LLAMA_3_2_TERMS_PROVENANCE.version
