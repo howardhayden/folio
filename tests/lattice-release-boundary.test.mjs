@@ -228,8 +228,8 @@ test("the release register honestly holds the remote capability and preserves hi
     Object.fromEntries(register.gates.map(({ id, status }) => [id, status])),
     {
       "GATE-01": "release-workflow-enforced",
-      "GATE-02": "open-release-blocker",
-      "GATE-03": "open-release-blocker",
+      "GATE-02": "satisfied-in-production",
+      "GATE-03": "satisfied-in-production",
       "GATE-04A": "accepted-residual-risk",
       "GATE-04B": "historical-inactive",
       "GATE-04C": "historical-inactive",
@@ -688,6 +688,7 @@ test("the release state enforces exact held, qualification-pending, and qualifie
 
   const staleLifecycleQualification = structuredClone(register);
   staleLifecycleQualification.gates.find(({ id }) => id === "GATE-06").status = "satisfied-in-production";
+  staleLifecycleQualification.gates.find(({ id }) => id === "GATE-03").status = "open-release-blocker";
   assert.throws(
     () => verifyReleaseStatusState(staleLifecycleQualification),
     /GATE-06 cannot remain satisfied in production unless GATE-02 and GATE-03 are also satisfied/u,
@@ -839,8 +840,11 @@ test("the active remote gate contract is semantic and historical evidence is tam
   assert.doesNotThrow(() => verifyLifecycleGateContract(gate02, gate03, gate06));
 
   const missingRoute = structuredClone(gate02);
-  for (const field of ["requirement", "evidenceNeeded", "rationale", "followUp", "rollbackCondition"]) {
+  for (const field of ["label", "requirement", "activeCurrentEvidence", "evidenceNeeded", "rationale", "followUp", "rollbackCondition"]) {
     missingRoute[field] = missingRoute[field].replaceAll("/api/lattice", "/api/other");
+  }
+  for (const field of ["activeEvidence", "safeguards"]) {
+    missingRoute[field] = missingRoute[field].map((entry) => entry.replaceAll("/api/lattice", "/api/other"));
   }
   assert.throws(() => verifyLifecycleGateContract(missingRoute, gate03, gate06), /GATE-02 omits the active remote boundary atom \/api\/lattice/u);
   const staleStatus = structuredClone(gate03);
