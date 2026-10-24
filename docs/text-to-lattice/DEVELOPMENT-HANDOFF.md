@@ -1,3 +1,27 @@
+# U13 phase-aware test dependency correction — 2026-10-24
+
+Current source `ead98d0d6e85928c7254659671c4908d12023f9fd377086c56e4e4991ba7af34` / dossier `1097e7401fbcb627fcf2ba77a2a6006f3412536cda5bcd2620c16d91aa7e151a` include only four necessary existing test-file corrections beyond source47bc/8ff. The prior full validation ran2569 tests with2549pass/5stalephaseassertionfail/15historicaloptional skips and lint0; originals are retained. This candidate has not completed a new full suite or hosted delivery. All runtime/provider/request/acceptance/null-policy/privacy/caps/rights and workflows remain unchanged. Existing held exclusions and meaningful enabled accessibility/navigation/resource/boundary assertions remain. The source state is qualification-pending only; G02/G03satisfied/null and G06post-deployment-verification/null. The U13grant remains unconsumed, with native interval/capture prerequisites and exactfirstparentca5bc still mandatory.
+
+The complete preceding handoff follows verbatim as dated history.
+
+---
+
+# U13 publication-history correction candidate — 2026-10-24
+
+The current local source is `47bc83c162f0998fa3ba12f5af893973ae1742a67b2e051c4e3ec0aacb4e8d3f`, dossier `8ffbe13e8a1bd1fdcbd807a9745adb249b915d7d0d9b1ead8e506d6e8980468a`. This successor preserves the exact dated held dossier and adds a narrowly bound publication guard plus adversarial controls. The original applied candidate source7f3/dossier5af7 failed at built-site publication validation before Node tests; its bytes and failure log are preserved. The current candidate has not completed root full validation or hosted delivery. API/provider/prompt/wire/host/null-envelope acceptance/caps/privacy/rights and workflows remain unchanged. The conditional U13 grant remains unconsumed. G02/G03 remain satisfied/null; G06 remains post-deployment-verification/null, with no activation/browser qualification/final release inferred. Actual321 remains65ef/a57/04c9 and the verified immediate held rollback parent remainsca5bc.
+
+The entire preceding handoff follows verbatim as dated history.
+
+---
+
+# U13 conditional canonical-browser source candidate — 2026-10-24
+
+The site owner answered “Approve one conditional U13 window” (authentic562ca914 / grant83a945a8). The source state is qualification-pending/enabled/interactive-client only; G02/G03 remain satisfied/null, G06 post-deployment-verification/null. This is not an observed activation, G06 acceptance or final release. The actual held parent must remain ca5bc0383cb8afce52e8e36d934f16d3e1fb9239; requalify exact new source and assemble new index before Pages. Preserve operatorbackend1/Safari1/Brave1 and Firefox14inputonly0submit, ordinary public quota/UTC-reset exposure,30/24minute clocks, no-canary immediate API-before-Pages restore, all unfinished I0/I4 and both-engine completeness prerequisites. No dispatch or provider/browser action occurred in this source preparation. New source `7f3ea87542a926249793aa938bfe70cc297199374cd0b1cf336d1a46226e47ba` / dossier `5af7eb0a5db6139311f76a9d8edc22117a50139e948754db7ce6480283dd39cf` are distinct from actual321a57/65ef/04c9.
+
+The complete prior handoff follows verbatim as dated history.
+
+---
+
 # Current held governance checkpoint — run #321 backend qualification, 2026-10-24
 
 Run #321/40080045604, original attempt 1, service job120832076495 succeeded on actual deployed main65efbd37e3275db13a289dbe6a4e5198aa616af1/tree00d5d39330a3feea15f03d98f91c04a34f5a0e94/source256a57d0a270006f84d005e591da154714d2c852adc2868efe2c1b609b8811dc38f and historical dossier04c9797753b581d16b0b9f4496586eef05c6742712086262f5e241d9497370e1. The existing canary was certified conformant-for-context in18.289seconds, one retained passage/batch/verification pass and zero findings/questions. Complete provider-reported usage4calls gives dated USD0.005130180 estimate, not invoice/account/window cost or general model-quality/managed-fit/null-branch proof.
