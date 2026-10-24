@@ -604,6 +604,8 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-SCALEWAY-LIFECYCLE — Scaleway model lifecycle and replacement boundary:** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/reference-content/model-lifecycle/)
 - **SRC-D31-REQUIREMENTS — D31 source-only v22 strict-message shape contract and spent U28 boundary:** `docs/lattice-resume-demo-requirements.md`
 - **SRC-D31-EVIDENCE — Actual #315 partial failure evidence and D31 diagnostic claim boundaries:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
+- **SRC-D32-REQUIREMENTS — U29/D32 approved source-only optional null review-message contract and zero paid scope:** `docs/lattice-resume-demo-requirements.md`
+- **SRC-D32-EVIDENCE — Actual #318 finite shape, partial failure and held scope; approved D32 validation pending:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
 
 ## Terms and provenance
 

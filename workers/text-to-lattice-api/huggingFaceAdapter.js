@@ -774,6 +774,11 @@ function certificationWireMessages(request) {
 
 const VERIFICATION_TOOL_NAME = "lattice_verification_wire_v2";
 const CERTIFICATION_TOOL_NAME = "lattice_certification_wire_v2";
+const SCALEWAY_NULL_REVIEW_METADATA_MODEL = "meta-llama/Llama-3.3-70B-Instruct:scaleway";
+const SCALEWAY_NULL_REVIEW_METADATA_URL = "https://router.huggingface.co/v1/chat/completions";
+const SCALEWAY_NULL_REVIEW_METADATA_FIELDS = new Set([
+  "reasoning", "refusal", "audio", "annotations", "function_call",
+]);
 const STOPPED_TOOL_CONTENT_NAMES = new Set([
   VERIFICATION_TOOL_NAME,
   CERTIFICATION_TOOL_NAME,
@@ -811,6 +816,7 @@ const STAGES = Object.freeze({
     schemaDescription: "Supply one complete private verification result using the fitted closed index-and-mask schema.",
     requireMinimalVerificationContent: true,
     allowEmptyStoppedToolCalls: true,
+    allowNullStoppedScalewayReviewMetadata: true,
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
     maxTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -826,6 +832,7 @@ const STAGES = Object.freeze({
     schemaDescription: "Supply one complete private document certificate using the fitted closed schema.",
     requireMinimalVerificationContent: true,
     allowEmptyStoppedToolCalls: true,
+    allowNullStoppedScalewayReviewMetadata: true,
     responseGuide: CERTIFICATION_WIRE_GUIDE,
     messages: certificationWireMessages,
     maxTokens: CERTIFICATION_MAX_OUTPUT_TOKENS,
@@ -2348,6 +2355,20 @@ function stoppedContentMessageAllowed(message, allowEmptyStoppedToolCalls, allow
     && typeof message.content === "string";
 }
 
+function stoppedScalewayNullReviewMessageAllowed(message, allowEmptyStoppedToolCalls) {
+  if (typeof message.content !== "string"
+    || (Object.hasOwn(message, "tool_calls")
+      && !(allowEmptyStoppedToolCalls
+        && Array.isArray(message.tool_calls) && message.tool_calls.length === 0))) return false;
+  let hasNullMetadata = false;
+  for (const key of Object.keys(message)) {
+    if (key === "role" || key === "content" || key === "tool_calls") continue;
+    if (!SCALEWAY_NULL_REVIEW_METADATA_FIELDS.has(key) || message[key] !== null) return false;
+    hasNullMetadata = true;
+  }
+  return hasNullMetadata;
+}
+
 function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls = false) {
   try {
     if (!allowStoppedToolContent) return "message_shape";
@@ -2369,7 +2390,7 @@ function rejectedStoppedToolSubtype(message, providerFinishReason, allowStoppedT
   return "message_shape";
 }
 
-function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls, requireMinimalVerificationContent, compatibleVerificationContent, observeQualificationEnvelopeShape, observeQualificationStrictMessageShape, observeQualificationOutputLimitShape, observeUsage) {
+function parsedProviderContent(body, responseSize, toolName, allowStoppedToolContent, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls, allowNullStoppedScalewayReviewMetadata, requireMinimalVerificationContent, compatibleVerificationContent, observeQualificationEnvelopeShape, observeQualificationStrictMessageShape, observeQualificationOutputLimitShape, observeUsage) {
   let envelope;
   try {
     envelope = JSON.parse(body);
@@ -2454,9 +2475,11 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
       },
     );
   }
-  if (requireMinimalVerificationContent && !(compatibleVerificationContent
+  if (requireMinimalVerificationContent && !((compatibleVerificationContent
     ? stoppedContentMessageAllowed(choice.message, allowEmptyStoppedToolCalls, allowNullStoppedVerificationMetadata, allowNullJsonObjectVerificationToolCalls)
-    : exactKeys(choice.message, ["role", "content"]))) {
+    : exactKeys(choice.message, ["role", "content"]))
+    || (allowNullStoppedScalewayReviewMetadata
+      && stoppedScalewayNullReviewMessageAllowed(choice.message, allowEmptyStoppedToolCalls)))) {
     // Both review stages have one content channel. Explicit legacy null/empty
     // compatibility carries no arguments and never rewrites the message/content.
     // Even one otherwise valid native call is competing content.
@@ -2676,6 +2699,7 @@ export async function requestHuggingFaceJson({
   allowEmptyStoppedToolCalls = false,
   allowNullStoppedVerificationMetadata = false,
   allowNullJsonObjectVerificationToolCalls = false,
+  allowNullStoppedScalewayReviewMetadata = false,
   requireMinimalVerificationContent = false,
   observeQualificationHttpHeaders = false,
   observeQualificationEnvelopeShape = false,
@@ -2728,11 +2752,22 @@ export async function requestHuggingFaceJson({
     || typeof allowEmptyStoppedToolCalls !== "boolean"
     || typeof allowNullStoppedVerificationMetadata !== "boolean"
     || typeof allowNullJsonObjectVerificationToolCalls !== "boolean"
+    || typeof allowNullStoppedScalewayReviewMetadata !== "boolean"
     || typeof requireMinimalVerificationContent !== "boolean"
     || typeof observeQualificationHttpHeaders !== "boolean"
     || typeof observeQualificationEnvelopeShape !== "boolean"
     || typeof observeQualificationStrictMessageShape !== "boolean"
     || typeof observeQualificationOutputLimitShape !== "boolean"
+    || (allowNullStoppedScalewayReviewMetadata
+      && (role !== "verifier"
+        || LATTICE_REMOTE_MODELS.verifier !== SCALEWAY_NULL_REVIEW_METADATA_MODEL
+        || HUGGING_FACE_CHAT_COMPLETIONS_URL !== SCALEWAY_NULL_REVIEW_METADATA_URL
+        || resolvedResponseFormat !== "json_schema"
+        || !requireMinimalVerificationContent
+        || !allowEmptyStoppedToolCalls
+        || ![VERIFICATION_TOOL_NAME, CERTIFICATION_TOOL_NAME].includes(schemaName)
+        || toolName !== undefined || toolChoice !== undefined || allowStoppedToolContent
+        || allowNullStoppedVerificationMetadata || allowNullJsonObjectVerificationToolCalls))
     || (requireMinimalVerificationContent
       && (role !== "verifier"
         || !(schemaName === VERIFICATION_TOOL_NAME
@@ -2903,6 +2938,7 @@ export async function requestHuggingFaceJson({
         allowEmptyStoppedToolCalls,
         allowNullStoppedVerificationMetadata,
         allowNullJsonObjectVerificationToolCalls,
+        allowNullStoppedScalewayReviewMetadata,
         requireMinimalVerificationContent,
         compatibleVerificationContent,
         observeQualificationEnvelopeShape,
@@ -3029,6 +3065,7 @@ export function createHuggingFaceLatticeAdapter({
         allowEmptyStoppedToolCalls: stage.allowEmptyStoppedToolCalls,
         allowNullStoppedVerificationMetadata: stage.allowNullStoppedVerificationMetadata,
         allowNullJsonObjectVerificationToolCalls: stage.allowNullJsonObjectVerificationToolCalls,
+        allowNullStoppedScalewayReviewMetadata: stage.allowNullStoppedScalewayReviewMetadata,
         requireMinimalVerificationContent: stage.requireMinimalVerificationContent,
         observeQualificationHttpHeaders,
         observeQualificationEnvelopeShape,
