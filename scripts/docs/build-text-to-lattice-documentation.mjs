@@ -1720,8 +1720,14 @@ function indexHtml(data, releaseRegister) {
   const cards = data.artifacts.map((artifact) => `<article class="index-card"><p class="eyebrow">${escapeHtml(artifact.scope)}</p><h2>${escapeHtml(artifact.title)}</h2><p>${escapeHtml(summaries.get(artifact.id))}</p><div class="link-row"><a href="${escapeHtml(artifact.html)}">Open interactive edition</a><a href="${escapeHtml(artifact.markdown)}" download>Download Markdown</a></div></article>`).join("");
   const productionLifecycleSatisfied = releaseRegister.gates
     .some(({ id, status }) => id === "GATE-06" && status === "satisfied-in-production");
+  const heldOpenGateIds = releaseRegister.gates
+    .filter(({ status }) => status === "open-release-blocker")
+    .map(({ id }) => id);
+  const heldOpenGateList = heldOpenGateIds.length > 1
+    ? `${heldOpenGateIds.slice(0, -1).join(", ")} and ${heldOpenGateIds.at(-1)}`
+    : heldOpenGateIds[0];
   const releaseSummary = releaseRegister.overallStatus === "held"
-    ? "The remote interactive client is held and documentation-only because GATE-02, GATE-03, and GATE-06 remain open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face router with fixed DeepInfra generator and Scaleway review targets. Required production qualification remains incomplete; current bounded evidence is recorded in the release register. Historical WebLLM, Turnstile, and lease records remain inactive."
+    ? `The remote interactive client is held and documentation-only because ${heldOpenGateList} ${heldOpenGateIds.length === 1 ? "remains" : "remain"} open. Source and tests define the same-origin POST /api/lattice and fixed Hugging Face router with fixed DeepInfra generator and Scaleway review targets. Required production qualification remains incomplete; current bounded evidence is recorded in the release register. Historical WebLLM, Turnstile, and lease records remain inactive.`
     : releaseRegister.overallStatus === "qualification-pending"
       ? "The interactive client is deployed only for immediate canonical-browser qualification and is not qualified. GATE-06 remains in post-deployment verification; failed, incomplete, or delayed structured browser evidence requires immediate rollback to the held documentation-only artifact."
     : productionLifecycleSatisfied

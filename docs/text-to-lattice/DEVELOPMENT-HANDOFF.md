@@ -1,3 +1,15 @@
+# Current held governance checkpoint — run #321 backend qualification, 2026-10-24
+
+Run #321/40080045604, original attempt 1, service job120832076495 succeeded on actual deployed main65efbd37e3275db13a289dbe6a4e5198aa616af1/tree00d5d39330a3feea15f03d98f91c04a34f5a0e94/source256a57d0a270006f84d005e591da154714d2c852adc2868efe2c1b609b8811dc38f and historical dossier04c9797753b581d16b0b9f4496586eef05c6742712086262f5e241d9497370e1. The existing canary was certified conformant-for-context in18.289seconds, one retained passage/batch/verification pass and zero findings/questions. Complete provider-reported usage4calls gives dated USD0.005130180 estimate, not invoice/account/window cost or general model-quality/managed-fit/null-branch proof.
+
+Root evidence adjudication d39937553a94e0a4d99e6f16a5d552a606d3226ee9a4717218f6705268c4970c accepts independently reviewed G02/G03 production criteria; canonical statuses are satisfied-in-production with acceptanceBasis:null and proof in activeCurrentEvidence/activeEvidence. G06 remains open/null, overall/publicclient held/documentation-only; no operational eligibility or browserEvidence authority is introduced. The current documentation-qualified source digest changes because truthful held-status generation requires a narrow producer correction; actual321sourcea57 remains immutable. Backend/every138Workerinput equivalence must be independently/root reviewed before reuse. New documentation digests/commits must not be backfilled into the actual321 witness.
+
+Successful API held restoration09:01:44.111Z recorded3held/0active/0errors on version7e79318f-7d2f-4fda-99d1-11d994247e3b before09:30:48.247Zexpiry. Pages preflight09:00:38.598Z is only a dated preflight, not later/continuoushold proof. Legacy lease/frame retirement remains the existing qualified-phase follow-up; it did not execute here. D32-V22-A1 is spent1/0; U29paid0/alloldergrantspent preserved. No morepaid/API/browserwindow/publicactivation/finalrelease selected. Next work requires review/validation and held delivery of this minimal governance record; canonical Safari/Brave traces and hosted Firefox regression remain outstanding. Any U13 operation remains a separate reviewed exact cost/API/browser decision. Preserve source/runtime/models/providers/acceptance/caps/privacy/rights and all existing history.
+
+The entire prior handoff follows verbatim as dated history. Its former current/pending/all-three-open narratives do not override the current held record.
+
+---
+
 # Current checkpoint — U29/D32 validated locally; held delivery pending, 2026-10-24
 
 The approved null-only compatibility change is implemented on the fixed Llama 3.3 Scaleway verification and certification paths. Each of reasoning, refusal, audio, annotations and function_call may be absent or literally null. Existing empty tool_calls compatibility, content/wire/host checks, provider request bytes, models and finite limits remain intact. Substantive values, unknown fields and competing calls remain rejected. Certification coverage is prospective; actual #318 never reached that stage.

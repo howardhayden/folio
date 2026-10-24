@@ -1,3 +1,48 @@
+# Text to Lattice release qualification — held after backend qualification
+
+**Decision:** keep the interactive client held and documentation-only. GATE-02 and GATE-03 are satisfied in production; GATE-06 remains open with no canonical-browser acceptance.
+
+**Qualification date:** 2026-10-24
+
+**Evidence updated:** 2026-10-24
+
+These dates identify this held governance record. Actual production evidence is the separate original run #321 described below; no future documentation commit is substituted for its deployed identity.
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `e63c66072b7b0b63ad1b37ff3dde6d3dc2d6ba965dbd208e5bb3a98e1828e2dc`
+
+**Artifact-set projection SHA-256:** `3f7cde89bef9878f854b3de096b45b2dd71095940a1f8b0fb84483c268db77a3`
+
+Current gate disposition (earlier tables below remain dated history):
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+Actual bounded qualification run #321 (https://github.com/howardhayden/folio/actions/runs/40080045604), original attempt 1, service job 120832076495, succeeded on deployed commit `65efbd37e3275db13a289dbe6a4e5198aa616af1`, reviewed tree `00d5d39330a3feea15f03d98f91c04a34f5a0e94`, the actual 256-file source `a57d0a270006f84d005e591da154714d2c852adc2868efe2c1b609b8811dc38f` and historical deployed dossier `04c9797753b581d16b0b9f4496586eef05c6742712086262f5e241d9497370e1`. The fixed existing canary returned `conformant-for-context` in 18.289 seconds: one retained passage/batch, one verification pass, document certification and zero findings/questions. This is one accepted service instance, not a rewrite requirement, nullable-envelope observation, unique explanation of earlier failures, general model-quality or managed tokenizer/template/context/grammar proof.
+
+This later held governance source changes only documentation generation and any necessary focused current-record assertions. Its first source header is the current documentation candidate digest; the actual run #321 source/dossier above remain immutable. Reuse of backend evidence requires separately reviewed equality of every backend/provider/API/request/acceptance/privacy/cap/workflow determining input and all 138 Worker build inputs. It is not a new hosted observation.
+
+Root separately adjudicated the exact GATE-02/GATE-03 criteria in receipt `d39937553a94e0a4d99e6f16a5d552a606d3226ee9a4717218f6705268c4970c`. The statuses use `satisfied-in-production` and `acceptanceBasis: null`; current proof is in `activeCurrentEvidence` and `activeEvidence`. The original live receipt `32a79c6647a5eae4e4b0d11ef90fd0fcf8185a4019c9c1fc470d2d2ee949be57` and deployment index `72cdcac4ac7ec577c644637f5d34f9f69d680c433c3189b6307097df9d213d67` bind API Worker version `0a46c083-fae9-4334-a8b4-334eee40ae3d` / deployment `2e50af04-6028-467a-b137-732f3575424b` and response-policy version `2147a98b-fdf2-499d-8363-277e5e65322d` / deployment `5b0d8c8e-b978-4c58-9877-980167fa1d2f`, each at 100 percent. Exact route and encrypted HF_TOKEN/VISITOR_COOKIE_SECRET binding-name inventories, bodyless setup and value-free cookie/preservation/next-UTC expiry, all 24 rejected negatives, 13 covered zero-admission observations and self-only document CSP/analytics checks passed. Strict fixed review profiles, wire/host/source-grounding/materiality/conformance/certification, no fallback and application no-retention remain unchanged.
+
+Paired active environment samples and the index bind the actual SQLite Durable Object namespace/class/v1 migration/runtime and production rate limiter. Complete v22 observations prove one allowed-once admission after validation and before provider work; setup, preservation, tampering and covered negatives made no claim or provider call. Exact source/offline-control reuse supplies the unchanged 30-global and 3-cooperating-ordinary-browser-cookie-jar UTC-day limits, rollover, authoritative global boundary, count-on-admission/no-refund, no second shared claim, identity minimization, 30-per-60-second edge shaper and existing call/token/byte/deadline/capacity bounds. This is not a live quota-exhaustion or universal full-input-fit claim. Complete provider-reported usage records two generator and two reviewer calls, 3,106/117 generator and 4,511/154 reviewer prompt/completion tokens. Dated catalog arithmetic estimates USD 0.005130180 for this canary, not a bill, account/window total, guaranteed spend or availability/retention promise. Independent G02 review `f789ec0aa2182edbeeb9394519b726e2f2b9b26d2a7c66948060d50531f85770`, G03 review `0685bb3b08bff6ce939a1ff030664e07c23b1c8a27c77f891d6abc06179c516a` and custody review `4c9c7153339ab62468472621c0dd7d6442242f3e5b76882cae1be6313d0d2324` preserve these scopes.
+
+Successful API held restoration was verified at `2026-10-24T09:01:44.111Z` on version `7e79318f-7d2f-4fda-99d1-11d994247e3b` / deployment `3d9a5812-416f-4ef6-bfe0-e792e826290f`, with three held, zero active and zero errors. Held Pages preflight at `09:00:38.598Z` is not a later or continuous-hold observation. Failure rollback and timed cleanup were skipped on this actual successful path. Existing absolute active expiry was `09:30:48.247Z`; successful restoration occurred earlier. Known lease/frame surfaces remain truthfully `retirement-required` in held-phase route evidence; the existing qualified-phase transition must detach and reverify them. No retirement or observed expiry execution is invented.
+
+GATE-06 remains open/null. Current source/native custody and Firefox's 14 historical local input checks do not establish canonical Safari/WebKit and Brave/Chromium lifecycle/privacy traces or hosted Firefox regression. No browserEvidence authority, operational eligibility, additional paid operation/window/probe, browser/public activation or final release is granted here. D32-V22-A1 is spent one used/zero remaining, U29 paid allowance remains zero and all older grants stay spent. Fixed models/providers, the already-approved D32 null-only policy, rights, hah.dev nonretention and disclosed external-provider retention/cache boundaries remain unchanged.
+
+The complete prior dossier follows verbatim as dated historical evidence. Its earlier current/pending/all-three-open statements apply to their recorded revisions and do not override this controlling held governance record.
+
+---
+
 # Text to Lattice release qualification — held remote candidate
 
 **Decision:** hold the interactive client; publish the method, implementation record, and documentation only.

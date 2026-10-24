@@ -119,8 +119,8 @@ test("the atlas models the held remote capability without promoting historical e
     releaseRegister.gates.map(({ id, status }) => [id, status]),
     [
       ["GATE-01", "release-workflow-enforced"],
-      ["GATE-02", "open-release-blocker"],
-      ["GATE-03", "open-release-blocker"],
+      ["GATE-02", "satisfied-in-production"],
+      ["GATE-03", "satisfied-in-production"],
       ["GATE-04A", "accepted-residual-risk"],
       ["GATE-04B", "historical-inactive"],
       ["GATE-04C", "historical-inactive"],
@@ -177,7 +177,7 @@ test("the atlas models the held remote capability without promoting historical e
 
 test("the qualification dossier leads with the held remote decision and retains an inactive appendix", async () => {
   const dossier = await readText(sourceRoot, "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md");
-  assert.match(dossier, /^# Text to Lattice release qualification — held remote candidate/u);
+  assert.match(dossier, /^# Text to Lattice release qualification — held after backend qualification/u);
   assert.match(dossier, /\*\*Decision:\*\* hold the interactive client; publish the method, implementation record, and documentation only\./u);
   assert.match(dossier, /Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence\./u);
   assert.match(dossier, /Neither closes GATE-02, GATE-03, or GATE-06/u);
@@ -197,18 +197,26 @@ test("the qualification dossier leads with the held remote decision and retains 
   assert.match(dossier, /no alternate provider or model fallback/iu);
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
   assert.match(dossier, /Historical inactive WebLLM and lease appendix/u);
-  const currentDossier = dossier.split("The complete previous qualification dossier follows verbatim as dated historical evidence")[0];
+  const currentBoundary = "The complete prior dossier follows verbatim as dated historical evidence.";
+  const currentDossier = dossier.split(currentBoundary)[0];
+  assert.match(currentDossier, /GATE-02 and GATE-03 are satisfied in production; GATE-06 remains open/u);
+  assert.match(currentDossier, /Actual bounded qualification run #321/u);
+  assert.match(currentDossier, /not a rewrite requirement, nullable-envelope observation/u);
+  assert.match(currentDossier, /first source header is the current documentation candidate digest/u);
+  assert.match(currentDossier, /No browserEvidence authority, operational eligibility/u);
+  const priorD32Dossier = dossier.slice(dossier.indexOf(currentBoundary) + currentBoundary.length)
+    .split("The complete previous qualification dossier follows verbatim as dated historical evidence")[0];
   assert.match(currentDossier, /\*\*Qualification date:\*\* 2026-10-24/u);
-  assert.match(currentDossier, /U29 records the literal owner answer “Approve bounded offline compatibility work”/u);
-  assert.match(currentDossier, /D32 selects the approved null-only stopped review-message policy/u);
-  assert.match(currentDossier, /reasoning, refusal, audio, annotations and function_call/u);
-  assert.match(currentDossier, /31 new nonempty presence subsets plus the existing all-absent case/u);
-  assert.match(currentDossier, /Certification inclusion is prospective; run #318 reached only verification/u);
-  assert.match(currentDossier, /Run #318 failed during initial verification/u);
-  assert.match(currentDossier, /zero new paid qualifications or provider probes/u);
-  assert.match(currentDossier, /U28 and D31-V22-A1 remain spent, one used and zero remaining each/u);
-  assert.match(currentDossier, /GATE-02, GATE-03 and GATE-06 remain open with null acceptance bases/u);
-  assert.match(currentDossier, /public client remains held/u);
+  assert.match(priorD32Dossier, /U29 records the literal owner answer “Approve bounded offline compatibility work”/u);
+  assert.match(priorD32Dossier, /D32 selects the approved null-only stopped review-message policy/u);
+  assert.match(priorD32Dossier, /reasoning, refusal, audio, annotations and function_call/u);
+  assert.match(priorD32Dossier, /31 new nonempty presence subsets plus the existing all-absent case/u);
+  assert.match(priorD32Dossier, /Certification inclusion is prospective; run #318 reached only verification/u);
+  assert.match(priorD32Dossier, /Run #318 failed during initial verification/u);
+  assert.match(priorD32Dossier, /zero new paid qualifications or provider probes/u);
+  assert.match(priorD32Dossier, /U28 and D31-V22-A1 remain spent, one used and zero remaining each/u);
+  assert.match(priorD32Dossier, /GATE-02, GATE-03 and GATE-06 remain open with null acceptance bases/u);
+  assert.match(priorD32Dossier, /public client remains held/u);
   assert.match(dossier, /D31 selects source-only, content-free strict-message shape observation/u);
   assert.match(dossier, /U28 is spent, one used and zero remaining/u);
   assert.match(dossier, /bounded qualification,[\s\S]{0,120}run #162[\s\S]{0,240}`be20fab7dbf312deef5ccc77997932f077b21f6e`/iu);
@@ -406,6 +414,8 @@ test("interactive editions remain complete, self-contained, accessible, and exec
 
   const index = await readText(publicRoot, "index.html");
   assert.match(index, /held and documentation-only/iu);
+  assert.match(index, /because GATE-06 remains open/u);
+  assert.doesNotMatch(index, /because GATE-02, GATE-03, and GATE-06 remain open/u);
   assert.match(index, /Required production qualification remains incomplete; current bounded evidence is recorded in the release register/u);
   assert.match(index, /Historical WebLLM, Turnstile, and lease records remain inactive/u);
   for (const { html, markdown } of atlas.artifacts) {
