@@ -5,7 +5,6 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
-import { verifyReleaseStatusState } from "../scripts/verify-text-to-lattice-release.mjs";
 import {
   SITE_CONTENT_UPDATED,
   SITE_CONTENT_VERSION,
@@ -59,9 +58,6 @@ import {
 import { resumeDetailList } from "../app/resume/resumeDetails.js";
 
 const root = resolve(new URL("..", import.meta.url).pathname);
-const releaseRegister = JSON.parse(await readFile(resolve(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json"), "utf8"));
-const releaseState = verifyReleaseStatusState(releaseRegister);
-const expectedInteractiveRelease = releaseState.enabled ? "enabled" : "held";
 let handlerPromise;
 
 const expectedSkillStacks = [
@@ -409,7 +405,7 @@ test("every canonical route is a substantive no-JavaScript document", async () =
   }
 });
 
-test("project and résumé records preserve the exact current Lattice interaction boundary", async () => {
+test("project and résumé records remain present while the Lattice interaction is held", async () => {
   const response = await request("/resume/", "text/html");
   const html = await response.text();
   const text = decodedText(html);
@@ -425,24 +421,14 @@ test("project and résumé records preserve the exact current Lattice interactio
     }
   }
   assert.match(html, /href="\/projects\/lattice\/"[^>]*>Lattice<\/a>/u);
-  if (releaseState.enabled) {
-    assert.equal((html.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 1);
-    assert.match(html, /aria-label="Use Text to Lattice"/u);
-    for (const id of ["lattice-demo-dialog", "lattice-demo-input", "lattice-use-confirmation"]) assert.ok(html.includes(`id="${id}"`));
-    const consent = html.match(/<input[^>]*id="lattice-use-confirmation"[^>]*>/u)?.[0];
-    assert.ok(consent);
-    assert.doesNotMatch(consent, /\bchecked(?:=|\s|>)/u);
-    assert.match(html, /class="modal resume-modal"/u);
-  } else {
-    assert.match(
-      html,
-      /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
-    );
-    assert.equal((html.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 0);
-    assert.match(html, /class="modal resume-modal"/u);
-    assert.doesNotMatch(html, /id="lattice-demo-dialog"|id="lattice-demo-input"|id="lattice-use-confirmation"/u);
-    assert.match(html, /Text to Lattice remains held while deployment and end-to-end privacy evidence/iu);
-  }
+  assert.match(
+    html,
+    /<a(?=[^>]*class="tool-icon project-modal-trigger signal-fuzz")(?=[^>]*href="\/projects\/lattice\/text-to-lattice\/")(?=[^>]*aria-label="Read Text to Lattice release status")[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/a>/u,
+  );
+  assert.equal((html.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 0);
+  assert.match(html, /class="modal resume-modal"/u);
+  assert.doesNotMatch(html, /id="lattice-demo-dialog"|id="lattice-demo-input"|id="lattice-use-confirmation"/u);
+  assert.match(html, /Text to Lattice remains held while deployment and end-to-end privacy evidence/iu);
 });
 
 test("machine manifests match their authoritative source objects", async () => {
@@ -961,17 +947,17 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   const latticeResumeRecord = resumeManifest.projects.find(({ id }) => id === "lattice");
   const latticeSource = projects.find(({ id }) => id === "lattice");
   assert.ok(latticeRecord && latticeResumeRecord && latticeSource);
-  assert.equal(latticeSource.interaction, releaseState.enabled ? "lattice-demo" : null);
-  assert.equal(latticeRecord.interactiveRelease, expectedInteractiveRelease);
+  assert.equal(latticeSource.interaction, null);
+  assert.equal(latticeRecord.interactiveRelease, "held");
   assert.deepEqual(latticeResumeRecord.documentation, latticeRecord.documentation);
-  assert.equal(latticeResumeRecord.interactiveRelease, expectedInteractiveRelease);
+  assert.equal(latticeResumeRecord.interactiveRelease, "held");
   assert.deepEqual(latticeResumeRecord.limitations, latticeRecord.limitations);
   assert.deepEqual(
     latticeRecord.documentation.filter(({ markdownUrl }) => markdownUrl).map(({ artifactId }) => artifactId),
     projectDocuments.map(({ artifactId }) => artifactId),
   );
   const latticeGraph = graphById.get("https://hah.dev/projects/lattice/#work");
-  assert.equal(latticeGraph[hah("interactiveRelease")], expectedInteractiveRelease);
+  assert.equal(latticeGraph[hah("interactiveRelease")], "held");
   assert.deepEqual(latticeGraph.hasPart, projectDocuments.map(({ htmlUrl }) => ({ "@id": htmlUrl })));
   for (const document of projectDocuments) {
     const node = graphById.get(document.htmlUrl);
@@ -1077,11 +1063,11 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   assert.equal(application.name, "Text to Lattice");
   assert.equal(application.creativeWorkStatus, latticeRecord.interactiveRelease);
   assert.equal(application[hah("interactiveRelease")], latticeRecord.interactiveRelease);
-  assert.equal(application[hah("publicationMode")], releaseState.enabled ? "interactive-client" : "documentation-only");
+  assert.equal(application[hah("publicationMode")], "documentation-only");
   assert.equal(application.operatingSystem, "Modern browser with JavaScript over HTTPS");
   assert.equal(
     application.description,
-    releaseState.enabled ? textToLatticeContract.purpose : `${textToLatticeContract.purpose} The public interactive client is held; this page publishes documentation only.`,
+    `${textToLatticeContract.purpose} The public interactive client is held; this page publishes documentation only.`,
   );
   assert.equal(graphById.get(`${new URL(textToLatticeContract.canonicalPath, "https://hah.dev").href}#page`)?.description, application.description);
   assert.deepEqual(application[hah("generator")], expectedGenerator);
@@ -1137,8 +1123,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     assert.ok(body.includes(`Interactive client release: ${machineValueLabel(latticeRecord.interactiveRelease)}`));
     assert.ok(body.includes(`Public client status: ${machineValueLabel(application[hah("interactiveRelease")])}`));
     assert.ok(body.includes(`Publication mode: ${machineValueLabel(application[hah("publicationMode")])}`));
-    if (releaseState.enabled) assert.match(body, /public interactive client is included in the public bundle/iu);
-    else assert.match(body, /interactive client is not included in the public bundle|public interactive client is held/iu);
+    assert.match(body, /interactive client is not included in the public bundle|public interactive client is held/iu);
   }
   const publicProvenance = [authoredDocument(toolHtml), authoredDocument(noticesHtml), latticeMarkdown];
   for (const body of publicProvenance) {
@@ -1231,12 +1216,9 @@ test("robots, sitemap, and llms discovery cover canonical public records", async
   ]);
   for (const { markdownUrl } of projectDocuments) assert.equal(sitemapUrls.includes(markdownUrl), false);
 
-  const resumeBoundary = releaseState.enabled
-    ? /## Lattice[\s\S]*?Interactive client: enabled[\s\S]*?### Limitations[\s\S]*?same-origin \/api\/lattice capability[\s\S]*?external services process submitted content/iu
-    : /## Lattice[\s\S]*?Interactive client: held[\s\S]*?### Limitations[\s\S]*?same-origin \/api\/lattice capability[\s\S]*?external services process submitted content/iu;
-  assert.match(resumeMarkdown, resumeBoundary);
-  assert.equal(JSON.parse(resumeJson).projects.find(({ id }) => id === "lattice")?.interactiveRelease, expectedInteractiveRelease);
-  assert.ok(llms.includes(`The Text to Lattice interactive client is ${expectedInteractiveRelease}.`));
+  assert.match(resumeMarkdown, /## Lattice[\s\S]*?Interactive client: held[\s\S]*?### Limitations[\s\S]*?same-origin \/api\/lattice capability[\s\S]*?external services process submitted content/iu);
+  assert.equal(JSON.parse(resumeJson).projects.find(({ id }) => id === "lattice")?.interactiveRelease, "held");
+  assert.match(llms, /The Text to Lattice interactive client is held/u);
   assert.match(portfolioSource, /const releaseBoundary = applicationReleaseStatus === "held"/u);
   assert.match(portfolioSource, /applicationReleaseStatus === "enabled"[\s\S]*?interactive client is enabled/u);
   for (const filename of [

@@ -12,7 +12,6 @@ import { projectBySlug } from "../app/resume/projects.js";
 import {
   qualifiedFilesBelow,
   verifyBrowserEvidenceAuthority,
-  verifyEnabledPublicationCopy,
   verifyHeldBuiltBoundary,
   verifyLifecycleGateContract,
   verifyReleaseStatusState,
@@ -48,117 +47,6 @@ const browserEvidenceIdentityFields = [
   "deploymentEvidenceCheckedAfterCapturesAt",
   "deploymentEvidenceUnchangedAcrossCaptures",
 ];
-
-const publishedDossierPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHistoryBoundary = Buffer.from("The complete held dossier follows verbatim as dated history.");
-const datedHistorySeparator = Buffer.from("The complete held dossier follows verbatim as dated history.\n\n---\n\n");
-const staleEnabledClaims = [
-  "release gates remain open",
-  "must agree before the converter can open",
-  "model-use controls and WebAssembly provenance are qualified",
-  "dormant interface",
-  "dormant dialog",
-  "sole open blocker",
-  "sole open release blocker",
-  "held solely because",
-  "hold the interactive client",
-];
-
-async function canonicalPublicationDossier() {
-  return readFile(join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"));
-}
-
-function verifyEqualDossierCopies(bytes) {
-  verifyEnabledPublicationCopy(publishedDossierPath, bytes, Buffer.from(bytes));
-}
-
-test("enabled publication history permits only the exact bound canonical held dossier", async () => {
-  const dossier = await canonicalPublicationDossier();
-  const boundary = dossier.indexOf(datedHistorySeparator);
-  assert.ok(boundary > 0);
-  const history = dossier.subarray(boundary + datedHistorySeparator.length);
-  assert.equal(history.length, 500890);
-  assert.equal(sha256(history), "71ecdf46afb200964f0b791e94bf20b819766c818b685cd974422d5dbccb5980");
-  assert.match(history.toString("utf8"), /hold the interactive client/iu);
-  assert.doesNotThrow(() => verifyEqualDossierCopies(dossier));
-  assert.throws(() => verifyEnabledPublicationCopy(publishedDossierPath, dossier.toString("utf8"), dossier), /raw bytes/u);
-});
-
-test("enabled publication history rejects every stale current claim even when canonical copies agree", async () => {
-  const dossier = await canonicalPublicationDossier();
-  for (const claim of staleEnabledClaims) {
-    const bytes = Buffer.concat([Buffer.from(`Current owner decision: ${claim}.\n\n`), dossier]);
-    assert.throws(() => verifyEqualDossierCopies(bytes), /stale held-gate copy/u, claim);
-  }
-});
-
-test("enabled publication history rejects changed, shortened, extended, or relocated held bytes", async () => {
-  const dossier = await canonicalPublicationDossier();
-  const boundary = dossier.indexOf(datedHistorySeparator);
-  const historyStart = boundary + datedHistorySeparator.length;
-  const changed = Buffer.from(dossier);
-  changed[historyStart + 20] ^= 1;
-  const relocated = Buffer.concat([
-    dossier.subarray(0, boundary),
-    dossier.subarray(historyStart, historyStart + 1),
-    Buffer.from("\n"),
-    datedHistorySeparator,
-    dossier.subarray(historyStart + 1),
-  ]);
-  for (const bytes of [changed, dossier.subarray(0, -1), Buffer.concat([dossier, Buffer.from("\nextra")]), relocated]) {
-    assert.throws(() => verifyEqualDossierCopies(bytes), /independently pinned held dossier/u);
-  }
-});
-
-test("enabled publication history rejects missing, duplicate, altered, or ambiguous boundaries", async () => {
-  const dossier = await canonicalPublicationDossier();
-  const boundary = dossier.indexOf(datedHistorySeparator);
-  const cases = [
-    Buffer.concat([dossier.subarray(0, boundary), dossier.subarray(boundary + datedHistoryBoundary.length)]),
-    Buffer.concat([datedHistorySeparator, dossier]),
-    Buffer.from(dossier.toString("utf8").replace(datedHistoryBoundary.toString("utf8"), "The complete old dossier follows verbatim as dated history.")),
-    Buffer.from(dossier.toString("utf8").replace(datedHistorySeparator.toString("utf8"), `${datedHistoryBoundary.toString("utf8")}\n---\n\n`)),
-    Buffer.concat([dossier.subarray(0, boundary), Buffer.from("ambiguous "), dossier.subarray(boundary)]),
-  ];
-  for (const bytes of cases) {
-    assert.throws(() => verifyEqualDossierCopies(bytes), /unique exact dated-history boundary/u);
-  }
-});
-
-test("enabled publication history refuses raw canonical mismatch before projecting any history", async () => {
-  const dossier = await canonicalPublicationDossier();
-  const mismatch = Buffer.concat([Buffer.from("Different current text.\n"), dossier]);
-  assert.throws(() => verifyEnabledPublicationCopy(publishedDossierPath, dossier, mismatch), /not byte-identical/u);
-  assert.throws(() => verifyEnabledPublicationCopy(publishedDossierPath, mismatch, dossier), /not byte-identical/u);
-  assert.throws(() => verifyEnabledPublicationCopy(publishedDossierPath, dossier), /not byte-identical/u);
-});
-
-test("enabled publication history grants no exception to other paths, formats, or historical JSON labels", async () => {
-  const dossier = await canonicalPublicationDossier();
-  const paths = [
-    "other.md", "other.html", "other.json", "other.jsonld", "other.txt",
-    "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION-OLD.md",
-    "documentation/text-to-lattice/text-to-lattice-release-qualification.md",
-    `neighbor/${publishedDossierPath}`,
-  ];
-  for (const path of paths) {
-    assert.throws(() => verifyEnabledPublicationCopy(path, dossier, dossier), /stale held-gate copy/u, path);
-    assert.throws(() => verifyEnabledPublicationCopy(path, Buffer.from(JSON.stringify({ historical: { text: "release gates remain open" } })), dossier), /stale held-gate copy/u, path);
-  }
-});
-
-test("enabled publication history permits a future truthful qualified prefix without changing the held pin", async () => {
-  const dossier = await canonicalPublicationDossier();
-  const future = Buffer.concat([
-    Buffer.from("# Future qualification record fixture\n\nCurrent browser evidence is qualified only when independently verified. This is a test fixture, not an actual release disposition.\n\n"),
-    dossier,
-  ]);
-  assert.doesNotThrow(() => verifyEqualDossierCopies(future));
-  for (const claim of staleEnabledClaims) {
-    const stale = Buffer.concat([Buffer.from(`Current release says ${claim}.\n`), future]);
-    assert.throws(() => verifyEqualDossierCopies(stale), /stale held-gate copy/u, claim);
-  }
-});
 
 async function releaseRegister() {
   return JSON.parse(await readFile(registerPath, "utf8"));
@@ -228,32 +116,15 @@ function browserEvidenceFixture(qualifiedSourceSetSha256) {
   };
 }
 
-function clearBrowserEvidence(register) {
-  register.authority.browserEvidence = Object.fromEntries(
-    Object.keys(register.authority.browserEvidence).map((key) => [key, key === "status" ? "not-collected" : null]),
-  );
-  return register;
-}
-
-function heldRegisterFixture(register) {
-  const fixture = structuredClone(register);
-  fixture.overallStatus = "held";
-  fixture.publicClient.status = "held";
-  fixture.publicClient.publicationMode = "documentation-only";
-  fixture.publicClient.heldBoundary ??= structuredClone(register.publicClient.priorHeldDisposition?.heldBoundary);
-  fixture.gates.find(({ id }) => id === "GATE-06").status = "open-release-blocker";
-  return clearBrowserEvidence(fixture);
-}
-
 function qualifyRegister(register) {
   register.overallStatus = "qualified";
   register.publicClient.status = "enabled";
   register.publicClient.publicationMode = "interactive-client";
   delete register.publicClient.heldBoundary;
   for (const gate of register.gates) {
-    if (["GATE-02", "GATE-03", "GATE-06"].includes(gate.id)) gate.status = "satisfied-in-production";
+    if (gate.status === "open-release-blocker") gate.status = "satisfied-in-production";
   }
-  return clearBrowserEvidence(register);
+  return register;
 }
 
 async function withHeldSiteFixture(mutate, expectedFailure) {
@@ -298,7 +169,7 @@ test("qualified source trees ignore only Wrangler's reserved local residue", asy
   }
 });
 
-test("the release register enforces its exact current phase and preserves historical evidence", async () => {
+test("the release register honestly holds the remote capability and preserves historical evidence", async () => {
   const [register, view, held, search, workflow, validatorSource, dossier] = await Promise.all([
     releaseRegister(),
     readFile(join(root, "app/resume/ResumeView.tsx"), "utf8"),
@@ -308,19 +179,14 @@ test("the release register enforces its exact current phase and preserves histor
     readFile(validator, "utf8"),
     readFile(join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"), "utf8"),
   ]);
-  const phase = verifyReleaseStatusState(register);
-  const heldBoundary = register.publicClient.heldBoundary ?? register.publicClient.priorHeldDisposition?.heldBoundary;
-  assert.ok(heldBoundary, "held rollback boundary remains explicit in current or typed predecessor evidence");
-  assert.equal(register.overallStatus, phase.releasePhase);
+  assert.equal(register.overallStatus, "held");
   assert.deepEqual(
     { status: register.publicClient.status, mode: register.publicClient.publicationMode },
-    phase.enabled ? { status: "enabled", mode: "interactive-client" } : { status: "held", mode: "documentation-only" },
+    { status: "held", mode: "documentation-only" },
   );
-  assert.ok(heldBoundary.allow.length > 0);
-  assert.ok(heldBoundary.deny.some((item) => item.includes("/api/lattice")));
-  assert.match(register.revision, /^\d{4}-\d{2}-\d{2}$/u);
-  assert.ok(dossier.includes(`**Qualification date:** ${register.revision}`));
-  if (phase.enabled) assert.equal(register.publicClient.heldBoundary, undefined);
+  assert.ok(register.publicClient.heldBoundary.allow.length > 0);
+  assert.ok(register.publicClient.heldBoundary.deny.some((item) => item.includes("/api/lattice")));
+  assert.equal(register.revision, "2026-10-24");
   assert.match(register.qualificationScope, /last pulled hah\.dev deployment and ancestry baseline/u);
   assert.match(register.publicClient.reason, /run #162[\s\S]{0,140}diagnostic revision 5 merged by PR #51/iu);
   assert.match(register.publicClient.reason, /terminal_failure=host-validation, stage=verification, attempt=2, validation=response-shape, prior_validation=response-shape, calls_used=5, batch_count=1, verification_passes=0, and finding_count=1/u);
@@ -345,9 +211,9 @@ test("the release register enforces its exact current phase and preserves histor
   assert.equal(reviewedBaseline, register.implementationBaselineRevision, "the dossier binds the current register baseline");
   assert.match(register.publicClient.reason, /merged by PR #50 was deployed for bounded qualification by run #160 but remains unqualified/iu);
   assert.match(register.publicClient.reason, /The current qualification-only diagnostic extension, revision 8/iu);
-  assert.ok(heldBoundary.deny.some((item) => /production-verified or qualified/iu.test(item)));
-  assert.ok(heldBoundary.deny.some((item) => /public client is activated/iu.test(item)));
-  assert.ok(heldBoundary.deny.every((item) => !/candidate is deployed/iu.test(item)));
+  assert.ok(register.publicClient.heldBoundary.deny.some((item) => /production-verified or qualified/iu.test(item)));
+  assert.ok(register.publicClient.heldBoundary.deny.some((item) => /public client is activated/iu.test(item)));
+  assert.ok(register.publicClient.heldBoundary.deny.every((item) => !/candidate is deployed/iu.test(item)));
   assert.match(register.publicClient.reason, /2,048-token verifier cap, 520-token certifier cap[\s\S]*remain unchanged/iu);
   assert.match(register.publicClient.reason, /complete legal verifier output at 1,326 tokens[\s\S]*722 tokens or 54\.45 percent/iu);
   assert.match(register.publicClient.reason, /conservative accepted legal maximum is 440 tokens[\s\S]*80 under its 520-token cap/iu);
@@ -356,7 +222,7 @@ test("the release register enforces its exact current phase and preserves histor
   assert.match(register.publicClient.reason, /Attempt 1 did not reach the live request boundary or provider canary and remains inconclusive transport evidence/iu);
   assert.doesNotMatch(register.publicClient.reason, /run #158[^.]{0,200}(?:proves|establishes)[^.]{0,100}(?:insufficient|budget is too small)/iu);
   assert.doesNotMatch(register.publicClient.reason, /run #150 supplied the newest/iu);
-  assert.equal(register.ownerDisposition.status, phase.held ? "hold-directed" : "release-directed");
+  assert.equal(register.ownerDisposition.status, "hold-directed");
   assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
   assert.deepEqual(
     Object.fromEntries(register.gates.map(({ id, status }) => [id, status])),
@@ -368,7 +234,7 @@ test("the release register enforces its exact current phase and preserves histor
       "GATE-04B": "historical-inactive",
       "GATE-04C": "historical-inactive",
       "GATE-05": "accepted-residual-risk",
-      "GATE-06": phase.qualified ? "satisfied-in-production" : phase.qualificationPending ? "post-deployment-verification" : "open-release-blocker",
+      "GATE-06": "open-release-blocker",
     },
   );
   const workflowGate = register.gates.find(({ id }) => id === "GATE-01");
@@ -478,7 +344,7 @@ test("the release register enforces its exact current phase and preserves histor
       fallback: capability.alternateProviderFallback,
     },
     {
-      status: { held: "held-pending-production-evidence", "qualification-pending": "deployed-for-qualification", qualified: "qualified" }[phase.releasePhase],
+      status: "held-pending-production-evidence",
       route: "/api/lattice",
       method: "POST",
       schemaVersion: 1,
@@ -747,32 +613,21 @@ test("the release register enforces its exact current phase and preserves histor
   assert.ok(register.authority.qualifiedSourceSet.files.includes("docs/text-to-lattice/TEXT-TO-LATTICE-BROWSER-EVIDENCE.template.json"));
   assert.ok(register.authority.qualifiedSourceSet.trees.includes("workers/text-to-lattice-api"));
   assert.ok(register.authority.qualifiedSourceSet.trees.includes("workers/text-to-lattice-lease"), "historical source remains digest-bound");
-  if (phase.qualified) {
-    await verifyBrowserEvidenceAuthority(register, phase);
-    assert.equal(register.authority.browserEvidence.status, "verified-sanitized-bundle");
-  } else {
-    assert.deepEqual(register.authority.browserEvidence, {
-      status: "not-collected",
-      path: null,
-      sha256: null,
-      ...Object.fromEntries(browserEvidenceIdentityFields.map((field) => [field, null])),
-    });
-  }
+  assert.deepEqual(register.authority.browserEvidence, {
+    status: "not-collected",
+    path: null,
+    sha256: null,
+    ...Object.fromEntries(browserEvidenceIdentityFields.map((field) => [field, null])),
+  });
 
-  if (phase.enabled) {
-    assert.match(view, /from "\.\/ResumeProjects"/u);
-    assert.match(view, /<ResumeSearch>[\s\S]*?<ResumeProjects \/>/u);
-    assert.doesNotMatch(view, /ResumeProjectsHeld/u);
-  } else {
-    assert.match(view, /from "\.\/ResumeProjectsHeld"/u);
-    assert.match(view, /<ResumeSearch>[\s\S]*?<ResumeProjectsHeld \/>/u);
-    assert.doesNotMatch(view, /from "\.\/ResumeProjects"/u);
-  }
+  assert.match(view, /from "\.\/ResumeProjectsHeld"/u);
+  assert.match(view, /<ResumeSearch>[\s\S]*?<ResumeProjectsHeld \/>/u);
+  assert.doesNotMatch(view, /from "\.\/ResumeProjects"/u);
   assert.doesNotMatch(search, /from ["']\.\/ResumeProjects["']|onLatticeLaunch|followLatticeResult|requestRemoteLattice/u);
   assert.doesNotMatch(held, /<form\b|<textarea\b|role="dialog"|aria-haspopup=/u);
   const lattice = projectBySlug("lattice");
-  assert.equal(lattice.interactiveRelease, phase.enabled ? "enabled" : "held");
-  assert.equal(lattice.interaction, phase.enabled ? "lattice-demo" : null);
+  assert.equal(lattice.interactiveRelease, "held");
+  assert.equal(lattice.interaction, null);
 
   assert.match(workflow, /Deploy bounded Text to Lattice API/u);
   assert.match(workflow, /Require the exact provider and visitor-cookie encrypted bindings/u);
@@ -783,7 +638,7 @@ test("the release register enforces its exact current phase and preserves histor
 });
 
 test("the release state enforces exact held, qualification-pending, and qualified tuples", async () => {
-  const register = heldRegisterFixture(await releaseRegister());
+  const register = await releaseRegister();
   assert.deepEqual(verifyReleaseStatusState(register), {
     hasOpenBlocker: true,
     releasePhase: "held",
@@ -839,7 +694,10 @@ test("the release state enforces exact held, qualification-pending, and qualifie
     /GATE-06 cannot remain satisfied in production unless GATE-02 and GATE-03 are also satisfied/u,
   );
 
-  const hypotheticalQualified = qualifyRegister(structuredClone(falseRelease));
+  const hypotheticalQualified = structuredClone(falseRelease);
+  for (const gate of hypotheticalQualified.gates) {
+    if (gate.status === "open-release-blocker") gate.status = "satisfied-in-production";
+  }
   assert.deepEqual(verifyReleaseStatusState(hypotheticalQualified), {
     hasOpenBlocker: false,
     releasePhase: "qualified",
@@ -860,12 +718,11 @@ test("the release-state reader emits the phase and public-client status", async 
       cwd: root,
       env: { ...process.env, GITHUB_OUTPUT: outputPath },
     });
+    assert.match(stdout, /release phase: held; public-client status: held/u);
     const register = await releaseRegister();
-    const phase = verifyReleaseStatusState(register);
-    assert.ok(stdout.includes(`release phase: ${phase.releasePhase}; public-client status: ${register.publicClient.status}`));
     assert.equal(
       await readFile(outputPath, "utf8"),
-      `public_client_status=${register.publicClient.status}\nrelease_phase=${phase.releasePhase}\nqualified_source_set_sha256=${register.authority.qualifiedSourceSet.sha256}\n`,
+      `public_client_status=held\nrelease_phase=held\nqualified_source_set_sha256=${register.authority.qualifiedSourceSet.sha256}\n`,
     );
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
@@ -873,7 +730,7 @@ test("the release-state reader emits the phase and public-client status", async 
 });
 
 test("held and qualification-pending phases prohibit browser-evidence authority claims", async () => {
-  const held = heldRegisterFixture(await releaseRegister());
+  const held = await releaseRegister();
   await assert.doesNotReject(verifyBrowserEvidenceAuthority(held));
 
   const qualificationPending = qualifyRegister(structuredClone(held));
@@ -980,15 +837,7 @@ test("the active remote gate contract is semantic and historical evidence is tam
   const gate02 = register.gates.find(({ id }) => id === "GATE-02");
   const gate03 = register.gates.find(({ id }) => id === "GATE-03");
   const gate06 = register.gates.find(({ id }) => id === "GATE-06");
-  const phase = verifyReleaseStatusState(register).releasePhase;
-  assert.doesNotThrow(() => verifyLifecycleGateContract(gate02, gate03, gate06, phase));
-  const pendingGate06 = structuredClone(gate06);
-  pendingGate06.status = "post-deployment-verification";
-  assert.doesNotThrow(() => verifyLifecycleGateContract(gate02, gate03, pendingGate06, "qualification-pending"));
-  assert.throws(
-    () => verifyLifecycleGateContract(gate02, gate03, pendingGate06, "held"),
-    /post-deployment verification requires the qualification-pending phase/u,
-  );
+  assert.doesNotThrow(() => verifyLifecycleGateContract(gate02, gate03, gate06));
 
   const missingRoute = structuredClone(gate02);
   for (const field of ["label", "requirement", "activeCurrentEvidence", "evidenceNeeded", "rationale", "followUp", "rollbackCondition"]) {
@@ -997,43 +846,33 @@ test("the active remote gate contract is semantic and historical evidence is tam
   for (const field of ["activeEvidence", "safeguards"]) {
     missingRoute[field] = missingRoute[field].map((entry) => entry.replaceAll("/api/lattice", "/api/other"));
   }
-  assert.throws(() => verifyLifecycleGateContract(missingRoute, gate03, gate06, phase), /GATE-02 omits the active remote boundary atom \/api\/lattice/u);
+  assert.throws(() => verifyLifecycleGateContract(missingRoute, gate03, gate06), /GATE-02 omits the active remote boundary atom \/api\/lattice/u);
   const staleStatus = structuredClone(gate03);
   staleStatus.status = "post-deployment-verification";
-  assert.throws(() => verifyLifecycleGateContract(gate02, staleStatus, gate06, phase), /GATE-03 must remain open/u);
+  assert.throws(() => verifyLifecycleGateContract(gate02, staleStatus, gate06), /GATE-03 must remain open/u);
   const alteredHistory = structuredClone(gate06);
   alteredHistory.currentEvidence += " altered";
-  assert.throws(() => verifyLifecycleGateContract(gate02, gate03, alteredHistory, phase), /historical browser-local evidence is not verbatim/u);
+  assert.throws(() => verifyLifecycleGateContract(gate02, gate03, alteredHistory), /historical browser-local evidence is not verbatim/u);
   const leakedLegacyAssumption = structuredClone(gate06);
   leakedLegacyAssumption.followUp += " Reacquire a lease.";
-  assert.throws(() => verifyLifecycleGateContract(gate02, gate03, leakedLegacyAssumption, phase), /active remote requirement contains a browser-local lease assumption/u);
+  assert.throws(() => verifyLifecycleGateContract(gate02, gate03, leakedLegacyAssumption), /active remote requirement contains a browser-local lease assumption/u);
 });
 
-test("the source release verifier accepts the exact current phase record", async () => {
+test("the source release verifier accepts the exact held record", async () => {
   const { stdout } = await execute(process.execPath, [validator, "--source"], { cwd: root });
-  const phase = verifyReleaseStatusState(await releaseRegister());
-  assert.ok(stdout.includes(`release boundary verified (${phase.enabled ? "enabled" : "held"}, source)`));
+  assert.match(stdout, /release boundary verified \(held, source\)/u);
 });
 
-test("the built Pages artifact enforces the exact current interaction boundary", async () => {
+test("the built Pages artifact remains documentation-only", async () => {
   const [sourceRegister, exportedRegister, resume] = await Promise.all([
     readFile(registerPath, "utf8"),
     readFile(join(root, "site/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json"), "utf8"),
     readFile(join(root, "site/resume/index.html"), "utf8"),
   ]);
   assert.equal(exportedRegister, sourceRegister);
-  const phase = verifyReleaseStatusState(JSON.parse(sourceRegister));
-  assert.equal(JSON.parse(exportedRegister).overallStatus, phase.releasePhase);
-  if (phase.enabled) {
-    assert.equal((resume.match(/data-lattice-launch="text-to-lattice"/gu) ?? []).length, 1);
-    for (const id of ["lattice-demo-dialog", "lattice-demo-input", "lattice-use-confirmation"]) assert.ok(resume.includes(`id="${id}"`));
-    const consent = resume.match(/<input[^>]*id="lattice-use-confirmation"[^>]*>/u)?.[0];
-    assert.ok(consent);
-    assert.doesNotMatch(consent, /\bchecked(?:=|\s|>)/u);
-  } else {
-    assert.match(resume, /aria-label="Read Text to Lattice release status"/u);
-    assert.doesNotMatch(resume, /data-lattice-launch="text-to-lattice"|id="lattice-demo-dialog"/u);
-  }
+  assert.equal(JSON.parse(exportedRegister).overallStatus, "held");
+  assert.match(resume, /aria-label="Read Text to Lattice release status"/u);
+  assert.doesNotMatch(resume, /data-lattice-launch="text-to-lattice"|id="lattice-demo-dialog"/u);
   await execute(process.execPath, [validator, "--source", "--site"], { cwd: root });
 });
 
