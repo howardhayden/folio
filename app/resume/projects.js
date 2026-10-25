@@ -79,8 +79,8 @@ export const projects = Object.freeze([
     ]),
     publication: Object.freeze({ label: "September 2026", value: "2026-09", precision: "month" }),
     status: "public",
-    interaction: null,
-    interactiveRelease: "held",
+    interaction: "lattice-demo",
+    interactiveRelease: "enabled",
     readmeAfterFirstParagraph: true,
   }),
   Object.freeze({
