@@ -1,3 +1,46 @@
+# Text to Lattice release qualification — held after bounded backend qualification 351
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Qualification date:** 2026-10-25
+
+**Evidence updated:** 2026-10-25
+
+**Reviewed baseline:** `d0112e057ac0b671e493ba1c0756dd0a3a01d318`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `6f66863d1ad3a87525ed2a689241b1c2c5c22cbaf91b5165e2a2f961d157e496`
+
+**Artifact-set projection SHA-256:** `69c9f642ddc3aae53db56049df42efdfa8876f7ac2ab8b6e5a824c0e4a0dab73`
+
+Original bounded backend qualification #351, attempt 1, on main d0112e057ac0b671e493ba1c0756dd0a3a01d318 / deployed source d93ceb3b907855f45ff72bde253cefe97241f2cd76e2d22de299be5008600a71 / deployed dossier c84e6d6405ac69aff8282e681a1a7768a4d8dd2552af967806a6caf448ec8b86 passed. Separate root and independent review against all existing bounded criteria supports GATE-02 and GATE-03 satisfied-in-production with null acceptance bases. GATE-06 remains open-release-blocker/null. API and UI are held. This is not automatic gate closure, an acceptance waiver, canonical-browser evidence or final release.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+The single existing synthetic canary returned HTTP 200 conformant-for-context in 20.114 seconds: one 16-word passage, revised 0 / retained 1, one verification pass and no findings. All 24 negative HTTP probes matched the source contract; complete request-scoped admission evidence covers the existing 13 designated negatives plus setup, preservation, tamper and the one allowed canary. The other 11 probes gain no imputed counter observation. Paired active API environment records and complete provider-reported usage bind the same service job and source. Four reported calls (two generator and two joint review calls) consumed 8,003 prompt and 325 completion tokens. The dated 2026-10-23 catalog estimate is USD 0.005419624, not an invoice, account or window total, or charge ceiling. No full-input managed-fit, future-price, provider-retention, reliability, rewrite or source-copy repair guarantee follows.
+
+Successful held-path API restoration was verified at 2026-10-25T12:04:40.698Z; Pages was sampled held before service activation and by a separate postqualification point. These are dated samples, not continuous hold or an API-first restoration guarantee. D14-API-ONLY-A2 is spent (1 used, 0 remaining); conditional provider-free recovery was not needed, selected or consumed. No unused budget transfers. The production run retains its original source/dossier identities; this new held documentation candidate changes two necessary current-state test fixtures and requires its own validation and held delivery.
+
+The actual production witness is [run #351](https://github.com/howardhayden/folio/actions/runs/40191185790), service job 121163153579. Its active API and response-policy identities, before/after SQLite admission records, strict accepted live receipt, complete usage sidecar, sanitized artifact custody and held restoration were independently reviewed. The archived usage catalog remains dated October 23. A conformant retained passage does not establish a material rewrite, D14 repair branch coverage or a causal remedy for source-copying failure; no failed-log reader or additional probe was run after success.
+
+The first source header binds this new held documentation candidate, not a relabelled production witness. Exactly two qualified test files receive necessary current-state fixture assertions; the other 257 qualified files, including all application, Worker, prompt, provider, protocol, acceptance, privacy, rights, limit and workflow bytes, stay exact. Actual351 remains source `d93ceb3b907855f45ff72bde253cefe97241f2cd76e2d22de299be5008600a71` / dossier `c84e6d6405ac69aff8282e681a1a7768a4d8dd2552af967806a6caf448ec8b86` / main `d0112e057ac0b671e493ba1c0756dd0a3a01d318`. Current fixture/governance validation and reviewed held delivery remain pending; existing offline build evidence may be reused only under exact determining-input equality.
+
+Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence. Safari and Brave canonical evidence and hosted Firefox input checks remain outstanding. This backend-only unit grants no public client activation, automatic GATE-06 closure or final release.
+
+The complete prior dossier follows verbatim as dated historical evidence.
+
+---
+
 # Text to Lattice release qualification — held D14 feedback accuracy correction
 
 **Decision:** hold the interactive client; publish documentation only. This source revision corrects deterministic diagnostic wording while retaining the strict source-copy rejection. It is not a successful qualification or final release.

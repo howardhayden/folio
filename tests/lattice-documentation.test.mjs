@@ -122,8 +122,8 @@ test("the atlas models the exact current remote phase without promoting historic
     releaseRegister.gates.map(({ id, status }) => [id, status]),
     [
       ["GATE-01", "release-workflow-enforced"],
-      ["GATE-02", releaseState.held ? "open-release-blocker" : "satisfied-in-production"],
-      ["GATE-03", releaseState.held ? "open-release-blocker" : "satisfied-in-production"],
+      ["GATE-02", "satisfied-in-production"],
+      ["GATE-03", "satisfied-in-production"],
       ["GATE-04A", "accepted-residual-risk"],
       ["GATE-04B", "historical-inactive"],
       ["GATE-04C", "historical-inactive"],
@@ -438,8 +438,8 @@ test("interactive editions remain complete, self-contained, accessible, and exec
   const index = await readText(publicRoot, "index.html");
   if (releaseState.held) {
     assert.match(index, /held and documentation-only/iu);
-    assert.match(index, /<h2>Text to Lattice qualification<\/h2><p>The remote interactive client is held and documentation-only because GATE-02, GATE-03 and GATE-06 remain open\./u);
-    assert.doesNotMatch(index, /because GATE-06 remains open/u);
+    assert.match(index, /<h2>Text to Lattice qualification<\/h2><p>The remote interactive client is held and documentation-only because GATE-06 remains open\./u);
+    assert.doesNotMatch(index, /<h2>Text to Lattice qualification<\/h2><p>The remote interactive client is held and documentation-only because GATE-02, GATE-03 and GATE-06 remain open\./u);
     assert.match(index, /Required production qualification remains incomplete; current bounded evidence is recorded in the release register/u);
     assert.match(index, /Historical WebLLM, Turnstile, and lease records remain inactive/u);
   } else if (releaseState.qualificationPending) {

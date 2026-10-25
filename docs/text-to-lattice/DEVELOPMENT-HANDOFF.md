@@ -1,3 +1,19 @@
+# Held backend qualification 351 and remaining browser gate — 2026-10-25
+
+Original bounded backend qualification #351, attempt 1, on main d0112e057ac0b671e493ba1c0756dd0a3a01d318 / deployed source d93ceb3b907855f45ff72bde253cefe97241f2cd76e2d22de299be5008600a71 / deployed dossier c84e6d6405ac69aff8282e681a1a7768a4d8dd2552af967806a6caf448ec8b86 passed. Separate root and independent review against all existing bounded criteria supports GATE-02 and GATE-03 satisfied-in-production with null acceptance bases. GATE-06 remains open-release-blocker/null. API and UI are held. This is not automatic gate closure, an acceptance waiver, canonical-browser evidence or final release.
+
+The single existing synthetic canary returned HTTP 200 conformant-for-context in 20.114 seconds: one 16-word passage, revised 0 / retained 1, one verification pass and no findings. All 24 negative HTTP probes matched the source contract; complete request-scoped admission evidence covers the existing 13 designated negatives plus setup, preservation, tamper and the one allowed canary. The other 11 probes gain no imputed counter observation. Paired active API environment records and complete provider-reported usage bind the same service job and source. Four reported calls (two generator and two joint review calls) consumed 8,003 prompt and 325 completion tokens. The dated 2026-10-23 catalog estimate is USD 0.005419624, not an invoice, account or window total, or charge ceiling. No full-input managed-fit, future-price, provider-retention, reliability, rewrite or source-copy repair guarantee follows.
+
+Successful held-path API restoration was verified at 2026-10-25T12:04:40.698Z; Pages was sampled held before service activation and by a separate postqualification point. These are dated samples, not continuous hold or an API-first restoration guarantee. D14-API-ONLY-A2 is spent (1 used, 0 remaining); conditional provider-free recovery was not needed, selected or consumed. No unused budget transfers. The production run retains its original source/dossier identities; this new held documentation candidate changes two necessary current-state test fixtures and requires its own validation and held delivery.
+
+The private continuation packet retains the exact 351 outcome and separate gate adjudication. The old committed qualification-clock reference (8506/e1e) below is dated historical evidence and is not the current execution driver. Actual current private preparation pinned the observed CPython 3.12.14 executable SHA-256 `811e2679c20fd2c7413f7c5ca28ce903065eea8dadb8660f1b9379a28959a480` and lease module `a34dc0a8e1cb8577254c8aef872e1053b35b4740b2de839adbd72f4a87818619`; 18 finite clock controls passed with original dual 240-second same-boot/drift-one-second/no-reset constraints. No current authority comes from the older reference or a spent unit.
+
+The new held documentation candidate is source `6f66863d1ad3a87525ed2a689241b1c2c5c22cbaf91b5165e2a2f961d157e496` / dossier `c377b13694917790710bb1aa9724d5ee9cdfb07ed17a297b0ecfd6e05bc5b2f4`. Only two necessary current-state test fixtures change among the 259 qualified files; all production implementation bytes remain exact351. Its own validation and reviewed held delivery are pending. GATE-06 remains open/null: supported native Safari/Brave lifecycle/network proof and 14 hosted Firefox input-only checks are still missing. Any future paid/public browser window needs its exact fresh authority and readiness; no new window or final release is selected here.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # Owner hold and saved qualification plan - 2026-10-24
 
 The owner explicitly chose to keep API and UI held, preserve the reviewed plan for later, and push/merge the checkpoint. D14-API-ONLY-A2 is not approved. Do not consume a unit, start a lease, dispatch qualification/recovery, activate browsers, close a gate or release from this handoff.

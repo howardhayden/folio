@@ -376,8 +376,8 @@ test("the release register enforces its exact current phase and preserves histor
     Object.fromEntries(register.gates.map(({ id, status }) => [id, status])),
     {
       "GATE-01": "release-workflow-enforced",
-      "GATE-02": phase.held ? "open-release-blocker" : "satisfied-in-production",
-      "GATE-03": phase.held ? "open-release-blocker" : "satisfied-in-production",
+      "GATE-02": "satisfied-in-production",
+      "GATE-03": "satisfied-in-production",
       "GATE-04A": "accepted-residual-risk",
       "GATE-04B": "historical-inactive",
       "GATE-04C": "historical-inactive",
