@@ -376,8 +376,8 @@ test("the release register enforces its exact current phase and preserves histor
     Object.fromEntries(register.gates.map(({ id, status }) => [id, status])),
     {
       "GATE-01": "release-workflow-enforced",
-      "GATE-02": "satisfied-in-production",
-      "GATE-03": "satisfied-in-production",
+      "GATE-02": phase.held ? "open-release-blocker" : "satisfied-in-production",
+      "GATE-03": phase.held ? "open-release-blocker" : "satisfied-in-production",
       "GATE-04A": "accepted-residual-risk",
       "GATE-04B": "historical-inactive",
       "GATE-04C": "historical-inactive",
@@ -996,11 +996,15 @@ test("the active remote gate contract is semantic and historical evidence is tam
   const gate06 = register.gates.find(({ id }) => id === "GATE-06");
   const phase = verifyReleaseStatusState(register).releasePhase;
   assert.doesNotThrow(() => verifyLifecycleGateContract(gate02, gate03, gate06, phase));
+  const pendingGate02 = structuredClone(gate02);
+  pendingGate02.status = "satisfied-in-production";
+  const pendingGate03 = structuredClone(gate03);
+  pendingGate03.status = "satisfied-in-production";
   const pendingGate06 = structuredClone(gate06);
   pendingGate06.status = "post-deployment-verification";
-  assert.doesNotThrow(() => verifyLifecycleGateContract(gate02, gate03, pendingGate06, "qualification-pending"));
+  assert.doesNotThrow(() => verifyLifecycleGateContract(pendingGate02, pendingGate03, pendingGate06, "qualification-pending"));
   assert.throws(
-    () => verifyLifecycleGateContract(gate02, gate03, pendingGate06, "held"),
+    () => verifyLifecycleGateContract(pendingGate02, pendingGate03, pendingGate06, "held"),
     /post-deployment verification requires the qualification-pending phase/u,
   );
 

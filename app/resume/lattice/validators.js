@@ -808,7 +808,7 @@ export function deterministicPassageReview(sourcePassage, plan, candidate, obser
   findings.push(...protectedLiteralFindings(sourcePassage.text, candidate.text, passageId));
 
   if (plan.disposition === "rewrite" && !materiallyDifferent(sourcePassage.text, candidate.text)) {
-    const nonmaterial = finding("candidate-not-material", passageId, "The planned rewrite changed only presentation, not language.");
+    const nonmaterial = finding("candidate-not-material", passageId, "The planned rewrite copied the source or changed only presentation, not language.");
     findings.push(nonmaterial);
     if (observeD14Comparison === true) {
       try {

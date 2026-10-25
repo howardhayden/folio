@@ -1,3 +1,46 @@
+# Text to Lattice release qualification — held D14 feedback accuracy correction
+
+**Decision:** hold the interactive client; publish documentation only. This source revision corrects deterministic diagnostic wording while retaining the strict source-copy rejection. It is not a successful qualification or final release.
+
+**Qualification date:** 2026-10-24
+
+**Evidence updated:** 2026-10-24
+
+**Reviewed baseline:** `5c6bc9f426b36609bc4f1a8fb71fbcc420e353d9`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `d93ceb3b907855f45ff72bde253cefe97241f2cd76e2d22de299be5008600a71`
+
+**Artifact-set projection SHA-256:** `69c9f642ddc3aae53db56049df42efdfa8876f7ac2ab8b6e5a824c0e4a0dab73`
+
+These current headers bind this scratch held source and artifact projection. Reviewed commit, CI and ordinary held publication remain future evidence. The failed original #345 retains source `216b9e70b19eac6a62b3fa64afe15f1406cf728375675bbb0d6b2f3770eaa7c3`, dossier `5b094e0ae859d073b2843936d5aa6dbee42415baca92fc070fe97a11917d0f33` and main `5c6bc9f426b36609bc4f1a8fb71fbcc420e353d9`; none are relabelled as evidence for this revision.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Open release blocker | High |
+| GATE-03 · Remote provider capacity and cost boundary | Open release blocker | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+The sole runtime edit changes the existing D14 finding message from "The planned rewrite changed only presentation, not language." to "The planned rewrite copied the source or changed only presentation, not language." Exact-source copying satisfies the unchanged nonmaterial-rewrite predicate. Finding ID, predicate, cues, acceptance thresholds, routing, schema, opportunities, models, provider endpoint, limits, privacy and rights are unchanged. The existing deterministic finding message is serialized to both verification and source-based repair, so outbound provider request bytes change even though prompt templates are unchanged. This accuracy correction is not evidence that generation will realize a material rewrite.
+
+GATE-02, GATE-03 and GATE-06 are open-release-blocker/null for this changed runtime candidate. Earlier satisfied decisions and evidence remain complete dated history; they do not qualify the new provider request bytes. Existing offline evidence may be reused only where determining inputs remain exact. Fresh candidate production boundary, capacity/usage and canonical-browser evidence remain absent; no paid check is included in this held delivery.
+
+Original run #345 / 40123481953 / attempt 1 on main 5c6bc9f426b36609bc4f1a8fb71fbcc420e353d9 failed the fixed backend canary; interactive Pages were not deployed. The retained finite result is post-candidate-withheld: initial deterministic D14-only, final normalized exact-source repair, broad semantic-rejection, certification not reached, five reported logical calls and one batch. Public verification_passes=0 and finding_count=1 are withheld-response placeholders, not private verifier activity or raw findings. This does not establish a unique private predicate, a transport/envelope/parser defect or a causal implementation fix. Included provider-free restoration #346 / 40124158660 / attempt 1 succeeded: held API at 2026-10-24T19:12:04.953Z, then held Pages at 2026-10-24T19:13:00.704Z. These are dated witnesses and authenticated job order, not continuous hold. Actual detection-to-restore-POST delay was 219.073991 seconds; no prompt-immediate compliance is claimed. Root reconciliation: work/evidence/u13r339-run345-346-root-outcome.json / SHA-256 397f87f087f5ef5eea4360b38cb47030f2e8773499f2fed9fa04e44667c805d1.
+
+U13-AFTER-RUN339-A1 is spent (1 used, 0 remaining), as are its predecessor units. No unused operator or metadata slot transfers or refunds an activation unit. There were zero metadata POSTs, hosted Firefox checks, Safari or Brave startBlank attempts, native source entries, consent actions, submissions or capture seals. Both collectors were disposed unarmed; Safari Allow Inspecting Web Inspector was restored off. After the owner unlocked the Mac, the two owned Brave Inspector windows were closed and the final owned window contained only one about:blank tab. The earlier partial cleanup remains dated history. The renewed implementation instruction authorizes the necessary offline D14 feedback accuracy correction and ordinary reviewed held source delivery. No additional paid qualification, public window, acceptance change or final release is selected or authorized; no causal generator fix, reliability gain, success guarantee or automatic repeat is inferred.
+
+The qualified edits are the one existing validators.js message, the two established held publication switches, ResumeView.tsx and projects.js, and two necessary synthetic phase-fixture corrections in the existing documentation and release-boundary tests. All 259 source members are retained. The lifecycle positive fixture explicitly supplies the existing satisfied GATE-02/GATE-03 prerequisite tuple before exercising pending GATE-06; the held negative remains rejecting. The held documentation assertion binds the contiguous current heading and three-open-gate prefix, rather than unrelated history. Production release guards and the metadata observer/workflow remain unchanged. The first full validation result, 2,627 total / 2,608 passed / 4 failed / 15 historical skips, remains immutable; these corrections do not relabel that result or establish a new full pass. No provider call, browser operation, new qualification grant or acceptance change is part of this source work. Source equality, build inputs and affected finite/assembler bindings require honest recomputation; the prior backend success cannot transfer across the changed runtime feedback bytes.
+
+The complete preceding qualification dossier follows verbatim as dated history, preserving all earlier decisions and the original held suffix.
+
+---
+
 # Text to Lattice release qualification — qualification-pending unfunded renewal
 
 **Decision:** qualification-pending, not qualified. This ordinary source renewal prepares a possible NEW-unit decision only. No approval, reservation, interactive deployment or canonical-browser acceptance is created. GATE-02/GATE-03 preserve their bounded satisfied-in-production/null evidence; GATE-06 is post-deployment-verification/null in this prospective source phase. Failed, incomplete or delayed qualification requires immediate held documentation-only rollback.
