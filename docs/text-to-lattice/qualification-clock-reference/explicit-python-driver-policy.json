@@ -1,0 +1,37 @@
+{
+  "format": "TTL_D14_A2_EXPLICIT_PINNED_PYTHON_DRIVER_POLICY_V1",
+  "status": "prospective-no-operation-or-authority",
+  "python_executable": "/Users/howie/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+  "resolved_python_executable": "/Users/howie/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3.12",
+  "CPython_version": [
+    3,
+    12,
+    14
+  ],
+  "minimum_cross_process_CPythons_version": [
+    3,
+    10
+  ],
+  "executable_bytes": 18058560,
+  "executable_sha256": "8506f337a83611246ffcff62d6e96c6d2269e5db48508ca3ac2553d56c962aee",
+  "executable_mode": "0o755",
+  "all_future_python_method_and_peer_invocations_explicitly_use_this_interpreter": true,
+  "no_PATH_python3_or_runtime_fallback": true,
+  "child_dispatch_preserves_sys_executable": true,
+  "lease": {
+    "path": "work/proposals/d14-api-only-a2/method-candidates/lease.py",
+    "bytes": 3091,
+    "sha256": "e1e9648aff2a7f04a6287fd01d230b540c13e11a1b6f81d096689070b54da7e3"
+  },
+  "snapshot_rejects_unsupported_runtime_before_time_or_sysctl": true,
+  "remaining_function_unchanged": true,
+  "limits": {
+    "original_START_seconds": 240,
+    "monotonic_and_UTC_ages_both_in_0_inclusive_240_exclusive": true,
+    "same_boot_required": true,
+    "maximum_clock_drift_seconds": 1,
+    "no_reset_or_grace": true
+  },
+  "old_A1_lease_or_unit_reuse": false,
+  "installations": 0
+}

@@ -1,3 +1,21 @@
+# Owner hold and saved qualification plan - 2026-10-24
+
+The owner explicitly chose to keep API and UI held, preserve the reviewed plan for later, and push/merge the checkpoint. D14-API-ONLY-A2 is not approved. Do not consume a unit, start a lease, dispatch qualification/recovery, activate browsers, close a gate or release from this handoff.
+
+The D14 feedback accuracy correction is merged in PR #133 at main `9a8af8482cf72261a2da3868d7b5aabff1d03549`; exact-head CI #347 and routine held delivery #348 passed. Final local validation was 2,627 total / 2,612 passed / 0 failed / 15 historical optional skips. The earlier four-failure result remains history. GATE-02, GATE-03 and GATE-06 remain open with null acceptance bases; no hosted source-copy remedy is established.
+
+D14-API-ONLY-A1 is spent (1 used, 0 remaining). Its original guard passed, but the independent clock check refused before any workflow POST, API activation, canary or provider call. No recovery was eligible or selected. The original failed current clock snapshot was not retained. Separate local probes and official CPython source establish that the default macOS CPython 3.9.6 uses a different monotonic origin in each process. The previous clock-info check did not establish cross-process compatibility.
+
+The saved offline correction pins bundled CPython 3.12.14 and rejects an incompatible version or executable before reading clocks. All 18 focused controls and independent review passed, including three actual cross-process snapshot comparisons. The original same-boot UTC/monotonic ages below 240 seconds, drift at most one second and no-reset rule remain unchanged. The exact reviewed, inert reference bytes are in `qualification-clock-reference/`; they are not imported or invoked by product code or workflows.
+
+The private originating workspace preserves the complete reviewed A2 proposal at `work/proposals/run345-d14-api-only-a2-qualification/owner-decision.json` (SHA-256 `943f09902246abf045a2cd47836df6fe3f54a9319b7318d890d87fe121d9e92d`) and its method packet under `work/proposals/d14-api-only-a2/method-candidates/`. The approved source identity was 259 files / `d93ceb3b907855f45ff72bde253cefe97241f2cd76e2d22de299be5008600a71`, dossier `c84e6d6405ac69aff8282e681a1a7768a4d8dd2552af967806a6caf448ec8b86`. These are historical target bindings, not authority for the commit containing this handoff.
+
+To resume, recover the exact private packet, verify the actual current commit/tree and source/held state, and independently review necessary identity/data bindings before seeking a fresh affirmative decision. Preserve the planned one backend original plus conditional provider-free recovery ceiling, fixed models/acceptance/caps, ordinary shared API exposure and processing terms. No original attempt or unused opportunity transfers. The owner chose to defer this decision. Canonical Safari/Brave evidence and hosted Firefox input checks remain outstanding; the prior 14 local Firefox input checks did not reproduce the reported click issue.
+
+The complete prior handoff follows verbatim as dated history.
+
+---
+
 # Current held D14 feedback accuracy correction — 2026-10-24
 
 The sole runtime edit changes the existing D14 finding message from "The planned rewrite changed only presentation, not language." to "The planned rewrite copied the source or changed only presentation, not language." Exact-source copying satisfies the unchanged nonmaterial-rewrite predicate. Finding ID, predicate, cues, acceptance thresholds, routing, schema, opportunities, models, provider endpoint, limits, privacy and rights are unchanged. The existing deterministic finding message is serialized to both verification and source-based repair, so outbound provider request bytes change even though prompt templates are unchanged. This accuracy correction is not evidence that generation will realize a material rewrite.
