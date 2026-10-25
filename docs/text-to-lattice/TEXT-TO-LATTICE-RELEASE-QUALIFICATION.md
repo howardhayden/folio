@@ -1,86 +1,28 @@
-# Text to Lattice release qualification — held after bounded backend qualification 351
+# Text to Lattice release qualification — qualification-pending
 
-**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+**Reviewed baseline:** `9db5d480029b91553227afa30ed0c8123413d1e8`
 
-**Qualification date:** 2026-10-25
+**Artifact-set projection SHA-256:** `4ff54713702ec61846bfcb4d54f46e6fee65e2115570c1dfdb516960d904b7fb`
 
-**Evidence updated:** 2026-10-25
+**Decision:** not qualified. This source candidate is qualification-pending solely for canonical-browser qualification. It is unfunded (new allowance 0), with no new owner answer, activation, public or paid window, GATE-06 acceptance or final release. The existing source-phase enum creates no operational authority. Failed, incomplete or delayed qualification requires immediate held documentation-only rollback to the verified H immediate parent. Actual API and UI remain held under separately retained dated delivery; this header corrects source presentation and does not establish a new deployment.
 
-**Reviewed baseline:** `d0112e057ac0b671e493ba1c0756dd0a3a01d318`
-
-**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
-
-**Qualified source-set SHA-256:** `6f66863d1ad3a87525ed2a689241b1c2c5c22cbaf91b5165e2a2f961d157e496`
-
-**Artifact-set projection SHA-256:** `69c9f642ddc3aae53db56049df42efdfa8876f7ac2ab8b6e5a824c0e4a0dab73`
-
-Original bounded backend qualification #351, attempt 1, on main d0112e057ac0b671e493ba1c0756dd0a3a01d318 / deployed source d93ceb3b907855f45ff72bde253cefe97241f2cd76e2d22de299be5008600a71 / deployed dossier c84e6d6405ac69aff8282e681a1a7768a4d8dd2552af967806a6caf448ec8b86 passed. Separate root and independent review against all existing bounded criteria supports GATE-02 and GATE-03 satisfied-in-production with null acceptance bases. GATE-06 remains open-release-blocker/null. API and UI are held. This is not automatic gate closure, an acceptance waiver, canonical-browser evidence or final release.
-
-| Gate | Status | Marginal value |
-| --- | --- | --- |
-| GATE-01 · Exact release artifact | Release workflow enforced | High |
-| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
-| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
-| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
-| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
-| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
-| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
-| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
-
-The single existing synthetic canary returned HTTP 200 conformant-for-context in 20.114 seconds: one 16-word passage, revised 0 / retained 1, one verification pass and no findings. All 24 negative HTTP probes matched the source contract; complete request-scoped admission evidence covers the existing 13 designated negatives plus setup, preservation, tamper and the one allowed canary. The other 11 probes gain no imputed counter observation. Paired active API environment records and complete provider-reported usage bind the same service job and source. Four reported calls (two generator and two joint review calls) consumed 8,003 prompt and 325 completion tokens. The dated 2026-10-23 catalog estimate is USD 0.005419624, not an invoice, account or window total, or charge ceiling. No full-input managed-fit, future-price, provider-retention, reliability, rewrite or source-copy repair guarantee follows.
-
-Successful held-path API restoration was verified at 2026-10-25T12:04:40.698Z; Pages was sampled held before service activation and by a separate postqualification point. These are dated samples, not continuous hold or an API-first restoration guarantee. D14-API-ONLY-A2 is spent (1 used, 0 remaining); conditional provider-free recovery was not needed, selected or consumed. No unused budget transfers. The production run retains its original source/dossier identities; this new held documentation candidate changes two necessary current-state test fixtures and requires its own validation and held delivery.
-
-The actual production witness is [run #351](https://github.com/howardhayden/folio/actions/runs/40191185790), service job 121163153579. Its active API and response-policy identities, before/after SQLite admission records, strict accepted live receipt, complete usage sidecar, sanitized artifact custody and held restoration were independently reviewed. The archived usage catalog remains dated October 23. A conformant retained passage does not establish a material rewrite, D14 repair branch coverage or a causal remedy for source-copying failure; no failed-log reader or additional probe was run after success.
-
-The first source header binds this new held documentation candidate, not a relabelled production witness. Exactly two qualified test files receive necessary current-state fixture assertions; the other 257 qualified files, including all application, Worker, prompt, provider, protocol, acceptance, privacy, rights, limit and workflow bytes, stay exact. Actual351 remains source `d93ceb3b907855f45ff72bde253cefe97241f2cd76e2d22de299be5008600a71` / dossier `c84e6d6405ac69aff8282e681a1a7768a4d8dd2552af967806a6caf448ec8b86` / main `d0112e057ac0b671e493ba1c0756dd0a3a01d318`. Current fixture/governance validation and reviewed held delivery remain pending; existing offline build evidence may be reused only under exact determining-input equality.
-
-Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence. Safari and Brave canonical evidence and hosted Firefox input checks remain outstanding. This backend-only unit grants no public client activation, automatic GATE-06 closure or final release.
-
-The complete prior dossier follows verbatim as dated historical evidence.
+The complete preceding qualification-pending dossier follows verbatim as dated history; its original source, evidence and decision boundaries are preserved.
 
 ---
 
-# Text to Lattice release qualification — held D14 feedback accuracy correction
+# Unfunded qualification-pending source after retained backend run #351
 
-**Decision:** hold the interactive client; publish documentation only. This source revision corrects deterministic diagnostic wording while retaining the strict source-copy rejection. It is not a successful qualification or final release.
+**Qualification date:** 2026-10-25
 
-**Qualification date:** 2026-10-24
+The phase-matched artifactSet metadata is `deployed-for-qualification`; its canonical sorted-key UTF8 SHA-256 is `4ff54713702ec61846bfcb4d54f46e6fee65e2115570c1dfdb516960d904b7fb`. These source metadata values are prospective and do not establish an actual interactive deployment, new owner answer or public/paid authority. Their prior held values remain complete typed history with an exact inverse.
 
-**Evidence updated:** 2026-10-24
+This is a source-only qualification-pending candidate for canonical-browser qualification. It is not yet qualified or deployed as an interactive public artifact. Actual Pages and API remain held at the separately verified dated H delivery below. No new U13 owner answer, funded window, activation, content pipeline, native readiness, GATE-06 acceptance or final release exists. The existing release-directed enum describes this prospective source phase only; it conveys no operational authority. A failed or incomplete future canonical-browser qualification requires immediate held documentation-only rollback under the unchanged guarded workflow.
 
-**Reviewed baseline:** `5c6bc9f426b36609bc4f1a8fb71fbcc420e353d9`
+The actual verified held rollback parent is 9db5d480029b91553227afa30ed0c8123413d1e8 / tree 71aed4f440198e1b7d97f32b277ea4008b5830d3, source 6f66863d1ad3a87525ed2a689241b1c2c5c22cbaf91b5165e2a2f961d157e496, dossier c377b13694917790710bb1aa9724d5ee9cdfb07ed17a297b0ecfd6e05bc5b2f4. Required local validation, exact-head CI #352 (40196050294, attempt 1), PR #135 merge and routine held delivery #353 (40196474063, attempt 1) have separate retained reviews and root adoption. Held Pages was witnessed at 2026-10-25T13:15:23.298Z and held API at 2026-10-25T13:15:39.068Z. This routine publication was Pages-before-API; these are dated witnesses, not continuous hold or an API-first failure-restoration claim. Delivery/adoption: work/evidence/run351-gates-held-delivery-root-adoption.json / SHA-256 28c4ba5e47e902c8ac49094ea3e2c14ba1146159ef17d7c032cb6662939114e2. The future qualification candidate is built from that complete H296, changing only the two exact interactive UI switches among its259 qualified members; every current test and D14/runtime byte is retained. Its derived source is 6d6e78553edcfc28f81e5c574c32e41fac54a23637ace87fa03e30bc677ddc5f. Future Q commit, tree, CI, dispatch baseline and delivery remain unobserved until actual source delivery.
 
-**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+Original bounded backend run #351 (attempt 1) retains its own main d0112e057ac0b671e493ba1c0756dd0a3a01d318, source d93ceb3b907855f45ff72bde253cefe97241f2cd76e2d22de299be5008600a71 and dossier c84e6d6405ac69aff8282e681a1a7768a4d8dd2552af967806a6caf448ec8b86. The one accepted16-word canary returned conformant-for-context, revised0/retained1, with one verification pass and no findings. All24 negative HTTP probes matched the existing contract. Separate root/independent review supports the existing bounded GATE-02 and GATE-03 criteria as satisfied-in-production/null only where determining runtime inputs remain exact. This is not a hosted success on the new UI source, full259 equivalence, D14 rewrite/repair-branch coverage, a causal fix, managed full-input fit, an invoice or a reliability guarantee. Usage/cost observations remain estimates on the dated October23 rates with no invoice reconciliation. Models/providers, acceptance, privacy, rights, quotas and finite limits remain unchanged. Root outcome: work/evidence/d14-api-only-a2-run351-root-outcome.json / SHA-256 fac6ff1e1c04c1dcc9790de1a523de358e202ce94b151391109e05acd01d04f3.
 
-**Qualified source-set SHA-256:** `d93ceb3b907855f45ff72bde253cefe97241f2cd76e2d22de299be5008600a71`
-
-**Artifact-set projection SHA-256:** `69c9f642ddc3aae53db56049df42efdfa8876f7ac2ab8b6e5a824c0e4a0dab73`
-
-These current headers bind this scratch held source and artifact projection. Reviewed commit, CI and ordinary held publication remain future evidence. The failed original #345 retains source `216b9e70b19eac6a62b3fa64afe15f1406cf728375675bbb0d6b2f3770eaa7c3`, dossier `5b094e0ae859d073b2843936d5aa6dbee42415baca92fc070fe97a11917d0f33` and main `5c6bc9f426b36609bc4f1a8fb71fbcc420e353d9`; none are relabelled as evidence for this revision.
-
-| Gate | Status | Marginal value |
-| --- | --- | --- |
-| GATE-01 · Exact release artifact | Release workflow enforced | High |
-| GATE-02 · Remote API origin, secret, and privacy boundary | Open release blocker | High |
-| GATE-03 · Remote provider capacity and cost boundary | Open release blocker | High |
-| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
-| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
-| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
-| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
-| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
-
-The sole runtime edit changes the existing D14 finding message from "The planned rewrite changed only presentation, not language." to "The planned rewrite copied the source or changed only presentation, not language." Exact-source copying satisfies the unchanged nonmaterial-rewrite predicate. Finding ID, predicate, cues, acceptance thresholds, routing, schema, opportunities, models, provider endpoint, limits, privacy and rights are unchanged. The existing deterministic finding message is serialized to both verification and source-based repair, so outbound provider request bytes change even though prompt templates are unchanged. This accuracy correction is not evidence that generation will realize a material rewrite.
-
-GATE-02, GATE-03 and GATE-06 are open-release-blocker/null for this changed runtime candidate. Earlier satisfied decisions and evidence remain complete dated history; they do not qualify the new provider request bytes. Existing offline evidence may be reused only where determining inputs remain exact. Fresh candidate production boundary, capacity/usage and canonical-browser evidence remain absent; no paid check is included in this held delivery.
-
-Original run #345 / 40123481953 / attempt 1 on main 5c6bc9f426b36609bc4f1a8fb71fbcc420e353d9 failed the fixed backend canary; interactive Pages were not deployed. The retained finite result is post-candidate-withheld: initial deterministic D14-only, final normalized exact-source repair, broad semantic-rejection, certification not reached, five reported logical calls and one batch. Public verification_passes=0 and finding_count=1 are withheld-response placeholders, not private verifier activity or raw findings. This does not establish a unique private predicate, a transport/envelope/parser defect or a causal implementation fix. Included provider-free restoration #346 / 40124158660 / attempt 1 succeeded: held API at 2026-10-24T19:12:04.953Z, then held Pages at 2026-10-24T19:13:00.704Z. These are dated witnesses and authenticated job order, not continuous hold. Actual detection-to-restore-POST delay was 219.073991 seconds; no prompt-immediate compliance is claimed. Root reconciliation: work/evidence/u13r339-run345-346-root-outcome.json / SHA-256 397f87f087f5ef5eea4360b38cb47030f2e8773499f2fed9fa04e44667c805d1.
-
-U13-AFTER-RUN339-A1 is spent (1 used, 0 remaining), as are its predecessor units. No unused operator or metadata slot transfers or refunds an activation unit. There were zero metadata POSTs, hosted Firefox checks, Safari or Brave startBlank attempts, native source entries, consent actions, submissions or capture seals. Both collectors were disposed unarmed; Safari Allow Inspecting Web Inspector was restored off. After the owner unlocked the Mac, the two owned Brave Inspector windows were closed and the final owned window contained only one about:blank tab. The earlier partial cleanup remains dated history. The renewed implementation instruction authorizes the necessary offline D14 feedback accuracy correction and ordinary reviewed held source delivery. No additional paid qualification, public window, acceptance change or final release is selected or authorized; no causal generator fix, reliability gain, success guarantee or automatic repeat is inferred.
-
-The qualified edits are the one existing validators.js message, the two established held publication switches, ResumeView.tsx and projects.js, and two necessary synthetic phase-fixture corrections in the existing documentation and release-boundary tests. All 259 source members are retained. The lifecycle positive fixture explicitly supplies the existing satisfied GATE-02/GATE-03 prerequisite tuple before exercising pending GATE-06; the held negative remains rejecting. The held documentation assertion binds the contiguous current heading and three-open-gate prefix, rather than unrelated history. Production release guards and the metadata observer/workflow remain unchanged. The first full validation result, 2,627 total / 2,608 passed / 4 failed / 15 historical skips, remains immutable; these corrections do not relabel that result or establish a new full pass. No provider call, browser operation, new qualification grant or acceptance change is part of this source work. Source equality, build inputs and affected finite/assembler bindings require honest recomputation; the prior backend success cannot transfer across the changed runtime feedback bytes.
-
-The complete preceding qualification dossier follows verbatim as dated history, preserving all earlier decisions and the original held suffix.
+GATE-06 is prospective post-deployment-verification/null in this source phase, with browser evidence not-collected and all bundle identity fields null. Neither actual I0-I6 nor current native ownership/source closure is established here. Hosted Firefox14 remains unexecuted. The run327 Safari binding refusal occurred before source/consent/submission; its cause remains unknown and the prospective read-only diagnostic does not establish a fix. Run345 correctly withheld a source-copying repair after five reported logical calls; public withheld counters do not expose private predicate details. Both old native collectors were disposed unarmed; Safari Allow Inspecting Web Inspector was restored off and the owned Brave windows were cleaned up. Every old U13 unit and backend A2 unit is spent, with no unused budget transferred. The optional A2 recovery was unneeded and unconsumed. Complete current H register history and source beforeimages remain preserved; the prior qualification-pending dossier follows verbatim as dated history, with its older current claims superseded by this prefix. It supplies no new allowance.
 
 ---
 
