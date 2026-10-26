@@ -1,3 +1,17 @@
+# Text to Lattice — held after run #356
+
+Run #356 passed the bounded 16-word backend canary with one retained passage, zero revisions and four reported logical calls. The repair branch was not exercised, and a source-copying causal remedy remains unproved. The original metadata capture was invoked without the intended escalated network access and refused before retaining metadata; its suppressed immediate cause remains unproved.
+
+Included restore #357 and scheduled #356 cleanup have separately reviewed, dated API-before-Pages witnesses. The latest API sample was held at 08:22:44.487Z and Pages at 08:23:07.935Z on 2026-10-26. The required restore POST was delayed 7.7–9.3 minutes after failure. Prompt-immediate compliance and continuous hold are not established.
+
+GATE-02 and GATE-03 retain their bounded satisfied adjudications. GATE-06 stays open: no metadata observer POST, hosted Firefox check, native source entry, consent, submission or capture occurred. Owned native cleanup is recorded. The old window and included restore remain spent without refund or replay.
+
+New direct permission covers necessary work through deployment after the fixed criteria pass. Models, processing terms, acceptance and limits stay fixed; this held source selects no new public window or final release. Detailed outcome: work/evidence/u13r351-run356-357-completed-held-root-outcome.json / SHA-256 b59025b5279d5ba091139ba0d5f40bf6f906c7f1e86057ff41e52f317e8e050d.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # Unfunded browser-qualification source preparation after run #351
 
 The new source phase is qualification-pending for canonical-browser qualification and is not yet qualified. Actual public Pages/API remain held at verified H 9db5d480029b91553227afa30ed0c8123413d1e8 / tree 71aed4f440198e1b7d97f32b277ea4008b5830d3, source 6f66863d1ad3a87525ed2a689241b1c2c5c22cbaf91b5165e2a2f961d157e496, dossier c377b13694917790710bb1aa9724d5ee9cdfb07ed17a297b0ecfd6e05bc5b2f4. Routine #353 held Pages at13:15:23.298Z, then API at13:15:39.068Z on October25; dated evidence and root adoption work/evidence/run351-gates-held-delivery-root-adoption.json / SHA-256 28c4ba5e47e902c8ac49094ea3e2c14ba1146159ef17d7c032cb6662939114e2 establish samples and source delivery, not continuous hold. Any failed or incomplete future collection requires immediate held documentation-only rollback to the exact H immediate parent. Future Q commit/tree/CI/history/delivery are unobserved; its derived scratch source is 6d6e78553edcfc28f81e5c574c32e41fac54a23637ace87fa03e30bc677ddc5f.

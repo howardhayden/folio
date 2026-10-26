@@ -1,3 +1,25 @@
+# Text to Lattice release qualification — held after run #356
+
+**Qualification date:** 2026-10-26
+
+**Reviewed baseline:** `2cc1864e15d364b54ff58e2d8321dff7aef9c319`
+
+**Artifact-set projection SHA-256:** `04d2b962ec87ca59d77f350a8d9349a4d5233e4d8c98989a9858d410fa81b298`
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+Run #356 passed the bounded 16-word backend canary with one retained passage, zero revisions and four reported logical calls. The repair branch was not exercised, and a source-copying causal remedy remains unproved. The original metadata capture was invoked without the intended escalated network access and refused before retaining metadata; its suppressed immediate cause remains unproved.
+
+Included restore #357 and scheduled #356 cleanup have separately reviewed, dated API-before-Pages witnesses. The latest API sample was held at 08:22:44.487Z and Pages at 08:23:07.935Z on 2026-10-26. The required restore POST was delayed 7.7–9.3 minutes after failure. Prompt-immediate compliance and continuous hold are not established.
+
+GATE-02 and GATE-03 retain their bounded satisfied adjudications. GATE-06 stays open: no metadata observer POST, hosted Firefox check, native source entry, consent, submission or capture occurred. Owned native cleanup is recorded. The old window and included restore remain spent without refund or replay.
+
+New direct permission covers necessary work through deployment after the fixed criteria pass. Models, processing terms, acceptance and limits stay fixed; this held source selects no new public window or final release. Detailed outcome: work/evidence/u13r351-run356-357-completed-held-root-outcome.json / SHA-256 b59025b5279d5ba091139ba0d5f40bf6f906c7f1e86057ff41e52f317e8e050d.
+
+The complete prior qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending
 
 **Reviewed baseline:** `9db5d480029b91553227afa30ed0c8123413d1e8`
