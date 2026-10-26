@@ -1,22 +1,22 @@
-# Text to Lattice release qualification — held after run #356
+# Text to Lattice release qualification — qualification-pending after run #356
 
 **Qualification date:** 2026-10-26
 
-**Reviewed baseline:** `2cc1864e15d364b54ff58e2d8321dff7aef9c319`
+**Reviewed baseline:** `11ce71aba4d8c505cabbb933545d111a08a08d3c`
 
-**Artifact-set projection SHA-256:** `04d2b962ec87ca59d77f350a8d9349a4d5233e4d8c98989a9858d410fa81b298`
+**Artifact-set projection SHA-256:** `f68b9100b73ff40c45bc0853d94942f507fdca40f76bc127177f65c75c27bfe1`
 
-**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+**Decision:** not yet qualified; prepare the exact source for a separately controlled canonical-browser qualification.
 
-Run #356 passed the bounded 16-word backend canary with one retained passage, zero revisions and four reported logical calls. The repair branch was not exercised, and a source-copying causal remedy remains unproved. The original metadata capture was invoked without the intended escalated network access and refused before retaining metadata; its suppressed immediate cause remains unproved.
+This source is qualification-pending for canonical-browser qualification and is not yet qualified. Direct human permission covers necessary work through deployment after the fixed criteria pass. This source preparation selects no new public window or content pipeline. Models, processing terms, strict acceptance and finite limits remain unchanged. Any missing or failed qualification evidence requires immediate held documentation-only rollback to the verified immediate parent 11ce71aba4d8c505cabbb933545d111a08a08d3c.
 
-Included restore #357 and scheduled #356 cleanup have separately reviewed, dated API-before-Pages witnesses. The latest API sample was held at 08:22:44.487Z and Pages at 08:23:07.935Z on 2026-10-26. The required restore POST was delayed 7.7–9.3 minutes after failure. Prompt-immediate compliance and continuous hold are not established.
+The actual held rollback parent is 11ce71aba4d8c505cabbb933545d111a08a08d3c, tree 804083c9bec92f23d2eeb6a7ae3c0e0283ccdf7d, source 6f66863d1ad3a87525ed2a689241b1c2c5c22cbaf91b5165e2a2f961d157e496 and dossier aacc2b2b0440404a2649a92934ca2d402ca7484770935cefb522fe4447b3626f. Its independently retained held delivery is work/evidence/run356-held-main359-root-adoption.json / SHA-256 95a058cf9f61a2b6bc719e46dfe025190ccaae6931308f05962030940629779e. These are dated witnesses, not a continuous-hold claim. This candidate changes only the two exact interactive UI switches among the 259 qualified source files; all other 257 remain exact. Its derived source is 6d6e78553edcfc28f81e5c574c32e41fac54a23637ace87fa03e30bc677ddc5f. Future Q commit, tree, CI and delivery remain unobserved until actual delivery.
 
-GATE-02 and GATE-03 retain their bounded satisfied adjudications. GATE-06 stays open: no metadata observer POST, hosted Firefox check, native source entry, consent, submission or capture occurred. Owned native cleanup is recorded. The old window and included restore remain spent without refund or replay.
+Run #356 passed its 16-word backend canary with one retained passage, zero revisions and four reported calls. The repair branch was not exercised, and a causal remedy remains unproved. Metadata capture refused before browser work; the suppressed immediate cause remains unproved. Included #357 and scheduled #356 cleanup have separately reviewed API-before-Pages held witnesses. Required restoration was delayed 7.7–9.3 minutes after failure; prompt-immediate compliance is not established. Detailed outcome: work/evidence/u13r351-run356-357-completed-held-root-outcome.json. The old window and included restore remain spent without refund or replay.
 
-New direct permission covers necessary work through deployment after the fixed criteria pass. Models, processing terms, acceptance and limits stay fixed; this held source selects no new public window or final release. Detailed outcome: work/evidence/u13r351-run356-357-completed-held-root-outcome.json / SHA-256 b59025b5279d5ba091139ba0d5f40bf6f906c7f1e86057ff41e52f317e8e050d.
+GATE-02 and GATE-03 retain their bounded satisfied adjudications only where determining runtime inputs remain exact. GATE-06 is prospective post-deployment-verification/null, with browser evidence not-collected and all bundle identity fields null. No observer POST, hosted Firefox input check, native source entry, consent, submission or capture occurred in the previous window. Owned native cleanup is recorded. Fresh preparation and a concrete reviewed operation remain necessary. The complete current H register history and all H source beforeimages are preserved separately; the prior Q dossier below is dated history, superseded by this prefix.
 
-The complete prior qualification dossier follows verbatim as dated history.
+The complete prior qualification-pending dossier follows verbatim as dated history.
 
 ---
 
