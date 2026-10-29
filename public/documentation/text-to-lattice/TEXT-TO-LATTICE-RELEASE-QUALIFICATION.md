@@ -1,3 +1,27 @@
+# Text to Lattice release qualification — held after run #362
+
+**Qualification date:** 2026-10-29
+
+**Reviewed baseline:** `e24b16916075e19fef1e9356028bc5dc604854e2`
+
+**Qualified source-set SHA-256:** `4ffd8b785ec58ba699a45dd7dd87d95fe5098b836c0610d3be9cfe18e3be679a`
+
+**Artifact-set projection SHA-256:** `4b075fb35d82403b737087f9a4f318e83dae2bd039b8ee7e195dfff5e529a918`
+
+**Decision:** hold the interactive client; publish the method, implementation record, project page, and documentation only.
+
+Run #362 passed the bounded 16-word backend canary with one retained passage, zero revisions and four reported provider calls. The repair branch was not exercised; no D14 source-copying causal remedy, general reliability or full-input-fit claim is made. Context preparation then stopped before metadata, hosted Firefox checks, or either native pipeline. Saved bytes identify an obsolete local peer path; the original child traceback was not retained.
+
+Included restore #363 retained an API-held witness at 11:57:56.325Z on 2026-10-26. Its Pages deployment step reported success, but the content verifier failed and the expected Pages witness archive is absent. Separate later samples found held Pages at 12:02:31.449Z and held API at 12:02:31.657Z. Scheduled cleanup of run #362 separately retained API-held evidence at 12:14:27.134Z before the Pages job and its held witness at 12:14:48.659Z. This later successful scheduled cleanup does not replace the failed #363 record. No prompt-immediate compliance, continuous hold or CDN cause is claimed.
+
+Fresh point samples on 2026-10-29 found held Pages at 06:07:10.881Z and held API at 06:07:11.189Z. Both owned collectors were disposed cleanly and their Inspectors closed; Safari’s temporary inspection setting was restored off. Brave’s approved dedicated-profile paste access may persist. No metadata POST, hosted Firefox check, arming, application source entry, consent, submission or native capture occurred in the stopped window. GATE-02/GATE-03 retain their bounded satisfied adjudications; GATE-06 remains open with a null acceptance basis and missing native evidence.
+
+The individual project page is updated while the API and interactive UI remain held. Necessary work toward final deployment continues after page delivery under the existing authority and criteria. Models, processing terms, acceptance and limits remain fixed; this source update selects no new public qualification window and closes no gate. The complete owned offline recurrence passed, but its synthetic archive, time, transport and receipt adapters provide interface regression coverage only, not live qualification.
+
+The complete prior qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending after run #356
 
 **Qualification date:** 2026-10-26

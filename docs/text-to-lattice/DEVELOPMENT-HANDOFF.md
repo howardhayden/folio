@@ -1,3 +1,36 @@
+# Text to Lattice — held project-page delivery after run #362
+
+Run #362 passed the bounded 16-word backend canary with one retained passage, zero revisions and four reported provider calls. The repair branch was not exercised; no D14 source-copying causal remedy, general reliability or full-input-fit claim is made. Context preparation then stopped before metadata, hosted Firefox checks, or either native pipeline. Saved bytes identify an obsolete local peer path; the original child traceback was not retained.
+
+Included restore #363 retained an API-held witness at 11:57:56.325Z on 2026-10-26. Its Pages deployment step reported success, but the content verifier failed and the expected Pages witness archive is absent. Separate later samples found held Pages at 12:02:31.449Z and held API at 12:02:31.657Z. Scheduled cleanup of run #362 separately retained API-held evidence at 12:14:27.134Z before the Pages job and its held witness at 12:14:48.659Z. This later successful scheduled cleanup does not replace the failed #363 record. No prompt-immediate compliance, continuous hold or CDN cause is claimed.
+
+Fresh point samples on 2026-10-29 found held Pages at 06:07:10.881Z and held API at 06:07:11.189Z. Both owned collectors were disposed cleanly and their Inspectors closed; Safari’s temporary inspection setting was restored off. Brave’s approved dedicated-profile paste access may persist. No metadata POST, hosted Firefox check, arming, application source entry, consent, submission or native capture occurred in the stopped window. GATE-02/GATE-03 retain their bounded satisfied adjudications; GATE-06 remains open with a null acceptance basis and missing native evidence.
+
+The individual project page is updated while the API and interactive UI remain held. Necessary work toward final deployment continues after page delivery under the existing authority and criteria. Models, processing terms, acceptance and limits remain fixed; this source update selects no new public qualification window and closes no gate. The complete owned offline recurrence passed, but its synthetic archive, time, transport and receipt adapters provide interface regression coverage only, not live qualification.
+
+Current held qualified source: `4ffd8b785ec58ba699a45dd7dd87d95fe5098b836c0610d3be9cfe18e3be679a` on reviewed base `e24b16916075e19fef1e9356028bc5dc604854e2`. Its five qualified changes are the two held UI switches and the three project-page/content records.
+
+Private continuation fixes retained in this workspace:
+
+- `work/proposals/u13-after-run356-operational-actual/preSTART-producer-candidates/prepare-runtime-data-review-packet-once-004.py` — SHA-256 `07ff275539bd990620481bd28012a66859b135633f0a55994ca298d1b2eb2cd4`. One obsolete source-only peer directory literal corrected.
+- `work/proposals/u13-after-run356-authority-preparation/materialize-authority-and-policy-002.py` — SHA-256 `35db2064998963b0cac8b9a375d9c4c9780dc46ca6cd5e1717a6fc9f36f8637d`. Complete bare reference paths bind before broader namespace substitutions.
+- `work/proposals/u13-after-run356-prestart-preparation/materialize-scaffolds-and-reservation-004.py` — SHA-256 `24930aad8c331eb9a592e773a8492f53db5ecd47b2cc059cf10c9a90235ef50a`. Preserves the consumer’s exact flat metadata-observer allocation schema.
+- `work/proposals/u13-after-run356-operational-actual/restore-data-checker/review-restore-data-once-003.py` — SHA-256 `c1ddac6c734e61799814399ed477bfa45e4522d215bde2efdac64c88666d88d9`. Retains the original configuration reference through existing loops.
+
+Reviewed evidence and the completed owned recurrence:
+
+- `work/evidence/u13r356-run362-original-backend-semantics-independent-review.json` — SHA-256 `61ac6019bbec7b0728f470ec77d8c1e764d649931428eead301ad0930a78a56d`.
+- `work/evidence/u13r356-run362-scheduled-cleanup-custody-and-held-order-review.json` — SHA-256 `9ab6739791b243a354d05f9691c4f56f66f86feb2706fcbc5a7f67c7f6ac1b46`.
+- `work/evidence/oct29-resume-held-point.json` — SHA-256 `8e4fcd90b3617ba7b96991ad2f6903dbac2f8e46b2cf1f8a6a908e79645f224e`.
+- `work/proposals/run362-context-recurrence/owned-result.json` — SHA-256 `115ad61bb9850bdcb6805dcccf5da12fb3a1533f188f26683da9089b0f6f7b70`.
+- `work/proposals/run362-context-recurrence/independent-actual-owned-result-review.json` — SHA-256 `144411dc38bb909ea8efd41cd4e455a0ed77ce3d71da8a4d22b871cd5477fcd8`.
+
+The recurrence used genuine current producer, constructor, packet and checker predicates with retained run #362 data and explicit synthetic adapters. It reproduced the old missing-path refusal only inside its owned tree and passed the corrected path and downstream metadata interfaces. It made no live reader, metadata, browser or provider request and proves no G06 acceptance. No spent window or unused opportunity is refunded.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice — qualification-pending source after run #356
 
 This source is qualification-pending for canonical-browser qualification and is not yet qualified. Direct human permission covers necessary work through deployment after the fixed criteria pass. This source preparation selects no new public window or content pipeline. Models, processing terms, strict acceptance and finite limits remain unchanged. Any missing or failed qualification evidence requires immediate held documentation-only rollback to the verified immediate parent 11ce71aba4d8c505cabbb933545d111a08a08d3c.
