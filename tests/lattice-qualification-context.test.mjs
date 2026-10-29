@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { observeQualificationContext, parseExpectedQualificationContext, publishQualificationContextObservation } from "../scripts/observe-text-to-lattice-qualification-context.mjs";
+import { observeQualificationContext, parseExpectedQualificationContext, publishQualificationContextObservation, readRegister } from "../scripts/observe-text-to-lattice-qualification-context.mjs";
 import { TEXT_TO_LATTICE_DOCUMENT_POLICY } from "../workers/text-to-lattice-response-policy/worker.js";
 import { verifyReleaseStatusState } from "../scripts/verify-text-to-lattice-release.mjs";
 const historicalShapeOnly = {
@@ -254,3 +254,24 @@ for (const [name, stopAt] of [["before staging",1],["after async staging",2],["i
   test(`success publication refuses deadline drift ${name}`,async()=>{const dir=await mkdtemp(join(tmpdir(),"lattice-context-synthetic-"));const output=join(dir,"observation.json");let checks=0;try{await assert.rejects(()=>publishQualificationContextObservation(output,{synthetic:true},()=>{if(++checks===stopAt)throw new Error("synthetic deadline");}));assert.equal(existsSync(output),false);}finally{await rm(dir,{recursive:true,force:true});}});
 test("success publication is exclusive and preserves an existing receipt",async()=>{const dir=await mkdtemp(join(tmpdir(),"lattice-context-synthetic-"));const output=join(dir,"observation.json");try{await publishQualificationContextObservation(output,{synthetic:"first"},()=>{});await assert.rejects(()=>publishQualificationContextObservation(output,{synthetic:"second"},()=>{}));assert.deepEqual(JSON.parse(readFileSync(output,"utf8")),{synthetic:"first"});}finally{await rm(dir,{recursive:true,force:true});}});
 test("whole-operation timeout prevents late source resolution from publishing output",async()=>{const dir=await mkdtemp(join(tmpdir(),"lattice-context-synthetic-"));const output=join(dir,"observation.json");const h=harness();h.options.outputPath=output;h.options.operationTimeoutMs=5;let release;h.options.sourceVerifier=()=>new Promise(resolve=>{release=resolve;});try{await assert.rejects(h.run,e=>e.code==="deadline");release?.(S);await new Promise(resolve=>setImmediate(resolve));assert.equal(existsSync(output),false);assert.equal(h.calls.length,0);}finally{await rm(dir,{recursive:true,force:true});}});
+
+// This is the production default reader, not an injected small-register fixture.
+// Running the full suite on each actual held/Q tree is the resource preflight:
+// stale generated size/hash data or a future register above the finite ceiling fail.
+test("default register reader admits the actual canonical register under its exact resource bound", async () => {
+  const actual = readFileSync(new URL("../docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json", import.meta.url));
+  assert.deepEqual(await readRegister(), actual);
+});
+test("default register reader preserves the actual qualification-phase source gate", async () => {
+  const h = harness();
+  delete h.options.registerReader;
+  if (verifyReleaseStatusState(originalRegister).qualificationPending) {
+    const result = await h.run();
+    assert.equal(result.matches_expected_context, true);
+    assert.equal(h.calls.length, 14);
+    assert.equal(h.checks(), 2);
+  } else {
+    await assert.rejects(h.run, error => error.code === "source");
+    assert.equal(h.calls.length, 0);
+  }
+});

@@ -169,10 +169,39 @@ function checkJobs(value, index) {
   return { service_job_id: String(service.id), pages_job_id: String(pages.id), wait_job_id: String(wait.id) };
 }
 
-async function readRegister() {
+// The generated companion is outside the qualified set, avoiding a raw-register
+// hash cycle. This exception applies only to the one fixed register, never HTTP
+// responses or another JSON input. The companion is read and checked, not rebuilt.
+export async function readRegister() {
   const s = await lstat(registerPath);
-  need(s.isFile() && !s.isSymbolicLink() && s.size > 0 && s.size <= 4 * 1024 * 1024, "source");
-  return readFile(registerPath);
+  need(s.isFile() && !s.isSymbolicLink() && Number.isSafeInteger(s.size) && s.size > 0, "source");
+  if (s.size <= 4 * 1024 * 1024) {
+    const bytes = await readFile(registerPath);
+    need(bytes.length === s.size && bytes.length <= 4 * 1024 * 1024, "source");
+    return bytes;
+  }
+  need(s.size <= 16 * 1024 * 1024, "source");
+  const companionPath = resolve(root, "public/documentation/text-to-lattice/artifact-manifest.json");
+  const ms = await lstat(companionPath);
+  need(ms.isFile() && !ms.isSymbolicLink() && Number.isSafeInteger(ms.size) && ms.size > 0 && ms.size <= 4 * 1024 * 1024, "source");
+  const companionBytes = await readFile(companionPath);
+  need(companionBytes.length === ms.size && companionBytes.length <= 4 * 1024 * 1024, "source");
+  let companion;
+  try { companion = JSON.parse(companionBytes.toString("utf8")); } catch { fail("source"); }
+  need(record(companion) && companion.format === "TEXT_TO_LATTICE_DOCUMENTATION_ARTIFACT_MANIFEST" && companion.schemaVersion === 1 && companion.algorithm === "SHA-256" && jsonBytes(companion).equals(companionBytes), "source");
+  need(Array.isArray(companion.releaseEvidence) && companion.releaseEvidence.every(record) && Array.isArray(companion.artifacts) && companion.artifacts.every(record), "source");
+  need(companion.releaseEvidence.every(v => typeof v.filename === "string") && new Set(companion.releaseEvidence.map(v => v.filename)).size === companion.releaseEvidence.length, "source");
+  need(companion.artifacts.every(v => typeof v.path === "string") && new Set(companion.artifacts.map(v => v.path)).size === companion.artifacts.length, "source");
+  const evidence = companion.releaseEvidence.filter(v => v.filename === "TEXT-TO-LATTICE-RELEASE-REGISTER.json");
+  const copies = companion.artifacts.filter(v => v.path === "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json");
+  need(evidence.length === 1 && copies.length === 1, "source");
+  exact(evidence[0], ["filename", "bytes", "sha256"], "source");
+  exact(copies[0], ["path", "bytes", "sha256"], "source");
+  const expected = evidence[0];
+  need(Number.isSafeInteger(expected.bytes) && expected.bytes === s.size && expected.bytes <= 16 * 1024 * 1024 && digest(expected.sha256) && copies[0].bytes === expected.bytes && copies[0].sha256 === expected.sha256, "source");
+  const bytes = await readFile(registerPath);
+  need(bytes.length === s.size && bytes.length === expected.bytes && hash(bytes) === expected.sha256, "source");
+  return bytes;
 }
 
 async function observeQualificationContextImpl({ expectedContextBase64, parsedExpected, operationSignal, operationAssert, operationStartedAt, operationStartedMono, checkpoint, environment = process.env, fetchImpl = globalThis.fetch,
