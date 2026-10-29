@@ -1,3 +1,23 @@
+# Text to Lattice — qualification-pending after run #374
+
+**Qualified source set SHA-256:** `b4f94aa324c4a47195ea24211a39ef0cace828787e077d56d1e169d35e860952`
+
+**Verified held rollback parent:** `d355c21740397e6f0fd9006541be9c919392004f`
+
+The later explicit instruction to continue resumes prospective work after the saved held handoff. Prior stop instructions remain dated history; no spent window is reopened, refunded or replayed. This source is qualification-pending, not qualified. Existing direct human permission covers necessary work through deployment after the fixed criteria pass, while this source preparation selects no new operational unit or public activation. Models, processing terms, strict acceptance and API/provider/native quotas remain unchanged. Missing or failed qualification evidence requires immediate held documentation-only rollback to verified immediate parent d355c21740397e6f0fd9006541be9c919392004f under the existing rules.
+
+The actual held parent is d355c21740397e6f0fd9006541be9c919392004f, tree 2181d391c597075feef3f12d66e738cee45e3fdf, source d7bb26ed30dd2fb554434ad26d4f3bfb8d3c22237873c735a07582e9a8c29568 and dossier 4ba783b5abced34b1b8b6088df0ea71cfe7f9c34f96398f198f92899982f0879. Its root-adopted delivery is work/evidence/oct29-run374-held-main377/root-delivery-outcome.json / SHA-256 f82919434b9c317b83bf65c09997fc66a79a98c1256dd2f59fb86e8aa1a4bc68. Routine run #377 published held Pages and retained separate Pages and API held witnesses at 15:04:51.505Z and 15:05:11.778Z on 2026-10-29, with three held API samples and no active or network-error samples. These are dated witnesses, not continuous-hold proof. This candidate changes only the existing two interactive UI switches among 259 qualified files. The other 257, including the observer correction, tests, fixed runtime and three project-page files, remain exact H. Derived source b4f94aa324c4a47195ea24211a39ef0cace828787e077d56d1e169d35e860952 is checked against the previous Q source; future Q commit, tree, CI and routine held delivery remain unobserved.
+
+Run #374 returned a conformant 16-word result with one retained passage, zero revisions and four reported logical provider calls. No repair path or causal source-copying remedy was established. Context preparation and the required BEFORE observer succeeded with original provenance. The root reported 14 Firefox input-only checks, eleven before an access interruption and three after explicit user unlock and completion; no Firefox consent or submission occurred. Root acknowledges stopping after a tool-confirmed no-action interruption more restrictively than required. That process error is not evidence of a product failure. No Safari or Brave startBlank, app-source entry, consent, submission, canonical capture or AFTER observer occurred, and the restore dispatch made the spent window nonresumable.
+
+Included restore #375 had an API witness with one active sample followed by three consecutive held samples; its first held Pages verification failed without an evidence archive. A separate later held Pages point did not repair that workflow result. Original #374 scheduled cleanup separately retained successful API-before-Pages witnesses. The complete dated outcomes and limits remain in the retained current H dossier and root outcome. Final cleanup restored Safari inspection OFF at 14:40:45.796Z and closed the owned Inspector/DevTools contexts at 14:41:01.544Z. Saved native observations are historical preparation, not current readiness.
+
+GATE-02 and GATE-03 retain existing bounded satisfied adjudications only for exact determining runtime inputs. GATE-06 remains prospective post-deployment-verification/null with browser evidence not-collected. The future operation still needs its own current before/after context, native prerequisites, captures and concrete reviewed finite selection. The unchanged production default reader and generated companion guards run on this actual candidate; the canonical register alone remains capped at 16 MiB, with the ordinary 4 MiB bounds preserved. Previous owned controls and full held validation remain dated evidence, not a claim that this future live path has passed.
+
+The complete prior handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice — held after run #374
 
 **Qualified source set SHA-256:** `d7bb26ed30dd2fb554434ad26d4f3bfb8d3c22237873c735a07582e9a8c29568`
