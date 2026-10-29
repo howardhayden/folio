@@ -1,3 +1,21 @@
+# Text to Lattice — held after run #374
+
+**Qualified source set SHA-256:** `d7bb26ed30dd2fb554434ad26d4f3bfb8d3c22237873c735a07582e9a8c29568`
+
+Run #374 returned a conformant 16-word result with one retained passage, zero revisions and four reported logical provider calls. The repair branch was not exercised, and a causal source-copying remedy remains unproved. The existing source correction and context preparation worked together with a successful required BEFORE observer and retained original provenance; no new observer or acceptance change is introduced here.
+
+The root reported 14 hosted Firefox input checks passed: eleven before a Mac-lock access interruption and three after the user explicitly unlocked and requested completion. No Firefox consent or submission occurred. The root acknowledges that stopping the native window after a tool-confirmed no-action access interruption was more restrictive than required, a process error rather than evidence of a product failure. The restore dispatch makes that spent window nonresumable. No Safari or Brave startBlank, app-source entry, consent, submission, native capture or AFTER observer occurred; GATE-06 remains open. These root-observed input checks are not independently observed or canonical native proof.
+
+Included restore #375 retained an API witness at 14:03:13.790Z with one active sample followed by three consecutive held samples. Pages deployed, but its first held verification failed and its witness archive is absent. A separate held Pages point at 14:06:55.570Z does not replace the failed workflow. Scheduled cleanup in original #374 separately succeeded: API held at 14:09:20.845Z before Pages held at 14:09:47.139Z on 2026-10-29. These dated witnesses establish neither continuous hold nor prompt-immediate restoration compliance.
+
+The old window's owned native cleanup completed at 14:18:58.179Z, including restoring Safari's temporary inspection setting OFF. A separate fresh preparation later turned that setting ON with direct approval at 14:27:30.440Z and carries its own required OFF cleanup; no native evidence or new unit is inferred from that preparation. Final wrap-up cleanup restored that new Safari setting OFF at 14:40:45.796Z and closed the new owned Inspectors and DevTools at 14:41:01.544Z, without collector installation, logging, arming, app-source entry or submission. GATE-02 and GATE-03 retain their existing bounded satisfied adjudications. The original window and included restore remain spent without refund or replay.
+
+Existing direct permission covers necessary work through deployment after the fixed criteria pass. Models, processing terms, strict acceptance and API/provider/native quotas stay fixed. This held source selects no new public window or final release. The user has now limited this wrap-up to saving the gathered information, publishing the held checkpoint and handoff through normal review, then stopping. No Q renewal or new qualification window is selected. Detailed outcome: work/evidence/u13r368-run374-stopped-window-root-outcome.json / SHA-256 1296443296daa5431cb0ca88caf49b6aa1654416cfe7ab70da56d24c6319e6b9.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice — qualification-pending source after run #368
 
 This source is qualification-pending for canonical-browser qualification and is not qualified. Direct human permission covers necessary work through deployment after the fixed criteria pass. This source preparation selects no new public window or content pipeline. Models, processing terms, strict acceptance and API/provider/native quotas remain unchanged. Any missing or failed qualification evidence requires immediate held documentation-only rollback to the verified immediate parent af1b6be34b0fe1461c7bcdd7ec3f52584af3f1ed.
