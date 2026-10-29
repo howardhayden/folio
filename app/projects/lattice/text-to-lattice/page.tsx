@@ -32,8 +32,7 @@ export default function TextToLatticePage() {
             <h2 id="text-to-lattice-release-status">Release status: {interactiveRelease}</h2>
             {releaseHeld ? (
               <>
-                <p>The interactive client is unavailable whenever the machine release record contains an open blocker. Model-behavior, provenance, accessibility, capacity, and privacy gaps remain visible as accepted residuals or bounded post-deployment verification; they are not represented as completed evidence.</p>
-                <p>This rollback state preserves the implementation without representing source controls as deployed proof.</p>
+                {textToLatticeContract.heldReleaseNotes.map((note) => <p key={note}>{note}</p>)}
               </>
             ) : (
               <>

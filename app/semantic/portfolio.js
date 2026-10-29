@@ -42,6 +42,9 @@ const applicationPublicationMode = applicationReleaseStatus === "enabled" ? "int
 const applicationDescription = applicationReleaseStatus === "held"
   ? `${textToLatticeContract.purpose} The public interactive client is held; this page publishes documentation only.`
   : textToLatticeContract.purpose;
+const applicationReleaseNotes = applicationReleaseStatus === "held"
+  ? textToLatticeContract.heldReleaseNotes
+  : [];
 const provenance = (sourcePaths, version = SITE_CONTENT_VERSION, lastUpdated = SITE_CONTENT_UPDATED) => ({
   repository: SITE_REPOSITORY,
   sourcePaths: [...sourcePaths],
@@ -478,6 +481,7 @@ export const knowledgeGraph = {
       url: absoluteUrl(textToLatticeContract.canonicalPath),
       applicationCategory: "Portfolio demonstration", operatingSystem: "Modern browser with JavaScript over HTTPS",
       creativeWorkStatus: applicationReleaseStatus,
+      ...(applicationReleaseNotes.length > 0 ? { releaseNotes: [...applicationReleaseNotes] } : {}),
       isPartOf: { "@id": projectGraphId(projectBySlug("lattice")) },
       mainEntityOfPage: { "@id": `${absoluteUrl(textToLatticeContract.canonicalPath)}#page` },
       [namespaceGraphId("interactiveRelease")]: applicationReleaseStatus,
@@ -694,7 +698,7 @@ export function renderProjectMarkdown(slug) {
     : applicationReleaseStatus === "enabled"
       ? "The public interactive client is included in the public bundle."
       : "No public interactive client is represented as available.";
-  const tool = slug === "lattice" ? `\n\n## ${textToLatticeContract.name}\n\nCanonical URL: ${absoluteUrl(textToLatticeContract.canonicalPath)}\n\nPublic client status: ${machineValueLabel(applicationReleaseStatus)}\n\nPublication mode: ${machineValueLabel(applicationPublicationMode)}. ${applicationAvailability}\n\n${textToLatticeContract.purpose}\n\n### Input\n\n${textToLatticeContract.input}\n\n### Output\n\n${textToLatticeContract.output}\n\n### Process\n\n${bullets(textToLatticeContract.process)}\n\n### Constraints\n\n${bullets(textToLatticeContract.constraints)}\n\n${securityAndPrivacyMarkdown()}\n\n${usagePolicyMarkdown()}\n\n${implementationMarkdown()}` : "";
+  const tool = slug === "lattice" ? `\n\n## ${textToLatticeContract.name}\n\nCanonical URL: ${absoluteUrl(textToLatticeContract.canonicalPath)}\n\nPublic client status: ${machineValueLabel(applicationReleaseStatus)}\n\nPublication mode: ${machineValueLabel(applicationPublicationMode)}. ${applicationAvailability}\n\n${textToLatticeContract.purpose}${applicationReleaseNotes.length > 0 ? `\n\n### Release status\n\n${applicationReleaseNotes.join("\n\n")}` : ""}\n\n### Input\n\n${textToLatticeContract.input}\n\n### Output\n\n${textToLatticeContract.output}\n\n### Process\n\n${bullets(textToLatticeContract.process)}\n\n### Constraints\n\n${bullets(textToLatticeContract.constraints)}\n\n${securityAndPrivacyMarkdown()}\n\n${usagePolicyMarkdown()}\n\n${implementationMarkdown()}` : "";
   return `# ${heading(project.name)}\n\nCanonical URL: ${project.canonicalUrl}\n\nExternal URL: ${project.externalUrl}\n\nStatus: ${project.status.value} as of ${project.status.asOf}\n\nPublication: ${project.publication.label} (${project.publication.precision})${releaseStatus}\n\n${project.summary.join("\n\n")}\n\n## Emphasis\n\n${bullets(project.emphasis)}\n\n## Capabilities\n\n${bullets(project.capabilities.items)}\n\n## Technologies\n\n${bullets(project.technologies.items)}\n\n## Evidence\n\n${bullets(project.evidence.map(({ url }) => url))}\n\n## Documentation\n\n${bullets(project.documentation.map(documentationMarkdownLine))}\n\n## Limitations\n\n${bullets(project.limitations.items)}\n\n## Relationships\n\n${bullets(project.relationships.map(relationshipLabel))}\n\n## Inherited requirements\n\n${bullets(sharedRequirements.map(({ label, id }) => `${label}: ${absoluteUrl(`/requirements/#${id}`)}`))}\n\n## Provenance\n\n- Repository: ${project.provenance.repository}\n- Sources: ${project.provenance.sourcePaths.join(", ")}\n- Version: ${project.provenance.version}\n- Last updated: ${project.provenance.lastUpdated}\n- External project license: not documented in this portfolio record.\n- This portfolio record’s authored content: ${SITE_CONTENT_TERMS_URL}.${tool}\n`;
 }
 

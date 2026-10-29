@@ -34,6 +34,11 @@ export const textToLatticeContract = Object.freeze({
   name: "Text to Lattice",
   canonicalPath: "/projects/lattice/text-to-lattice/",
   purpose: "Convert source prose into passage-appropriate Lattice registers while preserving its meaning.",
+  heldReleaseNotes: Object.freeze([
+    "The public converter and its API are held. This project is currently available as documentation only.",
+    "Backend transformation and service limits have passed bounded production qualification. Successful test cases are evidence for those cases; every generated result still requires review.",
+    "Browser privacy and lifecycle validation remains unfinished. Release still requires complete Safari and Brave evidence, with Firefox input checks included in browser validation.",
+  ]),
   input: `User-entered text from 1 through ${LATTICE_WORD_LIMIT} Unicode-aware words and no more than ${LATTICE_INPUT_SAFETY_LIMIT.toLocaleString("en-US")} UTF-16 code units. The browser validates these bounds before the explicit same-origin submission, and the server validates them again before provider work.`,
   output: "A checked Latticed text, a visible material draft marked for review, an unable-to-attempt result with no transformed text, or a finite request error. The remote capability does not ask follow-up clarification questions.",
   usagePolicy: historicalUsagePolicy,
