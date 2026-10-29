@@ -1,3 +1,19 @@
+# Text to Lattice — held after run #368
+
+**Qualified source set SHA-256:** `d7bb26ed30dd2fb554434ad26d4f3bfb8d3c22237873c735a07582e9a8c29568`
+
+Run #368 returned a conformant 16-word result with one retained passage, zero revisions and four reported logical provider calls. The repair branch was not exercised, and a causal source-copying remedy remains unproved. Retained context preparation passed; the required before-context observer was dispatched once and then refused with code `source`. The fixed register reader could not admit the current 10,968,231-byte canonical register under its 4 MiB default. The retained refusal does not identify its private branch. This held revision keeps the ordinary register and generated companion bounds at 4 MiB. Only the fixed canonical register may be larger, capped at 16 MiB, and its consumed size and digest must match the existing generated companion; source and acceptance checks remain in force.
+
+Included restore #369 independently witnessed the API held at 09:35:16.297Z before Pages at 09:35:38.408Z on 2026-10-29. Scheduled #368 cleanup separately witnessed the API held at 09:53:33.369Z before Pages at 09:53:55.121Z. These dated witnesses establish neither continuous hold nor prompt-immediate restoration compliance.
+
+GATE-02 and GATE-03 retain their bounded satisfied adjudications. GATE-06 stays open: no hosted Firefox check, native startBlank, app-source entry, consent, submission or capture occurred. No before-context acceptance or native proof is inferred from context preparation. Both collectors were disposed cleanly, owned Inspectors/DevTools closed, and Safari's temporary inspection setting restored OFF. The original window and included restore remain spent without refund or replay.
+
+Existing direct permission covers necessary work through deployment after the fixed criteria pass. Models, processing terms, strict acceptance and API/provider/native quotas stay fixed; this held source selects no new public window or final release. Detailed outcome: work/evidence/u13r362-run368-stopped-window-root-outcome-003.json / SHA-256 120fea17d8044f6f129d952b2e4043a4d69c423eef9af2c90d79bb06a23d7299.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice — qualification-pending source after run #362
 
 This source is qualification-pending for canonical-browser qualification and is not yet qualified. Direct human permission covers necessary work through deployment after the fixed criteria pass. This source preparation selects no new public window or content pipeline. Models, processing terms, strict acceptance and finite limits remain unchanged. Any missing or failed qualification evidence requires immediate held documentation-only rollback to the verified immediate parent 1ebea5035b852bb748f2d40f148e9bd9305d175d.
