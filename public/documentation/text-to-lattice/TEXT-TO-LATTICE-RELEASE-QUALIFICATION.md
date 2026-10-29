@@ -1,24 +1,26 @@
-# Text to Lattice release qualification — held after run #368
+# Text to Lattice release qualification — qualification-pending after run #368
 
 **Qualification date:** 2026-10-29
 
-**Reviewed baseline:** `3ab944e2657cbb678d65033c3f3917f8a9e810fd`
+**Reviewed baseline:** `af1b6be34b0fe1461c7bcdd7ec3f52584af3f1ed`
 
-**Qualified source set SHA-256:** `d7bb26ed30dd2fb554434ad26d4f3bfb8d3c22237873c735a07582e9a8c29568`
+**Qualified source set SHA-256:** `b4f94aa324c4a47195ea24211a39ef0cace828787e077d56d1e169d35e860952`
 
-**Artifact-set projection SHA-256:** `31174512c3adbbb73c8a660d29db01bfe3895ed7c4ae40d11858012cb56f8b67`
+**Artifact-set projection SHA-256:** `4b73764c3297037ea0f2ddb9646dd2a6d5a5b36e8c31ee070220deca87c49f8c`
 
-**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+**Decision:** not qualified; prepare the exact source for a separately controlled canonical-browser qualification.
 
-Run #368 returned a conformant 16-word result with one retained passage, zero revisions and four reported logical provider calls. The repair branch was not exercised, and a causal source-copying remedy remains unproved. Retained context preparation passed; the required before-context observer was dispatched once and then refused with code `source`. The fixed register reader could not admit the current 10,968,231-byte canonical register under its 4 MiB default. The retained refusal does not identify its private branch. This held revision keeps the ordinary register and generated companion bounds at 4 MiB. Only the fixed canonical register may be larger, capped at 16 MiB, and its consumed size and digest must match the existing generated companion; source and acceptance checks remain in force.
+This source is qualification-pending for canonical-browser qualification and is not qualified. Direct human permission covers necessary work through deployment after the fixed criteria pass. This source preparation selects no new public window or content pipeline. Models, processing terms, strict acceptance and API/provider/native quotas remain unchanged. Any missing or failed qualification evidence requires immediate held documentation-only rollback to the verified immediate parent af1b6be34b0fe1461c7bcdd7ec3f52584af3f1ed.
 
-Included restore #369 independently witnessed the API held at 09:35:16.297Z before Pages at 09:35:38.408Z on 2026-10-29. Scheduled #368 cleanup separately witnessed the API held at 09:53:33.369Z before Pages at 09:53:55.121Z. These dated witnesses establish neither continuous hold nor prompt-immediate restoration compliance.
+The actual held rollback parent is af1b6be34b0fe1461c7bcdd7ec3f52584af3f1ed, tree 05ab458231753c2e53d3da2d0fa1abcf08a40e24, source d7bb26ed30dd2fb554434ad26d4f3bfb8d3c22237873c735a07582e9a8c29568 and dossier 83ebad639b5c5fff0028d24ccde9758e530f221c7a3d0ef82d11fea63ef8699e. Its independently retained held delivery is work/evidence/oct29-run368-held-main371/current-held-adoption.json / SHA-256 e9e8b22a0ca071e2b3d7c943af1158365db1962dcc96bfc279eec3bb7692e7d1. These are dated witnesses, not a continuous-hold claim. This candidate changes only the two exact interactive UI switches among the 259 qualified files; all other 257, including the corrected observer and its tests, remain exact H. The three deployed project-page files remain exact H. Derived source b4f94aa324c4a47195ea24211a39ef0cace828787e077d56d1e169d35e860952 differs from the last Q because it carries H's reviewed observer/test correction. Future Q commit, tree, CI and delivery remain unobserved until actual delivery.
 
-GATE-02 and GATE-03 retain their bounded satisfied adjudications. GATE-06 stays open: no hosted Firefox check, native startBlank, app-source entry, consent, submission or capture occurred. No before-context acceptance or native proof is inferred from context preparation. Both collectors were disposed cleanly, owned Inspectors/DevTools closed, and Safari's temporary inspection setting restored OFF. The original window and included restore remain spent without refund or replay.
+Run #368 returned a conformant 16-word result with one retained passage, zero revisions and four reported logical provider calls. The repair branch was not exercised, and a causal source-copying remedy remains unproved. Context preparation passed. One required BEFORE observer original was dispatched and then refused with code `source`; no AFTER observer original, hosted Firefox check, native startBlank, app-source entry, consent, submission or capture followed. The fixed reader's 4 MiB default could not admit the then-current canonical register; the retained refusal does not identify its private branch. H corrects only this resource admission: ordinary register and companion bounds remain 4 MiB; only the fixed canonical register may reach 16 MiB when its consumed size and digest match the existing generated companion. The corrected production default reader and existing observer unit contracts passed 84 owned cases including 24 resource cases; the complete held tree passed 2,629 local tests (2,614 passes, 15 historical optional skips, zero failures), including all seven required active capacity checks. These offline results do not establish a successful future metadata observation or native qualification.
 
-Existing direct permission covers necessary work through deployment after the fixed criteria pass. Models, processing terms, strict acceptance and API/provider/native quotas stay fixed; this held source selects no new public window or final release. Detailed outcome: work/evidence/u13r362-run368-stopped-window-root-outcome-003.json / SHA-256 120fea17d8044f6f129d952b2e4043a4d69c423eef9af2c90d79bb06a23d7299.
+Included restore #369 witnessed API-held at 09:35:16.297Z before Pages-held at 09:35:38.408Z on 2026-10-29. Scheduled #368 cleanup separately witnessed API-held at 09:53:33.369Z before Pages-held at 09:53:55.121Z. Neither continuous hold nor prompt-immediate compliance is established. Run #368 cleanup disposed the owned collectors, closed their Inspectors/DevTools and restored Safari temporary inspection OFF. The original window and included restore remain spent without refund or replay. The genuine completed outcome is work/evidence/u13r362-run368-stopped-window-root-outcome-003.json; its earlier pending-checkpoint history remains dated and preserved.
 
-The complete prior qualification dossier follows verbatim as dated history.
+GATE-02 and GATE-03 retain bounded satisfied adjudications only where determining runtime inputs remain exact. GATE-06 is prospective post-deployment-verification/null; browser evidence remains not-collected and all bundle identity fields null. Fresh stage-appropriate preparation and a concrete reviewed operation remain necessary. Complete H register history and all H source beforeimages, including its full dossier, are retained separately. The prior Q dossier below is dated history, superseded by this prefix.
+
+The complete prior qualification-pending dossier follows verbatim as dated history.
 
 ---
 
