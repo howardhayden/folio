@@ -1,3 +1,30 @@
+# Text to Lattice release qualification — held after run #380
+
+**Qualification date:** 2026-10-30
+
+**Reviewed baseline:** `154a461d426b6eefe7f3d2d02f6256320f787f7a`
+
+**Qualified source set SHA-256:** `d1872f762d8d13a20f8418b4aab0e78064bfb50441bd4ca8a02d36355aabd1a1`
+
+**Artifact-set projection SHA-256:** `2396047f9fcbe34da9680c399bb7c2eaccd494693db2345ad4d135d2f98126ba`
+
+**Decision:** hold the interactive client; publish the implementation record and documentation only.
+
+Run #380 returned a strictly conformant 16-word result with one retained passage, zero revisions and four reported logical provider calls. The repair branch was not exercised; this is a bounded canary, not broad quality or reliability proof.
+
+The original BEFORE observer #4 workflow succeeded, but its sole local custody refused the observation. Concurrent responses were appended in completion order, placing route 3 before route 2 while the unchanged validator requires request order. The correction reserves each receipt's index before awaiting its response and stores the completed receipt at that index. It preserves concurrency, all fourteen requests, schemas, deadlines and acceptance. Offline regressions cover reversed completion and route failure; the synthetic success also passes the unchanged validator; the refused original remains unchanged and unaccepted.
+
+The fixed canonical evidence-register maximum is 32MiB, with exact generated-companion size/hash binding, regular-file and consumed-byte checks. The ordinary 4MiB ceiling remains. This internal evidence-file capacity does not expand application/provider quotas, model context, privacy terms or qualification acceptance. Boundary and stale-companion controls accompany the correction.
+
+No hosted Firefox checks, Safari/Brave native entry, source, consent, submission, capture, seal or AFTER observer occurred. Included restore #381 verified API held at 09:46:42.801Z before Pages held at 09:47:12.965Z on 2026-10-30. The separately retained scheduled #380 cleanup verified API at 10:03:17.018Z before Pages at 10:03:39.434Z. These are dated witnesses, not continuous-hold or prompt-immediate restoration proof. Both staged collectors were disposed and Safari temporary inspection OFF verified. Final Firefox owned-window closure remains unverified; personal-session restoration is unknown.
+
+GATE-02/GATE-03 retain their existing bounded adjudications for exact determining runtime inputs. GATE-06 remains open with no accepted native evidence. The original unit stays spent 1/0; no refund, replay, new operation or final release is selected by this source. Existing direct through-deployment authority remains. Detailed stopped outcome: work/evidence/u13r374-run380-stopped-window-root-outcome.json / SHA-256 38391d953b523d01e89a1da36ccc31b4094ce3b1f2be336a3f8b430f62608b6c.
+
+The complete prior qualification dossier follows verbatim as dated history.
+
+---
+
+
 # Text to Lattice release qualification — qualification-pending after run #374
 
 **Qualification date:** 2026-10-29

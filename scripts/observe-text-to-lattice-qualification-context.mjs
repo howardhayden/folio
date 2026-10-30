@@ -180,7 +180,7 @@ export async function readRegister() {
     need(bytes.length === s.size && bytes.length <= 4 * 1024 * 1024, "source");
     return bytes;
   }
-  need(s.size <= 16 * 1024 * 1024, "source");
+  need(s.size <= 32 * 1024 * 1024, "source");
   const companionPath = resolve(root, "public/documentation/text-to-lattice/artifact-manifest.json");
   const ms = await lstat(companionPath);
   need(ms.isFile() && !ms.isSymbolicLink() && Number.isSafeInteger(ms.size) && ms.size > 0 && ms.size <= 4 * 1024 * 1024, "source");
@@ -198,7 +198,7 @@ export async function readRegister() {
   exact(evidence[0], ["filename", "bytes", "sha256"], "source");
   exact(copies[0], ["path", "bytes", "sha256"], "source");
   const expected = evidence[0];
-  need(Number.isSafeInteger(expected.bytes) && expected.bytes === s.size && expected.bytes <= 16 * 1024 * 1024 && digest(expected.sha256) && copies[0].bytes === expected.bytes && copies[0].sha256 === expected.sha256, "source");
+  need(Number.isSafeInteger(expected.bytes) && expected.bytes === s.size && expected.bytes <= 32 * 1024 * 1024 && digest(expected.sha256) && copies[0].bytes === expected.bytes && copies[0].sha256 === expected.sha256, "source");
   const bytes = await readFile(registerPath);
   need(bytes.length === s.size && bytes.length === expected.bytes && hash(bytes) === expected.sha256, "source");
   return bytes;
@@ -226,6 +226,7 @@ async function observeQualificationContextImpl({ expectedContextBase64, parsedEx
 
   const get = async (url, kind, headers, limit, perRequestMs = requestTimeoutMs, parentSignal = null) => {
     const current = clock(); need(++total <= 14, "request-count");
+    const receiptIndex = total - 1; // Retain admitted request order across concurrent response completion.
     const controller = new AbortController(), timeoutMs = Math.min(perRequestMs, current.remaining);
     let reader, timer, response, abortParent, expired = false;
     const task = (async () => {
@@ -239,7 +240,7 @@ async function observeQualificationContextImpl({ expectedContextBase64, parsedEx
       for (;;) { const r = await reader.read(); need(!expired, "deadline"); clock(); if (r.done) break; need(r.value instanceof Uint8Array, "body-read"); count += r.value.length; need(count <= limit, "body-limit"); chunks.push(Buffer.from(r.value)); }
       need(n === null || count === Number(n), "body-length");
       need(!expired, "deadline");
-      const body = Buffer.concat(chunks); receipts.push({ request: kind, responseBodyBytes: body.length, responseBodySha256: hash(body) });
+      const body = Buffer.concat(chunks); receipts[receiptIndex] = { request: kind, responseBodyBytes: body.length, responseBodySha256: hash(body) };
       return new Response(body, { status: response.status, headers: response.headers });
     })();
     const timeout = new Promise((_, reject) => { abortParent = () => { expired = true; controller.abort(); try { Promise.resolve(reader ? reader.cancel() : response?.body?.cancel()).catch(() => {}); } catch { /* Finite refusal only. */ } reject(new LatticeMetadataError("deadline")); }; timer = setTimeout(abortParent, timeoutMs); parentSignal?.addEventListener("abort", abortParent, { once: true }); operationSignal.addEventListener("abort", abortParent, { once: true }); if (parentSignal?.aborted || operationSignal.aborted) abortParent(); });

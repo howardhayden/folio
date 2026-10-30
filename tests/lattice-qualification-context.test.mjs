@@ -200,6 +200,60 @@ test("synthetic point matches14 application GETs and never authenticates supplie
   assert.equal(r.pages.sha256, h.f.payload.resumeMember.sha256); assert.equal(r.cleanupAt, "2026-10-24T12:24:00.000Z");
   const retained = JSON.stringify(r); assert.equal(retained.includes(h.f.env.GITHUB_TOKEN), false); assert.equal(retained.includes(h.f.env.CLOUDFLARE_API_TOKEN), false); assert.equal(retained.includes(h.f.body.toString()), false);
 });
+
+function reverseRouteCompletionHarness({ failRoutes = false } = {}) {
+  let releaseRoutes;
+  const routesReady = new Promise(resolve => { releaseRoutes = resolve; });
+  const completionOrder = [];
+  const h = harness(fixture(), async url => {
+    if (url.includes("/workers/routes")) {
+      await routesReady;
+      completionOrder.push("routes");
+      if (failRoutes) throw new Error("synthetic route transport failure");
+    }
+    if (url.endsWith("/workers/domains")) {
+      completionOrder.push("domains");
+      // Release the first admitted request after the second response completes its microtasks.
+      setImmediate(releaseRoutes);
+    }
+  });
+  return { h, completionOrder };
+}
+
+test("concurrent route receipts retain admitted order when domains complete first", async () => {
+  const { h, completionOrder } = reverseRouteCompletionHarness();
+  const observation = await h.run();
+  assert.deepEqual(completionOrder, ["domains", "routes"]);
+  assert.equal(h.calls.length, 14);
+  assert.equal(observation.GETs, 14);
+  assert.deepEqual(observation.requests.map(value => value.request), [
+    "github-main-before", "github-run-before", "github-jobs-before", "github-dispatch-before",
+    "cloudflare-api", "cloudflare-responsePolicy", "cloudflare-route-1", "cloudflare-route-2",
+    "cloudflare-route-3", "pages-document", "github-main-after", "github-run-after",
+    "github-jobs-after", "github-dispatch-after",
+  ]);
+  assert.equal(observation.providerCalls, 0);
+  assert.equal(observation.transformationRequests, 0);
+  assert.equal(observation.expected_artifact_custody_verified_by_observer, false);
+  assert.equal(observation.gate_closing, false);
+});
+
+test("concurrent route failure never publishes a partial receipt array", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lattice-context-receipt-order-"));
+  const output = join(directory, "observation.json");
+  const { h, completionOrder } = reverseRouteCompletionHarness({ failRoutes: true });
+  h.options.outputPath = output;
+  try {
+    await assert.rejects(h.run, /^Error: Cloudflare Worker route inventory could not be read\.$/u);
+    assert.deepEqual(completionOrder, ["domains", "routes"]);
+    assert.ok(h.calls.length <= 9);
+    assert.equal(existsSync(output), false);
+    assert.equal(existsSync(output + ".unpublished"), false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 for (const [name, mutate] of [
   ["extra field", p => p.extra = true], ["path traversal", p => p.resumeMember.path = "../resume/index.html"],
   ["wrong index digest", p => p.indexSha256 = "0".repeat(64)], ["wrong repository", p => p.index.workflow.repository = "other/repo"],
