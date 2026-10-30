@@ -1,3 +1,23 @@
+# Text to Lattice — qualification-pending after run #380
+
+**Qualified source set SHA-256:** `f5401fce4bbc40728a9c2d15e598cfd828f6b494054206267274ea5a0f3d0674`
+
+**Verified held rollback parent:** `5000de7d294695ce82138a1a8856c45965e88f69`
+
+The existing direct human permission covers necessary work through deployment after the fixed criteria pass. This source is qualification-pending, not qualified; it selects no new operational unit, allowance or public activation. Every prior stop, refusal and spent unit remains dated history without refund, transfer or replay. Models, processing terms, strict acceptance and API/provider/native quotas remain unchanged. Missing or failed qualification evidence requires held documentation-only rollback to verified immediate parent 5000de7d294695ce82138a1a8856c45965e88f69 under the existing rules.
+
+The actual verified held parent is 5000de7d294695ce82138a1a8856c45965e88f69, tree 06226251d725364dbefdd6366a469b65586dc3ff, source d1872f762d8d13a20f8418b4aab0e78064bfb50441bd4ca8a02d36355aabd1a1 and dossier 9ff7907322c697009a631036f6004ba3485361d97d67aee69550e7e5a337d2d4. Its genuine root-adopted held delivery is work/evidence/oct30-run380-held-main383/root-delivery-outcome.json / SHA-256 0c76d6417456f12de906841ba1d12a2eaa7d9fdd99dccdbb147da8ef3c55cee7. Only actual independently retained delivery witnesses establish that dated outcome; this template supplies no current or continuous-hold assertion. This candidate changes only the existing two interactive UI switches among 259 qualified files. The other 257, including the final observer `722913ddd82145004c300dd1e323ef313a7d3d2fdd062054d122555726da3f5c`, test `78e9485302f1b664adefb60c06de12383ea09a628fb52ae16d8dec47b95144c8`, fixed runtime and three project-page files, remain exact H. Derived source f5401fce4bbc40728a9c2d15e598cfd828f6b494054206267274ea5a0f3d0674 includes those two correction files and is not borrowed from prior Q b4f94. Future Q main, tree, CI and routine held delivery remain unobserved.
+
+Run #380 retained one conformant 16-word passage, revised zero passages and reported four logical provider calls; repair efficacy and broad quality remain unproved. The original BEFORE observer #4/41035434996/a1 reported workflow success, but its sole local custody refused `OBSERVATION_REFUSED`. Its original route 3 then route 2 completion-order receipts remain refused. The corrected observer reserves each admitted request index before any await and assigns the completed receipt to that position; concurrency, response timing, schema and unchanged fourteen-request acceptance remain fixed. The pure in-memory pair swap was diagnostic only, never replacement BEFORE evidence. No Firefox hosted checks, Safari/Brave native source entry, consent, submission, capture, seal or AFTER observer occurred.
+
+Included restore #381 verified API held at 09:46:42.801Z before Pages held at 09:47:12.965Z on 2026-10-30. Separately, scheduled #380 cleanup verified API 10:03:17.018Z before Pages 10:03:39.434Z. These are dated witnesses, not continuous-hold or prompt-immediate compliance proof. Both staged collectors were disposed clean; Safari temporary inspection OFF was verified and the old owned Safari/Brave tools and blanks closed. Final Firefox owned-window closure remains UNVERIFIED and personal-session restoration UNKNOWN. Any newer native preparation is separate, unarmed unless independently proved, and supplies no qualification evidence here.
+
+GATE-02/GATE-03 retain existing bounded satisfied adjudications only for exact determining runtime inputs. GATE-06 remains prospective post-deployment-verification/null with browser evidence not-collected. The future operation still needs its own actual before/after context, loaded executable closure, native prerequisites, capture seals, hosted Firefox input-only checks and concrete finite selection. The existing production default reader and generated companion guards must run on the actual generated candidate. Only the fixed canonical register uses the reviewed 32 MiB maximum; ordinary register/companion 4 MiB and exact paths, entries, hashes, size, regular-file and TOCTOU checks remain. Prior owned controls and full validation remain dated evidence, not a future live-path pass. The separate prospective owned19 aggregate96 MiB preparation is inert until actual future Q tuple, complete inventory and distinct review exist; no old unit or control result is reopened.
+
+The complete prior handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice — held after run #380
 
 **Qualified source set SHA-256:** `d1872f762d8d13a20f8418b4aab0e78064bfb50441bd4ca8a02d36355aabd1a1`
