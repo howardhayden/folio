@@ -10,6 +10,7 @@ import {
 import { LATTICE_PROVIDER_CALL_LIMIT } from "../resume/lattice/remoteProtocol.js";
 import { LATTICE_BATCH_LIMIT, LATTICE_PASSAGE_LIMIT } from "../resume/lattice/segments.js";
 import { LATTICE_USAGE_POLICY as HISTORICAL_LATTICE_USAGE_POLICY } from "../resume/lattice/usagePolicy.js";
+import { TEXT_TO_LATTICE_CONTENT_UPDATED } from "../resume/projects.js";
 
 const HUGGING_FACE_CHAT_COMPLETIONS_URL = "https://router.huggingface.co/v1/chat/completions";
 const REMOTE_GENERATOR_ID = "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra";
@@ -29,15 +30,19 @@ const historicalUsagePolicy = Object.freeze({
   failureMode: "The active capability returns a bounded success or machine-readable error and does not automatically retry or fall back to another provider or model. Former lease limits below are historical and inactive.",
 });
 
+export { TEXT_TO_LATTICE_CONTENT_UPDATED };
+
 export const textToLatticeContract = Object.freeze({
   id: "text-to-lattice",
   name: "Text to Lattice",
   canonicalPath: "/projects/lattice/text-to-lattice/",
+  lastUpdated: TEXT_TO_LATTICE_CONTENT_UPDATED,
   purpose: "Convert source prose into passage-appropriate Lattice registers while preserving its meaning.",
   heldReleaseNotes: Object.freeze([
-    "The public converter and its API are held. This project is currently available as documentation only.",
-    "Backend transformation and service limits have passed bounded production qualification. Successful test cases are evidence for those cases; every generated result still requires review.",
-    "Browser privacy and lifecycle validation remains unfinished. Release still requires complete Safari and Brave evidence, with Firefox input checks included in browser validation.",
+    "The public converter and its API are held. Text to Lattice is available here as documentation only.",
+    "The latest bounded backend and metadata qualification checks passed. Fourteen Firefox input, caret, focus, and search checks passed without submission; the historical click issue was not reproduced in those checks.",
+    "Release still requires complete Safari and Brave network, lifecycle, and reload evidence and independent acceptance. Browser qualification remains incomplete.",
+    "Successful cases are evidence for those cases, not general output quality or reliable repair. Every generated result still requires review.",
   ]),
   input: `User-entered text from 1 through ${LATTICE_WORD_LIMIT} Unicode-aware words and no more than ${LATTICE_INPUT_SAFETY_LIMIT.toLocaleString("en-US")} UTF-16 code units. The browser validates these bounds before the explicit same-origin submission, and the server validates them again before provider work.`,
   output: "A checked Latticed text, a visible material draft marked for review, an unable-to-attempt result with no transformed text, or a finite request error. The remote capability does not ask follow-up clarification questions.",

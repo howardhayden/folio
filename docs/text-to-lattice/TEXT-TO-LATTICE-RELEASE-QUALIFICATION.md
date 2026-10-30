@@ -1,3 +1,32 @@
+# Text to Lattice release qualification — held after run #386
+
+**Qualification date:** 2026-10-30
+
+**Reviewed baseline:** `4321ebbdaa30f54c0916f9564975fa7f5ee5c365`
+
+**Qualified source set SHA-256:** `79fb8ebd64205abcb0380050362888d8693b90ef1eb0007873bad665044020b2`
+
+**Artifact-set projection SHA-256:** `4062025db7b0b61d6b8993e6eada7147dbeac0139e1c4f0633f5bff36548d910`
+
+**Decision:** hold the interactive client; publish the implementation record and documentation only.
+
+Original #386 passed its bounded backend canary. The original BEFORE observer #5 and its sole custody were accepted. Fourteen Firefox input, caret, selection, focus, dismissal and search checks passed without consent or submission; the historical click issue was not reproduced in those checks. The saved multiline extraction correction remains part of that record. Successful cases establish only their bounded observations, not representative output quality, reliable repair or general semantic equivalence.
+
+Root stopped the window for insufficient remaining operational time before either Safari or Brave original pipeline began. Neither engine had a startBlank, app-origin/source entry, consent, submission, capture or seal, and AFTER was not attempted. The preparation and compaction-resume timing envelopes do not establish a new application or collector defect, a pure measured compaction duration, or a passing native qualification.
+
+Included restore #387 verified API held at 2026-10-30T15:00:32.556Z before Pages held at 15:01:13.087Z. Separately, scheduled #386 cleanup verified API at 15:05:41.444Z before Pages at 15:06:01.866Z. Both pairs have independent retained-custody review. They are dated witnesses, not continuous-hold or prompt-immediate restoration proof. Both owned collectors were disposed clean; Safari temporary inspection was visibly restored OFF and owned Inspector/DevTools windows closed. Owned normal profiles remain blank; no personal-window change is claimed.
+
+This held source updates the individual Text to Lattice page and its Lattice project record with a shared 2026-10-30 content-modification date. Visible date, scoped structured metadata, canonical project Markdown and relevant sitemap entries agree; unrelated individual project and publication dates remain unchanged. The current observer ordering and fixed-register 32MiB implementation are already in the reviewed baseline and are not reapplied or expanded.
+
+GATE-02/GATE-03 retain every existing bounded adjudication field for exact determining runtime inputs. GATE-06 remains open/null with no accepted native evidence. Complete Safari and Brave network/lifecycle/reload traces, persistence and pixel/source/context evidence and independent acceptance remain required. The original unit stays spent 1/0; this source selects no refund, replay, new original, service activation, qualification window or final release. Existing direct through-deployment authority remains. Detailed stopped outcome: work/evidence/u13r380-run386-stopped-window-root-outcome.json / SHA-256 b2ea5dd02f6dbb30832b9fcd4430da2202c5dc66fceb11aafa7f13ab0ce1d7b6.
+
+The first private held candidate failed existing release-source validation before type checking, build or tests because its held project still carried the interactive marker. This correction clears that marker and moves the unchanged shared content date to lightweight project metadata without a reverse model-contract import. The first candidate and failed validation remain retained as dated development evidence; no acceptance rule or public/provider quota changes.
+
+The complete prior qualification dossier follows verbatim as dated history.
+
+---
+
+
 # Text to Lattice release qualification — qualification-pending after run #380
 
 **Qualification date:** 2026-10-30

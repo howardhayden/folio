@@ -1,3 +1,26 @@
+# Text to Lattice — held after run #386; project page updated 2026-10-30
+
+**Qualified source set SHA-256:** `79fb8ebd64205abcb0380050362888d8693b90ef1eb0007873bad665044020b2`
+
+Current held source is based on `4321ebbdaa30f54c0916f9564975fa7f5ee5c365`. The bounded backend original #386 passed, accepted BEFORE #5 preceded fourteen Firefox hosted input-only checks, and those checks passed without consent or submission. The historical click issue was not reproduced under those checks. Preserve the exact saved extraction correction and bounded case scope; no general output-quality, reliable-repair or native-completeness conclusion follows.
+
+The window stopped on root's operational time-budget judgment before Safari or Brave startBlank, app-origin entry, source, consent, submission, capture or seal. AFTER had zero attempts. The detailed timing diagnosis separates measured custody/review and Firefox envelopes from unmeasured correction and compaction portions; no new application defect or pure compaction duration is inferred. Root outcome: work/evidence/u13r380-run386-stopped-window-root-outcome.json / SHA-256 b2ea5dd02f6dbb30832b9fcd4430da2202c5dc66fceb11aafa7f13ab0ce1d7b6.
+
+Included restore #387/41076593580/a1 has independently reviewed held API 2026-10-30T15:00:32.556Z before Pages 15:01:13.087Z. Separate scheduled #386 cleanup has API 15:05:41.444Z before Pages 15:06:01.866Z. No continuous hold or prompt-immediate compliance is claimed. Both owned collectors were disposed clean; Safari's temporary inspection access was visibly restored OFF, and both owned Safari Inspectors and Brave DevTools were closed. Owned normal Safari/Brave profiles remain blank. Firefox synthetic input was cleared/dismissed and its owned tab returned to blank at 15:01:36.971Z; personal windows were untouched.
+
+The private current-four stopped/held checkpoint was applied once with complete predecessor bytes and independently reviewed. This public held checkpoint preserves the complete preceding register typed/key/array history, dossier/handoff suffixes and atlas gate projection. GATE-02/GATE-03 remain exact for their determining runtime inputs. GATE-06 is open/null/not-collected. Original U13-AFTER-RUN380-A1 remains spent 1/0; no refund, transfer, replay, regrant or one-more-attempt promise is introduced.
+
+Source scope is the two established held UI switches plus the requested public held notes, a single contract/Lattice last-updated value 2026-10-30 and its coherent visible/structured/Markdown/sitemap projections, with meaningful existing semantic assertions. September 2026 publication history and unrelated individual date fields remain unchanged. The current observer receipt-order correction and 32MiB fixed canonical-register reader already landed; neither is reapplied. Ordinary caps, exact companion/hash/TOCTOU and all acceptance/request/provider/privacy/rights/clock/quota controls remain.
+
+Required delivery remains: independent actual candidate/raw-history/source review, guarded once source apply and exact live freeze, one full required local test/build/site/type/capacity run and lint under the fixed tokenizer/environment premises, exact Worker input/output reuse or changed-input local dry runs, reviewed exact-head CI/merge, then actual routine held publication/enforcement custody. No hosted qualification or provider check is selected. The current complete generated register must pass the unchanged production default reader and fixed 32MiB bound; preserve all history rather than truncate it.
+
+The first private held candidate failed existing release-source validation before type checking, build or tests because its held project still carried the interactive marker. This correction clears that marker and moves the unchanged shared content date to lightweight project metadata without a reverse model-contract import. The first candidate and failed validation remain retained as dated development evidence; no acceptance rule or public/provider quota changes.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
+
 # Text to Lattice — qualification-pending after run #380
 
 **Qualified source set SHA-256:** `f5401fce4bbc40728a9c2d15e598cfd828f6b494054206267274ea5a0f3d0674`
