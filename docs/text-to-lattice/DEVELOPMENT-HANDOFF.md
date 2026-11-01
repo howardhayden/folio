@@ -1,3 +1,27 @@
+# Text to Lattice — qualification-pending after run #386
+
+**Qualified source set SHA-256:** `91f0cfe318b57f6f6b1f64861ecf01d0b677a37ed7ffbc58c664859218be32e8`
+
+**Verified held rollback parent:** `27fbb84f6b243cb3b63a30732c8b96b61a67df6c`
+
+The existing direct human permission covers necessary work through deployment after the fixed criteria pass. This source is qualification-pending, not qualified; it selects no new operational unit, allowance or public activation. Every prior stop, refusal and spent unit remains dated history without refund, transfer or replay. Models, processing terms, strict acceptance and API/provider/native quotas remain unchanged. Missing or failed qualification evidence requires held documentation-only rollback to verified immediate parent 27fbb84f6b243cb3b63a30732c8b96b61a67df6c under the existing rules.
+
+The actual verified held parent is 27fbb84f6b243cb3b63a30732c8b96b61a67df6c, tree a24332e18cd0a3fc7930af748d915aab94de44d9, source 79fb8ebd64205abcb0380050362888d8693b90ef1eb0007873bad665044020b2 and dossier 9f033da2c294cbb4ae51c34073bbdb05c3110f92e1b7f7df9b73f6f2c092ca4e. Its genuine root-adopted held delivery is work/evidence/nov01-held-project-delivery/root-outcome.json / SHA-256 13b0cf5c891760e34a0f9a5c2a0153339457220d96b8bc2969f561c3637e7f79. Original routine push #389/41303402793/attempt 1 succeeded on November 1, 2026: held Pages were verified at 11:52:00.404Z and held API at 11:52:14.150Z. These are separate dated routine Pages-before-API witnesses, not continuous-hold or API-first restoration proof. The public content last-modified date remains October 30; November 1 is the delivery date. Future Q main, tree, CI and routine held delivery remain unobserved.
+
+This candidate changes exactly three existing interaction-switch literals in ResumeView and projects.js among 259 qualified files. All other 257 qualified members remain exact H, including the project-page content, semantic projections, observer correction, validators, tests, runtime, processing terms and quotas. The shared lightweight TEXT_TO_LATTICE_CONTENT_UPDATED export remains October 30 in projects.js; its existing imports and runtime dependency boundary remain unchanged. The initial missed-held-interaction-marker refusal and the separately validated r2 correction remain retained. The prospective source 91f0cfe318b57f6f6b1f64861ecf01d0b677a37ed7ffbc58c664859218be32e8 is derived from current H plus these three literal edits, never copied from an old Q tree.
+
+Run #386 retained bounded backend/canary success and accepted original BEFORE observer #5/41074379472/attempt 1. Firefox's 14 hosted input-only checks passed without consent or submission. Root stopped at 14:58:14Z on October 30 for insufficient operational time before either native pipeline. Safari and Brave had zero startBlank, app-origin/source entry, consent, submission, capture or seal; AFTER had zero attempts. This is incomplete native evidence, with no newly established application defect. The bounded backend, BEFORE and Firefox results supply no missing native proof or broader output-quality or repair-efficacy claim. U13-AFTER-RUN380-A1 remains spent: 1 used and 0 remaining.
+
+Included restore #387 verified held API at 15:00:32.556Z before held Pages at 15:01:13.087Z. The separate scheduled #386 cleanup verified held API at 15:05:41.444Z before held Pages at 15:06:01.866Z. These October 30 witnesses prove neither continuous hold nor prompt-immediate compliance. Both owned collectors were disposed clean, Safari temporary inspection was visibly restored OFF, and owned Inspectors/DevTools were closed. Owned normal profiles remained about:blank; personal windows were untouched. These dated cleanup facts do not attest current native readiness.
+
+GATE-02/GATE-03 retain existing bounded satisfied adjudications only for exact determining runtime inputs. GATE-06 remains prospective post-deployment-verification/null with browser evidence not-collected. The future operation needs its own actual before/after context, loaded executable closure, native prerequisites, captures and seals, hosted Firefox input-only checks and concrete finite selection. Native Safari/Brave network, lifecycle, reload and related evidence remain required. No source metadata, hosted input-only result, static-page check or backend success closes G06.
+
+The production default reader and generated companion guards must run on this actual generated candidate. The fixed canonical register retains its reviewed 32 MiB maximum; ordinary 4 MiB limits and exact companion paths, entries, hashes, size, regular-file and TOCTOU checks remain unchanged. Any later current consumer fixture needs its actual closed inventory and its own existing scope checks. No historical control or readiness result is promoted to a current live pass.
+
+The complete prior handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice — held after run #386; project page updated 2026-10-30
 
 **Qualified source set SHA-256:** `79fb8ebd64205abcb0380050362888d8693b90ef1eb0007873bad665044020b2`
