@@ -149,6 +149,7 @@ function relationshipTargetId(target) {
 }
 
 function projectRecord(project) {
+  const lastUpdated = project.lastUpdated ?? PROJECT_CONTENT_UPDATED;
   return {
     id: project.id,
     slug: project.slug,
@@ -165,7 +166,7 @@ function projectRecord(project) {
     technologies: documentedList(project.technologies),
     evidence: project.evidence.map((url) => ({ type: "authoritative-link", url })),
     limitations: documentedList(project.limitations),
-    status: { value: project.status, asOf: PROJECT_CONTENT_UPDATED },
+    status: { value: project.status, asOf: lastUpdated },
     publication: { ...project.publication },
     interactiveRelease: project.interactiveRelease ?? "not-applicable",
     canonicalUrl: absoluteUrl(project.canonicalPath),
@@ -180,15 +181,21 @@ function projectRecord(project) {
     provenance: provenance([
       "app/resume/projects.js",
       ...(projectDocuments.some(({ projectId }) => projectId === project.id) ? ["app/content/projectDocuments.js"] : []),
-    ], PROJECT_CONTENT_VERSION, PROJECT_CONTENT_UPDATED),
+      ...(project.id === "lattice" ? ["app/content/textToLatticeContent.js"] : []),
+    ], PROJECT_CONTENT_VERSION, lastUpdated),
     license: { documented: false, value: null },
   };
 }
 
+const projectsContentUpdated = projects.reduce((latest, { lastUpdated }) => (
+  lastUpdated && lastUpdated > latest ? lastUpdated : latest
+), PROJECT_CONTENT_UPDATED);
+const resumeContentUpdated = projectsContentUpdated > SITE_CONTENT_UPDATED ? projectsContentUpdated : SITE_CONTENT_UPDATED;
+
 export const projectsManifest = {
   schema: absoluteUrl("/schemas/projects-v2.schema.json"),
   version: PROJECT_CONTENT_VERSION,
-  asOf: PROJECT_CONTENT_UPDATED,
+  asOf: projectsContentUpdated,
   canonicalUrl: absoluteUrl("/projects/"),
   sharedRequirements: sharedRequirements.map((item) => ({ ...item, graphId: requirementGraphId(item.id) })),
   practiceStandards: practiceStandards.map((item) => ({ ...item, graphId: requirementGraphId(item.id) })),
@@ -197,7 +204,7 @@ export const projectsManifest = {
 
 export const resumeManifest = {
   version: SITE_CONTENT_VERSION,
-  asOf: SITE_CONTENT_UPDATED,
+  asOf: resumeContentUpdated,
   canonicalUrl: absoluteUrl("/resume/"),
   person: { id: person.id, name: person.name },
   educationOverview: {
@@ -235,7 +242,7 @@ export const resumeManifest = {
       limitations: { documented: limitations.documented, items: [...limitations.items] },
     };
   }),
-  provenance: provenance(["app/data.ts", "app/resume/resumeDetails.js", "app/resume/projects.js", "app/content/siteContent.js"]),
+  provenance: provenance(["app/data.ts", "app/resume/resumeDetails.js", "app/resume/projects.js", "app/content/siteContent.js"], SITE_CONTENT_VERSION, resumeContentUpdated),
 };
 
 export const toolsManifest = {
@@ -291,6 +298,7 @@ function projectJsonLdNode(project) {
     url: record.canonicalUrl,
     sameAs: project.url,
     datePublished: project.publication.value,
+    ...(project.lastUpdated ? { dateModified: project.lastUpdated } : {}),
     ...(project.publication.start && project.publication.end ? {
       temporalCoverage: `${project.publication.start}/${project.publication.end}`,
     } : {}),
@@ -455,8 +463,14 @@ export const knowledgeGraph = {
     pageNode("/requirements/", "Requirements", "Shared public project requirements and practice standards.", "CollectionPage", requirementSetId),
     pageNode("/ns/", "hah.dev semantic vocabulary", "Definitions for the hah.dev JSON-LD extension terms.", "CollectionPage", namespaceSetId),
     pageNode("/third-party-notices/", "Legal and third-party notices", "Current Owner terms, historical license records, and third-party attribution for hah.dev and Text to Lattice.", "WebPage", thirdPartyDocumentsId),
-    ...projects.map((project) => pageNode(project.canonicalPath, project.name, project.thesis, "WebPage", projectGraphId(project))),
-    pageNode(textToLatticeContract.canonicalPath, textToLatticeContract.name, applicationDescription, "WebPage", applicationId),
+    ...projects.map((project) => ({
+      ...pageNode(project.canonicalPath, project.name, project.thesis, "WebPage", projectGraphId(project)),
+      ...(project.lastUpdated ? { dateModified: project.lastUpdated } : {}),
+    })),
+    {
+      ...pageNode(textToLatticeContract.canonicalPath, textToLatticeContract.name, applicationDescription, "WebPage", applicationId),
+      dateModified: textToLatticeContract.lastUpdated,
+    },
     ...resumeDetailList.map((detail) => pageNode(detail.canonicalPath, detail.title, `${detail.title}${detail.subtitle ? `, ${detail.subtitle}` : ""}: ${detail.period}.`, "WebPage", `${absoluteUrl(detail.canonicalPath)}#record`)),
     { "@id": requirementSetId, "@type": "DefinedTermSet", name: "hah.dev project requirements and practice standards", url: absoluteUrl("/requirements/") },
     ...requirementNodes,
@@ -479,6 +493,7 @@ export const knowledgeGraph = {
       "@id": applicationId, "@type": "SoftwareApplication", name: textToLatticeContract.name,
       description: applicationDescription,
       url: absoluteUrl(textToLatticeContract.canonicalPath),
+      dateModified: textToLatticeContract.lastUpdated,
       applicationCategory: "Portfolio demonstration", operatingSystem: "Modern browser with JavaScript over HTTPS",
       creativeWorkStatus: applicationReleaseStatus,
       ...(applicationReleaseNotes.length > 0 ? { releaseNotes: [...applicationReleaseNotes] } : {}),
@@ -789,7 +804,11 @@ export function renderSitemap() {
     ...canonicalHtmlRoutes.map(({ pathname }) => absoluteUrl(pathname)),
     ...projectDocuments.map(({ htmlUrl }) => htmlUrl),
   ];
-  const rows = urls.map((url) => `  <url>\n    <loc>${xmlEscape(url)}</loc>\n    <lastmod>${SITE_CONTENT_UPDATED}</lastmod>\n  </url>`).join("\n");
+  const updatedByUrl = new Map([
+    [absoluteUrl(textToLatticeContract.canonicalPath), textToLatticeContract.lastUpdated],
+    ...projects.filter(({ lastUpdated }) => lastUpdated).map((project) => [absoluteUrl(project.canonicalPath), project.lastUpdated]),
+  ]);
+  const rows = urls.map((url) => `  <url>\n    <loc>${xmlEscape(url)}</loc>\n    <lastmod>${updatedByUrl.get(url) ?? SITE_CONTENT_UPDATED}</lastmod>\n  </url>`).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${rows}\n</urlset>\n`;
 }
 export function renderRobots() {

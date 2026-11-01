@@ -2,6 +2,7 @@ import { documentsForProject } from "../content/projectDocuments.js";
 
 export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v12";
 export const PROJECT_CONTENT_UPDATED = "2026-09-23";
+export const TEXT_TO_LATTICE_CONTENT_UPDATED = "2026-10-30";
 
 const LATTICE_CARD_RESOURCE_LABELS = Object.freeze({
   "lattice-concept-map": "Concept and Ecosystem Map",
@@ -42,6 +43,7 @@ export const projects = Object.freeze([
     name: "Lattice",
     type: "SoftwareSourceCode",
     canonicalPath: "/projects/lattice/",
+    lastUpdated: TEXT_TO_LATTICE_CONTENT_UPDATED,
     url: "https://github.com/howardhayden/lattice",
     icon: "pen-fill",
     thesis: "Lattice makes linguistic register explicit, testable, and accountable to meaning.",
@@ -79,8 +81,8 @@ export const projects = Object.freeze([
     ]),
     publication: Object.freeze({ label: "September 2026", value: "2026-09", precision: "month" }),
     status: "public",
-    interaction: "lattice-demo",
-    interactiveRelease: "enabled",
+    interaction: null,
+    interactiveRelease: "held",
     readmeAfterFirstParagraph: true,
   }),
   Object.freeze({

@@ -27,6 +27,7 @@ export default function TextToLatticePage() {
         <article data-tool-id={textToLatticeContract.id}>
           <h1>{textToLatticeContract.name}</h1>
           <p className="lead">{textToLatticeContract.purpose}</p>
+          <p>Last updated: <time dateTime={textToLatticeContract.lastUpdated}>{textToLatticeContract.lastUpdated}</time></p>
 
           <section className="lattice-release-hold" aria-labelledby="text-to-lattice-release-status">
             <h2 id="text-to-lattice-release-status">Release status: {interactiveRelease}</h2>

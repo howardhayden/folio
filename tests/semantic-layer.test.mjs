@@ -13,7 +13,7 @@ import {
   sharedRequirements,
   practiceStandards,
 } from "../app/content/siteContent.js";
-import { textToLatticeContract } from "../app/content/textToLatticeContent.js";
+import { TEXT_TO_LATTICE_CONTENT_UPDATED, textToLatticeContract } from "../app/content/textToLatticeContent.js";
 import {
   PROJECT_DOCUMENTS_UPDATED, PROJECT_DOCUMENTS_VERSION, projectDocuments,
 } from "../app/content/projectDocuments.js";
@@ -855,7 +855,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   const resumeMarkdown = renderResumeMarkdown();
   assert.equal(PROJECT_CONTENT_VERSION, "hah-portfolio-projects.v12");
   assert.equal(projectsManifest.version, PROJECT_CONTENT_VERSION);
-  assert.equal(projectsManifest.asOf, PROJECT_CONTENT_UPDATED);
+  assert.equal(projectsManifest.asOf, TEXT_TO_LATTICE_CONTENT_UPDATED);
   const mediumProject = projects.find(({ id }) => id === "medium");
   assert.equal(mediumProject?.resources[0]?.label, "Howie’s Medium Articles");
   assert.match(resumeMarkdown, /Howie’s Medium Articles: https:\/\/medium\.com\/@howardhayden/u);
@@ -938,7 +938,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
           ].includes(key)),
         )),
         publication: { ...source.publication },
-        status: { value: source.status, asOf: PROJECT_CONTENT_UPDATED },
+        status: { value: source.status, asOf: source.lastUpdated ?? PROJECT_CONTENT_UPDATED },
         interactiveRelease: source.interactiveRelease ?? "not-applicable",
       },
     );
@@ -946,15 +946,16 @@ test("project and Text to Lattice implementation provenance stays source-aligned
       repository: SITE_REPOSITORY,
       sourcePaths: [
         "app/resume/projects.js",
-        ...(source.id === "lattice" ? ["app/content/projectDocuments.js"] : []),
+        ...(source.id === "lattice" ? ["app/content/projectDocuments.js", "app/content/textToLatticeContent.js"] : []),
       ],
       version: PROJECT_CONTENT_VERSION,
-      lastUpdated: PROJECT_CONTENT_UPDATED,
+      lastUpdated: source.lastUpdated ?? PROJECT_CONTENT_UPDATED,
     });
     const graphNode = graphById.get(`${record.canonicalUrl}#work`);
     assert.ok(graphNode, `${source.id} has a graph record`);
     assert.deepEqual(graphNode[hah("provenance")], record.provenance);
     assert.equal(graphNode.mainEntityOfPage?.["@id"], `${record.canonicalUrl}#page`);
+    assert.equal(graphNode.dateModified, source.lastUpdated);
   }
 
   const latticeRecord = projectsManifest.projects.find(({ id }) => id === "lattice");
@@ -1191,7 +1192,8 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     assert.ok(namespaceTerms.some((term) => term.id === id), `${id} has a vocabulary definition`);
   }
   assert.equal(SITE_CONTENT_VERSION, resumeManifest.version);
-  assert.equal(SITE_CONTENT_UPDATED, resumeManifest.asOf);
+  assert.equal(resumeManifest.asOf, TEXT_TO_LATTICE_CONTENT_UPDATED);
+  assert.equal(resumeManifest.provenance.lastUpdated, resumeManifest.asOf);
 });
 
 test("project relationships and inherited requirements resolve in the graph", () => {
@@ -1206,6 +1208,61 @@ test("project relationships and inherited requirements resolve in the graph", ()
     }
     for (const requirement of project.inheritedRequirements) {
       assert.ok(resolvable.has(requirement), `${project.id} inherited requirement resolves`);
+    }
+  }
+});
+
+test("Text to Lattice dates agree across published surfaces without refreshing unrelated projects", async () => {
+  assert.equal(TEXT_TO_LATTICE_CONTENT_UPDATED, "2026-10-30");
+  assert.equal(textToLatticeContract.lastUpdated, TEXT_TO_LATTICE_CONTENT_UPDATED);
+  assert.equal(projects.find(({ id }) => id === "lattice")?.lastUpdated, TEXT_TO_LATTICE_CONTENT_UPDATED);
+  const [contractHtml, projectHtml, manifestText, resumeText, graphText, projectMarkdown, sitemap] = await Promise.all([
+    request(textToLatticeContract.canonicalPath, "text/html").then((response) => response.text()),
+    request("/projects/lattice/", "text/html").then((response) => response.text()),
+    readFile(staticFileUrl("projects.json"), "utf8"),
+    readFile(staticFileUrl("resume.json"), "utf8"),
+    readFile(staticFileUrl("knowledge-graph.jsonld"), "utf8"),
+    readFile(staticFileUrl("content/projects/lattice.md"), "utf8"),
+    readFile(staticFileUrl("sitemap.xml"), "utf8"),
+  ]);
+  assert.match(authoredDocument(contractHtml), /<time datetime="2026-10-30">2026-10-30<\/time>/iu);
+  assert.match(decodedText(projectHtml), /Last updated 2026-10-30/u);
+  assert.ok(projectMarkdown.includes(`Status: public as of ${TEXT_TO_LATTICE_CONTENT_UPDATED}`));
+  assert.ok(projectMarkdown.includes(`Last updated: ${TEXT_TO_LATTICE_CONTENT_UPDATED}`));
+  const manifest = JSON.parse(manifestText);
+  const resume = JSON.parse(resumeText);
+  assert.equal(manifest.asOf, TEXT_TO_LATTICE_CONTENT_UPDATED);
+  assert.equal(resume.asOf, TEXT_TO_LATTICE_CONTENT_UPDATED);
+  assert.equal(resume.provenance.lastUpdated, resume.asOf);
+  assert.ok(manifest.asOf >= PROJECT_CONTENT_UPDATED);
+  assert.ok(resume.asOf >= SITE_CONTENT_UPDATED && resume.asOf >= manifest.asOf);
+  const graph = new Map(JSON.parse(graphText)["@graph"].map((node) => [node["@id"], node]));
+  for (const id of [
+    "https://hah.dev/projects/lattice/#work",
+    "https://hah.dev/projects/lattice/#page",
+    "https://hah.dev/projects/lattice/text-to-lattice/#application",
+    "https://hah.dev/projects/lattice/text-to-lattice/#page",
+  ]) assert.equal(graph.get(id)?.dateModified, TEXT_TO_LATTICE_CONTENT_UPDATED, id);
+  const sitemapDates = new Map([...sitemap.matchAll(/<url>\s*<loc>([^<]+)<\/loc>\s*<lastmod>([^<]+)<\/lastmod>\s*<\/url>/gu)]
+    .map((match) => [match[1], match[2]]));
+  const updatedUrls = new Set(["https://hah.dev/projects/lattice/", "https://hah.dev/projects/lattice/text-to-lattice/"]);
+  for (const url of updatedUrls) assert.equal(sitemapDates.get(url), TEXT_TO_LATTICE_CONTENT_UPDATED);
+  for (const [url, lastmod] of sitemapDates) {
+    if (!updatedUrls.has(url)) assert.equal(lastmod, SITE_CONTENT_UPDATED, `${url} keeps its prior date`);
+  }
+  for (const source of projects) {
+    const record = manifest.projects.find(({ id }) => id === source.id);
+    const resumed = resume.projects.find(({ id }) => id === source.id);
+    const expectedDate = source.id === "lattice" ? TEXT_TO_LATTICE_CONTENT_UPDATED : PROJECT_CONTENT_UPDATED;
+    assert.equal(record.status.asOf, expectedDate);
+    assert.equal(record.provenance.lastUpdated, expectedDate);
+    assert.equal(resumed.status.asOf, expectedDate);
+    assert.ok(manifest.asOf >= record.status.asOf && manifest.asOf >= record.provenance.lastUpdated);
+    assert.ok(resume.asOf >= resumed.status.asOf);
+    if (source.id !== "lattice") {
+      assert.equal(source.lastUpdated, undefined, `${source.id} has no new override`);
+      assert.equal(graph.get(`${record.canonicalUrl}#work`)?.dateModified, undefined);
+      assert.equal(graph.get(`${record.canonicalUrl}#page`)?.dateModified, undefined);
     }
   }
 });
