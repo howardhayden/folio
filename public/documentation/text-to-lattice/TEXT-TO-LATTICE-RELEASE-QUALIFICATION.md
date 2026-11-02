@@ -1,3 +1,46 @@
+# Text to Lattice release qualification — held after bounded backend qualification 396
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Qualification date:** 2026-11-02
+
+**Evidence updated:** 2026-11-02
+
+**Reviewed baseline:** `554b90ace6fed387476697483f3cf0b0f13588b3`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `66fe09d5ad67200fa78bbbd8328d37634d096a08c500383c14731902ce7952a7`
+
+**Artifact-set projection SHA-256:** `8b1ab8160f5b378d2044a44514b9b0a2cc03fe85d7f24e1f03bd8ef73a82f569`
+
+Original bounded backend qualification #396, attempt 1, through Hugging Face with DeepInfra generation and OVHcloud verification/certification on main 554b90ace6fed387476697483f3cf0b0f13588b3 / deployed source 227cb59f3b5ea84cd63b63601f1e4ed465e3abd9b8ff8ab7d6899aab36cc3340 / deployed dossier cf6600f4f80540cc2cf2d1faeb7584736d474cfece652062fcc96ce2fab43848 passed. Separate root and independent review against all existing bounded criteria supports GATE-02 and GATE-03 satisfied-in-production with null acceptance bases. GATE-06 remains open-release-blocker/null. API and UI are held. This is not automatic gate closure, an acceptance waiver, canonical-browser evidence or final release.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+The single existing synthetic canary returned HTTP 200 conformant-for-context in 27.455 seconds: one 16-word passage, revised 0 / retained 1, one verification pass and no findings. All 24 negative HTTP probes matched the source contract; complete request-scoped admission evidence covers the existing 13 designated negatives plus setup, preservation, tamper and the one allowed canary. The other 11 probes gain no imputed counter observation. Paired active API environment records and complete provider-reported usage bind the same service job and source. Four reported calls (two generator and two joint review calls) consumed 8,010 prompt and 348 completion tokens. The dated 2026-11-02 catalog estimate is USD 0.004038050, not an invoice, account or window total, or charge ceiling. No full-input managed-fit, future-price, provider-retention, reliability, rewrite or source-copy repair guarantee follows.
+
+Successful held-path API restoration was verified at 2026-11-02T18:16:38.525Z; Pages was sampled held before service activation at 2026-11-02T18:15:22.189Z. No separate postqualification Pages observation was collected. These are dated samples, not continuous hold or an API-first restoration guarantee. OVHCLOUD-API-ONLY-A2 is spent (1 used, 0 remaining); conditional provider-free recovery was not needed, selected or consumed. No unused budget transfers. The production run retains its original source/dossier identities; this new held documentation candidate changes two necessary current-state test fixtures and one held-disclosure sentence and requires its own validation and held delivery.
+
+The actual production witness is [run #396](https://github.com/howardhayden/folio/actions/runs/41497938631), service job 125460476639. Its active API and response-policy identities, before/after SQLite admission records, strict accepted live receipt, complete usage sidecar, sanitized artifact custody and held restoration were independently reviewed. The archived usage catalog remains dated November 2. A conformant retained passage does not establish a material rewrite, repair branch coverage or a causal remedy for source-copying failure; no failed-log reader or additional probe was run after success.
+
+The first source header binds this new held documentation candidate, not a relabelled production witness. Two qualified test files receive necessary current-state fixture assertions and one content file receives an accurate held-disclosure sentence; the other 261 qualified files stay exact. All Worker, prompt, provider, protocol, acceptance, privacy, rights, limit and workflow behavior remains unchanged. Actual396 remains source `227cb59f3b5ea84cd63b63601f1e4ed465e3abd9b8ff8ab7d6899aab36cc3340` / dossier `cf6600f4f80540cc2cf2d1faeb7584736d474cfece652062fcc96ce2fab43848` / main `554b90ace6fed387476697483f3cf0b0f13588b3`. Current fixture/governance validation and reviewed held delivery remain pending; the previous141-input Worker receipt includes the changed disclosure file, so the existing three Worker dryruns must be repeated for this candidate and compared with prior outputs without assuming equality.
+
+Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence. Safari and Brave canonical evidence and hosted Firefox input checks remain outstanding. This backend-only unit grants no public client activation, automatic GATE-06 closure or final release.
+
+The complete prior dossier follows verbatim as dated historical evidence.
+
+---
+
 # Text to Lattice release qualification — held OVHcloud and phase-stream candidate
 
 **Qualification date:** 2026-11-02
