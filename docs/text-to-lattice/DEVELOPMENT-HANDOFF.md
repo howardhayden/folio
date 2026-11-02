@@ -1,3 +1,19 @@
+# Text to Lattice — held OVHcloud and phase-stream candidate, 2026-11-02
+
+**Qualified source set SHA-256:** `227cb59f3b5ea84cd63b63601f1e4ed465e3abd9b8ff8ab7d6899aab36cc3340`
+
+**Qualification dossier SHA-256:** `cf6600f4f80540cc2cf2d1faeb7584736d474cfece652062fcc96ce2fab43848`
+
+The owner-directed OVHcloud review-role migration, real API phase telemetry and shared terminal modal UI are integrated in this held source candidate. GATE-02/GATE-03 reset for the current provider and transport; GATE-06 remains open. Preserve all prior authority, stopped attempts, spent units and historical evidence. Necessary validation, browser evidence, debugging and deployment continue under standing user authority; use a fresh exact bounded operational selection only after current prerequisites pass.
+
+Default JSON/canary behavior, one bodyless setup plus one content request, strict provider/result acceptance, quotas/call/token/deadline limits and privacy remain. The canonical UI uses the optional closed phase stream with strict terminal plus EOF. Current schema 2 browser evidence hashes the entire original stream and separately validates its terminal payload; old JSON-native proof is not current evidence. Keep the complete old native 51 and old finite packets as history; independently validate source-bound successor collectors before a fresh live window. Metadata observers and capture/restore time limits are unchanged.
+
+Current UI preserves one request across API/diagram tabs and close/reopen, uses the shared TA bar and terminal font, emphasizes server phases, expands guidance/languages on demand, keeps confirmation visible and starts the wide input on one vertically expandable line. Input and output text remain left-aligned. Public publication remains held documentation-only until exact production criteria pass.
+
+Final source freeze is preparation for full offline validation and reviewed held delivery, not evidence that validation, deployment or native capture happened. Private operational records remain outside product source. The complete prior handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice — qualification-pending after run #386
 
 **Qualified source set SHA-256:** `91f0cfe318b57f6f6b1f64861ecf01d0b677a37ed7ffbc58c664859218be32e8`

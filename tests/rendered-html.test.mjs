@@ -1844,7 +1844,8 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
   assert.match(source, /aria-labelledby="lattice-demo-title"/);
-  assert.match(source, /aria-describedby="lattice-demo-description lattice-external-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"/);
+  assert.match(source, /aria-describedby="lattice-demo-description lattice-processing-summary"/);
+  assert.match(source, /<details className="lattice-disclosure">\s*<summary id="lattice-processing-summary">External processing, privacy and limits<\/summary>/u);
   assert.equal((source.match(/spellCheck=\{false\}/gu) ?? []).length, 1);
   assert.equal((source.match(/autoCorrect="off"/gu) ?? []).length, 1);
   assert.equal((source.match(/autoCapitalize="off"/gu) ?? []).length, 1);
@@ -1897,7 +1898,7 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
     /aria-label=\{taskContinuesWhileClosed \? "Close; current task continues" : latticeResult \? "Close" : "Cancel"\}/u,
   );
   assert.match(shelfSource, /className="form-control shelf-search-entry px-0 px-sm-2"/u);
-  assert.match(source, /className="form-control shelf-search-entry lattice-input"/u);
+  assert.match(source, /className="form-control shelf-search-entry resume-search-input lattice-input"/u);
   const searchEntryRule = css.match(/\.form-control\.shelf-search-entry \{([\s\S]*?)\n\}/u)?.[1] ?? "";
   assert.match(searchEntryRule, /background-color: white/u);
   assert.match(searchEntryRule, /border: none/u);
@@ -1910,9 +1911,13 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
     "Source text shares Resume Search's lower-edge shadow instead of introducing a separate input treatment",
   );
   const latticeInputRule = css.match(/\.form-control\.lattice-input \{([\s\S]*?)\n\}/u)?.[1] ?? "";
-  assert.match(latticeInputRule, /min-height: 13rem/u);
+  assert.match(sourceInput, /rows=\{1\}/u);
+  assert.match(latticeInputRule, /min-height: calc\(1\.5em \+ \.75rem\)/u);
+  assert.match(latticeInputRule, /resize: vertical/u);
   assert.match(latticeInputRule, /font: inherit/u);
-  assert.match(latticeInputRule, /padding: 1rem 1\.125rem/u);
+  assert.match(latticeInputRule, /padding-block: \.375rem/u);
+  assert.match(css, /\.form-control\.lattice-input,\s*\.form-control\.lattice-input:focus \{\s*text-align: left;/u);
+  assert.match(css, /\.lattice-output-text \{[^}]*text-align: left;/u);
   assert.doesNotMatch(latticeInputRule, /(?:background|border|box-shadow):/u);
   assert.doesNotMatch(css, /\.form-control\.shelf-search-entry\.lattice-input:focus/u);
   assert.match(css, /\.lattice-source-field \{[\s\S]*?display: grid;[\s\S]*?gap: \.625rem;/u);
@@ -1940,7 +1945,7 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   );
   assert.match(source, /\{wordCount\} of \{LATTICE_WORD_LIMIT\} words/);
   assert.match(source, />\s*Process with external service\s*<\/button>/u);
-  assert.match(source, /className="lattice-progress"/);
+  assert.match(source, /className=\{`lattice-progress teaching-manifest-entry--\$\{serviceState\.tone\}`\}/u);
   assert.match(source, /cancelLattice/);
   assert.match(source, /output\.scrollIntoView\(\{ block: "nearest" \}\)[\s\S]*?output\.focus\(\{ preventScroll: true \}\)/u);
   assert.match(source, /className="lattice-output-text"[\s\S]*?data-nosnippet=""[\s\S]*?draggable=\{false\}/u);

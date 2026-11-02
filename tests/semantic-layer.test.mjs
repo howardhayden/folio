@@ -1028,7 +1028,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     },
   };
   const expectedRuntime = {
-    name: "Hugging Face Inference Providers with DeepInfra and Scaleway",
+    name: "Hugging Face Inference Providers with DeepInfra and OVHcloud",
     version: "provider-managed remote service",
     packageUrl: "https://huggingface.co/docs/inference-providers/",
     documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
@@ -1184,9 +1184,11 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
     "https://huggingface.co/docs/inference-providers/en/guides/structured-output",
     "https://huggingface.co/docs/inference-providers/en/security",
-    "https://huggingface.co/docs/inference-providers/en/providers/scaleway",
-    "https://www.scaleway.com/en/docs/generative-apis/reference-content/data-privacy/",
-    "https://www.scaleway.com/en/docs/generative-apis/reference-content/model-lifecycle/",
+    "https://huggingface.co/docs/inference-providers/en/providers/ovhcloud",
+    "https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-we.pdf",
+    "https://www.ovhcloud.com/en/public-cloud/ai-endpoints/",
+    "https://contract.eu.ovhapis.com/1.0/pdf/AI_Code-IE.pdf",
+    "https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-troubleshooting",
   ]) assert.ok(upstreamUrls.has(required), required);
   for (const id of ["securityAndPrivacy", "interactiveRelease", "publicationMode"]) {
     assert.ok(namespaceTerms.some((term) => term.id === id), `${id} has a vocabulary definition`);
@@ -1213,7 +1215,7 @@ test("project relationships and inherited requirements resolve in the graph", ()
 });
 
 test("Text to Lattice dates agree across published surfaces without refreshing unrelated projects", async () => {
-  assert.equal(TEXT_TO_LATTICE_CONTENT_UPDATED, "2026-10-30");
+  assert.equal(TEXT_TO_LATTICE_CONTENT_UPDATED, "2026-11-02");
   assert.equal(textToLatticeContract.lastUpdated, TEXT_TO_LATTICE_CONTENT_UPDATED);
   assert.equal(projects.find(({ id }) => id === "lattice")?.lastUpdated, TEXT_TO_LATTICE_CONTENT_UPDATED);
   const [contractHtml, projectHtml, manifestText, resumeText, graphText, projectMarkdown, sitemap] = await Promise.all([
@@ -1225,8 +1227,8 @@ test("Text to Lattice dates agree across published surfaces without refreshing u
     readFile(staticFileUrl("content/projects/lattice.md"), "utf8"),
     readFile(staticFileUrl("sitemap.xml"), "utf8"),
   ]);
-  assert.match(authoredDocument(contractHtml), /<time datetime="2026-10-30">2026-10-30<\/time>/iu);
-  assert.match(decodedText(projectHtml), /Last updated 2026-10-30/u);
+  assert.match(authoredDocument(contractHtml), /<time datetime="2026-11-02">2026-11-02<\/time>/iu);
+  assert.match(decodedText(projectHtml), /Last updated 2026-11-02/u);
   assert.ok(projectMarkdown.includes(`Status: public as of ${TEXT_TO_LATTICE_CONTENT_UPDATED}`));
   assert.ok(projectMarkdown.includes(`Last updated: ${TEXT_TO_LATTICE_CONTENT_UPDATED}`));
   const manifest = JSON.parse(manifestText);

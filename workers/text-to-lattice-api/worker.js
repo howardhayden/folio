@@ -11,6 +11,12 @@ import {
   latticeUtf8Length,
 } from "../../app/resume/lattice/inputPolicy.js";
 import {
+  LATTICE_SERVICE_EVENTS_MIME,
+  LATTICE_SERVICE_PHASE_LIMIT,
+  LATTICE_SERVICE_ERROR_RESERVE_BYTES,
+  isLatticeServicePhase,
+} from "../../app/resume/lattice/serviceTelemetry.js";
+import {
   LATTICE_API_PATH,
   LATTICE_API_SCHEMA_VERSION,
   LATTICE_VISITOR_SESSION_ACCEPT,
@@ -280,7 +286,12 @@ function abortError(message = "The Lattice request was canceled.") {
 }
 
 function raceAbort(operation, signal) {
-  if (signal.aborted) return Promise.reject(signal.reason ?? abortError());
+  if (signal.aborted) {
+    // A synchronous progress callback can abort while creating the operation.
+    // Observe its eventual rejection even though the deadline already won.
+    void Promise.resolve(operation).catch(() => {});
+    return Promise.reject(signal.reason ?? abortError());
+  }
   return new Promise((resolve, reject) => {
     const cancel = () => reject(signal.reason ?? abortError());
     signal.addEventListener("abort", cancel, { once: true });
@@ -351,6 +362,7 @@ function requestDeadline(
     signal: controller.signal,
     didQualificationExpire: () => deadlineCause === "qualification-expiry",
     didTimeOut: () => deadlineCause === "request-timeout",
+    abort: (reason) => controller.abort(reason ?? abortError()),
     dispose() {
       cancelTimeout(timeout);
       request.signal.removeEventListener("abort", abortFromClient);
@@ -365,12 +377,16 @@ function jsonResponse(value, status) {
   });
 }
 
-function errorResponse(status, code, retryAfterSeconds = null) {
+function errorBody(code, retryAfterSeconds = null) {
   const body = { error: code };
   if (Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds >= 1 && retryAfterSeconds <= 300) {
     body.retry_after_seconds = retryAfterSeconds;
   }
-  return jsonResponse(body, status);
+  return body;
+}
+
+function errorResponse(status, code, retryAfterSeconds = null) {
+  return jsonResponse(errorBody(code, retryAfterSeconds), status);
 }
 
 function qualificationHeldResponse() {
@@ -509,27 +525,27 @@ function validateEnvelope(value) {
   return value;
 }
 
-function safeProviderResponse(error) {
+function safeProviderResponse(error, respond = errorResponse) {
   switch (error.code) {
     case "provider_timeout":
-      return errorResponse(504, "upstream_timeout");
+      return respond(504, "upstream_timeout");
     case "provider_not_configured":
-      return errorResponse(500, "internal_error");
+      return respond(500, "internal_error");
     case "provider_http_error":
       return error.status === 429
-        ? errorResponse(429, "rate_limited", error.retryAfterSeconds)
-        : errorResponse(502, "upstream_unavailable");
+        ? respond(429, "rate_limited", error.retryAfterSeconds)
+        : respond(502, "upstream_unavailable");
     case "provider_unavailable":
     case "provider_call_limit":
     case "provider_request_too_large":
     case "provider_redirect":
-      return errorResponse(502, "upstream_unavailable");
+      return respond(502, "upstream_unavailable");
     case "provider_response_too_large":
     case "provider_output_limit":
     case "provider_malformed_response":
-      return errorResponse(502, "malformed_upstream_response");
+      return respond(502, "malformed_upstream_response");
     default:
-      return errorResponse(502, "upstream_unavailable");
+      return respond(502, "upstream_unavailable");
   }
 }
 
@@ -842,10 +858,15 @@ export function createLatticeApiWorker({
         return errorResponse(403, "invalid_request");
       }
       const isVisitorSessionSetup = request.headers.get("accept") === LATTICE_VISITOR_SESSION_ACCEPT;
+      const wantsServiceEvents = request.headers.get("accept") === LATTICE_SERVICE_EVENTS_MIME;
       if (isVisitorSessionSetup && request.headers.has("content-type")) {
         return errorResponse(400, "invalid_request");
       }
-      if (!isVisitorSessionSetup && request.headers.get("accept") !== "application/json") {
+      if (!isVisitorSessionSetup && !wantsServiceEvents && request.headers.get("accept") !== "application/json") {
+        return errorResponse(400, "invalid_request");
+      }
+      if (wantsServiceEvents && request.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER)
+        === LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE) {
         return errorResponse(400, "invalid_request");
       }
       if (!isVisitorSessionSetup
@@ -874,6 +895,34 @@ export function createLatticeApiWorker({
       };
       let visitorCookieValue = null;
       let response;
+      let terminalBody;
+      let streamOwnsDeadline = false;
+      const failureResponse = (status, code, retryAfterSeconds = null) => {
+        terminalBody = errorBody(code, retryAfterSeconds);
+        return errorResponse(status, code, retryAfterSeconds);
+      };
+      const mapFailure = (error) => {
+        if (deadline.didQualificationExpire()
+          || error instanceof LatticeQualificationExpiredError) {
+          terminalBody = errorBody("upstream_unavailable");
+          return qualificationHeldResponse();
+        }
+        if (deadline.didTimeOut()) return failureResponse(504, "upstream_timeout");
+        if (error instanceof LatticeApiError) {
+          return failureResponse(error.status, error.code, error.retryAfterSeconds);
+        }
+        if (error instanceof LatticeProviderError) {
+          return withQualificationProviderDiagnostic(
+            safeProviderResponse(error, failureResponse),
+            error,
+            qualificationDiagnosticRequested
+              && qualificationWindowAllowsOutput(qualificationWindow, now()),
+          );
+        }
+        return deadline.signal.aborted
+          ? failureResponse(400, "invalid_request")
+          : failureResponse(500, "internal_error");
+      };
       try {
         if (isVisitorSessionSetup) {
           if (await requestBodyHasBytes(request, deadline.signal)) {
@@ -996,118 +1045,206 @@ export function createLatticeApiWorker({
         }
 
         assertRequestPhaseOpen(deadline, qualificationWindow, now());
-        const adapterOptions = {
-          token: env.HF_TOKEN,
-          requestedMode: payload.requested_mode,
-          fetchImpl,
-          observeQualificationHttpHeaders: qualificationDiagnosticRequested,
-          observeQualificationEnvelopeShape: qualificationDiagnosticRequested,
-          observeQualificationStrictMessageShape: qualificationDiagnosticRequested,
-          observeQualificationOutputLimitShape: qualificationDiagnosticRequested,
-          observeQualificationUsage: qualificationDiagnosticRequested,
-          observeQualificationRetentionDowngrade: qualificationDiagnosticRequested,
-        };
-        if (providerCallTimeoutMs !== undefined) adapterOptions.callTimeoutMs = providerCallTimeoutMs;
-        if (providerResponseByteLimit !== undefined) {
-          adapterOptions.maximumResponseBytes = providerResponseByteLimit;
-        }
-        observeLatticeAdmissionPipeline(admissionObservation,
-          createAdapter === createHuggingFaceLatticeAdapter && runTextToLatticeImpl === runTextToLattice);
-        const adapter = createAdapter(adapterOptions);
-        let qualificationTerminalAnalysisDiagnosticValue = null;
-        let qualificationTerminalAnalysisDiagnosticRejected = false;
-        const captureTerminalAnalysisDiagnostic = (trace) => {
-          if (qualificationTerminalAnalysisDiagnosticRejected
-            || qualificationTerminalAnalysisDiagnosticValue !== null) {
-            qualificationTerminalAnalysisDiagnosticValue = null;
-            qualificationTerminalAnalysisDiagnosticRejected = true;
-            return;
+        const transform = async (onProgress) => {
+          const adapterOptions = {
+            token: env.HF_TOKEN,
+            requestedMode: payload.requested_mode,
+            fetchImpl,
+            observeQualificationHttpHeaders: qualificationDiagnosticRequested,
+            observeQualificationEnvelopeShape: qualificationDiagnosticRequested,
+            observeQualificationStrictMessageShape: qualificationDiagnosticRequested,
+            observeQualificationOutputLimitShape: qualificationDiagnosticRequested,
+            observeQualificationUsage: qualificationDiagnosticRequested,
+            observeQualificationRetentionDowngrade: qualificationDiagnosticRequested,
+          };
+          if (providerCallTimeoutMs !== undefined) adapterOptions.callTimeoutMs = providerCallTimeoutMs;
+          if (providerResponseByteLimit !== undefined) {
+            adapterOptions.maximumResponseBytes = providerResponseByteLimit;
           }
-          qualificationTerminalAnalysisDiagnosticValue =
-            qualificationTerminalAnalysisDiagnostic(trace, adapter);
-          if (qualificationTerminalAnalysisDiagnosticValue === null) {
-            qualificationTerminalAnalysisDiagnosticRejected = true;
+          observeLatticeAdmissionPipeline(admissionObservation,
+            createAdapter === createHuggingFaceLatticeAdapter && runTextToLatticeImpl === runTextToLattice);
+          const adapter = createAdapter(adapterOptions);
+          let qualificationTerminalAnalysisDiagnosticValue = null;
+          let qualificationTerminalAnalysisDiagnosticRejected = false;
+          const captureTerminalAnalysisDiagnostic = (trace) => {
+            if (qualificationTerminalAnalysisDiagnosticRejected
+              || qualificationTerminalAnalysisDiagnosticValue !== null) {
+              qualificationTerminalAnalysisDiagnosticValue = null;
+              qualificationTerminalAnalysisDiagnosticRejected = true;
+              return;
+            }
+            qualificationTerminalAnalysisDiagnosticValue =
+              qualificationTerminalAnalysisDiagnostic(trace, adapter);
+            if (qualificationTerminalAnalysisDiagnosticValue === null) {
+              qualificationTerminalAnalysisDiagnosticRejected = true;
+            }
+          };
+          let qualificationWithheldDiagnosticValue = null;
+          let qualificationWithheldDiagnosticRejected = false;
+          const captureWithheldDiagnostic = (trace) => {
+            if (qualificationWithheldDiagnosticRejected || qualificationWithheldDiagnosticValue !== null) {
+              qualificationWithheldDiagnosticValue = null;
+              qualificationWithheldDiagnosticRejected = true;
+              return;
+            }
+            qualificationWithheldDiagnosticValue = qualificationWithheldDiagnostic(trace, adapter);
+            if (qualificationWithheldDiagnosticValue === null) qualificationWithheldDiagnosticRejected = true;
+          };
+          assertRequestPhaseOpen(deadline, qualificationWindow, now());
+          const runOptions = {
+            adapter,
+            signal: deadline.signal,
+            allowClarification: false,
+            clarificationAnswers: Object.freeze([]),
+            requestedMode: payload.requested_mode,
+          };
+          if (qualificationDiagnosticRequested) {
+            runOptions.onAnalysisTerminalDiagnostic = captureTerminalAnalysisDiagnostic;
+            runOptions.onCandidateWithheldDiagnostic = captureWithheldDiagnostic;
           }
-        };
-        let qualificationWithheldDiagnosticValue = null;
-        let qualificationWithheldDiagnosticRejected = false;
-        const captureWithheldDiagnostic = (trace) => {
-          if (qualificationWithheldDiagnosticRejected || qualificationWithheldDiagnosticValue !== null) {
-            qualificationWithheldDiagnosticValue = null;
-            qualificationWithheldDiagnosticRejected = true;
-            return;
+          if (onProgress !== undefined) runOptions.onProgress = onProgress;
+          const result = await raceAbort(runTextToLatticeImpl(payload.text, runOptions), deadline.signal);
+          if (!isLatticeApiResult(result)) {
+            throw apiError(502, "malformed_upstream_response");
           }
-          qualificationWithheldDiagnosticValue = qualificationWithheldDiagnostic(trace, adapter);
-          if (qualificationWithheldDiagnosticValue === null) qualificationWithheldDiagnosticRejected = true;
-        };
-        assertRequestPhaseOpen(deadline, qualificationWindow, now());
-        const runOptions = {
-          adapter,
-          signal: deadline.signal,
-          allowClarification: false,
-          clarificationAnswers: Object.freeze([]),
-          requestedMode: payload.requested_mode,
-        };
-        if (qualificationDiagnosticRequested) {
-          runOptions.onAnalysisTerminalDiagnostic = captureTerminalAnalysisDiagnostic;
-          runOptions.onCandidateWithheldDiagnostic = captureWithheldDiagnostic;
-        }
-        const result = await raceAbort(runTextToLatticeImpl(payload.text, runOptions), deadline.signal);
-        if (!isLatticeApiResult(result)) {
-          throw apiError(502, "malformed_upstream_response");
-        }
-        const responseBody = JSON.stringify({
-          result,
-          schema_version: LATTICE_API_SCHEMA_VERSION,
-        });
-        if (new TextEncoder().encode(responseBody).byteLength > responseByteLimit) {
-          throw apiError(500, "internal_error");
-        }
-        const responseTime = now();
-        assertRequestPhaseOpen(deadline, qualificationWindow, responseTime);
-        response = withQualificationTerminalAnalysisDiagnostic(
-          new Response(responseBody, { status: 200, headers: RESPONSE_HEADERS }),
-          result,
-          qualificationTerminalAnalysisDiagnosticValue,
-          qualificationDiagnosticRequested
-            && qualificationWindowAllowsOutput(qualificationWindow, responseTime),
-        );
-        response = withQualificationWithheldDiagnostic(
-          response,
-          result,
-          qualificationWithheldDiagnosticValue,
-          qualificationDiagnosticRequested
-            && qualificationWindowAllowsOutput(qualificationWindow, responseTime),
-        );
-        response = withQualificationUsage(
-          response,
-          result,
-          adapter,
-          qualificationDiagnosticRequested
-            && qualificationWindowAllowsOutput(qualificationWindow, responseTime),
-        );
-      } catch (error) {
-        if (deadline.didQualificationExpire()
-          || error instanceof LatticeQualificationExpiredError) {
-          response = qualificationHeldResponse();
-        } else if (deadline.didTimeOut()) {
-          response = errorResponse(504, "upstream_timeout");
-        } else if (error instanceof LatticeApiError) {
-          response = errorResponse(error.status, error.code, error.retryAfterSeconds);
-        } else if (error instanceof LatticeProviderError) {
-          response = withQualificationProviderDiagnostic(
-            safeProviderResponse(error),
-            error,
+          terminalBody = {
+            result,
+            schema_version: LATTICE_API_SCHEMA_VERSION,
+          };
+          const responseBody = JSON.stringify(terminalBody);
+          if (new TextEncoder().encode(responseBody).byteLength > responseByteLimit) {
+            throw apiError(500, "internal_error");
+          }
+          const responseTime = now();
+          assertRequestPhaseOpen(deadline, qualificationWindow, responseTime);
+          response = withQualificationTerminalAnalysisDiagnostic(
+            new Response(responseBody, { status: 200, headers: RESPONSE_HEADERS }),
+            result,
+            qualificationTerminalAnalysisDiagnosticValue,
             qualificationDiagnosticRequested
-              && qualificationWindowAllowsOutput(qualificationWindow, now()),
+              && qualificationWindowAllowsOutput(qualificationWindow, responseTime),
           );
-        } else if (deadline.signal.aborted) {
-          response = errorResponse(400, "invalid_request");
-        } else {
-          response = errorResponse(500, "internal_error");
+          response = withQualificationWithheldDiagnostic(
+            response,
+            result,
+            qualificationWithheldDiagnosticValue,
+            qualificationDiagnosticRequested
+              && qualificationWindowAllowsOutput(qualificationWindow, responseTime),
+          );
+          response = withQualificationUsage(
+            response,
+            result,
+            adapter,
+            qualificationDiagnosticRequested
+              && qualificationWindowAllowsOutput(qualificationWindow, responseTime),
+          );
+          return response;
+        };
+        if (wantsServiceEvents) {
+          let closed = false;
+          let projectionFailed = false;
+          let sequence = 0;
+          let totalBytes = 0;
+          let lastPhase = null;
+          const encoder = new TextEncoder();
+          streamOwnsDeadline = true;
+          const stream = new ReadableStream({
+            start(controller) {
+              const rejectProjection = () => {
+                projectionFailed = true;
+                const error = apiError(500, "internal_error");
+                deadline.abort(error);
+                throw error;
+              };
+              const onProgress = (event) => {
+                if (closed) return;
+                try {
+                  assertRequestPhaseOpen(deadline, qualificationWindow, now());
+                } catch (error) {
+                  deadline.abort(error);
+                  throw error;
+                }
+                // Only this own data property crosses the engine boundary.
+                // In particular, never inspect its text, batch or numeric fields.
+                let phase;
+                try {
+                  const descriptor = event !== null && typeof event === "object"
+                    ? Object.getOwnPropertyDescriptor(event, "phase") : null;
+                  phase = descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : null;
+                } catch {
+                  return rejectProjection();
+                }
+                if (!isLatticeServicePhase(phase)) return rejectProjection();
+                if (phase === lastPhase) return;
+                if (sequence >= LATTICE_SERVICE_PHASE_LIMIT) return rejectProjection();
+                const bytes = encoder.encode(`${JSON.stringify({ type: "phase", sequence: sequence + 1, phase })}\n`);
+                if (totalBytes + bytes.byteLength + LATTICE_SERVICE_ERROR_RESERVE_BYTES > responseByteLimit) {
+                  return rejectProjection();
+                }
+                sequence += 1;
+                totalBytes += bytes.byteLength;
+                lastPhase = phase;
+                controller.enqueue(bytes);
+              };
+              void (async () => {
+                let terminalResponse;
+                try {
+                  try {
+                    terminalResponse = await transform(onProgress);
+                  } catch (error) {
+                    terminalResponse = mapFailure(error);
+                  }
+                  if (closed) return;
+                  if (projectionFailed) {
+                    terminalResponse = mapFailure(apiError(500, "internal_error"));
+                  } else {
+                    try {
+                      assertRequestPhaseOpen(deadline, qualificationWindow, now());
+                    } catch (error) {
+                      terminalResponse = mapFailure(error);
+                    }
+                  }
+                  const terminal = () => encoder.encode(`${JSON.stringify({
+                    type: "terminal", sequence: sequence + 1,
+                    status: terminalResponse.status, body: terminalBody,
+                  })}\n`);
+                  let bytes = terminal();
+                  if (totalBytes + bytes.byteLength > responseByteLimit) {
+                    terminalResponse = mapFailure(apiError(500, "internal_error"));
+                    bytes = terminal();
+                  }
+                  if (totalBytes + bytes.byteLength > responseByteLimit) {
+                    throw apiError(500, "internal_error");
+                  }
+                  closed = true;
+                  totalBytes += bytes.byteLength;
+                  controller.enqueue(bytes);
+                  controller.close();
+                } catch {
+                  closed = true;
+                  deadline.abort(apiError(500, "internal_error"));
+                  controller.error(apiError(500, "internal_error"));
+                } finally {
+                  closed = true;
+                  deadline.dispose();
+                }
+              })();
+            },
+            cancel() {
+              closed = true;
+              deadline.abort(abortError());
+            },
+          });
+          return new Response(stream, {
+            status: 200,
+            headers: { ...HELD_RESPONSE_HEADERS, "Content-Type": `${LATTICE_SERVICE_EVENTS_MIME}; charset=utf-8` },
+          });
         }
+        response = await transform();
+      } catch (error) {
+        response = mapFailure(error);
       } finally {
-        deadline.dispose();
+        if (!streamOwnsDeadline) deadline.dispose();
       }
       return finishResponse(response);
     },

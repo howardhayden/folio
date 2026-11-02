@@ -14,7 +14,7 @@ past rights. No trademark or endorsement rights are granted.
 Additional reserved identity scope: LicenseRef-Hayden-Portfolio-Content.
 
 Text to Lattice uses a Qwen3-235B-A22B-Instruct-2507 generator through DeepInfra
-and a Llama 3.3 70B Instruct verifier and certifier through Scaleway, via the
+and a Llama 3.3 70B Instruct verifier and certifier through OVHcloud, via the
 Hugging Face router. See THIRD_PARTY_NOTICES.md and LICENSES/.
 Built with Llama.
 Llama 3.3 is licensed under the Llama 3.3 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved.

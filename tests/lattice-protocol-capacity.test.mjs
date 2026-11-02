@@ -401,7 +401,7 @@ async function reviewedActiveVerifierRepositoryTokenizer() {
   const bytes = await readFile(ACTIVE_LLAMA_REPOSITORY_TOKENIZER_PATH);
   // This separate active fixture matches the author's pinned Llama3.3 LFS
   // payload, downloaded from a pinned public ungated mirror. The historical
-  // fixture above remains unchanged. Repository bytes do not identify Scaleway's
+  // fixture above remains unchanged. Repository bytes do not identify OVHcloud's
   // managed tokenizer, chat template, or tool-call wrapper accounting.
   assert.equal(bytes.byteLength, REVIEWED_LLAMA_3_3_REPOSITORY_TOKENIZER.bytes);
   assert.equal(
@@ -756,7 +756,7 @@ function maximalFittedWireValue(schema, stringValue) {
 }
 
 function fittedStrictVerifierSchema(body, schemaName = "lattice_verification_wire_v2") {
-  assert.equal(body.model, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
+  assert.equal(body.model, "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
   assert.equal(body.response_format.type, "json_schema");
   assert.equal(body.response_format.json_schema.name, schemaName);
   assert.equal(body.response_format.json_schema.strict, true);

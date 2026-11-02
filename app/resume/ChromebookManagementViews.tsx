@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 import {
   createFrostedStateTransition,
@@ -89,7 +90,7 @@ function useFrostedState(initialValue: string) {
   };
 }
 
-function RovingStateTabs({
+export function RovingStateTabs({
   className,
   idPrefix,
   items,
@@ -182,28 +183,49 @@ function ReadableSequence({ value }: Readonly<{ value: string }>) {
   );
 }
 
+export function TerminalStateDiagram({
+  caption,
+  description,
+  children,
+  diagramClassName = "tools-card-accent signal-fuzz",
+}: Readonly<{
+  caption: ReactNode;
+  description: string;
+  children: ReactNode;
+  diagramClassName?: string;
+}>) {
+  return (
+    <figure
+      className="chromebook-state-flow"
+      role="img"
+      aria-label={description}
+      tabIndex={0}
+    >
+      <figcaption>{caption}</figcaption>
+      <pre className={diagramClassName} aria-hidden="true">
+        {children}
+      </pre>
+    </figure>
+  );
+}
+
 function StateFlowView({ conditionId }: Readonly<{ conditionId: ChromebookConditionId }>) {
   const actionPath = chromebookActionPaths.find(({ id }) => id === conditionId);
   const stateFlow = chromebookStateFlows[conditionId];
   if (!actionPath || !stateFlow) return null;
 
   return (
-    <figure
-      className="chromebook-state-flow"
-      role="img"
-      aria-label={stateFlow.description}
-      tabIndex={0}
-    >
-      <figcaption>
+    <TerminalStateDiagram
+      caption={<>
         <span className={`teaching-manifest-entry--${actionPath.tone}`}>
           <span className="teaching-manifest-percent signal-fuzz">{actionPath.label}</span>
         </span>
         <small>{actionPath.condition}</small>
-      </figcaption>
-      <pre className="tools-card-accent signal-fuzz" aria-hidden="true">
-        {stateFlow.diagram}
-      </pre>
-    </figure>
+      </>}
+      description={stateFlow.description}
+    >
+      {stateFlow.diagram}
+    </TerminalStateDiagram>
   );
 }
 

@@ -27,6 +27,9 @@ import { mayRevealLatticeOutput } from "./lattice/outputProtection.js";
 import { projects } from "./projects.js";
 import ProjectDescriptionDisclosure from "./ProjectDescriptionDisclosure";
 import ProjectResources from "./ProjectResources";
+import { TerminalProgressBar } from "../components/TerminalProgressBar";
+import { RovingStateTabs, TerminalStateDiagram } from "./ChromebookManagementViews";
+import { latticeServiceViewState } from "./lattice/serviceView.js";
 
 type ProjectIconName =
   | "airplane-engines"
@@ -370,18 +373,59 @@ function latticeFailureMessage(error: unknown) {
   return "Text to Lattice could not finish. The request may have reached the configured external service; hah.dev does not retain your sample or result.";
 }
 
-function latticeProgressText(phase: LatticePhase) {
-  const labels: Record<LatticePhase, string> = {
-    idle: "",
-    ready: "",
-    validating: "Validating source",
-    submitting: "Submitting to hah.dev",
-    processing: "Processing with the external service",
-    success: "",
-    canceling: "Canceling",
-    error: "",
-  };
-  return labels[phase];
+function LatticeServiceDiagram({ state }: Readonly<{
+  state: ReturnType<typeof latticeServiceViewState>;
+}>) {
+  const tone = (stepId: string) => state.stepId === stepId ? state.tone : "storm-gray";
+  const center = (line: string, width = 31) => line.padStart(line.length + Math.floor((width - line.length) / 2)).padEnd(width);
+  const stages: ReadonlyArray<readonly [string, string[]]> = [
+    ["prepare", ["Bind source integrity"]],
+    ["analysis", ["Analyze", "Qwen · DeepInfra"]],
+    ["draft", ["Draft", "Qwen · DeepInfra"]],
+    ["bind", ["Bind candidate integrity"]],
+    ["verify", ["Verify", "Llama · OVHcloud"]],
+    ["repair", ["Repair / regenerate if needed", "Revisit earlier checks"]],
+    ["certify", ["Certify when needed", "Llama · OVHcloud"]],
+  ];
+  const node = (stepId: string, lines: string[]) => (
+    <span className={`lattice-service-state teaching-manifest-entry--${tone(stepId)}`}>
+      {"┌─────────────────────────────────┐\n"}
+      {lines.map((line) => (
+        <span key={line}>{"│ "}<span className="lattice-state-text signal-fuzz">{center(line)}</span>{" │\n"}</span>
+      ))}
+      {"└─────────────────────────────────┘"}
+    </span>
+  );
+  return (
+    <TerminalStateDiagram
+      caption={<>Server pipeline<small>Current phase: {state.label}</small></>}
+      description={`Current phase: ${state.label}. The browser checks source and consent, then sends a content-free cookie setup and one text request to hah.dev. The server reports its actual phase through that request: source integrity, DeepInfra analysis and drafting, candidate integrity, OVHcloud verification, bounded repair and certification when needed. The browser receives a checked result or a finite error. Phase names contain no source or generated text.`}
+      diagramClassName="lattice-service-diagram"
+    >
+      <span className={`lattice-service-state teaching-manifest-entry--${tone("input")}`}>
+        <span className="lattice-state-text signal-fuzz">{center("Browser · source + consent", 35)}</span>
+      </span>
+      {"\n"}
+      <span className={`lattice-service-state teaching-manifest-entry--${tone("submit")}`}>
+        <span className="lattice-state-text signal-fuzz">{center("hah.dev · setup + request", 35)}</span>
+      </span>
+      {"\n                 │\n                 ▼\n"}
+      <span className={`lattice-service-state teaching-manifest-entry--${tone("service")}`}>
+        <span className="lattice-state-text signal-fuzz">{center("SERVER · Hugging Face routing", 35)}</span>
+      </span>
+      {"\n\n"}
+      {stages.map(([stepId, lines], index) => (
+        <span key={stepId}>
+          {node(stepId, lines)}
+          {index < 6 ? "\n                 │\n                 ▼\n" : ""}
+        </span>
+      ))}
+      {"\n                 │\n                 ▼\n"}
+      <span className={`lattice-service-state teaching-manifest-entry--${tone("result")}`}>
+        <span className="lattice-state-text signal-fuzz">{center("Browser · result or error", 35)}</span>
+      </span>
+    </TerminalStateDiagram>
+  );
 }
 
 function latticeFindingMessage(finding: { id: string }) {
@@ -423,6 +467,9 @@ export default function ResumeProjects() {
   const [latticeInputInvalid, setLatticeInputInvalid] = useState(false);
   const [latticeResult, setLatticeResult] = useState<LatticeResult | null>(null);
   const [latticePhase, setLatticePhase] = useState<LatticePhase>("idle");
+  const [latticeView, setLatticeView] = useState<"api" | "diagram">("api");
+  const [latticeLastActivePhase, setLatticeLastActivePhase] = useState<LatticePhase | null>(null);
+  const [latticeServicePhase, setLatticeServicePhase] = useState<string | null>(null);
   const latticeDialogRef = useRef<HTMLDivElement>(null);
   const latticeInputRef = useRef<HTMLTextAreaElement>(null);
   const latticeOutputRef = useRef<HTMLElement>(null);
@@ -440,7 +487,14 @@ export default function ResumeProjects() {
   const busy = ["validating", "submitting", "processing", "canceling"].includes(latticePhase);
   const taskContinuesWhileClosed = busy;
   const overLimit = wordCount > LATTICE_WORD_LIMIT;
-  const progressText = latticeProgressText(latticePhase);
+  const serviceState = latticeServiceViewState({
+    phase: latticePhase,
+    lastActivePhase: latticeLastActivePhase,
+    hasError: Boolean(latticeError),
+    resultStatus: latticeResult?.status ?? null,
+    servicePhase: latticeServicePhase,
+  });
+  const progressText = serviceState.label;
   const primaryUnavailable = busy || latticeInputInvalid || wordCount === 0 || overLimit || !latticeUseConfirmed;
 
   useEffect(() => {
@@ -503,7 +557,7 @@ export default function ResumeProjects() {
     ].join(",");
     const focusableElements = () => Array.from(
       dialog?.querySelectorAll<HTMLElement>(focusableSelector) ?? [],
-    ).filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+    ).filter((element) => element.tabIndex >= 0 && !element.closest("[hidden], [aria-hidden='true']") && element.getClientRects().length > 0);
     let containmentFrame = 0;
     const preferredFocusTarget = () => {
       const phase = latticePhaseRef.current;
@@ -512,7 +566,9 @@ export default function ResumeProjects() {
         const cancel = latticeCancelButtonRef.current;
         if (cancel?.isConnected && !cancel.disabled) return cancel;
       }
-      if (result && latticeOutputRef.current) return latticeOutputRef.current;
+      const diagram = dialog?.querySelector<HTMLElement>(".lattice-service-view:not([hidden]) figure");
+      if (diagram) return diagram;
+      if (result && latticeOutputRef.current && !latticeOutputRef.current.closest("[hidden]")) return latticeOutputRef.current;
       const input = latticeInputRef.current;
       if (input && !input.disabled) return input;
       return dialog;
@@ -522,6 +578,8 @@ export default function ResumeProjects() {
       const active = document.activeElement;
       const activeIsUsable = active instanceof HTMLElement
         && dialog.contains(active)
+        && !active.closest("[hidden], [aria-hidden='true']")
+        && active.getClientRects().length > 0
         && !active.matches(":disabled, [hidden], [aria-hidden='true'], [tabindex='-1']");
       const preferred = preferredFocusTarget();
       if (activeIsUsable) return;
@@ -574,7 +632,7 @@ export default function ResumeProjects() {
     if (dialog) {
       focusObserver.observe(dialog, {
         attributes: true,
-        attributeFilter: ["aria-hidden", "disabled", "hidden", "tabindex"],
+      attributeFilter: ["aria-hidden", "disabled", "hidden", "tabindex", "open"],
         childList: true,
         subtree: true,
       });
@@ -732,6 +790,8 @@ export default function ResumeProjects() {
 
   const updateLatticeInput = (value: string) => {
     setLatticeUseConfirmed(false);
+    setLatticeLastActivePhase(null);
+    setLatticeServicePhase(null);
     if (value.length > LATTICE_INPUT_SAFETY_LIMIT) {
       setLatticeResult(null);
       setLatticeError(`Keep the source to ${LATTICE_INPUT_SAFETY_LIMIT.toLocaleString("en-US")} characters or fewer.`);
@@ -768,6 +828,8 @@ export default function ResumeProjects() {
     latticeAbortRef.current = controller;
     try {
       setLatticePhase("validating");
+      setLatticeLastActivePhase("validating");
+      setLatticeServicePhase(null);
       validateLatticeInput(latticeInput);
       setLatticeResult(null);
       setLatticeError("");
@@ -778,6 +840,11 @@ export default function ResumeProjects() {
         onState: (phase: LatticePhase) => {
           if (!latticeMountedRef.current || latticeJobRef.current !== jobId) return;
           setLatticePhase(phase);
+          setLatticeLastActivePhase(phase);
+        },
+        onServicePhase: (phase: string) => {
+          if (!latticeMountedRef.current || latticeJobRef.current !== jobId || controller.signal.aborted) return;
+          setLatticeServicePhase(phase);
         },
       });
       if (!latticeMountedRef.current || latticeJobRef.current !== jobId || controller.signal.aborted) return;
@@ -786,7 +853,7 @@ export default function ResumeProjects() {
       window.requestAnimationFrame(() => {
         const output = latticeOutputRef.current;
         const modal = output?.closest(".modal");
-        if (!output || modal?.hasAttribute("hidden")) return;
+        if (!output || modal?.hasAttribute("hidden") || output.closest("[hidden]")) return;
         latticeOutputRefreshRef.current?.();
         output.scrollIntoView({ block: "nearest" });
         output.focus({ preventScroll: true });
@@ -871,21 +938,47 @@ export default function ResumeProjects() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="lattice-demo-title"
-          aria-describedby="lattice-demo-description lattice-external-privacy lattice-model-disclosure lattice-demonstration-profile lattice-usage-policy"
+          aria-describedby="lattice-demo-description lattice-processing-summary"
           aria-keyshortcuts="Escape"
           tabIndex={-1}
         >
           <h3 id="lattice-demo-title">Text to Lattice</h3>
 
+          <RovingStateTabs
+            className="chromebook-view-tabs"
+            idPrefix="lattice-view"
+            items={[{ id: "api", label: "Use the API" }, { id: "diagram", label: "Service diagram" }]}
+            label="Text to Lattice views"
+            onSelect={(view) => { if (view === "api" || view === "diagram") setLatticeView(view); }}
+            panelId="lattice-view-panel"
+            selected={latticeView}
+          />
+          <div className={`lattice-progress teaching-manifest-entry--${serviceState.tone}`}>
+            <span className="teaching-manifest-percent signal-fuzz" aria-live="polite" role="status">{progressText}</span>
+            <div
+              role={busy ? "progressbar" : undefined}
+              aria-label={busy ? "Request phase" : undefined}
+              aria-valuetext={busy ? progressText : undefined}
+            >
+              <TerminalProgressBar percent={serviceState.widthPercent} />
+            </div>
+          </div>
+
+          <div id="lattice-view-panel" role="tabpanel" aria-labelledby={`lattice-view-${latticeView}-tab`}>
+          <div className="lattice-api-view" hidden={latticeView !== "api"}>
+
           <div className="lattice-modal-introduction">
             <p id="lattice-demo-description" className="lattice-modal-description">
               Enter up to {LATTICE_WORD_LIMIT} words. Meaning remains binding; register may change.
             </p>
+            <details className="lattice-disclosure">
+              <summary id="lattice-processing-summary">External processing, privacy and limits</summary>
+              <div className="lattice-disclosure-content">
             <p id="lattice-external-privacy" className="lattice-local-note">
               This text leaves hah.dev for processing by the configured external Hugging Face inference service only when you choose <strong>Process with external service</strong>. hah.dev does not retain your sample or result. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. <a href="/projects/lattice/text-to-lattice/#text-to-lattice-privacy">Privacy details</a>.
             </p>
             <p id="lattice-model-disclosure" className="lattice-local-note">
-              Model-assisted result: Qwen3-235B-A22B-Instruct-2507 drafts and Llama 3.3 70B Instruct checks through the configured external service. Scaleway states that content is not used for training by default, but may retain full HTTP requests for up to 14 days for investigations and uses an automatic ephemeral prefix cache that cannot be disabled. Its processing policies are separate from hah.dev’s application no-retention rule. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_3_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
+              Model-assisted result: Qwen3-235B-A22B-Instruct-2507 drafts and Llama 3.3 70B Instruct checks through the configured external service. DeepInfra serves the generator and OVHcloud serves the verifier through Hugging Face. OVHcloud states that its standard synchronous service does not store or reuse inputs and outputs or use them for training; billing information is retained. Its cache behavior and exact metadata-retention periods are not established by the reviewed public terms. External processing policies are separate from hah.dev’s application no-retention rule. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_3_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
             </p>
             <p className="lattice-usage-note" id="lattice-demonstration-profile">
               Demonstration profile: after explicit confirmation, the browser sends one
@@ -902,6 +995,8 @@ export default function ResumeProjects() {
               per-cookie-jar count, but not the global limit. Availability also depends on bounded
               provider capacity.
             </p>
+              </div>
+            </details>
           </div>
 
           <form className="lattice-form" onSubmit={runLattice} noValidate>
@@ -911,10 +1006,10 @@ export default function ResumeProjects() {
               </label>
               <textarea
                 ref={latticeInputRef}
-                className="form-control shelf-search-entry lattice-input"
+                className="form-control shelf-search-entry resume-search-input lattice-input"
                 id="lattice-demo-input"
                 value={latticeInput}
-                rows={9}
+                rows={1}
                 dir="auto"
                 spellCheck={false}
                 autoCorrect="off"
@@ -937,7 +1032,6 @@ export default function ResumeProjects() {
                 checked={latticeUseConfirmed}
                 required
                 disabled={busy || wordCount === 0 || overLimit || latticeInputInvalid}
-                aria-describedby="lattice-use-confirmation-detail"
                 onChange={(event) => {
                   const confirmed = event.currentTarget.checked;
                   setLatticeUseConfirmed(confirmed);
@@ -945,21 +1039,19 @@ export default function ResumeProjects() {
                 }}
               />
               <label className="lattice-use-confirmation-label" htmlFor="lattice-use-confirmation">
-                I confirm that this source is in one of the supported languages, I am authorized to send it to the configured external service, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.3 Acceptable Use Policy.
+                I confirm that this source is in one of the supported languages, I am authorized to send it to the configured external service, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.3 Acceptable Use Policy or OVHcloud AI code of conduct.
               </label>
-              <small id="lattice-use-confirmation-detail" className="lattice-use-confirmation-detail">
-                Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_3_PUBLIC_TERMS.acceptableUseUrl}>Llama 3.3 Acceptable Use Policy</a>.
-              </small>
+              <details className="lattice-disclosure lattice-use-confirmation-detail">
+                <summary>Supported languages and use policies</summary>
+                <small id="lattice-use-confirmation-detail" className="lattice-disclosure-content">
+                Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_3_PUBLIC_TERMS.acceptableUseUrl}>Llama 3.3 Acceptable Use Policy</a> and <a href="https://contract.eu.ovhapis.com/1.0/pdf/AI_Code-IE.pdf">OVHcloud AI code of conduct</a>.
+                </small>
+              </details>
             </div>
             {latticeError ? (
               <p className="lattice-input-error" id="lattice-input-error" role="alert">
                 {latticeError}{!latticeInputInvalid ? <> <a href="/projects/lattice/text-to-lattice/">Tool details</a>.</> : null}
               </p>
-            ) : null}
-            {progressText ? (
-              <div className="lattice-progress">
-                <span aria-live="polite" role="status">{progressText}</span>
-              </div>
             ) : null}
             <div className="lattice-actions">
               <button className="lattice-run-button" type="submit" disabled={primaryUnavailable}>
@@ -970,14 +1062,6 @@ export default function ResumeProjects() {
                   Start over
                 </button>
               ) : null}
-              {busy ? (
-                <button ref={latticeCancelButtonRef} className="lattice-cancel-button" type="button" onClick={cancelLattice} disabled={latticePhase === "canceling"}>
-                  {latticePhase === "canceling" ? "Canceling…" : "Cancel"}
-                </button>
-              ) : null}
-              <button className="lattice-cancel-button" type="button" onClick={closeLattice} aria-label={taskContinuesWhileClosed ? "Close; current task continues" : latticeResult ? "Close" : "Cancel"}>
-                {taskContinuesWhileClosed || latticeResult ? "Close" : "Cancel"}
-              </button>
             </div>
           </form>
 
@@ -1039,6 +1123,22 @@ export default function ResumeProjects() {
             )}
             <p className="lattice-output-privacy-curtain" aria-hidden="true">Return to this window to view the result.</p>
           </section>
+          </div>
+          <div className="lattice-service-view" hidden={latticeView !== "diagram"}>
+            <LatticeServiceDiagram state={serviceState} />
+            <p className="chromebook-view-note">The highlight follows the live request. Repair can revisit earlier phases; bar position identifies the phase, not time remaining.</p>
+          </div>
+          </div>
+          <div className="lattice-actions">
+            {busy ? (
+              <button ref={latticeCancelButtonRef} className="lattice-cancel-button" type="button" onClick={cancelLattice} disabled={latticePhase === "canceling"}>
+                {latticePhase === "canceling" ? "Canceling…" : "Cancel"}
+              </button>
+            ) : null}
+            <button className="lattice-cancel-button" type="button" onClick={closeLattice} aria-label={taskContinuesWhileClosed ? "Close; current task continues" : latticeResult ? "Close" : "Cancel"}>
+              {taskContinuesWhileClosed || latticeResult ? "Close" : "Cancel"}
+            </button>
+          </div>
         </div>
       </div>
     </>

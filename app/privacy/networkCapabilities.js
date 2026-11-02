@@ -1,4 +1,5 @@
 import { LATTICE_VISITOR_SESSION_ACCEPT } from "../resume/lattice/remoteProtocol.js";
+import { LATTICE_SERVICE_EVENTS_MIME } from "../resume/lattice/serviceTelemetry.js";
 
 const TEXT_TO_LATTICE_CAPABILITY = Object.freeze({
   id: "text-to-lattice",
@@ -107,8 +108,8 @@ function validateTextToLatticeRequest(policy, headerInit, body) {
   if (headers.get("content-type")?.toLowerCase() !== "application/json") {
     throw new NetworkPolicyError("content type must be application/json");
   }
-  if (headers.get("accept")?.toLowerCase() !== "application/json") {
-    throw new NetworkPolicyError("response type must be application/json");
+  if (!["application/json", LATTICE_SERVICE_EVENTS_MIME].includes(headers.get("accept")?.toLowerCase())) {
+    throw new NetworkPolicyError("undeclared response type");
   }
   if (typeof body !== "string"
     || body.length > 65_536
@@ -217,7 +218,7 @@ export async function capabilityFetch(
     headers: operation === "visitor-session-setup"
       ? Object.freeze({ Accept: policy.visitorSessionSetup.accept })
       : Object.freeze({
-          Accept: "application/json",
+          Accept: new Headers(headers).get("accept").toLowerCase(),
           "Content-Type": "application/json",
         }),
     ...(operation === "content" ? { body } : {}),

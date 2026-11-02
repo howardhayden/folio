@@ -23,7 +23,7 @@ const fixtures = Object.freeze([
 // Separate active reference fixture; historical MLC/tokenizer fixtures above
 // retain their original identities and byte limit. Public mirror bytes match
 // the author's LFS payload at revision 6f6073b423013f6a7d4d9f39144961bfbfbc386b.
-// This does not identify Scaleway's managed tokenizer or chat template.
+// This does not identify OVHcloud's managed tokenizer or chat template.
 const activeVerifierFixture = Object.freeze({
   role: "verifier",
   destination: process.env.LATTICE_LLAMA33_REPOSITORY_TOKENIZER_JSON ?? "/tmp/llama33-lattice-tokenizer.json",

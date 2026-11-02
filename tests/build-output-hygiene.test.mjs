@@ -16,6 +16,7 @@ const foreignClientMarkers = [
   "https://router.huggingface.co/", "https://verify.hah.dev", "/api/text-to-lattice/lease",
   "@mlc-ai/web-llm", "CreateWebWorkerMLCEngine", "HF_TOKEN",
   "meta-llama/Llama-3.3-70B-Instruct:scaleway",
+  "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
   "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
 ];
 

@@ -130,13 +130,14 @@ label {
     -webkit-background-clip: text;
     background-clip: text;
     background-color: currentColor;
-    background-image:
+    --signal-fuzz-texture:
       linear-gradient(transparent 50%, rgb(255 255 255 / 6%) 50%),
       linear-gradient(90deg, rgb(255 255 255 / 6%) 50%, transparent 50%),
       linear-gradient(transparent 25%, rgb(255 255 255 / 4%) 25%),
       linear-gradient(90deg, rgb(255 255 255 / 4%) 25%, transparent 25%),
       linear-gradient(transparent 12.5%, rgb(255 255 255 / 2%) 12.5%),
       linear-gradient(90deg, rgb(255 255 255 / 2%) 12.5%, transparent 12.5%);
+    background-image: var(--signal-fuzz-texture);
     background-position: 0 0;
     background-repeat: repeat;
     background-size: 3px 3px, 3px 3px, 6px 6px, 6px 6px, 12px 12px, 12px 12px;
@@ -482,7 +483,10 @@ svg:not(.background-static-defs) {
 }
 
 .tool-manifest figcaption,
-.tool-branch-line {
+.tool-branch-line,
+.lattice-output,
+.lattice-progress,
+.lattice-progress .teaching-manifest-percent {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
@@ -2177,6 +2181,31 @@ a:hover {
 .lattice-modal-description {
   line-height: 1.55;
 }
+.lattice-disclosure {
+  color: #545454;
+  font-size: .875rem;
+  text-align: left;
+}
+.lattice-disclosure > summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.lattice-disclosure > summary:focus-visible {
+  outline: 2px solid #0b4705;
+  outline-offset: .25rem;
+}
+.lattice-disclosure-content {
+  display: grid;
+  gap: 1rem;
+  line-height: 1.55;
+  margin-top: 1rem;
+}
+.lattice-disclosure-content > p {
+  margin: 0;
+}
+small.lattice-disclosure-content {
+  display: block;
+}
 .lattice-local-note {
   color: #545454;
   font-size: .875rem;
@@ -2212,10 +2241,16 @@ a:hover {
 .form-control.lattice-input {
   color: black;
   font: inherit;
+  height: auto;
   line-height: 1.5;
-  min-height: 13rem;
-  padding: 1rem 1.125rem;
+  min-height: calc(1.5em + .75rem);
+  overflow-y: auto;
+  padding-block: .375rem;
   resize: vertical;
+}
+.form-control.lattice-input,
+.form-control.lattice-input:focus {
+  text-align: left;
 }
 .lattice-input-label:has(+ .lattice-input:focus-visible) {
   color: #0b4705;
@@ -2340,13 +2375,35 @@ a:hover {
   display: grid;
   font-size: .875rem;
   gap: .4rem;
-  margin-top: 1rem;
+  margin: 1rem 0 1.5rem;
 }
-.lattice-progress progress {
-  accent-color: #0b4705;
-  height: .55rem;
-  max-width: 24rem;
-  width: 100%;
+.lattice-service-view {
+  margin-top: 1.5rem;
+}
+.lattice-service-diagram {
+  color: #454b52;
+}
+.lattice-service-view .chromebook-state-flow > figcaption,
+.lattice-progress .teaching-manifest-percent,
+.lattice-state-text {
+  font-weight: 400;
+}
+.lattice-state-text {
+  display: inline-block;
+}
+.lattice-service-state.teaching-manifest-entry--blue-green {
+  --lattice-state-gradient: linear-gradient(90deg, #077995, #0b4705);
+  color: #077995;
+}
+.lattice-service-state.teaching-manifest-entry--red-orange {
+  --lattice-state-gradient: linear-gradient(90deg, #950f22, #c74b28);
+  color: #950f22;
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .lattice-state-text.signal-fuzz {
+    background-image: var(--signal-fuzz-texture), var(--lattice-state-gradient, linear-gradient(#454b52, #454b52));
+    background-size: 3px 3px, 3px 3px, 6px 6px, 6px 6px, 12px 12px, 12px 12px, 100% 100%;
+  }
 }
 .lattice-attestation {
   max-width: 100%;
@@ -2414,6 +2471,7 @@ a:hover {
   padding: 0;
   position: relative;
   tab-size: 2;
+  text-align: left;
   unicode-bidi: plaintext;
   white-space: pre-wrap;
   word-break: break-word;

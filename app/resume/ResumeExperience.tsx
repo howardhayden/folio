@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { LegacyIcon } from "../components/LegacyIcon";
+import { TerminalProgressBar } from "../components/TerminalProgressBar";
 import { timeline } from "../data";
 import { resumeEducationOverview } from "../content/siteContent.js";
 import { resumeDetails } from "./resumeDetails.js";
@@ -388,11 +389,7 @@ function CourseChart() {
               <span className="sr-only">{course.label}</span>
               <span className="teaching-manifest-percent">{course.percent}%</span>
             </div>
-            <div className="teaching-manifest-track" aria-hidden="true">
-              <span className="teaching-manifest-fill" style={{ "--teaching-support": `${course.percent}%` } as CSSProperties}>
-                <span className="teaching-manifest-caret" />
-              </span>
-            </div>
+            <TerminalProgressBar percent={course.percent} />
           </li>
         ))}
       </ol>

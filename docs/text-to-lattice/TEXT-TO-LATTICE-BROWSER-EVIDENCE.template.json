@@ -1,6 +1,6 @@
 {
   "format": "TEXT_TO_LATTICE_BROWSER_EVIDENCE",
-  "schema_version": 1,
+  "schema_version": 2,
   "evidence_id": "REPLACE_WITH_TTL_BROWSER_YYYYMMDDTHHMMSSZ_SUFFIX",
   "recorded_at": "REPLACE_WITH_MILLISECOND_UTC_TIMESTAMP",
   "deployment": {
@@ -127,7 +127,7 @@
           "content-type"
         ],
         "content_type": "application/json",
-        "accept": "application/json",
+        "accept": "application/vnd.hah.lattice.events.v1+ndjson",
         "request_body_key_order": [
           "text",
           "requested_mode",
@@ -152,15 +152,30 @@
       },
       "response": {
         "status": 200,
-        "content_type": "application/json; charset=utf-8",
+        "content_type": "application/vnd.hah.lattice.events.v1+ndjson; charset=utf-8",
         "cache_control": "no-store",
-        "response_body_key_order": [
+        "stream_format": "lattice-service-events-v1",
+        "phase_names": [
+          "REPLACE_WITH_ACTUAL_CLOSED_PHASE_NAMES"
+        ],
+        "terminal_sequence": 0,
+        "terminal_frame_key_order": [
+          "type",
+          "sequence",
+          "status",
+          "body"
+        ],
+        "terminal_status": 200,
+        "stream_lf_framing_valid": false,
+        "stream_contiguous_sequence": false,
+        "stream_eof_observed": false,
+        "terminal_body_key_order": [
           "result",
           "schema_version"
         ],
-        "response_body_member_count": 2,
-        "response_body_duplicate_member_count": 0,
-        "response_body_exact_contract": true,
+        "terminal_body_member_count": 2,
+        "stream_duplicate_member_count": 0,
+        "terminal_body_exact_contract": true,
         "schema_version": 1,
         "result_version": "text-to-lattice.v7",
         "strict_result_contract_valid": true,
@@ -401,7 +416,7 @@
           "content-type"
         ],
         "content_type": "application/json",
-        "accept": "application/json",
+        "accept": "application/vnd.hah.lattice.events.v1+ndjson",
         "request_body_key_order": [
           "text",
           "requested_mode",
@@ -426,15 +441,30 @@
       },
       "response": {
         "status": 200,
-        "content_type": "application/json; charset=utf-8",
+        "content_type": "application/vnd.hah.lattice.events.v1+ndjson; charset=utf-8",
         "cache_control": "no-store",
-        "response_body_key_order": [
+        "stream_format": "lattice-service-events-v1",
+        "phase_names": [
+          "REPLACE_WITH_ACTUAL_CLOSED_PHASE_NAMES"
+        ],
+        "terminal_sequence": 0,
+        "terminal_frame_key_order": [
+          "type",
+          "sequence",
+          "status",
+          "body"
+        ],
+        "terminal_status": 200,
+        "stream_lf_framing_valid": false,
+        "stream_contiguous_sequence": false,
+        "stream_eof_observed": false,
+        "terminal_body_key_order": [
           "result",
           "schema_version"
         ],
-        "response_body_member_count": 2,
-        "response_body_duplicate_member_count": 0,
-        "response_body_exact_contract": true,
+        "terminal_body_member_count": 2,
+        "stream_duplicate_member_count": 0,
+        "terminal_body_exact_contract": true,
         "schema_version": 1,
         "result_version": "text-to-lattice.v7",
         "strict_result_contract_valid": true,

@@ -162,7 +162,7 @@ function engineEvidence({
       method: "POST",
       application_set_header_names: ["accept", "content-type"],
       content_type: "application/json",
-      accept: "application/json",
+      accept: "application/vnd.hah.lattice.events.v1+ndjson",
       request_body_key_order: ["text", "requested_mode", "schema_version"],
       request_body_member_count: 3,
       request_body_duplicate_member_count: 0,
@@ -183,12 +183,20 @@ function engineEvidence({
     },
     response: {
       status: 200,
-      content_type: "application/json; charset=utf-8",
+      content_type: "application/vnd.hah.lattice.events.v1+ndjson; charset=utf-8",
       cache_control: "no-store",
-      response_body_key_order: ["result", "schema_version"],
-      response_body_member_count: 2,
-      response_body_duplicate_member_count: 0,
-      response_body_exact_contract: true,
+      "stream_format": "lattice-service-events-v1",
+      "phase_names": ["binding-source-integrity", "atomizing"],
+      "terminal_sequence": 3,
+      "terminal_frame_key_order": ["type", "sequence", "status", "body"],
+      "terminal_status": 200,
+      "stream_lf_framing_valid": true,
+      "stream_contiguous_sequence": true,
+      "stream_eof_observed": true,
+      terminal_body_key_order: ["result", "schema_version"],
+      terminal_body_member_count: 2,
+      stream_duplicate_member_count: 0,
+      terminal_body_exact_contract: true,
       schema_version: 1,
       result_version: "text-to-lattice.v7",
       strict_result_contract_valid: true,
@@ -295,7 +303,7 @@ function engineEvidence({
 function validEvidence() {
   return {
     format: "TEXT_TO_LATTICE_BROWSER_EVIDENCE",
-    schema_version: 1,
+    schema_version: 2,
     evidence_id: "ttl-browser-20260914T130000Z-deadbeef",
     recorded_at: "2026-09-14T13:00:00.000Z",
     deployment: {
@@ -544,7 +552,7 @@ test("the contract accepts exactly Safari/WebKit followed by Brave/Chromium", ()
 
 test("top-level custody is exact, canonical, timestamp-bound, and closed", () => {
   invalidAfter((candidate) => { candidate.format = "OTHER"; }, /\.format/u);
-  invalidAfter((candidate) => { candidate.schema_version = 2; }, /schema_version/u);
+  invalidAfter((candidate) => { candidate.schema_version = 1; }, /schema_version/u);
   invalidAfter((candidate) => { candidate.evidence_id = "ttl-browser-20260914T125959Z-deadbeef"; }, /same UTC second/u);
   invalidAfter((candidate) => { candidate.recorded_at = "2026-09-14T13:00:00Z"; }, /canonical millisecond UTC/u);
   invalidAfter((candidate) => { candidate.extra = "smuggled"; }, /must contain only these fields/u);
@@ -738,15 +746,26 @@ test("the one content POST assertion fixes route, origin, cookie, exact body, an
   }
 });
 
-test("only an exact no-store 200 result envelope and allowed terminal status qualifies", () => {
+test("only a complete no-store phase stream with a strict successful terminal qualifies", () => {
   const mutations = [
     ["status", 502],
     ["content_type", "text/html"],
     ["cache_control", "public, max-age=60"],
-    ["response_body_key_order", ["schema_version", "result"]],
-    ["response_body_member_count", 3],
-    ["response_body_duplicate_member_count", 1],
-    ["response_body_exact_contract", false],
+    ["stream_format", "json"],
+    ["phase_names", ["unknown"]],
+    ["phase_names", ["atomizing", "atomizing"]],
+    ["phase_names", null],
+    ["terminal_sequence", 2],
+    ["terminal_sequence", 130],
+    ["terminal_frame_key_order", ["type", "sequence", "body", "status"]],
+    ["terminal_status", 502],
+    ["stream_lf_framing_valid", false],
+    ["stream_contiguous_sequence", false],
+    ["stream_eof_observed", false],
+    ["terminal_body_key_order", ["schema_version", "result"]],
+    ["terminal_body_member_count", 3],
+    ["stream_duplicate_member_count", 1],
+    ["terminal_body_exact_contract", false],
     ["schema_version", 2],
     ["result_version", "text-to-lattice.v8"],
     ["strict_result_contract_valid", false],
@@ -1168,4 +1187,28 @@ test("the owner template is inert and the schema mirrors the closed contract", a
     assert.equal(validate(evidence), false);
   }
   assert.equal(validate(template), false, "safe placeholders remain intentionally invalid until replaced");
+});
+
+
+test("current browser evidence refuses historical JSON and bounds actual phase sequence", () => {
+  invalidAfter((candidate) => { candidate.schema_version = 1; }, /schema_version/u);
+  invalidAfter((candidate) => { candidate.engines[0].request.accept = "application/json"; }, /accept/u);
+  invalidAfter((candidate) => { candidate.engines[0].response.content_type = "application/json; charset=utf-8"; }, /content_type/u);
+  for (const count of [0, 128]) {
+    const candidate = validEvidence();
+    const response = candidate.engines[0].response;
+    response.phase_names = Array.from({ length: count }, (_, index) => index % 2 ? "generating" : "atomizing");
+    response.terminal_sequence = count + 1;
+    assert.doesNotThrow(() => verifyBrowserEvidence(candidate));
+  }
+  invalidAfter((candidate) => {
+    candidate.engines[0].response.phase_names = Array.from({ length: 129 }, (_, index) => index % 2 ? "generating" : "atomizing");
+    candidate.engines[0].response.terminal_sequence = 130;
+  }, /phase_names/u);
+  invalidAfter((candidate) => {
+    candidate.engines[0].response.phase_names = new Array(1);
+    candidate.engines[0].response.terminal_sequence = 2;
+  }, /phase_names/u);
+  invalidAfter((candidate) => { delete candidate.engines[0].response.stream_eof_observed; }, /response/u);
+  invalidAfter((candidate) => { candidate.engines[0].response.raw_phase_frames = "forbidden"; }, /response/u);
 });

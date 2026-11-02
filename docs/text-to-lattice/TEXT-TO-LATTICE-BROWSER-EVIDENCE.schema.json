@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:hah-dev:text-to-lattice-browser-evidence:1",
+  "$id": "urn:hah-dev:text-to-lattice-browser-evidence:2",
   "title": "Text to Lattice sanitized production browser evidence",
-  "description": "A metadata-and-digests-only GATE-06 record plus two manually reviewed flattened PNG captures and the fixed sibling files TEXT-TO-LATTICE-DEPLOYMENT-EVIDENCE.before.json and TEXT-TO-LATTICE-DEPLOYMENT-EVIDENCE.after.json. The two deployment-index copies must be byte-identical, must hash to every recorded deployment-evidence digest, and must supply the recorded workflow, service-job, Worker, site-artifact, canonical-URL, and service-deployment evidence identities. Each browser record proves one bodyless same-origin visitor-session POST establishes the exact non-secret attributes of the API-scoped quota cookie before one content-bearing POST carries it, and that the transformation response does not rotate it. Raw HAR data, source, output, bodies, cookie values, authorization values, provider credentials, and sensitive header values are prohibited.",
+  "description": "A metadata-and-digests-only GATE-06 record plus two manually reviewed flattened PNG captures and the fixed sibling files TEXT-TO-LATTICE-DEPLOYMENT-EVIDENCE.before.json and TEXT-TO-LATTICE-DEPLOYMENT-EVIDENCE.after.json. The two deployment-index copies must be byte-identical, must hash to every recorded deployment-evidence digest, and must supply the recorded workflow, service-job, Worker, site-artifact, canonical-URL, and service-deployment evidence identities. Each browser record proves one bodyless same-origin visitor-session POST establishes the exact non-secret attributes of the API-scoped quota cookie before one content-bearing POST carries it, and that the transformation response does not rotate it. Raw HAR data, source, output, bodies, cookie values, authorization values, provider credentials, and sensitive header values are prohibited. Current schema2 qualifies only the actual vendor NDJSON phase stream: HTTP200 is transport admission, the decoded terminal must have status200 and an existing strictly valid successful result, and native completion plus complete LF framing must establish EOF. Schema1 JSON evidence is historical and is not accepted as current evidence.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -19,7 +19,7 @@
       "const": "TEXT_TO_LATTICE_BROWSER_EVIDENCE"
     },
     "schema_version": {
-      "const": 1
+      "const": 2
     },
     "evidence_id": {
       "type": "string",
@@ -309,23 +309,59 @@
         "transfer_source"
       ],
       "properties": {
-        "request_count": { "const": 1 },
-        "url": { "const": "https://hah.dev/api/lattice" },
-        "origin_header": { "const": "https://hah.dev" },
-        "method": { "const": "POST" },
-        "application_set_header_names": { "const": ["accept"] },
-        "content_type_header_present": { "const": false },
-        "accept": { "const": "application/vnd.hah.text-to-lattice-visitor-session.v1+json" },
-        "request_body_present": { "const": false },
-        "request_body_utf8_bytes": { "const": 0 },
-        "credentials_mode": { "const": "same-origin" },
-        "cookie_header_present": { "const": false },
-        "authorization_header_present": { "const": false },
-        "provider_credential_present": { "const": false },
-        "referer_header_present": { "const": false },
-        "query_present": { "const": false },
-        "redirect_count": { "const": 0 },
-        "transfer_source": { "const": "network" }
+        "request_count": {
+          "const": 1
+        },
+        "url": {
+          "const": "https://hah.dev/api/lattice"
+        },
+        "origin_header": {
+          "const": "https://hah.dev"
+        },
+        "method": {
+          "const": "POST"
+        },
+        "application_set_header_names": {
+          "const": [
+            "accept"
+          ]
+        },
+        "content_type_header_present": {
+          "const": false
+        },
+        "accept": {
+          "const": "application/vnd.hah.text-to-lattice-visitor-session.v1+json"
+        },
+        "request_body_present": {
+          "const": false
+        },
+        "request_body_utf8_bytes": {
+          "const": 0
+        },
+        "credentials_mode": {
+          "const": "same-origin"
+        },
+        "cookie_header_present": {
+          "const": false
+        },
+        "authorization_header_present": {
+          "const": false
+        },
+        "provider_credential_present": {
+          "const": false
+        },
+        "referer_header_present": {
+          "const": false
+        },
+        "query_present": {
+          "const": false
+        },
+        "redirect_count": {
+          "const": 0
+        },
+        "transfer_source": {
+          "const": "network"
+        }
       }
     },
     "visitorSessionResponse": {
@@ -350,16 +386,38 @@
         "access_control_allow_origin_header_present"
       ],
       "properties": {
-        "status": { "const": 204 },
-        "content_type_header_present": { "const": false },
-        "cache_control": { "const": "no-store" },
-        "response_body_present": { "const": false },
-        "response_body_utf8_bytes": { "const": 0 },
-        "set_cookie_header_present": { "const": true },
-        "set_cookie_header_count": { "const": 1 },
-        "set_cookie_name": { "const": "__Secure-hah-lattice-api-visitor" },
+        "status": {
+          "const": 204
+        },
+        "content_type_header_present": {
+          "const": false
+        },
+        "cache_control": {
+          "const": "no-store"
+        },
+        "response_body_present": {
+          "const": false
+        },
+        "response_body_utf8_bytes": {
+          "const": 0
+        },
+        "set_cookie_header_present": {
+          "const": true
+        },
+        "set_cookie_header_count": {
+          "const": 1
+        },
+        "set_cookie_name": {
+          "const": "__Secure-hah-lattice-api-visitor"
+        },
         "set_cookie_attribute_names": {
-          "const": ["max-age", "path", "secure", "httponly", "samesite"]
+          "const": [
+            "max-age",
+            "path",
+            "secure",
+            "httponly",
+            "samesite"
+          ]
         },
         "set_cookie_max_age_seconds": {
           "type": "integer",
@@ -367,12 +425,24 @@
           "maximum": 86400,
           "description": "Must equal the seconds remaining until the next UTC-day boundary, within the verifier's five-second response-latency and capture-rounding tolerance."
         },
-        "set_cookie_path": { "const": "/api/lattice" },
-        "set_cookie_secure": { "const": true },
-        "set_cookie_http_only": { "const": true },
-        "set_cookie_same_site": { "const": "Strict" },
-        "set_cookie_domain_present": { "const": false },
-        "access_control_allow_origin_header_present": { "const": false }
+        "set_cookie_path": {
+          "const": "/api/lattice"
+        },
+        "set_cookie_secure": {
+          "const": true
+        },
+        "set_cookie_http_only": {
+          "const": true
+        },
+        "set_cookie_same_site": {
+          "const": "Strict"
+        },
+        "set_cookie_domain_present": {
+          "const": false
+        },
+        "access_control_allow_origin_header_present": {
+          "const": false
+        }
       }
     },
     "request": {
@@ -427,7 +497,7 @@
           "const": "application/json"
         },
         "accept": {
-          "const": "application/json"
+          "const": "application/vnd.hah.lattice.events.v1+ndjson"
         },
         "request_body_key_order": {
           "const": [
@@ -495,10 +565,18 @@
         "status",
         "content_type",
         "cache_control",
-        "response_body_key_order",
-        "response_body_member_count",
-        "response_body_duplicate_member_count",
-        "response_body_exact_contract",
+        "stream_format",
+        "phase_names",
+        "terminal_sequence",
+        "terminal_frame_key_order",
+        "terminal_status",
+        "stream_lf_framing_valid",
+        "stream_contiguous_sequence",
+        "stream_eof_observed",
+        "terminal_body_key_order",
+        "terminal_body_member_count",
+        "stream_duplicate_member_count",
+        "terminal_body_exact_contract",
         "schema_version",
         "result_version",
         "strict_result_contract_valid",
@@ -511,27 +589,79 @@
       ],
       "properties": {
         "status": {
-          "const": 200
+          "const": 200,
+          "description": "Actual HTTP transport status only; terminal_status and strict terminal result validation independently establish transformation success."
         },
         "content_type": {
-          "const": "application/json; charset=utf-8"
+          "const": "application/vnd.hah.lattice.events.v1+ndjson; charset=utf-8"
         },
         "cache_control": {
           "const": "no-store"
         },
-        "response_body_key_order": {
+        "stream_format": {
+          "const": "lattice-service-events-v1"
+        },
+        "phase_names": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 128,
+          "items": {
+            "enum": [
+              "binding-source-integrity",
+              "atomizing",
+              "generating",
+              "binding-result-integrity",
+              "verifying",
+              "reatomizing",
+              "regenerating",
+              "repairing",
+              "reverifying",
+              "planning-certification",
+              "certifying-windows",
+              "certifying-document",
+              "certifying-relations"
+            ]
+          }
+        },
+        "terminal_sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 129
+        },
+        "terminal_frame_key_order": {
+          "const": [
+            "type",
+            "sequence",
+            "status",
+            "body"
+          ]
+        },
+        "terminal_status": {
+          "const": 200
+        },
+        "stream_lf_framing_valid": {
+          "const": true
+        },
+        "stream_contiguous_sequence": {
+          "const": true
+        },
+        "stream_eof_observed": {
+          "const": true
+        },
+        "terminal_body_key_order": {
           "const": [
             "result",
             "schema_version"
           ]
         },
-        "response_body_member_count": {
+        "terminal_body_member_count": {
           "const": 2
         },
-        "response_body_duplicate_member_count": {
-          "const": 0
+        "stream_duplicate_member_count": {
+          "const": 0,
+          "description": "No duplicate JSON members at any depth in any original phase or terminal frame, including the terminal payload."
         },
-        "response_body_exact_contract": {
+        "terminal_body_exact_contract": {
           "const": true
         },
         "schema_version": {
@@ -562,12 +692,15 @@
         "response_body_utf8_bytes": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 262144
+          "maximum": 262144,
+          "description": "Byte count of the entire original raw stream including every phase frame, terminal wrapper and LF, never only the terminal payload."
         },
         "response_body_sha256": {
-          "$ref": "#/$defs/sha256"
+          "$ref": "#/$defs/sha256",
+          "description": "SHA256 of those exact complete original raw stream bytes, never a reserialization or terminal-only digest."
         }
-      }
+      },
+      "description": "Closed sanitized facts derived from completed original stream bytes. phase_names contains only allowlisted engine names; terminal_sequence equals its length plus1 and consecutive names differ. All raw bodies and text remain prohibited evidence."
     },
     "terminal": {
       "type": "object",
@@ -606,7 +739,7 @@
       }
     },
     "privacy": {
-      "description": "Marker body matches count matching request or response records, deduplicated within each record across repeated occurrences and encoding scans. Only request.text in the one acknowledged content-bearing API request and result.text in its successful strictly validated API response are permitted locations, for either marker. Every occurrence in other fields, traffic, errors, headers, URLs, console, analytics, or storage is prohibited and must be included in the applicable zero-match counters. A source marker may survive verbatim in a protected span of a material result; both markers can already be present in unchanged conformant source.",
+      "description": "Marker body matches count matching request or response records, deduplicated within each record across repeated occurrences and encoding scans. Only request.text in the one acknowledged content-bearing API request and terminal.body.result.text in the one successful strictly validated terminal frame are permitted locations, for either marker. Every occurrence in other fields, traffic, errors, headers, URLs, console, analytics, or storage is prohibited and must be included in the applicable zero-match counters. A source marker may survive verbatim in a protected span of a material result; both markers can already be present in unchanged conformant source.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -727,14 +860,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 1,
-          "description": "Zero or one matching successful response body, with every permitted occurrence confined to result.text. Repeated occurrences and encoding scans count the record once. Conformant-for-context requires one matching record and identical source/output byte counts and SHA-256 fingerprints."
+          "description": "Zero or one matching successful response body, with every permitted occurrence confined to terminal.body.result.text. Repeated occurrences and encoding scans count the record once. Conformant-for-context requires one matching record and identical source/output byte counts and SHA-256 fingerprints."
         },
         "source_marker_prohibited_matches": {
           "const": 0
         },
         "output_marker_response_body_matches": {
           "const": 1,
-          "description": "Exactly one matching successful response body, confined to result.text; repeated occurrences and encoding scans count that record once."
+          "description": "Exactly one matching successful response body, confined to terminal.body.result.text; repeated occurrences and encoding scans count that record once."
         },
         "output_marker_prohibited_matches": {
           "const": 0

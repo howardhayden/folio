@@ -1,6 +1,11 @@
 import { NetworkPolicyError, capabilityFetch } from "../../privacy/networkCapabilities.js";
 import { latticeUtf8Length, validateLatticeInput } from "./inputPolicy.js";
 import {
+  LATTICE_SERVICE_EVENTS_MIME,
+  LATTICE_SERVICE_PHASE_LIMIT,
+  isLatticeServicePhase,
+} from "./serviceTelemetry.js";
+import {
   LATTICE_API_PATH,
   LATTICE_API_SCHEMA_VERSION,
   LATTICE_REQUEST_MODES,
@@ -27,6 +32,7 @@ export const LATTICE_BROWSER_QUOTA_LOCK_NAME = "text-to-lattice-browser-quota-co
  * @property {LatticeRequestedMode} [requestedMode]
  * @property {AbortSignal} [signal]
  * @property {(state: LatticeRemoteState) => void} [onState]
+ * @property {(phase: string) => unknown} [onServicePhase]
  * @property {typeof globalThis.fetch} [fetchImpl]
  * @property {string} [baseOrigin]
  * @property {number} [timeoutMs]
@@ -60,6 +66,10 @@ const ERROR_STATUSES = Object.freeze({
 });
 
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset=utf-8)?$/iu;
+const EVENTS_CONTENT_TYPE = new RegExp(
+  `^${LATTICE_SERVICE_EVENTS_MIME.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}(?:\\s*;\\s*charset=utf-8)?$`,
+  "iu",
+);
 
 export class LatticeRemoteError extends Error {
   constructor(code, { status = 0, retryAfterSeconds = null, cause } = {}) {
@@ -411,6 +421,112 @@ function validErrorStatus(code, status) {
     && ERROR_STATUSES[code].includes(status);
 }
 
+function validTerminalBody(status, body) {
+  return status === 200
+    ? exactKeys(body, ["result", "schema_version"])
+      && body.schema_version === LATTICE_API_SCHEMA_VERSION
+      && isLatticeApiResult(body.result)
+    : isLatticeApiError(body) && validErrorStatus(body.error, status);
+}
+
+async function boundedServiceEvents(response, signal, onServicePhase) {
+  let reader;
+  try {
+    declaredResponseLength(response);
+    if (!response.body || typeof response.body.getReader !== "function"
+      || typeof TextDecoder !== "function") throw invalidResponse(response.status);
+    reader = response.body.getReader();
+  } catch (cause) {
+    cancelReadable(response.body);
+    throw invalidResponse(response.status, cause);
+  }
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  const byteLength = Object.getOwnPropertyDescriptor(
+    Object.getPrototypeOf(Uint8Array.prototype), "byteLength",
+  ).get;
+  let bytesRead = 0;
+  let pending = "";
+  let sequence = 0;
+  let phaseCount = 0;
+  let previousPhase = null;
+  let terminal = null;
+  let complete = false;
+
+  function frame(line) {
+    if (signal.aborted) throw abortReason(signal);
+    if (!line || line.endsWith("\r") || terminal !== null) throw invalidResponse(response.status);
+    const value = parseJson(line, response.status);
+    if (!Number.isSafeInteger(value?.sequence) || value.sequence !== sequence + 1) {
+      throw invalidResponse(response.status);
+    }
+    if (exactKeys(value, ["type", "sequence", "phase"]) && value.type === "phase") {
+      if (!isLatticeServicePhase(value.phase) || value.phase === previousPhase
+        || phaseCount >= LATTICE_SERVICE_PHASE_LIMIT) throw invalidResponse(response.status);
+      phaseCount += 1;
+      previousPhase = value.phase;
+      sequence = value.sequence;
+      // Observation cannot interrupt draining or release the quota lock early.
+      // Neither synchronous nor asynchronous observer errors expose their text.
+      try {
+        void Promise.resolve(onServicePhase(value.phase)).catch(() => {});
+      } catch {
+        // UI observation never replaces the public response or its cleanup.
+      }
+      return;
+    }
+    if (!exactKeys(value, ["type", "sequence", "status", "body"])
+      || value.type !== "terminal" || !Number.isSafeInteger(value.status)
+      || !validTerminalBody(value.status, value.body)) throw invalidResponse(response.status);
+    sequence = value.sequence;
+    terminal = value;
+  }
+
+  try {
+    if (!reader || typeof reader.read !== "function" || typeof reader.cancel !== "function"
+      || typeof reader.releaseLock !== "function") throw invalidResponse(response.status);
+    while (true) {
+      if (signal.aborted) throw abortReason(signal);
+      const part = await raceAbort(reader.read(), signal);
+      if (signal.aborted) throw abortReason(signal);
+      if (!part || typeof part !== "object" || Array.isArray(part)
+        || typeof part.done !== "boolean") throw invalidResponse(response.status);
+      if (part.done) {
+        if (part.value !== undefined) throw invalidResponse(response.status);
+        try { pending += decoder.decode(); } catch (cause) { throw invalidResponse(response.status, cause); }
+        if (pending.length !== 0 || terminal === null) throw invalidResponse(response.status);
+        complete = true;
+        return terminal;
+      }
+      if (!ArrayBuffer.isView(part.value)
+        || Object.prototype.toString.call(part.value) !== "[object Uint8Array]") {
+        throw invalidResponse(response.status);
+      }
+      const length = byteLength.call(part.value);
+      bytesRead += length;
+      if (bytesRead > LATTICE_RESPONSE_BYTE_LIMIT) throw invalidResponse(response.status);
+      try { pending += decoder.decode(part.value, { stream: true }); }
+      catch (cause) { throw invalidResponse(response.status, cause); }
+      let newline;
+      while ((newline = pending.indexOf("\n")) !== -1) {
+        const line = pending.slice(0, newline);
+        pending = pending.slice(newline + 1);
+        frame(line);
+      }
+      if (length === 0) {
+        let turn;
+        try {
+          await raceAbort(new Promise((resolve) => { turn = setTimeout(resolve, 0); }), signal);
+        } finally { clearTimeout(turn); }
+      }
+    }
+  } finally {
+    if (!complete) cancelReadable(reader, signal.reason);
+    try { reader.releaseLock(); } catch {
+      // A platform cleanup error cannot replace the bounded request outcome.
+    }
+  }
+}
+
 /**
  * Submit one explicitly authorized Text-to-Lattice request.
  *
@@ -422,10 +538,14 @@ export async function requestRemoteLattice(text, options = {}) {
     requestedMode = "auto",
     signal,
     onState,
+    onServicePhase,
     fetchImpl,
     baseOrigin,
     timeoutMs = LATTICE_CLIENT_TIMEOUT_MS,
   } = options;
+  if (onServicePhase !== undefined && typeof onServicePhase !== "function") {
+    throw new LatticeRemoteError("invalid_request");
+  }
   onState?.("validating");
   const payload = makeLatticeRequest(text, requestedMode);
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > LATTICE_CLIENT_TIMEOUT_MS) {
@@ -443,7 +563,7 @@ export async function requestRemoteLattice(text, options = {}) {
         const responsePromise = capabilityFetch(LATTICE_REMOTE_CAPABILITY, LATTICE_API_PATH, {
           method: "POST",
           headers: Object.freeze({
-            Accept: "application/json",
+            Accept: onServicePhase ? LATTICE_SERVICE_EVENTS_MIME : "application/json",
             "Content-Type": "application/json",
           }),
           body: JSON.stringify(payload),
@@ -455,15 +575,26 @@ export async function requestRemoteLattice(text, options = {}) {
         }, () => {});
         onState?.("processing");
         const response = await raceAbort(responsePromise, lifecycle.signal);
-        const status = validateResponseShape(response);
+        let status = validateResponseShape(response);
         const contentType = response.headers.get("content-type") ?? "";
-        if (!JSON_CONTENT_TYPE.test(contentType)) {
-          cancelReadable(response.body);
-          throw invalidResponse(status);
+        const streamed = Boolean(onServicePhase) && status === 200;
+        let body;
+        if (streamed) {
+          if (!EVENTS_CONTENT_TYPE.test(contentType)) {
+            cancelReadable(response.body);
+            throw invalidResponse(status);
+          }
+          ({ status, body } = await boundedServiceEvents(response, lifecycle.signal, onServicePhase));
+        } else {
+          if (!JSON_CONTENT_TYPE.test(contentType)) {
+            cancelReadable(response.body);
+            throw invalidResponse(status);
+          }
+          const bodyText = await boundedResponseText(response, lifecycle.signal);
+          if (lifecycle.signal.aborted) throw abortReason(lifecycle.signal);
+          body = parseJson(bodyText, status);
         }
-        const bodyText = await boundedResponseText(response, lifecycle.signal);
         if (lifecycle.signal.aborted) throw abortReason(lifecycle.signal);
-        const body = parseJson(bodyText, status);
         if (status !== 200) {
           if (!isLatticeApiError(body) || !validErrorStatus(body.error, status)) {
             throw invalidResponse(status);
@@ -471,7 +602,7 @@ export async function requestRemoteLattice(text, options = {}) {
           throw new LatticeRemoteError(body.error, {
             status,
             retryAfterSeconds: body.error === "rate_limited"
-              ? parseRetryAfter(response, body)
+              ? streamed ? body.retry_after_seconds ?? null : parseRetryAfter(response, body)
               : null,
           });
         }
