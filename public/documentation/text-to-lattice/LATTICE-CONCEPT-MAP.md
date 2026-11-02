@@ -1,6 +1,6 @@
 ---
 title: Lattice concept and ecosystem map
-revision: 2026-10-30
+revision: 2026-11-02
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
@@ -417,12 +417,12 @@ Products that apply or interpret Lattice under their own contracts.
 <details id="lat-n-021">
 <summary><strong>LAT-N-021</strong> · Text to Lattice — Probabilistic remote wrapper, distinct authority model</summary>
 
-U28/D30 current qualification scope: fixed DeepInfra Qwen generation and Scaleway Llama 3.3 verification/certification through the same-origin API and fixed Hugging Face router; integration and exact-target qualification remain pending. Earlier Nscale role wording below is retained for historical scope. The hah.dev demonstrator sends visitor-authorized text through a same-origin API to fixed server-side DeepInfra-served Qwen generation and Nscale-served Llama verification models. It does not inherit the upstream engine's typed caller-authority guarantee and must state its weaker semantic and external-processing boundary separately.
+Owner-selected OVHcloud review-role migration, 2026-11-02: the fixed Hugging Face router uses DeepInfra-qualified Qwen generator and OVHcloud-qualified Llama verifier/certifier targets. Both current review stages retain strict json_schema and the existing stopped single assistant nonempty string-content profile with optional empty tool_calls. Both Scaleway-only optional-null flags are false for OVHcloud; the independent legacy Scaleway selector/router guard remains unchanged and is not retargeted. The five optional null message metadata fields are rejected for OVHcloud. Prompts, fitted schemas, wire/host/semantic checks, output and byte ceilings, deadlines, calls, quotas, privacy, no automatic retry and no alternate provider or model fallback remain unchanged. Exact OVHcloud envelope, full fitted-schema support, managed tokenization/input fit, successful billing and behavior remain unproved and may cause qualification to refuse.  The complete prior value follows verbatim as dated history. U28/D30 current qualification scope: fixed DeepInfra Qwen generation and Scaleway Llama 3.3 verification/certification through the same-origin API and fixed Hugging Face router; integration and exact-target qualification remain pending. Earlier Nscale role wording below is retained for historical scope. The hah.dev demonstrator sends visitor-authorized text through a same-origin API to fixed server-side DeepInfra-served Qwen generation and Nscale-served Llama verification models. It does not inherit the upstream engine's typed caller-authority guarantee and must state its weaker semantic and external-processing boundary separately.
 
 - **Group:** Ecosystem
 - **Authority:** Wrapper claim boundary
 - **Perspectives:** ecosystem, host, assurance
-- **Sources:** SRC-REQUIREMENTS, SRC-PUBLIC-CONTRACT, SRC-REMOTE-PROTOCOL, SRC-API-WORKER, SRC-HF-ADAPTER, SRC-PROJECTS
+- **Sources:** SRC-REQUIREMENTS, SRC-PUBLIC-CONTRACT, SRC-REMOTE-PROTOCOL, SRC-API-WORKER, SRC-HF-ADAPTER, SRC-PROJECTS, SRC-HF-OVHCLOUD, SRC-OVHCLOUD-STRUCTURED
 - **Typed relations:** LAT-N-021 → acts as a probabilistic host wrapper → LAT-N-019 (LAT-E-023); LAT-N-021 → cannot inherit caller-supplied authority by inference → LAT-N-001 (LAT-E-024); LAT-N-021 → demonstrates Lattice principles without embedding the engine → LAT-N-000 (LAT-E-029)
 
 </details>
@@ -608,6 +608,12 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-D32-EVIDENCE — Actual #318 finite shape, partial failure and held scope; approved D32 validation pending:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
 - **SRC-D33-REQUIREMENTS — D33 scoped metadata-only active-context method under the conditional U13 window:** `docs/lattice-resume-demo-requirements.md`
 - **SRC-D33-EVIDENCE — Source-only current-context method, exact point-observation limits and pending actual native evidence:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
+- **SRC-HF-OVHCLOUD — Hugging Face OVHcloud routed provider integration:** [Reviewed source](https://huggingface.co/docs/inference-providers/en/providers/ovhcloud)
+- **SRC-OVHCLOUD-TERMS — OVHcloud standard AI Endpoints service conditions, Aug26 2026 Appendix10:** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-we.pdf)
+- **SRC-OVHCLOUD-PRIVACY — OVHcloud AI Endpoints published content and billing-data boundary:** [Reviewed source](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/)
+- **SRC-OVHCLOUD-CONDUCT — OVHcloud canonical AI Code of Conduct, Apr28 2025:** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/AI_Code-IE.pdf)
+- **SRC-OVHCLOUD-LIFECYCLE — OVHcloud AI Endpoints troubleshooting and lifecycle:** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-troubleshooting)
+- **SRC-OVHCLOUD-STRUCTURED — OVHcloud structured-output documented subset and ordering:** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-structured-output)
 
 ## Terms and provenance
 

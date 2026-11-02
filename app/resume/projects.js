@@ -2,7 +2,7 @@ import { documentsForProject } from "../content/projectDocuments.js";
 
 export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v12";
 export const PROJECT_CONTENT_UPDATED = "2026-09-23";
-export const TEXT_TO_LATTICE_CONTENT_UPDATED = "2026-10-30";
+export const TEXT_TO_LATTICE_CONTENT_UPDATED = "2026-11-02";
 
 const LATTICE_CARD_RESOURCE_LABELS = Object.freeze({
   "lattice-concept-map": "Concept and Ecosystem Map",
@@ -57,13 +57,13 @@ export const projects = Object.freeze([
       "Passage-level register selection",
       "Relational Systems Register",
     ]),
-    technologies: Object.freeze(["JavaScript", "Node.js", "npm", "Cloudflare Workers", "Hugging Face Inference Providers", "DeepInfra", "Scaleway", "Wrangler"]),
+    technologies: Object.freeze(["JavaScript", "Node.js", "npm", "Cloudflare Workers", "Hugging Face Inference Providers", "DeepInfra", "OVHcloud", "Wrangler"]),
     evidence: Object.freeze(["https://github.com/howardhayden/lattice"]),
     limitations: Object.freeze([
       "The hah.dev Text to Lattice demonstrator accepts at most 700 words and submits text only after explicit confirmation through the same-origin /api/lattice capability.",
       "Its exact request body is {text, requested_mode, schema_version: 1}; hah.dev does not retain or write the source or result to application storage, raw logs, caches, queues, or analytics.",
       "The demonstrator accepts at most 30 transformations globally per UTC day and 3 from one ordinary persistent browser cookie jar. Its opaque HttpOnly quota cookie is scoped to /api/lattice, expires at the next UTC day, and contains no submitted content; no IP or browser fingerprint is used as a second quota identity.",
-      "Qwen3-235B-A22B-Instruct-2507 drafts through DeepInfra and Llama 3.3 70B Instruct verifies through Scaleway, both selected explicitly through the Hugging Face router. There is no automatic provider or model fallback, and the remote runtime is not asserted to be byte-for-byte equivalent to the historical MLC/WebGPU artifacts.",
+      "Qwen3-235B-A22B-Instruct-2507 drafts through DeepInfra and Llama 3.3 70B Instruct verifies through OVHcloud, both selected explicitly through the Hugging Face router. There is no automatic provider or model fallback, and the remote runtime is not asserted to be byte-for-byte equivalent to the historical MLC/WebGPU artifacts.",
       "Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information; external services process submitted content under their own policies.",
       "A review-required draft is not certified as semantically equivalent.",
       "Provider timeouts, rate limits, malformed responses, and availability failures terminate explicitly and require another deliberate submission.",
@@ -81,8 +81,8 @@ export const projects = Object.freeze([
     ]),
     publication: Object.freeze({ label: "September 2026", value: "2026-09", precision: "month" }),
     status: "public",
-    interaction: "lattice-demo",
-    interactiveRelease: "enabled",
+    interaction: null,
+    interactiveRelease: "held",
     readmeAfterFirstParagraph: true,
   }),
   Object.freeze({

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
+import {
+  LATTICE_SERVICE_EVENTS_MIME,
+  LATTICE_SERVICE_PHASES,
+  LATTICE_SERVICE_PHASE_LIMIT,
+} from "../app/resume/lattice/serviceTelemetry.js";
 
 import {
   REMOTE_CAPABILITIES,
@@ -1021,4 +1026,196 @@ test("caller cancellation and timeout settle stalled response bodies without suc
     assert.equal(bodyCanceled, true);
     assert.deepEqual(states, ["validating", "submitting", "processing"]);
   }
+});
+
+const phaseFrame = (sequence, phase = "atomizing") => ({ type: "phase", sequence, phase });
+const terminalFrame = (sequence, status = 200, body = { result, schema_version: 1 }) => ({
+  type: "terminal", sequence, status, body,
+});
+const eventBytes = (frames) => new TextEncoder().encode(frames.map((frame) => JSON.stringify(frame) + "\n").join(""));
+function eventResponse(bytes, headers = {}) {
+  return new Response(new ReadableStream({ start(controller) { controller.enqueue(bytes); controller.close(); } }), {
+    headers: { "Content-Type": `${LATTICE_SERVICE_EVENTS_MIME}; charset=utf-8`, ...headers },
+  });
+}
+const streamRequest = (response, extra = {}) => requestRemoteLattice("Source", {
+  baseOrigin: ORIGIN,
+  onServicePhase() {},
+  fetchImpl: afterVisitorSession(async () => response),
+  ...extra,
+});
+
+test("service events negotiate only on the existing content request and preserve its body", async () => {
+  const calls = [];
+  const phases = [];
+  const actual = await requestRemoteLattice("Source", {
+    baseOrigin: ORIGIN,
+    onServicePhase: (phase) => phases.push(phase),
+    fetchImpl: async (url, init) => {
+      calls.push({ url: url.href, ...init });
+      return calls.length === 1 ? visitorSessionResponse()
+        : eventResponse(eventBytes([phaseFrame(1), terminalFrame(2)]));
+    },
+  });
+  assert.deepEqual(actual, result);
+  assert.deepEqual(phases, ["atomizing"]);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].headers.Accept, LATTICE_VISITOR_SESSION_ACCEPT);
+  assert.equal(calls[0].body, undefined);
+  assert.equal(calls[1].headers.Accept, LATTICE_SERVICE_EVENTS_MIME);
+  assert.equal(calls[1].headers["Content-Type"], "application/json");
+  assert.deepEqual(JSON.parse(calls[1].body), { text: "Source", requested_mode: "auto", schema_version: 1 });
+  for (const call of calls) {
+    assert.equal(call.url, `${ORIGIN}/api/lattice`);
+    assert.equal(call.credentials, "same-origin");
+    assert.equal(call.redirect, "error");
+    assert.equal(call.cache, "no-store");
+  }
+  for (const invalid of [null, true, "phase", {}]) {
+    let fetched = false;
+    await assert.rejects(requestRemoteLattice("Source", {
+      baseOrigin: ORIGIN, onServicePhase: invalid, fetchImpl() { fetched = true; },
+    }), (error) => error.code === "invalid_request");
+    assert.equal(fetched, false);
+  }
+});
+
+test("service phases arrive before terminal, remain closed, and decode across every byte boundary", async () => {
+  const phases = [];
+  const unicodeResult = { ...result, text: "A returned café 🌊." };
+  const frames = [...LATTICE_SERVICE_PHASES.map((phase, index) => phaseFrame(index + 1, phase)),
+    terminalFrame(LATTICE_SERVICE_PHASES.length + 1, 200, { result: unicodeResult, schema_version: 1 })];
+  const bytes = eventBytes(frames);
+  let cursor = 0;
+  const response = new Response(new ReadableStream({ pull(controller) {
+    if (cursor === bytes.length) controller.close();
+    else controller.enqueue(bytes.slice(cursor, ++cursor));
+  } }), { headers: { "Content-Type": LATTICE_SERVICE_EVENTS_MIME } });
+  assert.deepEqual(await streamRequest(response, { onServicePhase: (phase) => phases.push(phase) }), unicodeResult);
+  assert.deepEqual(phases, LATTICE_SERVICE_PHASES);
+});
+
+test("phase observation cannot settle a result or release the browser lock before terminal EOF", async () => {
+  let stream;
+  let held = false;
+  const locks = { query: async () => ({ held: [], pending: [] }), request: async (_key, _options, run) => {
+    held = true;
+    try { return await run(); } finally { held = false; }
+  } };
+  await withBrowserWindow({ location: { origin: ORIGIN }, navigator: { locks } }, async () => {
+    const response = new Response(new ReadableStream({ start(controller) { stream = controller; } }), {
+      headers: { "Content-Type": LATTICE_SERVICE_EVENTS_MIME },
+    });
+    let observed;
+    const phaseSeen = new Promise((resolve) => { observed = resolve; });
+    let settled = false;
+    const pending = streamRequest(response, { onServicePhase(phase) { observed(phase); throw new Error("private observer text"); } });
+    void pending.finally(() => { settled = true; });
+    stream.enqueue(eventBytes([phaseFrame(1)]));
+    assert.equal(await phaseSeen, "atomizing");
+    assert.equal(held, true);
+    assert.equal(settled, false);
+    stream.enqueue(eventBytes([terminalFrame(2)]));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(held, true);
+    assert.equal(settled, false);
+    stream.close();
+    assert.deepEqual(await pending, result);
+    assert.equal(held, false);
+  });
+  assert.deepEqual(await streamRequest(eventResponse(eventBytes([phaseFrame(1), terminalFrame(2)])), {
+    onServicePhase: async () => { throw new Error("private rejected observer text"); },
+  }), result);
+});
+
+test("event stream refuses wrong framing, vocabulary, sequence, terminal shape and status", async () => {
+  const cases = [
+    [], [phaseFrame(1)], [terminalFrame(2)], [phaseFrame(0), terminalFrame(1)],
+    [phaseFrame(1.5), terminalFrame(2)], [phaseFrame("1"), terminalFrame(2)],
+    [phaseFrame(1, "secret phase"), terminalFrame(2)],
+    [{ ...phaseFrame(1), batchId: "private" }, terminalFrame(2)],
+    [{ ...phaseFrame(1), type: "stage" }, terminalFrame(2)],
+    [phaseFrame(1), phaseFrame(2), terminalFrame(3)],
+    [phaseFrame(1), phaseFrame(3, "generating"), terminalFrame(4)],
+    [terminalFrame(1), terminalFrame(2)], [terminalFrame(1), phaseFrame(2)],
+    [{ ...terminalFrame(1), extra: true }], [terminalFrame(1, 201)],
+    [terminalFrame(1, 200, { result, schema_version: 2 })],
+    [terminalFrame(1, 200, { error: "upstream_unavailable" })],
+    [terminalFrame(1, 502, { error: "rate_limited" })],
+    [terminalFrame(1, 429, { error: "rate_limited", retry_after_seconds: 301 })],
+    [terminalFrame(1, 500, { error: "private error" })],
+    [terminalFrame(1, 200, { result: { ...result, questions: ["private"] }, schema_version: 1 })],
+  ];
+  for (const frames of cases) {
+    await assert.rejects(streamRequest(eventResponse(eventBytes(frames))), (error) => error.code === "invalid_response");
+  }
+  const valid = new TextDecoder().decode(eventBytes([terminalFrame(1)]));
+  for (const text of ["\n" + valid, valid + "\n", valid.slice(0, -1), valid.replace(/\n/u, "\r\n"), "{bad}\n", "null\n"]) {
+    await assert.rejects(streamRequest(eventResponse(new TextEncoder().encode(text))), (error) => error.code === "invalid_response");
+  }
+  for (const response of [jsonResponse({ result, schema_version: 1 }), eventResponse(eventBytes([terminalFrame(1)]), { "Content-Type": "application/x-ndjson" })]) {
+    await assert.rejects(streamRequest(response), (error) => error.code === "invalid_response");
+  }
+});
+
+test("phase count permits its exact bound and nonconsecutive repetition, never a129th phase", async () => {
+  const phases = Array.from({ length: LATTICE_SERVICE_PHASE_LIMIT }, (_, index) => phaseFrame(index + 1, index % 2 ? "generating" : "atomizing"));
+  assert.deepEqual(await streamRequest(eventResponse(eventBytes([...phases, terminalFrame(129)]))), result);
+  await assert.rejects(streamRequest(eventResponse(eventBytes([...phases, phaseFrame(129), terminalFrame(130)]))), (error) => error.code === "invalid_response");
+});
+
+test("stream errors preserve existing status semantics and use only bounded body retry values", async () => {
+  for (const [status, body, code, retry] of [
+    [429, { error: "rate_limited", retry_after_seconds: 17 }, "rate_limited", 17],
+    [429, { error: "rate_limited" }, "rate_limited", null],
+    [504, { error: "upstream_timeout" }, "upstream_timeout", null],
+    [503, { error: "upstream_unavailable" }, "upstream_unavailable", null],
+  ]) {
+    await assert.rejects(streamRequest(eventResponse(eventBytes([terminalFrame(1, status, body)]), { "Retry-After": "99" })), (error) => {
+      assert.equal(error.code, code); assert.equal(error.status, status); assert.equal(error.retryAfterSeconds, retry); return true;
+    });
+  }
+  await assert.rejects(streamRequest(jsonResponse({ error: "rate_limited" }, 429, { "Retry-After": "19" })), (error) => error.code === "rate_limited" && error.retryAfterSeconds === 19);
+});
+
+test("service stream byte and UTF8 bounds cancel readers without a text fallback", async () => {
+  for (const bytes of [new Uint8Array(LATTICE_RESPONSE_BYTE_LIMIT + 1), new Uint8Array([0xc3, 0x28]), new Uint8Array([0xc3])]) {
+    await assert.rejects(streamRequest(eventResponse(bytes)), (error) => error.code === "invalid_response");
+  }
+  await assert.rejects(streamRequest(eventResponse(eventBytes([terminalFrame(1)]), { "Content-Length": String(LATTICE_RESPONSE_BYTE_LIMIT + 1) })), (error) => error.code === "invalid_response");
+  for (const part of [null, {}, { done: 1 }, { done: true, value: new Uint8Array() }, { done: false, value: { byteLength: 1 } }, { done: false, value: new Uint16Array([1]) }]) {
+    const tracked = trackedSetupReader(async () => part, () => new Promise(() => {}));
+    const response = { status: 200, headers: new Headers({ "Content-Type": LATTICE_SERVICE_EVENTS_MIME }), body: tracked.body, text() { throw new Error("forbidden fallback"); } };
+    await assert.rejects(streamRequest(response), (error) => error.code === "invalid_response");
+    assert.equal(tracked.state.canceled, 1); assert.equal(tracked.state.released, 1);
+  }
+  let textCalled = false;
+  await assert.rejects(streamRequest({ status: 200, headers: new Headers({ "Content-Type": LATTICE_SERVICE_EVENTS_MIME }), body: null, text() { textCalled = true; } }), (error) => error.code === "invalid_response");
+  assert.equal(textCalled, false);
+});
+
+test("abort or timeout after a phase or terminal never publishes a result and releases the reader", async () => {
+  for (const first of [phaseFrame(1), terminalFrame(1)]) {
+    for (const callerAbort of [false, true]) {
+      const controller = new AbortController();
+      let reads = 0;
+      const tracked = trackedSetupReader(async () => {
+        if (reads++ === 0) return { done: false, value: eventBytes([first]) };
+        if (callerAbort) queueMicrotask(() => controller.abort());
+        return new Promise(() => {});
+      }, () => new Promise(() => {}));
+      const response = { status: 200, headers: new Headers({ "Content-Type": LATTICE_SERVICE_EVENTS_MIME }), body: tracked.body, text() { throw new Error("forbidden"); } };
+      await assert.rejects(streamRequest(response, { signal: controller.signal, timeoutMs: 20 }), (error) => callerAbort ? error.name === "AbortError" : error.code === "client_timeout");
+      assert.equal(tracked.state.canceled, 1); assert.equal(tracked.state.released, 1);
+    }
+  }
+  const tracked = trackedSetupReader(async () => ({ done: false, value: new Uint8Array() }));
+  await assert.rejects(streamRequest({ status: 200, headers: new Headers({ "Content-Type": LATTICE_SERVICE_EVENTS_MIME }), body: tracked.body, text() {} }, { timeoutMs: 20 }), (error) => error.code === "client_timeout");
+  assert.ok(tracked.state.reads > 0 && tracked.state.reads < 100); assert.equal(tracked.state.released, 1);
+  const controller = new AbortController();
+  const seen = [];
+  await assert.rejects(streamRequest(eventResponse(eventBytes([phaseFrame(1), phaseFrame(2, "generating"), terminalFrame(3)])), {
+    signal: controller.signal, onServicePhase(phase) { seen.push(phase); controller.abort(); },
+  }), (error) => error.name === "AbortError");
+  assert.deepEqual(seen, ["atomizing"]);
 });

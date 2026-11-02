@@ -50,8 +50,11 @@ test("models every operating condition as evidence to ordered action and outcome
   for (const { diagram } of Object.values(chromebookStateFlows)) {
     assert.ok(Math.max(...diagram.split("\n").map((line) => line.length)) <= 36, "the colored-text flow fits a phone at a readable size without horizontal panning");
   }
-  assert.match(component, /role="img"[\s\S]*?aria-label=\{stateFlow\.description\}/u);
-  assert.match(component, /<pre className="tools-card-accent signal-fuzz" aria-hidden="true">[\s\S]*?\{stateFlow\.diagram\}/u);
+  assert.match(component, /export function TerminalStateDiagram/u);
+  assert.match(component, /role="img"[\s\S]*?aria-label=\{description\}/u);
+  assert.match(component, /diagramClassName = "tools-card-accent signal-fuzz"/u);
+  assert.match(component, /<pre className=\{diagramClassName\} aria-hidden="true">[\s\S]*?\{children\}/u);
+  assert.match(component, /<TerminalStateDiagram[\s\S]*?description=\{stateFlow\.description\}[\s\S]*?\{stateFlow\.diagram\}/u);
 });
 
 test("nests the exception lifecycle inside the four keyboard-operable modal lenses", async () => {

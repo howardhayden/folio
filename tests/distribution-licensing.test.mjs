@@ -206,7 +206,7 @@ test("active Llama terms, required attribution, and historical artifacts are reg
 
   assert.equal(active.status, "active");
   assert.equal(active.version, "Llama 3.3");
-  assert.equal(active.model, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
+  assert.equal(active.model, "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
   assert.equal(active.modelRepositoryRevision, "6f6073b423013f6a7d4d9f39144961bfbfbc386b");
   assert.equal(sha256(activeLicense), active.license.sha256);
   assert.equal(sha256(activeAcceptableUse), active.acceptableUsePolicy.sha256);
@@ -263,8 +263,10 @@ test("active Llama terms, required attribution, and historical artifacts are reg
   assert.match(notices, /developer\.meta\.com\/ai\/llama3_1\/license\//u);
   assert.match(notices, /developer\.meta\.com\/ai\/llama3_1\/use-policy\//u);
   assert.match(notices, /historical inactive Llama 3\.2/u);
-  assert.match(notices, /full HTTP requests for up to 14 days/iu);
-  assert.match(notices, /ephemeral prefix\/KV caching cannot be disabled/iu);
+  assert.match(notices, /OVHcloud[\s\S]*?standard synchronous service does not store or reuse inputs and outputs/iu);
+  assert.match(notices, /does not establish KV\/prefix-cache behavior, exact metadata-retention periods/iu);
+  assert.match(notices, /Historical Scaleway remote verifier — inactive/u);
+  assert.match(notices, /AI_Code-IE\.pdf/u);
   assert.match(notices, /6,020 bytes[\s\S]{0,150}exactly one final LF/u);
   assert.match(notices, new RegExp(register.artifactSet.wasm.files.generator.sha256, "u"));
   assert.match(notices, new RegExp(register.artifactSet.wasm.files.verifier.sha256, "u"));

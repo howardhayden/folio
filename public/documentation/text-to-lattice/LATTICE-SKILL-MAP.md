@@ -1,6 +1,6 @@
 ---
 title: Lattice system skill map
-revision: 2026-10-30
+revision: 2026-11-02
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
@@ -269,6 +269,12 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-D32-EVIDENCE — Actual #318 finite shape, partial failure and held scope; approved D32 validation pending:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
 - **SRC-D33-REQUIREMENTS — D33 scoped metadata-only active-context method under the conditional U13 window:** `docs/lattice-resume-demo-requirements.md`
 - **SRC-D33-EVIDENCE — Source-only current-context method, exact point-observation limits and pending actual native evidence:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
+- **SRC-HF-OVHCLOUD — Hugging Face OVHcloud routed provider integration:** [Reviewed source](https://huggingface.co/docs/inference-providers/en/providers/ovhcloud)
+- **SRC-OVHCLOUD-TERMS — OVHcloud standard AI Endpoints service conditions, Aug26 2026 Appendix10:** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-we.pdf)
+- **SRC-OVHCLOUD-PRIVACY — OVHcloud AI Endpoints published content and billing-data boundary:** [Reviewed source](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/)
+- **SRC-OVHCLOUD-CONDUCT — OVHcloud canonical AI Code of Conduct, Apr28 2025:** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/AI_Code-IE.pdf)
+- **SRC-OVHCLOUD-LIFECYCLE — OVHcloud AI Endpoints troubleshooting and lifecycle:** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-troubleshooting)
+- **SRC-OVHCLOUD-STRUCTURED — OVHcloud structured-output documented subset and ordering:** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-structured-output)
 
 ## Terms and provenance
 

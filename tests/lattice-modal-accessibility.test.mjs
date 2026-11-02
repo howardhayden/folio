@@ -37,7 +37,8 @@ test("the modal discloses the external boundary before the user can submit", () 
   }
 
   assert.match(resumeProjectsSource, /id="lattice-external-privacy"/u);
-  assert.match(resumeProjectsSource, /aria-describedby="[^"]*lattice-external-privacy[^"]*"/u);
+  assert.match(resumeProjectsSource, /aria-describedby="lattice-demo-description lattice-processing-summary"/u);
+  assert.match(resumeProjectsSource, /<details className="lattice-disclosure">\s*<summary id="lattice-processing-summary">External processing, privacy and limits<\/summary>/u);
   assert.match(
     resumeProjectsSource,
     /content-free cookie setup POST[\s\S]*?exactly one content-bearing POST[\s\S]*?Only the second includes your text or can initiate[\s\S]*?external-provider processing/u,
@@ -49,16 +50,21 @@ test("the modal discloses the external boundary before the user can submit", () 
   assert.match(resumeProjectsSource, /const updateLatticeInput = \(value: string\) => \{\s*setLatticeUseConfirmed\(false\)/u);
 });
 
-test("model identity, limitations, and acceptable-use boundaries remain visible", () => {
+test("model and language disclosures remain available with confirmation always visible", () => {
+  const confirmation = resumeProjectsSource.slice(resumeProjectsSource.indexOf('<div className="lattice-use-confirmation">'));
+  assert.ok(confirmation.indexOf('id="lattice-use-confirmation"') < confirmation.indexOf("<details"));
+  assert.ok(confirmation.indexOf("</label>") < confirmation.indexOf("<details"));
+  assert.match(confirmation, /<details className="lattice-disclosure lattice-use-confirmation-detail">\s*<summary>Supported languages and use policies<\/summary>/u);
   assert.match(resumeProjectsSource, /Model-assisted result: Qwen3-235B-A22B-Instruct-2507 drafts and Llama 3\.3 70B Instruct checks through the configured external service/u);
-  assert.match(resumeProjectsSource, /Scaleway states that content is not used for training by default[\s\S]{0,150}full HTTP requests for up to 14 days/u);
-  assert.match(resumeProjectsSource, /ephemeral prefix cache that cannot be disabled/u);
+  assert.match(resumeProjectsSource, /OVHcloud states that its standard synchronous service does not store or reuse inputs and outputs or use them for training; billing information is retained/u);
+  assert.match(resumeProjectsSource, /cache behavior and exact metadata-retention periods are not established/u);
   assert.match(resumeProjectsSource, /processing policies are separate from hah\.dev’s application no-retention rule/u);
   assert.match(resumeProjectsSource, /Review every result before relying on it/u);
   assert.match(resumeProjectsSource, />Built with Llama<\/a>/u);
   assert.match(resumeProjectsSource, /from "\.\/lattice\/publicTerms\.js"/u);
   assert.doesNotMatch(resumeProjectsSource, /\.\/lattice\/modelContract\.js/u);
   assert.match(resumeProjectsSource, /LLAMA_3_3_PUBLIC_TERMS/u);
+  assert.match(resumeProjectsSource, /https:\/\/contract\.eu\.ovhapis\.com\/1\.0\/pdf\/AI_Code-IE\.pdf/u);
   assert.match(resumeProjectsSource, /Llama 3\.3 Acceptable Use Policy/u);
   assert.match(publicTermsSource, /https:\/\/huggingface\.co\/meta-llama\/Llama-3\.3-70B-Instruct\/blob\/6f6073b423013f6a7d4d9f39144961bfbfbc386b\/LICENSE/u);
   assert.match(publicTermsSource, /https:\/\/www\.llama\.com\/llama3_3\/use-policy/u);
@@ -116,9 +122,9 @@ test("focus remains contained and favors the active cancellation or returned res
     assert.ok(resumeProjectsSource.includes(selector), `missing focusable selector: ${selector}`);
   }
   assert.match(resumeProjectsSource, /const focusObserver = new MutationObserver\(scheduleFocusContainment\)/u);
-  assert.match(resumeProjectsSource, /attributeFilter: \["aria-hidden", "disabled", "hidden", "tabindex"\]/u);
+  assert.match(resumeProjectsSource, /attributeFilter: \["aria-hidden", "disabled", "hidden", "tabindex", "open"\]/u);
   assert.match(resumeProjectsSource, /latticeCancelButtonRef\.current/u);
-  assert.match(resumeProjectsSource, /if \(result && latticeOutputRef\.current\) return latticeOutputRef\.current/u);
+  assert.match(resumeProjectsSource, /if \(result && latticeOutputRef\.current && !latticeOutputRef\.current\.closest\("\[hidden\]"\)\) return latticeOutputRef\.current/u);
   assert.match(resumeProjectsSource, /if \(input && !input\.disabled\) return input/u);
   assert.match(resumeProjectsSource, /event\.key === "Escape"[\s\S]*?latticeCloseRef\.current\(\)/u);
   assert.match(resumeProjectsSource, /trigger\?\.isConnected[\s\S]*?trigger\.focus/u);
@@ -139,9 +145,9 @@ test("backdrop dismissal and reopening preserve the same active session", () => 
 
 test("the source field enforces the public boundary without silent truncation", () => {
   const sourceInput = resumeProjectsSource.match(/<textarea[\s\S]*?\/>/u)?.[0] ?? "";
-  assert.match(sourceInput, /className="form-control shelf-search-entry lattice-input"/u);
+  assert.match(sourceInput, /className="form-control shelf-search-entry resume-search-input lattice-input"/u);
   assert.match(sourceInput, /id="lattice-demo-input"/u);
-  assert.match(sourceInput, /rows=\{9\}/u);
+  assert.match(sourceInput, /rows=\{1\}/u);
   assert.match(sourceInput, /disabled=\{busy\}/u);
   assert.match(sourceInput, /onChange=\{\(event\) => updateLatticeInput\(event\.currentTarget\.value\)\}/u);
   assert.doesNotMatch(sourceInput, /maxLength=/u);
@@ -165,7 +171,7 @@ test("returned layered output is protected, announced once, and brought into vie
 
 test("remote failures use bounded interface copy and never expose raw diagnostics", () => {
   const failureStart = resumeProjectsSource.indexOf("function latticeFailureMessage");
-  const failureEnd = resumeProjectsSource.indexOf("function latticeProgressText", failureStart);
+  const failureEnd = resumeProjectsSource.indexOf("function LatticeServiceDiagram", failureStart);
   const failureSource = resumeProjectsSource.slice(failureStart, failureEnd);
   assert.ok(failureStart >= 0 && failureEnd > failureStart);
   assert.doesNotMatch(failureSource, /return error\.message|return message \|\|/u);

@@ -12,8 +12,14 @@ import {
   LATTICE_VISITOR_SESSION_ACCEPT,
 } from "../app/resume/lattice/remoteProtocol.js";
 
+import {
+  LATTICE_SERVICE_EVENTS_MIME,
+  LATTICE_SERVICE_PHASES,
+  LATTICE_SERVICE_PHASE_LIMIT,
+} from "../app/resume/lattice/serviceTelemetry.js";
+
 const EVIDENCE_FORMAT = "TEXT_TO_LATTICE_BROWSER_EVIDENCE";
-const EVIDENCE_SCHEMA_VERSION = 1;
+const EVIDENCE_SCHEMA_VERSION = 2;
 const EVIDENCE_FILE_BYTE_LIMIT = 131_072;
 const DEPLOYMENT_INDEX_FILE_BYTE_LIMIT = 65_536;
 const CAPTURE_FILE_BYTE_LIMIT = 10_485_760;
@@ -231,10 +237,18 @@ const RESPONSE_FIELDS = Object.freeze([
   "status",
   "content_type",
   "cache_control",
-  "response_body_key_order",
-  "response_body_member_count",
-  "response_body_duplicate_member_count",
-  "response_body_exact_contract",
+  "stream_format",
+  "phase_names",
+  "terminal_sequence",
+  "terminal_frame_key_order",
+  "terminal_status",
+  "stream_lf_framing_valid",
+  "stream_contiguous_sequence",
+  "stream_eof_observed",
+  "terminal_body_key_order",
+  "terminal_body_member_count",
+  "stream_duplicate_member_count",
+  "terminal_body_exact_contract",
   "schema_version",
   "result_version",
   "strict_result_contract_valid",
@@ -243,7 +257,7 @@ const RESPONSE_FIELDS = Object.freeze([
   "set_cookie_header_count",
   "access_control_allow_origin_header_present",
   "response_body_utf8_bytes",
-  "response_body_sha256",
+  "response_body_sha256"
 ]);
 const TERMINAL_FIELDS = Object.freeze([
   "announcement_prefix",
@@ -653,7 +667,7 @@ function verifyRequest(value, path) {
   exactValue(request.method, "POST", `${path}.method`);
   exactArray(request.application_set_header_names, ["accept", "content-type"], `${path}.application_set_header_names`);
   exactValue(request.content_type, "application/json", `${path}.content_type`);
-  exactValue(request.accept, "application/json", `${path}.accept`);
+  exactValue(request.accept, LATTICE_SERVICE_EVENTS_MIME, `${path}.accept`);
   exactArray(request.request_body_key_order, ["text", "requested_mode", "schema_version"], `${path}.request_body_key_order`);
   exactValue(request.request_body_member_count, 3, `${path}.request_body_member_count`);
   exactValue(request.request_body_duplicate_member_count, 0, `${path}.request_body_duplicate_member_count`);
@@ -676,12 +690,30 @@ function verifyRequest(value, path) {
 function verifyResponse(value, path) {
   const response = exactObject(value, RESPONSE_FIELDS, path);
   exactValue(response.status, 200, `${path}.status`);
-  exactValue(response.content_type, "application/json; charset=utf-8", `${path}.content_type`);
+  exactValue(response.content_type, `${LATTICE_SERVICE_EVENTS_MIME}; charset=utf-8`, `${path}.content_type`);
   exactValue(response.cache_control, "no-store", `${path}.cache_control`);
-  exactArray(response.response_body_key_order, ["result", "schema_version"], `${path}.response_body_key_order`);
-  exactValue(response.response_body_member_count, 2, `${path}.response_body_member_count`);
-  exactValue(response.response_body_duplicate_member_count, 0, `${path}.response_body_duplicate_member_count`);
-  trueValue(response.response_body_exact_contract, `${path}.response_body_exact_contract`);
+  exactValue(response.stream_format, "lattice-service-events-v1", `${path}.stream_format`);
+  if (!Array.isArray(response.phase_names) || response.phase_names.length > LATTICE_SERVICE_PHASE_LIMIT) {
+    fail(`${path}.phase_names`, "must be a bounded array of actual closed service phases");
+  }
+  for (let index = 0; index < response.phase_names.length; index += 1) {
+    const phase = response.phase_names[index];
+    if (!Object.hasOwn(response.phase_names, index) || !LATTICE_SERVICE_PHASES.includes(phase)
+      || (index > 0 && phase === response.phase_names[index - 1])) {
+      fail(`${path}.phase_names[${index}]`, "must be an own closed phase distinct from the preceding phase");
+    }
+  }
+  integer(response.terminal_sequence, 1, LATTICE_SERVICE_PHASE_LIMIT + 1, `${path}.terminal_sequence`);
+  exactValue(response.terminal_sequence, response.phase_names.length + 1, `${path}.terminal_sequence`);
+  exactArray(response.terminal_frame_key_order, ["type", "sequence", "status", "body"], `${path}.terminal_frame_key_order`);
+  exactValue(response.terminal_status, 200, `${path}.terminal_status`);
+  trueValue(response.stream_lf_framing_valid, `${path}.stream_lf_framing_valid`);
+  trueValue(response.stream_contiguous_sequence, `${path}.stream_contiguous_sequence`);
+  trueValue(response.stream_eof_observed, `${path}.stream_eof_observed`);
+  exactArray(response.terminal_body_key_order, ["result", "schema_version"], `${path}.terminal_body_key_order`);
+  exactValue(response.terminal_body_member_count, 2, `${path}.terminal_body_member_count`);
+  exactValue(response.stream_duplicate_member_count, 0, `${path}.stream_duplicate_member_count`);
+  trueValue(response.terminal_body_exact_contract, `${path}.terminal_body_exact_contract`);
   exactValue(response.schema_version, 1, `${path}.schema_version`);
   exactValue(response.result_version, "text-to-lattice.v7", `${path}.result_version`);
   trueValue(response.strict_result_contract_valid, `${path}.strict_result_contract_valid`);

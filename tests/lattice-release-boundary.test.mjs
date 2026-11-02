@@ -376,8 +376,8 @@ test("the release register enforces its exact current phase and preserves histor
     Object.fromEntries(register.gates.map(({ id, status }) => [id, status])),
     {
       "GATE-01": "release-workflow-enforced",
-      "GATE-02": "satisfied-in-production",
-      "GATE-03": "satisfied-in-production",
+      "GATE-02": phase.held ? "open-release-blocker" : "satisfied-in-production",
+      "GATE-03": phase.held ? "open-release-blocker" : "satisfied-in-production",
       "GATE-04A": "accepted-residual-risk",
       "GATE-04B": "historical-inactive",
       "GATE-04C": "historical-inactive",
@@ -462,7 +462,7 @@ test("the release register enforces its exact current phase and preserves histor
     "trigger", "secretBindingNames", "visitorSessionSetup", "contentRequest",
     "browserQuotaCookie", "admission", "provider", "applicationRetention",
     "providerRetentionBoundary", "automaticRetry", "alternateProviderFallback",
-    "responseCachePolicy",
+    "responseCachePolicy", "phaseEvents",
   ].sort(), "the public capability cannot carry undeclared private wire fields");
   assert.deepEqual(Object.keys(capability.provider).sort(), [
     "endpoint", "verificationEndpoint", "verificationRequestModel", "generatorModel", "verifierModel", "stageCallTimeoutsMs",
@@ -517,6 +517,7 @@ test("the release register enforces its exact current phase and preserves histor
         route: "/api/lattice",
         method: "POST",
         accept: "application/json",
+        acceptedResponseTypes: ["application/json", "application/vnd.hah.lattice.events.v1+ndjson"],
         contentTypeHeader: "application/json",
         credentialsMode: "same-origin",
         contentBearingRequestsPerAttempt: 1,
@@ -568,11 +569,11 @@ test("the release register enforces its exact current phase and preserves histor
   );
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.verificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
-  assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
+  assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
   assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
-  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
+  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
   assert.equal(capability.provider.certificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
-  assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:scaleway");
+  assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
   assert.equal(capability.provider.verificationResponseFormat, "json_schema");
   assert.equal(capability.provider.verificationSchemaStrict, true);
   assert.equal(capability.provider.certificationResponseFormat, "json_schema");
@@ -607,7 +608,7 @@ test("the release register enforces its exact current phase and preserves histor
   assert.deepEqual(register.artifactSet.llamaTerms.active, {
   "status": "active",
   "version": "Llama 3.3",
-  "model": "meta-llama/Llama-3.3-70B-Instruct:scaleway",
+  "model": "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
   "modelRepository": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
   "modelRepositoryRevision": "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
   "modelRepositoryRevisionUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/tree/6f6073b423013f6a7d4d9f39144961bfbfbc386b",
@@ -671,7 +672,7 @@ test("the release register enforces its exact current phase and preserves histor
     register.artifactSet.llamaBehaviorEvaluation.targetVerifier.modelRepositoryRevision,
     register.artifactSet.llamaTerms.active.modelRepositoryRevision,
   );
-  assert.equal(register.artifactSet.llamaBehaviorEvaluation.evidenceResetAt, "2026-10-23");
+  assert.equal(register.artifactSet.llamaBehaviorEvaluation.evidenceResetAt, "2026-11-02");
   assert.match(register.artifactSet.llamaBehaviorEvaluation.evidenceResetReason, /another (?:model, )?provider or serving revision/iu);
   assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionPerformed, false);
   assert.deepEqual(register.artifactSet.llamaBehaviorEvaluation.historicalEvaluationRecord, {

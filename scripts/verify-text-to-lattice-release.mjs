@@ -18,6 +18,12 @@ import {
   LATTICE_WASM_SHA256,
   LATTICE_COMPATIBILITY_WASM,
 } from "../app/resume/lattice/modelContract.js";
+import {
+  LATTICE_SERVICE_EVENTS_MIME,
+  LATTICE_SERVICE_PHASES,
+  LATTICE_SERVICE_PHASE_LIMIT,
+  LATTICE_SERVICE_ERROR_RESERVE_BYTES,
+} from "../app/resume/lattice/serviceTelemetry.js";
 import { REMOTE_CAPABILITIES } from "../app/privacy/networkCapabilities.js";
 import {
   LATTICE_API_PATH,
@@ -84,7 +90,7 @@ const historicalRemoteLlamaTermsProvenance = Object.freeze({
 });
 const activeLlamaTermsProvenance = Object.freeze({
   "version": "Llama 3.3",
-  "model": "meta-llama/Llama-3.3-70B-Instruct:scaleway",
+  "model": "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
   "modelRepository": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
   "modelRepositoryRevision": "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
   "modelRepositoryRevisionUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/tree/6f6073b423013f6a7d4d9f39144961bfbfbc386b",
@@ -290,6 +296,7 @@ const heldForbiddenExecutableStrings = Object.freeze([
   "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
   "meta-llama/Llama-3.1-8B-Instruct:nscale",
   "meta-llama/Llama-3.3-70B-Instruct:scaleway",
+  "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
 ]);
 const staleEnabledPublicationPattern = /release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)|sole open (?:release )?blocker|held solely because|hold the interactive client/iu;
 const datedHeldDossierPublicationPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
@@ -1089,7 +1096,7 @@ async function verifyLlamaUseEvaluation(register) {
   }
   if (record.targetVerifier?.model !== register.artifactSet.activeCapability.provider.verifierModel
     || record.targetVerifier?.modelRepositoryRevision !== register.artifactSet.llamaTerms.active.modelRepositoryRevision
-    || record.evidenceResetAt !== "2026-10-23"
+    || record.evidenceResetAt !== "2026-11-02"
     || !/another (?:model, )?provider or serving revision/iu.test(record.evidenceResetReason ?? "")
     || !sameJson(record.historicalEvaluationRecord, historicalLlamaBehaviorEvaluation)) {
     fail("Llama-use evaluation evidence must be reset and bound to the exact active verifier model and reviewed repository revision.");
@@ -1253,7 +1260,7 @@ async function verifyQualificationDossier(register) {
     || !/__Secure-hah-lattice-api-visitor/u.test(source)
     || !/30[^.]*globally per UTC day/iu.test(source)
     || !/3[^.]*browser cookie jar per UTC day/iu.test(source)
-    || !/Hugging Face[\s\S]{0,300}Scaleway/iu.test(source)
+    || !/Hugging Face[\s\S]{0,300}OVHcloud/iu.test(source)
     || !/no automatic retry/iu.test(source)
     || !/no (?:alternate )?provider or model fallback/iu.test(source)
     || !/provider-managed[\s\S]{0,240}not byte/iu.test(source)
@@ -1286,9 +1293,60 @@ async function verifyQualificationDossier(register) {
   }
 }
 
+export function verifyServicePhaseTransport(capability) {
+  const expected = {
+    "mediaType": LATTICE_SERVICE_EVENTS_MIME,
+    "selection": "optional-onServicePhase-callback",
+    "canonicalClientUsesPhaseEvents": true,
+    "phaseSource": "runTextToLattice.options.onProgress.phase",
+    "phaseFrameFields": [
+      "type",
+      "sequence",
+      "phase"
+    ],
+    "terminalFrameFields": [
+      "type",
+      "sequence",
+      "status",
+      "body"
+    ],
+    "firstSequence": 1,
+    "contiguousSequence": true,
+    "maximumPhaseFrames": LATTICE_SERVICE_PHASE_LIMIT,
+    "maximumTerminalFrames": 1,
+    "maximumResponseBytesIncludingFraming": 262144,
+    "errorReserveBytes": LATTICE_SERVICE_ERROR_RESERVE_BYTES,
+    "consecutiveDuplicatePhases": "coalesced-server-rejected-client",
+    "terminalBody": "existing-validated-result-or-error",
+    "resultRequiresTerminalAndEof": true,
+    "streamHttp200MeansTransformationSuccess": false,
+    "startsAfterAtomicAdmission": true,
+    "preadmissionErrors": "existing-non-2xx-json",
+    "qualificationDiagnosticHeaderWithStream": "400-invalid_request-before-admission",
+    "wholeRequestDeadlineMs": 240000,
+    "deadlineAndQualificationExpiryThroughProducerCompletion": true,
+    "readerCancellationAbortsPipeline": true,
+    "browserLockThroughTerminalEofOrAbort": true,
+    "observerFailureCannotChangeTerminalAcceptance": true,
+    "serverPhaseFailureStickyAndAbortsPipeline": true,
+    "phaseContentOrIdentifiers": false,
+    "percentageOrEtaClaims": false,
+    "extraRequests": 0,
+    "automaticRetry": false,
+    "fallback": false,
+    "phases": LATTICE_SERVICE_PHASES
+  };
+  if (JSON.stringify(capability?.contentRequest?.acceptedResponseTypes)
+      !== JSON.stringify(["application/json", LATTICE_SERVICE_EVENTS_MIME])
+    || JSON.stringify(canonicalJson(capability?.phaseEvents)) !== JSON.stringify(canonicalJson(expected))) {
+    fail("active capability must bind the exact optional phase-stream contract, finite limits and terminal/EOF lifecycle.");
+  }
+}
+
 function verifyArtifactSet(register) {
   const artifacts = register.artifactSet;
   const capability = artifacts.activeCapability;
+  verifyServicePhaseTransport(capability);
   const manifest = REMOTE_CAPABILITIES.textToLattice;
   const expectedCapabilityStatus = {
     held: "held-pending-production-evidence",

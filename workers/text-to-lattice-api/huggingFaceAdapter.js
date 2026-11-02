@@ -42,7 +42,7 @@ export const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL = HUGGING_FACE_CHAT_
 
 export const LATTICE_REMOTE_MODELS = Object.freeze({
   generator: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-  verifier: "meta-llama/Llama-3.3-70B-Instruct:scaleway",
+  verifier: "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
 });
 
 export const LATTICE_PROVIDER_FAILURE_CLASSES = Object.freeze([
@@ -140,7 +140,7 @@ const HTTP_HEADER_VALUE_SETS = Object.freeze(Object.fromEntries(
 ));
 const HTTP_HEADER_CHARACTER_LIMIT = 256;
 const HTTP_TOKEN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
-// Public HF mapping for the fixed Scaleway pair, not a serving-identity proof.
+// Historical HF Scaleway mapping label, not an OVHcloud serving-identity proof.
 const VERIFIER_MAPPED_MODEL = "llama-3.3-70b-instruct";
 export const LATTICE_VERIFICATION_REQUEST_MODEL = LATTICE_REMOTE_MODELS.verifier;
 
@@ -613,7 +613,7 @@ function providerReviewJsonSchema(value) {
   const width = value.minLength;
   if (value.type !== "string" || !Number.isSafeInteger(width) || width < 1 || value.maxLength !== width) return projected;
   // Retain the inherited pattern-only compatibility projection, as with
-  // analysisWireBitMaskSchema. This does not identify Scaleway's compiler or
+  // analysisWireBitMaskSchema. This does not identify the provider's compiler or
   // prove hosted grammar support. Keep internal schema and decoder unchanged.
   // Partition nonempty binary masks by the first 1: every branch has the exact
   // fitted width, preserving the same legal fixed-width binary masks.
@@ -816,7 +816,7 @@ const STAGES = Object.freeze({
     schemaDescription: "Supply one complete private verification result using the fitted closed index-and-mask schema.",
     requireMinimalVerificationContent: true,
     allowEmptyStoppedToolCalls: true,
-    allowNullStoppedScalewayReviewMetadata: true,
+    allowNullStoppedScalewayReviewMetadata: false,
     responseGuide: VERIFICATION_WIRE_GUIDE,
     messages: verificationWireMessages,
     maxTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -832,7 +832,7 @@ const STAGES = Object.freeze({
     schemaDescription: "Supply one complete private document certificate using the fitted closed schema.",
     requireMinimalVerificationContent: true,
     allowEmptyStoppedToolCalls: true,
-    allowNullStoppedScalewayReviewMetadata: true,
+    allowNullStoppedScalewayReviewMetadata: false,
     responseGuide: CERTIFICATION_WIRE_GUIDE,
     messages: certificationWireMessages,
     maxTokens: CERTIFICATION_MAX_OUTPUT_TOKENS,

@@ -1,3 +1,52 @@
+# Text to Lattice release qualification — held OVHcloud and phase-stream candidate
+
+**Qualification date:** 2026-11-02
+
+**Reviewed baseline:** `05d6ff26e2cbdb105d331be1f618075aad0269ef`
+
+**Qualified source set SHA-256:** `227cb59f3b5ea84cd63b63601f1e4ed465e3abd9b8ff8ab7d6899aab36cc3340` (264 exact qualified files)
+
+**Artifact-set projection SHA-256:** `8b1ab8160f5b378d2044a44514b9b0a2cc03fe85d7f24e1f03bd8ef73a82f569`
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence. The owner has also expressly directed all necessary implementation, actual browser evidence, debugging and deployment once sufficient. This source-phase hold preserves that continuing authority; it is neither a request for new permission nor a new operational allowance. Prior spent units stay spent. The future bounded operation must bind this actual source, its delivered artifacts, current readiness and the existing expiry/restore controls.
+
+The same-origin `POST /api/lattice` routes through Hugging Face to DeepInfra and OVHcloud.
+
+The current verifier and certifier are `meta-llama/Llama-3.3-70B-Instruct:ovhcloud` through Hugging Face at `https://router.huggingface.co/v1/chat/completions`; the fixed generator remains `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`. Both review profiles keep strict json_schema, closed wire and host acceptance and the stopped single assistant content baseline with optional exactly empty tool_calls. The independent legacy Scaleway null-only exception remains intact but is disabled for OVHcloud; none of its five optional null message fields are transferred. Serving is provider-managed and not byte-pinned or established equivalent. Exact hosted OVHcloud envelope/grammar behavior and full-domain fit remain unproved.
+
+The same-origin `/api/lattice` capability retains one bodyless `POST /api/lattice` with `Accept: application/vnd.hah.text-to-lattice-visitor-session.v1+json`, then exactly one content-bearing `POST /api/lattice` under the same origin-wide browser Web Lock. The setup makes no quota claim or provider call. The body remains exactly text, requested_mode and schema_version 1; missing-cookie `428 visitor_session_required` occurs before admission or provider work. `HF_TOKEN` and `VISITOR_COOKIE_SECRET` stay server-only, with the declared `__Secure-hah-lattice-api-visitor` cookie. Admission remains 30 transformations globally per UTC day and 3 per cooperating ordinary persistent browser cookie jar per UTC day, 32 provider calls per request and 960 calls per day. Stage limits, maximum output/token exposure, no automatic retry and no alternate provider or model fallback are unchanged.
+
+The canonical client now opts into `application/vnd.hah.lattice.events.v1+ndjson` on that existing content request. Default JSON callers and the default JSON qualification canary retain their contract. Only actual closed engine phase names are transmitted before the existing strictly validated result or error. At most 128 phase frames plus one terminal fit within 262144 UTF-8 bytes including framing; 512 bytes are reserved for a finite error. Sequence is contiguous from 1, consecutive equal phases are coalesced, and one terminal plus EOF is mandatory before returning a result. HTTP 200 is only transport admission; terminal status and body determine the outcome. The original 240000-millisecond deadline and qualification expiry govern producer completion. Cancellation aborts the same pipeline; the lock persists through completion or bounded abort. Observers cannot turn failures into success. Stream plus the exact v22 diagnostic header refuses before admission; default JSON diagnostics are unchanged. Restrictive CSP is fixed before stream headers, including possible late expiry.
+
+Current browser evidence schema 2 is stream-only. It retains the digest and byte count of the complete original LF stream, separately records closed phase names, exact terminal sequence/status/body checks and native EOF, and never substitutes a terminal-only or reserialized digest. Historical schema 1 JSON evidence cannot qualify this transport. Source, output, raw frames, cookie values and private diagnostics remain prohibited evidence. The actual native Safari/Brave collector successors must be independently validated before use; source checks and a JSON backend canary cannot replace current native capture.
+
+The modal reuses the TA terminal progress-bar tones and the Chromebook terminal diagram/tab primitives. API and diagram views remain mounted across switches and preserve the same request through close/reopen. The label and output use the terminal font; centered lighter diagram labels and static text emphasize real server phases without invented percentages or time estimates. Long guidance and supported languages are expandable, while confirmation remains visible. The wide input initially occupies one line and permits vertical expansion without losing text or changing the 700-word limit. Source input and output text stay left-aligned, separately from centered diagram labels. The public held entry uses ResumeProjectsHeld; dormant implementation is not a deployed interactive client.
+
+OVHcloud states that its standard synchronous AI Endpoints service does not store or reuse inputs and outputs, and does not use them for model training; billing information is retained. Batch API storage is separate and is not used here. The reviewed public material does not establish KV/prefix-cache behavior, exact metadata-retention periods, complete HF-to-provider geography or private downstream terms. HF router debugging logs without user data or tokens may persist up to 30 days; DeepInfra’s separate processing exceptions remain. hah.dev’s application no-retention rule does not govern external systems. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev. The reviewed Aug26 2026 service Appendix10 and current canonical AI Code of Conduct dated Apr28 2025 remain applicable alongside the same Llama 3.3 license/AUP and valid earlier/third-party rights. No universal zero-retention, cache-disabled or whole-pipeline EU-only promise is made.
+
+Application retention remains: no application storage, raw-content logs, cache, queue, or analytics for source, prompts, candidates, raw provider bodies, or results.
+
+Current exact-source GATE-02, GATE-03 and GATE-06 are open with null acceptance bases. No successful production transformation or canonical native trace is established for this OVHcloud/phase-stream source. The earlier bounded Scaleway backend results remain dated history. Qualification 392 failed with a closed upstream 402 observation; separate provider-free restore 393 retained API-before-Pages held witnesses. Those facts do not establish continuous hold, current provider behavior or new browser evidence. The old wording that remote production evidence is failure-only is retained in its dated historical scope, without erasing later bounded predecessor results. Neither local controls nor this source freeze closes GATE-02, GATE-03, or GATE-06.
+
+| Gate | Current status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Open release blocker | High |
+| GATE-03 · Remote provider capacity and cost boundary | Open release blocker | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+The review principle remains consequence × plausibility × lifecycle value. Historical inactive WebLLM, lease and model-artifact records retain their exact dated claims and are not evidence for the current remote path. This candidate's final offline validation, CI and held delivery must be recorded after they actually occur; this prefix claims none in advance.
+
+The complete preceding qualification dossier is retained verbatim below as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending after run #386
 
 **Qualification date:** 2026-10-30

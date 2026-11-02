@@ -38,7 +38,7 @@ export default function TextToLatticePage() {
             ) : (
               <>
                 <p>The interactive client’s availability follows the machine-checked release record for this build.</p>
-                <p>Text is submitted only after explicit confirmation through the same-origin <code>/api/lattice</code> capability. The server uses fixed DeepInfra-served Qwen and Scaleway-served Llama roles through the Hugging Face router; hah.dev application code does not retain the source or result, write raw-content logs, or send content to analytics.</p>
+                <p>Text is submitted only after explicit confirmation through the same-origin <code>/api/lattice</code> capability. The server uses fixed DeepInfra-served Qwen and OVHcloud-served Llama roles through the Hugging Face router; hah.dev application code does not retain the source or result, write raw-content logs, or send content to analytics.</p>
                 <p><a href="/resume/#text-to-lattice">Use Text to Lattice</a></p>
               </>
             )}
@@ -96,7 +96,7 @@ export default function TextToLatticePage() {
             <dl className="paper-meta">
               <div className="paper-meta-item"><dt>Browser destination</dt><dd>Same-origin <code>POST /api/lattice</code>; no query string, redirect, or provider origin; one browser-owned API-scoped quota cookie</dd></div>
               <div className="paper-meta-item"><dt>Exact request</dt><dd><code>{"{text, requested_mode, schema_version: 1}"}</code>; requested mode is auto, operative, or experiential</dd></div>
-              <div className="paper-meta-item"><dt>Server-side roles</dt><dd>Qwen3-235B-A22B-Instruct-2507 generates through DeepInfra; Llama 3.3 70B Instruct verifies through Scaleway; both are fixed through Hugging Face Inference Providers</dd></div>
+              <div className="paper-meta-item"><dt>Server-side roles</dt><dd>Qwen3-235B-A22B-Instruct-2507 generates through DeepInfra; Llama 3.3 70B Instruct verifies through OVHcloud; both are fixed through Hugging Face Inference Providers</dd></div>
               <div className="paper-meta-item"><dt>Retention</dt><dd>No hah.dev application storage, raw-content logging, caching, queueing, or analytics for the source, prompts, candidates, or result</dd></div>
               <div className="paper-meta-item"><dt>Failure</dt><dd>Bounded machine-readable error; no browser retry and no provider or model fallback</dd></div>
             </dl>
@@ -117,7 +117,7 @@ export default function TextToLatticePage() {
                 </dl>
                 <p>{security.api.limitation}</p>
                 <ul>{security.api.sources.map((source) => <li key={source.url}><a href={source.url}>{source.label}</a></li>)}</ul>
-                <p>This text leaves hah.dev for external processing only after the visitor chooses Process with external service. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Hugging Face, DeepInfra, Scaleway, and their infrastructure process submitted content under their own policies. Scaleway states that content is not used for training by default, but full HTTP requests may be retained for up to 14 days for investigations; automatic ephemeral prefix caching cannot be disabled.</p>
+                <p>This text leaves hah.dev for external processing only after the visitor chooses Process with external service. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Hugging Face, DeepInfra, OVHcloud, and their infrastructure process submitted content under their own policies. OVHcloud states that its standard synchronous AI Endpoints service does not store or reuse inputs and outputs or use them for model training; billing information is retained. Batch API storage is separate and is not used here. Reviewed public terms do not establish KV/prefix-cache behavior, exact metadata-retention periods, complete HF-to-provider geography, or private downstream terms. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev.</p>
               </div>
             </details>
           </section>

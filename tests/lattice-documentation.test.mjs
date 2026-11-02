@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
-import { verifyBrowserEvidenceAuthority, verifyReleaseStatusState } from "../scripts/verify-text-to-lattice-release.mjs";
+import { verifyBrowserEvidenceAuthority, verifyReleaseStatusState, verifyServicePhaseTransport } from "../scripts/verify-text-to-lattice-release.mjs";
 import { projectDocuments } from "../app/content/projectDocuments.js";
 
 const rootUrl = new URL("../", import.meta.url);
@@ -35,7 +35,7 @@ test("the documentation generator binds current remote evidence and preserves in
   assert.match(builder, /productionSatisfiedGateIds = new Set\(\["GATE-02", "GATE-03", "GATE-06"\]\)/u);
   assert.match(builder, /"historical-inactive"/u);
   assert.match(builder, /"historicalInactiveRecord",[\s\S]{0,100}"activeCurrentEvidence",[\s\S]{0,100}"activeEvidence"/u);
-  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed DeepInfra generator and Scaleway review targets/u);
+  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed DeepInfra generator and OVHcloud review targets/u);
   assert.match(builder, /GATE-03 must keep the provider call, stage, response, limiter, cost, generic-proxy, retry, fallback/u);
   assert.match(builder, /GATE-06 must require one explicit canonical-browser setup-plus-content lifecycle/u);
   assert.match(builder, /verifyReleaseStatusState\(releaseRegister\)/u);
@@ -90,7 +90,7 @@ test("the atlas models the exact current remote phase without promoting historic
     "428 visitor_session_required",
     "intentional cookie clearing",
     "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-    "meta-llama/Llama-3.3-70B-Instruct:scaleway",
+    "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
     "no automatic retry",
     "provider or model fallback",
     "questions required to be empty",
@@ -122,8 +122,8 @@ test("the atlas models the exact current remote phase without promoting historic
     releaseRegister.gates.map(({ id, status }) => [id, status]),
     [
       ["GATE-01", "release-workflow-enforced"],
-      ["GATE-02", "satisfied-in-production"],
-      ["GATE-03", "satisfied-in-production"],
+      ["GATE-02", releaseState.held ? "open-release-blocker" : "satisfied-in-production"],
+      ["GATE-03", releaseState.held ? "open-release-blocker" : "satisfied-in-production"],
       ["GATE-04A", "accepted-residual-risk"],
       ["GATE-04B", "historical-inactive"],
       ["GATE-04C", "historical-inactive"],
@@ -215,7 +215,7 @@ test("the qualification dossier leads with its current phase and retains verbati
   assert.match(dossier, /__Secure-hah-lattice-api-visitor/u);
   assert.match(dossier, /30[^.]*globally per UTC day/iu);
   assert.match(dossier, /3[^.]*browser cookie jar per UTC day/iu);
-  assert.match(dossier, /Hugging Face[\s\S]{0,300}Scaleway/iu);
+  assert.match(dossier, /Hugging Face[\s\S]{0,300}OVHcloud/iu);
   assert.match(dossier, /no automatic retry/iu);
   assert.match(dossier, /no alternate provider or model fallback/iu);
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
@@ -438,8 +438,8 @@ test("interactive editions remain complete, self-contained, accessible, and exec
   const index = await readText(publicRoot, "index.html");
   if (releaseState.held) {
     assert.match(index, /held and documentation-only/iu);
-    assert.match(index, /<h2>Text to Lattice qualification<\/h2><p>The remote interactive client is held and documentation-only because GATE-06 remains open\./u);
-    assert.doesNotMatch(index, /<h2>Text to Lattice qualification<\/h2><p>The remote interactive client is held and documentation-only because GATE-02, GATE-03 and GATE-06 remain open\./u);
+    assert.match(index, /<h2>Text to Lattice qualification<\/h2><p>The remote interactive client is held and documentation-only because GATE-02, GATE-03 and GATE-06 remain open\./u);
+    assert.doesNotMatch(index, /<h2>Text to Lattice qualification<\/h2><p>The remote interactive client is held and documentation-only because GATE-06 remains open\./u);
     assert.match(index, /Required production qualification remains incomplete; current bounded evidence is recorded in the release register/u);
     assert.match(index, /Historical WebLLM, Turnstile, and lease records remain inactive/u);
   } else if (releaseState.qualificationPending) {
@@ -470,7 +470,7 @@ test("interactive editions remain complete, self-contained, accessible, and exec
     assert.match(artifact, /Backstage client\/server/u);
     assert.match(artifact, /POST \/api\/lattice/u);
     assert.match(artifact, /HF_TOKEN/u);
-    assert.match(artifact, /Hugging Face, DeepInfra and Scaleway/u);
+    assert.match(artifact, /Hugging Face, DeepInfra and OVHcloud/u);
     assert.match(artifact, /no automatic retry/iu);
     assert.match(artifact, /no alternate provider or model fallback/iu);
     assert.doesNotMatch(artifact, /Backstage browser-local/u);
@@ -504,4 +504,28 @@ test("the static site preserves every exported documentation byte", async () => 
     ]);
     assert.deepEqual(staged, published, `${filename} survives the public-to-site copy unchanged`);
   }
+});
+
+test("current phase-stream documentation binds terminal EOF and preserves default JSON history", () => {
+  const capability = releaseRegister.artifactSet.activeCapability;
+  assert.deepEqual(capability.contentRequest.acceptedResponseTypes, [
+    "application/json", "application/vnd.hah.lattice.events.v1+ndjson",
+  ]);
+  assert.doesNotThrow(() => verifyServicePhaseTransport(capability));
+  for (const [key, value] of [
+    ["maximumPhaseFrames", 129], ["maximumResponseBytesIncludingFraming", 262145],
+    ["resultRequiresTerminalAndEof", false], ["streamHttp200MeansTransformationSuccess", true],
+    ["phases", [...capability.phaseEvents.phases, "invented-provider-progress"]],
+  ]) {
+    const changed = structuredClone(capability);
+    changed.phaseEvents[key] = value;
+    assert.throws(() => verifyServicePhaseTransport(changed), /exact optional phase-stream contract/u);
+  }
+  assert.equal(capability.phaseEvents.maximumPhaseFrames, 128);
+  assert.equal(capability.phaseEvents.maximumResponseBytesIncludingFraming, 262144);
+  assert.equal(capability.phaseEvents.resultRequiresTerminalAndEof, true);
+  assert.equal(capability.phaseEvents.streamHttp200MeansTransformationSuccess, false);
+  assert.equal(releaseRegister.priorDefaultJsonTransportBeforePhaseTelemetry.contentRequest.accept, "application/json");
+  assert.match(atlas.historicalBoundary.currentArchitecture, /actual engine progress/u);
+  assert.match(atlas.serviceBlueprint.stages[7].backstage, /terminal plus EOF/u);
 });
