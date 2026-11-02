@@ -40,7 +40,7 @@ export const textToLatticeContract = Object.freeze({
   purpose: "Convert source prose into passage-appropriate Lattice registers while preserving its meaning.",
   heldReleaseNotes: Object.freeze([
     "The public converter and its API are held. Text to Lattice is available here as documentation only.",
-    "The current OVHcloud verifier route is awaiting fresh backend and browser qualification. Earlier provider and browser observations remain historical evidence and do not qualify this route.",
+    "The current OVHcloud verifier route passed bounded backend qualification #396; Safari and Brave streaming network, lifecycle, and reload evidence and hosted Firefox input checks remain pending. Earlier provider and browser observations remain historical evidence and do not qualify this route.",
     "Release still requires complete Safari and Brave network, lifecycle, and reload evidence and independent acceptance. Browser qualification remains incomplete.",
     "Successful cases are evidence for those cases, not general output quality or reliable repair. Every generated result still requires review.",
   ]),
