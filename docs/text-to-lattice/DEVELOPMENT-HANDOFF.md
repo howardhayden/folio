@@ -1,3 +1,21 @@
+# Text to Lattice plain output correction — 2026-11-03
+
+**Qualified source set SHA-256:** `c614056a49d8315dac1b9bee2002980fd51e0fee61637f38f52a411a711ab7c5`
+
+**Qualification dossier SHA-256:** `73aef6f98a86621449a495bd03490dde690fd99da04b971d464f818f2757ebd7`
+
+**Reviewed UI baseline:** `a8954bf5da21b670250b8cc71db0c01685f6916e`
+
+The owner-requested presentation change removes the decorative line/wordmark veil and background fill from generated output. Terminal text, progress placement, the shared accessible phase status, transfer controls, print hiding and focus/visibility concealment remain. Current product copy no longer claims OCR deterrence from a veil, and the current requirement explicitly supersedes that earlier treatment.
+
+The six changed qualified files relative to merged source `a8954bf5da21b670250b8cc71db0c01685f6916e` are the result component, its CSS, current product copy, the requirements record and the two affected UI test files. The other 258 of 264 qualified members remain byte-exact. API/provider behavior, request and acceptance contracts, quotas and workflow controls are unchanged. The user explicitly excluded an API retest for this presentation change; validation is limited to the existing documentation, Pages build and affected UI checks, with normal repository CI unchanged.
+
+This source remains qualification-pending, not qualified. Existing bounded GATE-02/GATE-03 adjudications retain their determining-runtime scope; GATE-06 remains prospective. This documentation refresh supplies no new API or browser qualification evidence and selects no operational action. The source identity above is current for this styling change; the complete prior narratives below remain verbatim as dated history, including their earlier identities, counts and pending statements. All historical register entries and gate records remain unchanged.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice progress placement correction — 2026-11-03
 
 **Qualified source set SHA-256:** `d5292fcd2adbae58c3df4f52370250fc859f2a34a2f54d7783c3c7465fae242a`

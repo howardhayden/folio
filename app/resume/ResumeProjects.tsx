@@ -1105,7 +1105,6 @@ export default function ResumeProjects() {
                       data-nosnippet=""
                       draggable={false}
                     >{latticeResult.text}</pre>
-                    <span className="lattice-output-veil" aria-hidden="true" />
                   </div>
                 ) : null}
                 {latticeVisibleFindings(latticeResult).length ? (
