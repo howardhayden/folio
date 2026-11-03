@@ -24,11 +24,11 @@ test("output stays shielded across hidden, unfocused, printing, and capture-dead
   assert.equal(mayRevealLatticeOutput({ ...visibleFocused, now: 10_001, shieldUntil: 10_001 }), true);
 });
 
-test("result text is presented without a decorative veil or watermark", async () => {
+test("the visual veil identifies the result without assigning a review state", async () => {
   const css = await import("node:fs/promises").then(({ readFile }) => (
     readFile(new URL("../app/globals.css", import.meta.url), "utf8")
   ));
-  assert.doesNotMatch(css, /lattice-output-veil|content: "HAH\.DEV  TEXT TO LATTICE  RESULT/u);
+  assert.match(css, /content: "HAH\.DEV  TEXT TO LATTICE  RESULT/u);
   assert.doesNotMatch(css, /TEXT TO LATTICE  REVIEW/u);
 });
 

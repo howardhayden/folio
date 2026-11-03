@@ -1,78 +1,92 @@
-# Text to Lattice release qualification — qualification-pending plain output, 2026-11-03
+# Text to Lattice release qualification — held after bounded backend qualification 396
 
-**Qualified source set SHA-256:** `c614056a49d8315dac1b9bee2002980fd51e0fee61637f38f52a411a711ab7c5`
-
-**Reviewed UI baseline:** `a8954bf5da21b670250b8cc71db0c01685f6916e`
-
-The owner-requested presentation change removes the decorative line/wordmark veil and background fill from generated output. Terminal text, progress placement, the shared accessible phase status, transfer controls, print hiding and focus/visibility concealment remain. Current product copy no longer claims OCR deterrence from a veil, and the current requirement explicitly supersedes that earlier treatment.
-
-The six changed qualified files relative to merged source `a8954bf5da21b670250b8cc71db0c01685f6916e` are the result component, its CSS, current product copy, the requirements record and the two affected UI test files. The other 258 of 264 qualified members remain byte-exact. API/provider behavior, request and acceptance contracts, quotas and workflow controls are unchanged. The user explicitly excluded an API retest for this presentation change; validation is limited to the existing documentation, Pages build and affected UI checks, with normal repository CI unchanged.
-
-This source remains qualification-pending, not qualified. Existing bounded GATE-02/GATE-03 adjudications retain their determining-runtime scope; GATE-06 remains prospective. This documentation refresh supplies no new API or browser qualification evidence and selects no operational action. The source identity above is current for this styling change; the complete prior narratives below remain verbatim as dated history, including their earlier identities, counts and pending statements. All historical register entries and gate records remain unchanged.
-
-The complete previous qualification dossier follows verbatim as dated history.
-
----
-
-# Text to Lattice release qualification — qualification-pending progress placement correction, 2026-11-03
-
-**Qualified source set SHA-256:** `d5292fcd2adbae58c3df4f52370250fc859f2a34a2f54d7783c3c7465fae242a`
-
-**Reviewed UI baseline:** `adadc07795877594798267b70295ba3f721e0c5d`
-
-The owner-requested correction moves the API-view progress block immediately above the output container, with its terminal-style label directly above the bar and right-aligned. Scoped spacing removes the shared track's indentation and compacts the label/bar and bar/output gaps. The service diagram keeps its actual phase highlighting. One shared visually hidden status preserves phase announcements in either view without duplicating the visible label. The shared TA progress primitive, static effects, disclosure controls, always-visible confirmation, left-aligned input/output, one-line resizable input and request lifecycle remain unchanged.
-
-This source changes only ResumeProjects.tsx and globals.css among the 264 qualified members relative to merged source `adadc07795877594798267b70295ba3f721e0c5d`; the other 262 remain byte-exact. Provider roles, API/runtime behavior, processing terms, strict acceptance, quotas, deadlines and workflow controls are unchanged. The source remains qualification-pending. Existing bounded GATE-02/GATE-03 adjudications retain their determining-runtime scope; GATE-06 remains prospective with no accepted browser evidence. No local layout check supplies hosted qualification evidence or selects a live operation.
-
-The source identity above supersedes the previous source identity for this UI correction. Public content metadata remains November 2; November 3 dates this correction only. Complete prior dossier and handoff narratives follow as dated history, including their earlier candidate counts, pending-delivery statements and byte-equality claims. Prior raw register bytes remain preserved in Git at the merged baseline and private before custody; no historical gate field or evidence identity is rewritten.
-
-The complete previous qualification dossier follows verbatim as dated history.
-
----
-
-# Text to Lattice release qualification — qualification-pending after run #396
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
 
 **Qualification date:** 2026-11-02
 
-**Reviewed baseline:** `17aa10353f543969b8907b3aa6b20187ab8d1a94`
+**Evidence updated:** 2026-11-02
 
-**Qualified source set SHA-256:** `ae5c6a18f8a9eeabb0c4f3bb8151f7a5d2bb16236345050be736d7bdf63007ca`
+**Reviewed baseline:** `554b90ace6fed387476697483f3cf0b0f13588b3`
 
-**Artifact-set projection SHA-256:** `a71124991902977d5f1f9ba582224579699919f87feb3d3b1a28c5ae8d0136a8`
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Decision:** not qualified; prepare the exact source for a separately controlled canonical-browser qualification.
+**Qualified source-set SHA-256:** `66fe09d5ad67200fa78bbbd8328d37634d096a08c500383c14731902ce7952a7`
 
-The qualification-date field preserves the register's existing artifact revision date; it records no new qualification acceptance.
+**Artifact-set projection SHA-256:** `8b1ab8160f5b378d2044a44514b9b0a2cc03fe85d7f24e1f03bd8ef73a82f569`
 
-The existing direct human permission covers necessary work through deployment after the fixed criteria pass. This source is qualification-pending, not qualified; it selects no new operational unit, allowance or public activation. Every prior stop, refusal and spent unit remains dated history without refund, transfer or replay. Models, processing terms, strict acceptance and API/provider/native quotas remain unchanged. Missing or failed qualification evidence requires held documentation-only rollback to verified immediate parent 17aa10353f543969b8907b3aa6b20187ab8d1a94 under the existing rules.
+Original bounded backend qualification #396, attempt 1, through Hugging Face with DeepInfra generation and OVHcloud verification/certification on main 554b90ace6fed387476697483f3cf0b0f13588b3 / deployed source 227cb59f3b5ea84cd63b63601f1e4ed465e3abd9b8ff8ab7d6899aab36cc3340 / deployed dossier cf6600f4f80540cc2cf2d1faeb7584736d474cfece652062fcc96ce2fab43848 passed. Separate root and independent review against all existing bounded criteria supports GATE-02 and GATE-03 satisfied-in-production with null acceptance bases. GATE-06 remains open-release-blocker/null. API and UI are held. This is not automatic gate closure, an acceptance waiver, canonical-browser evidence or final release.
 
-The actual verified held parent is 17aa10353f543969b8907b3aa6b20187ab8d1a94, tree e073c25012bb6f149c75461503ab61105724ce85, source 66fe09d5ad67200fa78bbbd8328d37634d096a08c500383c14731902ce7952a7 and dossier 34e345fa6ac6ac38b5a2b87411bf33548003c3016dba019b9d66dfd1bd37f239. Its genuine root-adopted held delivery is work/evidence/nov02-run396-gates-held-delivery-root-outcome.json / SHA-256 3cf984d04247bd37a43d556009a6879721011a0f9f51a2fe47774f10bb7e99a7. Original routine push #398/41507173719/attempt 1 succeeded on November 2, 2026: held Pages were verified at 19:15:04.459Z and held API at 19:15:19.734Z. These are separate dated routine Pages-before-API witnesses, not continuous-hold or API-first restoration proof. The public content last-modified date remains November 2. Future Q main, tree, CI and routine held delivery remain unobserved.
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
 
-This candidate changes three qualified files relative to H: the three existing interaction-switch literals in ResumeView and projects.js, plus the rendered HTML test that scopes its existing three-caret TA assertion to the single teaching-manifest figure. The shared Text to Lattice progress bar adds a separate caret when this client is enabled; it does not change the TA figure. The other 261 qualified members remain exact H, including project-page content, semantic projections, observer correction, validators, runtime, processing terms and quotas. The shared lightweight TEXT_TO_LATTICE_CONTENT_UPDATED export remains November 2 in projects.js; its existing imports and runtime dependency boundary remain unchanged. The first Q validation retained 2,678 tests: 2,662 passed, one failed on the former page-wide three-caret expectation, and 15 optional checks skipped. Its complete source freeze, scratch bytes and log remain preserved. The narrow test correction selects no runtime change or new operation. The prospective source ae5c6a18f8a9eeabb0c4f3bb8151f7a5d2bb16236345050be736d7bdf63007ca derives from current H and these three changed files; all earlier refusals and corrections remain dated history.
+The single existing synthetic canary returned HTTP 200 conformant-for-context in 27.455 seconds: one 16-word passage, revised 0 / retained 1, one verification pass and no findings. All 24 negative HTTP probes matched the source contract; complete request-scoped admission evidence covers the existing 13 designated negatives plus setup, preservation, tamper and the one allowed canary. The other 11 probes gain no imputed counter observation. Paired active API environment records and complete provider-reported usage bind the same service job and source. Four reported calls (two generator and two joint review calls) consumed 8,010 prompt and 348 completion tokens. The dated 2026-11-02 catalog estimate is USD 0.004038050, not an invoice, account or window total, or charge ceiling. No full-input managed-fit, future-price, provider-retention, reliability, rewrite or source-copy repair guarantee follows.
 
-Current run #396/41497938631/attempt 1 on the preserved deployed source used Hugging Face with DeepInfra generation and OVHcloud verification/certification. The fixed review model remains meta-llama/Llama-3.3-70B-Instruct:ovhcloud with strict optional-metadata rejection; no Scaleway five-null policy is retargeted. Its single existing synthetic canary returned conformant-for-context in 27.455 seconds, 16 words, revised 0 / retained 1, one verification pass and zero findings/questions. Complete provider usage reports two generator and two joint review calls: 8,010 prompt and 348 completion tokens. The dated November 2 catalog estimate is USD 0.004038050, not an invoice, account/window total or ceiling. Separate root and independent review adjudicated bounded GATE-02/GATE-03 satisfied-in-production/null; this does not establish repair causality, general quality, provider retention, universal managed fit or browser NDJSON proof. OVHCLOUD-API-ONLY-A2 is spent 1/0; the earlier A1 local prePOST launcher refusal remains spent without refund or replay.
+Successful held-path API restoration was verified at 2026-11-02T18:16:38.525Z; Pages was sampled held before service activation at 2026-11-02T18:15:22.189Z. No separate postqualification Pages observation was collected. These are dated samples, not continuous hold or an API-first restoration guarantee. OVHCLOUD-API-ONLY-A2 is spent (1 used, 0 remaining); conditional provider-free recovery was not needed, selected or consumed. No unused budget transfers. The production run retains its original source/dossier identities; this new held documentation candidate changes two necessary current-state test fixtures and one held-disclosure sentence and requires its own validation and held delivery.
 
-The current modal, same-response closed phase telemetry, left-aligned input/output, terminal typography and resizable one-line input remain byte-exact H. The project page accurately reports bounded backend success and pending Safari/Brave streaming and hosted Firefox evidence. All prior native attempts and cleanup remain dated history in the preserved accepted H record; none supplies current readiness. No old browser result qualifies the changed OVH/stream source.
+The actual production witness is [run #396](https://github.com/howardhayden/folio/actions/runs/41497938631), service job 125460476639. Its active API and response-policy identities, before/after SQLite admission records, strict accepted live receipt, complete usage sidecar, sanitized artifact custody and held restoration were independently reviewed. The archived usage catalog remains dated November 2. A conformant retained passage does not establish a material rewrite, repair branch coverage or a causal remedy for source-copying failure; no failed-log reader or additional probe was run after success.
 
-Current processing boundary (unchanged from accepted H): OVHcloud states that its standard synchronous AI Endpoints service does not store or reuse inputs and outputs, and does not use them for model training; billing information is retained. Batch API storage is separate and is not used here. The reviewed public material does not establish KV/prefix-cache behavior, exact metadata-retention periods, complete HF-to-provider geography or private downstream terms. HF router debugging logs without user data or tokens may persist up to 30 days; DeepInfra’s separate processing exceptions remain. hah.dev’s application no-retention rule does not govern external systems. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev. The reviewed Aug26 2026 service Appendix10 and current canonical AI Code of Conduct dated Apr28 2025 remain applicable alongside the same Llama 3.3 license/AUP and valid earlier/third-party rights. No universal zero-retention, cache-disabled or whole-pipeline EU-only promise is made.
+The first source header binds this new held documentation candidate, not a relabelled production witness. Two qualified test files receive necessary current-state fixture assertions and one content file receives an accurate held-disclosure sentence; the other 261 qualified files stay exact. All Worker, prompt, provider, protocol, acceptance, privacy, rights, limit and workflow behavior remains unchanged. Actual396 remains source `227cb59f3b5ea84cd63b63601f1e4ed465e3abd9b8ff8ab7d6899aab36cc3340` / dossier `cf6600f4f80540cc2cf2d1faeb7584736d474cfece652062fcc96ce2fab43848` / main `554b90ace6fed387476697483f3cf0b0f13588b3`. Current fixture/governance validation and reviewed held delivery remain pending; the previous141-input Worker receipt includes the changed disclosure file, so the existing three Worker dryruns must be repeated for this candidate and compared with prior outputs without assuming equality.
 
-Application retention: no application storage, raw-content logs, cache, queue, or analytics for source, prompts, candidates, raw provider bodies, or results. Provider revision status: provider-managed-not-byte-pinned; the managed provider runtime is not byte-pinned. Hugging Face routes the fixed review model to OVHcloud; no automatic retry and no alternate provider or model fallback are added.
+Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence. Safari and Brave canonical evidence and hosted Firefox input checks remain outstanding. This backend-only unit grants no public client activation, automatic GATE-06 closure or final release.
 
-The canonical browser uses same-origin `POST /api/lattice`: bodyless setup with `application/vnd.hah.text-to-lattice-visitor-session.v1+json` under the same origin-wide browser Web Lock, followed by exactly one content-bearing request. Setup makes no quota claim or provider call. A missing visitor session returns 428 visitor_session_required before Durable Object admission or provider work. The server-owned HF_TOKEN and VISITOR_COOKIE_SECRET and the signed __Secure-hah-lattice-api-visitor cookie retain their existing roles. Admission remains 30 transformations globally per UTC day and 3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day.
+The complete prior dossier follows verbatim as dated historical evidence.
 
-The same content request optionally returns `application/vnd.hah.lattice.events.v1+ndjson`: at most 128 closed phase frames and one terminal frame, contiguous sequence, at most 262,144 bytes including framing, and accepted terminal body plus native EOF before result acceptance. Only actual allowlisted engine phase names cross; no prompt, response text, identifiers, percentage or ETA is exposed as progress. The 240-second request deadline, cancellation and qualification expiry remain effective through producer completion. Default JSON remains the backend-canary path; its success does not qualify browser streaming.
+---
 
-Historical October 30 record: Run #386 retained bounded backend/canary success and accepted original BEFORE observer #5/41074379472/attempt 1. Firefox's 14 hosted input-only checks passed without consent or submission. Root stopped at 14:58:14Z on October 30 for insufficient operational time before either native pipeline. Safari and Brave had zero startBlank, app-origin/source entry, consent, submission, capture or seal; AFTER had zero attempts. This is incomplete native evidence, with no newly established application defect. The bounded backend, BEFORE and Firefox results supply no missing native proof or broader output-quality or repair-efficacy claim. U13-AFTER-RUN380-A1 remains spent: 1 used and 0 remaining.
+# Text to Lattice release qualification — held OVHcloud and phase-stream candidate
 
-Included restore #387 verified held API at 15:00:32.556Z before held Pages at 15:01:13.087Z. The separate scheduled #386 cleanup verified held API at 15:05:41.444Z before held Pages at 15:06:01.866Z. These October 30 witnesses prove neither continuous hold nor prompt-immediate compliance. Both owned collectors were disposed clean, Safari temporary inspection was visibly restored OFF, and owned Inspectors/DevTools were closed. Owned normal profiles remained about:blank; personal windows were untouched. These dated cleanup facts do not attest current native readiness.
+**Qualification date:** 2026-11-02
 
-GATE-02/GATE-03 retain existing bounded satisfied adjudications only for exact determining runtime inputs. GATE-06 remains prospective post-deployment-verification/null with browser evidence not-collected. The future operation needs its own actual before/after context, loaded executable closure, native prerequisites, captures and seals, hosted Firefox input-only checks and concrete finite selection. Native Safari/Brave network, lifecycle, reload and related evidence remain required. No source metadata, hosted input-only result, static-page check or backend success closes G06.
+**Reviewed baseline:** `05d6ff26e2cbdb105d331be1f618075aad0269ef`
 
-The production default reader and generated companion guards must run on this actual generated candidate. The fixed canonical register retains its reviewed 32 MiB maximum; ordinary 4 MiB limits and exact companion paths, entries, hashes, size, regular-file and TOCTOU checks remain unchanged. Any later current consumer fixture needs its actual closed inventory and its own existing scope checks. No historical control or readiness result is promoted to a current live pass.
+**Qualified source set SHA-256:** `227cb59f3b5ea84cd63b63601f1e4ed465e3abd9b8ff8ab7d6899aab36cc3340` (264 exact qualified files)
 
-The [complete accepted H dossier at immutable17aa](https://github.com/howardhayden/folio/blob/17aa10353f543969b8907b3aa6b20187ab8d1a94/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md) (SHA-256 34e345fa6ac6ac38b5a2b87411bf33548003c3016dba019b9d66dfd1bd37f239) remains byte-exact in that Git revision and private before-H custody. It is not embedded in this Q public dossier: the reviewed prior qualification-pending dossier supplies the unchanged public historical appendix. Current H handoff and raw/typed register histories remain fully preserved.
+**Artifact-set projection SHA-256:** `8b1ab8160f5b378d2044a44514b9b0a2cc03fe85d7f24e1f03bd8ef73a82f569`
 
-The complete prior qualification-pending dossier follows verbatim as dated history.
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence. The owner has also expressly directed all necessary implementation, actual browser evidence, debugging and deployment once sufficient. This source-phase hold preserves that continuing authority; it is neither a request for new permission nor a new operational allowance. Prior spent units stay spent. The future bounded operation must bind this actual source, its delivered artifacts, current readiness and the existing expiry/restore controls.
+
+The same-origin `POST /api/lattice` routes through Hugging Face to DeepInfra and OVHcloud.
+
+The current verifier and certifier are `meta-llama/Llama-3.3-70B-Instruct:ovhcloud` through Hugging Face at `https://router.huggingface.co/v1/chat/completions`; the fixed generator remains `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`. Both review profiles keep strict json_schema, closed wire and host acceptance and the stopped single assistant content baseline with optional exactly empty tool_calls. The independent legacy Scaleway null-only exception remains intact but is disabled for OVHcloud; none of its five optional null message fields are transferred. Serving is provider-managed and not byte-pinned or established equivalent. Exact hosted OVHcloud envelope/grammar behavior and full-domain fit remain unproved.
+
+The same-origin `/api/lattice` capability retains one bodyless `POST /api/lattice` with `Accept: application/vnd.hah.text-to-lattice-visitor-session.v1+json`, then exactly one content-bearing `POST /api/lattice` under the same origin-wide browser Web Lock. The setup makes no quota claim or provider call. The body remains exactly text, requested_mode and schema_version 1; missing-cookie `428 visitor_session_required` occurs before admission or provider work. `HF_TOKEN` and `VISITOR_COOKIE_SECRET` stay server-only, with the declared `__Secure-hah-lattice-api-visitor` cookie. Admission remains 30 transformations globally per UTC day and 3 per cooperating ordinary persistent browser cookie jar per UTC day, 32 provider calls per request and 960 calls per day. Stage limits, maximum output/token exposure, no automatic retry and no alternate provider or model fallback are unchanged.
+
+The canonical client now opts into `application/vnd.hah.lattice.events.v1+ndjson` on that existing content request. Default JSON callers and the default JSON qualification canary retain their contract. Only actual closed engine phase names are transmitted before the existing strictly validated result or error. At most 128 phase frames plus one terminal fit within 262144 UTF-8 bytes including framing; 512 bytes are reserved for a finite error. Sequence is contiguous from 1, consecutive equal phases are coalesced, and one terminal plus EOF is mandatory before returning a result. HTTP 200 is only transport admission; terminal status and body determine the outcome. The original 240000-millisecond deadline and qualification expiry govern producer completion. Cancellation aborts the same pipeline; the lock persists through completion or bounded abort. Observers cannot turn failures into success. Stream plus the exact v22 diagnostic header refuses before admission; default JSON diagnostics are unchanged. Restrictive CSP is fixed before stream headers, including possible late expiry.
+
+Current browser evidence schema 2 is stream-only. It retains the digest and byte count of the complete original LF stream, separately records closed phase names, exact terminal sequence/status/body checks and native EOF, and never substitutes a terminal-only or reserialized digest. Historical schema 1 JSON evidence cannot qualify this transport. Source, output, raw frames, cookie values and private diagnostics remain prohibited evidence. The actual native Safari/Brave collector successors must be independently validated before use; source checks and a JSON backend canary cannot replace current native capture.
+
+The modal reuses the TA terminal progress-bar tones and the Chromebook terminal diagram/tab primitives. API and diagram views remain mounted across switches and preserve the same request through close/reopen. The label and output use the terminal font; centered lighter diagram labels and static text emphasize real server phases without invented percentages or time estimates. Long guidance and supported languages are expandable, while confirmation remains visible. The wide input initially occupies one line and permits vertical expansion without losing text or changing the 700-word limit. Source input and output text stay left-aligned, separately from centered diagram labels. The public held entry uses ResumeProjectsHeld; dormant implementation is not a deployed interactive client.
+
+OVHcloud states that its standard synchronous AI Endpoints service does not store or reuse inputs and outputs, and does not use them for model training; billing information is retained. Batch API storage is separate and is not used here. The reviewed public material does not establish KV/prefix-cache behavior, exact metadata-retention periods, complete HF-to-provider geography or private downstream terms. HF router debugging logs without user data or tokens may persist up to 30 days; DeepInfra’s separate processing exceptions remain. hah.dev’s application no-retention rule does not govern external systems. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev. The reviewed Aug26 2026 service Appendix10 and current canonical AI Code of Conduct dated Apr28 2025 remain applicable alongside the same Llama 3.3 license/AUP and valid earlier/third-party rights. No universal zero-retention, cache-disabled or whole-pipeline EU-only promise is made.
+
+Application retention remains: no application storage, raw-content logs, cache, queue, or analytics for source, prompts, candidates, raw provider bodies, or results.
+
+Current exact-source GATE-02, GATE-03 and GATE-06 are open with null acceptance bases. No successful production transformation or canonical native trace is established for this OVHcloud/phase-stream source. The earlier bounded Scaleway backend results remain dated history. Qualification 392 failed with a closed upstream 402 observation; separate provider-free restore 393 retained API-before-Pages held witnesses. Those facts do not establish continuous hold, current provider behavior or new browser evidence. The old wording that remote production evidence is failure-only is retained in its dated historical scope, without erasing later bounded predecessor results. Neither local controls nor this source freeze closes GATE-02, GATE-03, or GATE-06.
+
+| Gate | Current status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Open release blocker | High |
+| GATE-03 · Remote provider capacity and cost boundary | Open release blocker | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+The review principle remains consequence × plausibility × lifecycle value. Historical inactive WebLLM, lease and model-artifact records retain their exact dated claims and are not evidence for the current remote path. This candidate's final offline validation, CI and held delivery must be recorded after they actually occur; this prefix claims none in advance.
+
+The complete preceding qualification dossier is retained verbatim below as dated history.
 
 ---
 
