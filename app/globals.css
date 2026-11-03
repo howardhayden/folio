@@ -2374,8 +2374,11 @@ small.lattice-disclosure-content {
   color: #0b4705;
   display: grid;
   font-size: .875rem;
-  gap: .4rem;
-  margin: 1rem 0 1.5rem;
+  gap: .25rem;
+  margin: 1rem 0 0;
+}
+.lattice-progress .teaching-manifest-track {
+  margin: 0;
 }
 .lattice-service-view {
   margin-top: 1.5rem;
@@ -2434,7 +2437,7 @@ small.lattice-disclosure-content {
   border-radius: 0 .25rem .25rem 0;
   box-shadow: none;
   line-height: 1.6;
-  margin-top: 2rem;
+  margin-top: .5rem;
   min-height: 8rem;
   overflow-wrap: anywhere;
   padding: 1.25rem;
