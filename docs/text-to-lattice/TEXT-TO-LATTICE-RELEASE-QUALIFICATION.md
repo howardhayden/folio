@@ -1,3 +1,19 @@
+# Text to Lattice release qualification — qualification-pending progress placement correction, 2026-11-03
+
+**Qualified source set SHA-256:** `d5292fcd2adbae58c3df4f52370250fc859f2a34a2f54d7783c3c7465fae242a`
+
+**Reviewed UI baseline:** `adadc07795877594798267b70295ba3f721e0c5d`
+
+The owner-requested correction moves the API-view progress block immediately above the output container, with its terminal-style label directly above the bar and right-aligned. Scoped spacing removes the shared track's indentation and compacts the label/bar and bar/output gaps. The service diagram keeps its actual phase highlighting. One shared visually hidden status preserves phase announcements in either view without duplicating the visible label. The shared TA progress primitive, static effects, disclosure controls, always-visible confirmation, left-aligned input/output, one-line resizable input and request lifecycle remain unchanged.
+
+This source changes only ResumeProjects.tsx and globals.css among the 264 qualified members relative to merged source `adadc07795877594798267b70295ba3f721e0c5d`; the other 262 remain byte-exact. Provider roles, API/runtime behavior, processing terms, strict acceptance, quotas, deadlines and workflow controls are unchanged. The source remains qualification-pending. Existing bounded GATE-02/GATE-03 adjudications retain their determining-runtime scope; GATE-06 remains prospective with no accepted browser evidence. No local layout check supplies hosted qualification evidence or selects a live operation.
+
+The source identity above supersedes the previous source identity for this UI correction. Public content metadata remains November 2; November 3 dates this correction only. Complete prior dossier and handoff narratives follow as dated history, including their earlier candidate counts, pending-delivery statements and byte-equality claims. Prior raw register bytes remain preserved in Git at the merged baseline and private before custody; no historical gate field or evidence identity is rewritten.
+
+The complete previous qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending after run #396
 
 **Qualification date:** 2026-11-02
