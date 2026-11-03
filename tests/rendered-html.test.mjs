@@ -1139,7 +1139,10 @@ test("uses foreground background-gradient static for SVGs, colored text, and Tea
   assert.match(resume, /teaching-manifest-percent">20(?:<!-- -->)?%/u);
   assert.match(resume, /teaching-manifest-percent">34(?:<!-- -->)?%/u);
   assert.match(resume, /teaching-manifest-percent">46(?:<!-- -->)?%/u);
-  assert.equal((resume.match(/class="teaching-manifest-caret"/gu) ?? []).length, 3);
+  // Text to Lattice also uses this bar; count the three TA courses in their own figure.
+  const teachingManifests = [...resumeDocument.matchAll(/<figure class="teaching-manifest"[^>]*>[\s\S]*?<\/figure>/gu)];
+  assert.equal(teachingManifests.length, 1);
+  assert.equal((teachingManifests[0][0].match(/class="teaching-manifest-caret"/gu) ?? []).length, 3);
   assert.doesNotMatch(resumeExperience, /circular-chart|circle-[123]|ChorusFilm/u);
 
   for (const html of [home, resume, tools]) {
