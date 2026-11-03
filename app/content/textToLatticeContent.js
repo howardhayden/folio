@@ -202,6 +202,7 @@ export const textToLatticeContract = Object.freeze({
       controls: Object.freeze([
         "Selection, copy, cut, drag, touch callout, and the output context menu are disabled; print styles omit the result.",
         "The result is concealed while the page is hidden, the window loses focus, printing begins, or a detectable Print Screen key event occurs.",
+        "A low-opacity line and wordmark veil changes captured pixels to deter routine OCR while keeping the on-screen result readable; it is static or omitted when accessibility preferences require that.",
         "The result remains semantic text for assistive technology and is removed with the transient dialog state rather than published in hah.dev's AI-readable records.",
       ]),
       limitation: "A website cannot prevent operating-system screenshots, cameras, browser extensions, developer tools, accessibility clients, or every clipboard path, and it cannot guarantee that a screenshot readable to a person will be unreadable to an AI system. These controls are deterrence, not digital-rights management.",

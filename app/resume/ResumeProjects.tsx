@@ -953,7 +953,17 @@ export default function ResumeProjects() {
             panelId="lattice-view-panel"
             selected={latticeView}
           />
-          <span className="chromebook-visually-hidden" role="status" aria-live="polite">{progressText}</span>
+          <div className={`lattice-progress teaching-manifest-entry--${serviceState.tone}`}>
+            <span className="teaching-manifest-percent signal-fuzz" aria-live="polite" role="status">{progressText}</span>
+            <div
+              role={busy ? "progressbar" : undefined}
+              aria-label={busy ? "Request phase" : undefined}
+              aria-valuetext={busy ? progressText : undefined}
+            >
+              <TerminalProgressBar percent={serviceState.widthPercent} />
+            </div>
+          </div>
+
           <div id="lattice-view-panel" role="tabpanel" aria-labelledby={`lattice-view-${latticeView}-tab`}>
           <div className="lattice-api-view" hidden={latticeView !== "api"}>
 
@@ -1055,17 +1065,6 @@ export default function ResumeProjects() {
             </div>
           </form>
 
-          <div className={`lattice-progress teaching-manifest-entry--${serviceState.tone}`}>
-            <span className="teaching-manifest-percent progress-label signal-fuzz" aria-hidden="true">{progressText}</span>
-            <div
-              role={busy ? "progressbar" : undefined}
-              aria-label={busy ? "Request phase" : undefined}
-              aria-valuetext={busy ? progressText : undefined}
-            >
-              <TerminalProgressBar percent={serviceState.widthPercent} />
-            </div>
-          </div>
-
           <section
             ref={latticeOutputRef}
             className="lattice-output"
@@ -1105,6 +1104,7 @@ export default function ResumeProjects() {
                       data-nosnippet=""
                       draggable={false}
                     >{latticeResult.text}</pre>
+                    <span className="lattice-output-veil" aria-hidden="true" />
                   </div>
                 ) : null}
                 {latticeVisibleFindings(latticeResult).length ? (
