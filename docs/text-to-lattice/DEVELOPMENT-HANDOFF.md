@@ -1,3 +1,21 @@
+# Text to Lattice — upstream verification failure, 2026-11-10
+
+The API and interactive UI remain held. GATE-02, GATE-03 and GATE-06 remain open with null acceptance. This continuation record selects no paid qualification, browser window or final release. The qualified source set remains `7d5dcd5fb1878822f1823fdcbe94e1b7055dff8c0a8bde2dcecdc0637faf102a`, and the dossier remains `ec52759d4638a68d6beaa5e0f03117e55f2b414b65f1b31d9273654180e717fe`. All other 300 repository files, including all 264 qualified members, are unchanged. This handoff is outside the qualified set and dossier.
+
+Original [run #419](https://github.com/howardhayden/folio/actions/runs/42877452574), attempt 1, ran against reviewed main `b3b1fee50abfeff2fd6d038846cbae4201d1bc80` after PR #158 and successful routine held delivery #418. Its retained preflight passed all 24 negative boundary checks and bodyless visitor setup with HTTP 204 at `2026-11-10T18:43:55.873Z`. The content qualification later failed. The public response was HTTP 502 `upstream_unavailable`, with a closed `provider_http_error` observation reporting upstream HTTP 504 during verification, logical call ordinal 6, at `18:46:28.8472713Z`. The upstream media class was text and all retained routing-attribution header observations were absent. This differs from run413's fetch rejection and run416's negative-probe HTTP 503. It establishes neither a held-response cause nor the particular upstream component responsible.
+
+Logical ordinal 6 does not establish a successful or billed call count. The retained failure establishes no repair-branch coverage, source-copy correction, completed certification, provider bill or resolved transient condition. Successful live-boundary, usage and deployment-index receipts were not produced. The local diagnostic and custody receipts retain no raw job log, provider body, source, candidate, cookie or token. The first artifact read failed without output. A separately reviewed read-only recovery retained the original archives. The finite v23 diagnostic used one bounded log read.
+
+Same-service rollback verified three held API samples at `18:46:40.393Z`. Failure enforcement verified held Pages at `18:46:55.491Z` and three held API samples at `18:47:12.769Z`. These establish dated observations only. No conditional provider-free recovery was needed or selected. `NEGATIVE-DIAGNOSTICS-API-ONLY-A1` is spent, one used and zero remaining. All earlier spent units remain preserved. No native/browser qualification was selected by this API-only unit.
+
+Continue by delivering this substantive continuity record through independent review and required CI, preserving the exact runtime, models, timeouts, acceptance, quotas, held publication settings and implemented UI. A single upstream504 does not justify changing them. A later bounded backend qualification requires a distinct reviewed held main and genuine root selection under the standing deployment instruction. This record selects no operation and replays no spent unit. Current backend qualification and GATE-02/03 adjudication must precede browser preparation and the outstanding GATE-06 Safari/Brave and hosted Firefox work. Reuse unchanged source-bound validation without repeating unrelated completed controls.
+
+The retained private evidence consists of `work/evidence/nov10-negative-diagnostics-api-only-a1-paid-finite-failure-v23.json` and independent terminal review `work/evidence/nov10-negative-diagnostics-api-only-a1-paid-run419-terminal-custody-and-held-independent-review.json` (SHA-256 `e85038160a0a60e4ea6b0c2b13703c853ab6f584b13d79ddc6a2f484f3301684`). Root outcome `work/evidence/nov10-run419-classified-terminal-root-outcome.json` (SHA-256 `0e9486271497dae748e7f039eb39c4ea5b6cf4d38b4bb36e93b8c3de2b36f15a`) and independent root review `a150c5331d68792429701b62394f48a515379caacb4fdae1a97fb65157f86edb` retain the scoped disposition. These identify sanitized private evidence and supply no gate acceptance.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice — held negative-probe diagnostics, 2026-11-10
 
 **Qualified source set SHA-256:** `7d5dcd5fb1878822f1823fdcbe94e1b7055dff8c0a8bde2dcecdc0637faf102a`
