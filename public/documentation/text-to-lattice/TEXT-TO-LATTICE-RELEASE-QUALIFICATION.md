@@ -1,3 +1,46 @@
+# Text to Lattice release qualification — held rewrite-checklist correction
+
+**Decision:** hold the interactive client; publish documentation only. This prospective prompt correction remains unqualified.
+
+**Qualification date:** 2026-11-10
+
+**Evidence updated:** 2026-11-10
+
+**Reviewed baseline:** `da7c92989802602f5a5580e1ad2438e8d1a0a80b`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `e94c529165b02bdef7f3626b556276d3eb44bd918e50712d1f92fba70cd0c779`
+
+**Artifact-set projection SHA-256:** `d3747d298598f952ac3a454882f7f8492307102dad5243bc407120f33646c2f7`
+
+The source-set label names the complete qualification scope, not a passed qualification. This candidate needs its own validation, review and held delivery. Run410 retains source `c614056a49d8315dac1b9bee2002980fd51e0fee61637f38f52a411a711ab7c5` and dossier `73aef6f98a86621449a495bd03490dde690fd99da04b971d464f818f2757ebd7`; run396 and every historical original retain their original identities.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Open release blocker | High |
+| GATE-03 · Remote provider capacity and cost boundary | Open release blocker | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+The compact-wire-v2 candidate and repair prompts now expose requiredRewritePassagePositions, derived from the current validated rewrite analysis joined to exact serialized source groups. The field and instruction are absent when no rewrite is required. Existing analysis tuples and authentic D26 regeneration feedback remain; earlier feedback was already present and its absence is not the cause established by run410. Retained-only compact and host-schema message bytes remain unchanged. This prospective salience correction does not establish a private provider cause, a reliable repair, managed token fit or hosted efficacy. Affected outbound bytes and input-token cost change, so near-cap admission may change under unchanged limits.
+
+GATE-02, GATE-03 and GATE-06 are open-release-blocker with null acceptance for this changed determining-runtime candidate. Exact historical run396 satisfaction, original source/dossier and receipts remain dated bounded evidence; unchanged narrow boundary subproofs may be reused only within their exact determining-input scope. They do not qualify the new request bytes. Fresh candidate backend boundary, capacity/usage and production qualification must precede any browser window. Canonical Safari and Brave lifecycle/network/reload and supported-browser evidence remain absent; local tests do not close a gate.
+
+Original run #410 / 42833716692 / attempt 1 on main da7c92989802602f5a5580e1ad2438e8d1a0a80b failed backend qualification. The final regenerated candidate matched its source exactly under D14 after retained-conformance retry; the initial deterministic result was clear, the committed retain override was present, six logical provider calls were used, and certification was not reached. Semantic-rejection is the normalized host result, not a retained private verifier verdict. No unique provider cause is established and no raw source/candidate/verdict was retained. Interactive Pages deployment was skipped; the last actual held Pages publication remains run #407. Automatic service API rollback was verified at 2026-11-10T14:29:25.597Z and failure-lane API enforcement at 14:29:58.236Z. Terminal Pages held 200 was observed at 14:35:16.513Z and the API held503 receipt at 14:35:16.717Z. These are dated witnesses, not continuous hold or new Pages deployment identity. Separate included-restore preparation refused before START/POST; its child only retained SUBPROCESS_REFUSED, while original in_progress count1/rows0 independently fails the unchanged strict predicate. No retry or successful included restore is claimed.
+
+U13-AFTER-RUN405-A2 is spent, 1 used and 0 remaining; A1 remains separately spent after its historical local prePOST refusal. Neither unit, metadata baseline nor refused restore preparation may be refunded, transferred or replayed. There was no native arm, app/source entry, consent, submission, capture, seal or hosted Firefox check. Both collectors were disposed cleanly, owned frontends closed, Safari temporary inspection restored OFF and ordinary owned blank profiles preserved; Firefox and personal windows were untouched. Standing through-deployment authority covers necessary reviewed continuation, but this candidate selects no operational unit, public window or final release.
+
+Fixed models/providers, schemas, request routes, acceptance, deadlines, attempts, quota and privacy/rights contracts remain unchanged. The current project-page date is November10; public notes disclose the need for backend requalification. Only established publication switches disable interactive delivery; all requested interactive UI code is retained. Source and dossier digests are recomputed from the actual nine affected qualified members among264; the other255 remain exact baseline. Existing current-state fixtures follow the held/open state and date without weakening acceptance or negative controls. The current documentation generator remains exact. Fresh active/held/policy Worker dry runs and required capacity/source/build validation remain necessary; prior build or collector binding evidence is not promoted across the changed prompt input.
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending plain output, 2026-11-03
 
 **Qualified source set SHA-256:** `c614056a49d8315dac1b9bee2002980fd51e0fee61637f38f52a411a711ab7c5`

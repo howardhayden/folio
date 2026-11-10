@@ -773,6 +773,21 @@ function analysisForModel(analysis) {
   ];
 }
 
+function requiredRewritePositionsForModel(sourceGroups, analysis) {
+  if (!analysis) return [];
+  // Index the actual serialized source groups, not the independently ordered
+  // analysis array. The current validated disposition is the only input;
+  // historical failure cues and caller-supplied positions cannot alter it.
+  const rewriteIds = new Set(analysis.passages
+    .filter(({ disposition }) => disposition === "rewrite")
+    .map(({ passageId }) => passageId));
+  return sourceGroups.flatMap(([passageId], position) => (
+    rewriteIds.has(passageId) ? [position] : []
+  ));
+}
+
+const REQUIRED_REWRITE_CHECKLIST_INSTRUCTION = " requiredRewritePassagePositions is the complete zero-based checklist of source groups whose current plan requires rewrite. For each listed passage, realize its atoms in new wording or syntactic order serving its selected layer, then compare with its source before returning. Clear source prose can still require rewriting. Keep every commitment, exact literal, and boundary; never add or remove meaning to force a difference. Do not emit this checklist or treat it as a passed check.";
+
 function repairAnalysisForModel(analysis) {
   if (!analysis) return null;
   return [
@@ -986,12 +1001,17 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
   }
   const compactPlan = analysisPlanDialect === "compact-wire-v2";
   const regenerationFeedback = regenerationFeedbackForModel(request);
+  const sourceGroups = sourcePassagesForModel(request);
+  const requiredRewrites = compactPlan ? requiredRewritePositionsForModel(sourceGroups, request.analysis) : [];
+  const realizationInstruction = CANDIDATE_REALIZATION_INSTRUCTION
+    + (requiredRewrites.length ? REQUIRED_REWRITE_CHECKLIST_INSTRUCTION : "");
   return messages(
     "Translate every supplied passage according to its plan and atom graph.",
     {
       version: PUBLIC_REGISTER_VERSION,
       batchId: request.batch.id,
-      passages: sourcePassagesForModel(request),
+      passages: sourceGroups,
+      ...(requiredRewrites.length ? { requiredRewritePassagePositions: requiredRewrites } : {}),
       sourceBoundaries: sourceBoundariesForModel(request),
       ...(request.context ? { context: contextForModel(request.context) } : {}),
       documentLedger: documentLedgerForModel(request.documentLedger),
@@ -1002,7 +1022,7 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
       ...(regenerationFeedback ? { regenerationFeedback } : {}),
       ...(request.protocolFeedback ? { protocolFeedback: request.protocolFeedback } : {}),
     },
-    `${CANDIDATE_REALIZATION_INSTRUCTION} Analysis is [document kind, passages]. Analysis passages are [ID, discourse function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria, conformance spans, criterion-specific conformance assertions]; atoms are [ID, kind, value, priority, preservation, evidence IDs, relation-target pairs]. Source groups are [passage ID, ordered lossless spans, nested literal annotations].${directionFrameInstruction(request)} Source boundaries are passage-order gaps [before first, between each pair, after last], encoded as exact [unit,count] runs or a host-preserved repeat/summary. ${compactPlan ? LATTICE_COMPACT_REALIZATION_PLAN_INSTRUCTION : "Use each source-specific discourse function and rationale as the realization plan."} ${regenerationFeedback?.nonmaterialPassagePositions ? "regenerationFeedback.nonmaterialPassagePositions gives zero-based source passage positions whose previous draft failed the host normalized-word check and whose revised plan still requires rewrite. Resolve that prior defect in this fresh realization; it does not establish any other check or prescribe replacement wording. " : ""}${regenerationFeedback?.retentionNotConfirmedPassagePositions ? "regenerationFeedback.retentionNotConfirmedPassagePositions gives zero-based source passage positions whose previous unchanged retention did not obtain required positive conformance and whose current plan requires rewrite. Produce a fresh material rewrite under that plan while preserving every source-grounded commitment, designated exact literal, and structural boundary. This context does not by itself establish a prior normalized-word failure or any passed check, and prescribes no replacement wording. " : ""}Cover every passage and atom. Rewrites must change at least one normalized word or its syntactic order in service of that plan; formatting, case, and punctuation alone do not count. Preserve exact literals and annotations, linked meaning, ambiguity, attribution, and structural boundaries. Do not move a source atom or unchanged source item to the other side of a line, paragraph, or stanza boundary; retained conformant text stays exact.`,
+    `${realizationInstruction} Analysis is [document kind, passages]. Analysis passages are [ID, discourse function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria, conformance spans, criterion-specific conformance assertions]; atoms are [ID, kind, value, priority, preservation, evidence IDs, relation-target pairs]. Source groups are [passage ID, ordered lossless spans, nested literal annotations].${directionFrameInstruction(request)} Source boundaries are passage-order gaps [before first, between each pair, after last], encoded as exact [unit,count] runs or a host-preserved repeat/summary. ${compactPlan ? LATTICE_COMPACT_REALIZATION_PLAN_INSTRUCTION : "Use each source-specific discourse function and rationale as the realization plan."} ${regenerationFeedback?.nonmaterialPassagePositions ? "regenerationFeedback.nonmaterialPassagePositions gives zero-based source passage positions whose previous draft failed the host normalized-word check and whose revised plan still requires rewrite. Resolve that prior defect in this fresh realization; it does not establish any other check or prescribe replacement wording. " : ""}${regenerationFeedback?.retentionNotConfirmedPassagePositions ? "regenerationFeedback.retentionNotConfirmedPassagePositions gives zero-based source passage positions whose previous unchanged retention did not obtain required positive conformance and whose current plan requires rewrite. Produce a fresh material rewrite under that plan while preserving every source-grounded commitment, designated exact literal, and structural boundary. This context does not by itself establish a prior normalized-word failure or any passed check, and prescribes no replacement wording. " : ""}Cover every passage and atom. Rewrites must change at least one normalized word or its syntactic order in service of that plan; formatting, case, and punctuation alone do not count. Preserve exact literals and annotations, linked meaning, ambiguity, attribution, and structural boundaries. Do not move a source atom or unchanged source item to the other side of a line, paragraph, or stanza boundary; retained conformant text stays exact.`,
   );
 }
 
@@ -1134,13 +1154,18 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema" } 
     throw new TypeError("Text to Lattice received an invalid analysis plan dialect.");
   }
   const compactPlan = analysisPlanDialect === "compact-wire-v2";
+  const sourceGroups = repairSourcePassagesForModel(request);
+  const requiredRewrites = compactPlan ? requiredRewritePositionsForModel(sourceGroups, request.analysis) : [];
+  const realizationInstruction = CANDIDATE_REALIZATION_INSTRUCTION
+    + (requiredRewrites.length ? REQUIRED_REWRITE_CHECKLIST_INSTRUCTION : "");
   return messages(
     request.repairFromSource === true
       ? "Regenerate a complete candidate from the source, plan, and binding findings. Do not copy the rejected draft."
       : "Repair the failed candidate once, changing only what the binding findings require.",
     {
       version: PUBLIC_REGISTER_VERSION,
-      sourcePassages: repairSourcePassagesForModel(request),
+      sourcePassages: sourceGroups,
+      ...(requiredRewrites.length ? { requiredRewritePassagePositions: requiredRewrites } : {}),
       sourceBoundaries: sourceBoundariesForModel(request),
       documentLedger: documentLedgerForModel(request.documentLedger),
       ...(request.documentLedgerCoverage?.availableAtomCount > 0 ? {
@@ -1159,6 +1184,6 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema" } 
           : { protocolFeedback: request.protocolFeedback }
         : {}),
     },
-    `${CANDIDATE_REALIZATION_INSTRUCTION} Repair source groups are [passage ID, complete exact source text, ordered exact-literal tuples].${directionFrameInstruction(request)} Literal tuples are [span ID, exact text] already present inside that source text. Source boundaries are passage-order gaps [before first, between each pair, after last], encoded as exact [unit,count] runs or a host-preserved repeat/summary. Analysis is [document kind, passages]. Analysis passages are [ID, discourse function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria, conformance spans, criterion-specific conformance assertions]; atoms are [ID, kind, value, priority, preservation, exact-literal evidence IDs or [], links]. ${request.repairFromSource === true ? "The rejected draft is omitted; produce a fresh candidate that resolves the findings." : "Rejected candidates are [ID, layer, text]."} Feedback: [decision, failed gates, passages, check/passage pairs]; prose excluded. ${compactPlan ? `${LATTICE_COMPACT_REALIZATION_PLAN_INSTRUCTION} Resolve the supplied deterministic and verification findings in that concrete realization.` : "Use the discourse function and rationale as the source-specific repair plan."} Preserve every atom, relation, ambiguity, exact literal, and structural boundary; repair every finding, keep every passage and atom ID, and make each planned rewrite change normalized wording or syntax rather than presentation alone.`,
+    `${realizationInstruction} Repair source groups are [passage ID, complete exact source text, ordered exact-literal tuples].${directionFrameInstruction(request)} Literal tuples are [span ID, exact text] already present inside that source text. Source boundaries are passage-order gaps [before first, between each pair, after last], encoded as exact [unit,count] runs or a host-preserved repeat/summary. Analysis is [document kind, passages]. Analysis passages are [ID, discourse function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria, conformance spans, criterion-specific conformance assertions]; atoms are [ID, kind, value, priority, preservation, exact-literal evidence IDs or [], links]. ${request.repairFromSource === true ? "The rejected draft is omitted; produce a fresh candidate that resolves the findings." : "Rejected candidates are [ID, layer, text]."} Feedback: [decision, failed gates, passages, check/passage pairs]; prose excluded. ${compactPlan ? `${LATTICE_COMPACT_REALIZATION_PLAN_INSTRUCTION} Resolve the supplied deterministic and verification findings in that concrete realization.` : "Use the discourse function and rationale as the source-specific repair plan."} Preserve every atom, relation, ambiguity, exact literal, and structural boundary; repair every finding, keep every passage and atom ID, and make each planned rewrite change normalized wording or syntax rather than presentation alone.`,
   );
 }

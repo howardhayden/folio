@@ -2,6 +2,12 @@
 
 This file records the public contract for the Lattice project card and its capability-scoped **Text to Lattice** demonstrator. The browser may connect only to the same-origin `/api/lattice` capability; that Worker performs the declared external model processing. This file does not restate or redistribute the Relational Systems Register profile.
 
+## Current rewrite realization and release disposition — 10 November 2026
+
+**RUN410-COMPACT-REWRITE-CHECKLIST:** Under the standing instruction to continue necessary work through deployment, the compact-wire-v2 candidate and repair prompts expose `requiredRewritePassagePositions` derived only from the current validated rewrite analysis and exact serialized source-group order. Omit that field and its conditional instruction when no current rewrite is required. Preserve the original analysis tuples and authentic D26 regeneration feedback independently; caller-supplied positions confer no authority. The cue requires material realization of already selected rewrites while preserving all commitments. It adds no rewrite disposition, replacement wording, retry, provider opportunity or acceptance. Retained-only compact requests and host-schema messages retain their prior bytes. Affected outbound bytes and input-token cost change; near-cap admission may change under unchanged limits. This is a prospective salience correction, not proof of run410's private cause or hosted efficacy.
+
+Preserve the fixed Qwen235B/DeepInfra generator and Llama3.3/OVHcloud verification and certification roles, schemas/channels/temperatures, materiality/conformance/semantic acceptance including D14, call/attempt/token/time/byte/admission/quota limits, privacy and rights. Run410 withheld an exact-source regenerated candidate after retained-conformance retry; no native qualification occurred. The changed candidate is held/documentation-only with GATE-02, GATE-03 and GATE-06 open and null acceptance. Historical run396 satisfaction and its original receipts remain dated, bounded evidence; they do not qualify changed determining request bytes. Fresh reviewed backend qualification must precede any browser window. No spent unit is refunded or replayed, and this source preparation selects no new operational unit or final release.
+
 ## Sources
 
 - **U1:** Site-owner brief, 2026-09-01: add the Lattice project, supplied summary, icon, documentation link, pop-up interaction, and initial 250-character limit.
