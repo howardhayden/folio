@@ -2818,3 +2818,230 @@ test("v22 S05 strict shapes require complete legacy-presence and collection-cons
     assert.equal(fixture.canaryRequests, 1); assert.equal(fixture.setupRequests, 1);
   });
 });
+
+async function captureNegativeProbeFailure(replacement, id = "invalid-text-type") {
+  const fixture = successfulFixture();
+  const target = LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS.indexOf(id) + 1;
+  let caught;
+  let replacements = 0;
+  let preflight = 0;
+  let usage = 0;
+  await assert.rejects(verifyTextToLatticeApiProduction({
+    context, now: fixedNow, wait: noWait,
+    onPreflightEvidence() { preflight += 1; },
+    onUsageEvidence() { usage += 1; },
+    async fetchImpl(url, init) {
+      const response = await fixture.fetchImpl(url, init);
+      if (fixture.negativeRequests === target) {
+        replacements += 1;
+        void response.body?.cancel().catch(() => {});
+        return replacement(init);
+      }
+      return response;
+    },
+  }), (error) => { caught = error; return true; });
+  assert.ok(caught instanceof Error);
+  assert.match(caught.message, new RegExp(`^Text to Lattice live API verification failed: negative probe ${id} `, "u"));
+  assert.equal(replacements, 1);
+  assert.equal(fixture.negativeRequests, target);
+  assert.equal(fixture.canaryRequests, 0);
+  assert.equal(fixture.calls.length, 4 + LATTICE_PRODUCTION_READINESS_CONTRACT.requiredConsecutiveActiveSamples + 1 + target);
+  assert.equal(preflight, 0);
+  assert.equal(usage, 0);
+  return { message: caught.message, fixture };
+}
+
+function negativeFailureFields(message) {
+  const suffix = message.split("; negative_probe_diagnostic=v1; ");
+  assert.equal(suffix.length, 2);
+  const fields = Object.fromEntries(suffix[1].split("; ").map((pair) => pair.split("=")));
+  assert.deepEqual(Object.keys(fields), ["transport_code", "response_class", "body_read", "admission_status", "admission_claim", "admission_order", "admission_provider"]);
+  return fields;
+}
+
+const privateNegativeDiagnosticMarker = "PRIVATE-body-header-error-cookie-token-7f1d";
+
+test("negative failure diagnostics expose only own closed transport codes and preserve the original stop", async (t) => {
+  let getterCalls = 0;
+  const getter = () => { getterCalls += 1; throw new Error(privateNegativeDiagnosticMarker); };
+  const cases = [
+    ["own-code", Object.assign(new Error(privateNegativeDiagnosticMarker), { code: "ECONNRESET" }), "ECONNRESET"],
+    ["one-cause", new Error(privateNegativeDiagnosticMarker, { cause: { code: "UND_ERR_SOCKET" } }), "UND_ERR_SOCKET"],
+    ["conflicting-codes", { code: "ECONNRESET", cause: { code: "ETIMEDOUT" } }, "unclassified"],
+    ["inherited-code", Object.create({ code: "ECONNRESET" }), "unclassified"],
+    ["inherited-cause", Object.create({ cause: { code: "UND_ERR_SOCKET" } }), "unclassified"],
+    ["unknown-code", { code: privateNegativeDiagnosticMarker }, "unclassified"],
+    ["code-coercion", { code: { toString: getter } }, "unclassified"],
+    ["code-accessor", Object.defineProperty({}, "code", { get: getter }), "unclassified"],
+    ["cause-accessor", Object.defineProperty({}, "cause", { get: getter }), "unclassified"],
+    ["cause-code-accessor", { cause: Object.defineProperty({}, "code", { get: getter }) }, "unclassified"],
+    ["descriptor-trap", new Proxy({}, { getOwnPropertyDescriptor: getter }), "unclassified"],
+    ["primitive", privateNegativeDiagnosticMarker, "unclassified"],
+  ];
+  for (const [name, failure, code] of cases) await t.test(name, async () => {
+    const { message } = await captureNegativeProbeFailure(() => { throw failure; }, "request-byte-limit-plus-one");
+    assert.match(message, /could not reach the deployed boundary; negative_probe_diagnostic=v1/u);
+    assert.deepEqual(negativeFailureFields(message), {
+      transport_code: code, response_class: "not-observed", body_read: "not-attempted",
+      admission_status: "not-observed", admission_claim: "none", admission_order: "none", admission_provider: "none",
+    });
+    assert.equal(message.includes(privateNegativeDiagnosticMarker), false);
+  });
+  // Descriptor traps may run and throw; ordinary data-property getters and coercion must never run.
+  assert.equal(getterCalls, 2);
+});
+
+test("negative failure diagnostics distinguish a held profile without attributing its serving component", async (t) => {
+  const cases = [
+    ["held", () => heldReadinessResponse(), "held-profile", "complete", "absent"],
+    ["extra-envelope-field", () => apiJson({ error: "upstream_unavailable", secret: privateNegativeDiagnosticMarker }, 503, { "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" }), "other", "complete", "absent"],
+    ["missing-held-policy", () => apiJson({ error: "upstream_unavailable" }, 503), "other", "complete", "absent"],
+    ["cookie", () => heldReadinessResponse({ "Set-Cookie": privateNegativeDiagnosticMarker }), "other", "complete", "absent"],
+    ["cross-origin", () => heldReadinessResponse({ "Access-Control-Allow-Origin": privateNegativeDiagnosticMarker }), "other", "complete", "absent"],
+    ["allow", () => heldReadinessResponse({ Allow: "POST" }), "other", "complete", "absent"],
+    ["wrong-status", () => apiJson({ error: privateNegativeDiagnosticMarker }, 502), "other", "not-attempted", "absent"],
+    ["HTML", () => new Response(privateNegativeDiagnosticMarker, { status: 503, headers: { "Content-Type": "text/html" } }), "other", "not-attempted", "absent"],
+    ["unknown-admission-prefix", () => heldReadinessResponse({ "X-Lattice-Qualification-Admission-Private": privateNegativeDiagnosticMarker }), "other", "complete", "invalid"],
+    ["partial-admission", () => heldReadinessResponse({ [LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS.status]: "complete" }), "other", "complete", "invalid"],
+    ["invalid-closed-admission", () => heldReadinessResponse(admissionHeaders({ claim: privateNegativeDiagnosticMarker })), "other", "complete", "invalid"],
+  ];
+  for (const [name, response, responseClass, bodyRead, admissionStatus] of cases) await t.test(name, async () => {
+    const { message } = await captureNegativeProbeFailure(response);
+    assert.match(message, /returned HTTP (?:502|503); expected 400; negative_probe_diagnostic=v1/u);
+    const fields = negativeFailureFields(message);
+    assert.equal(fields.transport_code, "not-applicable");
+    assert.equal(fields.response_class, responseClass);
+    assert.equal(fields.body_read, bodyRead);
+    assert.equal(fields.admission_status, admissionStatus);
+    assert.equal(message.includes(privateNegativeDiagnosticMarker), false);
+  });
+});
+
+test("negative failure diagnostics retain only complete closed admission observations", async (t) => {
+  for (const observation of [
+    { status: "complete", claim: "not-called", order: "not-called", provider: "not-started" },
+    { status: "complete", claim: "denied-once", order: "after-validation", provider: "not-started" },
+    { status: "complete", claim: "allowed-once", order: "after-validation", provider: "after-admission" },
+    { status: "unavailable", claim: "unavailable", order: "unavailable", provider: "unavailable" },
+  ]) await t.test(`${observation.status}-${observation.claim}`, async () => {
+    const { message } = await captureNegativeProbeFailure(() => heldReadinessResponse(admissionHeaders(observation)));
+    const fields = negativeFailureFields(message);
+    assert.equal(fields.response_class, "other");
+    for (const [field, value] of Object.entries(observation)) assert.equal(fields[`admission_${field}`], value);
+  });
+});
+
+test("negative failure diagnostics cap bytes and reads without reflecting failed parsing or cancellation", async (t) => {
+  const heldHeaders = { ...apiHeaders, "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" };
+  const cases = [
+    ["4096", () => new Response(`${JSON.stringify({ error: "upstream_unavailable" })}${" ".repeat(4064)}`, { status: 503, headers: heldHeaders }), "complete", "held-profile"],
+    ["4097", () => new Response("x".repeat(4097), { status: 503, headers: heldHeaders }), "too-large", "unclassified"],
+    ["oversize-length", () => heldReadinessResponse({ "Content-Length": "4097" }), "too-large", "unclassified"],
+    ["invalid-length", () => heldReadinessResponse({ "Content-Length": privateNegativeDiagnosticMarker }), "invalid-length", "unclassified"],
+    ["bad-UTF8", () => new Response(new Uint8Array([255]), { status: 503, headers: heldHeaders }), "complete", "other"],
+    ["bad-JSON", () => new Response(privateNegativeDiagnosticMarker, { status: 503, headers: heldHeaders }), "complete", "other"],
+    ["read-rejection", () => new Response(new ReadableStream({ start(controller) { controller.error(new Error(privateNegativeDiagnosticMarker)); } }), { status: 503, headers: heldHeaders }), "read-failed", "unclassified"],
+    ["zero-chunks", () => new Response(new ReadableStream({ pull(controller) { controller.enqueue(new Uint8Array()); }, cancel() { throw new Error(privateNegativeDiagnosticMarker); } }), { status: 503, headers: heldHeaders }), "read-limit", "unclassified"],
+  ];
+  for (const [name, response, bodyRead, responseClass] of cases) await t.test(name, async () => {
+    const { message } = await captureNegativeProbeFailure(response);
+    assert.match(message, /returned HTTP 503; expected 400;/u);
+    assert.equal(negativeFailureFields(message).body_read, bodyRead);
+    assert.equal(negativeFailureFields(message).response_class, responseClass);
+    assert.equal(message.includes(privateNegativeDiagnosticMarker), false);
+  });
+});
+
+test("negative failure diagnostics preserve the original failure when a response getter throws", async (t) => {
+  for (const field of ["body", "headers"]) await t.test(field, async () => {
+    const response = heldReadinessResponse();
+    Object.defineProperty(response, field, { get() { throw new Error(privateNegativeDiagnosticMarker); } });
+    const { message } = await captureNegativeProbeFailure(() => response);
+    assert.match(message, /returned HTTP 503; expected 400;/u);
+    assert.equal(negativeFailureFields(message).response_class, "unclassified");
+    assert.equal(message.includes(privateNegativeDiagnosticMarker), false);
+  });
+});
+
+test("negative failure diagnostics leave non-negative transport failures unchanged", async () => {
+  let calls = 0;
+  await assert.rejects(verifyTextToLatticeApiProduction({
+    context, now: fixedNow, wait: noWait,
+    fetchImpl() { calls += 1; throw Object.assign(new Error(privateNegativeDiagnosticMarker), { code: "ECONNRESET" }); },
+  }), { message: "Text to Lattice live API verification failed: document policy / could not reach the deployed boundary" });
+  assert.equal(calls, 1);
+});
+
+test("negative failure diagnostics do not await cancellation for non-plausible responses", { timeout: 3_000 }, async () => {
+  const response = new Response(new ReadableStream({ cancel() { return new Promise(() => {}); } }), { status: 502 });
+  const { message } = await captureNegativeProbeFailure(() => response);
+  assert.equal(negativeFailureFields(message).body_read, "not-attempted");
+});
+
+test("negative failure diagnostics stop a stalled body after one second despite stalled cancellation", { timeout: 3_000 }, async () => {
+  const response = new Response(new ReadableStream({ cancel() { return new Promise(() => {}); } }), {
+    status: 503, headers: { ...apiHeaders, "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" },
+  });
+  const { message } = await captureNegativeProbeFailure(() => response);
+  assert.match(message, /returned HTTP 503; expected 400;/u);
+  assert.equal(negativeFailureFields(message).body_read, "timeout");
+});
+
+test("negative failure diagnostics respect the original request signal before their own deadline", { timeout: 3_000 }, async (t) => {
+  const originalTimeout = AbortSignal.timeout.bind(AbortSignal);
+  const signals = [];
+  t.mock.method(AbortSignal, "timeout", (milliseconds) => {
+    const signal = originalTimeout(milliseconds === 15_000 ? 25 : milliseconds);
+    signals.push({ milliseconds, signal });
+    return signal;
+  });
+  let delivered = false;
+  let delivery;
+  const response = new Response(new ReadableStream({
+    start(controller) {
+      delivery = setTimeout(() => {
+        delivered = true;
+        controller.enqueue(new TextEncoder().encode(JSON.stringify({ error: "upstream_unavailable" })));
+        controller.close();
+      }, 100);
+    },
+    cancel() { clearTimeout(delivery); },
+  }), {
+    status: 503, headers: { ...apiHeaders, "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" },
+  });
+  const { message, fixture } = await captureNegativeProbeFailure(() => response);
+  assert.equal(delivered, false);
+  assert.equal(negativeFailureFields(message).body_read, "timeout");
+  assert.equal(fixture.calls.at(-1).init.signal.aborted, true);
+  assert.equal(signals.at(-1).milliseconds, 15_000);
+});
+
+
+test("negative failure diagnostics capture observed status once before asynchronous classification", async () => {
+  let reads = 0;
+  const response = heldReadinessResponse();
+  Object.defineProperty(response, "status", { get() {
+    reads += 1;
+    if (reads === 1) return 503;
+    throw new Error(privateNegativeDiagnosticMarker);
+  } });
+  const { message } = await captureNegativeProbeFailure(() => response);
+  assert.match(message, /returned HTTP 503; expected 400;/u);
+  assert.equal(negativeFailureFields(message).response_class, "held-profile");
+  assert.equal(reads, 1);
+  assert.equal(message.includes(privateNegativeDiagnosticMarker), false);
+});
+
+test("negative failure diagnostics refuse invalid status without getters, coercion or private error text", async (t) => {
+  for (const [name, value] of [["string", privateNegativeDiagnosticMarker], ["nan", NaN], ["low", 99],
+    ["high", 600], ["fraction", 503.1], ["object", { toString() { throw new Error(privateNegativeDiagnosticMarker); } }],
+    ["throws", undefined]]) await t.test(name, async () => {
+    const response = heldReadinessResponse();
+    Object.defineProperty(response, "status", { get() {
+      if (name === "throws") throw new Error(privateNegativeDiagnosticMarker);
+      return value;
+    } });
+    const { message } = await captureNegativeProbeFailure(() => response);
+    assert.equal(message, "Text to Lattice live API verification failed: negative probe invalid-text-type returned an invalid response");
+  });
+});
