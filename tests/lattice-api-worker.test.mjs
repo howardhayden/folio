@@ -2569,6 +2569,7 @@ test("compact drafting and repair derive concrete plans from source rather than 
     assert.equal(payload.analysis[0], analysis.documentKind);
     assert.equal(payload.analysis[1][0][1], analysis.passages[0].discourseFunction);
     assert.equal(payload.analysis[1][0][3], "rewrite");
+    assert.deepEqual(payload.requiredRewritePassagePositions, [0]);
     assert.equal(payload.analysis[1][0][4], analysis.passages[0].rationale);
     assert.deepEqual(payload.analysis[1][0][5][0][5], payload.sourcePassages ? [] : analysis.passages[0].atoms[0].evidenceSpanIds);
     assert.deepEqual(payload.analysis[1][0][5][0][6], []);
@@ -2584,8 +2585,67 @@ test("host-schema drafting and repair preserve detailed plans by default and exp
   for (const factory of [candidateMessages, repairMessages]) {
     assert.deepEqual(factory(request), factory(request, { analysisPlanDialect: "host-schema" }));
     assert.match(factory(request)[0].content, /source-specific.*plan/u);
+    assert.doesNotMatch(JSON.stringify(factory(request)), /requiredRewritePassagePositions/u);
     assert.throws(() => factory(request, { analysisPlanDialect: "untrusted" }), /invalid analysis plan dialect/u);
   }
+});
+
+test("compact rewrite checklist follows serialized passage IDs and ignores supplied positions", async () => {
+  const base = minimalVerificationRequest("Review the document.\n\nKeep the approved copy.\n\nClose the folder.");
+  assert.equal(base.batch.passages.length, 3);
+  const plans = base.batch.passages.map((passage, index) => {
+    const evidence = base.sourceSpans[index].spans.map(({ id }) => id);
+    const criteria = [...LATTICE_CONFORMANCE_CRITERIA.universal, ...LATTICE_CONFORMANCE_CRITERIA.operative];
+    return { ...base.analysis.passages[0], passageId: passage.id,
+      disposition: index === 1 ? "retain-if-conformant" : "rewrite",
+      atoms: [{ ...base.analysis.passages[0].atoms[0], id: `a${index + 1}`, evidenceSpanIds: evidence }],
+      conformanceCriteria: index === 1 ? criteria : [], conformanceEvidenceSpanIds: index === 1 ? evidence : [],
+      conformanceAssertions: index === 1 ? criteria.map((criterion) => ({ criterion, evidenceSpanIds: evidence })) : [],
+    };
+  });
+  const request = { ...base,
+    sourceSpans: [base.sourceSpans[2], base.sourceSpans[0], base.sourceSpans[1]],
+    analysis: { ...base.analysis, passages: [plans[1], plans[2], plans[0]] },
+    requiredRewritePassagePositions: [1],
+  };
+  const before = JSON.stringify(request);
+  const bodies = [];
+  const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+    bodies.push(JSON.parse(init.body));
+    return successfulProviderResponse({ passages: [] });
+  } });
+  for (const current of [request, { ...request, protocolFeedback: { attempt: 2, category: "response-shape" } }]) {
+    await adapter.generate(current);
+    await adapter.repair(current);
+  }
+  for (const [index, body] of bodies.entries()) {
+    const payload = inertModelPayload(body);
+    assert.deepEqual(payload.requiredRewritePassagePositions, index % 2 === 0 ? [0, 1] : [0, 2]);
+    const sourceGroups = payload.passages ?? payload.sourcePassages;
+    assert.deepEqual(new Set(payload.requiredRewritePassagePositions.map((position) => sourceGroups[position][0])),
+      new Set([base.batch.passages[0].id, base.batch.passages[2].id]));
+    assert.match(body.messages[0].content, /complete zero-based checklist of source groups whose current plan requires rewrite/u);
+    assert.match(body.messages[0].content, /never add or remove meaning to force a difference/u);
+    assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
+    assert.equal(body.max_tokens, 800);
+    assert.deepEqual(body.response_format, { type: "json_object" });
+  }
+  const retained = { ...request, analysis: { ...request.analysis,
+    passages: request.analysis.passages.map((plan) => ({ ...plan, disposition: "retain-if-conformant",
+      conformanceCriteria: plans[1].conformanceCriteria,
+      conformanceEvidenceSpanIds: plan.atoms[0].evidenceSpanIds,
+      conformanceAssertions: plans[1].conformanceCriteria.map((criterion) => ({ criterion,
+        evidenceSpanIds: plan.atoms[0].evidenceSpanIds })),
+    })),
+  } };
+  await adapter.generate(retained);
+  await adapter.repair(retained);
+  for (const body of bodies.slice(4)) {
+    assert.equal(Object.hasOwn(inertModelPayload(body), "requiredRewritePassagePositions"), false);
+    assert.doesNotMatch(body.messages[0].content, /requiredRewritePassagePositions/u);
+  }
+  assert.equal(JSON.stringify(request), before);
+  assert.equal(adapter.completionCapacity().used, 6);
 });
 
 test("regeneration preserves authentic prior nonmaterial findings without stale plan or candidate data", async () => {
@@ -9758,6 +9818,8 @@ test("pipeline headers bind actual withheld lineage and cannot be forged or outl
   assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.structuralRetryReason), "retained-conformance");
   assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.committedRetainOverride), "present");
   const retainedDrafts = retained.bodies.filter(isCandidateBody);
+  assert.equal(Object.hasOwn(inertModelPayload(retainedDrafts[0]), "requiredRewritePassagePositions"), false);
+  assert.deepEqual(inertModelPayload(retainedDrafts[1]).requiredRewritePassagePositions, [0]);
   assert.equal(Object.hasOwn(inertModelPayload(retainedDrafts[0]), "regenerationFeedback"), false);
   assert.deepEqual(inertModelPayload(retainedDrafts[1]).regenerationFeedback,
     { retentionNotConfirmedPassagePositions: [0] });
@@ -9767,7 +9829,7 @@ test("pipeline headers bind actual withheld lineage and cannot be forged or outl
   assert.equal(inertModelPayload(retainedDrafts[1]).analysis[1][0][3], "rewrite");
   assert.deepEqual(retainedDrafts[1].response_format, { type: "json_object" });
   assert.equal(retainedDrafts[1].max_tokens, 800);
-  assert.doesNotMatch(JSON.stringify(retained.json), /retentionNotConfirmedPassagePositions|regenerationFeedback/u);
+  assert.doesNotMatch(JSON.stringify(retained.json), /retentionNotConfirmedPassagePositions|regenerationFeedback|requiredRewritePassagePositions/u);
   const source = LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1);
   for (const [expected, finalCandidateText, rejectFinal] of [
     ["material-form-equal", source.toLowerCase(), false],

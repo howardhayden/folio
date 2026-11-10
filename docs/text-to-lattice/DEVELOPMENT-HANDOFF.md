@@ -1,3 +1,23 @@
+# Text to Lattice — held rewrite-checklist correction, 2026-11-10
+
+**Qualified source set SHA-256:** `e94c529165b02bdef7f3626b556276d3eb44bd918e50712d1f92fba70cd0c779`
+
+**Qualification dossier SHA-256:** `722dc57d293c7f7800d8aa5cf1dd3ef2ea58bf1b1ebe8430a092c3ab5320a1ea`
+
+The compact-wire-v2 candidate and repair prompts now expose requiredRewritePassagePositions, derived from the current validated rewrite analysis joined to exact serialized source groups. The field and instruction are absent when no rewrite is required. Existing analysis tuples and authentic D26 regeneration feedback remain; earlier feedback was already present and its absence is not the cause established by run410. Retained-only compact and host-schema message bytes remain unchanged. This prospective salience correction does not establish a private provider cause, a reliable repair, managed token fit or hosted efficacy. Affected outbound bytes and input-token cost change, so near-cap admission may change under unchanged limits.
+
+GATE-02, GATE-03 and GATE-06 are open-release-blocker with null acceptance for this changed determining-runtime candidate. Exact historical run396 satisfaction, original source/dossier and receipts remain dated bounded evidence; unchanged narrow boundary subproofs may be reused only within their exact determining-input scope. They do not qualify the new request bytes. Fresh candidate backend boundary, capacity/usage and production qualification must precede any browser window. Canonical Safari and Brave lifecycle/network/reload and supported-browser evidence remain absent; local tests do not close a gate.
+
+Original run #410 / 42833716692 / attempt 1 on main da7c92989802602f5a5580e1ad2438e8d1a0a80b failed backend qualification. The final regenerated candidate matched its source exactly under D14 after retained-conformance retry; the initial deterministic result was clear, the committed retain override was present, six logical provider calls were used, and certification was not reached. Semantic-rejection is the normalized host result, not a retained private verifier verdict. No unique provider cause is established and no raw source/candidate/verdict was retained. Interactive Pages deployment was skipped; the last actual held Pages publication remains run #407. Automatic service API rollback was verified at 2026-11-10T14:29:25.597Z and failure-lane API enforcement at 14:29:58.236Z. Terminal Pages held 200 was observed at 14:35:16.513Z and the API held503 receipt at 14:35:16.717Z. These are dated witnesses, not continuous hold or new Pages deployment identity. Separate included-restore preparation refused before START/POST; its child only retained SUBPROCESS_REFUSED, while original in_progress count1/rows0 independently fails the unchanged strict predicate. No retry or successful included restore is claimed.
+
+U13-AFTER-RUN405-A2 is spent, 1 used and 0 remaining; A1 remains separately spent after its historical local prePOST refusal. Neither unit, metadata baseline nor refused restore preparation may be refunded, transferred or replayed. There was no native arm, app/source entry, consent, submission, capture, seal or hosted Firefox check. Both collectors were disposed cleanly, owned frontends closed, Safari temporary inspection restored OFF and ordinary owned blank profiles preserved; Firefox and personal windows were untouched. Standing through-deployment authority covers necessary reviewed continuation, but this candidate selects no operational unit, public window or final release.
+
+Next: validate and independently review this exact held candidate, deliver ordinary held source, and retain actual delivery evidence. A separately selected bounded backend qualification on the reviewed source is required before any browser window. Do not start a new window or replay spent A2 from this handoff. The nine affected qualified files include the prompt/root test, requirement, two publication switch files, held copy and three existing current-state/date fixture files. All other255 members remain exact. Refresh genuinely affected source imports after reviewed source is final; do not repeat unrelated native/raster controls or infer readiness from historical evidence.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice plain output correction — 2026-11-03
 
 **Qualified source set SHA-256:** `c614056a49d8315dac1b9bee2002980fd51e0fee61637f38f52a411a711ab7c5`

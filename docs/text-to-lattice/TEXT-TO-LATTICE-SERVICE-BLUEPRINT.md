@@ -1,6 +1,6 @@
 ---
 title: Text to Lattice service blueprint
-revision: 2026-11-02
+revision: 2026-11-10
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
