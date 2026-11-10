@@ -1,3 +1,25 @@
+# Text to Lattice — held negative-probe diagnostics, 2026-11-10
+
+**Qualified source set SHA-256:** `7d5dcd5fb1878822f1823fdcbe94e1b7055dff8c0a8bde2dcecdc0637faf102a`
+
+**Qualification dossier SHA-256:** `ec52759d4638a68d6beaa5e0f03117e55f2b414b65f1b31d9273654180e717fe`
+
+Run #416 / 42863703419 / attempt 1 on main 0376d6fa9e83d7458ec79d3b0e898c41884573f1 stopped at negative probe invalid-text-type: HTTP503 was observed where HTTP400 was required. The original closed source failure site is verifier-fail-L1068. Its response body was cancelled without inspection, so the serving component, response profile and cause are unknown. This differs from run413, which retained only a fetch rejection for request-byte-limit-plus-one at source L731. The exact content canary and rewrite checklist were not exercised in either attempt; provider reach and billing are not established by those finite failures. The local three-request workerd comparison after413 returned setup204, exact-limit400 and plus-one413 with zero outbound/provider/admission claims, and did not reproduce the hosted fetch failure. It establishes no fix or hosted transport guarantee.
+
+Run416 automatic service rollback observed three held API samples at 2026-11-10T17:24:15.409Z; failure-lane enforcement observed held Pages at 17:24:28.763Z and three held API samples at 17:24:45.537Z. These are dated witnesses, not continuous hold. No conditional provider-free restore was needed or selected. REWRITE-CHECKLIST-API-ONLY-A2 is spent, one used and zero remaining; A1 and earlier units remain spent. No browser window, native source entry, consent, submission or capture was selected by these API-only units. No successful live, usage or deployment-index evidence is produced by these failed runs.
+
+The production verifier now appends a closed v1 diagnostic only after an existing negative-probe fetch failure or unexpected HTTP status. It captures only allowlisted own-data transport codes from the thrown value or one own-data cause; unknowns remain unclassified. HTTP status is captured once and restricted to the native numeric domain. Only a plausible API JSON503 mismatch is read, at most4096 bytes,128 reads and1000ms, also bounded by the original request signal. Existing strict held/header/envelope and closed admission parsers classify the bounded observation. held-profile means only a matching response profile, not authenticated component attribution. Other mismatches remain other or unclassified. Read, parse, accessor and cancellation failures never replace the original closed failure. There are no extra requests, retries or probes and no raw error, stack, URL, header, body, source, candidate, cookie or token in the diagnostic.
+
+Expected statuses, request bytes/order/timeouts, canary, Worker behavior, prompt/checklist, fixed models/providers, semantic/materiality acceptance, quota/admission limits, public responses and held UI are unchanged. This is an observability change, not an API/runtime fix, a cause finding or a promise that qualification will pass. Existing determining inputs may reuse their exact prior evidence; the changed verifier belongs to the new source set. GATE-02, GATE-03 and GATE-06 remain open-release-blocker with null acceptance, and every other gate/status/acceptance remains exact. No new operational unit or final release is selected. A reviewed bounded backend qualification must precede browser qualification.
+
+Next: complete independent source and affected-check review, preserve the private finite-collector predecessor, and deliver the exact held successor through required CI. Root selects any later finite backend unit under the standing deployment instruction only after reviewed held delivery and genuine current prerequisites; no new unit is selected here. Backend qualification precedes browser preparation. Do not replay either spent API-only unit or infer a fix, provider cause, browser pass or public activation from this source change.
+
+Retained private evidence: `work/evidence/nov10-run416-classified-terminal-root-outcome.json`, SHA-256 `d918f29352e8c17ad46954d659d1f0357fcd0ce8f409372135167798eec36f04`, with independent review `fb013721cb726641a286f45271fb53e8c0d12a01ed6e61709912ce7af73b8865`. These identifiers locate sanitized evidence; no raw log/response was retained or added to the repository.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice — backend transport diagnosis, 2026-11-10
 
 The API and interactive UI remain held. GATE-02, GATE-03 and GATE-06 remain open with null acceptance. Continue through deployment under the owner's standing authority after the required evidence passes; this checkpoint itself selects no paid qualification or browser window.

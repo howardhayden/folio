@@ -1,3 +1,46 @@
+# Text to Lattice release qualification — held negative-probe diagnostics
+
+**Decision:** hold the interactive client; publish documentation only. This revision adds bounded failure observations and does not establish a runtime fix or passed qualification.
+
+**Qualification date:** 2026-11-10
+
+**Evidence updated:** 2026-11-10
+
+**Reviewed baseline:** `0376d6fa9e83d7458ec79d3b0e898c41884573f1`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `7d5dcd5fb1878822f1823fdcbe94e1b7055dff8c0a8bde2dcecdc0637faf102a`
+
+**Artifact-set projection SHA-256:** `d3747d298598f952ac3a454882f7f8492307102dad5243bc407120f33646c2f7`
+
+The source-set label identifies the complete scope; it is not a success claim. Run416 retains source `e94c529165b02bdef7f3626b556276d3eb44bd918e50712d1f92fba70cd0c779` and dossier `722dc57d293c7f7800d8aa5cf1dd3ef2ea58bf1b1ebe8430a092c3ab5320a1ea`. All prior originals retain their original identities.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Open release blocker | High |
+| GATE-03 · Remote provider capacity and cost boundary | Open release blocker | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+Run #416 / 42863703419 / attempt 1 on main 0376d6fa9e83d7458ec79d3b0e898c41884573f1 stopped at negative probe invalid-text-type: HTTP503 was observed where HTTP400 was required. The original closed source failure site is verifier-fail-L1068. Its response body was cancelled without inspection, so the serving component, response profile and cause are unknown. This differs from run413, which retained only a fetch rejection for request-byte-limit-plus-one at source L731. The exact content canary and rewrite checklist were not exercised in either attempt; provider reach and billing are not established by those finite failures. The local three-request workerd comparison after413 returned setup204, exact-limit400 and plus-one413 with zero outbound/provider/admission claims, and did not reproduce the hosted fetch failure. It establishes no fix or hosted transport guarantee.
+
+Run416 automatic service rollback observed three held API samples at 2026-11-10T17:24:15.409Z; failure-lane enforcement observed held Pages at 17:24:28.763Z and three held API samples at 17:24:45.537Z. These are dated witnesses, not continuous hold. No conditional provider-free restore was needed or selected. REWRITE-CHECKLIST-API-ONLY-A2 is spent, one used and zero remaining; A1 and earlier units remain spent. No browser window, native source entry, consent, submission or capture was selected by these API-only units. No successful live, usage or deployment-index evidence is produced by these failed runs.
+
+The production verifier now appends a closed v1 diagnostic only after an existing negative-probe fetch failure or unexpected HTTP status. It captures only allowlisted own-data transport codes from the thrown value or one own-data cause; unknowns remain unclassified. HTTP status is captured once and restricted to the native numeric domain. Only a plausible API JSON503 mismatch is read, at most4096 bytes,128 reads and1000ms, also bounded by the original request signal. Existing strict held/header/envelope and closed admission parsers classify the bounded observation. held-profile means only a matching response profile, not authenticated component attribution. Other mismatches remain other or unclassified. Read, parse, accessor and cancellation failures never replace the original closed failure. There are no extra requests, retries or probes and no raw error, stack, URL, header, body, source, candidate, cookie or token in the diagnostic.
+
+Expected statuses, request bytes/order/timeouts, canary, Worker behavior, prompt/checklist, fixed models/providers, semantic/materiality acceptance, quota/admission limits, public responses and held UI are unchanged. This is an observability change, not an API/runtime fix, a cause finding or a promise that qualification will pass. Existing determining inputs may reuse their exact prior evidence; the changed verifier belongs to the new source set. GATE-02, GATE-03 and GATE-06 remain open-release-blocker with null acceptance, and every other gate/status/acceptance remains exact. No new operational unit or final release is selected. A reviewed bounded backend qualification must precede browser qualification.
+
+The affected production-verifier suite passed462 tests. Validation also requires the directly affected source/release/documentation checks and required PR CI. The unchanged Worker, model, prompt and UI determining inputs retain their bounded existing evidence; a duplicate full local test run or new native controls are not part of this diagnostic change. Three qualified members change: the verifier, its focused test file and the requirement above; the other261 remain byte-identical. Register, dossier, atlas, handoff and existing generated mirrors are source-excluded governance outputs. Historical finite collectors remain immutable; any later diagnostic collection must use the reviewed successor source binding.
+
+The complete preceding dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — held rewrite-checklist correction
 
 **Decision:** hold the interactive client; publish documentation only. This prospective prompt correction remains unqualified.

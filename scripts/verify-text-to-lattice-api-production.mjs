@@ -716,8 +716,128 @@ function unableCanaryClass(result) {
   return UNABLE_CANARY_CLASSES.get(firstId) ?? "unclassified-unable";
 }
 
-async function fetchOnce(fetchImpl, url, init, timeoutMs, label) {
+const NEGATIVE_FAILURE_READ_TIMEOUT_MS = 1_000;
+const NEGATIVE_FAILURE_READ_LIMIT = 128;
+const NEGATIVE_FAILURE_TRANSPORT_CODES = new Set([
+  "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EAI_AGAIN", "ENOTFOUND",
+  "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_SOCKET", "UND_ERR_ABORTED", "ABORT_ERR",
+]);
+const NEGATIVE_RESPONSE_CONTEXT = new WeakMap();
+
+function ownDiagnosticValue(value, key) {
+  try {
+    if (value === null || typeof value !== "object") return undefined;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
+  } catch { return undefined; }
+}
+
+function negativeTransportCode(error) {
+  const codes = [ownDiagnosticValue(error, "code"),
+    ownDiagnosticValue(ownDiagnosticValue(error, "cause"), "code")]
+    .filter((value) => typeof value === "string" && NEGATIVE_FAILURE_TRANSPORT_CODES.has(value));
+  return codes.length > 0 && codes.every((code) => code === codes[0]) ? codes[0] : "unclassified";
+}
+
+function negativeFailureAdmission(headers) {
+  try {
+    const observation = parseLatticeQualificationAdmissionHeaders(headers);
+    return observation ?? { status: "absent", claim: "none", order: "none", provider: "none" };
+  } catch { return { status: "invalid", claim: "none", order: "none", provider: "none" }; }
+}
+
+function negativeFailureSuffix({
+  transportCode = "not-applicable", responseClass = "not-observed", bodyRead = "not-attempted",
+  admission = { status: "not-observed", claim: "none", order: "none", provider: "none" },
+} = {}) {
+  return `; negative_probe_diagnostic=v1; transport_code=${transportCode}; response_class=${responseClass}`
+    + `; body_read=${bodyRead}; admission_status=${admission.status}; admission_claim=${admission.claim}`
+    + `; admission_order=${admission.order}; admission_provider=${admission.provider}`;
+}
+
+function cancelDiagnosticBody(body) {
+  try { void Promise.resolve(body?.cancel()).catch(() => {}); } catch { /* Failure already established. */ }
+}
+
+async function negativeFailureBytes(response, signal) {
+  let reader;
+  let timer;
+  let abort;
+  try {
+    const length = response.headers.get("content-length");
+    if (length !== null && !/^\d+$/u.test(length)) return { state: "invalid-length" };
+    if (length !== null && Number(length) > ERROR_RESPONSE_LIMIT) return { state: "too-large" };
+    if (signal?.aborted) return { state: "timeout" };
+    if (!response.body) return { state: "complete", bytes: new Uint8Array() };
+    reader = response.body.getReader();
+    const deadline = new Promise((resolveDeadline) => {
+      abort = () => resolveDeadline({ state: "timeout" });
+      timer = setTimeout(abort, NEGATIVE_FAILURE_READ_TIMEOUT_MS);
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+    });
+    const read = (async () => {
+      try {
+        const chunks = [];
+        let total = 0;
+        let reads = 0;
+        while (true) {
+          if (reads >= NEGATIVE_FAILURE_READ_LIMIT) return { state: "read-limit" };
+          reads += 1;
+          const part = await reader.read();
+          if (part.done) break;
+          if (!(part.value instanceof Uint8Array)) return { state: "read-failed" };
+          total += part.value.byteLength;
+          if (total > ERROR_RESPONSE_LIMIT) return { state: "too-large" };
+          chunks.push(part.value);
+        }
+        const bytes = new Uint8Array(total);
+        let offset = 0;
+        for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+        return { state: "complete", bytes };
+      } catch { return { state: signal?.aborted ? "timeout" : "read-failed" }; }
+    })();
+    return await Promise.race([read, deadline]);
+  } catch { return { state: "read-failed" }; }
+  finally {
+    clearTimeout(timer);
+    if (abort) signal?.removeEventListener("abort", abort);
+    if (reader) {
+      cancelDiagnosticBody(reader);
+      try { reader.releaseLock(); } catch { /* No diagnostic error can replace the original failure. */ }
+    } else cancelDiagnosticBody(response.body);
+  }
+}
+
+async function negativeHttpFailureSuffix(response, probe, status) {
+  let admission = { status: "not-observed", claim: "none", order: "none", provider: "none" };
+  let bodyRead = "not-attempted";
+  let responseClass = "unclassified";
+  try {
+    admission = negativeFailureAdmission(response.headers);
+    if (probe.apiJson === false || status !== 503
+      || response.headers.get("content-type")?.toLowerCase() !== "application/json; charset=utf-8") {
+      responseClass = "other";
+    } else {
+      const read = await negativeFailureBytes(response, NEGATIVE_RESPONSE_CONTEXT.get(response)?.signal);
+      bodyRead = read.state;
+      if (read.state === "complete") {
+        responseClass = "other";
+        // Reuse the existing strict held/header/envelope predicate on only the bounded bytes.
+        const profile = new Response(read.bytes, { status, headers: response.headers });
+        if (await inspectApiReadinessResponse(profile, "negative-probe held profile") === "held"
+          && admission.status === "absent") responseClass = "held-profile";
+      }
+    }
+  } catch { /* Preserve the already-observed failure, never a diagnostic parse error. */ }
+  finally { cancelDiagnosticBody(response.body); }
+  return negativeFailureSuffix({ responseClass, bodyRead, admission });
+}
+
+async function fetchOnce(fetchImpl, url, init, timeoutMs, label, negativeProbe = null) {
   let response;
+  const signal = AbortSignal.timeout(timeoutMs);
   try {
     response = await fetchImpl(url, {
       ...init,
@@ -725,12 +845,23 @@ async function fetchOnce(fetchImpl, url, init, timeoutMs, label) {
       credentials: "omit",
       redirect: "error",
       referrerPolicy: "no-referrer",
-      signal: AbortSignal.timeout(timeoutMs),
+      signal,
     });
-  } catch {
-    fail(`${label} could not reach the deployed boundary`);
+  } catch (error) {
+    const diagnostic = NEGATIVE_PROBES.includes(negativeProbe)
+      ? negativeFailureSuffix({ transportCode: negativeTransportCode(error) }) : "";
+    fail(`${label} could not reach the deployed boundary${diagnostic}`);
   }
-  if (!(response instanceof Response)) fail(`${label} returned an invalid response`);
+  const negative = NEGATIVE_PROBES.includes(negativeProbe);
+  let status;
+  if (negative && response instanceof Response) {
+    try { status = response.status; } catch { /* Invalid injected response; never reflect its getter error. */ }
+  }
+  if (!(response instanceof Response)
+    || (negative && !(status === 0 || (Number.isInteger(status) && status >= 100 && status <= 599)))) {
+    fail(`${label} returned an invalid response`);
+  }
+  if (negative) NEGATIVE_RESPONSE_CONTEXT.set(response, Object.freeze({ signal, status }));
   return response;
 }
 
@@ -1062,10 +1193,13 @@ async function verifyNegativeProbes(origin, fetchImpl, monotonicNow, visitorCook
       covered ? qualificationObservationPost(requestInit) : requestInit,
       NEGATIVE_PROBE_TIMEOUT_MS,
       label,
+      probe,
     );
-    if (response.status !== probe.status) {
-      await response.body?.cancel().catch(() => {});
-      fail(`${label} returned HTTP ${response.status}; expected ${probe.status}`);
+    const status = NEGATIVE_RESPONSE_CONTEXT.get(response).status;
+    if (status !== probe.status) {
+      const diagnostic = await negativeHttpFailureSuffix(response, probe, status)
+        .catch(() => negativeFailureSuffix({ responseClass: "unclassified" }));
+      fail(`${label} returned HTTP ${status}; expected ${probe.status}${diagnostic}`);
     }
     if (probe.apiJson === false) {
       const bytes = await boundedBytes(response, PAGE_RESPONSE_LIMIT, label);
