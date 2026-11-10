@@ -157,7 +157,10 @@ export function withheldTraceIsConsistent(trace) {
     || ["none", "multiple"].includes(trace.validationCategory)
     || trace.priorValidationCategory === "multiple"
     || (trace.attempt === "1" && trace.priorValidationCategory !== "none")
-    || (trace.attempt === "2" && trace.priorValidationCategory === "none")
+    || (trace.attempt === "2" && trace.priorValidationCategory === "none"
+      && !(trace.stage === "regeneration" && trace.failureCause === "host-validation"
+        && trace.priorRejectionBoundary === "none" && trace.priorRejectionCategory === "none"
+        && trace.priorRejectionRule === "none"))
     || (trace.failureCause === "host-validation" && trace.attempt === "1"
       && !["document-window-certification", "document-relation-certification"].includes(trace.stage))
     || (["context-capacity", "output-limit"].includes(trace.failureCause)
@@ -202,6 +205,10 @@ export function isClosedWithheldTrace(trace) {
 // checks only implications established by the two complete observations.
 export function withheldPipelineTraceIsConsistent(observation, trace) {
   if (!isClosedWithheldPipelineObservation(observation) || !isClosedWithheldTrace(trace)) return false;
+  if (trace.attempt === "2" && trace.priorValidationCategory === "none"
+    && (observation.initialRetainedPlan !== "present"
+      || observation.committedRetainOverride !== "present"
+      || !["regeneration", "mixed"].includes(observation.retryPath))) return false;
   if (observation.finalD14Comparison !== "not-applicable" && trace.deterministic !== "blocked") return false;
   if (trace.firstDeterministicRule === "D14" && observation.finalD14Comparison === "not-applicable") return false;
   return true;

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   carryLatticeRegenerationRetentionContext,
   getLatticeRegenerationRetentionPositions,
+  getLatticeRegenerationExactSourceCorrectionPositions,
   withLatticeRegenerationRetentionContext,
 } from "../app/resume/lattice/regenerationContext.js";
 
@@ -121,4 +122,22 @@ test("D26 context is revoked after either synchronous or asynchronous generation
     }), (error) => error === failure);
     assert.deepEqual(positions(f.request), []);assert.deepEqual(positions(carried), []);
   });
+});
+
+test("exact-source correction positions are scoped to the active retained rewrite and revoked with aliases", async () => {
+  const f = fixture(); let alias;
+  const supplied = Object.freeze([0]);
+  const own = Object.freeze({ ...f.request, exactSourceCopyPassagePositions: supplied });
+  assert.deepEqual(getLatticeRegenerationExactSourceCorrectionPositions(own), []);
+  await withLatticeRegenerationRetentionContext(f.request, f.batch, f.verification, f.analysis, () => {
+    assert.deepEqual(getLatticeRegenerationExactSourceCorrectionPositions(f.request), [0]);
+    assert.deepEqual(getLatticeRegenerationExactSourceCorrectionPositions(Object.freeze({ ...f.request })), []);
+    alias = carryLatticeRegenerationRetentionContext(f.request, Object.freeze({ ...f.request }));
+    assert.deepEqual(getLatticeRegenerationExactSourceCorrectionPositions(alias), [0]);
+  }, supplied);
+  assert.deepEqual(getLatticeRegenerationExactSourceCorrectionPositions(alias), []);
+  for (const wrong of [[0], Object.freeze([1]), Object.freeze([0, 0]), Object.freeze(["0"])]) {
+    await withLatticeRegenerationRetentionContext(f.request, f.batch, f.verification, f.analysis,
+      () => assert.deepEqual(getLatticeRegenerationExactSourceCorrectionPositions(f.request), []), wrong);
+  }
 });

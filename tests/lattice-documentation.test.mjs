@@ -122,8 +122,8 @@ test("the atlas models the exact current remote phase without promoting historic
     releaseRegister.gates.map(({ id, status }) => [id, status]),
     [
       ["GATE-01", "release-workflow-enforced"],
-      ["GATE-02", "satisfied-in-production"],
-      ["GATE-03", "satisfied-in-production"],
+      ["GATE-02", "open-release-blocker"],
+      ["GATE-03", "open-release-blocker"],
       ["GATE-04A", "accepted-residual-risk"],
       ["GATE-04B", "historical-inactive"],
       ["GATE-04C", "historical-inactive"],

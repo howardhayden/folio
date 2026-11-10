@@ -1489,24 +1489,24 @@ function stageFailureFinding(finding, error) {
   return frozen;
 }
 
-function stageDiagnosticRequest(request, stage, attempt, lastError, analysisOrigin) {
+function stageDiagnosticRequest(request, stage, attempt, lastError, analysisOrigin, semanticCorrection = false) {
   if (![1, 2].includes(attempt)
     || (analysisOrigin !== null && !ANALYSIS_DIAGNOSTIC_ORIGIN_SET.has(analysisOrigin))) {
     throw new TypeError("Text to Lattice received invalid stage diagnostic context.");
   }
-  const priorValidationCategory = attempt === 1
+  const priorValidationCategory = attempt === 1 || semanticCorrection
     ? "none"
     : analysisValidationCategory(lastError);
   const currentRequest = {
     ...request,
-    ...(attempt === 1 ? {} : {
+    ...(attempt === 1 || semanticCorrection ? {} : {
       protocolFeedback: Object.freeze({
         ...stageFeedback(stage, lastError, attempt),
         ...(analysisOrigin === null ? {} : { category: priorValidationCategory }),
       }),
     }),
   };
-  Object.defineProperty(currentRequest, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
+  if (!semanticCorrection) Object.defineProperty(currentRequest, LATTICE_STAGE_DIAGNOSTIC_CONTEXT, {
     configurable: false,
     enumerable: false,
     writable: false,
@@ -1528,7 +1528,7 @@ function stageDiagnosticRequest(request, stage, attempt, lastError, analysisOrig
     });
   }
   const frozenRequest = Object.freeze(currentRequest);
-  if (attempt > 1) rememberStageCorrectionRequest(frozenRequest, lastError);
+  if (attempt > 1 && !semanticCorrection) rememberStageCorrectionRequest(frozenRequest, lastError);
   return frozenRequest;
 }
 
@@ -1541,6 +1541,30 @@ function stageFeedback(stage, error, attempt) {
   });
 }
 
+// This receives only the engine's normalized regeneration result and committed
+// source/review/plan. Qualification observations never select this opportunity.
+function exactSourceRegenerationCorrectionPositions(request, candidate, retainedOverrideIds) {
+  if (request.regenerationFromReanalysis !== true
+    || request.verification?.available !== true
+    || request.verification.gates.languageSupported !== true) return Object.freeze([]);
+  const findings = deterministicBatchReview(request.batch, request.analysis, candidate);
+  if (findings.length === 0
+    || findings.some(({ id }) => id !== "candidate-not-material")) return Object.freeze([]);
+  const affected = new Set(findings.map(({ passageId }) => passageId));
+  const positions = [];
+  for (const [position, source] of request.batch.passages.entries()) {
+    if (!affected.has(source.id)) continue;
+    const plan = request.analysis.passages.find(({ passageId }) => passageId === source.id);
+    const prior = request.verification.passages.find(({ passageId }) => passageId === source.id);
+    const output = candidate.passages.find(({ passageId }) => passageId === source.id);
+    if (!retainedOverrideIds.includes(source.id)
+      || plan?.disposition !== "rewrite" || prior?.requiresPositiveConformance !== true
+      || prior.conformanceConfirmed !== false || output?.text !== source.text) return Object.freeze([]);
+    positions.push(position);
+  }
+  return Object.freeze(positions.length === affected.size ? positions : []);
+}
+
 async function callNormalizedStage({
   stage,
   request,
@@ -1550,9 +1574,14 @@ async function callNormalizedStage({
   attempts = 2,
   analysisDiagnosticOrigin = null,
   pipelineObservation = null,
+  onRegenerationCorrectionFailure = null,
+  regenerationRetainOverrideIds = Object.freeze([]),
+  allowExactSourceRegenerationCorrection = false,
 }) {
   let lastError = null;
   let firstError = null;
+  let copiedRegeneration = null;
+  let exactSourceCorrectionPositions = Object.freeze([]);
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     throwIfAborted(signal);
     const currentRequest = stageDiagnosticRequest(
@@ -1561,18 +1590,18 @@ async function callNormalizedStage({
       attempt,
       lastError,
       analysisDiagnosticOrigin,
+      copiedRegeneration !== null,
     );
+    let normalizationFailed = false;
     try {
       const raw = attempt === 2 && ["verification", "reverification"].includes(stage)
         ? await withLatticeVerificationCorrection(currentRequest, lastError, () => invoke(currentRequest))
-        : await invoke(currentRequest);
+        : await invoke(currentRequest, exactSourceCorrectionPositions);
+      let normalized;
       try {
-        const normalized = await normalize(raw, currentRequest);
-        // Protocol recovery is independent of semantic acceptance and final
-        // candidate lineage. Failed corrections never reach this point.
-        if (attempt === 2) pipelineObservation?.successfulCorrectionStages.add(stage);
-        return normalized;
+        normalized = await normalize(raw, currentRequest);
       } catch (error) {
+        normalizationFailed = true;
         // This catch surrounds normalization only. Decoder observations are
         // identity-bound; their absence never establishes successful decoding.
         try {
@@ -1586,6 +1615,20 @@ async function callNormalizedStage({
         }
         throw error;
       }
+      if (allowExactSourceRegenerationCorrection === true
+        && stage === "regeneration" && attempt === 1 && attempts > 1) {
+        exactSourceCorrectionPositions = exactSourceRegenerationCorrectionPositions(
+          request, normalized, regenerationRetainOverrideIds,
+        );
+        if (exactSourceCorrectionPositions.length > 0) {
+          copiedRegeneration = normalized;
+          continue;
+        }
+      }
+      // Protocol recovery is independent of semantic acceptance and final
+      // candidate lineage. Semantic correction does not establish protocol repair.
+      if (attempt === 2 && copiedRegeneration === null) pipelineObservation?.successfulCorrectionStages.add(stage);
+      return normalized;
     } catch (error) {
       throwIfAborted(signal);
       const priorValidationCategory = attempt === 1 || firstError === null
@@ -1618,6 +1661,14 @@ async function callNormalizedStage({
       }
       if (!retryableStageFailure(error)) {
         rememberStageFailureDiagnostic(error, stage, attempt, firstError);
+        throw error;
+      }
+      if (copiedRegeneration !== null) {
+        rememberStageFailureDiagnostic(error, stage, attempt, null);
+        if (normalizationFailed && error?.code !== "lattice-output-length") {
+          onRegenerationCorrectionFailure?.(error);
+          return copiedRegeneration;
+        }
         throw error;
       }
       if (firstError === null) firstError = error;
@@ -3807,6 +3858,7 @@ export async function runTextToLattice(value, options = {}) {
   ));
   const retryNotes = [];
   const reanalyzedByBatch = new Map();
+  const retainedOverrideIdsByBatch = new Map();
 
   for (let index = 0; index < structurallyFailed.length; index += 1) {
     const entry = structurallyFailed[index];
@@ -3860,8 +3912,10 @@ export async function runTextToLattice(value, options = {}) {
         ))
         .map((passage) => passage.passageId));
       let retainOverridden = false;
+      const retainedOverrideIds = [];
       const retainOverride = (passage) => {
         retainOverridden = true;
+        retainedOverrideIds.push(passage.passageId);
         return Object.freeze({
           ...passage,
           disposition: "rewrite",
@@ -3882,6 +3936,7 @@ export async function runTextToLattice(value, options = {}) {
           ))),
         });
       pipelineObservation?.reanalysisOverrides.set(analysis, retainOverridden);
+      retainedOverrideIdsByBatch.set(entry.batch.id, Object.freeze(retainedOverrideIds));
       reanalyzedByBatch.set(entry.batch.id, Object.freeze({ ...request, analysis }));
     } catch (error) {
       throwIfAborted(signal);
@@ -3934,14 +3989,22 @@ export async function runTextToLattice(value, options = {}) {
         stage,
         pipelineObservation,
         request: retryRequest,
-        invoke: (currentRequest) => reanalyzedByBatch.has(original.batch.id)
+        invoke: (currentRequest, correctionPositions) => reanalyzedByBatch.has(original.batch.id)
           ? withLatticeRegenerationRetentionContext(
             currentRequest, original.batch, original.verification, replacementAnalysis,
             () => options.adapter.generate(currentRequest),
+            correctionPositions,
           )
           : options.adapter.repair(currentRequest),
         normalize: (raw) => normalizeCandidate(raw, original.batch, replacementAnalysis),
         signal,
+        regenerationRetainOverrideIds: retainedOverrideIdsByBatch.get(original.batch.id),
+        allowExactSourceRegenerationCorrection: options.allowExactSourceRegenerationCorrection === true,
+        onRegenerationCorrectionFailure: (error) => retryNotes.push(stageFailureFinding({
+          id: "regeneration-correction-unavailable", passageId: original.batch.passages[0]?.id ?? "",
+          atomIds: Object.freeze([]),
+          message: "The bounded source-copy correction did not produce a valid draft; the copied regeneration remains withheld.",
+        }, error)),
       });
       const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate, pipelineObservation !== null);
       pipelineObservation?.candidateLineages.set(candidate, stage);
