@@ -1139,7 +1139,10 @@ test("uses foreground background-gradient static for SVGs, colored text, and Tea
   assert.match(resume, /teaching-manifest-percent">20(?:<!-- -->)?%/u);
   assert.match(resume, /teaching-manifest-percent">34(?:<!-- -->)?%/u);
   assert.match(resume, /teaching-manifest-percent">46(?:<!-- -->)?%/u);
-  assert.equal((resume.match(/class="teaching-manifest-caret"/gu) ?? []).length, 3);
+  // Text to Lattice also uses this bar; count the three TA courses in their own figure.
+  const teachingManifests = [...resumeDocument.matchAll(/<figure class="teaching-manifest"[^>]*>[\s\S]*?<\/figure>/gu)];
+  assert.equal(teachingManifests.length, 1);
+  assert.equal((teachingManifests[0][0].match(/class="teaching-manifest-caret"/gu) ?? []).length, 3);
   assert.doesNotMatch(resumeExperience, /circular-chart|circle-[123]|ChorusFilm/u);
 
   for (const html of [home, resume, tools]) {
@@ -1974,10 +1977,10 @@ test("retains the bounded and accessible Text to Lattice dialog contract", async
   assert.match(css, /\.lattice-output \{[^}]*-webkit-user-select: none;/u);
   assert.match(css, /\.lattice-output \{[^}]*\n\s*user-select: none;/u);
   assert.match(css, /\.lattice-output \{[^}]*-webkit-touch-callout: none;/u);
-  assert.match(css, /\.lattice-output \{[^}]*background: whitesmoke;[^}]*border-left: 3px solid #0b4705;[^}]*box-shadow: none;[^}]*text-align: left;/u);
-  assert.match(css, /\.lattice-output-veil \{[\s\S]*?pointer-events: none/u);
+  assert.match(css, /\.lattice-output \{[^}]*background: transparent;[^}]*border-left: 3px solid #0b4705;[^}]*box-shadow: none;[^}]*text-align: left;/u);
+  assert.doesNotMatch(source, /lattice-output-veil/u);
+  assert.doesNotMatch(css, /lattice-output-veil/u);
   assert.match(css, /@media print \{[\s\S]*?\.lattice-output \{[\s\S]*?display: none !important/u);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.lattice-output-veil \{[\s\S]*?animation: none/u);
   assert.match(source, /window\.addEventListener\("blur", shield\)/u);
   assert.match(source, /document\.addEventListener\("visibilitychange", handleVisibility\)/u);
 

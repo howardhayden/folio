@@ -191,10 +191,6 @@ svg:not(.background-static-defs) {
     border-left-color: Highlight !important;
   }
 
-  .lattice-output-veil {
-    display: none;
-  }
-
   .background-gradient-green-blue {
     background: CanvasText !important;
     color: Canvas !important;
@@ -2374,8 +2370,11 @@ small.lattice-disclosure-content {
   color: #0b4705;
   display: grid;
   font-size: .875rem;
-  gap: .4rem;
-  margin: 1rem 0 1.5rem;
+  gap: .25rem;
+  margin: 1rem 0 0;
+}
+.lattice-progress .teaching-manifest-track {
+  margin: 0;
 }
 .lattice-service-view {
   margin-top: 1.5rem;
@@ -2429,12 +2428,12 @@ small.lattice-disclosure-content {
   height: 132px;
 }
 .lattice-output {
-  background: whitesmoke;
+  background: transparent;
   border-left: 3px solid #0b4705;
   border-radius: 0 .25rem .25rem 0;
   box-shadow: none;
   line-height: 1.6;
-  margin-top: 2rem;
+  margin-top: .5rem;
   min-height: 8rem;
   overflow-wrap: anywhere;
   padding: 1.25rem;
@@ -2482,33 +2481,6 @@ small.lattice-disclosure-content {
   overflow: hidden;
   position: relative;
 }
-.lattice-output-veil {
-  animation: lattice-output-veil-shift 8s steps(7, end) infinite;
-  background-image:
-    repeating-linear-gradient(17deg, transparent 0 1.15rem, rgb(11 71 5 / 13%) 1.2rem 1.25rem, transparent 1.3rem 2.7rem),
-    repeating-linear-gradient(107deg, transparent 0 2.1rem, rgb(149 15 34 / 9%) 2.15rem 2.22rem, transparent 2.27rem 4.4rem);
-  inset: -.75rem;
-  mix-blend-mode: multiply;
-  pointer-events: none;
-  position: absolute;
-  transform: translate3d(0, 0, 0);
-  z-index: 2;
-}
-.lattice-output-veil::after {
-  color: rgb(11 71 5 / 14%);
-  content: "HAH.DEV  TEXT TO LATTICE  RESULT  HAH.DEV  TEXT TO LATTICE  RESULT";
-  font-size: clamp(.72rem, 2vw, 1rem);
-  font-weight: 700;
-  inset: 18% -12%;
-  letter-spacing: .22em;
-  line-height: 4.5;
-  overflow: hidden;
-  position: absolute;
-  text-align: center;
-  transform: rotate(-11deg);
-  white-space: normal;
-  word-spacing: 1.5rem;
-}
 .lattice-output-privacy-curtain {
   display: none;
 }
@@ -2527,11 +2499,6 @@ small.lattice-disclosure-content {
   text-align: center;
   visibility: visible;
   z-index: 10;
-}
-@keyframes lattice-output-veil-shift {
-  0% { background-position: 0 0, 0 0; }
-  50% { background-position: 2.3rem 1.1rem, -1.7rem 2.2rem; }
-  100% { background-position: 4.6rem 2.2rem, -3.4rem 4.4rem; }
 }
 .lattice-output-note,
 .lattice-output-placeholder {
@@ -2641,9 +2608,6 @@ small.lattice-disclosure-content {
     transition: none;
   }
 
-  .lattice-output-veil {
-    animation: none;
-  }
 }
 .stack-icon svg,
 .tool-icon svg,
