@@ -1,3 +1,27 @@
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-10
+
+**Evidence updated:** 2026-11-10
+
+**Reviewed baseline:** `3c170db47d86a2dede0d23dc629af15880a98f9b`
+
+**Prior unmerged Q commit:** `bce763a7d309a4cd8defc5478c0acb9a994d5091`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `92697a5a0e534c974ecbc81b976ecef3b1a7c2260d11ec10c6d734b263e7ae44`
+
+**Artifact-set projection SHA-256:** `21be06880b4abd4c6855fe3ab9938ff98ab6dcc014a8be7ca11fa9d62159403e`
+
+CI [run #423](https://github.com/howardhayden/folio/actions/runs/42893104835) retained 2,717 passing tests, one failing test and 16 skips. The final-source deadline fixture rejected after zero synthetic GETs where it required 14. The job did not isolate which elapsed-time path triggered the deadline. The reviewed correction freezes only the fixture's injected monotonic time and Node timer until the second source verification is pending after all 14 GETs. It then advances exactly 500 ms and still requires deadline rejection. The affected context suite passed all 62 tests locally.
+
+This successor adds one qualified test-file change to the prior six changes relative to held parent `3c170db47d86a2dede0d23dc629af15880a98f9b`. Production observers, Worker behavior, prompts, models, limits, requests and acceptance predicates retain their prior bytes. Run #422 remains the same bounded backend witness with its original source and deployment identities. GATE-02 and GATE-03 remain satisfied in production with null acceptance bases. GATE-06 remains in post-deployment verification with null acceptance and no browser evidence. The source remains qualification-pending and is not qualified. Canonical-browser qualification still requires its separate guarded window and immediate held documentation-only rollback if evidence is missing or fails. Required source checks and CI govern delivery.
+
+The complete prior unmerged Q dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending after bounded backend qualification 422
 
 **Qualification date:** 2026-11-10

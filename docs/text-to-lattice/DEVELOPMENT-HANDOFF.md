@@ -1,3 +1,13 @@
+# CI 423 fixture correction and browser qualification preparation — 2026-11-10
+
+The retained CI 423 failure occurred before the final-source deadline test reached its required 14 synthetic GETs. The reviewed test-only correction holds its simulated clock until the second source verification is pending, then advances the unchanged 500 ms deadline and requires rejection. All 62 tests in the affected context suite passed locally. The original CI result and prior Q commit `bce763a7d309a4cd8defc5478c0acb9a994d5091` remain retained.
+
+The successor qualified source is `92697a5a0e534c974ecbc81b976ecef3b1a7c2260d11ec10c6d734b263e7ae44` and its dossier is `22c58f93a3f47ae5023454ae2656acccfd03bb9f3fba04eb4cc6aa054a5ef536`. This is one additional qualified test change, seven in total relative to held parent `3c170db47d86a2dede0d23dc629af15880a98f9b`. Run 422 remains the original bounded backend evidence. No production observer, Worker, provider, model, quota, request or acceptance behavior changes. Source remains qualification-pending with GATE-06 unresolved. Required CI, guarded native Safari and Brave evidence, and hosted Firefox input checks remain before release.
+
+The complete previous handoff follows verbatim.
+
+---
+
 # Backend qualification 422 and canonical browser preparation — 2026-11-10
 
 Bounded backend qualification #422, attempt 1, passed on main 3c170db47d86a2dede0d23dc629af15880a98f9b / deployed source 7d5dcd5fb1878822f1823fdcbe94e1b7055dff8c0a8bde2dcecdc0637faf102a / deployed dossier ec52759d4638a68d6beaa5e0f03117e55f2b414b65f1b31d9273654180e717fe. Separate independent and root review supports GATE-02 and GATE-03 satisfied-in-production with null acceptance bases. This combined source enters qualification-pending for canonical-browser qualification. It is not qualified. GATE-06 remains in post-deployment verification with null acceptance and no browser evidence. Ordinary publication remains held. Any failed or missing qualification evidence requires immediate held documentation-only rollback to reviewed parent 3c170db47d86a2dede0d23dc629af15880a98f9b. This source preparation selects no operational unit or public activation.
