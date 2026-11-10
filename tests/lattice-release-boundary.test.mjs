@@ -50,8 +50,8 @@ const browserEvidenceIdentityFields = [
 ];
 
 const publishedDossierPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHistoryBoundary = Buffer.from("The complete held dossier follows verbatim as dated history.");
-const datedHistorySeparator = Buffer.from("The complete held dossier follows verbatim as dated history.\n\n---\n\n");
+const datedHistoryBoundary = Buffer.from("The complete November 10 held dossier follows verbatim as dated history.");
+const datedHistorySeparator = Buffer.from("The complete November 10 held dossier follows verbatim as dated history.\n\n---\n\n");
 const staleEnabledClaims = [
   "release gates remain open",
   "must agree before the converter can open",
@@ -86,8 +86,8 @@ test("enabled publication history permits only the exact bound canonical held do
   const boundary = dossier.indexOf(datedHistorySeparator);
   assert.ok(boundary > 0);
   const history = dossier.subarray(boundary + datedHistorySeparator.length);
-  assert.equal(history.length, 500890);
-  assert.equal(sha256(history), "71ecdf46afb200964f0b791e94bf20b819766c818b685cd974422d5dbccb5980");
+  assert.equal(history.length, 582569);
+  assert.equal(sha256(history), "ec52759d4638a68d6beaa5e0f03117e55f2b414b65f1b31d9273654180e717fe");
   assert.match(history.toString("utf8"), /hold the interactive client/iu);
   const phase = verifyReleaseStatusState(await releaseRegister());
   if (phase.enabled) assert.doesNotThrow(() => verifyEqualDossierCopies(dossier));
@@ -376,8 +376,8 @@ test("the release register enforces its exact current phase and preserves histor
     Object.fromEntries(register.gates.map(({ id, status }) => [id, status])),
     {
       "GATE-01": "release-workflow-enforced",
-      "GATE-02": "open-release-blocker",
-      "GATE-03": "open-release-blocker",
+      "GATE-02": "satisfied-in-production",
+      "GATE-03": "satisfied-in-production",
       "GATE-04A": "accepted-residual-risk",
       "GATE-04B": "historical-inactive",
       "GATE-04C": "historical-inactive",
