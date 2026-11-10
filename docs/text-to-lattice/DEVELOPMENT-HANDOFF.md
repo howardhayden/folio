@@ -1,3 +1,23 @@
+# Text to Lattice — backend transport diagnosis, 2026-11-10
+
+The API and interactive UI remain held. GATE-02, GATE-03 and GATE-06 remain open with null acceptance. Continue through deployment under the owner's standing authority after the required evidence passes; this checkpoint itself selects no paid qualification or browser window.
+
+PR #156 merged the rewrite-checklist correction at `a02c207c4cb93899ae473703ce837faab5406401`. Exact-head CI #411 and routine held delivery #412 passed. The project page and its date projections were published and checked for November 10. The existing full validation passed 2,664 tests, with 15 optional skips and no failures. Those results remain applicable to the unchanged qualified source; this continuation edit changes only this handoff. All 264 qualified files, source `e94c529165b02bdef7f3626b556276d3eb44bd918e50712d1f92fba70cd0c779`, and dossier `722dc57d293c7f7800d8aa5cf1dd3ef2ea58bf1b1ebe8430a092c3ab5320a1ea` remain exact.
+
+Original [run #413](https://github.com/howardhayden/folio/actions/runs/42850892772), attempt 1, failed before its content canary. A separately reviewed, bounded read of its existing job log identified a fetch rejection for the `request-byte-limit-plus-one` negative probe: the 65,537-byte request produced no Response for the verifier to inspect. Expected HTTP 413 is a source constant, not an observed status. The source ordering proves that this verifier did not invoke the later transformation canary or exercise the changed rewrite prompt. The discarded underlying exception, actual request delivery and transport cause remain unknown; no provider or source-copying defect is established by this run. Raw logs, source text, cookies and provider bodies were not retained.
+
+The request-handling Worker and verifier are byte-identical to run #410, whose retained preflight evidence includes the same probe returning 413. A new three-request local comparison using the actual current module graph in installed workerd also passed: visitor setup returned 204, exactly 65,536 bytes returned 400, and 65,537 bytes returned 413. Both boundary responses carried complete no-claim/no-provider observations; outbound attempts were zero and the owned local state was removed. This local Miniflare transport result does not reproduce or explain the deployed failure. It supports no change to the body limit, expected status, runtime, acceptance, models or retry policy.
+
+Run #413 published held Pages. Its same-service rollback verified the API held at `2026-11-10T16:09:34.593Z`; separate enforcement verified held Pages at `16:09:50.736Z` and the API at `16:10:07.280Z`. These are dated witnesses, not proof of continuous hold. No additional provider-free recovery was needed or selected. `REWRITE-CHECKLIST-API-ONLY-A1` remains spent, 1 used and 0 remaining, with no refund or replay. No native source entry, consent, submission, capture or hosted Firefox check occurred. Safari's temporary inspection setting was previously restored off and the owned collectors disposed; historical preparation supplies no current readiness.
+
+Next: finish the normal reviewed held delivery of this substantive continuation record, then prepare one distinct bounded backend qualification with exact current identity and fresh guards. Preserve the strict zero-existing-dispatch guard, original initiation lease and all limits. Standing authority permits necessary continuation but does not convert this handoff into a selected operation. If another transport refusal occurs, retain it and add safe closed exception diagnostics before further paid attempts. After successful current backend qualification and gate adjudication, obtain the missing Safari/Brave lifecycle, network and reload evidence, with the required hosted Firefox input-only checks first. Preserve the implemented modal/terminal UI and all prior progress; do not repeat unrelated completed UI or API tests.
+
+Private evidence: `work/evidence/nov10-run413-classified-terminal-root-outcome.json` (SHA-256 `0280ac163c174bbf7187c22b29c694ae10b6d5129e1ee23a74e7092a04074a5e`) and `work/evidence/nov10-run413-local-diagnosis-root-outcome.json` (`9f55c28e1322e7805cb0fdf842f0a57a993f9c399b5b8efe4bc9431e2cdfb5f6`) bind the original metadata, closed classifications, retained local result and independent reviews. They are continuation references, not public downloadable artifacts or release acceptance.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice — held rewrite-checklist correction, 2026-11-10
 
 **Qualified source set SHA-256:** `e94c529165b02bdef7f3626b556276d3eb44bd918e50712d1f92fba70cd0c779`
