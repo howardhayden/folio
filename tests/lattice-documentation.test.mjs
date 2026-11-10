@@ -122,8 +122,8 @@ test("the atlas models the exact current remote phase without promoting historic
     releaseRegister.gates.map(({ id, status }) => [id, status]),
     [
       ["GATE-01", "release-workflow-enforced"],
-      ["GATE-02", "open-release-blocker"],
-      ["GATE-03", "open-release-blocker"],
+      ["GATE-02", "satisfied-in-production"],
+      ["GATE-03", "satisfied-in-production"],
       ["GATE-04A", "accepted-residual-risk"],
       ["GATE-04B", "historical-inactive"],
       ["GATE-04C", "historical-inactive"],
@@ -192,7 +192,7 @@ test("the qualification dossier leads with its current phase and retains verbati
   }[releaseState.releasePhase];
   assert.match(dossier, heading);
   assert.ok(dossier.includes(`**Qualification date:** ${releaseRegister.revision}`));
-  const controllingPrefix = dossier.split("The complete held dossier follows verbatim as dated history.")[0];
+  const controllingPrefix = dossier.split("The complete November 10 held dossier follows verbatim as dated history.")[0];
   if (releaseState.qualificationPending) {
     assert.match(controllingPrefix, /not qualified|non-qualified/iu);
     assert.match(controllingPrefix, /canonical-browser qualification/iu);

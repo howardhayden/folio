@@ -301,7 +301,29 @@ test("workflow uses only existing role/pinned actions/read permissions and canno
 
 test("whole-operation deadline covers never-settling initial register read",async()=>{const h=harness();h.options.operationTimeoutMs=5;h.options.registerReader=()=>new Promise(()=>{});await assert.rejects(h.run,e=>e.code==="deadline");assert.equal(h.calls.length,0);});
 test("whole-operation deadline covers never-settling initial source verification",async()=>{const h=harness();h.options.operationTimeoutMs=10;h.options.sourceVerifier=()=>new Promise(()=>{});await assert.rejects(h.run,e=>e.code==="deadline");assert.equal(h.calls.length,0);});
-test("whole-operation deadline covers final source verification with no success",async()=>{const h=harness();h.options.operationTimeoutMs=500;let n=0;h.options.sourceVerifier=()=>++n===1?Promise.resolve(S):new Promise(()=>{});await assert.rejects(h.run,e=>e.code==="deadline");assert.equal(h.calls.length,14);});
+test("whole-operation deadline covers final source verification with no success", async context => {
+  const h = harness();
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  h.options.operationTimeoutMs = 500;
+  let monotonic = 0, sourceChecks = 0, reachFinalSource;
+  const finalSourceReached = new Promise(resolve => { reachFinalSource = resolve; });
+  h.options.monotonicNow = () => monotonic;
+  h.options.sourceVerifier = () => {
+    if (++sourceChecks === 1) return Promise.resolve(S);
+    reachFinalSource();
+    return new Promise(() => {});
+  };
+  const observation = h.run();
+  const refusal = assert.rejects(observation, error => error.code === "deadline");
+  // Advance the deadline only after the intended final verification is pending.
+  await Promise.race([finalSourceReached, observation]);
+  assert.equal(sourceChecks, 2);
+  assert.equal(h.calls.length, 14);
+  monotonic = 500;
+  context.mock.timers.tick(500);
+  await refusal;
+  assert.equal(h.calls.length, 14);
+});
 test("late source resolution after operation deadline cannot issue later GET",async()=>{const h=harness();h.options.operationTimeoutMs=5;let release;h.options.sourceVerifier=()=>new Promise(resolve=>{release=resolve;});await assert.rejects(h.run,e=>e.code==="deadline");release?.(S);await new Promise(resolve=>setImmediate(resolve));assert.equal(h.calls.length,0);});
 
 for (const [name, stopAt] of [["before staging",1],["after async staging",2],["immediately after exclusive publication",3]])

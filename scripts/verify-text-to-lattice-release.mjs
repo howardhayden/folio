@@ -300,10 +300,10 @@ const heldForbiddenExecutableStrings = Object.freeze([
 ]);
 const staleEnabledPublicationPattern = /release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)|sole open (?:release )?blocker|held solely because|hold the interactive client/iu;
 const datedHeldDossierPublicationPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHeldDossierBoundary = Buffer.from("The complete held dossier follows verbatim as dated history.");
-const datedHeldDossierSeparator = Buffer.from("The complete held dossier follows verbatim as dated history.\n\n---\n\n");
-const datedHeldDossierBytes = 500890;
-const datedHeldDossierSha256 = "71ecdf46afb200964f0b791e94bf20b819766c818b685cd974422d5dbccb5980";
+const datedHeldDossierBoundary = Buffer.from("The complete November 10 held dossier follows verbatim as dated history.");
+const datedHeldDossierSeparator = Buffer.from("The complete November 10 held dossier follows verbatim as dated history.\n\n---\n\n");
+const datedHeldDossierBytes = 582569;
+const datedHeldDossierSha256 = "ec52759d4638a68d6beaa5e0f03117e55f2b414b65f1b31d9273654180e717fe";
 const serializedVinextRscScript = /^\s*\(\(self\[Symbol\.for\("vinext\.navigationRuntime"\)\]\?\?=\{bootstrap:\{routeManifest:null\},functions:\{\}\}\)\.bootstrap\.rsc\?\?=\{rsc:\[\]\}\)\.rsc\.push\(("(?:\\[\s\S]|[^"\\])*")\)\s*;?\s*$/u;
 const expectedLlamaUseCases = new Map([
   ["AUP-DENY-01", ["operational-harm", false]],
