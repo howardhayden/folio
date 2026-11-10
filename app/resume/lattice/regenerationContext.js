@@ -30,8 +30,8 @@ function matches(request, context) {
 
 // Called only at the host's existing regeneration invocation, with the owned
 // normalized prior review and committed replacement graph, never raw replies.
-export async function withLatticeRegenerationRetentionContext(request, batch, verification, analysis, invoke) {
-  const context = { active: true, batch, verification, analysis, positions: EMPTY };
+export async function withLatticeRegenerationRetentionContext(request, batch, verification, analysis, invoke, correctionPositions = EMPTY) {
+  const context = { active: true, batch, verification, analysis, positions: EMPTY, correctionPositions: EMPTY };
   if (matches(request, context) && !RETENTION_CONTEXTS.has(request)
     && data(verification, "available") === true
     && data(data(verification, "gates"), "languageSupported") === true) {
@@ -49,7 +49,15 @@ export async function withLatticeRegenerationRetentionContext(request, batch, ve
           && data(matchingReviews[0], "conformanceConfirmed") === false
           && data(matchingPlans[0], "disposition") === "rewrite" ? [position] : [];
       }));
-      if (context.positions.length > 0) RETENTION_CONTEXTS.set(request, context);
+      if (context.positions.length > 0) {
+        if (Array.isArray(correctionPositions) && Object.isFrozen(correctionPositions)
+          && correctionPositions.length > 0
+          && new Set(correctionPositions).size === correctionPositions.length
+          && correctionPositions.every((position) => context.positions.includes(position))) {
+          context.correctionPositions = correctionPositions;
+        }
+        RETENTION_CONTEXTS.set(request, context);
+      }
     }
   }
   try {
@@ -73,4 +81,9 @@ export function carryLatticeRegenerationRetentionContext(source, destination) {
 export function getLatticeRegenerationRetentionPositions(request) {
   const context = RETENTION_CONTEXTS.get(request);
   return context && matches(request, context) ? context.positions : EMPTY;
+}
+
+export function getLatticeRegenerationExactSourceCorrectionPositions(request) {
+  const context = RETENTION_CONTEXTS.get(request);
+  return context && matches(request, context) ? context.correctionPositions : EMPTY;
 }

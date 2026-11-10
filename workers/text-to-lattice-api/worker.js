@@ -1095,6 +1095,7 @@ export function createLatticeApiWorker({
             adapter,
             signal: deadline.signal,
             allowClarification: false,
+            allowExactSourceRegenerationCorrection: true,
             clarificationAnswers: Object.freeze([]),
             requestedMode: payload.requested_mode,
           };

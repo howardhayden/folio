@@ -30,6 +30,7 @@ import {
   LATTICE_CONFORMANCE_CRITERIA,
   LATTICE_DOCUMENT_CERTIFICATION_CHECKS,
   LATTICE_FITTED_ANALYSIS_CONTEXT,
+  LATTICE_STAGE_DIAGNOSTIC_CONTEXT,
   REANALYSIS_SCHEMA,
   VERIFICATION_SCHEMA,
   analysisMessages,
@@ -57,9 +58,9 @@ import {
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
 import { latticeProtectedLiteralMatches } from "../app/resume/lattice/protectedSpans.js";
 import { rememberRejectedResult, deterministicFindingRule } from "../app/resume/lattice/rejectionDiagnostics.js";
-import { isClosedWithheldPipelineObservation, rememberLatticeAnalysisRetentionDowngrade } from "../app/resume/lattice/qualificationDiagnostics.js";
+import { isClosedWithheldTrace, isClosedWithheldPipelineObservation, rememberLatticeAnalysisRetentionDowngrade } from "../app/resume/lattice/qualificationDiagnostics.js";
 import { rememberLatticeAnalysisPassageOrigins } from "../app/resume/lattice/analysisProvenance.js";
-import { getLatticeRegenerationRetentionPositions } from "../app/resume/lattice/regenerationContext.js";
+import { getLatticeRegenerationRetentionPositions, getLatticeRegenerationExactSourceCorrectionPositions } from "../app/resume/lattice/regenerationContext.js";
 import { createHuggingFaceLatticeAdapter } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
   deterministicDocumentReview,
@@ -4878,4 +4879,175 @@ test("clarification replacement excludes the superseded initial retention observ
   assertCandidateWithheld(result); assert.equal(adapter.calls.analyze, 2); assert.equal(adapter.calls.generate, 1);
   assert.equal(getLatticeWithheldPipelineObservation(trace).initialRetentionDowngrade, "none");
   assert.equal(getLatticeWithheldPipelineObservation(trace).initialRetainedPlan, "none");
+});
+
+test("exact-source regeneration correction uses one shared slot and retains the actual normalized result", async (context) => {
+  for (const mode of ["material", "still copied", "invalid correction", "other second defect", "protocol slot used",
+    "case-only first", "other first defect", "explicit rewrite", "positive retention", "ordinary rewrite",
+    "verification rejection", "certification rejection"]) await context.test(mode, async () => {
+    const requests = []; let trace, certifications = 0, reverified;
+    const corrected = ["material", "still copied", "invalid correction", "other second defect",
+      "verification rejection", "certification rejection"].includes(mode);
+    const adapter = scriptedAdapter({
+      analyze(request, count) {
+        return rawAnalysis(request, { layer: "operative", disposition: mode === "ordinary rewrite"
+          || mode === "explicit rewrite" && count === 2 ? "rewrite" : "retain-if-conformant" });
+      },
+      generate(request, count) {
+        requests.push(request);
+        if (mode === "protocol slot used" && count === 2 || mode === "invalid correction" && count === 3) return {};
+        const result = rawCandidate(request, { identity: count !== 3 || mode === "still copied" || mode === "protocol slot used" });
+        if (mode === "case-only first" && count === 2) result.passages[0].text = result.passages[0].text.toUpperCase();
+        if (mode === "other first defect" && count === 2 || mode === "other second defect" && count === 3) {
+          result.passages[0].layer = "experiential";
+        }
+        if (count === 3 && corrected) {
+          assert.equal(Object.hasOwn(request, "protocolFeedback"), false);
+          assert.equal(Object.hasOwn(request, LATTICE_STAGE_DIAGNOSTIC_CONTEXT), false);
+          const payload = JSON.parse(candidateMessages(request)[1].content.slice(12, -13));
+          assert.deepEqual(payload.regenerationFeedback.exactSourceCopyPassagePositions, [0]);
+          for (const clone of [Object.freeze({ ...request }), Object.freeze({ ...request,
+            exactSourceCopyPassagePositions: [0] })]) {
+            assert.equal(JSON.parse(candidateMessages(clone)[1].content.slice(12, -13))
+              .regenerationFeedback?.exactSourceCopyPassagePositions, undefined);
+          }
+        }
+        return result;
+      },
+      verify(request, count) {
+        if (count === 1) return rawVerification(request, {
+          passage: mode === "positive retention" || mode === "ordinary rewrite"
+            ? { clarity: false } : { conformanceConfirmed: false, clarity: false },
+          gates: { sourceCoverage: false },
+        });
+        reverified = request;
+        return rawVerification(request, mode === "verification rejection" ? { gates: { safety: false } } : {});
+      },
+      repair() { assert.fail("regeneration does not open a later repair cycle"); },
+      certify(request) {
+        certifications += 1;
+        return { certificateId: request.certificateId, obligationIds: request.obligationIds,
+          decision: mode === "certification rejection" ? "reject" : "accept",
+          checks: Object.fromEntries(LATTICE_DOCUMENT_CERTIFICATION_CHECKS.map((name) => [name,
+            mode !== "certification rejection" || name !== "boundaryFidelity"])), issues: [] };
+      },
+    });
+    const source = `${opaqueWords(12)}\n`;
+    const result = await runTextToLattice(source, { adapter, allowExactSourceRegenerationCorrection: true, onCandidateWithheldDiagnostic: (value) => { trace = value; } });
+    assert.equal(adapter.calls.generate, corrected || mode === "protocol slot used" ? 3 : 2);
+    assert.equal(adapter.calls.analyze, 2); assert.equal(adapter.calls.repair, 0); assert.equal(adapter.calls.verify, 2);
+    assert.ok(reverified);
+    if (["material", "certification rejection", "verification rejection"].includes(mode)) {
+      assert.notEqual(reverified.candidate.passages[0].text, reverified.batch.passages[0].text);
+      assert.equal(reverified.deterministicFindings.length, 0);
+    }
+    if (mode === "other second defect") {
+      assert.equal(reverified.candidate.passages[0].layer, "experiential");
+      assert.deepEqual(reverified.deterministicFindings.map(({ id }) => id), ["candidate-layer"]);
+    }
+    if (mode === "invalid correction") {
+      assert.equal(reverified.candidate.passages[0].text, reverified.batch.passages[0].text);
+      assert.equal(reverified.analysis.passages[0].disposition, "rewrite");
+      assert.equal(trace.stage, "regeneration"); assert.equal(trace.attempt, "2");
+      assert.equal(trace.failureCause, "host-validation"); assert.equal(trace.priorValidationCategory, "none");
+      for (const field of ["priorRejectionBoundary", "priorRejectionCategory", "priorRejectionRule"]) assert.equal(trace[field], "none");
+      assert.equal(isClosedWithheldTrace(trace), true);
+      assert.equal(isClosedWithheldTrace(Object.freeze({ ...trace, stage: "repair" })), false);
+      assert.equal(isClosedWithheldTrace(Object.freeze({ ...trace, priorRejectionBoundary: "unknown",
+        priorRejectionCategory: "other", priorRejectionRule: "unknown" })), false);
+      assert.equal(getLatticeWithheldPipelineObservation(Object.freeze({ ...trace })), null);
+    }
+    if (mode === "material") assert.equal(result.status, "translated");
+    else if (mode !== "positive retention") assertCandidateWithheld(result);
+    assert.equal(certifications, ["material", "positive retention", "certification rejection"].includes(mode) ? 1 : 0);
+    if (trace) assert.equal(getLatticeWithheldPipelineObservation(trace).successfulCorrectionStage,
+      mode === "protocol slot used" ? "regeneration" : "none");
+    for (const request of requests) assert.deepEqual(getLatticeRegenerationExactSourceCorrectionPositions(request), []);
+    assert.doesNotMatch(JSON.stringify(result), /exactSourceCopyPassagePositions|regeneration-correction-unavailable/u);
+  });
+});
+
+test("exact-source correction requires every affected passage to have the committed retention override", async (context) => {
+  for (const mixedDefect of [false, true]) await context.test(String(mixedDefect), async () => {
+    let positions;
+    const adapter = scriptedAdapter({
+      analyze(request) {
+        const result = rawAnalysis(request, { layer: "operative", disposition: "retain-if-conformant" });
+        if (mixedDefect) result.passages[1] = rawAnalysis(request, { layer: "operative" }).passages[1];
+        return result;
+      },
+      generate(request, count) {
+        if (count === 3) positions = JSON.parse(candidateMessages(request)[1].content.slice(12, -13))
+          .regenerationFeedback.exactSourceCopyPassagePositions;
+        return rawCandidate(request, { identity: count < 3 });
+      },
+      verify(request, count) {
+        const result = rawVerification(request);
+        if (count === 1) { result.passages[0].conformanceConfirmed = false; result.decision = "repair"; }
+        return result;
+      },
+    });
+    const result = await runTextToLattice(`${opaqueWords(12)}\n\n${opaqueWords(12, "z")}\n`, { adapter, allowExactSourceRegenerationCorrection: true });
+    assert.equal(adapter.calls.generate, mixedDefect ? 2 : 3);
+    assert.deepEqual(positions, mixedDefect ? undefined : [0]);
+    if (mixedDefect) assertCandidateWithheld(result); else assert.equal(result.status, "translated");
+  });
+});
+
+test("exact-source correction preserves abort and terminal provider/capacity behavior", async (context) => {
+  for (const mode of ["abort", "context", "provider-call-limit", "provider-timeout"]) await context.test(mode, async () => {
+    const controller = new AbortController(); const failure = new Error("synthetic terminal failure");
+    failure.code = mode === "context" ? "lattice-context" : mode.replaceAll("-", "_");
+    const adapter = scriptedAdapter({
+      analysisOptions: { disposition: "retain-if-conformant" },
+      generate(request, count) {
+        if (count === 3) { if (mode === "abort") controller.abort(); throw failure; }
+        return rawCandidate(request, { identity: true });
+      },
+      verify(request) { return rawVerification(request, { passage: { conformanceConfirmed: false, clarity: false } }); },
+    });
+    const action = runTextToLattice(`${opaqueWords(12)}\n`, { adapter, allowExactSourceRegenerationCorrection: true, signal: controller.signal });
+    if (mode === "context") assertCandidateWithheld(await action);
+    else await assert.rejects(action, (error) => mode === "abort" ? error.name === "AbortError" : error === failure);
+    assert.deepEqual(adapter.calls, { analyze: 2, generate: 3, verify: 1, repair: 0 });
+  });
+});
+
+test("shared engine leaves exact-source semantic correction off without a strict server opt-in", async (context) => {
+  for (const option of [undefined, false, "true"]) await context.test(String(option), async () => {
+    const adapter = scriptedAdapter({
+      analysisOptions: { disposition: "retain-if-conformant" },
+      generate(request) {
+        assert.deepEqual(getLatticeRegenerationExactSourceCorrectionPositions(request), []);
+        return rawCandidate(request, { identity: true });
+      },
+      verify(request) { return rawVerification(request, { passage: { conformanceConfirmed: false, clarity: false } }); },
+    });
+    const result = await runTextToLattice(`${opaqueWords(12)}\n`, { adapter,
+      ...(option === undefined ? {} : { allowExactSourceRegenerationCorrection: option }) });
+    assertCandidateWithheld(result);
+    assert.deepEqual(adapter.calls, { analyze: 2, generate: 2, verify: 2, repair: 0 });
+  });
+});
+
+test("failed semantic invocation never invents a prior normalization error", async (context) => {
+  for (const mode of ["syntax", "output limit"]) await context.test(mode, async () => {
+    let trace;
+    const error = mode === "syntax" ? new SyntaxError("synthetic unreadable result") : new Error("synthetic output cap");
+    if (mode === "output limit") error.code = "lattice-output-length";
+    const adapter = scriptedAdapter({
+      analysisOptions: { disposition: "retain-if-conformant" },
+      generate(request, count) { if (count === 3) throw error; return rawCandidate(request, { identity: true }); },
+      verify(request) { return rawVerification(request, { passage: { conformanceConfirmed: false, clarity: false } }); },
+    });
+    const result = await runTextToLattice(`${opaqueWords(12)}\n`, { adapter, allowExactSourceRegenerationCorrection: true,
+      onCandidateWithheldDiagnostic: (value) => { trace = value; } });
+    assertCandidateWithheld(result);
+    assert.deepEqual(adapter.calls, { analyze: 2, generate: 3, verify: 1, repair: 0 });
+    if (mode === "syntax") {
+      assert.equal(trace.stage, "regeneration"); assert.equal(trace.attempt, "2");
+      assert.equal(trace.priorValidationCategory, "none"); assert.equal(trace.priorRejectionBoundary, "none");
+      assert.equal(trace.priorRejectionCategory, "none"); assert.equal(trace.priorRejectionRule, "none");
+    } else assert.equal(trace, undefined, "unsupported capacity-attempt metadata cannot fabricate prior protocol evidence");
+  });
 });

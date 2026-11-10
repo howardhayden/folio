@@ -1,3 +1,38 @@
+# Text to Lattice release qualification — held exact-source regeneration correction
+
+**Decision:** hold the interactive client and publish documentation only. The changed correction remains unqualified.
+
+**Qualification date:** 2026-11-10
+
+**Evidence updated:** 2026-11-10
+
+**Reviewed baseline:** `5c20c4412ceafab6ea35d82d08ba863c4b0c1f72`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `be43be6b44d7dd2c51bb881a3f0f4b7e725df193f05fbb625a7dd5f3645e073c`
+
+**Artifact-set projection SHA-256:** `04f843ed473351b21c873841160242bac1c83b13658d5ebdcd28ec86e8baa6da`
+
+Run #426 retains source `92697a5a0e534c974ecbc81b976ecef3b1a7c2260d11ec10c6d734b263e7ae44` and dossier `22c58f93a3f47ae5023454ae2656acccfd03bb9f3fba04eb4cc6aa054a5ef536`. Run #422 and all historical originals retain their original qualification scope.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Open release blocker | High |
+| GATE-03 · Remote provider capacity and cost boundary | Open release blocker | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+In the hosted Worker, a normalized result from the first attempt of an existing regeneration may use its shared second stage attempt when the actual host review reports only exact-source D14 findings. Every affected passage must carry the committed retain-to-rewrite override for its unconfirmed prior retention. A host-owned Worker option enables this route. The shared engine defaults it off, and legacy and local adapters retain their existing behavior. The host derives affected source positions from the bound source, plan, candidate and review. The corrective prompt adds those positions and fixed instructions to realize the affected rewrites. It retains the existing source, plan, literals, boundaries and feedback. A used protocol correction consumes the same slot. No third attempt, additional reanalysis, alternate provider or extra independent review loop is available. Any normalized second candidate receives the unchanged deterministic review, fresh independent reverification and required certification. A second exact copy remains withheld. A retryable nonterminal normalization failure preserves the first coherent copied candidate for the same strict outcome. Abort, context and terminal provider failures keep their existing boundaries. GATE-02, GATE-03 and GATE-06 are open release blockers with null acceptance bases on this changed runtime. Run #422 retains its dated backend qualification on its original source. The current source requires fresh backend qualification and then canonical-browser evidence. The public client is held and documentation-only. Original run #426 / 42919799287 / attempt 1 on `5c20c4412ceafab6ea35d82d08ba863c4b0c1f72` passed all 24 negative probes and failed its transformation canary. The closed result records an exact-source comparison for a regenerated rewrite passage after retained-conformance reanalysis and a committed rewrite override. Six logical calls were reported. Certification and accepted usage were not reached. No cost or private model cause is established. Interactive Pages deployment and native qualification did not occur. Included restore #427 / 42920888037 / attempt 1 verified held API HTTP 503 at 2026-11-10T23:09:38.115Z before held Pages publication. Held Pages returned HTTP 200 without the interactive surface at 2026-11-10T23:10:39.929Z. These dated observations do not establish continuous hold. Both collectors were disposed cleanly, owned frontends closed and Safari inspection restored off. U13-AFTER-RUN422-A2 is spent, with 1 used and 0 remaining. A1 remains separately spent. The included provider-free restore completed as run #427. No new hosted qualification or public activation is selected.
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending
 
 **Qualification date:** 2026-11-10

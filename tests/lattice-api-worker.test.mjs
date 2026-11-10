@@ -9812,7 +9812,7 @@ test("pipeline headers bind actual withheld lineage and cannot be forged or outl
   };
   const retained = await run({ retainedPlan: true });
   assert.equal(retained.json.result.status, "unable-to-attempt");
-  assert.equal(retained.bodies.length, 6);
+  assert.equal(retained.bodies.length, 7);
   assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.finalD14Comparison), "exact-source");
   assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.initialRetainedPlan), "present");
   assert.equal(retained.response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.structuralRetryReason), "retained-conformance");
@@ -10787,4 +10787,73 @@ test("active OVHcloud cannot enable the independently pinned Scaleway null excep
     }, { schemaName })), (error) => error instanceof TypeError && /invalid server configuration/u.test(error.message));
   }
   assert.equal(calls, 0);
+});
+
+test("host-owned exact-source regeneration correction reaches the Worker adapter without diagnostic-dependent routing", async (context) => {
+  for (const mode of ["material", "still copied", "invalid correction", "provider terminal"]) await context.test(mode, async () => {
+    const runs = [];
+    for (const marked of [false, true]) {
+      const bodies = []; let drafts = 0, verifies = 0, certifications = 0;
+      const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body); bodies.push(body);
+        if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body, { retain: true }));
+        if (isCandidateBody(body)) {
+          drafts += 1;
+          const payload = inertModelPayload(body);
+          if (drafts === 3) {
+            assert.deepEqual(payload.regenerationFeedback, { retentionNotConfirmedPassagePositions: [0], exactSourceCopyPassagePositions: [0] });
+            assert.deepEqual(payload.requiredRewritePassagePositions, [0]);
+            assert.equal(payload.analysis[1][0][3], "rewrite");
+            assert.equal(Object.hasOwn(payload, "protocolFeedback"), false);
+            assert.equal(Object.hasOwn(payload, "candidate"), false);
+            assert.equal(Object.hasOwn(payload, "verification"), false);
+            assert.match(body.messages[0].content, /first regeneration copied the exact source/u);
+            assert.deepEqual(body.response_format, { type: "json_object" });
+            assert.equal(body.max_tokens, 800);
+            if (mode === "invalid correction") return successfulProviderResponse({});
+            if (mode === "provider terminal") return new Response("PRIVATE-UPSTREAM-ERROR", { status: 503 });
+          }
+          return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+            drafts === 3 && mode === "material"
+              ? "A guest sets a blue notebook on the desk, reviews the first page, then shuts it."
+              : LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1)));
+        }
+        if (isVerificationBody(body)) {
+          verifies += 1;
+          const wire = canaryVerificationWire(body, { retain: verifies === 1 });
+          if (verifies === 1) { wire.d = 1; wire.p["0"].c.v = false; }
+          return successfulProviderResponse(wire);
+        }
+        certifications += 1;
+        const payload = inertModelPayload(body);
+        return successfulProviderResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds));
+      } });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: marked
+        ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v22" } : {} }), {
+        HF_TOKEN: "synthetic-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z",
+      });
+      const result = await json(response);
+      assert.equal(drafts, 3); assert.equal(verifies, mode === "provider terminal" ? 1 : 2);
+      assert.equal(certifications, mode === "material" ? 1 : 0);
+      assert.ok(bodies.length <= 32);
+      if (mode === "material") assert.equal(result.result.status, "translated");
+      else if (mode !== "provider terminal") {
+        assert.equal(result.result.status, "unable-to-attempt"); assert.equal(result.result.text, null);
+        if (marked) {
+          assert.equal(response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.successfulCorrectionStage), "none");
+          assert.equal(response.headers.get(LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS.finalD14Comparison), "exact-source");
+        }
+      } else {
+        assert.equal(response.status, 502);
+        assert.deepEqual(result, { error: "upstream_unavailable" });
+        assert.equal(response.headers.has(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.stageAttempt), false);
+        for (const header of Object.values(LATTICE_QUALIFICATION_HTTP_DIAGNOSTIC_RESPONSE_HEADERS)) {
+          assert.equal(response.headers.has(header), false);
+        }
+      }
+      assert.doesNotMatch(JSON.stringify(result), /exactSourceCopyPassagePositions|regenerationFeedback|PRIVATE-UPSTREAM-ERROR/u);
+      runs.push({ bodies, result, status: response.status });
+    }
+    assert.deepEqual(runs[0], runs[1], "qualification diagnostics cannot change calls, prompts or public outcomes");
+  });
 });
