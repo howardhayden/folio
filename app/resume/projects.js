@@ -2,7 +2,7 @@ import { documentsForProject } from "../content/projectDocuments.js";
 
 export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v12";
 export const PROJECT_CONTENT_UPDATED = "2026-09-23";
-export const TEXT_TO_LATTICE_CONTENT_UPDATED = "2026-11-10";
+export const TEXT_TO_LATTICE_CONTENT_UPDATED = "2026-11-11";
 
 const LATTICE_CARD_RESOURCE_LABELS = Object.freeze({
   "lattice-concept-map": "Concept and Ecosystem Map",
@@ -81,8 +81,8 @@ export const projects = Object.freeze([
     ]),
     publication: Object.freeze({ label: "September 2026", value: "2026-09", precision: "month" }),
     status: "public",
-    interaction: null,
-    interactiveRelease: "held",
+    interaction: "lattice-demo",
+    interactiveRelease: "enabled",
     readmeAfterFirstParagraph: true,
   }),
   Object.freeze({

@@ -1,3 +1,27 @@
+# CI 431 date fixture correction and browser qualification preparation — 2026-11-11
+
+The retained CI 431 date-agreement failure expected November 10 after the reviewed Text to Lattice content date advanced to November 11. The reviewed test-only correction updates four date literals across three assertions. All assertions and unrelated project dates remain unchanged. The affected semantic suite passed locally. The original CI result and prior Q commit `19f097c2eb6831f33fa295003e1db0b128dc06ee` remain retained.
+
+The successor qualified source is `dd71c051c49445057c4cf033f933b00a40a1efd46177fe2f96c484fbe65bdee9` and its dossier is `b63da112f89d61912dd14ea42fc69e25ff1cc9b0b432bd88093b4c81ac5c24d0`. This is one additional qualified test change, seven in total relative to held parent `87498320f06b3f2ee55626385afd228e770b9be5`. Run 430 remains the original bounded backend evidence and did not exercise the new exact-source regeneration correction. No production observer, Worker, provider, model, quota, request or acceptance behavior changes. Source remains qualification-pending with GATE-06 unresolved. Required CI, guarded native Safari and Brave evidence, and hosted Firefox input checks remain before release.
+
+The complete previous handoff follows verbatim.
+
+---
+
+# Backend qualification 430 and canonical browser preparation — 2026-11-11
+
+Bounded backend qualification #430, attempt 1, passed on main 87498320f06b3f2ee55626385afd228e770b9be5 / deployed source be43be6b44d7dd2c51bb881a3f0f4b7e725df193f05fbb625a7dd5f3645e073c / deployed dossier ad9455232d946a3f317913a0d6696b9b944cd261ceb7b560b58ea2b9820c6394. Separate independent and root review supports GATE-02 and GATE-03 satisfied-in-production with null acceptance bases. This combined source enters qualification-pending for canonical-browser qualification. It is not qualified. GATE-06 remains in post-deployment verification with null acceptance and no browser evidence. Ordinary publication remains held. Any failed or missing qualification evidence requires immediate held documentation-only rollback to reviewed parent 87498320f06b3f2ee55626385afd228e770b9be5. This source preparation selects no operational unit or public activation.
+
+The single synthetic canary returned strict HTTP 200 conformant-for-context in 36.446 seconds for one 16-word passage, revised 0 and retained 1, with one verification pass and no findings. All 24 negative probes matched the contract. Complete admission evidence covers the 13 designated negatives plus setup, preservation, tamper and the canary. No counter observation is imputed to the other 11 negatives. Paired API/SQLite environment records and complete provider-reported usage bind the same service job and source. Four reported provider calls comprise two generator and two joint review calls, with 7,785 prompt tokens and 290 completion tokens. The archived November 2 catalog produces the USD 0.003890210 estimate. It establishes neither an invoice nor account total or guaranteed charge bound. The retained passage does not establish material rewrite success, repair coverage, a source-copy remedy, reliability or provider retention. The new exact-source regeneration correction was not exercised.
+
+Held Pages was published at 2026-11-11T00:40:04Z and sampled held at 2026-11-11T00:40:26.241Z before service activation. Successful API restoration was verified at 2026-11-11T00:41:50.444Z after three held observations, zero active responses and zero network errors, ending with three consecutive held responses. These are dated observations. No continuous-hold or postqualification Pages observation is inferred. REGENERATION-CORRECTION-API-ONLY-A1 is spent, one used and zero remaining. Conditional provider-free recovery was unnecessary and unselected. All earlier spent units and failures remain history. The backend witness retains its original identities while the new source binds its own qualification-phase metadata and exact dossier-history pin.
+
+The combined source candidate is `90a4afb2b7dad63bd7ee33d0e99d903dee02dda8fa1377aaa9d02f47a92a2768` with dossier `c4c0be111d5d6b0066bb0a57da9cdef7123572089f31b84cc7f0d48add995492`. Its six qualified-file changes preserve the other 258 qualified files. The current recorded 141 Worker inputs from the reviewed run426 correction builds match before preparation, while the content and two publication files change in this successor. Retained bundle source maps identify 20 active, 5 held and 1 policy modules, all outside those changed page files. Exact emitted source/config/tool reuse and the required current site build remain separate from the original hosted backend witness. Exact runtime and acceptance behavior stay bound to original 430. GATE-06 requires actual canonical-browser evidence. No new operation is selected by this document.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # Text to Lattice — held exact-source regeneration correction, 2026-11-10
 
 **Qualified source set SHA-256:** `be43be6b44d7dd2c51bb881a3f0f4b7e725df193f05fbb625a7dd5f3645e073c`
