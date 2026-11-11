@@ -1,3 +1,40 @@
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-11
+
+**Evidence updated:** 2026-11-11
+
+**Reviewed baseline:** `87498320f06b3f2ee55626385afd228e770b9be5`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `90a4afb2b7dad63bd7ee33d0e99d903dee02dda8fa1377aaa9d02f47a92a2768`
+
+**Artifact-set projection SHA-256:** `82e99097584b577f90ee9c415194cc0fcc7a8287fe6a9e073af259bb43874111`
+
+Bounded backend qualification #430, attempt 1, passed on main 87498320f06b3f2ee55626385afd228e770b9be5 / deployed source be43be6b44d7dd2c51bb881a3f0f4b7e725df193f05fbb625a7dd5f3645e073c / deployed dossier ad9455232d946a3f317913a0d6696b9b944cd261ceb7b560b58ea2b9820c6394. Separate independent and root review supports GATE-02 and GATE-03 satisfied-in-production with null acceptance bases. This combined source enters qualification-pending for canonical-browser qualification. It is not qualified. GATE-06 remains in post-deployment verification with null acceptance and no browser evidence. Ordinary publication remains held. Any failed or missing qualification evidence requires immediate held documentation-only rollback to reviewed parent 87498320f06b3f2ee55626385afd228e770b9be5. This source preparation selects no operational unit or public activation.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Post deployment verification | High |
+
+The single synthetic canary returned strict HTTP 200 conformant-for-context in 36.446 seconds for one 16-word passage, revised 0 and retained 1, with one verification pass and no findings. All 24 negative probes matched the contract. Complete admission evidence covers the 13 designated negatives plus setup, preservation, tamper and the canary. No counter observation is imputed to the other 11 negatives. Paired API/SQLite environment records and complete provider-reported usage bind the same service job and source. Four reported provider calls comprise two generator and two joint review calls, with 7,785 prompt tokens and 290 completion tokens. The archived November 2 catalog produces the USD 0.003890210 estimate. It establishes neither an invoice nor account total or guaranteed charge bound. The retained passage does not establish material rewrite success, repair coverage, a source-copy remedy, reliability or provider retention. The new exact-source regeneration correction was not exercised.
+
+Held Pages was published at 2026-11-11T00:40:04Z and sampled held at 2026-11-11T00:40:26.241Z before service activation. Successful API restoration was verified at 2026-11-11T00:41:50.444Z after three held observations, zero active responses and zero network errors, ending with three consecutive held responses. These are dated observations. No continuous-hold or postqualification Pages observation is inferred. REGENERATION-CORRECTION-API-ONLY-A1 is spent, one used and zero remaining. Conditional provider-free recovery was unnecessary and unselected. All earlier spent units and failures remain history. The backend witness retains its original identities while the new source binds its own qualification-phase metadata and exact dossier-history pin.
+
+The actual production witness is [run #430](https://github.com/howardhayden/folio/actions/runs/42932675268), service job 130236606989. The complete prior source and all earlier evidence remain dated history. Six qualified files change for current gate fixtures, an accurate status sentence, the two existing publication switches and the exact whole-dossier historical identity. Runtime prompts, Worker behavior, provider models, caps, request bytes and acceptance predicates retain their actual 430 bytes. The source and site checks and required CI still govern delivery. Native Safari and Brave evidence and hosted Firefox checks remain outstanding.
+
+The complete pre-run430 held dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — held exact-source regeneration correction
 
 **Decision:** hold the interactive client and publish documentation only. The changed correction remains unqualified.
