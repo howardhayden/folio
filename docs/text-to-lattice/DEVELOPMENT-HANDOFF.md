@@ -1,3 +1,13 @@
+# CI 431 date fixture correction and browser qualification preparation — 2026-11-11
+
+The retained CI 431 date-agreement failure expected November 10 after the reviewed Text to Lattice content date advanced to November 11. The reviewed test-only correction updates four date literals across three assertions. All assertions and unrelated project dates remain unchanged. The affected semantic suite passed locally. The original CI result and prior Q commit `19f097c2eb6831f33fa295003e1db0b128dc06ee` remain retained.
+
+The successor qualified source is `dd71c051c49445057c4cf033f933b00a40a1efd46177fe2f96c484fbe65bdee9` and its dossier is `b63da112f89d61912dd14ea42fc69e25ff1cc9b0b432bd88093b4c81ac5c24d0`. This is one additional qualified test change, seven in total relative to held parent `87498320f06b3f2ee55626385afd228e770b9be5`. Run 430 remains the original bounded backend evidence and did not exercise the new exact-source regeneration correction. No production observer, Worker, provider, model, quota, request or acceptance behavior changes. Source remains qualification-pending with GATE-06 unresolved. Required CI, guarded native Safari and Brave evidence, and hosted Firefox input checks remain before release.
+
+The complete previous handoff follows verbatim.
+
+---
+
 # Backend qualification 430 and canonical browser preparation — 2026-11-11
 
 Bounded backend qualification #430, attempt 1, passed on main 87498320f06b3f2ee55626385afd228e770b9be5 / deployed source be43be6b44d7dd2c51bb881a3f0f4b7e725df193f05fbb625a7dd5f3645e073c / deployed dossier ad9455232d946a3f317913a0d6696b9b944cd261ceb7b560b58ea2b9820c6394. Separate independent and root review supports GATE-02 and GATE-03 satisfied-in-production with null acceptance bases. This combined source enters qualification-pending for canonical-browser qualification. It is not qualified. GATE-06 remains in post-deployment verification with null acceptance and no browser evidence. Ordinary publication remains held. Any failed or missing qualification evidence requires immediate held documentation-only rollback to reviewed parent 87498320f06b3f2ee55626385afd228e770b9be5. This source preparation selects no operational unit or public activation.

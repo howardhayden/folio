@@ -6,6 +6,30 @@
 
 **Reviewed baseline:** `87498320f06b3f2ee55626385afd228e770b9be5`
 
+**Prior unmerged Q commit:** `19f097c2eb6831f33fa295003e1db0b128dc06ee`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `dd71c051c49445057c4cf033f933b00a40a1efd46177fe2f96c484fbe65bdee9`
+
+**Artifact-set projection SHA-256:** `82e99097584b577f90ee9c415194cc0fcc7a8287fe6a9e073af259bb43874111`
+
+CI [run #431](https://github.com/howardhayden/folio/actions/runs/42938072951) retained 2,751 passing tests, one failing test and 16 skips. The Text to Lattice date-agreement fixture still expected November 10 after the reviewed content date advanced to November 11. Four fixed date occurrences across three assertions now match the current content date. All assertions and unrelated project dates remain unchanged. The affected semantic suite passed locally, with its exact result retained in the register.
+
+This successor adds one qualified test-file change to the prior six changes relative to held parent `87498320f06b3f2ee55626385afd228e770b9be5`. Production observers, Worker behavior, prompts, models, limits, requests and acceptance predicates retain their prior bytes. Run #430 remains the same bounded backend witness with its original source and deployment identities. The certified canary retained one passage and did not exercise the new exact-source regeneration correction. GATE-02 and GATE-03 remain satisfied in production with null acceptance bases. GATE-06 remains in post-deployment verification with null acceptance and no browser evidence. The source remains qualification-pending and is not qualified. Canonical-browser qualification still requires its separate guarded window and immediate held documentation-only rollback if evidence is missing or fails. Required source checks and CI govern delivery.
+
+The complete prior unmerged Q dossier follows verbatim as dated history.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-11
+
+**Evidence updated:** 2026-11-11
+
+**Reviewed baseline:** `87498320f06b3f2ee55626385afd228e770b9be5`
+
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
 **Qualified source-set SHA-256:** `90a4afb2b7dad63bd7ee33d0e99d903dee02dda8fa1377aaa9d02f47a92a2768`
