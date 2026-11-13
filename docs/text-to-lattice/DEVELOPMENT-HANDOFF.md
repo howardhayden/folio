@@ -1,3 +1,17 @@
+# Browser qualification stopped and held service restored — 2026-11-13
+
+[Run #434](https://github.com/howardhayden/folio/actions/runs/43403144401), attempt 1, ran on main `23ceac18dbb021af0f26b1f7f77c2f6a5425a155`. Its backend service and interactive Pages jobs succeeded within the qualification window. The independent [BEFORE context run #6](https://github.com/howardhayden/folio/actions/runs/43404753088), attempt 1, bound the live deployment to the original archive using 14 content-free GETs. Hosted Firefox passed 14 input-only checks. The synthetic input was cleared and there was no consent or submission.
+
+Safari started on the owned blank and navigated to the hosted page. Its original `prepareInput` refused at `pre-binding-active` before source entry, consent, submission or a sealed capture. The exact failed predicate is unknown. Brave and AFTER did not start. The owned collectors were disposed and temporary Safari inspection was turned off. `U13-AFTER-RUN430-A1` is spent, with one used and zero remaining.
+
+The provider-free [restore run #435](https://github.com/howardhayden/folio/actions/runs/43406135195), attempt 1, verified three consecutive held API HTTP 503 responses at 10:04:11.453 UTC before the held Pages HTTP 200 observation at 10:05:07.654 UTC. Run #434 then completed successfully and separately verified scheduled held API at 10:07:39.460 UTC before held Pages at 10:07:59.702 UTC. Both API checks saw zero active responses and network errors. Both Pages checks found the interactive surface absent. The timestamps establish two ordered, dated restorations.
+
+The prospective private Safari V2 diagnostic passed 16 paired offline checks. A separate loopback SDK transition probe passed 12 focused offline checks. The diagnostics provide no historical cause or browser acceptance. The qualified source set remains `dd71c051c49445057c4cf033f933b00a40a1efd46177fe2f96c484fbe65bdee9` and the dossier remains `b63da112f89d61912dd14ea42fc69e25ff1cc9b0b432bd88093b4c81ac5c24d0`. GATE-02 and GATE-03 retain their production dispositions. GATE-06 remains in post-deployment verification with a null acceptance basis. The next delivery is the reviewed documentation continuation through required CI and ordinary held enforcement.
+
+The complete previous handoff follows verbatim as dated history.
+
+---
+
 # CI 431 date fixture correction and browser qualification preparation — 2026-11-11
 
 The retained CI 431 date-agreement failure expected November 10 after the reviewed Text to Lattice content date advanced to November 11. The reviewed test-only correction updates four date literals across three assertions. All assertions and unrelated project dates remain unchanged. The affected semantic suite passed locally. The original CI result and prior Q commit `19f097c2eb6831f33fa295003e1db0b128dc06ee` remain retained.
