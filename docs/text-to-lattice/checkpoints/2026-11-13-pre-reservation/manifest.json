@@ -1,0 +1,22 @@
+{
+  "format": "TTL_PUBLIC_PRE_RESERVATION_HANDOFF_V1",
+  "main": "5eb50a4ab3a07a7a94d7ce72436163893299bae5",
+  "authority_unit": "U13-AFTER-RUN454-A1",
+  "reserved": false,
+  "used": 0,
+  "remaining": 1,
+  "new_activation": false,
+  "G06_accepted": false,
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 6059,
+      "sha256": "3bb6b89108426bddad538af928b86591a66a641fd3609ee98773f90cd06e2568"
+    },
+    {
+      "path": "final-modal.jpg",
+      "bytes": 47975,
+      "sha256": "a783352b476a0ed041692f925ab41f7d500e7e5e1e311d31597cd62538a511eb"
+    }
+  ]
+}
