@@ -1,3 +1,13 @@
+# Browser qualification renewal after the held rollback checkpoint
+
+The immediate parent 3a9f8b8c194043f906e747d899595c6d154cef9b is the reviewed documentation-only rollback checkpoint. Ordinary delivery run #439, attempt 1, published and verified its held Pages and verified its held API. The renewed source is qualification-pending for canonical-browser qualification and is not qualified. GATE-02 and GATE-03 retain their dated bounded production adjudications. GATE-06 is in post-deployment verification with null acceptance and browser evidence not collected. Incomplete or failed qualification requires immediate held documentation-only rollback. Work continues under the standing through-deployment instruction. This source preparation selects no operational unit, activation or final release.
+
+Ordinary delivery run #439, attempt 1, published held Pages at 2026-11-13T12:31:14Z and verified Pages at 2026-11-13T12:31:26.705Z. Held API was independently verified at 2026-11-13T12:31:43.556Z with three consecutive held samples. [Original held delivery](https://github.com/howardhayden/folio/actions/runs/43425215764).
+
+The renewed source restores the two qualification UI files and retains the corrected held-state documentation test. The 264-file qualified set is `6db171a7927e5db085f8e516a1756fa5040089d4a5ee9b66a4130319f6fb4727` across 264 files. The November 11 project content date remains the same. The exact held handoff follows.
+
+---
+
 # Held rollback checkpoint after run #434
 
 This temporary documentation-only checkpoint supplies the immediate held parent required by the existing rollback workflow for the next browser-qualification revision. Work continues under the standing through-deployment instruction. GATE-02 and GATE-03 retain the dated bounded adjudications from run #430. GATE-06 is an open release blocker with a null acceptance basis.
