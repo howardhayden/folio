@@ -377,7 +377,7 @@ Safety is purpose- and consequence-aware. Fail transformations that materially f
 
 Priority: safety, semantic fidelity, accessibility, clarity, domain correctness, register fit, ornament. Designated exact literals and annotations, direction controls, line, paragraph, stanza, isolate nesting are immutable. Attestations and edges prove host preservation only, never meaning; never infer across omitted text. Rewrites require words or syntax, not formatting, case, or punctuation.`;
 
-const CANDIDATE_REALIZATION_INSTRUCTION = `Supply one complete candidate-result instance through the required response channel; never return a schema definition. Follow each supplied passage's validated disposition. For rewrite, realize the same source-grounded commitments in different wording or syntactic order that serves its selected layer and plan. Supplied ordinary source prose is evidence rather than a verbatim output requirement; designated exact literals and annotations remain verbatim. Copying the source or changing only formatting, case, or punctuation does not fulfill rewrite. Before returning, compare each realized passage with its source: preserve its speech act, actors, objects, actions, relations, order, modality, polarity, ambiguity, attribution, literals, and boundaries; do not add or remove meaning merely to force a difference. For retain-if-conformant, reproduce the complete source passage exactly; never silently replace a rewrite disposition with retention.`;
+const CANDIDATE_REALIZATION_INSTRUCTION = `Supply one complete candidate-result instance through the required response channel; never return a schema definition. Follow each supplied passage's validated disposition. In each passage's preservedAtomIds, list exactly that passage's planned atom IDs, each once. Keep distinct IDs even when their atoms share a source excerpt. For rewrite, realize the same source-grounded commitments in different wording or syntactic order that serves its selected layer and plan. Supplied ordinary source prose is evidence rather than a verbatim output requirement; designated exact literals and annotations remain verbatim. Copying the source or changing only formatting, case, or punctuation does not fulfill rewrite. Before returning, compare each realized passage with its source: preserve its speech act, actors, objects, actions, relations, order, modality, polarity, ambiguity, attribution, literals, and boundaries; do not add or remove meaning merely to force a difference. For retain-if-conformant, reproduce the complete source passage exactly; never silently replace a rewrite disposition with retention.`;
 
 export function serializeInertModelData(value) {
   return JSON.stringify(value)
@@ -1053,8 +1053,11 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     : wireCorrection === "retained-conformance"
     ? " Rebuild retained-source conformance separately from candidate judgment. A planned rewrite cannot certify unchanged retention; use only its schema-fixed c value and keep actual independent source-layer support in x and y. Replace the complete d/g/p/i result without changing a semantic verdict merely to satisfy layout."
     : "";
+  const atomClaimInstruction = request.deterministicFindings?.some((finding) => deterministicFindingRule(finding) === "D13")
+    ? " The host separately enforces the candidate-atom-claim finding for the atom ID list. Determine atom coverage, failed checks, issues, and the verdict from the independent source and candidate comparison. Report genuine omissions and unsupported meaning. Do not report a failed check or a negative verdict solely because of the ID list mismatch."
+    : "";
   return messages(
-    "Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.",
+    `Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.${atomClaimInstruction}`,
     {
       version: PUBLIC_REGISTER_VERSION,
       batchId: request.batch.id,

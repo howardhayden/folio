@@ -2275,6 +2275,91 @@ test("actual decision-alignment corrections preserve independent judgment, exhau
   }
 });
 
+test("independent acceptance cannot clear a candidate atom claim mismatch", async (context) => {
+  for (const repairsAtomIds of [false, true]) {
+    await context.test(repairsAtomIds ? "complete repaired IDs permit certification" : "incomplete repaired IDs still withhold", async () => {
+      const stages = [];
+      const retainedText = LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1);
+      let plannedIds;
+      let firstVerification;
+      const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body);
+        const payload = inertModelPayload(body);
+        const instruction = body.messages[0].content;
+        if (isAnalysisBody(body)) {
+          stages.push("analysis");
+          const wire = canaryAnalysisWire(body, { retain: true });
+          const [action] = wire.p[0][2];
+          wire.p[0][2].push([0, ...action.slice(1)]);
+          return successfulProviderResponse(wire);
+        }
+        if (isCandidateBody(body)) {
+          const isRepair = stages.includes("candidate");
+          stages.push(isRepair ? "repair" : "candidate");
+          const candidate = canaryCandidateFromProviderBody(body, retainedText);
+          const [{ preservedAtomIds }] = candidate.passages;
+          assert.match(instruction, /list exactly that passage's planned atom IDs, each once/u);
+          assert.match(instruction, /Keep distinct IDs even when their atoms share a source excerpt/u);
+          if (isRepair) {
+            assert.deepEqual(preservedAtomIds, plannedIds);
+            assert.deepEqual(payload.deterministicFindings.map(({ id }) => id), ["candidate-atom-claim"]);
+            assert.equal(payload.verification[0], "accept");
+          } else {
+            const [[firstId, firstKind, firstExcerpt], [secondId, secondKind, secondExcerpt]] = payload.analysis[1][0][5];
+            assert.notEqual(firstId, secondId);
+            assert.notEqual(firstKind, secondKind);
+            assert.equal(firstExcerpt, secondExcerpt);
+            plannedIds = [firstId, secondId];
+            assert.deepEqual(preservedAtomIds, plannedIds);
+          }
+          if (!isRepair || !repairsAtomIds) preservedAtomIds.pop();
+          return successfulProviderResponse(candidate);
+        }
+        if (isVerificationBody(body)) {
+          const isReverification = stages.includes("verification");
+          stages.push(isReverification ? "reverification" : "verification");
+          fittedVerificationSchemaForBody(body);
+          assert.equal(Object.hasOwn(payload, "retry"), false);
+          const claimIncomplete = !isReverification || !repairsAtomIds;
+          assert.deepEqual(payload.candidate[0][3], claimIncomplete ? plannedIds.slice(0, 1) : plannedIds);
+          if (claimIncomplete) {
+            assert.deepEqual(payload.deterministicFindings.map(({ id, atomIds }) => [id, atomIds]), [
+              ["candidate-atom-claim", plannedIds],
+            ]);
+            assert.match(instruction, /The host separately enforces the candidate-atom-claim finding/u);
+            assert.match(instruction, /Report genuine omissions and unsupported meaning/u);
+          } else {
+            assert.equal(Object.hasOwn(payload, "deterministicFindings"), false);
+            assert.doesNotMatch(instruction, /The host separately enforces the candidate-atom-claim finding/u);
+          }
+          const wire = canaryVerificationWire(body, { retain: true });
+          assert.equal(wire.p["0"].a, "11");
+          if (isReverification) assert.deepEqual(wire, firstVerification);
+          else firstVerification = wire;
+          return successfulProviderResponse(wire);
+        }
+        stages.push("certification");
+        assert.equal(repairsAtomIds, true, "an incomplete atom claim must not reach certification");
+        strictReviewSchema(body, CERTIFICATION_TOOL_NAME);
+        assert.equal(payload.source, LATTICE_PRODUCTION_CANARY_TEXT);
+        assert.equal(payload.candidate, LATTICE_PRODUCTION_CANARY_TEXT);
+        return successfulProviderResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds));
+      } });
+
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST), { HF_TOKEN: "server-token" });
+      const { result } = await json(response);
+      assert.equal(response.status, 200);
+      assert.deepEqual(stages, [
+        "analysis", "candidate", "verification", "repair", "reverification",
+        ...(repairsAtomIds ? ["certification"] : []),
+      ]);
+      assert.equal(result.status, repairsAtomIds ? "conformant-for-context" : "unable-to-attempt");
+      assert.equal(result.text, repairsAtomIds ? LATTICE_PRODUCTION_CANARY_TEXT : null);
+      assert.equal(result.verificationPasses, repairsAtomIds ? 2 : 0);
+    });
+  }
+});
+
 test("closed strict verification carries sparse grounded masks through material repair and certification", async (context) => {
   const checks = VERIFICATION_SCHEMA.properties.passages.items.properties.failedChecks.items.enum;
   const repairText = "A guest sets a blue notebook on the desk, reviews the first page, then shuts it.";
