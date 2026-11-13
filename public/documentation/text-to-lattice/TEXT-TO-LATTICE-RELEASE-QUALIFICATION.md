@@ -1,20 +1,18 @@
-# Text to Lattice release qualification — held prompt correction
-
-**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+# Text to Lattice release qualification — qualification-pending renewal
 
 **Qualification date:** 2026-11-13
 
 **Evidence updated:** 2026-11-13
 
-**Reviewed baseline:** `5b3f3b81a8020034456a99d9d5f4774823541a4e`
+**Reviewed baseline:** `7f0f32204d155a5287bf080d76c518e47f242212`
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `87e9a103d1a7be9c548985c4fc2c3f75a89658f6ce95851c335586bb3bcdec0e`
+**Qualified source-set SHA-256:** `b0eb8b1f0b88510e199d7d254f4a328042b9c7bbea5f53aa841335c489e94f40`
 
-**Artifact-set projection SHA-256:** `61d7bce9b27f00dc17c8036a4701c69e89f621e75f2247c6d9b81438e1b327e0`
+**Artifact-set projection SHA-256:** `82e99097584b577f90ee9c415194cc0fcc7a8287fe6a9e073af259bb43874111`
 
-This held prompt-correction candidate supplies the documentation-only parent required by the existing rollback workflow. Work continues under the standing through-deployment instruction without claiming this candidate was deployed or observed in production. GATE-02 and GATE-03 preserve their dated bounded production adjudications from run #430. GATE-06 remains open with null acceptance and browser evidence not collected.
+The immediate Git parent 7f0f32204d155a5287bf080d76c518e47f242212 is the reviewed documentation-only rollback checkpoint delivered by run #450, attempt 1. The renewed source is qualification-pending for canonical-browser qualification and is not qualified. GATE-02 and GATE-03 retain their dated bounded production adjudications from run #430. GATE-06 is in post-deployment verification with null acceptance and browser evidence not collected. Incomplete or failed qualification requires immediate held documentation-only rollback. Work continues under the standing through-deployment instruction. This source preparation selects no operational unit, activation or final release.
 
 | Gate | Status | Marginal value |
 | --- | --- | --- |
@@ -25,17 +23,13 @@ This held prompt-correction candidate supplies the documentation-only parent req
 | GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
 | GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
 | GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
-| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+| GATE-06 · Remote production lifecycle and privacy trace | Post deployment verification | High |
 
-Original run #448, attempt 1, passed six active readiness samples, one HTTP 204 visitor setup and all 24 negative checks. The transformation was withheld after four reported logical calls. The first deterministic finding was D13 candidate-atom-claim, and both verification attempts were refused by the host normalizer for decision-consistency. Certification was not reached. The exact private predicate and provider cause remain unknown. Service rollback verified API held at 2026-11-13T17:37:13.752Z and routine enforcement at 2026-11-13T17:37:43.819Z. A separate Pages held point at 2026-11-13T17:42:22.715Z was followed by a bodyless API 503 point. The included restore preparation refused at baseline SUBPROCESS_REFUSED before retained raw originals, START or POST; no separate restore workflow was issued and its exact cause is unknown. These dated observations establish neither continuous hold nor prompt immediate restoration compliance. U13-AFTER-RUN442-A2 remains spent, with one used and zero remaining. There was no context conductor, metadata POST, Firefox hosted check or native arm, source entry, consent, submission or capture. Both collectors were disposed cleanly and Safari inspection was turned off; owned primary profiles were preserved.
+Ordinary delivery run #450, attempt 1, published held Pages at 2026-11-13T18:15:47Z, verified held Pages at 2026-11-13T18:16:00.417Z, and verified the held API at 2026-11-13T18:16:18.542Z with three held samples. These are dated observations. [Original held delivery](https://github.com/howardhayden/folio/actions/runs/43480304414).
 
-The preceding qualification failed remotely. The current prompt revision has not been exercised in production. There is no successful production transformation on these bytes. The dated run #430 retained-text result and its bounded adjudications remain intact.
+The exact held source was `87e9a103d1a7be9c548985c4fc2c3f75a89658f6ce95851c335586bb3bcdec0e` and its dossier was `816550047c65266f7b514df3dea120d6559583b95b00a9c7c7cbe37595c4eb1f`. Both remain available on the immediate Git parent.
 
-The shared realization instruction now requires each passage's supplied planned atom IDs exactly once, preserving distinct typed IDs even when they share the same source excerpt. When an authentic D13 finding is present, the verification prompt distinguishes the host's ID-list bookkeeping from the independent semantic judgment and continues to require reporting genuine omissions or unsupported meaning. The host validators, acceptance and certification predicates, schemas, fixed providers and models, retry/call/token/deadline limits, privacy, and public response contracts remain unchanged. The real Worker/adapter regression passed 36 targeted checks, and the full affected API Worker suite passed all 733 tests with no failures or skips. Incomplete IDs remained blocked despite positive independent verification; complete repaired IDs reached certification only after reverification. This supplies no hosted remedy or private-cause proof.
-
-The qualified set retains 264 files. The four changed qualified members are the shared prompt contract, its real Worker/adapter regression, and the two existing held résumé and project switches. The modal implementation, all other UI/content and the November 13 project date remain exact. Host acceptance, providers, models, privacy, quota and expiry contracts remain unchanged. Actual source validation, held delivery and any later qualification are separate.
-
-[Original run #448](https://github.com/howardhayden/folio/actions/runs/43473616493). The separate restore preparation issued no workflow.
+This renewal restores only the two existing qualification UI switches. The prompt correction and its real Worker/adapter regression, November 13 project date, modal/content, corrected phase fixtures and six-sample readiness rule remain exact. The preceding run #448 withheld its transformation after D13 and two verification host-normalizer decision-consistency refusals; certification was not reached. Its exact private cause remains unknown. Built-in rollback and routine enforcement produced dated held API observations; a later Pages/API point was held. The separate included restore preparation refused before START or POST, without a new restore workflow. U13-AFTER-RUN442-A2 remains spent, no native capture occurred, and the revised prompt has not been exercised in production. The exact host acceptance, providers, models, caps and privacy boundaries remain unchanged.
 
 The complete preceding qualification dossier follows verbatim.
 

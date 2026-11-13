@@ -1,3 +1,15 @@
+# Browser qualification renewal after the run #448 held checkpoint
+
+The immediate Git parent 7f0f32204d155a5287bf080d76c518e47f242212 is the reviewed documentation-only rollback checkpoint delivered by run #450, attempt 1. The renewed source is qualification-pending for canonical-browser qualification and is not qualified. GATE-02 and GATE-03 retain their dated bounded production adjudications from run #430. GATE-06 is in post-deployment verification with null acceptance and browser evidence not collected. Incomplete or failed qualification requires immediate held documentation-only rollback. Work continues under the standing through-deployment instruction. This source preparation selects no operational unit, activation or final release.
+
+Ordinary delivery run #450, attempt 1, published held Pages at 2026-11-13T18:15:47Z, verified held Pages at 2026-11-13T18:16:00.417Z, and verified the held API at 2026-11-13T18:16:18.542Z with three held samples. These are dated observations. [Original held delivery](https://github.com/howardhayden/folio/actions/runs/43480304414).
+
+This renewal restores only the two existing qualification UI switches. The prompt correction and its real Worker/adapter regression, November 13 project date, modal/content, corrected phase fixtures and six-sample readiness rule remain exact. The preceding run #448 withheld its transformation after D13 and two verification host-normalizer decision-consistency refusals; certification was not reached. Its exact private cause remains unknown. Built-in rollback and routine enforcement produced dated held API observations; a later Pages/API point was held. The separate included restore preparation refused before START or POST, without a new restore workflow. U13-AFTER-RUN442-A2 remains spent, no native capture occurred, and the revised prompt has not been exercised in production. The exact host acceptance, providers, models, caps and privacy boundaries remain unchanged.
+
+The renewed 264-file source is `b0eb8b1f0b88510e199d7d254f4a328042b9c7bbea5f53aa841335c489e94f40` and its dossier is `a2ea1a9fd707312e7ea516d0de4eaaf309291348ee9b848ee376c185146bd6da`. The exact held handoff follows.
+
+---
+
 # Held prompt correction after run #448
 
 This held prompt-correction candidate supplies the documentation-only parent required by the existing rollback workflow. Work continues under the standing through-deployment instruction without claiming this candidate was deployed or observed in production. GATE-02 and GATE-03 preserve their dated bounded production adjudications from run #430. GATE-06 remains open with null acceptance and browser evidence not collected.
