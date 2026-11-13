@@ -1,3 +1,46 @@
+# Text to Lattice release qualification — held checkpoint after run #454
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Qualification date:** 2026-11-13
+
+**Evidence updated:** 2026-11-13
+
+**Reviewed baseline:** `19e183c476569011353b672b8bd7c2364a2da12a`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `87e9a103d1a7be9c548985c4fc2c3f75a89658f6ce95851c335586bb3bcdec0e`
+
+**Artifact-set projection SHA-256:** `61d7bce9b27f00dc17c8036a4701c69e89f621e75f2247c6d9b81438e1b327e0`
+
+This temporary held checkpoint supplies the documentation-only immediate parent required by the existing rollback workflow and a subsequent unique qualification main. Work continues under the standing through-deployment instruction. This source preparation does not select a new operational unit or final release. GATE-02 and GATE-03 retain their dated bounded production adjudications from run #430. GATE-06 remains open with null acceptance and browser evidence not collected.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+Original run #454 passed its backend checks and one strict, document-certified synthetic canary, returning a retained passage with four reported provider calls. This does not demonstrate the source-copy repair path or general output quality. Interactive Pages publication succeeded. Local context preparation then stopped at the reviewed private helper filename error before the active artifact reader, metadata BEFORE, hosted Firefox checks, or native Safari/Brave input or capture. Included provider-free restoration #455 verified held API at 19:56:59.359 UTC and held Pages at 19:58:06.894 UTC. Original #454 separately completed its scheduled cleanup, verifying held API at 20:17:40.764 UTC and held Pages at 20:18:03.177 UTC. These are dated observations, not continuous-hold or prompt-immediate-restoration claims. U13-AFTER-RUN448-A1 is spent, with one used and zero remaining; it cannot be replayed or refunded. Original native cleanup was completed at 20:02 UTC. Later owned collectors are prepared but unarmed; Safari temporary inspection is on again and must be restored off during cleanup. No new qualification unit or final release is selected by this checkpoint.
+
+Backend and canary conclusions are limited to the actual terminal outcome above. The local runtime filename correction supplies no browser evidence or GATE-06 acceptance. The dated run #430 retained-text result and its bounded adjudications remain intact.
+
+A private runtime-packet preparation helper used an absent driver filename after writing its runtime packet. The independently reviewed local correction changes only that filename to the already selected lease-bound driver. Two owned offline cases reproduced the old refusal and verified the corrected packet, unchanged runtime checker and exact driver binding, stopping before any reader or lease execution. No product source, host acceptance, provider, model, cap, privacy or public response contract changed, and the correction has not been exercised in a new hosted window.
+
+The qualified set retains 264 files. Only the two existing held résumé and project switches differ from the preceding Q source; the other 262 qualified files remain exact. The modal implementation, prompt contract, API Worker, tests, all other UI/content and the November 13 project date remain exact. Host acceptance, providers, models, privacy, quota and expiry contracts remain unchanged. Actual source validation, held delivery and any later qualification are separate.
+
+[Original run #454](https://github.com/howardhayden/folio/actions/runs/43495881383). Included restoration #455 and the original automatic cleanup are retained separately in the actual terminal outcome.
+
+The complete preceding qualification dossier follows verbatim.
+
+---
+
 # Text to Lattice release qualification — qualification-pending renewal
 
 **Qualification date:** 2026-11-13
