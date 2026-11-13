@@ -1,3 +1,13 @@
+# Held rollback checkpoint after run #434
+
+This temporary documentation-only checkpoint supplies the immediate held parent required by the existing rollback workflow for the next browser-qualification revision. Work continues under the standing through-deployment instruction. GATE-02 and GATE-03 retain the dated bounded adjudications from run #430. GATE-06 is an open release blocker with a null acceptance basis.
+
+The existing workflow builds its rollback artifact from the qualification revision’s immediate Git parent and requires that parent to declare held publication. The documentation handoff merge `cd695e4d7d7807c9842996dd3f8791c8c5f8b49e` has a qualification-pending first parent. This checkpoint supplies a held parent for the next reviewed qualification revision and restores the two existing held UI switches. It retains the November 11 project content date and the complete preceding handoff and dossier.
+
+The reviewed held source is `b91f081543677a57953e4077495317db3d695f83e46fc54e45915285c03b91b8`. The next qualification revision can restore the preserved interactive UI bytes and keep the same product behavior. Run #434 remains spent. GATE-06 awaits the required browser evidence.
+
+---
+
 # Browser qualification stopped and held service restored — 2026-11-13
 
 [Run #434](https://github.com/howardhayden/folio/actions/runs/43403144401), attempt 1, ran on main `23ceac18dbb021af0f26b1f7f77c2f6a5425a155`. Its backend service and interactive Pages jobs succeeded within the qualification window. The independent [BEFORE context run #6](https://github.com/howardhayden/folio/actions/runs/43404753088), attempt 1, bound the live deployment to the original archive using 14 content-free GETs. Hosted Firefox passed 14 input-only checks. The synthetic input was cleared and there was no consent or submission.

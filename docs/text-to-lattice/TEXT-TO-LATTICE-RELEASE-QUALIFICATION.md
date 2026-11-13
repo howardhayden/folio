@@ -1,3 +1,38 @@
+# Text to Lattice release qualification — held rollback checkpoint
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Qualification date:** 2026-11-11
+
+**Evidence updated:** 2026-11-13
+
+**Reviewed baseline:** `cd695e4d7d7807c9842996dd3f8791c8c5f8b49e`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `b91f081543677a57953e4077495317db3d695f83e46fc54e45915285c03b91b8`
+
+**Artifact-set projection SHA-256:** `d43ac3b00418aff4210fb8b916f5f13c20cf69fea0caa5b6b95638fa85f9a1b2`
+
+Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence.
+
+This temporary documentation-only checkpoint supplies the immediate held parent required by the existing rollback workflow for the next browser-qualification revision. Work continues under the standing through-deployment instruction. GATE-02 and GATE-03 retain the dated bounded adjudications from run #430. GATE-06 is an open release blocker with a null acceptance basis. Run #434 reached the backend and validated BEFORE context. Firefox completed 14 hosted input-only checks. Safari refused before application input binding, and Brave and AFTER did not run. Run #435 and the separate scheduled cleanup in run #434 independently restored held API before held Pages.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+The prior qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending
 
 **Qualification date:** 2026-11-11
