@@ -1,3 +1,15 @@
+# Browser qualification renewal after the run #442 held checkpoint
+
+The immediate Git parent a5460186f87befa1248954617207352f4761bdcd is the reviewed documentation-only rollback checkpoint delivered by run #445, attempt 1. The renewed source is qualification-pending for canonical-browser qualification and is not qualified. GATE-02 and GATE-03 retain their dated bounded production adjudications from run #430. GATE-06 is in post-deployment verification with null acceptance and browser evidence not collected. Incomplete or failed qualification requires immediate held documentation-only rollback. Work continues under the standing through-deployment instruction. This source preparation selects no operational unit, activation or final release.
+
+Ordinary delivery run #445, attempt 1, published held Pages at 2026-11-13T15:10:06Z, verified held Pages at 2026-11-13T15:10:20.603Z, and verified the held API at 2026-11-13T15:10:40.654Z with three held samples. These are dated observations. [Original held delivery](https://github.com/howardhayden/folio/actions/runs/43449350431).
+
+This renewal restores the two existing qualification UI switches. It preserves the November 13 project date, the held-state status note and its date fixture, and the stronger six-sample active readiness rule and regression. Run #442 remains spent after it stopped before the canary. Provider-free run #443 restored held API before held Pages. The cause of the run #442 held response and the live effect of stronger sampling remain unverified.
+
+The renewed 264-file source is `2a5d811eaf479b4ab51fff143670f555d8fafd774f1e4fbf6e06a9f51b212236` and its dossier is `39c103fe7ec37e0f007aa943d1f9520bbe2a07436908225c578c04dfda6f6bb0`. The exact held handoff follows.
+
+---
+
 # Held readiness correction after run #442
 
 The current held remote-capability candidate supplies the documentation-only parent required by the existing rollback workflow. Work continues under the standing through-deployment instruction without claiming this candidate was deployed or observed in production. GATE-02 and GATE-03 preserve their dated bounded production adjudications from run #430. GATE-06 remains open with null acceptance and browser evidence not collected.
