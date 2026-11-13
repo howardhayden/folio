@@ -1215,7 +1215,7 @@ test("project relationships and inherited requirements resolve in the graph", ()
 });
 
 test("Text to Lattice dates agree across published surfaces without refreshing unrelated projects", async () => {
-  assert.equal(TEXT_TO_LATTICE_CONTENT_UPDATED, "2026-11-11");
+  assert.equal(TEXT_TO_LATTICE_CONTENT_UPDATED, "2026-11-13");
   assert.equal(textToLatticeContract.lastUpdated, TEXT_TO_LATTICE_CONTENT_UPDATED);
   assert.equal(projects.find(({ id }) => id === "lattice")?.lastUpdated, TEXT_TO_LATTICE_CONTENT_UPDATED);
   const [contractHtml, projectHtml, manifestText, resumeText, graphText, projectMarkdown, sitemap] = await Promise.all([
@@ -1227,8 +1227,8 @@ test("Text to Lattice dates agree across published surfaces without refreshing u
     readFile(staticFileUrl("content/projects/lattice.md"), "utf8"),
     readFile(staticFileUrl("sitemap.xml"), "utf8"),
   ]);
-  assert.match(authoredDocument(contractHtml), /<time datetime="2026-11-11">2026-11-11<\/time>/iu);
-  assert.match(decodedText(projectHtml), /Last updated 2026-11-11/u);
+  assert.match(authoredDocument(contractHtml), /<time datetime="2026-11-13">2026-11-13<\/time>/iu);
+  assert.match(decodedText(projectHtml), /Last updated 2026-11-13/u);
   assert.ok(projectMarkdown.includes(`Status: public as of ${TEXT_TO_LATTICE_CONTENT_UPDATED}`));
   assert.ok(projectMarkdown.includes(`Last updated: ${TEXT_TO_LATTICE_CONTENT_UPDATED}`));
   const manifest = JSON.parse(manifestText);

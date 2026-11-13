@@ -120,7 +120,7 @@ export const LATTICE_PRODUCTION_READINESS_CONTRACT = Object.freeze({
   deadlineMs: 45_000,
   intervalMs: 2_000,
   requestTimeoutMs: 7_000,
-  requiredConsecutiveActiveSamples: 3,
+  requiredConsecutiveActiveSamples: 6,
 });
 const SYNTHETIC_NEGATIVE_MARKER = "lattice-live-negative-canary-2026-09-14";
 const CERTIFICATION_CANARY_STATUS_SET = new Set([

@@ -946,12 +946,17 @@ test("the evidence writer rejects a relative receipt path", async () => {
   );
 });
 
-test("active-API readiness settles only after consecutive exact content-free samples", async () => {
+test("active-API readiness rejects a three-sample false start and requires six consecutive exact samples", async () => {
   const readinessResponses = [
     new Error("synthetic edge transport failure"),
     heldReadinessResponse(),
     productionActiveReadinessResponse(),
+    productionActiveReadinessResponse(),
+    productionActiveReadinessResponse(),
     heldReadinessResponse(),
+    productionActiveReadinessResponse(),
+    productionActiveReadinessResponse(),
+    productionActiveReadinessResponse(),
     productionActiveReadinessResponse(),
     productionActiveReadinessResponse(),
     productionActiveReadinessResponse(),
@@ -971,15 +976,15 @@ test("active-API readiness settles only after consecutive exact content-free sam
     milliseconds === LATTICE_PRODUCTION_READINESS_CONTRACT.intervalMs
   )));
   assert.deepEqual(evidence.deployment_readiness, {
-    request_count: 7,
+    request_count: 12,
     method: "POST",
     path: "/api/lattice",
     accept: LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT,
     content_type: LATTICE_PRODUCTION_READINESS_CONTENT_TYPE,
     content_type_header_present: true,
-    required_consecutive_active_samples: 3,
-    observed_consecutive_active_samples: 3,
-    active_response_count: 4,
+    required_consecutive_active_samples: 6,
+    observed_consecutive_active_samples: 6,
+    active_response_count: 9,
     held_response_count: 2,
     network_error_count: 1,
     final_http_status: 400,
@@ -1689,7 +1694,7 @@ test("a setup-time 503 is validated and classified as the exact held boundary", 
     }),
     /reached the exact held API boundary after active readiness; expected 204/u,
   );
-  assert.equal(fixture.readinessRequests, 3);
+  assert.equal(fixture.readinessRequests, 6);
   assert.equal(fixture.setupRequests, 1);
   assert.equal(fixture.negativeRequests, 0);
   assert.equal(fixture.canaryRequests, 0);

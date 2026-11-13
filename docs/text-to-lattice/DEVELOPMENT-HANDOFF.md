@@ -1,3 +1,15 @@
+# Held readiness correction after run #442
+
+The current held remote-capability candidate supplies the documentation-only parent required by the existing rollback workflow. Work continues under the standing through-deployment instruction without claiming this candidate was deployed or observed in production. GATE-02 and GATE-03 preserve their dated bounded production adjudications from run #430. GATE-06 remains open with null acceptance and browser evidence not collected.
+
+Original run #442, attempt 1, passed three exact active readiness samples before session setup returned the exact held HTTP 503 boundary. It reached no negative probes, transformation canary, provider call by this verifier, interactive Pages deployment, or hosted browser capture. The responding Worker version and cause remain unknown. The workflow's held API rollback was verified at 2026-11-13T14:16:50.053Z after one active and three final held samples. Included provider-free run #443, attempt 1, verified held API at 2026-11-13T14:22:25.046Z and then held Pages at 2026-11-13T14:23:36.854Z. These are dated observations. The run #442 unit remains spent with zero remaining.
+
+The deployment verifier now requires six consecutive exact active samples before the single visitor-session setup, using its existing bodyless, cookieless probes and 18-attempt, 45-second envelope. A held or transport sample resets the streak. Setup still requires HTTP 204, and a held setup response stops before negative probes or the canary. The affected offline verifier and deployment-evidence tests passed 753 checks. The stronger sampling supplies no live convergence or causal evidence.
+
+The held source is `aff3cecb36d68fb142e7fa978748e801259d4ea64b3d2bb39531771bfb30fcd7` and its dossier is `50195f37eb84b7324d63dee2f415769e38fc6f39bd8db4df6bfb72bf9ba5f322`. Restore the two qualification UI switches only after this held checkpoint is reviewed and delivered. Keep the stricter verifier, the November 13 date and its fixture. Complete prior handoff follows verbatim.
+
+---
+
 # Browser qualification renewal after the held rollback checkpoint
 
 The immediate parent 3a9f8b8c194043f906e747d899595c6d154cef9b is the reviewed documentation-only rollback checkpoint. Ordinary delivery run #439, attempt 1, published and verified its held Pages and verified its held API. The renewed source is qualification-pending for canonical-browser qualification and is not qualified. GATE-02 and GATE-03 retain their dated bounded production adjudications. GATE-06 is in post-deployment verification with null acceptance and browser evidence not collected. Incomplete or failed qualification requires immediate held documentation-only rollback. Work continues under the standing through-deployment instruction. This source preparation selects no operational unit, activation or final release.
