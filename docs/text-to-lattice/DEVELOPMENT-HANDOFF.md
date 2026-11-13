@@ -1,3 +1,15 @@
+# Browser qualification renewal after the run #454 held checkpoint
+
+The immediate Git parent acebbf3a01296b1b9ff1d5de83740c10add2d788 is the reviewed documentation-only rollback checkpoint delivered by run #457, attempt 1. The renewed source is qualification-pending for canonical-browser qualification and is not qualified. GATE-02 and GATE-03 retain their dated bounded production adjudications from run #430. GATE-06 is in post-deployment verification with null acceptance and browser evidence not collected. Incomplete or failed qualification requires immediate held documentation-only rollback. Work continues under the standing through-deployment instruction. This source preparation selects no operational unit, activation or final release.
+
+Ordinary delivery run #457, attempt 1, published held Pages at 2026-11-13T20:49:10Z, verified held Pages at 2026-11-13T20:49:22.308Z, and verified the held API at 2026-11-13T20:49:37.197Z with three held samples. These are dated observations. [Original held delivery](https://github.com/howardhayden/folio/actions/runs/43504350605).
+
+This renewal restores only the two existing qualification UI switches. The product runtime, prompt and Worker regression, November 13 project date, modal/content, corrected phase fixtures and six-sample readiness rule remain exact. Original run #454 passed its backend checks and one strict document-certified synthetic canary, retaining one passage with four reported provider calls. This does not demonstrate the source-copy repair path or general output quality. Interactive Pages publication succeeded, but local context preparation stopped at the private helper filename error before the active artifact reader, metadata BEFORE, hosted Firefox checks or native input and capture. Included restoration #455 and original #454 scheduled cleanup each produced dated held API then held Pages observations. The exact one-literal private helper correction passed its retained-original offline regression and is adopted only for future preparation; it changes no product source or acceptance. U13-AFTER-RUN448-A1 remains spent. The host acceptance, providers, models, caps and privacy boundaries remain unchanged.
+
+The renewed 264-file source is `b0eb8b1f0b88510e199d7d254f4a328042b9c7bbea5f53aa841335c489e94f40` and its dossier is `c6a91af246420d3cb505c39e78aeac3fe3d2d0e0dc6d8afbacbc487235aea02b`. The exact held handoff follows.
+
+---
+
 # Temporary held checkpoint after run #454
 
 This temporary held checkpoint supplies the documentation-only immediate parent required by the existing rollback workflow and a subsequent unique qualification main. Work continues under the standing through-deployment instruction. This source preparation does not select a new operational unit or final release. GATE-02 and GATE-03 retain their dated bounded production adjudications from run #430. GATE-06 remains open with null acceptance and browser evidence not collected.
