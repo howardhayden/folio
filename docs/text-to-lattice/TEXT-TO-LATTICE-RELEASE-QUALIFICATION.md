@@ -1,3 +1,46 @@
+# Text to Lattice release qualification — held readiness correction
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Qualification date:** 2026-11-13
+
+**Evidence updated:** 2026-11-13
+
+**Reviewed baseline:** `d531bf3e40ddc9eb177ab7cb2917d34fbdef5861`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `aff3cecb36d68fb142e7fa978748e801259d4ea64b3d2bb39531771bfb30fcd7`
+
+**Artifact-set projection SHA-256:** `61d7bce9b27f00dc17c8036a4701c69e89f621e75f2247c6d9b81438e1b327e0`
+
+The current held remote-capability candidate supplies the documentation-only parent required by the existing rollback workflow. Work continues under the standing through-deployment instruction without claiming this candidate was deployed or observed in production. GATE-02 and GATE-03 preserve their dated bounded production adjudications from run #430. GATE-06 remains open with null acceptance and browser evidence not collected.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+Original run #442, attempt 1, passed three exact active readiness samples before session setup returned the exact held HTTP 503 boundary. It reached no negative probes, transformation canary, provider call by this verifier, interactive Pages deployment, or hosted browser capture. The responding Worker version and cause remain unknown. The workflow's held API rollback was verified at 2026-11-13T14:16:50.053Z after one active and three final held samples. Included provider-free run #443, attempt 1, verified held API at 2026-11-13T14:22:25.046Z and then held Pages at 2026-11-13T14:23:36.854Z. These are dated observations. The run #442 unit remains spent with zero remaining.
+
+For this readiness revision, remote production evidence is failure-only. There is no successful production transformation on these bytes. The dated run #430 retained-text result and its bounded adjudications remain intact.
+
+The deployment verifier now requires six consecutive exact active samples before the single visitor-session setup, using its existing bodyless, cookieless probes and 18-attempt, 45-second envelope. A held or transport sample resets the streak. Setup still requires HTTP 204, and a held setup response stops before negative probes or the canary. The affected offline verifier and deployment-evidence tests passed 753 checks. The stronger sampling supplies no live convergence or causal evidence.
+
+The qualified set retains 264 files. The six changed members are the verifier and its regression, the existing held résumé and project switches, the project status note, and the date-agreement fixture. The Text to Lattice project date is November 13. The Worker, provider, transformation, privacy, quota and expiry contracts remain unchanged. Actual source validation, held delivery and any later qualification are separate.
+
+[Original run #442](https://github.com/howardhayden/folio/actions/runs/43440537271) · [Included restoration #443](https://github.com/howardhayden/folio/actions/runs/43441982338)
+
+The complete preceding qualification dossier follows verbatim.
+
+---
+
 # Text to Lattice release qualification — qualification-pending renewal
 
 **Qualification date:** 2026-11-11
