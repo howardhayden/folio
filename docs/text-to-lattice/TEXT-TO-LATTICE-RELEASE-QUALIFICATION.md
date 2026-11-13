@@ -1,20 +1,18 @@
-# Text to Lattice release qualification — held readiness correction
-
-**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+# Text to Lattice release qualification — qualification-pending renewal
 
 **Qualification date:** 2026-11-13
 
 **Evidence updated:** 2026-11-13
 
-**Reviewed baseline:** `d531bf3e40ddc9eb177ab7cb2917d34fbdef5861`
+**Reviewed baseline:** `a5460186f87befa1248954617207352f4761bdcd`
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `aff3cecb36d68fb142e7fa978748e801259d4ea64b3d2bb39531771bfb30fcd7`
+**Qualified source-set SHA-256:** `2a5d811eaf479b4ab51fff143670f555d8fafd774f1e4fbf6e06a9f51b212236`
 
-**Artifact-set projection SHA-256:** `61d7bce9b27f00dc17c8036a4701c69e89f621e75f2247c6d9b81438e1b327e0`
+**Artifact-set projection SHA-256:** `82e99097584b577f90ee9c415194cc0fcc7a8287fe6a9e073af259bb43874111`
 
-The current held remote-capability candidate supplies the documentation-only parent required by the existing rollback workflow. Work continues under the standing through-deployment instruction without claiming this candidate was deployed or observed in production. GATE-02 and GATE-03 preserve their dated bounded production adjudications from run #430. GATE-06 remains open with null acceptance and browser evidence not collected.
+The immediate Git parent a5460186f87befa1248954617207352f4761bdcd is the reviewed documentation-only rollback checkpoint delivered by run #445, attempt 1. The renewed source is qualification-pending for canonical-browser qualification and is not qualified. GATE-02 and GATE-03 retain their dated bounded production adjudications from run #430. GATE-06 is in post-deployment verification with null acceptance and browser evidence not collected. Incomplete or failed qualification requires immediate held documentation-only rollback. Work continues under the standing through-deployment instruction. This source preparation selects no operational unit, activation or final release.
 
 | Gate | Status | Marginal value |
 | --- | --- | --- |
@@ -25,17 +23,13 @@ The current held remote-capability candidate supplies the documentation-only par
 | GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
 | GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
 | GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
-| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+| GATE-06 · Remote production lifecycle and privacy trace | Post deployment verification | High |
 
-Original run #442, attempt 1, passed three exact active readiness samples before session setup returned the exact held HTTP 503 boundary. It reached no negative probes, transformation canary, provider call by this verifier, interactive Pages deployment, or hosted browser capture. The responding Worker version and cause remain unknown. The workflow's held API rollback was verified at 2026-11-13T14:16:50.053Z after one active and three final held samples. Included provider-free run #443, attempt 1, verified held API at 2026-11-13T14:22:25.046Z and then held Pages at 2026-11-13T14:23:36.854Z. These are dated observations. The run #442 unit remains spent with zero remaining.
+Ordinary delivery run #445, attempt 1, published held Pages at 2026-11-13T15:10:06Z, verified held Pages at 2026-11-13T15:10:20.603Z, and verified the held API at 2026-11-13T15:10:40.654Z with three held samples. These are dated observations. [Original held delivery](https://github.com/howardhayden/folio/actions/runs/43449350431).
 
-For this readiness revision, remote production evidence is failure-only. There is no successful production transformation on these bytes. The dated run #430 retained-text result and its bounded adjudications remain intact.
+The exact held source was `aff3cecb36d68fb142e7fa978748e801259d4ea64b3d2bb39531771bfb30fcd7` and its dossier was `50195f37eb84b7324d63dee2f415769e38fc6f39bd8db4df6bfb72bf9ba5f322`. Both remain available on the immediate Git parent.
 
-The deployment verifier now requires six consecutive exact active samples before the single visitor-session setup, using its existing bodyless, cookieless probes and 18-attempt, 45-second envelope. A held or transport sample resets the streak. Setup still requires HTTP 204, and a held setup response stops before negative probes or the canary. The affected offline verifier and deployment-evidence tests passed 753 checks. The stronger sampling supplies no live convergence or causal evidence.
-
-The qualified set retains 264 files. The six changed members are the verifier and its regression, the existing held résumé and project switches, the project status note, and the date-agreement fixture. The Text to Lattice project date is November 13. The Worker, provider, transformation, privacy, quota and expiry contracts remain unchanged. Actual source validation, held delivery and any later qualification are separate.
-
-[Original run #442](https://github.com/howardhayden/folio/actions/runs/43440537271) · [Included restoration #443](https://github.com/howardhayden/folio/actions/runs/43441982338)
+This renewal restores the two existing qualification UI switches. It preserves the November 13 project date, the held-state status note and its date fixture, and the stronger six-sample active readiness rule and regression. Run #442 remains spent after it stopped before the canary. Provider-free run #443 restored held API before held Pages. The cause of the run #442 held response and the live effect of stronger sampling remain unverified.
 
 The complete preceding qualification dossier follows verbatim.
 
