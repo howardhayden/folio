@@ -1,3 +1,15 @@
+# Current DeepInfra review-envelope requirement — November 20
+
+The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and DeepInfra-qualified Llama verifier/certifier targets through OpenRouter. The reviewed outer-envelope rule applies only to the actual fixed DeepInfra Llama verification and certification adapter stages with strict json_schema, one stopped assistant response and one nonempty string content channel. It additionally admits reasoning:null and refusal:null only as a matched pair. tool_calls must be absent or the already permitted empty array. A single null field, substantive metadata, another auxiliary key, an unknown key or any nonempty competing call remains rejected. The separate Scaleway exception remains unchanged. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, caps, deadlines and no-fallback policy remain unchanged. Certification support is prospective.
+
+Run #465 failed at initial verification call 3. Its finite shape records the matched null fields, while tool_calls and content validity remain unresolved. Qualification must establish a successful result under the existing production criteria. The three production gates remain open.
+
+The continuing through-deployment direction covers one separately recorded backend original on this corrected held source. The scope counts at most six operator transformations through deployment, including #465, the next backend original, the unchanged three browser-window pipelines and the final check. Existing models, processing terms, dated catalog rates, shared daily quotas and finite per-pipeline limits remain unchanged. No credit purchase is selected. The #462 and #465 spent records remain separate.
+
+The canonical release register governs the current phase. The complete preceding requirements follow verbatim as dated history where superseded.
+
+---
+
 # Current November 20 DeepInfra release requirement
 
 This current section supersedes provider and release-state claims in the dated requirements below. The site owner approved the scoped DeepInfra sequence in `work/proposals/nov20-deepinfra-reviewer-decision/owner-approval.json`. Hold the public client while GATE-02, GATE-03 and GATE-06 remain open for this changed provider. Historical OVH production results do not satisfy these gates for DeepInfra.
