@@ -54,8 +54,8 @@ const browserEvidenceIdentityFields = [
 ];
 
 const publishedDossierPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHistoryBoundary = Buffer.from("The complete pre-run430 held dossier follows verbatim as dated history.");
-const datedHistorySeparator = Buffer.from("The complete pre-run430 held dossier follows verbatim as dated history.\n\n---\n\n");
+const datedHistoryBoundary = Buffer.from("The complete November 20 CoreWeave observed-envelope held dossier follows verbatim as dated history.");
+const datedHistorySeparator = Buffer.from("The complete November 20 CoreWeave observed-envelope held dossier follows verbatim as dated history.\n\n---\n\n");
 const staleEnabledClaims = [
   "release gates remain open",
   "must agree before the converter can open",
@@ -76,6 +76,22 @@ function verifyEqualDossierCopies(bytes) {
   verifyEnabledPublicationCopy(publishedDossierPath, bytes, Buffer.from(bytes));
 }
 
+test("enabled register authenticates the archived decision and still checks current text", async () => {
+  const path = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json";
+  const canonical = await readFile(registerPath);
+  const verify = (bytes, source = bytes) => verifyEnabledPublicationCopy(path, bytes, undefined, source);
+  assert.doesNotThrow(() => verify(canonical));
+  const stale = Buffer.concat([Buffer.from('{"currentNote":"Hold the interactive client",'), canonical.subarray(1)]);
+  assert.throws(() => verify(stale), /stale held-gate copy/u);
+  assert.throws(() => verify(stale, canonical), /not byte-identical/u);
+  const text = canonical.toString("utf8");
+  const moved = text.replace('"priorCoreWeaveObservedEnvelopeHeldValuesBeforeCombinedQualificationPhase":', '"unrelatedHistory":');
+  assert.throws(() => verify(Buffer.from(moved)), /pinned prior owner decision/u);
+  const changed = text.replace("Hold the interactive client", "Changed archived instruction");
+  assert.throws(() => verify(Buffer.from(changed)), /pinned prior owner decision/u);
+  assert.throws(() => verifyEnabledPublicationCopy("other.json", canonical, undefined, canonical), /stale held-gate copy/u);
+});
+
 function enabledPublicationDossierFixture(dossier) {
   const boundary = dossier.indexOf(datedHistorySeparator);
   assert.ok(boundary > 0);
@@ -90,8 +106,8 @@ test("enabled publication history permits only the exact bound canonical held do
   const boundary = dossier.indexOf(datedHistorySeparator);
   assert.ok(boundary > 0);
   const history = dossier.subarray(boundary + datedHistorySeparator.length);
-  assert.equal(history.length, 593731);
-  assert.equal(sha256(history), "ad9455232d946a3f317913a0d6696b9b944cd261ceb7b560b58ea2b9820c6394");
+  assert.equal(history.length, 637620);
+  assert.equal(sha256(history), "940db351391944c34604ba4488524ca7f68b5d6678e6d30a4a76d84863e4558f");
   assert.match(history.toString("utf8"), /hold the interactive client/iu);
   const phase = verifyReleaseStatusState(await releaseRegister());
   if (phase.enabled) assert.doesNotThrow(() => verifyEqualDossierCopies(dossier));

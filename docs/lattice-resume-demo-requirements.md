@@ -1,3 +1,11 @@
+# CoreWeave-review qualification requirements and phase authority
+
+The canonical release register controls the current source phase. GATE-02 and GATE-03 require actual reviewed backend evidence for the fixed Hugging Face/OpenRouter route with DeepInfra Qwen generation and CoreWeave Llama verification/certification. Only after they close may a separately granted bounded browser window activate a qualification-pending, non-qualified client. GATE-06 requires actual sealed canonical-browser evidence before final qualification. Missing or failed evidence requires immediate held documentation-only rollback. The previously approved API-only, browser and final deployment stages remain distinct, one original each with their stated recovery limits. No local source or test result substitutes for production or browser evidence. All model, processing, strict acceptance, privacy, finite budget and no-fallback requirements below remain unchanged.
+
+The complete preceding requirements follow verbatim as dated history where their phase statements are superseded.
+
+---
+
 # Current CoreWeave stopped-response requirement — November 20
 
 The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets through OpenRouter. Both CoreWeave review stages retain strict json_schema and the existing stopped single-assistant nonempty string-content channel. Only the actual fixed verification and certification adapter stages additionally admit reasoning:null and refusal:null together as one matched pair. tool_calls must be absent or the already permitted empty array. A single null field, substantive metadata, any other auxiliary or unknown key and a nonempty competing call remain rejected. The private frozen stage and exact fixed router/model checks select this rule. Public helper options cannot enable it. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, deadlines, calls, quotas, privacy, no automatic retry and no alternate provider or model fallback remain unchanged. The separate historical Scaleway optional-null rule remains unchanged. Certification support is prospective.

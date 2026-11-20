@@ -200,7 +200,7 @@ test("the qualification dossier leads with its current phase and retains verbati
   }[releaseState.releasePhase];
   assert.match(dossier, heading);
   assert.ok(dossier.includes(`**Qualification date:** ${releaseRegister.revision}`));
-  const controllingPrefix = dossier.split("The complete pre-run430 held dossier follows verbatim as dated history.")[0];
+  const controllingPrefix = dossier.split("The complete November 20 CoreWeave observed-envelope held dossier follows verbatim as dated history.")[0];
   if (releaseState.qualificationPending) {
     assert.match(controllingPrefix, /not qualified|non-qualified/iu);
     assert.match(controllingPrefix, /canonical-browser qualification/iu);
