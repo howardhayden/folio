@@ -17,7 +17,9 @@ import {
   secretBootstrapPlan,
 } from "../scripts/bootstrap-text-to-lattice-secrets.mjs";
 import {
+  confirmApiSecretInventory,
   installTextToLatticeApiSecretPlan,
+  publishedHeldVersion,
   textToLatticeApiSecretBootstrapPlan,
 } from "../scripts/bootstrap-text-to-lattice-api-secrets.mjs";
 import {
@@ -1116,6 +1118,75 @@ test("API secret bootstrap preserves the provider credential and generates only 
     ], { randomBytesImpl }),
     /malformed encrypted-binding inventory/u,
   );
+});
+
+test("bootstrap waits for both encrypted names when the script listing lags the published version", async () => {
+  const provider = { name: "HF_TOKEN", type: "secret_text" };
+  const visitor = { name: "VISITOR_COOKIE_SECRET", type: "secret_text" };
+  const id = "00000000-0000-4000-8000-000000000046";
+  const output = { type: "deploy", version: 1, worker_name: "hahdev-text-to-lattice-api", version_id: id };
+  const line = JSON.stringify(output);
+  assert.equal(publishedHeldVersion(line + "\n"), id);
+  assert.throws(() => publishedHeldVersion(line + "\n" + line), /exactly one version/u);
+  assert.throws(() => publishedHeldVersion(JSON.stringify({ ...output, worker_name: "different-worker" })), /exactly one version/u);
+  assert.throws(() => publishedHeldVersion(JSON.stringify({ ...output, version_id: [id] })), /exactly one version/u);
+  const snapshots = [[visitor], [provider, visitor]];
+  const waits = [];
+  const options = {
+    publishedVersion: () => id,
+    readVersion: requested => {
+      assert.equal(requested, id);
+      return { id, resources: { bindings: [provider, visitor] } };
+    },
+    readInventory: () => snapshots.shift(),
+    wait: ms => waits.push(ms),
+  };
+  const ready = await confirmApiSecretInventory([], options);
+  assert.deepEqual(textToLatticeApiSecretBootstrapPlan(ready), []);
+  assert.deepEqual(waits, [1000, 3000]);
+  assert.equal(await confirmApiSecretInventory(ready, {}), ready);
+  await assert.rejects(confirmApiSecretInventory([provider], {
+    ...options, readInventory: () => [provider],
+  }), /did not converge/u);
+  assert.deepEqual(waits.slice(2), [1000, 3000, 6000]);
+  await assert.rejects(confirmApiSecretInventory([], {
+    ...options, readVersion: () => ({ id, resources: { bindings: [visitor] } }),
+  }), /HF_TOKEN must be provisioned/u);
+  await assert.rejects(confirmApiSecretInventory([], {
+    ...options, readVersion: () => ({ id: "different-version", resources: { bindings: [provider, visitor] } }),
+  }), /did not match/u);
+  await assert.rejects(confirmApiSecretInventory([], {
+    ...options, readInventory: () => [provider, { name: "EXTRA", type: "secret_text" }],
+  }), /Unexpected encrypted binding/u);
+});
+
+test("only a corroborated missing visitor secret in the active held version can reach the installer", async () => {
+  const providerOnly = [{ name: "HF_TOKEN", type: "secret_text" }];
+  const complete = [...providerOnly, { name: "VISITOR_COOKIE_SECRET", type: "secret_text" }];
+  const options = {
+    publishedVersion: () => "held-version",
+    readVersion: id => ({ id, resources: { bindings: providerOnly } }),
+    readInventory: () => providerOnly,
+    readActiveVersion: () => "held-version",
+    wait: () => {},
+  };
+  assert.deepEqual(await confirmApiSecretInventory([], options), providerOnly);
+  await assert.rejects(confirmApiSecretInventory(providerOnly, {
+    ...options, readActiveVersion: () => "changed-version",
+  }), /changed before visitor-cookie/u);
+  await assert.rejects(confirmApiSecretInventory([], {
+    ...options, readVersion: id => ({ id, resources: { bindings: [...providerOnly, null] } }),
+  }), /did not match/u);
+  const final = { readInventory: () => complete, wait: () => {} };
+  assert.deepEqual(await confirmApiSecretInventory(providerOnly, final), complete);
+  await assert.rejects(confirmApiSecretInventory([], { ...final, readInventory: () => providerOnly }), /did not converge/u);
+});
+
+test("the deployment passes Wrangler's version record into bootstrap and retains an independently verified final inventory", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  assert.match(workflow, /WRANGLER_OUTPUT_FILE_PATH: \$\{\{ runner\.temp \}\}\/text-to-lattice-held-deploy\.jsonl/u);
+  assert.match(workflow, /--held-deployment "\$RUNNER_TEMP\/text-to-lattice-held-deploy\.jsonl"/u);
+  assert.match(workflow, /--read-final-inventory[\s\S]*?--config workers\/text-to-lattice-api\/wrangler\.jsonc[\s\S]*?text-to-lattice-api-secret-bindings\.raw\.json[\s\S]*?node scripts\/verify-text-to-lattice-secret-bindings\.mjs/u);
 });
 
 test("API secret bootstrap installs one generated visitor secret without exposing or replacing HF_TOKEN", () => {

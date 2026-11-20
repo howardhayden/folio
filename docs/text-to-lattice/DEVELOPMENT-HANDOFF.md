@@ -1,3 +1,23 @@
+# Run #462 held correction handoff — November 20
+
+Current source digest: `2152b4c710867a771daaae783ab82a996bb3ed1993062a0e6e94a69d0083964c`.
+
+Run #462 stopped at the credential inventory check before the DeepInfra models ran. The original used one dispatch and zero operator transformations. It remains spent, with one used and zero remaining. GATE-02, GATE-03 and GATE-06 remain open. The client remains held.
+
+The in-job held API check passed at 12:49:34.180Z on November 20. Routine enforcement then checked held Pages at 12:49:48.997Z and held API at 12:50:01.958Z. Each API check recorded three held 503 responses, zero active responses and zero network errors. These are dated point observations.
+
+Later inspections of the exact Worker and its before, bootstrap and rollback versions found both existing encrypted names, HF_TOKEN and VISITOR_COOKIE_SECRET. No credential was changed. The cause of the earlier inventory disagreement remains unknown. The corrected reader passed a value-free read-only check at 13:01:56.481118Z.
+
+The source and dossier bindings are complete. Required documentation has been regenerated. Source verification and the affected source checks passed. Site verification and delivery remain pending.
+
+The next step is delivery of this held correction, followed by one separately recorded corrected-source original under fresh guards. The continuing through-deployment direction covers the remaining work. Original #462 remains spent.
+
+Prepare any later Q transition from the new verified held parent and its actual source and dossier. A successful corrected-source original and independent GATE-02/GATE-03 evidence are required first. Keep the original #462 failure and spent record intact.
+
+Complete preceding handoff follows verbatim as dated history.
+
+---
+
 # November 20 DeepInfra held-provider handoff
 
 The site owner approved DeepInfra through the bounded deployment sequence recorded in `work/proposals/nov20-deepinfra-reviewer-decision/owner-approval.json`. The current source is held/documentation-only. GATE-02, GATE-03 and GATE-06 are open for the changed review provider. No new successful production transformation, managed input fit or browser capture is claimed.

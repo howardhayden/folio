@@ -439,6 +439,7 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/text-to-lattice-held-deploy.jsonl
         run: >-
           ./workers/node_modules/.bin/wrangler deploy
           workers/text-to-lattice-api/held.js
@@ -465,6 +466,7 @@ jobs:
           node scripts/bootstrap-text-to-lattice-api-secrets.mjs
           --inventory
           "$RUNNER_TEMP/text-to-lattice-api-secret-bindings-before.raw.json"
+          --held-deployment "$RUNNER_TEMP/text-to-lattice-held-deploy.jsonl"
           --wrangler
           ./workers/node_modules/.bin/wrangler
           --config
@@ -474,7 +476,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
         run: >-
-          ./workers/node_modules/.bin/wrangler secret list --format json
+          node scripts/bootstrap-text-to-lattice-api-secrets.mjs --read-final-inventory
+          --wrangler ./workers/node_modules/.bin/wrangler
           --config workers/text-to-lattice-api/wrangler.jsonc
           > "$RUNNER_TEMP/text-to-lattice-api-secret-bindings.raw.json"
       - name: Require the exact provider and visitor-cookie encrypted bindings
