@@ -1,3 +1,39 @@
+# CoreWeave review-role held preparation — November 20
+
+Current source digest: `360a22ecd393536f8c65338e3b13a434c4436e0d10de9bcedeee8326a642e821`.
+
+The owner selected CoreWeave for both Llama review roles on November 20. This held remote-capability candidate uses reviewed implementation baseline a7cad6008d030710244dd6c77dbcfa55248c00a1. The last pulled hah.dev deployment and ancestry baseline is ecd1f53ca962cfcb75fb29a6fdeb0c2c9f1a29ad. The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets through OpenRouter. GATE-02, GATE-03 and GATE-06 remain open for the changed review provider. The candidate is prepared without claiming it is deployed or observed in production. Historical browser-local and earlier provider results remain historical and inactive. DeepInfra failures #465/#468/#469 and prior OVH results do not qualify CoreWeave.
+
+The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets through OpenRouter. Both CoreWeave review stages require strict json_schema and the existing stopped single-assistant nonempty string-content channel, with tool_calls absent or the already permitted empty array. Auxiliary metadata, including reasoning:null and refusal:null, is rejected by this baseline. The historical DeepInfra joint-null exception and separate Scaleway optional-null rule remain scoped to their original providers and are not enabled for CoreWeave. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, deadlines, calls, quotas, privacy, no automatic retry and no alternate provider or model fallback remain unchanged.
+
+The November 20 public catalog advertises the CoreWeave Llama route as live, FP16 with a 128,000-token context window and USD 0.71 input / 0.71 output per million tokens. These are dated public metadata, not measured serving identity, guaranteed availability, successful input fit, billing or an invoice ceiling. DeepInfra Qwen generation remains USD 0.09 input / 0.55 output per million at the retained catalog basis.
+
+Hugging Face routes both models through OpenRouter. DeepInfra serves Qwen generation and CoreWeave serves Llama verification and certification. OpenRouter metadata, prompt categorization and applicable safety or legal retention remain disclosed; its Hugging Face route settings are unknown. DeepInfra ordinary deletion has temporary caching, support, legal and elected-feature exceptions. CoreWeave describes zero data retention by default for serverless inference. Optional tracing can record requests. The tracing setting for this route is unknown. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev.
+
+The owner selected CoreWeave for both review roles and directed implementation through deployment after the existing gates pass. Three prior operator transformations (#465, #468 and #469) remain separately spent; #462 remains a spent pre-provider refusal. The newly selected scope is one backend original, the existing single browser window (one backend canary and at most one synthetic submission per Safari and Brave, Firefox input only), and one final production check. This permits at most eight cumulative operator transformations including the three spent ones. Existing finite call, time, quota and acceptance limits remain unchanged. No credit purchase, automatic retry, allowance transfer or alternate provider/model fallback is selected. This source change is not a reservation, hosted request, browser readiness or gate acceptance.
+
+Bind the actual joined source/dossier after all owned runtime, visitor disclosures and governance are stable. Deliver and verify the held source before the separately guarded new backend original. Old Q generators and browser/source pins must be rebound to the actual new held parent. No previous paid original or native preparation qualifies this provider.
+
+The complete preceding handoff follows verbatim as dated history.
+
+---
+
+# Reviewer rate limits on November 20
+
+Current source digest: `dda861b746a8c363492cf37f5a9d56b9b6052c8bbcbbebadb57b9b542670644d`.
+
+On November 20, runs #468 and #469 each reached the first verification request and received upstream HTTP 429 on logical provider call 3. Neither run parsed a reviewer answer or accepted output. The cause and reset time of the upstream limit remain unknown. [Run #468](https://github.com/howardhayden/folio/actions/runs/44749858471) · [Run #469](https://github.com/howardhayden/folio/actions/runs/44753053463)
+
+After #469, the API returned three consecutive held responses at 14:29:28 UTC. Routine enforcement verified held Pages at 14:29:43 and three consecutive held API responses at 14:29:58. GATE-02, GATE-03 and GATE-06 remain open.
+
+The next qualification needs a supported reviewer route. The Firefox input checks and the Safari and Brave submission and reload checks are pending on the current route. The November 13 modal screenshot and all earlier evidence are preserved.
+
+The service produced no complete usage record for these two runs. Three operator transformations have been spent on DeepInfra across #465, #468 and #469. The unchanged cooldown attempt is spent. No follow-on is launched by this documentation update.
+
+Earlier handoffs follow.
+
+---
+
 # Run #465 review-envelope correction handoff — November 20
 
 Current source digest: `8b5ae8948773ed5b457296e1d99b7a6d91ab08f080a93c7a52d57326ca6a86d7`.

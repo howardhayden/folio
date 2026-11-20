@@ -1003,7 +1003,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
         repair: { maximumOutputTokens: 800 },
       },
     },
-    inferenceSummary: "server-side bounded structured analysis and drafting through Hugging Face, OpenRouter and DeepInfra; returned objects undergo deterministic closed-contract validation, and invalid or incomplete output fails closed; bounded stage-specific output limits",
+    inferenceSummary: "The server routes Qwen analysis and drafting to DeepInfra and Llama review to CoreWeave through Hugging Face and OpenRouter. Each stage has an output limit. The server checks returned objects against a closed contract and rejects invalid or incomplete output.",
   };
   const expectedVerifier = {
     name: "Llama 3.3 70B Instruct server-side verifier",
@@ -1028,7 +1028,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     },
   };
   const expectedRuntime = {
-    name: "Hugging Face Inference Providers with OpenRouter and DeepInfra",
+    name: "Hugging Face Inference Providers with OpenRouter, DeepInfra and CoreWeave",
     version: "provider-managed remote service",
     packageUrl: "https://huggingface.co/docs/inference-providers/",
     documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
@@ -1189,6 +1189,8 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     "https://openrouter.ai/privacy",
     "https://docs.deepinfra.com/account/data-privacy",
     "https://deepinfra.com/terms",
+    "https://docs.coreweave.com/policies/terms-of-service",
+    "https://www.coreweave.com/products/coreweave-forge/serverless-inference",
   ]) assert.ok(upstreamUrls.has(required), required);
   for (const id of ["securityAndPrivacy", "interactiveRelease", "publicationMode"]) {
     assert.ok(namespaceTerms.some((term) => term.id === id), `${id} has a vocabulary definition`);

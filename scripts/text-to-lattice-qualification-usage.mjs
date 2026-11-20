@@ -28,9 +28,9 @@ export const LATTICE_QUALIFICATION_CATALOG = Object.freeze({
     output_rate: "0.55",
   }),
   verifier: Object.freeze({
-    model: "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
-    input_rate: "0.10",
-    output_rate: "0.32",
+    model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
+    input_rate: "0.71",
+    output_rate: "0.71",
   }),
 });
 

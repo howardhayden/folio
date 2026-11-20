@@ -277,6 +277,9 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-OVHCLOUD-STRUCTURED — Historical OVHcloud route. OVHcloud structured-output documented subset and ordering:** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-structured-output)
 - **SRC-HF-CHAT-ROUTING — Hugging Face language-model routing through OpenRouter:** [Reviewed source](https://huggingface.co/docs/inference-providers/en/providers)
 - **SRC-OPENROUTER-DATA — OpenRouter processing, screening and retention:** [Reviewed source](https://openrouter.ai/docs/guides/privacy/data-collection)
+- **SRC-COREWEAVE-INFERENCE — CoreWeave serverless inference retention and optional tracing:** [Reviewed source](https://www.coreweave.com/products/coreweave-forge/serverless-inference)
+- **SRC-COREWEAVE-TERMS — CoreWeave service terms:** [Reviewed source](https://docs.coreweave.com/policies/terms-of-service)
+- **SRC-COREWEAVE-PRIVACY — CoreWeave privacy policy:** [Reviewed source](https://docs.coreweave.com/policies/terms-of-service/privacy-policy)
 
 ## Terms and provenance
 

@@ -35,7 +35,7 @@ test("the documentation generator binds current remote evidence and preserves in
   assert.match(builder, /productionSatisfiedGateIds = new Set\(\["GATE-02", "GATE-03", "GATE-06"\]\)/u);
   assert.match(builder, /"historical-inactive"/u);
   assert.match(builder, /"historicalInactiveRecord",[\s\S]{0,100}"activeCurrentEvidence",[\s\S]{0,100}"activeEvidence"/u);
-  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed DeepInfra generation and review through OpenRouter/u);
+  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed DeepInfra generation and CoreWeave review through OpenRouter/u);
   assert.match(builder, /GATE-03 must keep the provider call, stage, response, limiter, cost, generic-proxy, retry, fallback/u);
   assert.match(builder, /GATE-06 must require one explicit canonical-browser setup-plus-content lifecycle/u);
   assert.match(builder, /verifyReleaseStatusState\(releaseRegister\)/u);
@@ -90,7 +90,7 @@ test("the atlas models the exact current remote phase without promoting historic
     "428 visitor_session_required",
     "intentional cookie clearing",
     "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-    "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
+    "meta-llama/Llama-3.3-70B-Instruct:coreweave",
     "no automatic retry",
     "provider or model fallback",
     "questions required to be empty",
@@ -118,10 +118,7 @@ test("the atlas models the exact current remote phase without promoting historic
   const historicalDisclosureThreat = atlas.historicalBrowserLocalSecurityModel.threats.find(({ id }) => id === "SEC-12");
   assert.ok(historicalDisclosureThreat.sourceIds.includes("SRC-LLAMA-LICENSE"));
   assert.ok(historicalDisclosureThreat.sourceIds.includes("SRC-LLAMA-AUP"));
-  const expectedBackendStatus = (id) => {
-    const { acceptanceBasis } = releaseRegister.gates.find(gate => gate.id === id);
-    return acceptanceBasis === null ? "open-release-blocker" : "satisfied-in-production";
-  };
+  const expectedBackendStatus = () => releaseState.held ? "open-release-blocker" : "satisfied-in-production";
   assert.deepEqual(
     releaseRegister.gates.map(({ id, status }) => [id, status]),
     [
@@ -183,7 +180,7 @@ test("the atlas models the exact current remote phase without promoting historic
       assert.equal(gate.acceptanceBasis, null);
       assert.match(gate.activeCurrentEvidence, /No retained production|have not been observed|remain unobserved|No canonical production/iu);
     } else if (gate.status === "satisfied-in-production") {
-      assert.ok(gate.acceptanceBasis);
+      assert.equal(gate.acceptanceBasis, null);
       assert.match([gate.activeCurrentEvidence, ...gate.activeEvidence].join(" "), /https:\/\/github\.com\/howardhayden\/folio\/actions\/runs\/\d+/u);
     }
     assert.ok(gate.activeEvidence.length > 0);
@@ -482,7 +479,7 @@ test("interactive editions remain complete, self-contained, accessible, and exec
     assert.match(artifact, /Backstage client\/server/u);
     assert.match(artifact, /POST \/api\/lattice/u);
     assert.match(artifact, /HF_TOKEN/u);
-    assert.match(artifact, /Hugging Face, OpenRouter and DeepInfra/u);
+    assert.match(artifact, /Hugging Face, OpenRouter, DeepInfra and CoreWeave/u);
     assert.match(artifact, /no automatic retry/iu);
     assert.match(artifact, /no alternate provider or model fallback/iu);
     assert.doesNotMatch(artifact, /Backstage browser-local/u);

@@ -587,7 +587,7 @@ function isCandidateBody(body) {
 }
 
 const TEST_REVIEW_URL = "https://router.huggingface.co/v1/chat/completions";
-const TEST_REVIEW_MODEL = "meta-llama/Llama-3.3-70B-Instruct:deepinfra";
+const TEST_REVIEW_MODEL = "meta-llama/Llama-3.3-70B-Instruct:coreweave";
 
 function isVerificationBody(body) {
   return body.model === TEST_REVIEW_MODEL
@@ -595,8 +595,8 @@ function isVerificationBody(body) {
     && body.response_format.json_schema.name === VERIFICATION_TOOL_NAME;
 }
 
-function strictReviewSchema(body, expectedName) {
-  assert.equal(body.model, TEST_REVIEW_MODEL);
+function strictReviewSchema(body, expectedName, expectedModel = TEST_REVIEW_MODEL) {
+  assert.equal(body.model, expectedModel);
   assert.equal(body.response_format.type, "json_schema");
   assert.equal(body.response_format.json_schema.name, expectedName);
   assert.equal(body.response_format.json_schema.strict, true);
@@ -664,7 +664,7 @@ test("projected strict schemas retain decoder rejection of nonbinary and wrong-w
   }
 });
 
-test("DeepInfra review stages use closed strict-schema content on the fixed unified route", async (context) => {
+test("CoreWeave review stages use closed strict-schema content on the fixed unified route", async (context) => {
   for (const [method, request, name, wire, limit] of [
     ["verify", minimalVerificationRequest(), VERIFICATION_TOOL_NAME, acceptingVerificationWire(minimalVerificationRequest()), 2_048],
     ["certify", minimalCertificationRequest(), CERTIFICATION_TOOL_NAME,
@@ -675,7 +675,7 @@ test("DeepInfra review stages use closed strict-schema content on the fixed unif
       calls += 1;
       const body = JSON.parse(init.body);
       assert.equal(url, HUGGING_FACE_CHAT_COMPLETIONS_URL);
-      assert.equal(body.model, "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
+      assert.equal(body.model, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
       assert.equal(body.response_format.type, "json_schema");
       assert.equal(body.response_format.json_schema.name, name);
       assert.equal(body.response_format.json_schema.strict, true);
@@ -693,7 +693,7 @@ test("DeepInfra review stages use closed strict-schema content on the fixed unif
   });
 });
 
-test("production verifier uses its fixed DeepInfra route and fitted strict schema on initial and correction calls", async (t) => {
+test("production verifier uses its fixed CoreWeave route and fitted strict schema on initial and correction calls", async (t) => {
   for (const corrected of [false, true]) {
     await t.test(corrected ? "correction" : "initial", async () => {
       const calls = [];
@@ -3276,7 +3276,7 @@ test("the adapter uses strict JSON Schema analysis and certification", async () 
   );
   assert.equal(
     LATTICE_REMOTE_MODELS.verifier,
-    "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
+    "meta-llama/Llama-3.3-70B-Instruct:coreweave",
   );
   assert.deepEqual(calls.map(({ body }) => body.max_tokens), [768, 520]);
   assert.deepEqual(calls.map(({ body }) => body.temperature), [0.7, 0]);
@@ -6309,7 +6309,7 @@ test("observed null stopped verification metadata is an explicit verification-on
   assert.equal(adapter.completionCapacity().used, 1);
 });
 
-test("strict DeepInfra verification rejects legacy null metadata before content parsing", async (context) => {
+test("strict CoreWeave verification rejects legacy null metadata before content parsing", async (context) => {
   const request = minimalVerificationRequest();
   const content = JSON.stringify(acceptingVerificationWire(request));
   const stopped = { role: "assistant", content, name: null, reasoning_content: null };
@@ -6434,7 +6434,7 @@ test("provider envelope observation failure preserves the original malformed-res
   assert.equal(calls, 1);
 });
 
-test("strict DeepInfra review stages reject literal-null and malformed collections", async (context) => {
+test("strict CoreWeave review stages reject literal-null and malformed collections", async (context) => {
   const privateMarker = "PRIVATE-COLLECTION-MUST-NOT-CROSS";
   for (const stage of ["verification", "certification"]) {
     const request = stage === "verification" ? minimalVerificationRequest() : minimalCertificationRequest();
@@ -8496,10 +8496,11 @@ test("qualification HTTP header observations are finite, bounded, exception-isol
     ["model case mismatch", { "x-router-model": "meta-llama/llama-3.1-8b-instruct" }, { routerModel: "other" }],
     ["model prefix", { "x-router-model": `${LATTICE_REMOTE_MODELS.verifier}-extra` }, { routerModel: "other" }],
     ["model whitespace", { "x-router-model": "PRIVATE MODEL" }, { routerModel: "invalid" }],
-    ["configured provider", { "x-inference-provider": "deepinfra" }, { inferenceProvider: "expected" }],
+    ["configured provider", { "x-inference-provider": "coreweave" }, { inferenceProvider: "expected" }],
     ["historical provider is not current", { "x-inference-provider": "nscale" }, { inferenceProvider: "other" }],
     ["historical OVHcloud provider is not current", { "x-inference-provider": "ovhcloud" }, { inferenceProvider: "other" }],
-    ["provider case mismatch", { "x-inference-provider": "DeepInfra" }, { inferenceProvider: "other" }],
+    ["historical DeepInfra reviewer is not current", { "x-inference-provider": "deepinfra" }, { inferenceProvider: "other" }],
+    ["provider case mismatch", { "x-inference-provider": "CoreWeave" }, { inferenceProvider: "other" }],
     ["empty provider", { "x-inference-provider": "" }, { inferenceProvider: "invalid" }],
     ["256 character route", { "x-router-route": "x".repeat(256) }, { routerRoute: "present" }],
     ...["content-type", "allow", "x-router-route", "x-router-model", "x-inference-provider"].map((name, index) => [
@@ -8530,7 +8531,7 @@ test("qualification HTTP header observations are finite, bounded, exception-isol
       assert.equal(isClosedProviderHttpHeaders(failure.qualificationHttpHeaders), true);
       const descriptor = Object.getOwnPropertyDescriptor(failure, "qualificationHttpHeaders");
       assert.equal(descriptor.enumerable, false); assert.equal(descriptor.writable, false); assert.equal(descriptor.configurable, false);
-      assert.doesNotMatch(JSON.stringify(failure.qualificationHttpHeaders), /PRIVATE|meta-llama|deepinfra|é/u);
+      assert.doesNotMatch(JSON.stringify(failure.qualificationHttpHeaders), /PRIVATE|meta-llama|deepinfra|coreweave|é/u);
       assert.equal(reads, 0); assert.equal(cancels, 1); assert.equal(calls, 1);
       assert.deepEqual(adapter.completionCapacity(), { used: 1, limit: 32, remaining: 31 });
     });
@@ -8603,7 +8604,7 @@ test("qualification HTTP 405 preserves verification call-four provenance and one
       providerCalls += 1;
       if (providerCalls < 4) return successfulProviderResponse({ d: 2, p: [], l: [] });
       return new Response(new ReadableStream({ pull() { bodyReads += 1; }, cancel() { cancellations += 1; } }, { highWaterMark: 0 }), {
-        status: 405, headers: { Allow: "POST", "Content-Type": "application/json", "x-router-model": "llama-3.3-70b-instruct", "x-inference-provider": "deepinfra" },
+        status: 405, headers: { Allow: "POST", "Content-Type": "application/json", "x-router-model": "llama-3.3-70b-instruct", "x-inference-provider": "coreweave" },
       });
     },
     runTextToLatticeImpl: async (_text, { adapter }) => {
@@ -8637,7 +8638,7 @@ test("qualification HTTP observations cannot escape expiry during provider work"
 });
 
 
-test("DeepInfra review stages preserve the inherited bounded empty tool-call envelope", async () => {
+test("CoreWeave review stages preserve the inherited bounded empty tool-call envelope", async () => {
   for (const [method, request, wire] of [
     ["verify", minimalVerificationRequest(), acceptingVerificationWire(minimalVerificationRequest())],
     ["certify", minimalCertificationRequest(), acceptingCertificationWire(minimalCertificationRequest().certificateId, minimalCertificationRequest().obligationIds)],
@@ -8656,7 +8657,7 @@ test("DeepInfra review stages preserve the inherited bounded empty tool-call env
   }
 });
 
-test("strict DeepInfra reviews reject auxiliary fields and never interpret a competing tool channel", async (context) => {
+test("strict CoreWeave reviews reject auxiliary fields and never interpret a competing tool channel", async (context) => {
   const values = [null, "", "PRIVATE-A", [], ["PRIVATE-B"], {}, { secret: "PRIVATE-C" }, true, 12345];
   const fields = [...LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS, "tool_calls", "function_call", "PRIVATE-UNKNOWN"];
   for (const method of ["verify", "certify"]) await context.test(method, async () => {
@@ -8666,7 +8667,7 @@ test("strict DeepInfra reviews reject auxiliary fields and never interpret a com
     const content = JSON.stringify(wire);
     const messages = values.map((value) => ({ role: "assistant", content,
       ...Object.fromEntries(fields.map((field) => [field, value])) }));
-    // Each auxiliary field by itself is outside the matched DeepInfra pair.
+    // Each auxiliary field by itself is outside the historical DeepInfra pair.
     // Historical Scaleway null-only compatibility is exercised separately below.
     for (const field of fields) {
       messages.push({ role: "assistant", content, [field]: null });
@@ -10596,13 +10597,13 @@ function d32StrictRequestOptions(fetchImpl, overrides = {}) {
     allowNullStoppedScalewayReviewMetadata: true, ...overrides });
 }
 
-test("historical Scaleway D32 profile remains isolated from active DeepInfra", async (legacyContext) => {
+test("historical Scaleway D32 profile remains isolated from active CoreWeave", async (legacyContext) => {
   const adapterUrl = new URL("../workers/text-to-lattice-api/huggingFaceAdapter.js", import.meta.url);
   const workerUrl = new URL("../workers/text-to-lattice-api/worker.js", import.meta.url);
   const rebase = (source, base) => source.replace(/(from\s+["'])(\.\.?\/[^"']+)(["'])/gu,
     (_match, prefix, path, suffix) => `${prefix}${new URL(path, base).href}${suffix}`);
   let historicalSource = await readFile(adapterUrl, "utf8");
-  const activeSelector = 'verifier: "meta-llama/Llama-3.3-70B-Instruct:deepinfra"';
+  const activeSelector = 'verifier: "meta-llama/Llama-3.3-70B-Instruct:coreweave"';
   const strictFlag = "allowNullStoppedScalewayReviewMetadata: false";
   assert.equal(historicalSource.split(activeSelector).length, 2);
   assert.equal(historicalSource.split(strictFlag).length, 3);
@@ -10830,44 +10831,62 @@ test("historical Scaleway D32 profile remains isolated from active DeepInfra", a
   });
 });
 
-test("DeepInfra review stages admit only the observed null pair and preserve strict empty-tool content", async () => {
-  for (const method of ["verify", "certify"]) {
-    const request = method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest();
-    const wire = method === "verify" ? acceptingVerificationWire(request)
-      : acceptingCertificationWire(request.certificateId, request.obligationIds);
-    let baselineBody;
-    for (let mask = 0; mask < 32; mask += 1) for (const emptyTools of [false, true]) {
-      let calls = 0, rawBody;
-      const metadata = Object.fromEntries(D32_NULL_REVIEW_FIELDS.filter((_field, index) => mask & (1 << index))
-        .map((field) => [field, null]));
-      const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", fetchImpl: async (url, init) => {
-        calls += 1; rawBody = init.body;
-        assert.equal(url, TEST_REVIEW_URL);
-        const body = JSON.parse(rawBody);
-        strictReviewSchema(body, method === "verify" ? VERIFICATION_TOOL_NAME : CERTIFICATION_TOOL_NAME);
-        return providerChoiceResponse({ finish_reason: "stop", message: {
-          role: "assistant", content: JSON.stringify(wire), ...metadata,
-          ...(emptyTools ? { tool_calls: [] } : {}),
+async function historicalDeepInfraReviewModule() {
+  const adapterUrl = new URL("../workers/text-to-lattice-api/huggingFaceAdapter.js", import.meta.url);
+  const source = await readFile(adapterUrl, "utf8");
+  const activeSelector = 'verifier: "meta-llama/Llama-3.3-70B-Instruct:coreweave"';
+  assert.equal(source.split(activeSelector).length, 2);
+  const historicalSource = source.replace(activeSelector,
+    'verifier: "meta-llama/Llama-3.3-70B-Instruct:deepinfra"')
+    .replace(/(from\s+["'])(\.\.?\/[^"']+)(["'])/gu,
+      (_match, prefix, path, suffix) => `${prefix}${new URL(path, adapterUrl).href}${suffix}`);
+  return import(`data:text/javascript;base64,${Buffer.from(historicalSource).toString("base64")}`);
+}
+
+test("current CoreWeave and historical DeepInfra keep distinct null-pair scopes", async () => {
+  const historical = await historicalDeepInfraReviewModule();
+  for (const profile of [{ createHuggingFaceLatticeAdapter, LatticeProviderError, model: TEST_REVIEW_MODEL, paired: false },
+    { ...historical, model: "meta-llama/Llama-3.3-70B-Instruct:deepinfra", paired: true }]) {
+    const { createHuggingFaceLatticeAdapter, LatticeProviderError } = profile;
+    for (const method of ["verify", "certify"]) {
+      const request = method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest();
+      const wire = method === "verify" ? acceptingVerificationWire(request)
+        : acceptingCertificationWire(request.certificateId, request.obligationIds);
+      let baselineBody;
+      for (let mask = 0; mask < 32; mask += 1) for (const emptyTools of [false, true]) {
+        let calls = 0, rawBody;
+        const metadata = Object.fromEntries(D32_NULL_REVIEW_FIELDS.filter((_field, index) => mask & (1 << index))
+          .map((field) => [field, null]));
+        const adapter = createHuggingFaceLatticeAdapter({ token: "test-only", fetchImpl: async (url, init) => {
+          calls += 1; rawBody = init.body;
+          assert.equal(url, TEST_REVIEW_URL);
+          const body = JSON.parse(rawBody);
+          strictReviewSchema(body, method === "verify" ? VERIFICATION_TOOL_NAME : CERTIFICATION_TOOL_NAME, profile.model);
+          return providerChoiceResponse({ finish_reason: "stop", message: {
+            role: "assistant", content: JSON.stringify(wire), ...metadata,
+            ...(emptyTools ? { tool_calls: [] } : {}),
+          } });
         } });
-      } });
-      const observedPair = Object.keys(metadata).length === 2
-        && Object.hasOwn(metadata, "reasoning") && Object.hasOwn(metadata, "refusal");
-      if (mask === 0 || observedPair) {
-        const result = await adapter[method](request);
-        assert.equal(result.decision, "accept");
-      } else {
-        await assert.rejects(adapter[method](request), (error) => error instanceof LatticeProviderError
-          && error.code === "provider_malformed_response"
-          && error.qualificationSubtype === (Object.hasOwn(metadata, "function_call") ? "S05" : "S06"));
+        const observedPair = Object.keys(metadata).length === 2
+          && Object.hasOwn(metadata, "reasoning") && Object.hasOwn(metadata, "refusal");
+        if (mask === 0 || (profile.paired && observedPair)) {
+          const result = await adapter[method](request);
+          assert.equal(result.decision, "accept");
+        } else {
+          await assert.rejects(adapter[method](request), (error) => error instanceof LatticeProviderError
+            && error.code === "provider_malformed_response"
+            && error.qualificationSubtype === (Object.hasOwn(metadata, "function_call") ? "S05" : "S06"));
+        }
+        assert.equal(calls, 1); assert.equal(adapter.completionCapacity().used, 1);
+        if (baselineBody === undefined) baselineBody = rawBody;
+        assert.equal(rawBody, baselineBody, "response metadata cannot alter the strict provider request");
       }
-      assert.equal(calls, 1); assert.equal(adapter.completionCapacity().used, 1);
-      if (baselineBody === undefined) baselineBody = rawBody;
-      assert.equal(rawBody, baselineBody, "response metadata cannot alter the strict provider request");
     }
   }
 });
 
-test("DeepInfra nullable review metadata supplies no alternative content or verdict", async () => {
+test("historical DeepInfra nullable review metadata supplies no alternative content or verdict", async () => {
+  const { createHuggingFaceLatticeAdapter, LatticeProviderError, requestHuggingFaceJson } = await historicalDeepInfraReviewModule();
   for (const method of ["verify", "certify"]) {
     const request = method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest();
     const name = method === "verify" ? VERIFICATION_TOOL_NAME : CERTIFICATION_TOOL_NAME;
@@ -10902,7 +10921,7 @@ test("DeepInfra nullable review metadata supplies no alternative content or verd
   }
 });
 
-test("active DeepInfra cannot enable the independently pinned Scaleway null exception", async () => {
+test("active CoreWeave cannot enable the independently pinned Scaleway null exception", async () => {
   let calls = 0;
   for (const schemaName of [VERIFICATION_TOOL_NAME, CERTIFICATION_TOOL_NAME]) {
     await assert.rejects(requestHuggingFaceJson(d32StrictRequestOptions(async () => {
