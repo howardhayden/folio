@@ -40,8 +40,9 @@ export const textToLatticeContract = Object.freeze({
   purpose: "Convert source prose into passage-appropriate Lattice registers while preserving its meaning.",
   heldReleaseNotes: Object.freeze([
     "The public converter and its API are held. Text to Lattice is available here as documentation only.",
-    "The fixed CoreWeave review route passed bounded backend qualification on run #476. Canonical-browser qualification remains pending.",
-    "The first CoreWeave check withheld the result at verification. The corrected response handling passed its production check on November 20.",
+    "The fixed CoreWeave review route passed a bounded backend check on November 20. This does not establish general output reliability.",
+    "Fourteen Firefox input checks passed. A Safari submission reached review and a bounded revision, but no candidate cleared every required check. No transformed text was released.",
+    "The converter was returned to its held state. Successful Safari and Brave submission and reload evidence is still required before public release.",
     "The November 13 backend check passed one case on the former OVHcloud review route. It retained the passage and did not exercise rewrite repair.",
     "Release requires backend acceptance and hosted Safari and Brave evidence of submission, response handling, and reload.",
     "Review each result for changes in meaning, including omissions.",

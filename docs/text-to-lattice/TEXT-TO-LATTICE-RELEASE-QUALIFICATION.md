@@ -1,3 +1,46 @@
+# Text to Lattice release qualification — held after browser run #479
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Qualification date:** 2026-11-20
+
+**Evidence updated:** 2026-11-20
+
+**Reviewed baseline:** `41665168ec08a20215c71452fb2abf43504de376`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `ce2712b182ddb45737b8d3d193ce3c24841f87aa75d599c9f3989a1d2344d8c1`
+
+**Artifact-set projection SHA-256:** `6b2084809849378f14a2b68c01e46f45c9575a6d65f62fc6982af4e823827ccc`
+
+This is a held documentation-only continuation after incomplete browser qualification. GATE-02 and GATE-03 retain their exact dated bounded success from run #476; GATE-06 is an open release blocker with null acceptance and no collected canonical bundle. The runtime, providers, prompts, privacy, costs, quotas and acceptance criteria are unchanged. The existing qualification attempt remains spent. This source update selects no new paid original, browser window or final release.
+
+| Gate | Status |
+| --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker |
+
+Original run #479 / 44777243546 / attempt 1 on 41665168ec08a20215c71452fb2abf43504de376 passed its bounded backend canary and published the temporary interactive qualification page. After the authenticated metadata BEFORE, fourteen hosted Firefox input checks passed without consent or submission. Safari made one explicitly confirmed synthetic submission. Its original HTTP 200 phase stream reached verification, reanalysis, regeneration, result rebinding and reverification, then returned unable-to-attempt with candidate-withheld and no output. The public result reported two passages and two batches. Its zero verificationPasses is a suppressed public result field, not evidence that verification did not run. No document certification phase was observed. These facts do not identify a private rejection predicate, a marker-caused failure or a proven product remedy. Safari did not seal a successful capture; Brave remained unarmed with zero submissions, and metadata AFTER was not dispatched. GATE-06 remains incomplete. Included provider-free restoration #480 / 44779898201 / attempt 1 verified held API at 17:06:17.777 UTC and then held Pages at 17:07:17.018 UTC on November 20. The API record has one active propagation sample followed by three consecutive held samples. These are dated convergence and point observations, not instantaneous or continuous hold.
+
+Original #479 separately completed its scheduled cleanup: three held API responses with zero active responses or network errors were verified at 17:18:04.645 UTC, then held Pages at 17:18:26.763 UTC on November 20. The original API cleanup job completed before the Pages cleanup job began. This is separate from the earlier included #480 restoration and does not prove continuous hold. Native cleanup was recorded at 17:17:22.117 UTC: both collectors were disposed cleanly, Safari inspection was verified off at 17:17:07.443 UTC, the owned Safari/Brave blank windows were preserved, and the temporary Firefox window was closed after clearing its input. The root closed the attempt as browser-qualification-incomplete; the successful workflow conclusion does not accept the Safari output or close GATE-06.
+
+The successful #476 backend adjudication and #479 short notebook canary remain bounded evidence. Neither establishes general output reliability, a successful Safari result or completed GATE-06 evidence. No private rejection cause is inferred from the generic public result.
+
+The November 20 project date remains current. The five qualified-file changes are the two established held publication switches, visitor-facing held status text and two documentation/release tests' stale assumption that held publication resets successful backend gates. All other 259 qualified files remain exact, including the API, adapters, prompts, provider terms, limits and acceptance validators.
+
+[Original #479](https://github.com/howardhayden/folio/actions/runs/44777243546) · [Included restoration #480](https://github.com/howardhayden/folio/actions/runs/44779898201)
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending
 
 **Qualification date:** 2026-11-20
