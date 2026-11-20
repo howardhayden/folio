@@ -1,3 +1,19 @@
+# Reviewer rate limits on November 20
+
+Current source digest: `dda861b746a8c363492cf37f5a9d56b9b6052c8bbcbbebadb57b9b542670644d`.
+
+On November 20, runs #468 and #469 each reached the first verification request and received upstream HTTP 429 on logical provider call 3. Neither run parsed a reviewer answer or accepted output. The cause and reset time of the upstream limit remain unknown. [Run #468](https://github.com/howardhayden/folio/actions/runs/44749858471) · [Run #469](https://github.com/howardhayden/folio/actions/runs/44753053463)
+
+After #469, the API returned three consecutive held responses at 14:29:28 UTC. Routine enforcement verified held Pages at 14:29:43 and three consecutive held API responses at 14:29:58. GATE-02, GATE-03 and GATE-06 remain open.
+
+The next qualification needs a supported reviewer route. The Firefox input checks and the Safari and Brave submission and reload checks are pending on the current route. The November 13 modal screenshot and all earlier evidence are preserved.
+
+The service produced no complete usage record for these two runs. Three operator transformations have been spent on DeepInfra across #465, #468 and #469. The unchanged cooldown attempt is spent. No follow-on is launched by this documentation update.
+
+Earlier handoffs follow.
+
+---
+
 # Run #465 review-envelope correction handoff — November 20
 
 Current source digest: `8b5ae8948773ed5b457296e1d99b7a6d91ab08f080a93c7a52d57326ca6a86d7`.

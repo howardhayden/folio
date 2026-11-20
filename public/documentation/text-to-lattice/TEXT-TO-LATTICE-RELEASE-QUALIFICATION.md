@@ -1,3 +1,29 @@
+# Text to Lattice release qualification — held after reviewer rate limits
+
+**Qualification date:** 2026-11-20
+
+**Evidence updated:** 2026-11-20
+
+**Reviewed baseline:** `ecd1f53ca962cfcb75fb29a6fdeb0c2c9f1a29ad`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `dda861b746a8c363492cf37f5a9d56b9b6052c8bbcbbebadb57b9b542670644d`
+
+**Artifact-set projection SHA-256:** `3be580edccb5a79c501f523698b8702867420af15cc6c51d7513c8dea0398057`
+
+**Decision:** hold the converter and API. Publish the project documentation.
+
+On November 20, runs #468 and #469 each reached the first verification request and received upstream HTTP 429 on logical provider call 3. Neither run parsed a reviewer answer or accepted output. The cause and reset time of the upstream limit remain unknown. [Run #468](https://github.com/howardhayden/folio/actions/runs/44749858471) · [Run #469](https://github.com/howardhayden/folio/actions/runs/44753053463)
+
+After #469, the API returned three consecutive held responses at 14:29:28 UTC. Routine enforcement verified held Pages at 14:29:43 and three consecutive held API responses at 14:29:58. GATE-02, GATE-03 and GATE-06 remain open.
+
+The next qualification needs a supported reviewer route. The Firefox input checks and the Safari and Brave submission and reload checks are pending on the current route. The November 13 modal screenshot and all earlier evidence are preserved.
+
+Earlier qualification records follow.
+
+---
+
 # Text to Lattice release qualification — held after review-envelope failure
 
 **Qualification date:** 2026-11-20
