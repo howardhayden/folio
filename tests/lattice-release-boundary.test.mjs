@@ -54,8 +54,8 @@ const browserEvidenceIdentityFields = [
 ];
 
 const publishedDossierPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHistoryBoundary = Buffer.from("The complete November 20 CoreWeave observed-envelope held dossier follows verbatim as dated history.");
-const datedHistorySeparator = Buffer.from("The complete November 20 CoreWeave observed-envelope held dossier follows verbatim as dated history.\n\n---\n\n");
+const datedHistoryBoundary = Buffer.from("The complete held dossier after browser run #479 follows verbatim as dated history.");
+const datedHistorySeparator = Buffer.from("The complete held dossier after browser run #479 follows verbatim as dated history.\n\n---\n\n");
 const staleEnabledClaims = [
   "release gates remain open",
   "must agree before the converter can open",
@@ -106,8 +106,8 @@ test("enabled publication history permits only the exact bound canonical held do
   const boundary = dossier.indexOf(datedHistorySeparator);
   assert.ok(boundary > 0);
   const history = dossier.subarray(boundary + datedHistorySeparator.length);
-  assert.equal(history.length, 637620);
-  assert.equal(sha256(history), "940db351391944c34604ba4488524ca7f68b5d6678e6d30a4a76d84863e4558f");
+  assert.equal(history.length, 645959);
+  assert.equal(sha256(history), "022d3876a6c14fe674de3491e5e53410a944bb943b78b3c6b2894da885a8ba4b");
   assert.match(history.toString("utf8"), /hold the interactive client/iu);
   const phase = verifyReleaseStatusState(await releaseRegister());
   if (phase.enabled) assert.doesNotThrow(() => verifyEqualDossierCopies(dossier));
