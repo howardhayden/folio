@@ -587,7 +587,7 @@ function isCandidateBody(body) {
 }
 
 const TEST_REVIEW_URL = "https://router.huggingface.co/v1/chat/completions";
-const TEST_REVIEW_MODEL = "meta-llama/Llama-3.3-70B-Instruct:ovhcloud";
+const TEST_REVIEW_MODEL = "meta-llama/Llama-3.3-70B-Instruct:deepinfra";
 
 function isVerificationBody(body) {
   return body.model === TEST_REVIEW_MODEL
@@ -664,7 +664,7 @@ test("projected strict schemas retain decoder rejection of nonbinary and wrong-w
   }
 });
 
-test("OVHcloud review stages use closed strict-schema content on the fixed unified route", async (context) => {
+test("DeepInfra review stages use closed strict-schema content on the fixed unified route", async (context) => {
   for (const [method, request, name, wire, limit] of [
     ["verify", minimalVerificationRequest(), VERIFICATION_TOOL_NAME, acceptingVerificationWire(minimalVerificationRequest()), 2_048],
     ["certify", minimalCertificationRequest(), CERTIFICATION_TOOL_NAME,
@@ -675,14 +675,14 @@ test("OVHcloud review stages use closed strict-schema content on the fixed unifi
       calls += 1;
       const body = JSON.parse(init.body);
       assert.equal(url, HUGGING_FACE_CHAT_COMPLETIONS_URL);
-      assert.equal(body.model, "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
+      assert.equal(body.model, "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
       assert.equal(body.response_format.type, "json_schema");
       assert.equal(body.response_format.json_schema.name, name);
       assert.equal(body.response_format.json_schema.strict, true);
       assert.equal(body.response_format.json_schema.schema.additionalProperties, false);
       assert.equal(body.max_tokens, limit);
       for (const field of ["tools", "tool_choice", "parallel_tool_calls"]) assert.equal(Object.hasOwn(body, field), false);
-      assert.doesNotMatch(JSON.stringify(body), /deepinfra|Meta-Llama-3.1|LATTICE_RESPONSE_SCHEMA/u);
+      assert.doesNotMatch(JSON.stringify(body), /ovhcloud|Meta-Llama-3.1|LATTICE_RESPONSE_SCHEMA/u);
       return successfulProviderResponse(wire);
     } });
     await adapter[method]({ ...request, ...(corrected ? { protocolFeedback: {
@@ -693,7 +693,7 @@ test("OVHcloud review stages use closed strict-schema content on the fixed unifi
   });
 });
 
-test("production verifier uses its fixed OVHcloud route and fitted strict schema on initial and correction calls", async (t) => {
+test("production verifier uses its fixed DeepInfra route and fitted strict schema on initial and correction calls", async (t) => {
   for (const corrected of [false, true]) {
     await t.test(corrected ? "correction" : "initial", async () => {
       const calls = [];
@@ -3276,7 +3276,7 @@ test("the adapter uses strict JSON Schema analysis and certification", async () 
   );
   assert.equal(
     LATTICE_REMOTE_MODELS.verifier,
-    "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
+    "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
   );
   assert.deepEqual(calls.map(({ body }) => body.max_tokens), [768, 520]);
   assert.deepEqual(calls.map(({ body }) => body.temperature), [0.7, 0]);
@@ -6309,7 +6309,7 @@ test("observed null stopped verification metadata is an explicit verification-on
   assert.equal(adapter.completionCapacity().used, 1);
 });
 
-test("strict OVHcloud verification rejects legacy null metadata before content parsing", async (context) => {
+test("strict DeepInfra verification rejects legacy null metadata before content parsing", async (context) => {
   const request = minimalVerificationRequest();
   const content = JSON.stringify(acceptingVerificationWire(request));
   const stopped = { role: "assistant", content, name: null, reasoning_content: null };
@@ -6434,7 +6434,7 @@ test("provider envelope observation failure preserves the original malformed-res
   assert.equal(calls, 1);
 });
 
-test("strict OVHcloud review stages reject literal-null and malformed collections", async (context) => {
+test("strict DeepInfra review stages reject literal-null and malformed collections", async (context) => {
   const privateMarker = "PRIVATE-COLLECTION-MUST-NOT-CROSS";
   for (const stage of ["verification", "certification"]) {
     const request = stage === "verification" ? minimalVerificationRequest() : minimalCertificationRequest();
@@ -8496,8 +8496,9 @@ test("qualification HTTP header observations are finite, bounded, exception-isol
     ["model case mismatch", { "x-router-model": "meta-llama/llama-3.1-8b-instruct" }, { routerModel: "other" }],
     ["model prefix", { "x-router-model": `${LATTICE_REMOTE_MODELS.verifier}-extra` }, { routerModel: "other" }],
     ["model whitespace", { "x-router-model": "PRIVATE MODEL" }, { routerModel: "invalid" }],
-    ["configured provider", { "x-inference-provider": "ovhcloud" }, { inferenceProvider: "expected" }],
+    ["configured provider", { "x-inference-provider": "deepinfra" }, { inferenceProvider: "expected" }],
     ["historical provider is not current", { "x-inference-provider": "nscale" }, { inferenceProvider: "other" }],
+    ["historical OVHcloud provider is not current", { "x-inference-provider": "ovhcloud" }, { inferenceProvider: "other" }],
     ["provider case mismatch", { "x-inference-provider": "DeepInfra" }, { inferenceProvider: "other" }],
     ["empty provider", { "x-inference-provider": "" }, { inferenceProvider: "invalid" }],
     ["256 character route", { "x-router-route": "x".repeat(256) }, { routerRoute: "present" }],
@@ -8602,7 +8603,7 @@ test("qualification HTTP 405 preserves verification call-four provenance and one
       providerCalls += 1;
       if (providerCalls < 4) return successfulProviderResponse({ d: 2, p: [], l: [] });
       return new Response(new ReadableStream({ pull() { bodyReads += 1; }, cancel() { cancellations += 1; } }, { highWaterMark: 0 }), {
-        status: 405, headers: { Allow: "POST", "Content-Type": "application/json", "x-router-model": "llama-3.3-70b-instruct", "x-inference-provider": "ovhcloud" },
+        status: 405, headers: { Allow: "POST", "Content-Type": "application/json", "x-router-model": "llama-3.3-70b-instruct", "x-inference-provider": "deepinfra" },
       });
     },
     runTextToLatticeImpl: async (_text, { adapter }) => {
@@ -8636,7 +8637,7 @@ test("qualification HTTP observations cannot escape expiry during provider work"
 });
 
 
-test("OVHcloud review stages preserve the inherited bounded empty tool-call envelope", async () => {
+test("DeepInfra review stages preserve the inherited bounded empty tool-call envelope", async () => {
   for (const [method, request, wire] of [
     ["verify", minimalVerificationRequest(), acceptingVerificationWire(minimalVerificationRequest())],
     ["certify", minimalCertificationRequest(), acceptingCertificationWire(minimalCertificationRequest().certificateId, minimalCertificationRequest().obligationIds)],
@@ -8655,7 +8656,7 @@ test("OVHcloud review stages preserve the inherited bounded empty tool-call enve
   }
 });
 
-test("strict OVHcloud reviews reject auxiliary fields and never interpret a competing tool channel", async (context) => {
+test("strict DeepInfra reviews reject auxiliary fields and never interpret a competing tool channel", async (context) => {
   const values = [null, "", "PRIVATE-A", [], ["PRIVATE-B"], {}, { secret: "PRIVATE-C" }, true, 12345];
   const fields = [...LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS, "tool_calls", "function_call", "PRIVATE-UNKNOWN"];
   for (const method of ["verify", "certify"]) await context.test(method, async () => {
@@ -8665,7 +8666,7 @@ test("strict OVHcloud reviews reject auxiliary fields and never interpret a comp
     const content = JSON.stringify(wire);
     const messages = values.map((value) => ({ role: "assistant", content,
       ...Object.fromEntries(fields.map((field) => [field, value])) }));
-    // The active OVHcloud profile admits no auxiliary null message fields.
+    // The active DeepInfra profile admits no auxiliary null message fields.
     // Historical Scaleway null-only compatibility is exercised separately below.
     for (const field of fields) {
       messages.push({ role: "assistant", content, [field]: null });
@@ -10595,13 +10596,13 @@ function d32StrictRequestOptions(fetchImpl, overrides = {}) {
     allowNullStoppedScalewayReviewMetadata: true, ...overrides });
 }
 
-test("historical Scaleway D32 profile remains isolated from active OVHcloud", async (legacyContext) => {
+test("historical Scaleway D32 profile remains isolated from active DeepInfra", async (legacyContext) => {
   const adapterUrl = new URL("../workers/text-to-lattice-api/huggingFaceAdapter.js", import.meta.url);
   const workerUrl = new URL("../workers/text-to-lattice-api/worker.js", import.meta.url);
   const rebase = (source, base) => source.replace(/(from\s+["'])(\.\.?\/[^"']+)(["'])/gu,
     (_match, prefix, path, suffix) => `${prefix}${new URL(path, base).href}${suffix}`);
   let historicalSource = await readFile(adapterUrl, "utf8");
-  const activeSelector = 'verifier: "meta-llama/Llama-3.3-70B-Instruct:ovhcloud"';
+  const activeSelector = 'verifier: "meta-llama/Llama-3.3-70B-Instruct:deepinfra"';
   const strictFlag = "allowNullStoppedScalewayReviewMetadata: false";
   assert.equal(historicalSource.split(activeSelector).length, 2);
   assert.equal(historicalSource.split(strictFlag).length, 3);
@@ -10829,7 +10830,7 @@ test("historical Scaleway D32 profile remains isolated from active OVHcloud", as
   });
 });
 
-test("OVHcloud review stages reject every auxiliary null pattern and preserve strict empty-tool content", async () => {
+test("DeepInfra review stages reject every auxiliary null pattern and preserve strict empty-tool content", async () => {
   for (const method of ["verify", "certify"]) {
     const request = method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest();
     const wire = method === "verify" ? acceptingVerificationWire(request)
@@ -10864,7 +10865,7 @@ test("OVHcloud review stages reject every auxiliary null pattern and preserve st
   }
 });
 
-test("active OVHcloud cannot enable the independently pinned Scaleway null exception", async () => {
+test("active DeepInfra cannot enable the independently pinned Scaleway null exception", async () => {
   let calls = 0;
   for (const schemaName of [VERIFICATION_TOOL_NAME, CERTIFICATION_TOOL_NAME]) {
     await assert.rejects(requestHuggingFaceJson(d32StrictRequestOptions(async () => {

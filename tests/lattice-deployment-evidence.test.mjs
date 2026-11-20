@@ -50,15 +50,15 @@ const deploymentCustody = Object.freeze({
 const liveProviderContract = Object.freeze({
   endpoint: "https://router.huggingface.co/v1/chat/completions",
   verification_endpoint: "https://router.huggingface.co/v1/chat/completions",
-  verification_request_model: "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
+  verification_request_model: "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
   verification_response_format: "json_schema",
   verification_schema_strict: true,
   certification_endpoint: "https://router.huggingface.co/v1/chat/completions",
-  certification_request_model: "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
+  certification_request_model: "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
   certification_response_format: "json_schema",
   certification_schema_strict: true,
   generator_model: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-  verifier_model: "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
+  verifier_model: "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
   automatic_retry: false,
   alternate_provider_or_model_fallback: false,
 });
@@ -896,6 +896,9 @@ test("deployment evidence binds format-specific versions and the complete curren
     ["prior Nscale reviewer", { verifier_model: "meta-llama/Llama-3.1-8B-Instruct:nscale" }],
     ["prior Nscale verification request", { verification_request_model: "meta-llama/Llama-3.1-8B-Instruct:nscale" }],
     ["prior Nscale certification request", { certification_request_model: "meta-llama/Llama-3.1-8B-Instruct:nscale" }],
+    ["historical OVHcloud reviewer", { verifier_model: "meta-llama/Llama-3.3-70B-Instruct:ovhcloud" }],
+    ["historical OVHcloud verification request", { verification_request_model: "meta-llama/Llama-3.3-70B-Instruct:ovhcloud" }],
+    ["historical OVHcloud certification request", { certification_request_model: "meta-llama/Llama-3.3-70B-Instruct:ovhcloud" }],
     ["historical Scaleway reviewer", { verifier_model: "meta-llama/Llama-3.3-70B-Instruct:scaleway" }],
     ["historical Scaleway verification request", { verification_request_model: "meta-llama/Llama-3.3-70B-Instruct:scaleway" }],
     ["historical Scaleway certification request", { certification_request_model: "meta-llama/Llama-3.3-70B-Instruct:scaleway" }],
@@ -922,7 +925,7 @@ test("deployment evidence binds format-specific versions and the complete curren
   });
 });
 
-test("historical DeepInfra receipts retain their bytes and cannot qualify the OVHcloud deployment", async (context) => {
+test("historical Llama 3.1 receipts retain their bytes and cannot qualify the current Llama 3.3 deployment", async (context) => {
   for (const schemaVersion of [1, 2]) await context.test(`historical v${schemaVersion}`, async () => {
     const historicalProvider = {
       endpoint: "https://router.huggingface.co/v1/chat/completions",

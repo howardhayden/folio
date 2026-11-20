@@ -1,3 +1,17 @@
+# November 20 DeepInfra held-provider handoff
+
+The site owner approved DeepInfra through the bounded deployment sequence recorded in `work/proposals/nov20-deepinfra-reviewer-decision/owner-approval.json`. The current source is held/documentation-only. GATE-02, GATE-03 and GATE-06 are open for the changed review provider. No new successful production transformation, managed input fit or browser capture is claimed.
+
+The fixed Hugging Face router forwards through OpenRouter to DeepInfra. Generator: `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`. Verifier and certifier: `meta-llama/Llama-3.3-70B-Instruct:deepinfra`. The existing strict stopped role/content profile, optional empty tool_calls, strict json_schema, host and semantic checks, finite caps, deadlines, quotas, privacy boundary, no automatic retry and no fallback remain unchanged. The Scaleway-only null-metadata flag stays disabled.
+
+Current source digest: `9feb546c30fefae084d94d7fb044e66f2a9d8f1f4d0aeaa30d2c90298acee5d5`. Bind it only after all qualified source edits are frozen, then bind the dossier digest in the canonical release register. The original OVH records are preserved in the typed priorOVHReviewRolesBeforeDeepInfraMigration record and complete dossier history. Run #454's successful backend result applies to OVH only. The old unused OVH A1 cannot authorize the changed provider. Do not reserve or dispatch it.
+
+Use the approved sequence: held API qualification, browser window only after GATE-02/GATE-03 close, final deployment only after all three gates close. Retain the existing finite operations and recovery budgets. No hosted action is performed by this source preparation.
+
+Complete preceding handoff follows verbatim as dated history.
+
+---
+
 # Browser qualification renewal after the run #454 held checkpoint
 
 The immediate Git parent acebbf3a01296b1b9ff1d5de83740c10add2d788 is the reviewed documentation-only rollback checkpoint delivered by run #457, attempt 1. The renewed source is qualification-pending for canonical-browser qualification and is not qualified. GATE-02 and GATE-03 retain their dated bounded production adjudications from run #430. GATE-06 is in post-deployment verification with null acceptance and browser evidence not collected. Incomplete or failed qualification requires immediate held documentation-only rollback. Work continues under the standing through-deployment instruction. This source preparation selects no operational unit, activation or final release.

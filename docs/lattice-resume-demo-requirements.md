@@ -1,3 +1,15 @@
+# Current November 20 DeepInfra release requirement
+
+This current section supersedes provider and release-state claims in the dated requirements below. The site owner approved the scoped DeepInfra sequence in `work/proposals/nov20-deepinfra-reviewer-decision/owner-approval.json`. Hold the public client while GATE-02, GATE-03 and GATE-06 remain open for this changed provider. Historical OVH production results do not satisfy these gates for DeepInfra.
+
+Use the fixed Hugging Face router through OpenRouter to DeepInfra, with `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra` generation and `meta-llama/Llama-3.3-70B-Instruct:deepinfra` verification/certification. Preserve the strict closed role/content envelope, optional empty tool_calls, strict JSON Schema, deterministic and independent semantic acceptance, existing prompt policy, calls, timeouts, output/byte/input ceilings, daily quotas, no automatic retry and no alternate provider or model fallback. Keep the Scaleway-only optional-null metadata flag disabled. A changed provider is an acknowledged external processing boundary, not browser-local processing or a provider non-retention guarantee. Current authenticated availability, managed input fit, behavior and billing remain unproved until bounded evidence exists.
+
+The approved scope permits one original API qualification with held Pages, one later browser window after GATE-02 and GATE-03 close, and one final deployment after all three gates close, with only the specified included recoveries. Old OVH `U13-AFTER-RUN454-A1` remains unused and inapplicable. No source-only or local test result substitutes for production or browser evidence.
+
+The canonical release register and qualification dossier govern the current state. All preceding requirements and evidence follow verbatim as dated history.
+
+---
+
 # Text to Lattice resume demonstrator requirements
 
 This file records the public contract for the Lattice project card and its capability-scoped **Text to Lattice** demonstrator. The browser may connect only to the same-origin `/api/lattice` capability; that Worker performs the declared external model processing. This file does not restate or redistribute the Relational Systems Register profile.

@@ -1,3 +1,50 @@
+# Text to Lattice release qualification — held DeepInfra review provider
+
+**Qualification date:** 2026-11-20
+
+**Evidence updated:** 2026-11-20
+
+**Reviewed baseline:** `5eb50a4ab3a07a7a94d7ce72436163893299bae5`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `9feb546c30fefae084d94d7fb044e66f2a9d8f1f4d0aeaa30d2c90298acee5d5`
+
+**Artifact-set projection SHA-256:** `3be580edccb5a79c501f523698b8702867420af15cc6c51d7513c8dea0398057`
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+Owner direction keeps the public client held until the active production blockers close; it is not deployment or runtime evidence.
+
+Owner-approved November 20 DeepInfra review-role change: this held remote-capability candidate is prepared against the last pulled hah.dev deployment and ancestry baseline 5eb50a4ab3a07a7a94d7ce72436163893299bae5. It selects the fixed Hugging Face router, through OpenRouter to DeepInfra, with unchanged Qwen generation and DeepInfra Llama verification/certification. GATE-02, GATE-03, and GATE-06 are open for this changed provider, without claiming the candidate is deployed or observed in production. Historical browser-local mechanisms are historical and inactive. Prior OVH qualification and successful run #454 remain dated evidence for their original targets only. The older U13-AFTER-RUN454-A1 is unspent and inapplicable to this changed provider. Owner approval permits the bounded API qualification, subsequent browser window, and final deployment only under their stated prerequisites and recovery limits. It is not observed runtime evidence.
+
+For this changed DeepInfra provider, remote production evidence is uncollected and no successful production transformation is established. Earlier successful OVH backend evidence, including original run #454, remains valid dated history for that original target. It is not evidence of the changed provider's behavior, input fit or browser qualification.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Open release blocker | High |
+| GATE-03 · Remote provider capacity and cost boundary | Open release blocker | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+The fixed model selectors are `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra` and `meta-llama/Llama-3.3-70B-Instruct:deepinfra` at `https://router.huggingface.co/v1/chat/completions`. Submitted text and generated material pass through Hugging Face and OpenRouter to DeepInfra. Both review stages retain strict JSON Schema and the existing stopped role/content response profile with optional empty tool_calls. The Scaleway-only null-metadata exception remains disabled. Host, semantic and certification acceptance is unchanged, with no automatic retry and no alternate provider or model fallback.
+
+Active capability status: `held-pending-production-evidence`. Application retention: no application storage, raw-content logs, cache, queue, or analytics for source, prompts, candidates, raw provider bodies, or results
+
+Provider retention boundary: Submitted text and generated material cross the external-provider boundary through Hugging Face and OpenRouter to DeepInfra. No application storage or logging does not imply provider non-retention. OpenRouter metadata, prompt categorization, screening, account logging and exceptional safety retention may apply. The settings or contractual exceptions used by Hugging Face are not established. The reviewed November 20 public observations are dated, not a guarantee of current routing, availability, input fit or cost. No alternate provider or model fallback is permitted. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev.
+
+The provider-managed runtime is not byte-pinned and historical MLC byte equivalence is not established. Existing input and output ceilings, 32 provider calls per admission, 30 admissions globally per UTC day, 3 admissions per cooperating persistent browser cookie jar per UTC day, finite quotas, privacy boundaries, strict qualification expiry and recovery predicates remain unchanged. The reviewed cost observations are dated November 20 and do not prove managed input fit or hosted billing. All gates retain the consequence × plausibility × lifecycle value decision rule.
+
+The owner approved one bounded API qualification while Pages remain held, one subsequent browser window after GATE-02 and GATE-03 close, and one final deployment after all production gates close, with only their stated included recovery. This source change spends no unit and performs no deployment, inference, browser action or retry. Previous `U13-AFTER-RUN454-A1` remains unconsumed and inapplicable to the changed provider.
+
+The complete preceding qualification dossier follows verbatim as dated OVH and earlier history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending renewal
 
 **Qualification date:** 2026-11-13

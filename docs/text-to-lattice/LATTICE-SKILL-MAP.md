@@ -1,6 +1,6 @@
 ---
 title: Lattice system skill map
-revision: 2026-11-13
+revision: 2026-11-20
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
@@ -197,7 +197,7 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-REMOTE-PROTOCOL — Remote request and response protocol:** `app/resume/lattice/remoteProtocol.js`
 - **SRC-REMOTE-CLIENT — Same-origin remote request client:** `app/resume/lattice/remoteRequest.js`
 - **SRC-API-WORKER — Same-origin Text to Lattice API Worker:** `workers/text-to-lattice-api/worker.js`
-- **SRC-HF-ADAPTER — Fixed Hugging Face, DeepInfra and Nscale provider adapter:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
+- **SRC-HF-ADAPTER — Fixed Hugging Face chat adapter for Qwen generation and Llama review:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
 - **SRC-API-CONFIG — Text to Lattice API Worker configuration:** `workers/text-to-lattice-api/wrangler.jsonc`
 - **SRC-CAPACITY-POLICY — Atomic Text to Lattice request-admission policy:** `workers/text-to-lattice-api/capacityPolicy.js`
 - **SRC-CAPACITY-CLIENT — Text to Lattice request-admission client:** `workers/text-to-lattice-api/capacityClient.js`
@@ -269,12 +269,14 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-D32-EVIDENCE — Actual #318 finite shape, partial failure and held scope; approved D32 validation pending:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
 - **SRC-D33-REQUIREMENTS — D33 scoped metadata-only active-context method under the conditional U13 window:** `docs/lattice-resume-demo-requirements.md`
 - **SRC-D33-EVIDENCE — Source-only current-context method, exact point-observation limits and pending actual native evidence:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
-- **SRC-HF-OVHCLOUD — Hugging Face OVHcloud routed provider integration:** [Reviewed source](https://huggingface.co/docs/inference-providers/en/providers/ovhcloud)
-- **SRC-OVHCLOUD-TERMS — OVHcloud standard AI Endpoints service conditions, Aug26 2026 Appendix10:** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-we.pdf)
-- **SRC-OVHCLOUD-PRIVACY — OVHcloud AI Endpoints published content and billing-data boundary:** [Reviewed source](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/)
-- **SRC-OVHCLOUD-CONDUCT — OVHcloud canonical AI Code of Conduct, Apr28 2025:** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/AI_Code-IE.pdf)
-- **SRC-OVHCLOUD-LIFECYCLE — OVHcloud AI Endpoints troubleshooting and lifecycle:** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-troubleshooting)
-- **SRC-OVHCLOUD-STRUCTURED — OVHcloud structured-output documented subset and ordering:** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-structured-output)
+- **SRC-HF-OVHCLOUD — Historical OVHcloud route. Hugging Face OVHcloud routed provider integration:** [Reviewed source](https://huggingface.co/docs/inference-providers/en/providers/ovhcloud)
+- **SRC-OVHCLOUD-TERMS — Historical OVHcloud route. OVHcloud standard AI Endpoints service conditions, Aug26 2026 Appendix10:** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-we.pdf)
+- **SRC-OVHCLOUD-PRIVACY — Historical OVHcloud route. OVHcloud AI Endpoints published content and billing-data boundary:** [Reviewed source](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/)
+- **SRC-OVHCLOUD-CONDUCT — Historical OVHcloud route. OVHcloud canonical AI Code of Conduct, Apr28 2025:** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/AI_Code-IE.pdf)
+- **SRC-OVHCLOUD-LIFECYCLE — Historical OVHcloud route. OVHcloud AI Endpoints troubleshooting and lifecycle:** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-troubleshooting)
+- **SRC-OVHCLOUD-STRUCTURED — Historical OVHcloud route. OVHcloud structured-output documented subset and ordering:** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-structured-output)
+- **SRC-HF-CHAT-ROUTING — Hugging Face language-model routing through OpenRouter:** [Reviewed source](https://huggingface.co/docs/inference-providers/en/providers)
+- **SRC-OPENROUTER-DATA — OpenRouter processing, screening and retention:** [Reviewed source](https://openrouter.ai/docs/guides/privacy/data-collection)
 
 ## Terms and provenance
 
