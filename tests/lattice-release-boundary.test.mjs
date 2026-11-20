@@ -14,6 +14,7 @@ import {
   verifyBrowserEvidenceAuthority,
   verifyEnabledPublicationCopy,
   verifyHeldBuiltBoundary,
+  verifyHistoricalOvhProviderEvidence,
   verifyLifecycleGateContract,
   verifyReleaseStatusState,
 } from "../scripts/verify-text-to-lattice-release.mjs";
@@ -376,8 +377,8 @@ test("the release register enforces its exact current phase and preserves histor
     Object.fromEntries(register.gates.map(({ id, status }) => [id, status])),
     {
       "GATE-01": "release-workflow-enforced",
-      "GATE-02": "satisfied-in-production",
-      "GATE-03": "satisfied-in-production",
+      "GATE-02": phase.held ? "open-release-blocker" : "satisfied-in-production",
+      "GATE-03": phase.held ? "open-release-blocker" : "satisfied-in-production",
       "GATE-04A": "accepted-residual-risk",
       "GATE-04B": "historical-inactive",
       "GATE-04C": "historical-inactive",
@@ -392,9 +393,10 @@ test("the release register enforces its exact current phase and preserves histor
   );
   assert.match(workflowGate.currentEvidence, /Runs #156, #154, #152, #150, #147[^.]*remain earlier held-publication history/iu);
 
-  const activeRemoteEvidence = [
+  const retainedRemoteEvidence = [
     register.publicClient.reason,
-    ...register.gates.flatMap((gate) => [gate.activeCurrentEvidence, ...(gate.activeEvidence ?? [])]),
+    ...[...register.gates, ...register.priorOVHReviewRolesBeforeDeepInfraMigration.gates]
+      .flatMap((gate) => [gate.activeCurrentEvidence, ...(gate.activeEvidence ?? [])]),
   ].join(" ");
   for (const exactEvidence of [
     "https://github.com/howardhayden/folio/actions/runs/36725067719",
@@ -450,9 +452,9 @@ test("the release register enforces its exact current phase and preserves histor
     "SHA-256 65983a6970b8ad8993ad4e47c3bf4b9c8b61adcaf7860655f87abedbaf0da6a2",
     "https://github.com/howardhayden/folio/actions/runs/36589409202",
     "run #156 is retained as predecessor-representation bounded failure and fail-closed rollback history",
-  ]) assert.ok(activeRemoteEvidence.includes(exactEvidence), `active evidence includes ${exactEvidence}`);
+  ]) assert.ok(retainedRemoteEvidence.includes(exactEvidence), `retained evidence includes ${exactEvidence}`);
   assert.match(
-    activeRemoteEvidence,
+    retainedRemoteEvidence,
     /run #158 attempt 2 canary[^\n]*outer HTTP 502[^\n]*malformed_upstream_response[^\n]*failure_class=provider_output_limit[^\n]*stage=verification[^\n]*call_ordinal=3[^\n]*finish_reason=length[^\n]*completion_tokens=2048-3071/iu,
   );
 
@@ -569,11 +571,11 @@ test("the release register enforces its exact current phase and preserves histor
   );
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.verificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
-  assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
+  assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
   assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
-  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
+  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
   assert.equal(capability.provider.certificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
-  assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
+  assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
   assert.equal(capability.provider.verificationResponseFormat, "json_schema");
   assert.equal(capability.provider.verificationSchemaStrict, true);
   assert.equal(capability.provider.certificationResponseFormat, "json_schema");
@@ -608,7 +610,7 @@ test("the release register enforces its exact current phase and preserves histor
   assert.deepEqual(register.artifactSet.llamaTerms.active, {
   "status": "active",
   "version": "Llama 3.3",
-  "model": "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
+  "model": "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
   "modelRepository": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
   "modelRepositoryRevision": "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
   "modelRepositoryRevisionUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/tree/6f6073b423013f6a7d4d9f39144961bfbfbc386b",
@@ -672,7 +674,7 @@ test("the release register enforces its exact current phase and preserves histor
     register.artifactSet.llamaBehaviorEvaluation.targetVerifier.modelRepositoryRevision,
     register.artifactSet.llamaTerms.active.modelRepositoryRevision,
   );
-  assert.equal(register.artifactSet.llamaBehaviorEvaluation.evidenceResetAt, "2026-11-02");
+  assert.equal(register.artifactSet.llamaBehaviorEvaluation.evidenceResetAt, "2026-11-20");
   assert.match(register.artifactSet.llamaBehaviorEvaluation.evidenceResetReason, /another (?:model, )?provider or serving revision/iu);
   assert.equal(register.artifactSet.llamaBehaviorEvaluation.exactModelExecutionPerformed, false);
   assert.deepEqual(register.artifactSet.llamaBehaviorEvaluation.historicalEvaluationRecord, {
@@ -738,7 +740,7 @@ test("the release register enforces its exact current phase and preserves histor
       gate.historicalInactiveRecord.verbatimSha256,
     );
     assert.ok(gate.activeEvidence.length > 0);
-    assert.match(gate.activeCurrentEvidence, /Source/u);
+    assert.match(gate.activeCurrentEvidence, /source/iu);
   }
   assert.match(register.gates.find(({ id }) => id === "GATE-02").currentEvidence, /actions\/runs\/34320931448/u);
   assert.match(register.gates.find(({ id }) => id === "GATE-06").currentEvidence, /actions\/runs\/34325228788/u);
@@ -1001,6 +1003,11 @@ test("the active remote gate contract is semantic and historical evidence is tam
   pendingGate02.status = "satisfied-in-production";
   const pendingGate03 = structuredClone(gate03);
   pendingGate03.status = "satisfied-in-production";
+  for (const fixture of [pendingGate02, pendingGate03]) {
+    const prior = register.priorOVHReviewRolesBeforeDeepInfraMigration.gates.find(({ id }) => id === fixture.id);
+    fixture.activeCurrentEvidence = prior.activeCurrentEvidence;
+    fixture.activeEvidence = structuredClone(prior.activeEvidence);
+  }
   const pendingGate06 = structuredClone(gate06);
   pendingGate06.status = "post-deployment-verification";
   assert.doesNotThrow(() => verifyLifecycleGateContract(pendingGate02, pendingGate03, pendingGate06, "qualification-pending"));
@@ -1026,6 +1033,30 @@ test("the active remote gate contract is semantic and historical evidence is tam
   const leakedLegacyAssumption = structuredClone(gate06);
   leakedLegacyAssumption.followUp += " Reacquire a lease.";
   assert.throws(() => verifyLifecycleGateContract(gate02, gate03, leakedLegacyAssumption, phase), /active remote requirement contains a browser-local lease assumption/u);
+});
+
+test("changed DeepInfra governance preserves exact OVH history and reopens production gates", async () => {
+  const register = await releaseRegister();
+  assert.doesNotThrow(() => verifyHistoricalOvhProviderEvidence(register));
+  const prior = register.priorOVHReviewRolesBeforeDeepInfraMigration;
+  assert.equal(prior.activeCapability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
+  assert.deepEqual(prior.gates.map(({ id, status }) => [id, status]), [
+    ["GATE-02", "satisfied-in-production"],
+    ["GATE-03", "satisfied-in-production"],
+    ["GATE-06", "post-deployment-verification"],
+  ]);
+  const changed = structuredClone(register);
+  changed.priorOVHReviewRolesBeforeDeepInfraMigration.gates[0].activeCurrentEvidence += " altered";
+  assert.throws(() => verifyHistoricalOvhProviderEvidence(changed), /exact pre-migration record/u);
+  const missing = structuredClone(register);
+  delete missing.priorOVHReviewRolesBeforeDeepInfraMigration;
+  assert.throws(() => verifyHistoricalOvhProviderEvidence(missing), /exact pre-migration record/u);
+  assert.equal(verifyReleaseStatusState(register).releasePhase, "held");
+  for (const id of ["GATE-02", "GATE-03", "GATE-06"]) {
+    assert.equal(register.gates.find((gate) => gate.id === id).status, "open-release-blocker");
+  }
+  const gates = (id) => register.gates.find((gate) => gate.id === id);
+  assert.doesNotThrow(() => verifyLifecycleGateContract(gates("GATE-02"), gates("GATE-03"), gates("GATE-06"), "held"));
 });
 
 test("the source release verifier accepts the exact current phase record", async () => {

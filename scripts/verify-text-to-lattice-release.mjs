@@ -90,7 +90,7 @@ const historicalRemoteLlamaTermsProvenance = Object.freeze({
 });
 const activeLlamaTermsProvenance = Object.freeze({
   "version": "Llama 3.3",
-  "model": "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
+  "model": "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
   "modelRepository": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
   "modelRepositoryRevision": "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
   "modelRepositoryRevisionUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/tree/6f6073b423013f6a7d4d9f39144961bfbfbc386b",
@@ -1096,7 +1096,7 @@ async function verifyLlamaUseEvaluation(register) {
   }
   if (record.targetVerifier?.model !== register.artifactSet.activeCapability.provider.verifierModel
     || record.targetVerifier?.modelRepositoryRevision !== register.artifactSet.llamaTerms.active.modelRepositoryRevision
-    || record.evidenceResetAt !== "2026-11-02"
+    || record.evidenceResetAt !== "2026-11-20"
     || !/another (?:model, )?provider or serving revision/iu.test(record.evidenceResetReason ?? "")
     || !sameJson(record.historicalEvaluationRecord, historicalLlamaBehaviorEvaluation)) {
     fail("Llama-use evaluation evidence must be reset and bound to the exact active verifier model and reviewed repository revision.");
@@ -1260,7 +1260,7 @@ async function verifyQualificationDossier(register) {
     || !/__Secure-hah-lattice-api-visitor/u.test(source)
     || !/30[^.]*globally per UTC day/iu.test(source)
     || !/3[^.]*browser cookie jar per UTC day/iu.test(source)
-    || !/Hugging Face[\s\S]{0,300}OVHcloud/iu.test(source)
+    || !/Hugging Face[\s\S]{0,300}OpenRouter[\s\S]{0,160}DeepInfra/iu.test(source)
     || !/no automatic retry/iu.test(source)
     || !/no (?:alternate )?provider or model fallback/iu.test(source)
     || !/provider-managed[\s\S]{0,240}not byte/iu.test(source)
@@ -1269,9 +1269,9 @@ async function verifyQualificationDossier(register) {
     fail("release qualification must disclose the remote capability, fixed provider, finite failure policy, provider-managed provenance, and historical inactive browser-local record.");
   }
   if (releaseState.held
-    && (!/remote production evidence is failure-only/iu.test(source)
+    && (!/remote production evidence is (?:uncollected|failure-only)/iu.test(source)
       || !/no successful production transformation/iu.test(source))) {
-    fail("held release qualification must distinguish retained failure evidence from the absence of a successful production transformation.");
+    fail("held release qualification must distinguish uncollected or retained failure evidence from the absence of a successful production transformation.");
   }
   if (releaseState.qualificationPending
     && (!/qualification[- ]pending/iu.test(source)
@@ -1587,7 +1587,16 @@ function verifyArtifactSet(register) {
   }
 }
 
+export function verifyHistoricalOvhProviderEvidence(register) {
+  const prior = register.priorOVHReviewRolesBeforeDeepInfraMigration;
+  if (prior?.status !== "historical-inactive"
+    || digest(Buffer.from(JSON.stringify(canonicalJson(prior)))) !== "35935736665fd558ba0432e67b264ccf6632ed2dc28b243ad9e610bbab4bd812") {
+    fail("historical OVH provider evidence must remain the exact pre-migration record.");
+  }
+}
+
 async function verifySourceBoundary(register) {
+  verifyHistoricalOvhProviderEvidence(register);
   if (register.format !== "TEXT_TO_LATTICE_RELEASE_REGISTER" || register.schemaVersion !== 1) fail("release-register format is unsupported.");
   const releaseState = verifyReleaseStatusState(register);
   const revisionDate = new Date(`${register.revision}T00:00:00Z`);

@@ -206,7 +206,7 @@ test("active Llama terms, required attribution, and historical artifacts are reg
 
   assert.equal(active.status, "active");
   assert.equal(active.version, "Llama 3.3");
-  assert.equal(active.model, "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
+  assert.equal(active.model, "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
   assert.equal(active.modelRepositoryRevision, "6f6073b423013f6a7d4d9f39144961bfbfbc386b");
   assert.equal(sha256(activeLicense), active.license.sha256);
   assert.equal(sha256(activeAcceptableUse), active.acceptableUsePolicy.sha256);
@@ -265,6 +265,10 @@ test("active Llama terms, required attribution, and historical artifacts are reg
   assert.match(notices, /historical inactive Llama 3\.2/u);
   assert.match(notices, /OVHcloud[\s\S]*?standard synchronous service does not store or reuse inputs and outputs/iu);
   assert.match(notices, /does not establish KV\/prefix-cache behavior, exact metadata-retention periods/iu);
+  const activeNotice = notices.split("## Historical OVHcloud remote verifier")[0];
+  assert.match(activeNotice, /Hugging Face, OpenRouter and DeepInfra process submitted text/u);
+  assert.match(activeNotice, /including unflagged requests on Safety Retention endpoints/u);
+  assert.doesNotMatch(activeNotice, /:ovhcloud/u);
   assert.match(notices, /Historical Scaleway remote verifier — inactive/u);
   assert.match(notices, /AI_Code-IE\.pdf/u);
   assert.match(notices, /6,020 bytes[\s\S]{0,150}exactly one final LF/u);

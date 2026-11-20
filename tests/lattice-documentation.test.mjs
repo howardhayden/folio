@@ -35,7 +35,7 @@ test("the documentation generator binds current remote evidence and preserves in
   assert.match(builder, /productionSatisfiedGateIds = new Set\(\["GATE-02", "GATE-03", "GATE-06"\]\)/u);
   assert.match(builder, /"historical-inactive"/u);
   assert.match(builder, /"historicalInactiveRecord",[\s\S]{0,100}"activeCurrentEvidence",[\s\S]{0,100}"activeEvidence"/u);
-  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed DeepInfra generator and OVHcloud review targets/u);
+  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed DeepInfra generation and review through OpenRouter/u);
   assert.match(builder, /GATE-03 must keep the provider call, stage, response, limiter, cost, generic-proxy, retry, fallback/u);
   assert.match(builder, /GATE-06 must require one explicit canonical-browser setup-plus-content lifecycle/u);
   assert.match(builder, /verifyReleaseStatusState\(releaseRegister\)/u);
@@ -90,7 +90,7 @@ test("the atlas models the exact current remote phase without promoting historic
     "428 visitor_session_required",
     "intentional cookie clearing",
     "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-    "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
+    "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
     "no automatic retry",
     "provider or model fallback",
     "questions required to be empty",
@@ -118,12 +118,16 @@ test("the atlas models the exact current remote phase without promoting historic
   const historicalDisclosureThreat = atlas.historicalBrowserLocalSecurityModel.threats.find(({ id }) => id === "SEC-12");
   assert.ok(historicalDisclosureThreat.sourceIds.includes("SRC-LLAMA-LICENSE"));
   assert.ok(historicalDisclosureThreat.sourceIds.includes("SRC-LLAMA-AUP"));
+  const expectedBackendStatus = (id) => {
+    const { acceptanceBasis } = releaseRegister.gates.find(gate => gate.id === id);
+    return acceptanceBasis === null ? "open-release-blocker" : "satisfied-in-production";
+  };
   assert.deepEqual(
     releaseRegister.gates.map(({ id, status }) => [id, status]),
     [
       ["GATE-01", "release-workflow-enforced"],
-      ["GATE-02", "satisfied-in-production"],
-      ["GATE-03", "satisfied-in-production"],
+      ["GATE-02", expectedBackendStatus("GATE-02")],
+      ["GATE-03", expectedBackendStatus("GATE-03")],
       ["GATE-04A", "accepted-residual-risk"],
       ["GATE-04B", "historical-inactive"],
       ["GATE-04C", "historical-inactive"],
@@ -175,7 +179,13 @@ test("the atlas models the exact current remote phase without promoting historic
     const gate = releaseRegister.gates.find((candidate) => candidate.id === id);
     assert.equal(gate.historicalInactiveRecord.status, "historical-inactive");
     assert.deepEqual(gate.historicalInactiveRecord.appliesToFields, ["currentEvidence", "evidence"]);
-    assert.match(gate.activeCurrentEvidence, /No retained production|have not been observed|remain unobserved|No canonical production/iu);
+    if (gate.status === "open-release-blocker") {
+      assert.equal(gate.acceptanceBasis, null);
+      assert.match(gate.activeCurrentEvidence, /No retained production|have not been observed|remain unobserved|No canonical production/iu);
+    } else if (gate.status === "satisfied-in-production") {
+      assert.ok(gate.acceptanceBasis);
+      assert.match([gate.activeCurrentEvidence, ...gate.activeEvidence].join(" "), /https:\/\/github\.com\/howardhayden\/folio\/actions\/runs\/\d+/u);
+    }
     assert.ok(gate.activeEvidence.length > 0);
     assert.doesNotMatch(`${gate.label} ${gate.requirement} ${gate.activeCurrentEvidence} ${gate.evidenceNeeded} ${gate.activeEvidence.join(" ")} ${gate.safeguards.join(" ")} ${gate.followUp} ${gate.rollbackCondition}`, /Turnstile|Siteverify|verify\.hah\.dev|WebGPU|WebLLM|\/api\/text-to-lattice\/lease|\blease\b|\battestation\b/iu);
   }
@@ -215,7 +225,7 @@ test("the qualification dossier leads with its current phase and retains verbati
   assert.match(dossier, /__Secure-hah-lattice-api-visitor/u);
   assert.match(dossier, /30[^.]*globally per UTC day/iu);
   assert.match(dossier, /3[^.]*browser cookie jar per UTC day/iu);
-  assert.match(dossier, /Hugging Face[\s\S]{0,300}OVHcloud/iu);
+  assert.match(dossier, /Hugging Face[\s\S]{0,300}OpenRouter[\s\S]{0,300}DeepInfra/iu);
   assert.match(dossier, /no automatic retry/iu);
   assert.match(dossier, /no alternate provider or model fallback/iu);
   assert.match(dossier, /provider-managed[\s\S]{0,240}not byte/iu);
@@ -438,8 +448,10 @@ test("interactive editions remain complete, self-contained, accessible, and exec
   const index = await readText(publicRoot, "index.html");
   if (releaseState.held) {
     assert.match(index, /held and documentation-only/iu);
-    assert.match(index, /<h2>Text to Lattice qualification<\/h2><p>The remote interactive client is held and documentation-only because GATE-06 remains open\./u);
-    assert.doesNotMatch(index, /<h2>Text to Lattice qualification<\/h2><p>The remote interactive client is held and documentation-only because GATE-02, GATE-03 and GATE-06 remain open\./u);
+    const blockers = releaseRegister.gates.filter(gate => gate.status === "open-release-blocker").map(gate => gate.id);
+    const open = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(blockers).replace(", and ", " and ");
+    const agreement = blockers.length === 1 ? "remains" : "remain";
+    assert.ok(index.includes(`<h2>Text to Lattice qualification</h2><p>The remote interactive client is held and documentation-only because ${open} ${agreement} open.`));
     assert.match(index, /Required production qualification remains incomplete; current bounded evidence is recorded in the release register/u);
     assert.match(index, /Historical WebLLM, Turnstile, and lease records remain inactive/u);
   } else if (releaseState.qualificationPending) {
@@ -470,7 +482,7 @@ test("interactive editions remain complete, self-contained, accessible, and exec
     assert.match(artifact, /Backstage client\/server/u);
     assert.match(artifact, /POST \/api\/lattice/u);
     assert.match(artifact, /HF_TOKEN/u);
-    assert.match(artifact, /Hugging Face, DeepInfra and OVHcloud/u);
+    assert.match(artifact, /Hugging Face, OpenRouter and DeepInfra/u);
     assert.match(artifact, /no automatic retry/iu);
     assert.match(artifact, /no alternate provider or model fallback/iu);
     assert.doesNotMatch(artifact, /Backstage browser-local/u);

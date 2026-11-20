@@ -14,7 +14,7 @@ import { TEXT_TO_LATTICE_CONTENT_UPDATED } from "../resume/projects.js";
 
 const HUGGING_FACE_CHAT_COMPLETIONS_URL = "https://router.huggingface.co/v1/chat/completions";
 const REMOTE_GENERATOR_ID = "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra";
-const REMOTE_VERIFIER_ID = "meta-llama/Llama-3.3-70B-Instruct:ovhcloud";
+const REMOTE_VERIFIER_ID = "meta-llama/Llama-3.3-70B-Instruct:deepinfra";
 const REMOTE_GENERATOR_REVIEWED_REVISION = "ac9c66cc9b46af7306746a9250f23d47083d689e";
 const REMOTE_VERIFIER_REVIEWED_REVISION = "6f6073b423013f6a7d4d9f39144961bfbfbc386b";
 
@@ -40,9 +40,9 @@ export const textToLatticeContract = Object.freeze({
   purpose: "Convert source prose into passage-appropriate Lattice registers while preserving its meaning.",
   heldReleaseNotes: Object.freeze([
     "The public converter and its API are held. Text to Lattice is available here as documentation only.",
-    "An earlier backend qualification passed one retained-text case; rewrite-repair success remains unproved. The latest deployment check stopped before processing text because session setup reached the held API. Readiness checking has been strengthened; hosted browser qualification remains pending.",
-    "Release still requires complete Safari and Brave network, lifecycle, and reload evidence and independent acceptance. Browser qualification remains incomplete.",
-    "Successful cases are evidence for those cases, not general output quality or reliable repair. Every generated result still requires review.",
+    "The November 13 backend check passed one case on the former OVHcloud review route. It retained the passage and did not exercise rewrite repair. The new DeepInfra review route awaits production qualification.",
+    "Release requires backend acceptance and hosted Safari and Brave evidence of submission, response handling, and reload.",
+    "Review each result for changes in meaning, including omissions.",
   ]),
   input: `User-entered text from 1 through ${LATTICE_WORD_LIMIT} Unicode-aware words and no more than ${LATTICE_INPUT_SAFETY_LIMIT.toLocaleString("en-US")} UTF-16 code units. The browser validates these bounds before the explicit same-origin submission, and the server validates them again before provider work.`,
   output: "A checked Latticed text, a visible material draft marked for review, an unable-to-attempt result with no transformed text, or a finite request error. The remote capability does not ask follow-up clarification questions.",
@@ -52,7 +52,7 @@ export const textToLatticeContract = Object.freeze({
     "After explicit confirmation, send one content-free cookie setup POST with no body or Content-Type to the same-origin /api/lattice capability; after its 204 response, send exactly one content-bearing POST with text, requested_mode, and schema_version 1.",
     "On the server, atomize actors, events, states, relationships, causality, chronology, modality, polarity, uncertainty, quantities, knowledge, instructions, institutional conditions, and ethical stakes.",
     "Select operative, experiential, interpretive, mixed, or accessibility treatment passage by passage under the Relational Systems Register; an operative or experiential request remains a preference subordinate to evidence, semantic fidelity, and safety.",
-    "Use the fixed DeepInfra-served Qwen generator to draft and the fixed OVHcloud-served Llama 3.3 verifier to check source coverage, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament through the Hugging Face router.",
+    "Use the fixed DeepInfra-served Qwen generator to draft and the fixed DeepInfra-served Llama 3.3 verifier to check source coverage, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament through Hugging Face and OpenRouter.",
     "Re-atomize incomplete passages or repair a rejected draft within bounded passes against the same fixed models; do not switch providers or models.",
     "Certify required multi-batch candidates against the complete source for distant identity, attribution, chronology, causality, modality, polarity, ambiguity, and document consistency.",
     "Return one bounded result or an explicit terminal error; the browser performs no automatic retry or fallback.",
@@ -77,7 +77,7 @@ export const textToLatticeContract = Object.freeze({
           repair: Object.freeze({ maximumOutputTokens: 800 }),
         }),
       }),
-      inferenceSummary: "server-side bounded structured analysis and drafting through Hugging Face Inference Providers and DeepInfra; returned objects undergo deterministic closed-contract validation, and invalid or incomplete output fails closed; bounded stage-specific output limits",
+      inferenceSummary: "server-side bounded structured analysis and drafting through Hugging Face, OpenRouter and DeepInfra; returned objects undergo deterministic closed-contract validation, and invalid or incomplete output fails closed; bounded stage-specific output limits",
     }),
     verifier: Object.freeze({
       name: "Llama 3.3 70B Instruct server-side verifier",
@@ -102,7 +102,7 @@ export const textToLatticeContract = Object.freeze({
       }),
     }),
     runtime: Object.freeze({
-      name: "Hugging Face Inference Providers with DeepInfra and OVHcloud",
+      name: "Hugging Face Inference Providers with OpenRouter and DeepInfra",
       version: "provider-managed remote service",
       packageUrl: "https://huggingface.co/docs/inference-providers/",
       documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
@@ -151,7 +151,7 @@ export const textToLatticeContract = Object.freeze({
       ]),
     }),
     huggingFace: Object.freeze({
-      summary: "After explicit confirmation, hah.dev sends server-created prompts containing the submitted text to the Hugging Face Inference Providers chat-completions router, configured to use DeepInfra for the fixed Qwen3-235B-A22B-Instruct-2507 generator and OVHcloud for the fixed Llama 3.3 70B Instruct verifier.",
+      summary: "After explicit confirmation, hah.dev sends prompts containing the submitted text to Hugging Face. DeepInfra serves the fixed Qwen3-235B-A22B-Instruct-2507 generator and Llama 3.3 70B Instruct verifier and certifier. Hugging Face routes both models through OpenRouter.",
       protections: Object.freeze([
         `The server uses only ${HUGGING_FACE_CHAT_COMPLETIONS_URL} for all stages, including verification, its bounded correction or reverification, and certification. User text cannot select a URL, provider, model, header, or credential.`,
         `The generator is fixed to ${REMOTE_GENERATOR_ID}; verification and certification are fixed to ${REMOTE_VERIFIER_ID} with strict JSON-schema content and mandatory closed host decoding. There is no automatic provider or model fallback.`,
@@ -159,20 +159,18 @@ export const textToLatticeContract = Object.freeze({
         "hah.dev provider fetches request no storage cache and reject redirects; this does not establish or control any external provider cache. Request, response, token, and time limits remain bounded. hah.dev deterministically validates every returned object against its closed contract, and invalid, incomplete, or unknown data fails closed. A schema-correction pass may call the same fixed model again within the pipeline budget and never switches providers.",
         "The hah.dev application does not persist source text, prompts, candidates, results, or raw provider bodies and does not write them to application logs or analytics. Responses use Cache-Control: no-store.",
       ]),
-      residualDisclosure: "This text leaves hah.dev for external processing. Hugging Face, DeepInfra, OVHcloud, and their infrastructure receive the content and ordinary connection metadata under their own policies. OVHcloud states that its standard synchronous AI Endpoints service does not store or reuse inputs and outputs or use them for model training; billing information is retained. Batch API storage is separate and is not used here. Reviewed public terms do not establish KV/prefix-cache behavior, exact metadata-retention periods, complete HF-to-provider geography, or private downstream terms. Hugging Face router debugging logs without user data or tokens may persist for up to 30 days; DeepInfra's support retention of up to 30 days, operational metadata, legal/security/abuse, elected-feature and temporary prefix/KV-cache exceptions remain applicable. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Browser extensions, security products, DNS providers, and networks selected by the visitor remain outside hah.dev's control.",
+      residualDisclosure: "This text leaves hah.dev for external processing. Hugging Face, OpenRouter and DeepInfra process submitted text and ordinary connection metadata under their own policies. Hugging Face says it does not store routed prompts or responses and can keep non-content troubleshooting logs for up to 30 days. OpenRouter records request metadata and describes anonymous prompt categorization. Its safety screening and applicable endpoint policies can retain content for abuse prevention or legal reporting, including unflagged requests on Safety Retention endpoints. The settings Hugging Face uses on this route are unknown. DeepInfra describes deletion of ordinary inputs and outputs after inference. Its terms allow temporary in-memory caching, operational metadata, authorized support retention of up to 30 days, and legal or elected-feature exceptions. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Browser extensions, security products, DNS providers, and networks selected by the visitor remain outside hah.dev's control.",
       sources: Object.freeze([
         Object.freeze({ label: "Hugging Face Inference Providers chat completion", url: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion" }),
         Object.freeze({ label: "Hugging Face structured outputs", url: "https://huggingface.co/docs/inference-providers/en/guides/structured-output" }),
         Object.freeze({ label: "Hugging Face Inference Providers security", url: "https://huggingface.co/docs/inference-providers/en/security" }),
+        Object.freeze({ label: "Hugging Face language-model routing", url: "https://huggingface.co/docs/inference-providers/en/providers" }),
+        Object.freeze({ label: "OpenRouter data collection", url: "https://openrouter.ai/docs/guides/privacy/data-collection" }),
+        Object.freeze({ label: "OpenRouter Privacy Policy", url: "https://openrouter.ai/privacy" }),
         Object.freeze({ label: "Hugging Face DeepInfra provider documentation", url: "https://huggingface.co/docs/inference-providers/en/providers/deepinfra" }),
         Object.freeze({ label: "DeepInfra data privacy", url: "https://docs.deepinfra.com/account/data-privacy" }),
         Object.freeze({ label: "DeepInfra Privacy Policy", url: "https://deepinfra.com/privacy" }),
         Object.freeze({ label: "DeepInfra Terms of Service", url: "https://deepinfra.com/terms" }),
-        Object.freeze({ label: "Hugging Face OVHcloud provider documentation", url: "https://huggingface.co/docs/inference-providers/en/providers/ovhcloud" }),
-        Object.freeze({ label: "OVHcloud AI Endpoints service terms (Appendix 10)", url: "https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-we.pdf" }),
-        Object.freeze({ label: "OVHcloud AI Endpoints processing policy", url: "https://www.ovhcloud.com/en/public-cloud/ai-endpoints/" }),
-        Object.freeze({ label: "OVHcloud AI code of conduct", url: "https://contract.eu.ovhapis.com/1.0/pdf/AI_Code-IE.pdf" }),
-        Object.freeze({ label: "OVHcloud AI Endpoints troubleshooting and lifecycle", url: "https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-troubleshooting" }),
         Object.freeze({ label: "Hugging Face Privacy Policy", url: "https://huggingface.co/privacy" }),
         Object.freeze({ label: "Hugging Face Terms of Service", url: "https://huggingface.co/terms-of-service" }),
       ]),
@@ -211,7 +209,7 @@ export const textToLatticeContract = Object.freeze({
     "After the user explicitly chooses Process with external service, the browser sends one content-free cookie setup POST and then exactly one content-bearing POST to the same-origin /api/lattice path. Only the second contains this text or can initiate external-provider processing, and its body is exactly {text, requested_mode, schema_version: 1}.",
     "Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information.",
     "hah.dev application code does not retain source text, prompts, candidates, results, or raw provider responses in storage, logs, caches, queues, or analytics. The bounded Worker and browser keep only transient in-memory state needed for the request and display.",
-    "Hugging Face, DeepInfra, OVHcloud, and their infrastructure process the submitted content under their own policies; hah.dev does not claim that its application-level no-retention rule governs those external systems.",
+    "Hugging Face, OpenRouter, DeepInfra, and their infrastructure process the submitted content under their own policies; hah.dev does not claim that its application-level no-retention rule governs those external systems.",
     "Provider endpoints, stage routing, the generator, and the verifier are fixed server-side. There is no automatic provider or model fallback, and a terminal failure requires another deliberate submission.",
     "The service admits at most 30 transformations globally per UTC day and 3 from one ordinary persistent cookie jar per UTC day. Its API-scoped opaque HttpOnly cookie contains no submitted content and expires at the next UTC-day boundary; no IP or browser fingerprint is used as a second quota identity.",
     "The active remote runtime may differ in weights, tokenizer behavior, kernels, numerical behavior, and serving configuration from the historical pinned MLC/WebGPU artifacts; byte-for-byte equivalence is not claimed.",

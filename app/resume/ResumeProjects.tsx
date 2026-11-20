@@ -383,9 +383,9 @@ function LatticeServiceDiagram({ state }: Readonly<{
     ["analysis", ["Analyze", "Qwen · DeepInfra"]],
     ["draft", ["Draft", "Qwen · DeepInfra"]],
     ["bind", ["Bind candidate integrity"]],
-    ["verify", ["Verify", "Llama · OVHcloud"]],
+    ["verify", ["Verify", "Llama · DeepInfra"]],
     ["repair", ["Repair / regenerate if needed", "Revisit earlier checks"]],
-    ["certify", ["Certify when needed", "Llama · OVHcloud"]],
+    ["certify", ["Certify when needed", "Llama · DeepInfra"]],
   ];
   const node = (stepId: string, lines: string[]) => (
     <span className={`lattice-service-state teaching-manifest-entry--${tone(stepId)}`}>
@@ -399,7 +399,7 @@ function LatticeServiceDiagram({ state }: Readonly<{
   return (
     <TerminalStateDiagram
       caption={<>Server pipeline<small>Current phase: {state.label}</small></>}
-      description={`Current phase: ${state.label}. The browser checks source and consent, then sends a content-free cookie setup and one text request to hah.dev. The server reports its actual phase through that request: source integrity, DeepInfra analysis and drafting, candidate integrity, OVHcloud verification, bounded repair and certification when needed. The browser receives a checked result or a finite error. Phase names contain no source or generated text.`}
+      description={`Current phase: ${state.label}. The browser checks source and consent, then sends a content-free cookie setup and one text request to hah.dev. The server reports its actual phase through that request: source integrity, DeepInfra analysis and drafting, candidate integrity, DeepInfra verification, bounded repair and certification when needed. The browser receives a checked result or a finite error. Phase names contain no source or generated text.`}
       diagramClassName="lattice-service-diagram"
     >
       <span className={`lattice-service-state teaching-manifest-entry--${tone("input")}`}>
@@ -411,7 +411,7 @@ function LatticeServiceDiagram({ state }: Readonly<{
       </span>
       {"\n                 │\n                 ▼\n"}
       <span className={`lattice-service-state teaching-manifest-entry--${tone("service")}`}>
-        <span className="lattice-state-text signal-fuzz">{center("SERVER · Hugging Face routing", 35)}</span>
+        <span className="lattice-state-text signal-fuzz">{center("SERVER · Hugging Face / OpenRouter", 35)}</span>
       </span>
       {"\n\n"}
       {stages.map(([stepId, lines], index) => (
@@ -968,7 +968,7 @@ export default function ResumeProjects() {
               This text leaves hah.dev for processing by the configured external Hugging Face inference service only when you choose <strong>Process with external service</strong>. hah.dev does not retain your sample or result. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. <a href="/projects/lattice/text-to-lattice/#text-to-lattice-privacy">Privacy details</a>.
             </p>
             <p id="lattice-model-disclosure" className="lattice-local-note">
-              Model-assisted result: Qwen3-235B-A22B-Instruct-2507 drafts and Llama 3.3 70B Instruct checks through the configured external service. DeepInfra serves the generator and OVHcloud serves the verifier through Hugging Face. OVHcloud states that its standard synchronous service does not store or reuse inputs and outputs or use them for training; billing information is retained. Its cache behavior and exact metadata-retention periods are not established by the reviewed public terms. External processing policies are separate from hah.dev’s application no-retention rule. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_3_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
+              Model-assisted result: Qwen3-235B-A22B-Instruct-2507 drafts and Llama 3.3 70B Instruct checks through the configured external service. Hugging Face routes both models through OpenRouter to DeepInfra. OpenRouter records metadata and may categorize prompts or retain content for safety or legal purposes. Hugging Face’s settings for this route are unknown. DeepInfra deletes ordinary inputs and outputs after inference, with support, legal and temporary caching exceptions. External processing policies are separate from hah.dev’s application no-retention rule. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_3_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
             </p>
             <p className="lattice-usage-note" id="lattice-demonstration-profile">
               Demonstration profile: after explicit confirmation, the browser sends one
@@ -1029,12 +1029,12 @@ export default function ResumeProjects() {
                 }}
               />
               <label className="lattice-use-confirmation-label" htmlFor="lattice-use-confirmation">
-                I confirm that this source is in one of the supported languages, I am authorized to send it to the configured external service, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.3 Acceptable Use Policy or OVHcloud AI code of conduct.
+                I confirm that this source is in one of the supported languages, I am authorized to send it through Hugging Face and OpenRouter to DeepInfra, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.3 Acceptable Use Policy or DeepInfra’s terms of service.
               </label>
               <details className="lattice-disclosure lattice-use-confirmation-detail">
                 <summary>Supported languages and use policies</summary>
                 <small id="lattice-use-confirmation-detail" className="lattice-disclosure-content">
-                Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_3_PUBLIC_TERMS.acceptableUseUrl}>Llama 3.3 Acceptable Use Policy</a> and <a href="https://contract.eu.ovhapis.com/1.0/pdf/AI_Code-IE.pdf">OVHcloud AI code of conduct</a>.
+                Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_3_PUBLIC_TERMS.acceptableUseUrl}>Llama 3.3 Acceptable Use Policy</a> and <a href="https://deepinfra.com/terms">DeepInfra terms of service</a>.
                 </small>
               </details>
             </div>

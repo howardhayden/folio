@@ -42,7 +42,7 @@ export const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL = HUGGING_FACE_CHAT_
 
 export const LATTICE_REMOTE_MODELS = Object.freeze({
   generator: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-  verifier: "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
+  verifier: "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
 });
 
 export const LATTICE_PROVIDER_FAILURE_CLASSES = Object.freeze([
@@ -140,7 +140,7 @@ const HTTP_HEADER_VALUE_SETS = Object.freeze(Object.fromEntries(
 ));
 const HTTP_HEADER_CHARACTER_LIMIT = 256;
 const HTTP_TOKEN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
-// Historical HF Scaleway mapping label, not an OVHcloud serving-identity proof.
+// Historical HF Scaleway mapping label; advertised headers do not prove serving identity.
 const VERIFIER_MAPPED_MODEL = "llama-3.3-70b-instruct";
 export const LATTICE_VERIFICATION_REQUEST_MODEL = LATTICE_REMOTE_MODELS.verifier;
 

@@ -145,11 +145,11 @@ test("usage sidecar binds the exact live v3 bytes and computes the dated catalog
   const evidence = createLatticeQualificationUsageEvidence(liveBytes, observed);
   assert.equal(evidence.live_boundary.sha256, createHash("sha256").update(liveBytes).digest("hex"));
   assert.deepEqual(evidence.deployment, liveReceipt().deployment);
-  assert.equal(evidence.catalog.source_sha256, "9cafa0c2bcb260234d5aa2ed35dca76d05116f12ead9281a2a1f1af7d2d4a608");
-  assert.equal(evidence.catalog.observed_on, "2026-11-02");
+  assert.equal(evidence.catalog.source_sha256, "fe6073d5ce64455d0b3e6faab3de8ae0c188d84008bb98352c392b9324c57ce8");
+  assert.equal(evidence.catalog.observed_on, "2026-11-20");
   assert.equal(evidence.cost.generator_usd, "0.000200000");
-  assert.equal(evidence.cost.verifier_usd, "0.001554000");
-  assert.equal(evidence.cost.total_usd, "0.001754000");
+  assert.equal(evidence.cost.verifier_usd, "0.000232000");
+  assert.equal(evidence.cost.total_usd, "0.000432000");
   assert.equal(evidence.cost.billed_cost_observed, false);
   assert.equal(evidence.cost.complete_account_cost_observed, false);
   assert.equal(evidence.cost.discounts_credits_taxes_and_other_charges_included, false);
@@ -158,25 +158,25 @@ test("usage sidecar binds the exact live v3 bytes and computes the dated catalog
 
 test("dated reviewer rates preserve individual nano-USD units and reported zero usage", () => {
   assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.model,
-    "meta-llama/Llama-3.3-70B-Instruct:ovhcloud");
-  assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.input_rate, "0.74");
-  assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.output_rate, "0.74");
+    "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
+  assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.input_rate, "0.10");
+  assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.output_rate, "0.32");
   const oneEach = createLatticeQualificationUsageEvidence(bytes(), {
     status: "complete",
     generator: { calls: 1, prompt_tokens: 1, completion_tokens: 1 },
     verifier: { calls: 1, prompt_tokens: 1, completion_tokens: 1 },
   });
   assert.equal(oneEach.cost.generator_usd, "0.000000640");
-  assert.equal(oneEach.cost.verifier_usd, "0.000001480");
-  assert.equal(oneEach.cost.total_usd, "0.000002120");
+  assert.equal(oneEach.cost.verifier_usd, "0.000000420");
+  assert.equal(oneEach.cost.total_usd, "0.000001060");
   const singleInput = createLatticeQualificationUsageEvidence(bytes(), {
     status: "complete",
     generator: { calls: 1, prompt_tokens: 0, completion_tokens: 0 },
     verifier: { calls: 1, prompt_tokens: 1, completion_tokens: 0 },
   });
   assert.equal(singleInput.cost.generator_usd, "0.000000000");
-  assert.equal(singleInput.cost.verifier_usd, "0.000000740");
-  assert.equal(singleInput.cost.total_usd, "0.000000740");
+  assert.equal(singleInput.cost.verifier_usd, "0.000000100");
+  assert.equal(singleInput.cost.total_usd, "0.000000100");
   assert.equal(singleInput.schemaVersion, 1);
   assert.equal(verifyLatticeQualificationUsageEvidence(singleInput, bytes(), { requireComplete: true }), singleInput);
 });
@@ -229,6 +229,7 @@ test("only a current-model successful live v3 receipt can carry a usage sidecar"
     ["old generator", (v) => { v.declared_provider_contract.generator_model = "Qwen/Qwen3-4B-Instruct-2507:nscale"; }],
     ["old provider", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.1-8B-Instruct:deepinfra"; }],
     ["prior Nscale reviewer", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.1-8B-Instruct:nscale"; }],
+    ["historical OVHcloud reviewer", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.3-70B-Instruct:ovhcloud"; }],
     ["historical Scaleway reviewer", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.3-70B-Instruct:scaleway"; }],
     ["unselected3.3 provider", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.3-70B-Instruct:novita"; }],
     ["missing timestamp", (v) => { delete v.verified_at; }],
