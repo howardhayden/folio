@@ -1,3 +1,7 @@
+# Hosted browser qualification after deployment run #485
+
+Canonical-browser qualification remains pending. The CoreWeave backend passed the original notebook checks in runs #476 and #479. Firefox passed all 14 hosted input checks. Safari reached reverification and received a withheld result. Brave has no hosted capture. The later deployment check #485 stopped before provider or browser probes and supplied no new browser evidence. The intended-version selection correction still needs production verification. The two native output captures are still required for release. The next window uses one backend canary and one submission per native engine. Preserve the project’s recorded original runs and restore the public service on completion or failure.
+
 # Held deployment-selection correction after run #485 — November 20
 
 This is a held documentation-only continuation after deployment verification stopped before browser qualification. GATE-02 and GATE-03 preserve their exact dated run #476 success; GATE-06 remains open with null acceptance and no collected canonical bundle. The #479 Firefox input checks and Safari withheld-result record remain dated evidence of that original release, not new captures. Runtime, models, provider route, consent, prompts, privacy, prices, quotas and semantic acceptance are unchanged. The November 20 project date is retained. This source update selects no new paid original, browser window or final release.

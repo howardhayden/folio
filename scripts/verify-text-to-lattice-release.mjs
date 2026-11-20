@@ -300,10 +300,10 @@ const heldForbiddenExecutableStrings = Object.freeze([
 ]);
 const staleEnabledPublicationPattern = /release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)|sole open (?:release )?blocker|held solely because|hold the interactive client/iu;
 const datedHeldDossierPublicationPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHeldDossierBoundary = Buffer.from("The complete held dossier after browser run #479 follows verbatim as dated history.");
-const datedHeldDossierSeparator = Buffer.from("The complete held dossier after browser run #479 follows verbatim as dated history.\n\n---\n\n");
-const datedHeldDossierBytes = 645959;
-const datedHeldDossierSha256 = "022d3876a6c14fe674de3491e5e53410a944bb943b78b3c6b2894da885a8ba4b";
+const datedHeldDossierBoundary = Buffer.from("The complete held dossier after deployment run #485 follows verbatim as dated history.");
+const datedHeldDossierSeparator = Buffer.from("The complete held dossier after deployment run #485 follows verbatim as dated history.\n\n---\n\n");
+const datedHeldDossierBytes = 652015;
+const datedHeldDossierSha256 = "4596631489d4dd196d280bbbbd532e914df6e520a0b45091f9221ffbc62bfd16";
 const publishedReleaseRegister = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json";
 const previousOwnerDecisionSha256 = "b6cbc8c1fb9a75390acd0662e13c16859aadac847cf57330b28e7421da2ec135";
 const serializedVinextRscScript = /^\s*\(\(self\[Symbol\.for\("vinext\.navigationRuntime"\)\]\?\?=\{bootstrap:\{routeManifest:null\},functions:\{\}\}\)\.bootstrap\.rsc\?\?=\{rsc:\[\]\}\)\.rsc\.push\(("(?:\\[\s\S]|[^"\\])*")\)\s*;?\s*$/u;
