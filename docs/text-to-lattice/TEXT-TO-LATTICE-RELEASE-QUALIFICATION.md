@@ -1,3 +1,25 @@
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-20
+
+**Evidence updated:** 2026-11-20
+
+**Reviewed baseline:** `b7f953f4ee1aa78f87702673f50aaa8d96bcf3e5`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `69f65d27d8379b2d5e38c563e4048d390b1bb608ec7cd74d2a805e9b69a87e70`
+
+**Artifact-set projection SHA-256:** `1f865e7e1bb5f0879a29ff1d3257c3f6f082c9cd44c6f00c0c270ba5935e8863`
+
+Canonical-browser qualification remains pending. The CoreWeave backend passed the original notebook checks in runs #476 and #479. Firefox passed all 14 hosted input checks. Safari reached reverification and received a withheld result. Brave has no hosted capture. The intended-version deployment checks and bounded backend canary passed in run #491. A local evidence reader stopped before metadata BEFORE or any browser submission; no new native evidence was collected. The two native output captures are still required for release. This build is not qualified for final release. The workflow retains immediate held documentation-only rollback.
+
+The ordinary service processes a one-sentence marked notebook example in each native browser, with the existing provider, acceptance and privacy checks. The original #479 terminal reached reverification on two batches and withheld the output. It supplied no detail about which final check failed. The existing hosted Firefox observations remain attached to their original release.
+
+The complete held dossier after evidence-reader stop in run #491 follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — held after evidence-reader stop in run #491
 
 **Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
