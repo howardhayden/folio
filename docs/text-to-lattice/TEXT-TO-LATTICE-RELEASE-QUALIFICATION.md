@@ -1,3 +1,44 @@
+# Text to Lattice release qualification — held after evidence-reader stop in run #491
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Qualification date:** 2026-11-20
+
+**Evidence updated:** 2026-11-20
+
+**Reviewed baseline:** `d90c756bc0c7b7dd60192424877ac50df33d9aed`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `56b91cd067a313f392cb53fb4f14d9f12d748c99075e6d25091b5c2b8e85a02b`
+
+**Artifact-set projection SHA-256:** `169f6be0db6f0198e9af4e5127326595b5aa30d98107ee80f9ca982755b91952`
+
+This is a held documentation-only continuation after a local evidence reader stopped browser qualification. GATE-02 and GATE-03 retain their exact dated run #476 adjudication; #491 supplies an additional bounded backend check, not completed GATE-06. GATE-06 remains an open release blocker with null acceptance and no collected canonical bundle. Application runtime, providers, models, prompts, semantic acceptance, current diagram, consent notice, quotas and the exact intended 100-percent Worker selection checks remain unchanged. This source update does not select an operational attempt or final release. The standing direction permits only a separately guarded future window: at most three new operator pipelines and one conditional final production pipeline, after eight historical pipelines; the cumulative prospective maximum is twelve, not a charge guarantee.
+
+| Gate | Status |
+| --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker |
+
+Original run #491 / 44799935207 / attempt 1 on d90c756bc0c7b7dd60192424877ac50df33d9aed passed the service job, including its bounded backend canary, and published the temporary interactive qualification Pages. The local context reader then exited before metadata BEFORE, any native arm, source entry, consent or submission. Metadata AFTER was not dispatched. This local evidence-bootstrap failure is not a provider or semantic acceptance failure, and no successful browser capture was collected. The original allowance remains spent; its one backend pipeline brings the historical operator total to eight. The previously recorded #479 Firefox input checks and withheld Safari result remain attached to their own original. Included provider-free restoration #492 / 44800829903 / attempt 1 verified held API at 19:18:39.480 UTC and then held Pages at 19:20:01.158 UTC on November 20. Its API receipt records three held samples, zero active samples and zero network errors. The original #491 scheduled restoration is separate from #492. Its terminal original and independent review are required before this checkpoint may merge; no scheduled-restoration outcome is asserted here. The dated observations do not prove continuous hold or zero ordinary visitor activity.
+
+The reader correction is private operational preparation: the retained source review covers one authenticated bootstrap call before configuration and fifteen passing fresh-process cases. It does not modify the product or waive original context, BEFORE/AFTER, seals, metadata, source binding, expiry or restoration checks. No hosted execution of that correction is claimed.
+
+Only the two established held publication switches and public status text change among the 264 qualified files. All other 261 qualified files remain exact, including the runtime, workflow, intended-version selection, tests, diagram and consent behavior. The public project date remains November 20.
+
+[Original #491](https://github.com/howardhayden/folio/actions/runs/44799935207) · [Included restoration #492](https://github.com/howardhayden/folio/actions/runs/44800829903)
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending
 
 **Qualification date:** 2026-11-20
