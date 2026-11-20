@@ -501,6 +501,7 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/text-to-lattice-api-deploy.jsonl
           RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
           QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
         run: |
@@ -509,6 +510,10 @@ jobs:
               --config workers/text-to-lattice-api/wrangler.jsonc \
               --var "LATTICE_QUALIFICATION_EXPIRES_AT:$QUALIFICATION_EXPIRES_AT"
           else
+            node scripts/read-text-to-lattice-active-version.mjs --capture-incumbent \
+              --wrangler ./workers/node_modules/.bin/wrangler \
+              --config workers/text-to-lattice-api/wrangler.jsonc \
+              --output "$RUNNER_TEMP/text-to-lattice-api-incumbent.json"
             ./workers/node_modules/.bin/wrangler deploy \
               --config workers/text-to-lattice-api/wrangler.jsonc
           fi
@@ -529,12 +534,20 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+          RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
         run: |
-          ./workers/node_modules/.bin/wrangler deployments status --json \
+          SELECTION_ARGUMENTS=()
+          if [[ "$RELEASE_PHASE" != "qualified" ]]; then
+            SELECTION_ARGUMENTS=(--preceding-held-deployment "$RUNNER_TEMP/text-to-lattice-held-deploy.jsonl")
+          else
+            SELECTION_ARGUMENTS=(--preceding-incumbent "$RUNNER_TEMP/text-to-lattice-api-incumbent.json")
+          fi
+          API_VERSION_ID="$(node scripts/read-text-to-lattice-active-version.mjs --inspect-deployed \
+            --expected-deployment "$RUNNER_TEMP/text-to-lattice-api-deploy.jsonl" \
+            --wrangler ./workers/node_modules/.bin/wrangler \
             --config workers/text-to-lattice-api/wrangler.jsonc \
-            > "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json"
-          API_VERSION_ID="$(node scripts/read-text-to-lattice-active-version.mjs \
-            "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json")"
+            --output "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json" \
+            "${SELECTION_ARGUMENTS[@]}")"
           ./workers/node_modules/.bin/wrangler versions view "$API_VERSION_ID" --json \
             --config workers/text-to-lattice-api/wrangler.jsonc \
             > "$RUNNER_TEMP/text-to-lattice-api-version.raw.json"
@@ -583,11 +596,11 @@ jobs:
           QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
           RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
         run: |
-          ./workers/node_modules/.bin/wrangler deployments status --json \
+          API_VERSION_ID="$(node scripts/read-text-to-lattice-active-version.mjs --inspect-deployed \
+            --expected-deployment "$RUNNER_TEMP/text-to-lattice-api-deploy.jsonl" \
+            --wrangler ./workers/node_modules/.bin/wrangler \
             --config workers/text-to-lattice-api/wrangler.jsonc \
-            > "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json"
-          API_VERSION_ID="$(node scripts/read-text-to-lattice-active-version.mjs \
-            "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json")"
+            --output "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json")"
           ./workers/node_modules/.bin/wrangler versions view "$API_VERSION_ID" --json \
             --config workers/text-to-lattice-api/wrangler.jsonc \
             > "$RUNNER_TEMP/text-to-lattice-api-version-after.raw.json"

@@ -1,3 +1,44 @@
+# Text to Lattice release qualification — held after deployment run #485
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Qualification date:** 2026-11-20
+
+**Evidence updated:** 2026-11-20
+
+**Reviewed baseline:** `847f3bfacfcf824090cc4c80fb93e489e4a51c2a`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `dd275427d8fb67c6b5bac91ebb679fc35cfe9f5fbd20734f36d9670c0ceabcac`
+
+**Artifact-set projection SHA-256:** `169f6be0db6f0198e9af4e5127326595b5aa30d98107ee80f9ca982755b91952`
+
+This is a held documentation-only continuation after deployment verification stopped before browser qualification. GATE-02 and GATE-03 preserve their exact dated run #476 success; GATE-06 remains open with null acceptance and no collected canonical bundle. The #479 Firefox input checks and Safari withheld-result record remain dated evidence of that original release, not new captures. Runtime, models, provider route, consent, prompts, privacy, prices, quotas and semantic acceptance are unchanged. The November 20 project date is retained. This source update selects no new paid original, browser window or final release.
+
+| Gate | Status |
+| --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker |
+
+Original run #485 / 44790774286 / attempt 1 on 847f3bfacfcf824090cc4c80fb93e489e4a51c2a failed at Verify deployed admission environment before live probes: the inspected API version did not satisfy the existing exact five-binding assertion. The uploaded immutable version 9c903b89-7506-404b-8882-08a2c2004a11 was subsequently observed with all five expected names and types. The UUID and binding array inspected in the failed original were not retained. No stale-selection, missing-secret or transient-metadata cause is proved. The operator backend canary, native submissions, metadata observations and active Pages publication did not run. This is a deployment-verification failure, not additional model-output evidence. The original allowance remains spent without refund. In-job API rollback was verified held at 18:18:09.191 UTC. Later enforcement observed one active sample before three consecutive held samples at 18:18:53.066 UTC. Separate provider-free restoration #486 / 44791505107 / attempt 1 verified held API at 18:19:23.708 UTC and then held Pages at 18:20:46.913 UTC on November 20. The scheduled wait/cleanup jobs were skipped after the early service-job failure. These are dated point and convergence observations, not continuous-hold or zero-public-traffic claims.
+
+The correction binds both pre-probe and post-probe API selection to the intended version emitted by Wrangler deployment JSONL. Before probes only, at most four metadata reads within 30 monotonic seconds may observe the exact preceding held-bootstrap version or, for final qualified deployment, the sanitized incumbent captured immediately before upload. Any other, partial, malformed or split selection refuses. Only the newly uploaded intended UUID is accepted. The post-probe selection is a single read with no settling. Strict binding, secret, expiry, SQLite, source and route assertions, provider-call counts, live probes and rollback remain unchanged. No provider retry or redeployment is added.
+
+The seven qualified-file changes are the deployment workflow and existing selection helper, their two focused regression files, the two established held publication switches and visitor-facing status text. All other 257 qualified files remain exact, including the API runtime, adapters, prompts, consent, input rules and acceptance validators. The correction is locally tested, not yet proved by a production deployment.
+
+[Original #485](https://github.com/howardhayden/folio/actions/runs/44790774286) · [Separate restoration #486](https://github.com/howardhayden/folio/actions/runs/44791505107)
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending
 
 **Qualification date:** 2026-11-20
