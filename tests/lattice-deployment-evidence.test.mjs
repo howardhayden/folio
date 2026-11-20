@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -31,7 +31,11 @@ import {
 import { TEXT_TO_LATTICE_DOCUMENT_POLICY } from "../workers/text-to-lattice-response-policy/worker.js";
 import { LATTICE_RESULT_VERSION } from "../app/resume/lattice/remoteProtocol.js";
 import { hashRegularFileSha256 } from "../scripts/hash-regular-file-sha256.mjs";
-import { readTextToLatticeActiveVersion } from "../scripts/read-text-to-lattice-active-version.mjs";
+import {
+  intendedTextToLatticeApiVersion,
+  readTextToLatticeActiveVersion,
+  selectTextToLatticeApiDeployment,
+} from "../scripts/read-text-to-lattice-active-version.mjs";
 import {
   readCurrentGithubActionsJobId,
   resolveGithubActionsJobId,
@@ -455,6 +459,119 @@ test("deployment status evidence requires one 100-percent immutable Worker versi
     ),
     /100 percent/u,
   );
+});
+
+test("active deploy identity comes from exactly one API Wrangler JSONL deploy record", () => {
+  const record = { type: "deploy", version: 1, worker_name: "hahdev-text-to-lattice-api", version_id: apiVersion };
+  const text = JSON.stringify(record);
+  assert.equal(intendedTextToLatticeApiVersion(`${text}\n`), apiVersion);
+  for (const bad of [text + "\n" + text, "not-json", JSON.stringify({ ...record, worker_name: "different" }),
+    JSON.stringify({ ...record, version: 2 }), JSON.stringify({ ...record, version_id: "invalid" }), " ".repeat(65537)]) {
+    assert.throws(() => intendedTextToLatticeApiVersion(bad), /invalid deploy/u);
+  }
+});
+
+test("intended deployment permits only bounded rereads of the exact preceding held version", async () => {
+  const held = deployment("held-deployment-1", policyVersion);
+  const active = deployment(apiDeploymentId, apiVersion);
+  const values = [held, held, active]; const waits = []; const timeouts = []; let clock = 0;
+  const result = await selectTextToLatticeApiDeployment(apiVersion, {
+    precedingVersionId: policyVersion,
+    readDeployment: timeout => { timeouts.push(timeout); return values.shift(); },
+    wait: ms => { waits.push(ms); clock += ms; }, monotonicNow: () => clock,
+  });
+  assert.deepEqual(waits, [1000, 3000]); assert.deepEqual(timeouts, [8000, 8000, 8000]);
+  assert.equal(result.raw, active); assert.equal(result.selected.versionId, apiVersion);
+  assert.equal(result.evidence.status, "matched"); assert.equal(result.evidence.observations.length, 3);
+  assert.doesNotMatch(JSON.stringify(result.evidence), /author_email|must-not-be-retained/u);
+  let reads = 0;
+  await assert.rejects(selectTextToLatticeApiDeployment(apiVersion, {
+    precedingVersionId: policyVersion, readDeployment: () => { reads += 1; return held; },
+    wait: () => {}, monotonicNow: () => 0,
+  }), error => error.selectionEvidence.boundary === "preceding-selection-did-not-converge"
+    && error.selectionEvidence.observations.length === 4);
+  assert.equal(reads, 4);
+});
+
+test("wrong, partial, changed and post-probe selections refuse without broad retry", async t => {
+  const otherVersion = "33333333-3333-4333-8333-333333333333";
+  const active = deployment(apiDeploymentId, apiVersion);
+  const held = deployment("held-deployment-1", policyVersion);
+  for (const [label, snapshots, predecessor, boundary, count] of [
+    ["unrelated", [deployment("other-deployment-1", otherVersion)], policyVersion, "unexpected-version", 1],
+    ["partial", [deployment(apiDeploymentId, apiVersion, { versions: [{ version_id: apiVersion, percentage: 99 }] })], policyVersion, "invalid-selection", 1],
+    ["multiple", [deployment(apiDeploymentId, apiVersion, { versions: [{ version_id: apiVersion, percentage: 50 }, { version_id: policyVersion, percentage: 50 }] })], policyVersion, "invalid-selection", 1],
+    ["changed during settling", [held, deployment("other-deployment-1", otherVersion)], policyVersion, "unexpected-version", 2],
+    ["post-probe held", [held], null, "unexpected-version", 1],
+    ["malformed", [{ ...active, created_on: "invalid" }], policyVersion, "invalid-selection", 1],
+  ]) await t.test(label, async () => {
+    let reads = 0;
+    await assert.rejects(selectTextToLatticeApiDeployment(apiVersion, {
+      precedingVersionId: predecessor, readDeployment: () => snapshots[reads++], wait: () => {}, monotonicNow: () => 0,
+    }), error => error.selectionEvidence.boundary === boundary);
+    assert.equal(reads, count);
+  });
+  const matched = await selectTextToLatticeApiDeployment(apiVersion, {
+    readDeployment: () => active, wait: () => assert.fail("matching selections never wait"), monotonicNow: () => 0,
+  });
+  assert.equal(matched.evidence.observations.length, 1);
+});
+
+test("selection deadline and metadata failures retain only a closed safe boundary", async () => {
+  let clock = 0;
+  await assert.rejects(selectTextToLatticeApiDeployment(apiVersion, {
+    readDeployment: () => { clock = 30_000; return deployment(apiDeploymentId, apiVersion); },
+    monotonicNow: () => clock,
+  }), error => error.selectionEvidence.boundary === "deadline");
+  await assert.rejects(selectTextToLatticeApiDeployment(apiVersion, {
+    readDeployment: () => { throw new Error("private response token do not print"); }, monotonicNow: () => 0,
+  }), error => error.selectionEvidence.boundary === "metadata-read"
+    && !/private|token/u.test(JSON.stringify(error.selectionEvidence)));
+});
+
+test("selection CLI records a sanitized incumbent and binds the actual deployment command", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lattice-selection-cli-"));
+  const script = resolve("scripts/read-text-to-lattice-active-version.mjs");
+  try {
+    await mkdir(join(directory, "workers/node_modules/.bin"), { recursive: true });
+    await mkdir(join(directory, "workers/text-to-lattice-api"), { recursive: true });
+    const wrangler = join(directory, "workers/node_modules/.bin/wrangler");
+    await writeFile(wrangler, `#!${process.execPath}\nconst fs=require("node:fs");process.stdout.write(fs.readFileSync("fixture-status.json","utf8"));\n`);
+    await chmod(wrangler, 0o755);
+    await writeFile(join(directory, "workers/text-to-lattice-api/wrangler.jsonc"), "{}\n");
+    const common = ["--wrangler", "./workers/node_modules/.bin/wrangler", "--config", "workers/text-to-lattice-api/wrangler.jsonc"];
+    const run = args => spawnSync(process.execPath, [script, ...args], { cwd: directory, encoding: "utf8" });
+    const held = deployment("incumbent-deployment-1", policyVersion);
+    await writeFile(join(directory, "fixture-status.json"), JSON.stringify(held));
+    const captured = run(["--capture-incumbent", ...common, "--output", "incumbent.json"]);
+    assert.equal(captured.status, 0, captured.stderr); assert.equal(captured.stdout, ""); assert.equal(captured.stderr, "");
+    const incumbentText = await readFile(join(directory, "incumbent.json"), "utf8");
+    assert.deepEqual(JSON.parse(incumbentText), sanitizeTextToLatticeDeploymentStatus(held, "hahdev-text-to-lattice-api"));
+    assert.doesNotMatch(incumbentText, /author_email|must-not-be-retained/u);
+    const active = deployment(apiDeploymentId, apiVersion);
+    await writeFile(join(directory, "fixture-status.json"), JSON.stringify(active));
+    await writeFile(join(directory, "deploy.jsonl"), JSON.stringify({ type: "deploy", version: 1, worker_name: "hahdev-text-to-lattice-api", version_id: apiVersion }) + "\n");
+    const select = ["--inspect-deployed", "--expected-deployment", "deploy.jsonl", ...common];
+    const accepted = run([...select, "--preceding-incumbent", "incumbent.json", "--output", "selected.json"]);
+    assert.equal(accepted.status, 0, accepted.stderr); assert.equal(accepted.stdout, `${apiVersion}\n`);
+    assert.equal(JSON.parse(accepted.stderr).status, "matched");
+    assert.deepEqual(JSON.parse(await readFile(join(directory, "selected.json"), "utf8")), active);
+    assert.doesNotMatch(accepted.stderr, /author_email|must-not-be-retained/u);
+    await writeFile(join(directory, "fixture-status.json"), JSON.stringify(held));
+    const refused = run([...select, "--output", "after.json"]);
+    assert.equal(refused.status, 1); assert.equal(refused.stdout, "");
+    assert.equal(JSON.parse(refused.stderr).boundary, "unexpected-version");
+    assert.doesNotMatch(refused.stderr, /author_email|must-not-be-retained/u);
+    await assert.rejects(readFile(join(directory, "after.json")), { code: "ENOENT" });
+    await writeFile(join(directory, "incumbent.json"), JSON.stringify({ ...JSON.parse(incumbentText), extra: "private" }));
+    const changed = run([...select, "--preceding-incumbent", "incumbent.json", "--output", "changed.json"]);
+    assert.equal(changed.status, 1); assert.equal(JSON.parse(changed.stderr).boundary, "input-or-output");
+    await assert.rejects(readFile(join(directory, "changed.json")), { code: "ENOENT" });
+    await writeFile(join(directory, "fixture-status.json"), JSON.stringify({ ...held, versions: [{ version_id: policyVersion, percentage: 50 }] }));
+    const partial = run(["--capture-incumbent", ...common, "--output", "partial.json"]);
+    assert.equal(partial.status, 1); assert.equal(JSON.parse(partial.stderr).boundary, "input-or-output");
+    await assert.rejects(readFile(join(directory, "partial.json")), { code: "ENOENT" });
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test("the active API version has exactly the reviewed production bindings", async () => {

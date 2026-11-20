@@ -404,7 +404,7 @@ test("the service graph proves held publication, qualifies reversibly, and resto
   const policyDeploy = workflow.indexOf("Deploy résumé response policy");
   const deploymentInspect = workflow.indexOf("Inspect deployed Worker versions");
   const preactivationRoutes = workflow.indexOf("Verify reversible preactivation route ownership");
-  const activeVersionRead = workflow.indexOf("read-text-to-lattice-active-version.mjs");
+  const activeVersionRead = workflow.indexOf("read-text-to-lattice-active-version.mjs --inspect-deployed", deploymentInspect);
   const activeVersionInspect = workflow.indexOf("wrangler versions view");
   const admissionEnvironment = workflow.indexOf("Verify deployed admission environment before live probes");
   const liveProbe = workflow.indexOf("Verify deployed Text to Lattice API boundary");
@@ -480,7 +480,7 @@ test("the service graph proves held publication, qualifies reversibly, and resto
   assert.match(admissionEnvironmentStep, /--output "\$RUNNER_TEMP\/text-to-lattice-deployment-evidence\/api-environment-before\.json"/u);
   assert.match(admissionEnvironmentStep, /if \[\[ "\$RELEASE_PHASE" != "qualified" \]\]; then[\s\S]*?--qualification-expires-at/u);
   assert.match(postLiveDeploymentStep, /CLOUDFLARE_ACCOUNT_ID:[\s\S]*?CLOUDFLARE_API_TOKEN:/u);
-  assert.match(postLiveDeploymentStep, /wrangler deployments status --json[\s\S]*?--config workers\/text-to-lattice-api\/wrangler\.jsonc[\s\S]*?text-to-lattice-api-deployment-after\.raw\.json/u);
+  assert.match(postLiveDeploymentStep, /read-text-to-lattice-active-version\.mjs --inspect-deployed[\s\S]*?--expected-deployment "\$RUNNER_TEMP\/text-to-lattice-api-deploy\.jsonl"[\s\S]*?--config workers\/text-to-lattice-api\/wrangler\.jsonc[\s\S]*?text-to-lattice-api-deployment-after\.raw\.json/u);
   assert.match(postLiveDeploymentStep, /wrangler versions view "\$API_VERSION_ID" --json/u);
   assert.match(postLiveDeploymentStep, /--api-version "\$RUNNER_TEMP\/text-to-lattice-api-version-after\.raw\.json"/u);
   assert.match(postLiveDeploymentStep, /--inspect-api-environment/u);
@@ -1863,4 +1863,26 @@ test("frame qualification rejects drift in every critical header family", async 
       );
     });
   }
+});
+
+
+test("active deployment selection binds the deploy JSONL before and after unchanged live probes", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const deploy = workflow.slice(workflow.indexOf("- name: Deploy bounded Text to Lattice API"), workflow.indexOf("- name: Require current main before response-policy deployment"));
+  const before = workflow.slice(workflow.indexOf("- name: Inspect deployed Worker versions"), workflow.indexOf("- name: Verify deployed admission environment before live probes"));
+  const after = workflow.slice(workflow.indexOf("- name: Inspect API deployment after live verification"), workflow.indexOf("- name: Require current main before legacy surface retirement"));
+  assert.ok(deploy.includes("WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/text-to-lattice-api-deploy.jsonl"));
+  for (const step of [before, after]) {
+    assert.ok(step.includes("read-text-to-lattice-active-version.mjs --inspect-deployed"));
+    assert.ok(step.includes('--expected-deployment "$RUNNER_TEMP/text-to-lattice-api-deploy.jsonl"'));
+    assert.ok(step.includes('--wrangler ./workers/node_modules/.bin/wrangler'));
+    assert.ok(step.includes('wrangler versions view "$API_VERSION_ID" --json'));
+  }
+  assert.ok(before.includes('if [[ "$RELEASE_PHASE" != "qualified" ]]; then'));
+  assert.ok(before.includes('--preceding-held-deployment "$RUNNER_TEMP/text-to-lattice-held-deploy.jsonl"'));
+  assert.ok(before.includes('--output "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json"'));
+  assert.ok(after.includes('--output "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json"'));
+  assert.ok(before.includes('--preceding-incumbent "$RUNNER_TEMP/text-to-lattice-api-incumbent.json"'));
+  assert.match(deploy, /else\s+node scripts\/read-text-to-lattice-active-version\.mjs --capture-incumbent[\s\S]*?--output "\$RUNNER_TEMP\/text-to-lattice-api-incumbent\.json"\s+\.\/workers\/node_modules\/\.bin\/wrangler deploy/u);
+  assert.ok(!after.includes("--preceding-"), "no post-probe settling or provider retry");
 });
