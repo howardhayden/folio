@@ -1621,7 +1621,36 @@ export function verifyHistoricalDeepInfraProviderEvidence(register) {
   }
 }
 
+export function verifyHistoricalCoreWeaveEnvelopeEvidence(register) {
+  const prior = register.priorCoreWeaveStrictEnvelopeBeforeRun473Correction;
+  const failure = register.run473CoreWeaveStoppedReviewEnvelopeFailure;
+  if (prior?.status !== "historical-inactive"
+    || digest(Buffer.from(JSON.stringify(canonicalJson(prior)))) !== "9f7ead98e67d6195f1673b1abaa447fccfaf2f368a9f0f97f32b777074a48905"
+    || digest(Buffer.from(JSON.stringify(canonicalJson(failure)))) !== "2a88645fa32c6b0318de54cefde572bd0c12622a1533bc08d491b76f12488a49") {
+    fail("historical CoreWeave strict policy and failed original must remain authenticated.");
+  }
+  for (const row of prior.requirements) {
+    const gate = register.gates.find(({ id }) => id === row.id);
+    const marker = "Previous strict CoreWeave requirement follows verbatim as dated history. ";
+    const offset = gate?.requirement?.indexOf(marker) ?? -1;
+    if (offset < 0 || digest(Buffer.from(gate.requirement.slice(offset + marker.length))) !== row.sha256) {
+      fail("historical CoreWeave strict requirement suffix must remain verbatim.");
+    }
+  }
+  for (const row of prior.activeGateEvidence) {
+    const gate = register.gates.find(({ id }) => id === row.id);
+    const marker = "Previous strict CoreWeave active evidence follows verbatim as dated history. ";
+    const offset = gate?.activeCurrentEvidence?.indexOf(marker) ?? -1;
+    if (offset < 0
+      || digest(Buffer.from(gate.activeCurrentEvidence.slice(offset + marker.length))) !== row.currentSha256
+      || digest(Buffer.from(JSON.stringify(canonicalJson(gate.activeEvidence.slice(0, row.entriesCount))))) !== row.entriesSha256) {
+      fail("historical CoreWeave active evidence must remain verbatim.");
+    }
+  }
+}
+
 export function verifyCoreWeaveReviewSelection(register) {
+  verifyHistoricalCoreWeaveEnvelopeEvidence(register);
   const selection = register.coreWeaveReviewRoleSelection;
   const provider = register.artifactSet?.activeCapability?.provider;
   if (selection?.status !== "owner-selected-source-change"
@@ -1633,9 +1662,12 @@ export function verifyCoreWeaveReviewSelection(register) {
     || selection.advertisedReviewQuantization !== "fp16"
     || selection.datedReviewPriceUsdPerMillion?.input !== 0.71
     || selection.datedReviewPriceUsdPerMillion?.output !== 0.71
-    || selection.currentReviewEnvelope !== "strict-stopped-single-assistant-string-content"
-    || selection.currentReviewAllowsAuxiliaryNullMetadata !== false) {
-    fail("current CoreWeave review selection must retain the fixed strict baseline and dated catalog scope.");
+    || selection.currentReviewEnvelope !== "strict-stopped-single-assistant-string-content-with-observed-joint-null-pair"
+    || selection.currentReviewAllowsAuxiliaryNullMetadata !== true
+    || selection.currentReviewNullableMetadataMode !== "joint-literal-null-only"
+    || JSON.stringify(selection.currentReviewNullableMetadataFields) !== '["reasoning","refusal"]'
+    || selection.observedFailureRun !== 473) {
+    fail("current CoreWeave review selection must retain the exact observed joint-null profile and dated catalog scope.");
   }
 }
 

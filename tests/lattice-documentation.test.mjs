@@ -39,6 +39,7 @@ test("the documentation generator binds current remote evidence and preserves in
   assert.match(builder, /GATE-03 must keep the provider call, stage, response, limiter, cost, generic-proxy, retry, fallback/u);
   assert.match(builder, /GATE-06 must require one explicit canonical-browser setup-plus-content lifecycle/u);
   assert.match(builder, /verifyReleaseStatusState\(releaseRegister\)/u);
+  assert.match(builder, /verifyCoreWeaveReviewSelection\(releaseRegister\)/u);
   assert.match(builder, /"qualification-pending": "deployed-for-qualification"/u);
   assert.match(builder, /post-deployment verification only after GATE-02 and GATE-03 are satisfied in production/u);
   assert.match(builder, /deployed only for immediate canonical-browser qualification and is not qualified/u);

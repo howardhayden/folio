@@ -10,7 +10,7 @@ import {
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { verifyReleaseStatusState, verifyServicePhaseTransport } from "../verify-text-to-lattice-release.mjs";
+import { verifyReleaseStatusState, verifyServicePhaseTransport, verifyCoreWeaveReviewSelection } from "../verify-text-to-lattice-release.mjs";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const projectRoot = resolve(dirname(scriptPath), "../..");
@@ -555,6 +555,7 @@ function validateReleaseGateProjection(data, releaseRegister) {
     fail("release register format is unsupported.");
   }
   const releaseState = verifyReleaseStatusState(releaseRegister);
+  verifyCoreWeaveReviewSelection(releaseRegister);
   if (releaseRegister.revision !== data.revision) {
     fail("documentation atlas and release register revisions must match.");
   }

@@ -10843,9 +10843,9 @@ async function historicalDeepInfraReviewModule() {
   return import(`data:text/javascript;base64,${Buffer.from(historicalSource).toString("base64")}`);
 }
 
-test("current CoreWeave and historical DeepInfra keep distinct null-pair scopes", async () => {
+test("current CoreWeave and historical DeepInfra admit only their observed stopped joint-null pair", async () => {
   const historical = await historicalDeepInfraReviewModule();
-  for (const profile of [{ createHuggingFaceLatticeAdapter, LatticeProviderError, model: TEST_REVIEW_MODEL, paired: false },
+  for (const profile of [{ createHuggingFaceLatticeAdapter, LatticeProviderError, model: TEST_REVIEW_MODEL, paired: true },
     { ...historical, model: "meta-llama/Llama-3.3-70B-Instruct:deepinfra", paired: true }]) {
     const { createHuggingFaceLatticeAdapter, LatticeProviderError } = profile;
     for (const method of ["verify", "certify"]) {
@@ -10883,6 +10883,103 @@ test("current CoreWeave and historical DeepInfra keep distinct null-pair scopes"
       }
     }
   }
+});
+
+test("CoreWeave observed joint-null pair preserves content, diagnostic and private-stage boundaries", async (context) => {
+  // #473's n-n----- / unknown0 maps to exactly these two dictionary slots.
+  assert.deepEqual(LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS, [
+    "reasoning", "tool_call_id", "refusal", "audio", "annotations", "name", "reasoning_content", "cache_control",
+  ]);
+  const observed = Object.freeze({ reasoning: null, refusal: null });
+  for (const method of ["verify", "certify"]) await context.test(method, async () => {
+    const request = method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest();
+    const name = method === "verify" ? VERIFICATION_TOOL_NAME : CERTIFICATION_TOOL_NAME;
+    const wire = method === "verify" ? acceptingVerificationWire(request)
+      : acceptingCertificationWire(request.certificateId, request.obligationIds);
+    const base = { role: "assistant", content: JSON.stringify(wire), ...observed };
+    const tool = providerToolCall({ name, argumentsValue: JSON.stringify(wire) });
+    const partial = (missing) => Object.fromEntries(Object.entries(base).filter(([key]) => key !== missing));
+    const cases = [
+      ["reasoning alone", partial("refusal"), "S06"],
+      ["refusal alone", partial("reasoning"), "S06"],
+      ["null tools before metadata", { ...base, tool_calls: null }, "S02N"],
+      ["malformed tools before metadata", { ...base, tool_calls: {} }, "S02"],
+      ["two competing calls before metadata", { ...base, tool_calls: [tool, tool] }, "S04"],
+      ["legacy function before metadata", { ...base, function_call: null }, "S05"],
+      ["one competing call", { ...base, tool_calls: [tool] }, "S06"],
+      ["wrong assistant role", { ...base, role: "tool" }, "message_role"],
+      ["null content", { ...base, content: null }, "S06"],
+      ["strict content type without metadata", { role: "assistant", content: null }, "S07"],
+      ["empty content", { ...base, content: "" }, "content_empty"],
+      ["invalid JSON", { ...base, content: "{" }, "content_json"],
+      ["non-object JSON", { ...base, content: "[]" }, "content_shape"],
+      ["tool finish before metadata", base, "finish_reason", "tool_calls"],
+      ["length finish never accepted", base, "none", "length", "provider_output_limit"],
+    ];
+    for (const field of ["reasoning", "refusal"]) for (const value of ["", "PRIVATE", [], [null], {}, { private: true }, false, 0]) {
+      cases.push([`${field} substantive ${typeof value}`, { ...base, [field]: value }, "S06"]);
+    }
+    for (const field of [...LATTICE_PROVIDER_ENVELOPE_SHAPE_FIELDS.filter((field) => !Object.hasOwn(observed, field)), "unknown"]) {
+      cases.push([`${field} remains outside the pair`, { ...base, [field]: null }, "S06"]);
+    }
+    for (const [label, message, subtype, finish_reason = "stop", code = "provider_malformed_response"] of cases) {
+      let calls = 0;
+      const adapter = createHuggingFaceLatticeAdapter({ token: "local-fixture", observeQualificationEnvelopeShape: true,
+        fetchImpl: async (_url, init) => {
+          calls += 1;
+          strictReviewSchema(JSON.parse(init.body), name);
+          return providerChoiceResponse({ finish_reason, message });
+        } });
+      await assert.rejects(adapter[method](request), (error) => {
+        assert.equal(error.code, code, label);
+        assert.equal(error.qualificationSubtype, subtype, label);
+        assert.doesNotMatch(JSON.stringify(error) + error.message, /PRIVATE/u);
+        return true;
+      });
+      assert.equal(calls, 1, label);
+      assert.equal(adapter.completionCapacity().used, 1, label);
+    }
+    const malformed = (metadata) => createHuggingFaceLatticeAdapter({ token: "local-fixture",
+      fetchImpl: async () => providerChoiceResponse({ finish_reason: "stop", message: {
+        role: "assistant", content: "{}", ...metadata,
+      } }) });
+    const baseline = await malformed({})[method](request);
+    assert.notEqual(baseline.decision, "accept");
+    assert.deepEqual(await malformed(observed)[method](request), baseline, "wire decoder still rejects an incomplete verdict");
+    const negative = structuredClone(wire);
+    if (method === "verify") {
+      negative.d = 2;
+      negative.p[0].f = "100000000";
+    } else {
+      negative.d = 1;
+      negative.k[0] = false;
+      negative.i = [0];
+    }
+    const decisions = [];
+    for (const metadata of [{}, observed]) {
+      const adapter = createHuggingFaceLatticeAdapter({ token: "local-fixture",
+        fetchImpl: async () => providerChoiceResponse({ finish_reason: "stop", message: {
+          role: "assistant", content: JSON.stringify(negative), ...metadata,
+        } }) });
+      decisions.push(await adapter[method](request));
+      assert.equal(adapter.completionCapacity().used, 1);
+    }
+    assert.equal(decisions[0].decision, "reject");
+    assert.deepEqual(decisions[1], decisions[0], "nullable carrier cannot change an independent negative verdict");
+    // Matching public helper options cannot impersonate the private frozen production stage.
+    for (const emptyTools of [false, true]) {
+      let calls = 0;
+      const options = d32StrictRequestOptions(async () => {
+        calls += 1;
+        return providerChoiceResponse({ finish_reason: "stop", message: {
+          ...base, ...(emptyTools ? { tool_calls: [] } : {}),
+        } });
+      }, { schemaName: name, allowNullStoppedScalewayReviewMetadata: false });
+      await assert.rejects(requestHuggingFaceJson(options), (error) => error instanceof LatticeProviderError
+        && error.code === "provider_malformed_response");
+      assert.equal(calls, 1);
+    }
+  });
 });
 
 test("historical DeepInfra nullable review metadata supplies no alternative content or verdict", async () => {
