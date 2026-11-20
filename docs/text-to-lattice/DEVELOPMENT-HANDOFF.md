@@ -1,6 +1,6 @@
 # CoreWeave review-role held preparation — November 20
 
-Current source digest: `714f406e1bf2c76c7d656e5127d81c51950790bcc69269a8daffe1deb4ec7014`.
+Current source digest: `360a22ecd393536f8c65338e3b13a434c4436e0d10de9bcedeee8326a642e821`.
 
 The owner selected CoreWeave for both Llama review roles on November 20. This held remote-capability candidate uses reviewed implementation baseline a7cad6008d030710244dd6c77dbcfa55248c00a1. The last pulled hah.dev deployment and ancestry baseline is ecd1f53ca962cfcb75fb29a6fdeb0c2c9f1a29ad. The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets through OpenRouter. GATE-02, GATE-03 and GATE-06 remain open for the changed review provider. The candidate is prepared without claiming it is deployed or observed in production. Historical browser-local and earlier provider results remain historical and inactive. DeepInfra failures #465/#468/#469 and prior OVH results do not qualify CoreWeave.
 
