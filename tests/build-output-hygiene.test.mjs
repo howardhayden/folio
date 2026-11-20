@@ -18,6 +18,7 @@ const foreignClientMarkers = [
   "meta-llama/Llama-3.3-70B-Instruct:scaleway",
   "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
   "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
+  "meta-llama/Llama-3.3-70B-Instruct:coreweave",
   "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
 ];
 

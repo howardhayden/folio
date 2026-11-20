@@ -148,8 +148,8 @@ test("usage sidecar binds the exact live v3 bytes and computes the dated catalog
   assert.equal(evidence.catalog.source_sha256, "fe6073d5ce64455d0b3e6faab3de8ae0c188d84008bb98352c392b9324c57ce8");
   assert.equal(evidence.catalog.observed_on, "2026-11-20");
   assert.equal(evidence.cost.generator_usd, "0.000200000");
-  assert.equal(evidence.cost.verifier_usd, "0.000232000");
-  assert.equal(evidence.cost.total_usd, "0.000432000");
+  assert.equal(evidence.cost.verifier_usd, "0.001491000");
+  assert.equal(evidence.cost.total_usd, "0.001691000");
   assert.equal(evidence.cost.billed_cost_observed, false);
   assert.equal(evidence.cost.complete_account_cost_observed, false);
   assert.equal(evidence.cost.discounts_credits_taxes_and_other_charges_included, false);
@@ -158,25 +158,25 @@ test("usage sidecar binds the exact live v3 bytes and computes the dated catalog
 
 test("dated reviewer rates preserve individual nano-USD units and reported zero usage", () => {
   assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.model,
-    "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
-  assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.input_rate, "0.10");
-  assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.output_rate, "0.32");
+    "meta-llama/Llama-3.3-70B-Instruct:coreweave");
+  assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.input_rate, "0.71");
+  assert.equal(LATTICE_QUALIFICATION_CATALOG.verifier.output_rate, "0.71");
   const oneEach = createLatticeQualificationUsageEvidence(bytes(), {
     status: "complete",
     generator: { calls: 1, prompt_tokens: 1, completion_tokens: 1 },
     verifier: { calls: 1, prompt_tokens: 1, completion_tokens: 1 },
   });
   assert.equal(oneEach.cost.generator_usd, "0.000000640");
-  assert.equal(oneEach.cost.verifier_usd, "0.000000420");
-  assert.equal(oneEach.cost.total_usd, "0.000001060");
+  assert.equal(oneEach.cost.verifier_usd, "0.000001420");
+  assert.equal(oneEach.cost.total_usd, "0.000002060");
   const singleInput = createLatticeQualificationUsageEvidence(bytes(), {
     status: "complete",
     generator: { calls: 1, prompt_tokens: 0, completion_tokens: 0 },
     verifier: { calls: 1, prompt_tokens: 1, completion_tokens: 0 },
   });
   assert.equal(singleInput.cost.generator_usd, "0.000000000");
-  assert.equal(singleInput.cost.verifier_usd, "0.000000100");
-  assert.equal(singleInput.cost.total_usd, "0.000000100");
+  assert.equal(singleInput.cost.verifier_usd, "0.000000710");
+  assert.equal(singleInput.cost.total_usd, "0.000000710");
   assert.equal(singleInput.schemaVersion, 1);
   assert.equal(verifyLatticeQualificationUsageEvidence(singleInput, bytes(), { requireComplete: true }), singleInput);
 });
@@ -231,6 +231,7 @@ test("only a current-model successful live v3 receipt can carry a usage sidecar"
     ["prior Nscale reviewer", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.1-8B-Instruct:nscale"; }],
     ["historical OVHcloud reviewer", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.3-70B-Instruct:ovhcloud"; }],
     ["historical Scaleway reviewer", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.3-70B-Instruct:scaleway"; }],
+    ["historical DeepInfra reviewer", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.3-70B-Instruct:deepinfra"; }],
     ["unselected3.3 provider", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.3-70B-Instruct:novita"; }],
     ["missing timestamp", (v) => { delete v.verified_at; }],
     ["content retained", (v) => { v.transformation_canary.input_content_recorded = true; }],

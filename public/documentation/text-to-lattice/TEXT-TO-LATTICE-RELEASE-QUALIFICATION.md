@@ -1,3 +1,35 @@
+# Text to Lattice release qualification — held CoreWeave review candidate
+
+**Qualification date:** 2026-11-20
+
+**Evidence updated:** 2026-11-20
+
+**Reviewed baseline:** `a7cad6008d030710244dd6c77dbcfa55248c00a1`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `714f406e1bf2c76c7d656e5127d81c51950790bcc69269a8daffe1deb4ec7014`
+
+**Artifact-set projection SHA-256:** `7997968100c89fb43120c6c5643771a61a9b3bd126b0853af8f5d50c4f060330`
+
+**Decision:** hold the interactive client and API; publish documentation only.
+
+The owner selected CoreWeave for both Llama review roles on November 20. This held remote-capability candidate uses reviewed implementation baseline a7cad6008d030710244dd6c77dbcfa55248c00a1. The last pulled hah.dev deployment and ancestry baseline is ecd1f53ca962cfcb75fb29a6fdeb0c2c9f1a29ad. The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets through OpenRouter. GATE-02, GATE-03 and GATE-06 remain open for the changed review provider. The candidate is prepared without claiming it is deployed or observed in production. Historical browser-local and earlier provider results remain historical and inactive. DeepInfra failures #465/#468/#469 and prior OVH results do not qualify CoreWeave.
+
+The server sends analysis, drafting and repair to `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`. It sends verification and certification to `meta-llama/Llama-3.3-70B-Instruct:coreweave`. Hugging Face routes these requests through OpenRouter. Both CoreWeave review stages require strict json_schema and the existing stopped single-assistant nonempty string-content channel, with tool_calls absent or the already permitted empty array. Auxiliary metadata, including reasoning:null and refusal:null, is rejected by this baseline. The historical DeepInfra joint-null exception and separate Scaleway optional-null rule remain scoped to their original providers and are not enabled for CoreWeave. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, deadlines, calls, quotas, privacy, no automatic retry and no alternate provider or model fallback remain unchanged.
+
+The November 20 public catalog advertises the CoreWeave Llama route as live, FP16 with a 128,000-token context window and USD 0.71 input / 0.71 output per million tokens. These are dated public metadata, not measured serving identity, guaranteed availability, successful input fit, billing or an invoice ceiling. DeepInfra Qwen generation remains USD 0.09 input / 0.55 output per million at the retained catalog basis.
+
+Hugging Face routes both models through OpenRouter. DeepInfra serves Qwen generation and CoreWeave serves Llama verification and certification. OpenRouter metadata, prompt categorization and applicable safety or legal retention remain disclosed; its Hugging Face route settings are unknown. DeepInfra ordinary deletion has temporary caching, support, legal and elected-feature exceptions. CoreWeave describes zero data retention by default for serverless inference. Optional tracing can record requests. The tracing setting for this route is unknown. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev.
+
+The owner selected CoreWeave for both review roles and directed implementation through deployment after the existing gates pass. Three prior operator transformations (#465, #468 and #469) remain separately spent; #462 remains a spent pre-provider refusal. The newly selected scope is one backend original, the existing single browser window (one backend canary and at most one synthetic submission per Safari and Brave, Firefox input only), and one final production check. This permits at most eight cumulative operator transformations including the three spent ones. Existing finite call, time, quota and acceptance limits remain unchanged. No credit purchase, automatic retry, allowance transfer or alternate provider/model fallback is selected. This source change is not a reservation, hosted request, browser readiness or gate acceptance.
+
+CoreWeave needs new exact-source backend acceptance for GATE-02/GATE-03 and canonical-browser evidence for GATE-06. Public catalog capabilities are not proof that the exact fitted requests, envelope, semantics, latency or billing will succeed. No local source or test result closes these gates. Earlier provider outcomes, including the three spent DeepInfra operator pipelines, remain evidence only for their named sources.
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — held after reviewer rate limits
 
 **Qualification date:** 2026-11-20

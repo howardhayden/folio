@@ -2408,13 +2408,13 @@ test("the canonical no-JavaScript contract exposes remote capability and privacy
   assert.match(source, /id="text-to-lattice-usage"/u);
   assert.match(source, /Same-origin <code>POST \/api\/lattice<\/code>; no query string, redirect, or provider origin; one browser-owned API-scoped quota cookie/u);
   assert.match(source, /\{"\{text, requested_mode, schema_version: 1\}"\}/u);
-  assert.match(source, /DeepInfra serves the fixed Qwen3-235B-A22B-Instruct-2507 generator and Llama 3\.3 70B Instruct verifier and certifier\. Hugging Face routes both models through OpenRouter/u);
+  assert.match(source, /DeepInfra serves the fixed Qwen3-235B-A22B-Instruct-2507 generator\. CoreWeave serves the Llama 3\.3 70B Instruct verifier and certifier\. Hugging Face routes both models through OpenRouter/u);
   assert.match(source, /No hah\.dev application storage, raw-content logging, caching, queueing, or analytics/u);
   assert.match(source, /no browser retry and no provider or model fallback/u);
   assert.match(source, /security\.api\.rules\.map/u);
   assert.match(source, /The Hugging Face token is an encrypted server-side Worker secret and never enters the browser or response/u);
   assert.match(source, /WebLLM\/MLC download path, bodyless quota lease, Turnstile attestation frame, renewal, and release protocol are inactive/u);
-  assert.match(source, /Hugging Face, OpenRouter and DeepInfra process this text/u);
+  assert.match(source, /Hugging Face, OpenRouter, DeepInfra and CoreWeave process this text/u);
   assert.match(textToLatticeContract.securityAndPrivacy.huggingFace.residualDisclosure, /including unflagged requests on Safety Retention endpoints/u);
   assert.match(textToLatticeContract.securityAndPrivacy.huggingFace.residualDisclosure, /temporary in-memory caching, operational metadata, authorized support retention of up to 30 days/u);
   assert.match(source, /<noscript><p className="lattice-noscript-note">/u);

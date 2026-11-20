@@ -15,6 +15,8 @@ import {
   verifyEnabledPublicationCopy,
   verifyHeldBuiltBoundary,
   verifyHistoricalOvhProviderEvidence,
+  verifyHistoricalDeepInfraProviderEvidence,
+  verifyCoreWeaveReviewSelection,
   verifyLifecycleGateContract,
   verifyReleaseStatusState,
 } from "../scripts/verify-text-to-lattice-release.mjs";
@@ -571,11 +573,11 @@ test("the release register enforces its exact current phase and preserves histor
   );
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.verificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
-  assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
+  assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
   assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
-  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
+  assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
   assert.equal(capability.provider.certificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
-  assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
+  assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
   assert.equal(capability.provider.verificationResponseFormat, "json_schema");
   assert.equal(capability.provider.verificationSchemaStrict, true);
   assert.equal(capability.provider.certificationResponseFormat, "json_schema");
@@ -610,7 +612,7 @@ test("the release register enforces its exact current phase and preserves histor
   assert.deepEqual(register.artifactSet.llamaTerms.active, {
   "status": "active",
   "version": "Llama 3.3",
-  "model": "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
+  "model": "meta-llama/Llama-3.3-70B-Instruct:coreweave",
   "modelRepository": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
   "modelRepositoryRevision": "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
   "modelRepositoryRevisionUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/tree/6f6073b423013f6a7d4d9f39144961bfbfbc386b",
@@ -1051,12 +1053,45 @@ test("changed DeepInfra governance preserves exact OVH history and reopens produ
   const missing = structuredClone(register);
   delete missing.priorOVHReviewRolesBeforeDeepInfraMigration;
   assert.throws(() => verifyHistoricalOvhProviderEvidence(missing), /exact pre-migration record/u);
-  assert.equal(verifyReleaseStatusState(register).releasePhase, "held");
+  const phase = verifyReleaseStatusState(register);
   for (const id of ["GATE-02", "GATE-03", "GATE-06"]) {
-    assert.equal(register.gates.find((gate) => gate.id === id).status, "open-release-blocker");
+    const expected = phase.held ? "open-release-blocker" : id !== "GATE-06" || phase.qualified ? "satisfied-in-production" : "post-deployment-verification";
+    assert.equal(register.gates.find((gate) => gate.id === id).status, expected);
   }
   const gates = (id) => register.gates.find((gate) => gate.id === id);
-  assert.doesNotThrow(() => verifyLifecycleGateContract(gates("GATE-02"), gates("GATE-03"), gates("GATE-06"), "held"));
+  assert.doesNotThrow(() => verifyLifecycleGateContract(gates("GATE-02"), gates("GATE-03"), gates("GATE-06"), phase.releasePhase));
+});
+
+test("CoreWeave governance preserves authenticated DeepInfra history and current phase", async () => {
+  const register = await releaseRegister();
+  assert.doesNotThrow(() => verifyHistoricalDeepInfraProviderEvidence(register));
+  assert.doesNotThrow(() => verifyCoreWeaveReviewSelection(register));
+  const prior = register.priorDeepInfraReviewRolesBeforeCoreWeaveMigration;
+  assert.equal(prior.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
+  assert.equal(register.artifactSet.activeCapability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
+  assert.equal(register.coreWeaveReviewRoleSelection.currentReviewAllowsAuxiliaryNullMetadata, false);
+  assert.deepEqual(prior.activeGateEvidence.map(({ id, status, acceptanceBasis }) => [id, status, acceptanceBasis]), [
+    ["GATE-02", "open-release-blocker", null], ["GATE-03", "open-release-blocker", null], ["GATE-06", "open-release-blocker", null],
+  ]);
+  const changed = structuredClone(register);
+  changed.priorDeepInfraReviewRolesBeforeCoreWeaveMigration.provider.verifierModel += " altered";
+  assert.throws(() => verifyHistoricalDeepInfraProviderEvidence(changed), /authenticated pre-CoreWeave/u);
+  const evidence = structuredClone(register);
+  evidence.gates.find(({ id }) => id === "GATE-02").activeEvidence[0] += " altered";
+  assert.throws(() => verifyHistoricalDeepInfraProviderEvidence(evidence), /historical DeepInfra active evidence/u);
+  const missing = structuredClone(register);
+  delete missing.priorDeepInfraReviewRolesBeforeCoreWeaveMigration;
+  assert.throws(() => verifyHistoricalDeepInfraProviderEvidence(missing), /authenticated pre-CoreWeave/u);
+  const relaxed = structuredClone(register);
+  relaxed.coreWeaveReviewRoleSelection.currentReviewAllowsAuxiliaryNullMetadata = true;
+  assert.throws(() => verifyCoreWeaveReviewSelection(relaxed), /fixed strict baseline/u);
+  const phase = verifyReleaseStatusState(register);
+  for (const id of ["GATE-02", "GATE-03", "GATE-06"]) {
+    const expected = phase.held ? "open-release-blocker" : id !== "GATE-06" || phase.qualified ? "satisfied-in-production" : "post-deployment-verification";
+    const gate = register.gates.find((row) => row.id === id);
+    assert.equal(gate.status, expected);
+    assert.equal(gate.acceptanceBasis, null);
+  }
 });
 
 test("the source release verifier accepts the exact current phase record", async () => {

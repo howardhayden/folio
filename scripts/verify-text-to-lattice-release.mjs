@@ -90,7 +90,7 @@ const historicalRemoteLlamaTermsProvenance = Object.freeze({
 });
 const activeLlamaTermsProvenance = Object.freeze({
   "version": "Llama 3.3",
-  "model": "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
+  "model": "meta-llama/Llama-3.3-70B-Instruct:coreweave",
   "modelRepository": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
   "modelRepositoryRevision": "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
   "modelRepositoryRevisionUrl": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/tree/6f6073b423013f6a7d4d9f39144961bfbfbc386b",
@@ -1595,8 +1595,54 @@ export function verifyHistoricalOvhProviderEvidence(register) {
   }
 }
 
+export function verifyHistoricalDeepInfraProviderEvidence(register) {
+  const prior = register.priorDeepInfraReviewRolesBeforeCoreWeaveMigration;
+  if (prior?.status !== "historical-inactive"
+    || digest(Buffer.from(JSON.stringify(canonicalJson(prior)))) !== "e2b8625867be4d9fea5a4a8d5800d1e71902252147c6f927b69c0c5632386809") {
+    fail("historical DeepInfra provider evidence must remain the authenticated pre-CoreWeave record.");
+  }
+  for (const row of prior.requirements) {
+    const gate = register.gates.find(({ id }) => id === row.id);
+    const marker = "Previous DeepInfra requirement follows verbatim as dated history. ";
+    const offset = gate?.requirement?.indexOf(marker) ?? -1;
+    if (offset < 0 || digest(Buffer.from(gate.requirement.slice(offset + marker.length))) !== row.sha256) {
+      fail("historical DeepInfra requirement suffix must remain verbatim.");
+    }
+  }
+  for (const row of prior.activeGateEvidence) {
+    const gate = register.gates.find(({ id }) => id === row.id);
+    const marker = "Previous DeepInfra active evidence follows verbatim as dated history. ";
+    const offset = gate?.activeCurrentEvidence?.indexOf(marker) ?? -1;
+    if (offset < 0
+      || digest(Buffer.from(gate.activeCurrentEvidence.slice(offset + marker.length))) !== row.currentSha256
+      || digest(Buffer.from(JSON.stringify(canonicalJson(gate.activeEvidence.slice(0, row.entriesCount))))) !== row.entriesSha256) {
+      fail("historical DeepInfra active evidence must remain verbatim.");
+    }
+  }
+}
+
+export function verifyCoreWeaveReviewSelection(register) {
+  const selection = register.coreWeaveReviewRoleSelection;
+  const provider = register.artifactSet?.activeCapability?.provider;
+  if (selection?.status !== "owner-selected-source-change"
+    || selection.reviewModel !== "meta-llama/Llama-3.3-70B-Instruct:coreweave"
+    || selection.generatorModel !== "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra"
+    || selection.reviewModel !== provider?.verificationRequestModel
+    || selection.reviewModel !== provider?.certificationRequestModel
+    || selection.advertisedReviewContextTokens !== 128_000
+    || selection.advertisedReviewQuantization !== "fp16"
+    || selection.datedReviewPriceUsdPerMillion?.input !== 0.71
+    || selection.datedReviewPriceUsdPerMillion?.output !== 0.71
+    || selection.currentReviewEnvelope !== "strict-stopped-single-assistant-string-content"
+    || selection.currentReviewAllowsAuxiliaryNullMetadata !== false) {
+    fail("current CoreWeave review selection must retain the fixed strict baseline and dated catalog scope.");
+  }
+}
+
 async function verifySourceBoundary(register) {
   verifyHistoricalOvhProviderEvidence(register);
+  verifyHistoricalDeepInfraProviderEvidence(register);
+  verifyCoreWeaveReviewSelection(register);
   if (register.format !== "TEXT_TO_LATTICE_RELEASE_REGISTER" || register.schemaVersion !== 1) fail("release-register format is unsupported.");
   const releaseState = verifyReleaseStatusState(register);
   const revisionDate = new Date(`${register.revision}T00:00:00Z`);

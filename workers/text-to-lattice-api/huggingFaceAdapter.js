@@ -42,7 +42,7 @@ export const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL = HUGGING_FACE_CHAT_
 
 export const LATTICE_REMOTE_MODELS = Object.freeze({
   generator: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-  verifier: "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
+  verifier: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
 });
 
 export const LATTICE_PROVIDER_FAILURE_CLASSES = Object.freeze([
