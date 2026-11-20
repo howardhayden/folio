@@ -1,3 +1,40 @@
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-20
+
+**Evidence updated:** 2026-11-20
+
+**Reviewed baseline:** `44a3effca8e7fb0f670024889cbbe3d987c1352b`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `e868186e7b51f546ef9d219f64a9f9fbde235850a8bbe1543372f9121e3ebb6b`
+
+**Artifact-set projection SHA-256:** `1f865e7e1bb5f0879a29ff1d3257c3f6f082c9cd44c6f00c0c270ba5935e8863`
+
+The fixed CoreWeave review source passed bounded backend qualification on run #476, attempt 1. GATE-02 and GATE-03 are satisfied-in-production with null acceptance. This source is qualification-pending for canonical-browser qualification and is not qualified. GATE-06 is post-deployment-verification with null acceptance and browser evidence not collected. Originals #462, #465, #468, #469 and #473 remain separately spent. The successful corrected-source original has its own one-used and zero-remaining record. Incomplete or failed qualification requires immediate held documentation-only rollback to verified held parent 44a3effca8e7fb0f670024889cbbe3d987c1352b. Browser activation and final release remain separately guarded stages.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Post deployment verification | High |
+
+On November 20, 2026, production run #476 completed a 16-word synthetic notebook request in 17.0 seconds. DeepInfra served two generator calls and CoreWeave served two review calls. The verifier and certifier accepted the original passage for its context. The run did not exercise a rewrite or repair. Provider-reported usage yields an estimated USD 0.00404 at the dated catalog rates.
+
+Run #476 published the held résumé and verified it at 16:08:21 UTC before activating the API. After the canary, three consecutive API checks confirmed the held response by 16:09:35 UTC. The converter stayed outside the public Pages build during the backend test.
+
+Current capability phase: deployed-for-qualification. The fixed Hugging Face/OpenRouter route with DeepInfra Qwen generation and CoreWeave Llama review targets, Worker behavior, prompts, strict acceptance, finite limits and processing terms remain unchanged. The successful original keeps its held deployment identity. Seven qualified files change for the two publication switches, current status, exact held-dossier history and its history fixtures. Existing phase-aware assertions remain unchanged. Browser qualification remains pending. Source/site verification and required CI govern delivery.
+
+The complete November 20 CoreWeave observed-envelope held dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — held after CoreWeave stopped response
 
 **Qualification date:** 2026-11-20

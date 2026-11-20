@@ -300,10 +300,12 @@ const heldForbiddenExecutableStrings = Object.freeze([
 ]);
 const staleEnabledPublicationPattern = /release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)|sole open (?:release )?blocker|held solely because|hold the interactive client/iu;
 const datedHeldDossierPublicationPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHeldDossierBoundary = Buffer.from("The complete pre-run430 held dossier follows verbatim as dated history.");
-const datedHeldDossierSeparator = Buffer.from("The complete pre-run430 held dossier follows verbatim as dated history.\n\n---\n\n");
-const datedHeldDossierBytes = 593731;
-const datedHeldDossierSha256 = "ad9455232d946a3f317913a0d6696b9b944cd261ceb7b560b58ea2b9820c6394";
+const datedHeldDossierBoundary = Buffer.from("The complete November 20 CoreWeave observed-envelope held dossier follows verbatim as dated history.");
+const datedHeldDossierSeparator = Buffer.from("The complete November 20 CoreWeave observed-envelope held dossier follows verbatim as dated history.\n\n---\n\n");
+const datedHeldDossierBytes = 637620;
+const datedHeldDossierSha256 = "940db351391944c34604ba4488524ca7f68b5d6678e6d30a4a76d84863e4558f";
+const publishedReleaseRegister = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json";
+const previousOwnerDecisionSha256 = "b6cbc8c1fb9a75390acd0662e13c16859aadac847cf57330b28e7421da2ec135";
 const serializedVinextRscScript = /^\s*\(\(self\[Symbol\.for\("vinext\.navigationRuntime"\)\]\?\?=\{bootstrap:\{routeManifest:null\},functions:\{\}\}\)\.bootstrap\.rsc\?\?=\{rsc:\[\]\}\)\.rsc\.push\(("(?:\\[\s\S]|[^"\\])*")\)\s*;?\s*$/u;
 const expectedLlamaUseCases = new Map([
   ["AUP-DENY-01", ["operational-harm", false]],
@@ -2411,10 +2413,37 @@ export async function verifyHistoricalBrowserLocalEnabledBuiltBoundary(site, fil
   }
 }
 
-export function verifyEnabledPublicationCopy(relativePath, publishedBytes, canonicalDossierBytes) {
+function currentRegisterCopy(publishedBytes, canonicalRegisterBytes) {
+  if (!Buffer.isBuffer(canonicalRegisterBytes) || !publishedBytes.equals(canonicalRegisterBytes)) {
+    fail("enabled release register is not byte-identical to its canonical source.");
+  }
+  const register = JSON.parse(publishedBytes);
+  const history = register.priorCoreWeaveObservedEnvelopeHeldValuesBeforeCombinedQualificationPhase;
+  const previous = history?.values?.ownerDisposition?.record;
+  if (history?.heldMain !== "44a3effca8e7fb0f670024889cbbe3d987c1352b"
+    || typeof previous !== "string" || digest(previous) !== previousOwnerDecisionSha256) {
+    fail("enabled release register differs from its pinned prior owner decision.");
+  }
+  // The canonical register encodes non-ASCII UTF-16 units with JSON escapes.
+  const literal = Buffer.from(JSON.stringify(previous).replace(/[\u007f-\uffff]/g,
+    (unit) => "\\u" + unit.charCodeAt(0).toString(16).padStart(4, "0")));
+  const at = publishedBytes.indexOf(literal);
+  if (at < 0 || publishedBytes.indexOf(literal, at + literal.length) !== -1) {
+    fail("enabled release register must carry one exact archived owner decision.");
+  }
+  history.values.ownerDisposition.record = "";
+  if (staleEnabledPublicationPattern.test(JSON.stringify(register))) {
+    fail("enabled release register contains stale held-gate copy outside the archived owner decision.");
+  }
+  return Buffer.concat([publishedBytes.subarray(0, at), publishedBytes.subarray(at + literal.length)]);
+}
+
+export function verifyEnabledPublicationCopy(relativePath, publishedBytes, canonicalDossierBytes, canonicalRegisterBytes) {
   if (!Buffer.isBuffer(publishedBytes)) fail("enabled publication copy must be verified as raw bytes.");
   let currentBytes = publishedBytes;
-  if (relativePath === datedHeldDossierPublicationPath) {
+  if (relativePath === publishedReleaseRegister) {
+    currentBytes = currentRegisterCopy(publishedBytes, canonicalRegisterBytes);
+  } else if (relativePath === datedHeldDossierPublicationPath) {
     if (!Buffer.isBuffer(canonicalDossierBytes) || !publishedBytes.equals(canonicalDossierBytes)) {
       fail("enabled release dossier is not byte-identical to its canonical source.");
     }
@@ -2458,12 +2487,15 @@ async function verifyEnabledBuiltBoundary(site, files) {
     fail("enabled canonical project page lacks its direct Text to Lattice launch path.");
   }
 
-  const canonicalDossierBytes = await readFile(join(root, canonicalQualificationSource));
+  const [canonicalDossierBytes, canonicalRegisterBytes] = await Promise.all([
+    readFile(join(root, canonicalQualificationSource)),
+    readFile(join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json")),
+  ]);
   const renderedEvidence = await Promise.all(files
     .filter((path) => [".html", ".json", ".jsonld", ".md", ".txt"].includes(extname(path).toLowerCase()))
     .map(async (path) => [relative(site, path).split("\\").join("/"), await readFile(path)]));
   for (const [path, publishedBytes] of renderedEvidence) {
-    verifyEnabledPublicationCopy(path, publishedBytes, canonicalDossierBytes);
+    verifyEnabledPublicationCopy(path, publishedBytes, canonicalDossierBytes, canonicalRegisterBytes);
   }
 
   const executableEntries = await Promise.all(files
