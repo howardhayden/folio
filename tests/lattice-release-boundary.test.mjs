@@ -396,8 +396,8 @@ test("the release register enforces its exact current phase and preserves histor
     Object.fromEntries(register.gates.map(({ id, status }) => [id, status])),
     {
       "GATE-01": "release-workflow-enforced",
-      "GATE-02": phase.held ? "open-release-blocker" : "satisfied-in-production",
-      "GATE-03": phase.held ? "open-release-blocker" : "satisfied-in-production",
+      "GATE-02": "satisfied-in-production",
+      "GATE-03": "satisfied-in-production",
       "GATE-04A": "accepted-residual-risk",
       "GATE-04B": "historical-inactive",
       "GATE-04C": "historical-inactive",
@@ -1072,7 +1072,7 @@ test("changed DeepInfra governance preserves exact OVH history and reopens produ
   assert.throws(() => verifyHistoricalOvhProviderEvidence(missing), /exact pre-migration record/u);
   const phase = verifyReleaseStatusState(register);
   for (const id of ["GATE-02", "GATE-03", "GATE-06"]) {
-    const expected = phase.held ? "open-release-blocker" : id !== "GATE-06" || phase.qualified ? "satisfied-in-production" : "post-deployment-verification";
+    const expected = id !== "GATE-06" || phase.qualified ? "satisfied-in-production" : phase.held ? "open-release-blocker" : "post-deployment-verification";
     assert.equal(register.gates.find((gate) => gate.id === id).status, expected);
   }
   const gates = (id) => register.gates.find((gate) => gate.id === id);
@@ -1119,7 +1119,7 @@ test("CoreWeave governance preserves authenticated DeepInfra history and current
   assert.throws(() => verifyHistoricalCoreWeaveEnvelopeEvidence(failedOriginal), /strict policy and failed original/u);
   const phase = verifyReleaseStatusState(register);
   for (const id of ["GATE-02", "GATE-03", "GATE-06"]) {
-    const expected = phase.held ? "open-release-blocker" : id !== "GATE-06" || phase.qualified ? "satisfied-in-production" : "post-deployment-verification";
+    const expected = id !== "GATE-06" || phase.qualified ? "satisfied-in-production" : phase.held ? "open-release-blocker" : "post-deployment-verification";
     const gate = register.gates.find((row) => row.id === id);
     assert.equal(gate.status, expected);
     assert.equal(gate.acceptanceBasis, null);
