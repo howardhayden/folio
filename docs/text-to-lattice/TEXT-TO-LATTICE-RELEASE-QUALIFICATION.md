@@ -1,3 +1,37 @@
+# Text to Lattice release qualification — held after CoreWeave stopped response
+
+**Qualification date:** 2026-11-20
+
+**Evidence updated:** 2026-11-20
+
+**Reviewed baseline:** `a13c5ae64ec94dd368776fe311d2ebcf0aeb42f6`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `8388ba516d2156c897a416793473263681be17905d5f9165990bf15e37505c5d`
+
+**Artifact-set projection SHA-256:** `7997968100c89fb43120c6c5643771a61a9b3bd126b0853af8f5d50c4f060330`
+
+**Decision:** hold the interactive client and API. Publish documentation only.
+
+The last pulled hah.dev deployment and ancestry baseline is a13c5ae64ec94dd368776fe311d2ebcf0aeb42f6. This held candidate makes one evidence-based outer-envelope correction for the same fixed CoreWeave review route. The observed failure does not establish that this correction is sufficient. Fresh exact-source production criteria and canonical-browser evidence remain required. Earlier provider outcomes and local tests do not qualify this candidate.
+
+Run #473, attempt 1, failed on the first verification request at logical provider call 3 on November 20. The stopped response was withheld at S06 with named shape n-n----- and unknown-count 0. That shape records reasoning:null and refusal:null. It does not record tool_calls, prove a valid answer or identify the sole rejection cause. The existing wire and semantic review did not accept a transformation. Certification was not reached. Complete provider usage and exact cost are unavailable. This original remains spent with one used and zero remaining. GATE-02, GATE-03 and GATE-06 remain open with null acceptance bases. The client remains held.
+
+The in-job API check recorded three held 503 responses, zero active responses and zero network errors at 15:32:56.287Z. Routine enforcement observed held Pages with the interactive client absent at 15:33:18.662Z and three held API responses at 15:33:33.229Z. These are dated convergence and point observations. No separate conditional recovery was needed.
+
+The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets through OpenRouter. Both CoreWeave review stages retain strict json_schema and the existing stopped single-assistant nonempty string-content channel. Only the actual fixed verification and certification adapter stages additionally admit reasoning:null and refusal:null together as one matched pair. tool_calls must be absent or the already permitted empty array. A single null field, substantive metadata, any other auxiliary or unknown key and a nonempty competing call remain rejected. The private frozen stage and exact fixed router/model checks select this rule. Public helper options cannot enable it. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, deadlines, calls, quotas, privacy, no automatic retry and no alternate provider or model fallback remain unchanged. The separate historical Scaleway optional-null rule remains unchanged. Certification support is prospective.
+
+The root interprets the actual standing direction to do everything necessary through deployment and the later CoreWeave choice as covering one separately reviewed corrected-source backend original. This is an operational scope decision, not a new owner reply or a replay of #473. Four prior operator pipelines (#465, #468, #469 and #473) remain separately spent. #462 remains a spent pre-provider refusal. One corrected backend original, the existing single browser window with one backend canary and at most one synthetic submission in each of Safari and Brave, and one final check permit at most nine cumulative operator pipelines. Firefox remains input-only for its fourteen checks. Existing models, routing, HF billing, processing terms, dated rates, per-pipeline call and time limits, shared quotas and acceptance criteria remain unchanged. No credit purchase, automatic retry, replacement window, allowance transfer or alternate provider/model fallback is selected. This source preparation is not an operational reservation, request, browser readiness or gate acceptance.
+
+The public review route remains `meta-llama/Llama-3.3-70B-Instruct:coreweave` at the retained USD 0.71 input and output per million tokens. The generator remains `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra` at USD 0.09 input and USD 0.55 output per million tokens. These dated rates do not establish an invoice ceiling. Provider processing and retention disclosures remain unchanged. Optional CoreWeave tracing configuration for this Hugging Face route remains unknown.
+
+The original and correction are recorded separately. The failed original has no successful criteria or browser evidence. Local regression evidence does not close a production gate.
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — held CoreWeave review candidate
 
 **Qualification date:** 2026-11-20

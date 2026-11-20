@@ -776,6 +776,7 @@ const VERIFICATION_TOOL_NAME = "lattice_verification_wire_v2";
 const CERTIFICATION_TOOL_NAME = "lattice_certification_wire_v2";
 const SCALEWAY_NULL_REVIEW_METADATA_MODEL = "meta-llama/Llama-3.3-70B-Instruct:scaleway";
 const DEEPINFRA_NULL_REVIEW_PAIR_MODEL = "meta-llama/Llama-3.3-70B-Instruct:deepinfra";
+const COREWEAVE_NULL_REVIEW_PAIR_MODEL = "meta-llama/Llama-3.3-70B-Instruct:coreweave";
 const FIXED_REVIEW_METADATA_ROUTER_URL = "https://router.huggingface.co/v1/chat/completions";
 const SCALEWAY_NULL_REVIEW_METADATA_FIELDS = new Set([
   "reasoning", "refusal", "audio", "annotations", "function_call",
@@ -2808,9 +2809,11 @@ export async function requestHuggingFaceJson({
   const providerModel = LATTICE_REMOTE_MODELS[role];
   let acceptStoppedReviewMetadata = allowNullStoppedScalewayReviewMetadata
     ? stoppedScalewayNullReviewMessageAllowed : undefined;
+  // CoreWeave #473 matched the existing stopped DeepInfra joint-null rule.
   // Only the actual adapter stages carry these private, frozen objects.
   if ((stage === STAGES.verification || stage === STAGES.certification)
-    && providerUrl === FIXED_REVIEW_METADATA_ROUTER_URL && providerModel === DEEPINFRA_NULL_REVIEW_PAIR_MODEL
+    && providerUrl === FIXED_REVIEW_METADATA_ROUTER_URL
+    && (providerModel === DEEPINFRA_NULL_REVIEW_PAIR_MODEL || providerModel === COREWEAVE_NULL_REVIEW_PAIR_MODEL)
     && resolvedResponseFormat === "json_schema" && requireMinimalVerificationContent) {
     acceptStoppedReviewMetadata = stoppedDeepInfraNullReviewPairAllowed;
   }

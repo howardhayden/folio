@@ -17,6 +17,7 @@ import {
   verifyHistoricalOvhProviderEvidence,
   verifyHistoricalDeepInfraProviderEvidence,
   verifyCoreWeaveReviewSelection,
+  verifyHistoricalCoreWeaveEnvelopeEvidence,
   verifyLifecycleGateContract,
   verifyReleaseStatusState,
 } from "../scripts/verify-text-to-lattice-release.mjs";
@@ -1069,7 +1070,10 @@ test("CoreWeave governance preserves authenticated DeepInfra history and current
   const prior = register.priorDeepInfraReviewRolesBeforeCoreWeaveMigration;
   assert.equal(prior.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:deepinfra");
   assert.equal(register.artifactSet.activeCapability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
-  assert.equal(register.coreWeaveReviewRoleSelection.currentReviewAllowsAuxiliaryNullMetadata, false);
+  assert.doesNotThrow(() => verifyHistoricalCoreWeaveEnvelopeEvidence(register));
+  assert.equal(register.priorCoreWeaveStrictEnvelopeBeforeRun473Correction.reviewSelection.currentReviewAllowsAuxiliaryNullMetadata, false);
+  assert.equal(register.coreWeaveReviewRoleSelection.currentReviewNullableMetadataMode, "joint-literal-null-only");
+  assert.deepEqual(register.coreWeaveReviewRoleSelection.currentReviewNullableMetadataFields, ["reasoning", "refusal"]);
   assert.deepEqual(prior.activeGateEvidence.map(({ id, status, acceptanceBasis }) => [id, status, acceptanceBasis]), [
     ["GATE-02", "open-release-blocker", null], ["GATE-03", "open-release-blocker", null], ["GATE-06", "open-release-blocker", null],
   ]);
@@ -1083,8 +1087,20 @@ test("CoreWeave governance preserves authenticated DeepInfra history and current
   delete missing.priorDeepInfraReviewRolesBeforeCoreWeaveMigration;
   assert.throws(() => verifyHistoricalDeepInfraProviderEvidence(missing), /authenticated pre-CoreWeave/u);
   const relaxed = structuredClone(register);
-  relaxed.coreWeaveReviewRoleSelection.currentReviewAllowsAuxiliaryNullMetadata = true;
-  assert.throws(() => verifyCoreWeaveReviewSelection(relaxed), /fixed strict baseline/u);
+  delete relaxed.coreWeaveReviewRoleSelection.currentReviewNullableMetadataMode;
+  assert.throws(() => verifyCoreWeaveReviewSelection(relaxed), /exact observed joint-null profile/u);
+  const partial = structuredClone(register);
+  partial.coreWeaveReviewRoleSelection.currentReviewNullableMetadataFields = ["reasoning"];
+  assert.throws(() => verifyCoreWeaveReviewSelection(partial), /exact observed joint-null profile/u);
+  const broader = structuredClone(register);
+  broader.coreWeaveReviewRoleSelection.currentReviewNullableMetadataFields.push("audio");
+  assert.throws(() => verifyCoreWeaveReviewSelection(broader), /exact observed joint-null profile/u);
+  const strictHistory = structuredClone(register);
+  strictHistory.priorCoreWeaveStrictEnvelopeBeforeRun473Correction.reviewSelection.currentReviewAllowsAuxiliaryNullMetadata = true;
+  assert.throws(() => verifyHistoricalCoreWeaveEnvelopeEvidence(strictHistory), /strict policy and failed original/u);
+  const failedOriginal = structuredClone(register);
+  failedOriginal.run473CoreWeaveStoppedReviewEnvelopeFailure.acceptedTransformations = 1;
+  assert.throws(() => verifyHistoricalCoreWeaveEnvelopeEvidence(failedOriginal), /strict policy and failed original/u);
   const phase = verifyReleaseStatusState(register);
   for (const id of ["GATE-02", "GATE-03", "GATE-06"]) {
     const expected = phase.held ? "open-release-blocker" : id !== "GATE-06" || phase.qualified ? "satisfied-in-production" : "post-deployment-verification";
