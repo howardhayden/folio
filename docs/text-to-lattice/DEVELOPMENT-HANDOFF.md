@@ -1,3 +1,21 @@
+# Run #465 review-envelope correction handoff — November 20
+
+Current source digest: `8b5ae8948773ed5b457296e1d99b7a6d91ab08f080a93c7a52d57326ca6a86d7`.
+
+Run #465 passed the credential checks and reached the provider pipeline. Initial verification call 3 failed at the stopped response envelope with S06, named shape n-n----- and unknown-count 0. No transformation was accepted. Complete provider usage and exact cost are unavailable. This original remains spent with one used and zero remaining. GATE-02, GATE-03 and GATE-06 remain open. The client remains held.
+
+The in-job rollback check at 13:30:18.586Z on November 20 recorded four held responses and one active response across five samples, followed by three consecutive held samples. Routine enforcement then observed held Pages at 13:30:32.060Z and held API at 13:30:54.084Z with three held responses, zero active responses and zero network errors. These are dated convergence and point observations.
+
+The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and DeepInfra-qualified Llama verifier/certifier targets through OpenRouter. The reviewed outer-envelope rule applies only to the actual fixed DeepInfra Llama verification and certification adapter stages with strict json_schema, one stopped assistant response and one nonempty string content channel. It additionally admits reasoning:null and refusal:null only as a matched pair. tool_calls must be absent or the already permitted empty array. A single null field, substantive metadata, another auxiliary key, an unknown key or any nonempty competing call remains rejected. The separate Scaleway exception remains unchanged. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, caps, deadlines and no-fallback policy remain unchanged. Certification support is prospective.
+
+The continuing through-deployment direction covers one separately recorded backend original on this corrected held source. The scope counts at most six operator transformations through deployment, including #465, the next backend original, the unchanged three browser-window pipelines and the final check. Existing models, processing terms, dated catalog rates, shared daily quotas and finite per-pipeline limits remain unchanged. No credit purchase is selected. The #462 and #465 spent records remain separate.
+
+Deliver and verify this held correction before the next guarded backend original. Preserve #465's failure, its possible charges and the separate #462 spent record. A later Q author must bind the new verified held parent, its own actual source and dossier, and a successful new backend adjudication. Keep the full D14 and GATE-06 requirements. Original #465 supplies no successful content or browser evidence.
+
+Complete preceding handoff follows verbatim as dated history.
+
+---
+
 # Run #462 held correction handoff — November 20
 
 Current source digest: `2152b4c710867a771daaae783ab82a996bb3ed1993062a0e6e94a69d0083964c`.

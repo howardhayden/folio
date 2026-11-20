@@ -8326,7 +8326,7 @@ test("server sources store only aggregate capacity, with no content logging, fal
   assert.doesNotMatch(sources, /\bconsole\s*\./u);
   assert.doesNotMatch(sources, /\b(?:localStorage|sessionStorage|indexedDB|caches\.(?:open|default)|env\.(?:KV|DB|D1|R2))\b/u);
   assert.doesNotMatch(sources, /hf_[A-Za-z0-9]{8,}/u);
-  const compatibilityRoutePin = `const SCALEWAY_NULL_REVIEW_METADATA_URL = "${HUGGING_FACE_CHAT_COMPLETIONS_URL}";`;
+  const compatibilityRoutePin = `const FIXED_REVIEW_METADATA_ROUTER_URL = "${HUGGING_FACE_CHAT_COMPLETIONS_URL}";`;
   assert.equal(adapterSource.split(compatibilityRoutePin).length, 2);
   assert.equal(sources.replace(compatibilityRoutePin, "").split(HUGGING_FACE_CHAT_COMPLETIONS_URL).length - 1, 1,
     "one operational route plus an independent equality-only compatibility pin");
@@ -8666,7 +8666,7 @@ test("strict DeepInfra reviews reject auxiliary fields and never interpret a com
     const content = JSON.stringify(wire);
     const messages = values.map((value) => ({ role: "assistant", content,
       ...Object.fromEntries(fields.map((field) => [field, value])) }));
-    // The active DeepInfra profile admits no auxiliary null message fields.
+    // Each auxiliary field by itself is outside the matched DeepInfra pair.
     // Historical Scaleway null-only compatibility is exercised separately below.
     for (const field of fields) {
       messages.push({ role: "assistant", content, [field]: null });
@@ -10830,7 +10830,7 @@ test("historical Scaleway D32 profile remains isolated from active DeepInfra", a
   });
 });
 
-test("DeepInfra review stages reject every auxiliary null pattern and preserve strict empty-tool content", async () => {
+test("DeepInfra review stages admit only the observed null pair and preserve strict empty-tool content", async () => {
   for (const method of ["verify", "certify"]) {
     const request = method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest();
     const wire = method === "verify" ? acceptingVerificationWire(request)
@@ -10850,7 +10850,9 @@ test("DeepInfra review stages reject every auxiliary null pattern and preserve s
           ...(emptyTools ? { tool_calls: [] } : {}),
         } });
       } });
-      if (mask === 0) {
+      const observedPair = Object.keys(metadata).length === 2
+        && Object.hasOwn(metadata, "reasoning") && Object.hasOwn(metadata, "refusal");
+      if (mask === 0 || observedPair) {
         const result = await adapter[method](request);
         assert.equal(result.decision, "accept");
       } else {
@@ -10862,6 +10864,41 @@ test("DeepInfra review stages reject every auxiliary null pattern and preserve s
       if (baselineBody === undefined) baselineBody = rawBody;
       assert.equal(rawBody, baselineBody, "response metadata cannot alter the strict provider request");
     }
+  }
+});
+
+test("DeepInfra nullable review metadata supplies no alternative content or verdict", async () => {
+  for (const method of ["verify", "certify"]) {
+    const request = method === "verify" ? minimalVerificationRequest() : minimalCertificationRequest();
+    const name = method === "verify" ? VERIFICATION_TOOL_NAME : CERTIFICATION_TOOL_NAME;
+    const wire = method === "verify" ? acceptingVerificationWire(request)
+      : acceptingCertificationWire(request.certificateId, request.obligationIds);
+    const base = { role: "assistant", content: JSON.stringify(wire), reasoning: null, refusal: null };
+    const tool = providerToolCall({ name, argumentsValue: JSON.stringify(wire) });
+    for (const [changes, finish] of [
+      [{ reasoning: "" }, "stop"], [{ refusal: "declined" }, "stop"],
+      [{ audio: null }, "stop"], [{ unexpected: null }, "stop"],
+      [{ function_call: null }, "stop"], [{ tool_calls: null }, "stop"],
+      [{ tool_calls: [tool] }, "stop"], [{ tool_calls: [tool] }, "tool_calls"],
+      [{ role: "tool" }, "stop"], [{ content: null }, "stop"],
+      [{ content: "{" }, "stop"], [{}, "length"],
+    ]) {
+      const adapter = createHuggingFaceLatticeAdapter({ token: "local-fixture",
+        fetchImpl: async () => providerChoiceResponse({ finish_reason: finish, message: { ...base, ...changes } }) });
+      await assert.rejects(adapter[method](request), (error) => error instanceof LatticeProviderError);
+      assert.equal(adapter.completionCapacity().used, 1);
+    }
+    // A returned carrier may be valid while its fitted verdict fails the wire decoder.
+    const adapt = metadata => createHuggingFaceLatticeAdapter({ token: "local-fixture",
+      fetchImpl: async () => providerChoiceResponse({ finish_reason: "stop",
+        message: { role: "assistant", content: "{}", ...metadata } }) });
+    const withoutMetadata = await adapt({})[method](request);
+    assert.deepEqual(await adapt({ reasoning: null, refusal: null })[method](request), withoutMetadata);
+    assert.notEqual(withoutMetadata?.decision, "accept");
+    // The exported low-level request helper has no private production stage.
+    const options = d32StrictRequestOptions(async () => providerChoiceResponse({ finish_reason: "stop", message: base }),
+      { schemaName: name, allowNullStoppedScalewayReviewMetadata: false });
+    await assert.rejects(requestHuggingFaceJson(options), (error) => error.code === "provider_malformed_response");
   }
 });
 

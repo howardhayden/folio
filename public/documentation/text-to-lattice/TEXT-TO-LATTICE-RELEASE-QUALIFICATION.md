@@ -1,3 +1,48 @@
+# Text to Lattice release qualification — held after review-envelope failure
+
+**Qualification date:** 2026-11-20
+
+**Evidence updated:** 2026-11-20
+
+**Reviewed baseline:** `a2a30a84b7f66c027830dc4853a04ace2b075c1f`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `8b5ae8948773ed5b457296e1d99b7a6d91ab08f080a93c7a52d57326ca6a86d7`
+
+**Artifact-set projection SHA-256:** `3be580edccb5a79c501f523698b8702867420af15cc6c51d7513c8dea0398057`
+
+**Decision:** hold the interactive client. Publish the method, implementation record, and documentation only.
+
+Run #465 passed the credential checks and reached the provider pipeline. Initial verification call 3 failed at the stopped response envelope with S06, named shape n-n----- and unknown-count 0. No transformation was accepted. Complete provider usage and exact cost are unavailable. This original remains spent with one used and zero remaining. GATE-02, GATE-03 and GATE-06 remain open. The client remains held.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Open release blocker | High |
+| GATE-03 · Remote provider capacity and cost boundary | Open release blocker | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker | High |
+
+The in-job rollback check at 13:30:18.586Z on November 20 recorded four held responses and one active response across five samples, followed by three consecutive held samples. Routine enforcement then observed held Pages at 13:30:32.060Z and held API at 13:30:54.084Z with three held responses, zero active responses and zero network errors. These are dated convergence and point observations.
+
+The finite observation records reasoning:null and refusal:null. The six other named metadata slots were absent and unknown-count was zero. The shape does not observe tool_calls. Its absence, an empty array and a singleton remain possible. Content schema, host and semantic acceptance were never established. The record leaves the sole cause of incompatibility unresolved.
+
+The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and DeepInfra-qualified Llama verifier/certifier targets through OpenRouter. The reviewed outer-envelope rule applies only to the actual fixed DeepInfra Llama verification and certification adapter stages with strict json_schema, one stopped assistant response and one nonempty string content channel. It additionally admits reasoning:null and refusal:null only as a matched pair. tool_calls must be absent or the already permitted empty array. A single null field, substantive metadata, another auxiliary key, an unknown key or any nonempty competing call remains rejected. The separate Scaleway exception remains unchanged. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, caps, deadlines and no-fallback policy remain unchanged. Certification support is prospective.
+
+[Original run #465](https://github.com/howardhayden/folio/actions/runs/44744174636) reached the provider pipeline. Remote production evidence is failure-only. No successful production transformation is established for this DeepInfra route. Provider work and possible charges occurred. Dated catalog rates remain unchanged. Complete usage and exact cost are unavailable.
+
+The continuing through-deployment direction covers one separately recorded backend original on this corrected held source. The scope counts at most six operator transformations through deployment, including #465, the next backend original, the unchanged three browser-window pipelines and the final check. Existing models, processing terms, dated catalog rates, shared daily quotas and finite per-pipeline limits remain unchanged. No credit purchase is selected. The #462 and #465 spent records remain separate.
+
+The source correction retains the existing strict production criteria and consequence × plausibility × lifecycle value rule. A successful new backend original and independent current GATE-02/GATE-03 review are required before any Q transition. GATE-06 still requires the actual canonical-browser lifecycle and privacy evidence. Original #465 retains its failed result.
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — held after pre-canary refusal
 
 **Qualification date:** 2026-11-20
