@@ -1,3 +1,25 @@
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-21
+
+**Evidence updated:** 2026-11-21
+
+**Reviewed baseline:** `38e73aad80929909da896ac519ed10abd2b17d50`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `4cf4150e58877bc4ce774222541728d12344d413cf37bda8e521e13d977237cb`
+
+**Artifact-set projection SHA-256:** `1f865e7e1bb5f0879a29ff1d3257c3f6f082c9cd44c6f00c0c270ba5935e8863`
+
+Canonical-browser qualification remains pending. The corrected identifier-preservation source passed the accepted bounded backend check in run #501 on November 21. One admitted notebook passage was conformant for context; the check retained its source and did not exercise a rewrite. GATE-02 and GATE-03 carry the accepted adjudication. The fourteen original #479 Firefox input checks remain dated evidence for unchanged input, modal and consent behavior. The #479 and #497 Safari submissions produced no accepted output, and their held restorations remain recorded. GATE-06 still requires actual Safari and Brave submission and reload evidence. No browser acceptance or final release is claimed. This build is not qualified for final release. The workflow retains immediate held documentation-only rollback.
+
+Only the separately guarded G06 window may collect native evidence. The accepted backend and dated Firefox observations are carried without repeating their tests.
+
+The complete November 21 held dossier after identifier correction in run #497 follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — held after identifier-preservation correction
 
 **Decision:** hold the interactive client; publish the method and documentation only.
