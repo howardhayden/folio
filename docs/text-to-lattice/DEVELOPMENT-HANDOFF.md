@@ -1,3 +1,7 @@
+# Fresh G06 source after incomplete operator capture in run #504
+
+Canonical-browser qualification alone remains pending. GATE-02 and GATE-03 retain the accepted run #501 adjudication, and the fourteen original #479 Firefox input checks remain dated evidence for unchanged input behavior. Run #504 had an accepted canary and displayed a non-error Safari result, but its operator capture did not seal. The prior original remains spent. This fresh source preserves the product, providers, acceptance, quotas, notice, diagram and November 21 date. Actual Safari and Brave seals are still required before GATE-06 can close; no final release is selected. The next window uses one backend canary and one submission per native engine. Preserve the project’s recorded original runs and restore the public service on completion or failure.
+
 # G06 held-parent continuation after incomplete operator capture #504 — November 21
 
 This is the required held first parent for a fresh G06 identity. GATE-02 and GATE-03 retain the exact accepted run #501 adjudication; the fourteen original #479 Firefox input checks remain dated evidence for unchanged input behavior. GATE-06 alone remains an open release blocker with null acceptance and no collected canonical bundle. Product runtime, providers, models, prompts, acceptance, quotas, diagram, notice, current page prose and November 21 date are unchanged. This local source preparation selects no new workflow, paid attempt, browser window or final release.
