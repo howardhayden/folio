@@ -17,6 +17,11 @@ on:
         required: false
         default: false
         type: boolean
+      use_visitor_mode_for_g06:
+        description: Use the visitor's auto mode for this G06 activation's single service check
+        required: false
+        default: false
+        type: boolean
       restore_text_to_lattice_qualification:
         description: Restore held API and Pages immediately during qualification
         required: false
@@ -87,6 +92,7 @@ jobs:
           LATTICE_RESTORE_QUALIFICATION: ${{ inputs.restore_text_to_lattice_qualification }}
           LATTICE_ACTIVATE_QUALIFICATION: ${{ inputs.activate_text_to_lattice_qualification }}
           LATTICE_DEPLOY_SERVICES: ${{ inputs.deploy_text_to_lattice_services }}
+          LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}
         run: node scripts/plan-text-to-lattice-qualification-window.mjs --validate-operation
 
   build:
@@ -588,6 +594,7 @@ jobs:
           LATTICE_API_BASE_URL: https://hah.dev
           LATTICE_API_EVIDENCE_PATH: ${{ runner.temp }}/text-to-lattice-deployment-evidence/live-boundary.json
           LATTICE_REQUIRE_ADMISSION_EVIDENCE: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
+          LATTICE_CANARY_REQUEST_MODE: ${{ inputs.use_visitor_mode_for_g06 && 'auto' || 'operative' }}
         run: node scripts/verify-text-to-lattice-api-production.mjs
       - name: Inspect API deployment after live verification
         env:
