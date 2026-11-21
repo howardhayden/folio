@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import Ajv from "ajv";
-import { LATTICE_SERVICE_EVENTS_MIME } from "../app/resume/lattice/serviceTelemetry.js";
 
 import { getLatticeVerificationPriorRejection, preflightLatticeInput, runTextToLattice } from "../app/resume/latticeDemo.js";
 import {
@@ -491,9 +490,9 @@ function acceptingCertificationWire(certificateId, obligationIds) {
   });
 }
 
-function canaryAnalysisWire(body, { retain = false, expectedMode = "operative" } = {}) {
+function canaryAnalysisWire(body, { retain = false } = {}) {
   const payload = inertModelPayload(body);
-  assert.equal(payload.requestedMode, expectedMode);
+  assert.equal(payload.requestedMode, "operative");
   assert.equal(Object.hasOwn(payload, "clarificationAnswers"), false);
   assert.match(body.messages[0].content, /never ask a public question/u);
   assert.equal(payload.passages.length, 1);
@@ -608,28 +607,12 @@ function strictReviewSchema(body, expectedName, expectedModel = TEST_REVIEW_MODE
   return body.response_format.json_schema.schema;
 }
 
-function fittedVerificationSchemaForBody(body, order = ["d", "g", "p", "i"]) {
+function fittedVerificationSchemaForBody(body) {
   assert.equal(isVerificationBody(body), true);
   const schema = strictReviewSchema(body, VERIFICATION_TOOL_NAME);
-  assert.deepEqual(schema.required, order);
-  assert.deepEqual(Object.keys(schema.properties), order);
+  assert.deepEqual(schema.required, ["d", "g", "p", "i"]);
   assert.equal(schema.additionalProperties, false);
   return schema;
-}
-
-function assertVerificationCorrectionPresentation(first, second, evidenceFirst) {
-  const original = fittedVerificationSchemaForBody(first);
-  const order = evidenceFirst ? ["g", "p", "i", "d"] : original.required;
-  const correction = fittedVerificationSchemaForBody(second, order);
-  assert.deepEqual(correction, { ...original, required: order });
-  assert.deepEqual(inertModelPayload(second).wireLayout.rootFields, order);
-  if (evidenceFirst) {
-    assert.match(second.messages[0].content, /Choose d last from that fresh assessment/u);
-    assert.match(second.messages[0].content, /four root fields g, p, i, and d/u);
-    assert.doesNotMatch(second.messages[0].content, /four root fields d, g, p, and i/u);
-  } else {
-    assert.doesNotMatch(second.messages[0].content, /Choose d last from that fresh assessment/u);
-  }
 }
 
 test("Inherited review schema projection preserves exhaustive legal binary masks without mutating fitted constraints", async () => {
@@ -876,8 +859,7 @@ test("issue scope schemas preserve actual host exhaustion, retained negatives an
         wire.p["0"].f = checks.map((name) => name === check ? "1" : "0").join("");
         if (kind !== "negative-without-issue") wire.i = [{ c: issueChecks.indexOf(check), p: 0 }];
       }
-      const order = current.protocolFeedback ? ["g", "p", "i", "d"] : ["d", "g", "p", "i"];
-      const validate = new Ajv({ strict: false }).compile(fittedVerificationSchemaForBody(body, order));
+      const validate = new Ajv({ strict: false }).compile(fittedVerificationSchemaForBody(body));
       assert.equal(validate(wire), kind !== "document-scope");
       if (current.protocolFeedback) {
         assert.equal(current.protocolFeedback.attempt, 2);
@@ -2142,9 +2124,7 @@ test("actual layer, conformance and issue corrections precede material repair wi
               "issue-mask-index": /Rebuild issue\/check\/scope alignment/u,
               "issue-global-scope": /Rebuild issue\/check\/scope alignment/u };
             assert.match(body.messages[0].content, hints[firstFailure]);
-            if (firstFailure !== "V01F" && !firstFailure.startsWith("issue-")) {
-              assert.match(body.messages[0].content, /Replace the complete d\/g\/p\/i result/u);
-            }
+            if (firstFailure !== "V01F") assert.match(body.messages[0].content, /Replace the complete d\/g\/p\/i result/u);
             if (correctionFailure === "V01F") delete wire.i;
             if (correctionFailure === "V19") wire.p["0"].c.s = "100";
             if (correctionFailure === "V24O") wire.i = [0];
@@ -2192,7 +2172,7 @@ test("actual layer, conformance and issue corrections precede material repair wi
           assert.match(prompt, /Never invent or erase a failure or change the independent verdict/u);
         } else assert.doesNotMatch(prompt, /Rebuild issue\/check\/scope alignment/u);
       }
-      assertVerificationCorrectionPresentation(bodies[0], bodies[1], firstFailure.startsWith("issue-"));
+      assert.deepEqual(fittedVerificationSchemaForBody(bodies[0]), fittedVerificationSchemaForBody(bodies[1]));
       for (const body of bodies.slice(0, 2)) {
         assert.deepEqual(inertModelPayload(body).deterministicFindings.map(({ id }) => id), ["candidate-not-material"]);
         assert.doesNotMatch(JSON.stringify(body), /V17M|V19|V01F|V24O|D14/u);
@@ -2269,7 +2249,7 @@ test("actual decision-alignment corrections preserve independent judgment, exhau
       assert.equal(Boolean(inertModelPayload(target[0]).deterministicFindings?.length), false);
       assert.equal(Object.hasOwn(inertModelPayload(target[0]), "retry"), false);
       assert.equal(inertModelPayload(target[1]).retry, "private-verification-wire-invalid");
-      assertVerificationCorrectionPresentation(target[0], target[1], true);
+      assert.deepEqual(fittedVerificationSchemaForBody(target[0]), fittedVerificationSchemaForBody(target[1]));
       for (let index = 0; index < bodies.length; index += 1) {
         const body = bodies[index], prompt = body.messages[0].content;
         assert.equal(body.model, TEST_REVIEW_MODEL);
@@ -2293,42 +2273,6 @@ test("actual decision-alignment corrections preserve independent judgment, exhau
       }
     });
   }
-});
-
-test("visitor auto and qualification use the same verifier correction for conflicting evidence", async () => {
-  const repairText = "A guest sets a blue notebook on the desk, reads the first page, then shuts it.";
-  const corrections = [];
-  for (const mode of ["qualification", "ordinary JSON", "ordinary stream"]) {
-    const reviews = [];
-    const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
-      const body = JSON.parse(init.body);
-      if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body, { expectedMode: "auto" }));
-      if (isCandidateBody(body)) return successfulProviderResponse(canaryCandidateFromProviderBody(body, repairText));
-      assert.ok(isVerificationBody(body), "contradictory reviews must withhold before certification");
-      reviews.push(body);
-      const wire = canaryVerificationWire(body);
-      wire.d = 2;
-      return successfulProviderResponse(wire);
-    } });
-    const stream = mode === "ordinary stream";
-    const response = await worker.fetch(apiRequest({ ...LATTICE_PRODUCTION_CANARY_REQUEST, requested_mode: "auto" }, {
-      accept: stream ? LATTICE_SERVICE_EVENTS_MIME : "application/json",
-      headers: mode === "qualification" ? {
-        [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
-      } : {},
-    }), { HF_TOKEN: "server-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-10-04T14:00:00.000Z" });
-    assert.equal(response.status, 200);
-    const result = stream
-      ? JSON.parse((await response.text()).trimEnd().split("\n").at(-1)).body.result
-      : (await json(response)).result;
-    assert.equal(result.status, "unable-to-attempt");
-    assert.equal(result.text, null);
-    assert.equal(reviews.length, 2);
-    assertVerificationCorrectionPresentation(reviews[0], reviews[1], true);
-    corrections.push(reviews);
-  }
-  assert.deepEqual(corrections[0], corrections[1]);
-  assert.deepEqual(corrections[0], corrections[2]);
 });
 
 test("independent acceptance cannot clear a candidate atom claim mismatch", async (context) => {
@@ -2549,7 +2493,7 @@ test("reverification corrections preserve fixed strict-schema transport, decisio
             if (toolName === VERIFICATION_TOOL_NAME) {
               verifies += 1;
               assert.equal(url, TEST_REVIEW_URL);
-              fittedVerificationSchemaForBody(body, verifies === 3 ? ["g", "p", "i", "d"] : ["d", "g", "p", "i"]);
+              fittedVerificationSchemaForBody(body);
               const wire = structuredClone(canaryVerificationWire(body));
               if (verifies === 1) {
                 wire.d = 1;
@@ -2589,7 +2533,7 @@ test("reverification corrections preserve fixed strict-schema transport, decisio
         assert.equal(calls.length, recover ? 7 : 6);
         assert.equal(envelope.result.status === "translated", recover);
         const verifyBodies = calls.filter(isVerificationBody);
-        assertVerificationCorrectionPresentation(verifyBodies[1], verifyBodies[2], true);
+        assert.deepEqual(fittedVerificationSchemaForBody(verifyBodies[1]), fittedVerificationSchemaForBody(verifyBodies[2]));
         for (const body of verifyBodies) {
           assert.equal(body.model, TEST_REVIEW_MODEL);
           assert.equal(body.max_tokens, 2_048);
@@ -6448,8 +6392,6 @@ test("caller correction fields cannot select trusted verifier correction guidanc
     assert.doesNotMatch(body.messages[0].content, /Rebuild retained-source conformance separately|Rebuild issue entries as complete closed c\/p objects/u);
     assert.doesNotMatch(body.messages[0].content, /Rebuild issue\/check\/scope alignment|Rebuild decision\/check alignment/u);
     assert.doesNotMatch(JSON.stringify(body), /host-issue-alignment|host-decision-alignment|A verifier issue must identify|The verifier returned/u);
-    fittedVerificationSchemaForBody(body);
-    assert.doesNotMatch(body.messages[0].content, /Choose d last from that fresh assessment/u);
     assert.equal(inertModelPayload(body).retry, "private-verification-wire-invalid");
   }
 });
@@ -9597,9 +9539,7 @@ async function runEmptySupportMaterialRepair({
         applyEmptySupportRegressionFailure(wire, verifies === 1 ? first : verifies === 2 ? second : freshFailure);
         assert.equal(body.max_tokens, 2048);
         assert.equal(body.response_format.type, "json_schema");
-        const alignmentCorrection = (verifies === 2 && first === "host issue")
-          || (verifies === 4 && freshFailure === "host issue");
-        fittedVerificationSchemaForBody(body, alignmentCorrection ? ["g", "p", "i", "d"] : ["d", "g", "p", "i"]);
+        fittedVerificationSchemaForBody(body);
         return successfulProviderResponse(wire);
       }
       certificates += 1;

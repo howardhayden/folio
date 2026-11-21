@@ -1,11 +1,3 @@
-## G06 following run 532
-
-The owner authorized one corrected G06 window. Its auto-mode service check must pass before Safari and Brave can submit once each. Both browsers must produce output, privacy and reload evidence from the same revision. The earlier backend and Firefox results are retained. On its existing second attempt after a decision or issue conflicts with the reported checks, the verifier records gates, passage checks and supported issues before choosing its verdict. The strict host checks and provider call limits still apply. Before changing the service, the qualification runner authenticates the original GitHub Pages ZIP, verifies the TAR against the build digest and hashes the canonical résumé page inside it. The operator authenticates the small runner receipt during native capture and checks the full original archive after restoration before accepting G06.
-
-# G06 visitor-mode qualification check
-
-The site owner selected the visitor’s auto mode for the single notebook check already included in the next G06 browser window. The original activation must explicitly select it. The check sends the same notebook text, terminal line feed and JSON diagnostic request through the existing service. It applies the existing certification and meaning checks before publishing the interactive page. Other operations use the existing operative check. A refusal keeps the page held.
-
 # CoreWeave-review qualification requirements and phase authority
 
 The canonical release register controls the current source phase. GATE-02 and GATE-03 require actual reviewed backend evidence for the fixed Hugging Face/OpenRouter route with DeepInfra Qwen generation and CoreWeave Llama verification/certification. Only after they close may a separately granted bounded browser window activate a qualification-pending, non-qualified client. GATE-06 requires actual sealed canonical-browser evidence before final qualification. Missing or failed evidence requires immediate held documentation-only rollback. The previously approved API-only, browser and final deployment stages remain distinct, one original each with their stated recovery limits. No local source or test result substitutes for production or browser evidence. All model, processing, strict acceptance, privacy, finite budget and no-fallback requirements below remain unchanged.
