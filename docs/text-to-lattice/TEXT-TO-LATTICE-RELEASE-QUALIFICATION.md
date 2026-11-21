@@ -1,3 +1,44 @@
+# Text to Lattice release qualification — held after identifier-preservation correction
+
+**Decision:** hold the interactive client; publish the method and documentation only.
+
+**Qualification date:** 2026-11-21
+
+**Evidence updated:** 2026-11-21
+
+**Reviewed baseline:** `a17138b8d06275c72e6aec663df64dc38bfe914e`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `f072a83b6eae26645c6cd5b266e9aca3e9152be63456412c926190b6dbd723c1`
+
+**Artifact-set projection SHA-256:** `3eb7264f04549be9107c72dc426c9095a5a29ce04d1ef8f489ee83b099fdd0e7`
+
+This is a held documentation-only candidate with a reviewed identifier-preservation correction. Current GATE-02 and GATE-03 are reopened with null acceptance pending one fresh exact-source held backend qualification. GATE-06 remains open with null acceptance and no collected canonical bundle. The successful run #476 adjudication and run #497 backend observation remain dated evidence for their original sources. The fourteen original #479 Firefox input checks remain scoped evidence for unchanged input, modal and consent behavior; they do not qualify the changed shared preservation modules or a new output. Providers, model identities, pricing, HF billing route, wire schemas, semantic acceptance criteria, quotas, deadlines, privacy, no automatic retry, current diagram and intended 100-percent Worker selection remain unchanged. This source preparation does not select a workflow, paid attempt, browser window or final release.
+
+| Gate | Status |
+| --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Open release blocker |
+| GATE-03 · Remote provider capacity and cost boundary | Open release blocker |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker |
+
+Original run #497 / 44897343330 / attempt 1 on a17138b8d06275c72e6aec663df64dc38bfe914e passed its bounded backend canary and metadata BEFORE. One Safari submission returned the generic public result Unable to attempt and no accepted output. No complete private response or phase trace was retained, so the cause is unknown. Brave was not armed or submitted. No canonical capture pair, screenshots, qualified reload or metadata AFTER was produced. The original remains spent. One backend and one Safari pipeline bring the known operator total to ten; public admissions and the account billing total are unknown. Included provider-free restoration #498 / 44898118876 / attempt 1 verified held API at 11:14:50.410 UTC then held Pages at 11:15:38.444 UTC on November 21. Separately, original #497 completed successfully with scheduled held API at 11:32:28.586 UTC then held Pages at 11:32:47.617 UTC. Both restoration records were independently reviewed. These dated points do not prove continuous hold.
+
+Local source review demonstrated that the former formal-identifier pattern could match only an uppercase prefix and miss a changed or deleted mixed-case underscore suffix. The selected correction uses one shared pattern factory with separate regular-expression instances in source-span classification and deterministic host comparison. It preserves the entire nonempty ASCII underscore component while retaining the other identifier alternatives and Unicode boundaries. The exact four-file patch has 424 passing affected checks, including suffix deletion, truncation, case change, duplicates, line boundaries and positive controls. This is an independently demonstrated preservation defect, not an established cause of Safari withholding in #479 or #497 and not proof of the corrected production outcome.
+
+The current project status and date are updated to November 21. The modal and domain page structure remain intact. The held publication uses the existing two interaction switches. All historical records remain attached to their original source and dates.
+
+[Original #497](https://github.com/howardhayden/folio/actions/runs/44897343330) · [Included restoration #498](https://github.com/howardhayden/folio/actions/runs/44898118876)
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending
 
 **Qualification date:** 2026-11-20

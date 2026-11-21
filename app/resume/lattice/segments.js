@@ -1,5 +1,5 @@
 import { countLatticeWords, hasInvalidLatticeBidiIsolates } from "./inputPolicy.js";
-import { latticeProtectedLiteralMatches } from "./protectedSpans.js";
+import { latticeFormalIdentifierPattern, latticeProtectedLiteralMatches } from "./protectedSpans.js";
 
 export const PASSAGE_WORD_LIMIT = 36;
 export const PASSAGE_CHARACTER_LIMIT = 420;
@@ -80,7 +80,7 @@ const LITERAL_PATTERNS = Object.freeze([
   ["inline-code", /`[^`\r\n]*`/gu],
   ["markup", /<!--[\s\S]*?-->|<!DOCTYPE\s+[A-Za-z][^>\r\n]*>|<\/?[A-Za-z][A-Za-z0-9:-]*(?:\s+[A-Za-z_:][A-Za-z0-9:._-]*(?:=(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*\s*\/?>/giu],
   ["quantity", /(?:^|(?<=[\s([{,:;]))(?:[<>≤≥≈~][ \t]*)?[+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+)(?:\s*(?:-|–|—|to)\s*[+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+))?(?:(?:%|°[CF]|[\p{L}\p{M}µμ]+(?:\/[\p{L}\p{M}µμ]+)?)|[ \t]+(?:percent|degrees?|seconds?|minutes?|hours?|days?|weeks?|months?|years?|milliseconds?|kilograms?|grams?|milligrams?|micrograms?|liters?|litres?|milliliters?|millilitres?|meters?|metres?|centimeters?|centimetres?|millimeters?|millimetres?|kilometers?|kilometres?|miles?|yards?|feet|foot|inches?|pounds?|ounces?|bytes?|kilobytes?|megabytes?|gigabytes?|terabytes?|ms|kg|mg|µg|μg|ml|cm|mm|km|mi|yd|ft|lb|oz|kb|mb|gb|tb))?/giu],
-  ["formal-identifier", /(?<![\p{L}\p{N}])(?:[A-Z]{2,}[A-Z0-9]*(?:[-_.:/][A-Z0-9]+)+|[A-Z]{2,}\d+[A-Z0-9._/-]*|[A-Za-z]+-\d+(?:[-_.]\d+)*|v\d+(?:\.\d+){1,3}|[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})(?![\p{L}\p{N}])/gu],
+  ["formal-identifier", latticeFormalIdentifierPattern()],
 ]);
 
 function safeCodeUnitBoundary(value, offset) {

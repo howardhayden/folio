@@ -1018,6 +1018,28 @@ test("direction isolates remain balanced inside every model-facing evidence span
   assert.equal(reassembleLatticeSource(source, [passage], [{ passageId: passage.id, text: passage.text }]), source);
 });
 
+test("underscore-delimited identifiers retain their complete case-sensitive values", () => {
+  for (const identifier of ["CASE_LABEL_a5cD39", "ASSET_ID_2bc7", "EU_batch_item42"]) {
+    const source = `The notebook is labeled ${identifier}.`;
+    const [batch] = preflightLatticeInput(source).batches;
+    const [group] = latticeSourceSpansForBatch(batch);
+    const literals = group.spans.filter(({ literalType }) => literalType === "formal-identifier");
+    assert.deepEqual(literals.map(({ text }) => text), [identifier]);
+    assert.equal(source.slice(literals[0].startUtf16, literals[0].endUtf16), identifier);
+    assert.deepEqual(deterministicDocumentReview(source, `The label reads ${identifier}.`), []);
+    const prefix = identifier.slice(0, identifier.lastIndexOf("_"));
+    for (const replacement of [prefix, identifier.slice(0, -1), identifier.toUpperCase(), `${identifier} ${identifier}`]) {
+      const findings = deterministicDocumentReview(source, source.replace(identifier, replacement));
+      assert.ok(findings.some(({ id }) => id === "deterministic-formal-identifier"));
+    }
+    const moved = `${identifier}\nNext page.`;
+    assert.ok(deterministicDocumentReview(moved, `Next page.\n${identifier}`)
+      .some(({ id }) => id === "deterministic-formal-identifier-boundary"));
+  }
+  const [prose] = preflightLatticeInput("NASA-trained crews discuss file names.").batches;
+  assert.ok(latticeSourceSpansForBatch(prose)[0].spans.every(({ literalType }) => literalType !== "formal-identifier"));
+});
+
 test("exact literals nested in a balanced isolate remain independently citable", () => {
   const source = "\u2067alpha `!` beta\u2069";
   const [passage] = segmentLatticeSource(source);
