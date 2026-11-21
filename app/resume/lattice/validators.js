@@ -11,15 +11,15 @@ import {
   LATTICE_INPUT_SAFETY_LIMIT,
 } from "./inputPolicy.js";
 import { deterministicFindingRule, rememberDeterministicFinding } from "./rejectionDiagnostics.js";
-import { latticeProtectedLiteralMatches } from "./protectedSpans.js";
+import { latticeFormalIdentifierPattern, latticeProtectedLiteralMatches } from "./protectedSpans.js";
 const URL = /https?:\/\/[^\s<>"'`]+/gu;
 const EMAIL = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/gu;
 const PHONE = /(?<![\p{L}\p{N}])(?:(?:\+[ \t]*)?\(?\d[\d(). \t-]{5,}\d)(?![\p{L}\p{N}])/gu;
 const MARKDOWN_LINK = /\[[^\]\r\n]+\]\([^\r\n)]+\)/gu;
 const INLINE_CODE = /`[^`\r\n]*`/gu;
+const FORMAL_IDENTIFIER = latticeFormalIdentifierPattern();
 const MARKUP = /<!--[\s\S]*?-->|<!DOCTYPE\s+[A-Za-z][^>\r\n]*>|<\/?[A-Za-z][A-Za-z0-9:-]*(?:\s+[A-Za-z_:][A-Za-z0-9:._-]*(?:=(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*\s*\/?>/giu;
 const QUANTITY = /(?:^|(?<=[\s([{,:;]))(?:[<>≤≥≈~][ \t]*)?[+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+)(?:\s*(?:-|–|—|to)\s*[+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+))?(?:(?:%|°[CF]|[\p{L}\p{M}µμ]+(?:\/[\p{L}\p{M}µμ]+)?)|[ \t]+(?:percent|degrees?|seconds?|minutes?|hours?|days?|weeks?|months?|years?|milliseconds?|kilograms?|grams?|milligrams?|micrograms?|liters?|litres?|milliliters?|millilitres?|meters?|metres?|centimeters?|centimetres?|millimeters?|millimetres?|kilometers?|kilometres?|miles?|yards?|feet|foot|inches?|pounds?|ounces?|bytes?|kilobytes?|megabytes?|gigabytes?|terabytes?|ms|kg|mg|µg|μg|ml|cm|mm|km|mi|yd|ft|lb|oz|kb|mb|gb|tb))?/giu;
-const FORMAL_IDENTIFIER = /(?<![\p{L}\p{N}])(?:[A-Z]{2,}[A-Z0-9]*(?:[-_.:/][A-Z0-9]+)+|[A-Z]{2,}\d+[A-Z0-9._/-]*|[A-Za-z]+-\d+(?:[-_.]\d+)*|v\d+(?:\.\d+){1,3}|[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})(?![\p{L}\p{N}])/gu;
 
 function occurrenceRecords(value, pattern, transform = (item) => item) {
   const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;

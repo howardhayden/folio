@@ -1,3 +1,8 @@
+export function latticeFormalIdentifierPattern() {
+  // Underscore-delimited components can carry case-sensitive opaque values.
+  return /(?<![\p{L}\p{N}])(?:[A-Z]{2,}[A-Z0-9]*(?:_[A-Za-z0-9]+|[-.:/][A-Z0-9]+)+|[A-Z]{2,}\d+[A-Z0-9._/-]*|[A-Za-z]+-\d+(?:[-_.]\d+)*|v\d+(?:\.\d+){1,3}|[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})(?![\p{L}\p{N}])/gu;
+}
+
 const SENTENCE_SEGMENTER = typeof Intl !== "undefined" && typeof Intl.Segmenter === "function"
   ? new Intl.Segmenter("und", { granularity: "sentence" })
   : null;
