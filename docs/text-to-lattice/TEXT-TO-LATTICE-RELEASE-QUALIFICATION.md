@@ -1,25 +1,3 @@
-# Text to Lattice release qualification — qualification-pending
-
-**Qualification date:** 2026-11-21
-
-**Evidence updated:** 2026-11-21
-
-**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
-
-**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
-
-**Qualified source-set SHA-256:** `e6ff52bdb6e98b92f6831ab4abb5421a5a67a355238d6627ab2f00d1974ba6ef`
-
-**Artifact-set projection SHA-256:** `1f865e7e1bb5f0879a29ff1d3257c3f6f082c9cd44c6f00c0c270ba5935e8863`
-
-GATE-06 needs one accepted Safari trace and one accepted Brave trace from this qualification window. Safari focused a withheld result in #510. Its public finding did not identify the underlying cause. The #511 restore and the separate scheduled cleanup recorded the API and page held. The GATE-02 and GATE-03 decisions from #501 and the fourteen Firefox input checks from #479 carry forward. This build is deployed only for immediate canonical-browser qualification and is not qualified for final release. The workflow retains immediate held documentation-only rollback.
-
-This source change carries accepted backend and Firefox evidence. Only authentic new G06 evidence can close the remaining gate; no new API-only or Firefox qualification is requested.
-
-The complete held-parent dossier after the Safari result in run #510 follows as dated history.
-
----
-
 # Text to Lattice release qualification — held after the Safari result in run #510
 
 **Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
