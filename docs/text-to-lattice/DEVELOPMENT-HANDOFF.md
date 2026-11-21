@@ -1,3 +1,19 @@
+# G06 held parent after the Safari result from #510 — November 21
+
+GATE-06 remains open for current Safari and Brave network and reload traces. GATE-02 and GATE-03 retain their accepted #501 adjudication. The fourteen Firefox input checks from #479 still apply.
+
+Safari submitted once in original run #510 on 70cd712a72047d758fb9e50255d8a7aed49d59c1 and focused the terminal response after reverification. The service returned unable-to-attempt. The displayed reason was “The result did not clear every meaning check.” The supporting canary and authenticated BEFORE observation succeeded. Safari produced no sealed capture. Brave submitted no text. There was no AFTER observation. Restoration #511 recorded the API held at 15:42:34.824 UTC and Pages held at 15:43:47.926 UTC on November 21. The original scheduled restoration has a separate verified record.
+
+The next browser capture uses one short, ordinary instruction with a quoted notebook label. Each engine requires its own non-error terminal result, original screenshot, hard reload and sealed trace during the same qualification window.
+
+Held source: `852667297ff0d77a2686b2dd21f74f8d6bd98a93c63fa406f02206442d3278ff`. Dossier: `9e4ee1874e2e4e3f57e8bdde60ad2d5257f622ec7fc6b07589cd7840c3d9a540`. The existing public page remains accurate and unchanged. Accepted #501 backend evidence, dated Firefox and Safari history, the diagram and November 21 date remain intact.
+
+The next G06 window needs this held first parent. Collect one accepted Safari trace and one accepted Brave trace from the same published candidate, then restore and adjudicate the evidence.
+
+The complete preceding handoff follows verbatim as dated history.
+
+---
+
 # Fresh G06 source after incomplete operator capture in run #504
 
 Canonical-browser qualification alone remains pending. GATE-02 and GATE-03 retain the accepted run #501 adjudication, and the fourteen original #479 Firefox input checks remain dated evidence for unchanged input behavior. Run #504 had an accepted canary and displayed a non-error Safari result, but its operator capture did not seal. The prior original remains spent. This fresh source preserves the product, providers, acceptance, quotas, notice, diagram and November 21 date. Actual Safari and Brave seals are still required before GATE-06 can close; no final release is selected. The next window uses one backend canary and one submission per native engine. Preserve the project’s recorded original runs and restore the public service on completion or failure.
