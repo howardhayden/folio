@@ -738,24 +738,6 @@ test("manual and timed rollback retain current-main mutation guards and bounded 
   assert.match(pages, /Retain verified qualification Pages restoration evidence[\s\S]*?steps\.restored-held-pages-verification\.outcome == 'success'[\s\S]*?held-pages\.json[\s\S]*?if-no-files-found: error[\s\S]*?retention-days: 7/u);
 });
 
-test("the visitor-mode canary opt-in belongs only to an original manual G06 activation", async () => {
-  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
-  assert.match(workflow, /use_visitor_mode_for_g06:\n[^\n]+\n +required: false\n +default: false\n +type: boolean/u);
-  assert.ok(workflow.includes("LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}"));
-  assert.ok(workflow.includes("LATTICE_CANARY_REQUEST_MODE: ${{ inputs.use_visitor_mode_for_g06 && 'auto' || 'operative' }}"));
-  const activation = { LATTICE_G06_VISITOR_MODE: "true", LATTICE_ACTIVATE_QUALIFICATION: "true",
-    LATTICE_OPERATION_EVENT: "workflow_dispatch", LATTICE_OPERATION_REF: "refs/heads/main",
-    LATTICE_OPERATION_PHASE: "qualification-pending", GITHUB_RUN_ATTEMPT: "1" };
-  assert.equal(validateTextToLatticeQualificationOperation(activation), "ordinary");
-  for (const [field, values] of Object.entries({
-    LATTICE_OPERATION_EVENT: ["push"], LATTICE_OPERATION_REF: ["refs/heads/other"],
-    LATTICE_OPERATION_PHASE: ["held", "qualified"], LATTICE_ACTIVATE_QUALIFICATION: ["false"],
-    LATTICE_RESTORE_QUALIFICATION: ["true"], LATTICE_DEPLOY_SERVICES: ["true"], GITHUB_RUN_ATTEMPT: ["2"],
-  })) {
-    for (const value of values) assert.throws(() => validateTextToLatticeQualificationOperation({ ...activation, [field]: value }), /original G06 activation/u);
-  }
-});
-
 test("qualification operation validation accepts only exact exclusive restore flags and boundary", () => {
   const base = { LATTICE_OPERATION_EVENT: "workflow_dispatch", LATTICE_OPERATION_REF: "refs/heads/main",
     LATTICE_OPERATION_PHASE: "qualification-pending", LATTICE_RESTORE_QUALIFICATION: "true",

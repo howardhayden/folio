@@ -1,7 +1,3 @@
-# G06 visitor-mode qualification check
-
-The site owner selected the visitor’s auto mode for the single notebook check already included in the next G06 browser window. The original activation must explicitly select it. The check sends the same notebook text, terminal line feed and JSON diagnostic request through the existing service. It applies the existing certification and meaning checks before publishing the interactive page. Other operations use the existing operative check. A refusal keeps the page held.
-
 # CoreWeave-review qualification requirements and phase authority
 
 The canonical release register controls the current source phase. GATE-02 and GATE-03 require actual reviewed backend evidence for the fixed Hugging Face/OpenRouter route with DeepInfra Qwen generation and CoreWeave Llama verification/certification. Only after they close may a separately granted bounded browser window activate a qualification-pending, non-qualified client. GATE-06 requires actual sealed canonical-browser evidence before final qualification. Missing or failed evidence requires immediate held documentation-only rollback. The previously approved API-only, browser and final deployment stages remain distinct, one original each with their stated recovery limits. No local source or test result substitutes for production or browser evidence. All model, processing, strict acceptance, privacy, finite budget and no-fallback requirements below remain unchanged.
