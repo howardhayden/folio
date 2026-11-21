@@ -42,7 +42,7 @@ export const textToLatticeContract = Object.freeze({
     "The public converter and its API are held. Text to Lattice is available here as documentation only.",
     "The fixed CoreWeave review route passed a bounded backend check on November 20. That dated result does not qualify the current identifier-preservation correction or establish general output reliability.",
     "Fourteen Firefox input checks passed on November 20. That day, a Safari submission reached review and a bounded revision, but no candidate cleared every required check. No transformed text was released.",
-    "The November 21 Safari check returned no accepted output, and the service was restored. A separate identifier-preservation correction still needs production verification.",
+    "The November 21 Safari check returned no accepted output, and the service was restored. The corrected source subsequently passed one bounded backend check without a rewrite. Safari and Brave qualification remains pending.",
     "Successful Safari and Brave submission and reload evidence is still required before public release.",
     "The November 13 backend check passed one case on the former OVHcloud review route. It retained the passage and did not exercise rewrite repair.",
     "Release requires backend acceptance and hosted Safari and Brave evidence of submission, response handling, and reload.",

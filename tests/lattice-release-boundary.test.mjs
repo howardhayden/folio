@@ -54,8 +54,8 @@ const browserEvidenceIdentityFields = [
 ];
 
 const publishedDossierPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHistoryBoundary = Buffer.from("The complete held dossier after evidence-reader stop in run #491 follows verbatim as dated history.");
-const datedHistorySeparator = Buffer.from("The complete held dossier after evidence-reader stop in run #491 follows verbatim as dated history.\n\n---\n\n");
+const datedHistoryBoundary = Buffer.from("The complete November 21 held dossier after identifier correction in run #497 follows verbatim as dated history.");
+const datedHistorySeparator = Buffer.from("The complete November 21 held dossier after identifier correction in run #497 follows verbatim as dated history.\n\n---\n\n");
 const staleEnabledClaims = [
   "release gates remain open",
   "must agree before the converter can open",
@@ -106,8 +106,8 @@ test("enabled publication history permits only the exact bound canonical held do
   const boundary = dossier.indexOf(datedHistorySeparator);
   assert.ok(boundary > 0);
   const history = dossier.subarray(boundary + datedHistorySeparator.length);
-  assert.equal(history.length, 658054);
-  assert.equal(sha256(history), "98f5cc11df8683eaba585787ee0ff0aa822981fef1d15bf216aaa8b2f9e800e5");
+  assert.equal(history.length, 664282);
+  assert.equal(sha256(history), "2f2ff5f8ea0c3f83f3cb9699faf615e95a2b6ccf34ae824ac501e930b58945f0");
   assert.match(history.toString("utf8"), /hold the interactive client/iu);
   const phase = verifyReleaseStatusState(await releaseRegister());
   if (phase.enabled) assert.doesNotThrow(() => verifyEqualDossierCopies(dossier));

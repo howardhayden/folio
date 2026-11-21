@@ -5,7 +5,7 @@
   "algorithm": "SHA-256",
   "authority": {
     "canonicalSource": "docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json",
-    "canonicalSourceSha256": "cf49ffb1bfd450a05a951e5a538713dc973b18c0d33537d998aaeae8c9aeb83e",
+    "canonicalSourceSha256": "16c1b2ab4c5bb4354b7ddc0aa8aa9ed79ce8d9ebbb59b56919e9d58056eade5a",
     "builder": "scripts/docs/build-text-to-lattice-documentation.mjs",
     "builderSha256": "c56566da830a7ab5369f96ebbbbf3598eb49013a932ba37947f675daca6f4b5d"
   },
@@ -49,7 +49,7 @@
       "markdown": "TEXT-TO-LATTICE-SECURITY-MODEL.md",
       "sourcePath": "docs/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
       "publicPath": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
-      "sha256": "68fd98ebe815cb57fbcb8cde1d32ab0ebd1193d590d7749a1c78ee579806e766"
+      "sha256": "6dbda2f10f06a62ea65b4e526e79da371b5ca0cb5ffb6340db877b1e95434172"
     }
   ],
   "releaseEvidence": [
@@ -60,13 +60,13 @@
     },
     {
       "filename": "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-      "bytes": 664282,
-      "sha256": "2f2ff5f8ea0c3f83f3cb9699faf615e95a2b6ccf34ae824ac501e930b58945f0"
+      "bytes": 665891,
+      "sha256": "6f28397457aa6825ba42d5f3f3f79b20d8999425ffe1914f86356322efba7d82"
     },
     {
       "filename": "TEXT-TO-LATTICE-RELEASE-REGISTER.json",
-      "bytes": 29098733,
-      "sha256": "211875327701377867a02acc3f76d6021dbe4038533f5e7c9c16976d4c455b6c"
+      "bytes": 29481496,
+      "sha256": "c699fddf72c40a1ccab44a7e8ad2f54df29cdaaf5051e771111552112ffa2089"
     }
   ],
   "artifacts": [
@@ -82,8 +82,8 @@
     },
     {
       "path": "docs/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
-      "bytes": 957449,
-      "sha256": "68fd98ebe815cb57fbcb8cde1d32ab0ebd1193d590d7749a1c78ee579806e766"
+      "bytes": 962369,
+      "sha256": "6dbda2f10f06a62ea65b4e526e79da371b5ca0cb5ffb6340db877b1e95434172"
     },
     {
       "path": "docs/text-to-lattice/TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md",
@@ -92,13 +92,13 @@
     },
     {
       "path": "public/documentation/text-to-lattice/documentation-atlas.json",
-      "bytes": 820214,
-      "sha256": "cf49ffb1bfd450a05a951e5a538713dc973b18c0d33537d998aaeae8c9aeb83e"
+      "bytes": 822835,
+      "sha256": "16c1b2ab4c5bb4354b7ddc0aa8aa9ed79ce8d9ebbb59b56919e9d58056eade5a"
     },
     {
       "path": "public/documentation/text-to-lattice/index.html",
-      "bytes": 14491,
-      "sha256": "d295c857f15f5cb2cd8ebdbeec3d0973fd535d874f61fb5cfc2bb3efe843956c"
+      "bytes": 14323,
+      "sha256": "9602783069af062bd128be7ddc3848dfae98b358c7538e3532109660e6a22163"
     },
     {
       "path": "public/documentation/text-to-lattice/lattice-concept-map.html",
@@ -127,23 +127,23 @@
     },
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-      "bytes": 664282,
-      "sha256": "2f2ff5f8ea0c3f83f3cb9699faf615e95a2b6ccf34ae824ac501e930b58945f0"
+      "bytes": 665891,
+      "sha256": "6f28397457aa6825ba42d5f3f3f79b20d8999425ffe1914f86356322efba7d82"
     },
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
-      "bytes": 29098733,
-      "sha256": "211875327701377867a02acc3f76d6021dbe4038533f5e7c9c16976d4c455b6c"
+      "bytes": 29481496,
+      "sha256": "c699fddf72c40a1ccab44a7e8ad2f54df29cdaaf5051e771111552112ffa2089"
     },
     {
       "path": "public/documentation/text-to-lattice/text-to-lattice-security-model.html",
-      "bytes": 668830,
-      "sha256": "f6ba167b81c9324e4f16b35c4d0536aba87b38d7752b920fe517f8116b49c589"
+      "bytes": 671157,
+      "sha256": "eaf5079af2b0c7c36322379c77771c385faea54ea1d6698a51b724d1a757d184"
     },
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-SECURITY-MODEL.md",
-      "bytes": 957449,
-      "sha256": "68fd98ebe815cb57fbcb8cde1d32ab0ebd1193d590d7749a1c78ee579806e766"
+      "bytes": 962369,
+      "sha256": "6dbda2f10f06a62ea65b4e526e79da371b5ca0cb5ffb6340db877b1e95434172"
     },
     {
       "path": "public/documentation/text-to-lattice/text-to-lattice-service-blueprint.html",
