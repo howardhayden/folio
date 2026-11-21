@@ -1,3 +1,19 @@
+# G06 browser evidence following run 520
+
+Run [520](https://github.com/howardhayden/folio/actions/runs/44929757372) passed its supporting canary and the complete Pages archive check. GitHub accepted the [before-capture observer](https://github.com/howardhayden/folio/actions/runs/44930370162). The operator began restoration after its first two run listings were empty. The same observer subsequently completed successfully. Neither Safari nor Brave submitted text.
+
+[Restoration 521](https://github.com/howardhayden/folio/actions/runs/44930392179) recorded the API held at 17:31:02 UTC and the page held at 17:32:13 UTC on November 21. Both test windows were preserved. The next capture follows an accepted dispatch by reading its original run until it becomes visible or the existing observation window ends. Gate 06 still needs both native traces. The backend decisions from run 501 and all fourteen Firefox input checks from run 479 carry forward.
+
+# G06 browser evidence following run 516
+
+Run [516](https://github.com/howardhayden/folio/actions/runs/44925746461) stopped during the Pages archive download. GitHub identified the expected archive, but neither of the first two ranges produced a verified piece. Neither browser submitted text. [Restoration 517](https://github.com/howardhayden/folio/actions/runs/44926197049) recorded the API held at 16:44:52 UTC and the page held at 16:46:12 UTC on November 21. The Safari and Brave test profiles were preserved.
+
+A provider-free check downloaded all 10,217,048 bytes of the routine build 515 archive and verified its digest. The next browser window requires a successful archive check on the new candidate using the final range size. It carries the accepted backend decisions from run 501 and the fourteen Firefox input checks from run 479. G06 still requires one accepted Safari trace and one accepted Brave trace.
+
+# G06 browser qualification following the Safari result from #510
+
+GATE-06 needs one accepted Safari trace and one accepted Brave trace from this qualification window. Safari focused a withheld result in #510. Its public finding did not identify the underlying cause. The #511 restore and the separate scheduled cleanup recorded the API and page held. The GATE-02 and GATE-03 decisions from #501 and the fourteen Firefox input checks from #479 carry forward. The capture uses one supporting canary and one confirmed submission per native engine. Preserve the project’s recorded original runs and restore the public service on completion or failure.
+
 # G06 held parent after the Safari result from #510 — November 21
 
 GATE-06 remains open for current Safari and Brave network and reload traces. GATE-02 and GATE-03 retain their accepted #501 adjudication. The fourteen Firefox input checks from #479 still apply.
