@@ -1,3 +1,25 @@
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-21
+
+**Evidence updated:** 2026-11-21
+
+**Reviewed baseline:** `8fcbd09ee29f78668140c1cf0f3a0c04d39f7173`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `0203f29c96ed5a3e5373549d727c64fce6061712314a5638642f5a53ec0544d0`
+
+**Artifact-set projection SHA-256:** `1f865e7e1bb5f0879a29ff1d3257c3f6f082c9cd44c6f00c0c270ba5935e8863`
+
+Canonical-browser qualification alone remains pending. GATE-02 and GATE-03 retain the accepted run #501 adjudication, and the fourteen original #479 Firefox input checks remain dated evidence for unchanged input behavior. Run #504 had an accepted canary and displayed a non-error Safari result, but its operator capture did not seal. The prior original remains spent. This fresh source preserves the product, providers, acceptance, quotas, notice, diagram and November 21 date. Actual Safari and Brave seals are still required before GATE-06 can close; no final release is selected. This build is not qualified for final release. The workflow retains immediate held documentation-only rollback.
+
+This source change carries accepted backend and Firefox evidence. Only authentic new G06 evidence can close the remaining gate; no new API-only or Firefox qualification is requested.
+
+The complete held-parent dossier for the corrected operator capture after run #504 follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — held after incomplete operator capture in run #504
 
 **Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
