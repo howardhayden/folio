@@ -201,7 +201,7 @@ test("the qualification dossier leads with its current phase and retains verbati
   }[releaseState.releasePhase];
   assert.match(dossier, heading);
   assert.ok(dossier.includes(`**Qualification date:** ${releaseRegister.revision}`));
-  const controllingPrefix = dossier.split("The complete held-parent dossier after the Safari result in run #510 follows as dated history.")[0];
+  const controllingPrefix = dossier.split("The complete held-parent dossier for the corrected operator capture after run #504 follows verbatim as dated history.")[0];
   if (releaseState.qualificationPending) {
     assert.match(controllingPrefix, /not qualified|non-qualified/iu);
     assert.match(controllingPrefix, /canonical-browser qualification/iu);
