@@ -1,3 +1,44 @@
+# Text to Lattice release qualification — held after incomplete operator capture in run #504
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Qualification date:** 2026-11-21
+
+**Evidence updated:** 2026-11-21
+
+**Reviewed baseline:** `8b31428029f2473698902173c5f1a77ec43ae974`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `599f0b9c48e64f1cf38d125e0cbfe92a0ee526bc22314717d44813e93e30e5cc`
+
+**Artifact-set projection SHA-256:** `169f6be0db6f0198e9af4e5127326595b5aa30d98107ee80f9ca982755b91952`
+
+This is the required held first parent for a fresh G06 identity. GATE-02 and GATE-03 retain the exact accepted run #501 adjudication; the fourteen original #479 Firefox input checks remain dated evidence for unchanged input behavior. GATE-06 alone remains an open release blocker with null acceptance and no collected canonical bundle. Product runtime, providers, models, prompts, acceptance, quotas, diagram, notice, current page prose and November 21 date are unchanged. This local source preparation selects no new workflow, paid attempt, browser window or final release.
+
+| Gate | Status |
+| --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker |
+
+Original run #504 / 44911061520 / attempt 1 on 8b31428029f2473698902173c5f1a77ec43ae974 passed its backend canary and supplied authentic context and metadata BEFORE. Safari displayed a non-error result and recorded a stored acknowledgement, but the operator capture did not seal. The final hard reload occurred beyond the unchanged 300-second collector interval. The retained observation is not a complete canonical-browser envelope or GATE-06 acceptance. Brave was not submitted and metadata AFTER was not dispatched. The original remains spent. Included provider-free restoration #505 / 44912103268 / attempt 1 verified held API at 14:06:01.778 UTC and then held Pages at 14:07:09.252 UTC on November 21. The original #504 scheduled restoration separately completed successfully. It verified held API at 14:20:47.002 UTC and then held Pages at 14:21:08.466 UTC on November 21; its original archives and ordering passed independent review. These dated observations do not establish continuous hold.
+
+Only private operator capture transport and scheduling are being corrected. This checkpoint does not relax source binding, collector time limits, same-buffer review, original context, BEFORE/AFTER, seals or ordered restoration.
+
+The two established held publication switches and two current gate-expectation fixtures change among the 264 qualified files. The other 260 qualified files remain exact. Runtime, workflow, intended-version selection, diagram, consent and public project prose remain unchanged. The public project date remains November 21.
+
+[Original #504](https://github.com/howardhayden/folio/actions/runs/44911061520) · [Included restoration #505](https://github.com/howardhayden/folio/actions/runs/44912103268)
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending
 
 **Qualification date:** 2026-11-21

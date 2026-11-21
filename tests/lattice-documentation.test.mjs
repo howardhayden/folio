@@ -120,7 +120,7 @@ test("the atlas models the exact current remote phase without promoting historic
   assert.ok(historicalDisclosureThreat.sourceIds.includes("SRC-LLAMA-LICENSE"));
   assert.ok(historicalDisclosureThreat.sourceIds.includes("SRC-LLAMA-AUP"));
   // This held runtime correction requires fresh backend evidence; later phases require acceptance.
-  const expectedBackendStatus = () => releaseState.held ? "open-release-blocker" : "satisfied-in-production";
+  const expectedBackendStatus = () => "satisfied-in-production";
   assert.deepEqual(
     releaseRegister.gates.map(({ id, status }) => [id, status]),
     [
