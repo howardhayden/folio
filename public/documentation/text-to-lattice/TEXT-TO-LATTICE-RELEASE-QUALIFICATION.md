@@ -1,3 +1,44 @@
+# Text to Lattice release qualification — held after the Safari result in run #510
+
+**Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
+
+**Qualification date:** 2026-11-21
+
+**Evidence updated:** 2026-11-21
+
+**Reviewed baseline:** `70cd712a72047d758fb9e50255d8a7aed49d59c1`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `852667297ff0d77a2686b2dd21f74f8d6bd98a93c63fa406f02206442d3278ff`
+
+**Artifact-set projection SHA-256:** `169f6be0db6f0198e9af4e5127326595b5aa30d98107ee80f9ca982755b91952`
+
+GATE-06 remains open for current Safari and Brave network and reload traces. GATE-02 and GATE-03 retain their accepted #501 adjudication. The fourteen Firefox input checks from #479 still apply.
+
+| Gate | Status |
+| --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk |
+| GATE-06 · Remote production lifecycle and privacy trace | Open release blocker |
+
+Safari submitted once in original run #510 on 70cd712a72047d758fb9e50255d8a7aed49d59c1 and focused the terminal response after reverification. The service returned unable-to-attempt. The displayed reason was “The result did not clear every meaning check.” The supporting canary and authenticated BEFORE observation succeeded. Safari produced no sealed capture. Brave submitted no text. There was no AFTER observation. Restoration #511 recorded the API held at 15:42:34.824 UTC and Pages held at 15:43:47.926 UTC on November 21. The original scheduled restoration has a separate verified record.
+
+The next browser capture uses one short, ordinary instruction with a quoted notebook label. Each engine requires its own non-error terminal result, original screenshot, hard reload and sealed trace during the same qualification window.
+
+Both publication switches select the held page. The public project page retains its November 21 date.
+
+[Original #510](https://github.com/howardhayden/folio/actions/runs/44919750751) · [Restoration #511](https://github.com/howardhayden/folio/actions/runs/44920562807)
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending
 
 **Qualification date:** 2026-11-21
