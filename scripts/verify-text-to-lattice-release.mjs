@@ -293,7 +293,6 @@ const heldForbiddenExecutableStrings = Object.freeze([
   "Qwen/Qwen3-4B-Instruct-2507:nscale",
   "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra",
   "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-  "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
   "meta-llama/Llama-3.1-8B-Instruct:deepinfra",
   "meta-llama/Llama-3.1-8B-Instruct:nscale",
   "meta-llama/Llama-3.3-70B-Instruct:scaleway",
@@ -301,10 +300,10 @@ const heldForbiddenExecutableStrings = Object.freeze([
 ]);
 const staleEnabledPublicationPattern = /release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)|sole open (?:release )?blocker|held solely because|hold the interactive client/iu;
 const datedHeldDossierPublicationPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHeldDossierBoundary = Buffer.from("The complete held-parent dossier after the Safari result in run #510 follows as dated history.");
-const datedHeldDossierSeparator = Buffer.from("The complete held-parent dossier after the Safari result in run #510 follows as dated history.\n\n---\n\n");
-const datedHeldDossierBytes = 673885;
-const datedHeldDossierSha256 = "9e4ee1874e2e4e3f57e8bdde60ad2d5257f622ec7fc6b07589cd7840c3d9a540";
+const datedHeldDossierBoundary = Buffer.from("The complete held-parent dossier for the corrected operator capture after run #504 follows verbatim as dated history.");
+const datedHeldDossierSeparator = Buffer.from("The complete held-parent dossier for the corrected operator capture after run #504 follows verbatim as dated history.\n\n---\n\n");
+const datedHeldDossierBytes = 669634;
+const datedHeldDossierSha256 = "abc1bc1e7fe954bc0ee938f1e40a335fbb7895c9eddb66e7cb47b497c7fabe5b";
 const publishedReleaseRegister = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json";
 const previousOwnerDecisionSha256 = "b6cbc8c1fb9a75390acd0662e13c16859aadac847cf57330b28e7421da2ec135";
 const serializedVinextRscScript = /^\s*\(\(self\[Symbol\.for\("vinext\.navigationRuntime"\)\]\?\?=\{bootstrap:\{routeManifest:null\},functions:\{\}\}\)\.bootstrap\.rsc\?\?=\{rsc:\[\]\}\)\.rsc\.push\(("(?:\\[\s\S]|[^"\\])*")\)\s*;?\s*$/u;
@@ -897,7 +896,6 @@ function browserEvidenceIdentity(evidence) {
     deploymentEvidenceCheckedBeforeCapturesAt: deployment.deployment_evidence_checked_before_captures_at,
     deploymentEvidenceCheckedAfterCapturesAt: deployment.deployment_evidence_checked_after_captures_at,
     deploymentEvidenceUnchangedAcrossCaptures: deployment.deployment_evidence_unchanged_across_captures,
-    ...(Object.hasOwn(deployment, "qualification_mode") ? { qualificationMode: deployment.qualification_mode } : {}),
   });
 }
 
@@ -911,18 +909,16 @@ export async function verifyBrowserEvidenceAuthority(
   releaseState = verifyReleaseStatusState(register),
   verifyBundle = verifyBrowserEvidenceBundle,
 ) {
-  const hasMode = Object.hasOwn(register.authority?.browserEvidence ?? {}, "qualificationMode");
-  const authorityFields = [...browserEvidenceAuthorityFields, ...(hasMode ? ["qualificationMode"] : [])];
   const record = exactObjectFields(
     register.authority?.browserEvidence,
-    authorityFields,
+    browserEvidenceAuthorityFields,
     "authority.browserEvidence",
   );
   if (!releaseState.qualified) {
     if (record.status !== "not-collected") {
       fail("held and qualification-pending releases must classify browser evidence as not-collected.");
     }
-    for (const field of authorityFields.slice(1)) {
+    for (const field of browserEvidenceAuthorityFields.slice(1)) {
       if (record[field] !== null) {
         fail(`authority.browserEvidence.${field} must be null until the release is qualified.`);
       }
@@ -960,9 +956,6 @@ export async function verifyBrowserEvidenceAuthority(
     fail("qualified authority.browserEvidence.sha256 does not match the strict browser-evidence bundle bytes.");
   }
   const expectedIdentity = browserEvidenceIdentity(bundle.evidence);
-  if (hasMode !== Object.hasOwn(expectedIdentity, "qualificationMode")) {
-    fail("qualified authority.browserEvidence.qualificationMode does not match the strict browser-evidence bundle.");
-  }
   for (const [field, expected] of Object.entries(expectedIdentity)) {
     if (record[field] !== expected) {
       fail(`qualified authority.browserEvidence.${field} does not match the strict browser-evidence bundle.`);
@@ -1680,48 +1673,7 @@ export function verifyCoreWeaveReviewSelection(register) {
   }
 }
 
-export function verifyParasailGenerationSelection(register) {
-  const selected = register.parasailGenerationBackupSelection;
-  const provider = register.artifactSet?.activeCapability?.provider;
-  if (selected?.status !== "owner-selected-source-change"
-    || selected.standardGeneratorModel !== "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra"
-    || selected.selectedGeneratorModel !== "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail"
-    || selected.selectedGeneratorModel !== provider?.generatorModel
-    || selected.selectedGeneratorModel !== LATTICE_REMOTE_MODELS.generator
-    || selected.reviewModel !== "meta-llama/Llama-3.3-70B-Instruct:coreweave"
-    || selected.reviewModel !== provider?.verificationRequestModel
-    || selected.reviewModel !== provider?.certificationRequestModel
-    || selected.selection !== "manual-source-selection"
-    || selected.automaticRetry !== false || selected.requestLevelFallback !== false
-    || selected.requestLevelSecondRoute !== false
-    || selected.qualification !== "actual-G06-service-check-and-paired-native-traces-before-interactive-release"
-    || selected.backendEvidenceScope !== "dated-run-501-standard-route"
-    || selected.firefoxEvidenceScope !== "dated-run-479-input-behavior"
-    || register.artifactSet.activeCapability.automaticRetry !== false
-    || register.artifactSet.activeCapability.alternateProviderFallback !== false) {
-    fail("manual Parasail backup must retain the identical Qwen model, standard DeepInfra selection, CoreWeave review, dated evidence and no request-level fallback.");
-  }
-  const prior = register.priorStandardGenerationBeforeParasailBackup;
-  if (digest(Buffer.from(JSON.stringify(canonicalJson(prior)))) !== "ab0d9dbad0638dbb20d44e6c37c300a7bbee3f981b5deac7f84abc9a9912eff4"
-    || digest(Buffer.from(JSON.stringify(canonicalJson(register.coreWeaveReviewRoleSelection)))) !== "e684ecbdc3173ef757c167f2143e6fdfdd3ca63e9637b2354a3c6203c03e3c31") {
-    fail("historical standard-generation and CoreWeave selection must remain verbatim.");
-  }
-  for (const [rows, field, marker] of [
-    [prior.requirements, "requirement", "Previous standard-generation requirement follows verbatim as dated history. "],
-    [prior.activeEvidence, "activeCurrentEvidence", "Previous standard-generation evidence follows verbatim as dated history. "],
-  ]) {
-    for (const row of rows) {
-      const text = register.gates.find(({ id }) => id === row.id)?.[field];
-      const offset = text?.indexOf(marker) ?? -1;
-      if (offset < 0 || digest(Buffer.from(text.slice(offset + marker.length))) !== row.sha256) {
-        fail("standard-generation gate history must remain verbatim.");
-      }
-    }
-  }
-}
-
 async function verifySourceBoundary(register) {
-  verifyParasailGenerationSelection(register);
   verifyHistoricalOvhProviderEvidence(register);
   verifyHistoricalDeepInfraProviderEvidence(register);
   verifyCoreWeaveReviewSelection(register);
