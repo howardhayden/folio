@@ -54,8 +54,8 @@ const browserEvidenceIdentityFields = [
 ];
 
 const publishedDossierPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHistoryBoundary = Buffer.from("The complete held-parent dossier for the corrected operator capture after run #504 follows verbatim as dated history.");
-const datedHistorySeparator = Buffer.from("The complete held-parent dossier for the corrected operator capture after run #504 follows verbatim as dated history.\n\n---\n\n");
+const datedHistoryBoundary = Buffer.from("The complete held-parent dossier after the Safari result in run #510 follows as dated history.");
+const datedHistorySeparator = Buffer.from("The complete held-parent dossier after the Safari result in run #510 follows as dated history.\n\n---\n\n");
 const staleEnabledClaims = [
   "release gates remain open",
   "must agree before the converter can open",
@@ -106,8 +106,8 @@ test("enabled publication history permits only the exact bound canonical held do
   const boundary = dossier.indexOf(datedHistorySeparator);
   assert.ok(boundary > 0);
   const history = dossier.subarray(boundary + datedHistorySeparator.length);
-  assert.equal(history.length, 669634);
-  assert.equal(sha256(history), "abc1bc1e7fe954bc0ee938f1e40a335fbb7895c9eddb66e7cb47b497c7fabe5b");
+  assert.equal(history.length, 673885);
+  assert.equal(sha256(history), "9e4ee1874e2e4e3f57e8bdde60ad2d5257f622ec7fc6b07589cd7840c3d9a540");
   assert.match(history.toString("utf8"), /hold the interactive client/iu);
   const phase = verifyReleaseStatusState(await releaseRegister());
   if (phase.enabled) assert.doesNotThrow(() => verifyEqualDossierCopies(dossier));
@@ -1236,4 +1236,22 @@ test("the held-site validator rejects executable bypasses outside the résumé",
     (site) => appendToHtml(route(site), '<style>.preview { background: url("https://huggingface.co/mlc-ai/Llama-3.2-3B-Instruct-q4f16_1-MLC/resolve/model.safetensors"); }</style>'),
     /contains huggingface\.co\/mlc-ai\/Llama-3\.2-3B-Instruct-q4f16_1-MLC\/resolve\//u,
   );
+});
+
+test("qualified release retains the operator-ended browser mode and rejects omitted or contradictory authority", async () => {
+  const register = qualifyRegister(await releaseRegister());
+  const fixture = browserEvidenceFixture(register.authority.qualifiedSourceSet.sha256);
+  fixture.evidence.deployment.qualification_expires_at = null;
+  fixture.evidence.deployment.qualification_mode = "operator-ended";
+  fixture.record.qualificationExpiresAt = null;
+  fixture.record.qualificationMode = "operator-ended";
+  register.authority.browserEvidence = structuredClone(fixture.record);
+  const verifyBundle = async () => fixture.bundle;
+  await assert.doesNotReject(verifyBrowserEvidenceAuthority(register, verifyReleaseStatusState(register), verifyBundle));
+  for (const change of [v => delete v.qualificationMode, v => v.qualificationMode = "timed", v => v.qualificationExpiresAt = "2099-01-01T00:00:00.000Z"]) {
+    const invalid = structuredClone(register); change(invalid.authority.browserEvidence);
+    await assert.rejects(verifyBrowserEvidenceAuthority(invalid, verifyReleaseStatusState(invalid), verifyBundle), /qualificationMode|qualificationExpiresAt/u);
+  }
+  delete fixture.evidence.deployment.qualification_mode;
+  await assert.rejects(verifyBrowserEvidenceAuthority(register, verifyReleaseStatusState(register), verifyBundle), /qualificationMode/u);
 });

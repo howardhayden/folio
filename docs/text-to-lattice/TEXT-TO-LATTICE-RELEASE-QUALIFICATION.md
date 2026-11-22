@@ -1,3 +1,47 @@
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-22
+
+**Evidence updated:** 2026-11-22
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `e85c628098eb2ea7e14667f89ab09ea1ed605a65c5ed7f7f87ce471b1858e73c`
+
+**Artifact-set projection SHA-256:** `1f865e7e1bb5f0879a29ff1d3257c3f6f082c9cd44c6f00c0c270ba5935e8863`
+
+During the owner-authorized public G06 qualification, the service admits requests without either daily admission cap or an automatic service expiry. The operator restores the held API before the held page on completion or failure. Ordinary deployment enforces 30 transformations globally and 3 per browser cookie jar each UTC day. Other visitors can incur provider charges until the operator closes the qualification. Each request retains its existing provider-call, token and time limits.
+
+Acceptance requires successful Safari and Brave traces from the same deployed version, with a verified deployment observation before and after both captures within 30 minutes. The backend evidence from run 501 and all 14 Firefox input checks from run 479 carry forward.
+
+Run 563 passed the visitor-mode service check. Brave returned a translated result in the Operative register and reported the Result container focused. Its evidence recorder stopped before reload. In a later observation of the same page, the container extended 0.1797 CSS pixels below the viewport. The current layout gives the result a two-pixel scroll margin. A local Brave test reproduced the clipping and then completed the same strict lifecycle and mask checks with this margin. GATE-06 remains open pending complete Safari and Brave traces on one hosted deployment. The backend acceptance from run 501 and the fourteen Firefox input checks from run 479 carry forward. [Run 563](https://github.com/howardhayden/folio/actions/runs/44979994240)
+
+Run 539 made seven provider calls. The first draft failed the material-change check. After repair the candidate cleared deterministic checks and the verifier accepted it. Document certification withheld the result. The recorded diagnostic does not identify which certification check failed. Neither browser submitted. Restore 540 verified the API held at 23:24:45 UTC and Pages held at 23:25:59 UTC on November 21, 2026. [Run 539](https://github.com/howardhayden/folio/actions/runs/44961268132) · [Restore 540](https://github.com/howardhayden/folio/actions/runs/44961614630)
+
+Whole-document certification now explains how to read the analysis tuples supplied with the complete source and candidate. Different atoms can share a source excerpt. The certifier independently checks each commitment and whether the candidate introduces, removes, or changes a relation. Existing meaning checks, provider roles and call limits still apply. G06 requires a completed Safari trace and a completed Brave trace from the same revision. The earlier backend acceptance from run 501 and fourteen Firefox input checks from run 479 carry forward. The visitor-mode service check exercises the current certifier before the interactive page opens.
+
+Run 535 used the visitor’s auto mode and verified the uploaded Pages archive. The notebook candidate passed deterministic checks. After one repair, semantic verification still withheld the result before certification. The service reported five model calls. Neither Safari nor Brave submitted text. Restoration 536 verified the API held at 20:52:25 UTC and the page held at 20:53:07 UTC on November 21, 2026. [Run 535](https://github.com/howardhayden/folio/actions/runs/44947920264) · [Restoration 536](https://github.com/howardhayden/folio/actions/runs/44948487734)
+
+The repair prompt now explains the eleven fields in each passage’s verification feedback. This gives the generator the positions of missing atoms, failed checks and their evidence on its existing repair attempt. The exact reason for the notebook’s rejection remains unknown. G06 still requires output, network and reload evidence from native Safari and Brave on the same release revision. The accepted backend checks from run 501 and the fourteen Firefox input checks from run 479 remain current for their recorded scope.
+
+Run 532 used the visitor’s auto mode. The candidate cleared deterministic checks, but both verifier replies failed decision consistency. The service withheld the result before certification. The interactive page stayed held and neither browser submitted text. [Run 532](https://github.com/howardhayden/folio/actions/runs/44942945279).
+
+The owner authorized one corrected G06 window. Its auto-mode service check must pass before Safari and Brave can submit once each. Both browsers must produce output, privacy and reload evidence from the same revision. The earlier backend and Firefox results are retained. On its existing second attempt after a decision or issue conflicts with the reported checks, the verifier records gates, passage checks and supported issues before choosing its verdict. The strict host checks and provider call limits still apply. Before changing the service, the qualification runner authenticates the original GitHub Pages ZIP, verifies the TAR against the build digest and hashes the canonical résumé page inside it. The operator authenticates the small runner receipt during native capture and checks the full original archive after restoration before accepting G06.
+
+The site owner selected the visitor’s auto mode for the single notebook check already included in the next G06 browser window. The original activation must explicitly select it. The check sends the same notebook text, terminal line feed and JSON diagnostic request through the existing service. It applies the existing certification and meaning checks before publishing the interactive page. Other operations use the existing operative check. A refusal keeps the page held.
+
+In run 528 the built-in operative check accepted the unchanged passage. Safari submitted identical text in auto mode and received a withheld result after verification. Brave had not submitted when the window was restored. G06 remains open pending an output-bearing privacy and reload trace in each browser on the same revision. Runs 501 and 479 supply the accepted backend and Firefox evidence.
+
+GATE-06 needs one accepted Safari trace and one accepted Brave trace from this qualification window. Safari focused a withheld result in #510. Its public finding did not identify the underlying cause. The #511 restore and the separate scheduled cleanup recorded the API and page held. The GATE-02 and GATE-03 decisions from #501 and the fourteen Firefox input checks from #479 carry forward. This build is deployed only for immediate canonical-browser qualification and is not qualified for final release. The workflow retains immediate held documentation-only rollback.
+
+This source change carries accepted backend and Firefox evidence. Only authentic new G06 evidence can close the remaining gate; no new API-only or Firefox qualification is requested.
+
+The complete held-parent dossier after the Safari result in run #510 follows as dated history.
+
+---
+
 # Text to Lattice release qualification — held after the Safari result in run #510
 
 **Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
