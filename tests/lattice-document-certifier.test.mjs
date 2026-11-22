@@ -188,6 +188,42 @@ test("the document-certification contract is strict and model-visible", () => {
   for (const name of LATTICE_DOCUMENT_CERTIFICATION_CHECKS) assert.match(guide, new RegExp(name, "u"));
 });
 
+test("compact whole-document certification explains the supplied analysis claims", async () => {
+  let request;
+  const adapter = adapterFor({
+    certify(value) {
+      request = value;
+      return rawCertification(value);
+    },
+  });
+  await runTextToLattice(tokens(80), { adapter });
+  const compact = { responseDialect: "compact-wire-v2" };
+  const messages = documentCertificationMessages(request, compact);
+  const payload = inertPayload(messages);
+  const passage = request.analysis.passages[0];
+  const atom = passage.atoms[0];
+  assert.deepEqual(payload.analysisClaims[1][0][5][0], [
+    atom.id, atom.kind, atom.value, atom.priority, atom.preservation,
+    atom.evidenceSpanIds, atom.links.map(({ relation, targetAtomId }) => [relation, targetAtomId]),
+  ]);
+  const instruction = messages[0].content;
+  assert.match(instruction, /analysisClaims is \[document kind, passages\]/u);
+  assert.match(instruction, /different typed atoms can share a source excerpt/u);
+  assert.match(instruction, /absent from both documents/u);
+  assert.match(instruction, /introduces, removes, or changes/u);
+  assert.match(instruction, /every obligation and check is true/u);
+  assert.equal(messages[1].content, documentCertificationMessages(request)[1].content);
+  const otherMessages = [
+    documentCertificationMessages(request),
+    documentCertificationMessages({ ...request, analysis: null }, compact),
+    documentCertificationMessages({ ...request, scope: "window" }, compact),
+    documentCertificationMessages({ ...request, scope: "relations" }, compact),
+  ];
+  for (const [system] of otherMessages) {
+    assert.doesNotMatch(system.content, /analysisClaims is \[document kind, passages\]/u);
+  }
+});
+
 test("a passing multi-batch candidate receives one whole-document certification", async () => {
   const source = tokens(90);
   const reports = [];
