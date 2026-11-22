@@ -1251,13 +1251,13 @@ async function verifyNegativeProbes(origin, fetchImpl, monotonicNow, visitorCook
   return Object.freeze({ outcomes: Object.freeze(evidence), admissionObservations: Object.freeze(admissionObservations) });
 }
 
-async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visitorCookieHeader, requireAdmissionEvidence, requestedMode) {
+async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visitorCookieHeader, requireAdmissionEvidence) {
   const label = "synthetic transformation canary";
   const startedAt = monotonicNow();
   const response = await fetchOnce(
     fetchImpl,
     `${origin}${LATTICE_API_PATH}`,
-    withVisitorCookie(apiPost({ ...LATTICE_PRODUCTION_CANARY_REQUEST, requested_mode: requestedMode }, {
+    withVisitorCookie(apiPost(LATTICE_PRODUCTION_CANARY_REQUEST, {
       headers: {
         [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]:
           LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
@@ -1680,7 +1680,7 @@ async function verifyTransformationCanary(origin, fetchImpl, monotonicNow, visit
     automatic_retry: false,
     elapsed_ms: elapsedMilliseconds(startedAt, monotonicNow, label),
     response_bytes: bytes.byteLength,
-    input_id: requestedMode === "auto" ? "synthetic-notebook-auto-certification-v2" : "synthetic-notebook-certification-v2",
+    input_id: "synthetic-notebook-certification-v2",
     input_requires_document_certification: true,
     input_content_recorded: false,
     result_content_recorded: false,
@@ -1746,13 +1746,8 @@ export async function verifyTextToLatticeApiProduction({
   onPreflightEvidence,
   onUsageEvidence,
   requireAdmissionEvidence = true,
-  canaryRequestedMode = LATTICE_PRODUCTION_CANARY_REQUEST.requested_mode,
   context,
 } = {}) {
-  if (!["operative", "auto"].includes(canaryRequestedMode)
-    || (canaryRequestedMode === "auto" && requireAdmissionEvidence !== true)) {
-    throw new TypeError("The live API verifier received an invalid qualification canary mode.");
-  }
   if (typeof requireAdmissionEvidence !== "boolean" || typeof fetchImpl !== "function" || typeof now !== "function"
     || typeof monotonicNow !== "function" || typeof wait !== "function"
     || (onPreflightEvidence !== undefined && typeof onPreflightEvidence !== "function")
@@ -1880,7 +1875,6 @@ export async function verifyTextToLatticeApiProduction({
     monotonicNow,
     visitorSession.requestHeader,
     requireAdmissionEvidence,
-    canaryRequestedMode,
   );
   const visitorSessionPostflight = await verifyVisitorSessionPostflight(
     exactOrigin, fetchImpl, monotonicNow, now, visitorSession, requireAdmissionEvidence,
@@ -1937,7 +1931,6 @@ async function main() {
   let usageEvidence;
   const evidence = await verifyTextToLatticeApiProduction({
     origin: process.env.LATTICE_API_BASE_URL,
-    canaryRequestedMode: process.env.LATTICE_CANARY_REQUEST_MODE,
     requireAdmissionEvidence: parseLatticeRequireAdmissionEvidence(process.env.LATTICE_REQUIRE_ADMISSION_EVIDENCE),
     onUsageEvidence(value) { usageEvidence = value; },
     onPreflightEvidence: async (preflightEvidence) => {
