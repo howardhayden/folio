@@ -1,6 +1,6 @@
 ---
 title: Lattice system skill map
-revision: 2026-11-22
+revision: 2026-11-21
 authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
@@ -280,12 +280,6 @@ Uses stable versions, schemas, identifiers, profile digests, typed failures, ver
 - **SRC-COREWEAVE-INFERENCE — CoreWeave serverless inference retention and optional tracing:** [Reviewed source](https://www.coreweave.com/products/coreweave-forge/serverless-inference)
 - **SRC-COREWEAVE-TERMS — CoreWeave service terms:** [Reviewed source](https://docs.coreweave.com/policies/terms-of-service)
 - **SRC-COREWEAVE-PRIVACY — CoreWeave privacy policy:** [Reviewed source](https://docs.coreweave.com/policies/terms-of-service/privacy-policy)
-- **SRC-PARASAIL-TERMS — Parasail terms of service:** [Reviewed source](https://www.parasail.io/legal/terms-of-service)
-- **SRC-PARASAIL-PRIVACY — Parasail privacy policy:** [Reviewed source](https://www.parasail.io/legal/privacy-policy)
-- **SRC-PARASAIL-SECURITY — Parasail serverless security and account management:** [Reviewed source](https://docs.parasail.io/parasail-docs/security-and-account-management/overview)
-- **SRC-VENICE-PRIVACY-OVERVIEW — Venice privacy tiers overview:** [Reviewed source](https://venice.ai/privacy)
-- **SRC-VENICE-PRIVACY-POLICY — Venice privacy policy:** [Reviewed source](https://venice.ai/legal/privacy-policy)
-- **SRC-VENICE-TERMS — Venice terms of service:** [Reviewed source](https://venice.ai/legal/tos)
 
 ## Terms and provenance
 

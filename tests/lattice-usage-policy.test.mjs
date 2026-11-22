@@ -2367,7 +2367,7 @@ test("the UI makes one consented same-origin content request after bodyless visi
   assert.match(source, /OpenRouter records metadata and may categorize prompts or retain content for safety or legal purposes/iu);
   assert.match(source, /Hugging Face’s settings for this route are unknown/iu);
   assert.match(source, /LLAMA_3_3_PUBLIC_TERMS\.acceptableUseUrl/u);
-  assert.match(source, /https:\/\/venice\.ai\/legal\/tos/u);
+  assert.match(source, /https:\/\/deepinfra\.com\/terms/u);
   assert.ok(source.indexOf("retain content for safety or legal purposes") < source.indexOf('id="lattice-use-confirmation"'), "material processing terms are disclosed before confirmation");
 
   assert.match(remoteProtocolSource, /LATTICE_API_PATH = "\/api\/lattice"/u);
@@ -2408,15 +2408,15 @@ test("the canonical no-JavaScript contract exposes remote capability and privacy
   assert.match(source, /id="text-to-lattice-usage"/u);
   assert.match(source, /Same-origin <code>POST \/api\/lattice<\/code>; no query string, redirect, or provider origin; one browser-owned API-scoped quota cookie/u);
   assert.match(source, /\{"\{text, requested_mode, schema_version: 1\}"\}/u);
-  assert.match(source, /Venice serves the fixed Qwen3-235B-A22B-Instruct-2507 generator as the manually selected third backup\. CoreWeave serves the Llama 3\.3 70B Instruct verifier and certifier\. Hugging Face routes both models through OpenRouter/u);
+  assert.match(source, /DeepInfra serves the fixed Qwen3-235B-A22B-Instruct-2507 generator\. CoreWeave serves the Llama 3\.3 70B Instruct verifier and certifier\. Hugging Face routes both models through OpenRouter/u);
   assert.match(source, /No hah\.dev application storage, raw-content logging, caching, queueing, or analytics/u);
   assert.match(source, /no browser retry and no provider or model fallback/u);
   assert.match(source, /security\.api\.rules\.map/u);
   assert.match(source, /The Hugging Face token is an encrypted server-side Worker secret and never enters the browser or response/u);
   assert.match(source, /WebLLM\/MLC download path, bodyless quota lease, Turnstile attestation frame, renewal, and release protocol are inactive/u);
-  assert.match(source, /Hugging Face, OpenRouter, Venice and CoreWeave process this text/u);
+  assert.match(source, /Hugging Face, OpenRouter, DeepInfra and CoreWeave process this text/u);
   assert.match(textToLatticeContract.securityAndPrivacy.huggingFace.residualDisclosure, /including unflagged requests on Safety Retention endpoints/u);
-  assert.match(textToLatticeContract.securityAndPrivacy.huggingFace.residualDisclosure, /Venice may send your text to a compute partner\. Retention depends on the privacy tier\. The tier and compute partner for this route are unverified/u);
+  assert.match(textToLatticeContract.securityAndPrivacy.huggingFace.residualDisclosure, /temporary in-memory caching, operational metadata, authorized support retention of up to 30 days/u);
   assert.match(source, /<noscript><p className="lattice-noscript-note">/u);
   assert.doesNotMatch(source, /policy\.(?:globalRequests|globalDailyRequests|globalAttempts|globalGrants|activeLeases|enforcement|freeTierBasis)/u);
 });
