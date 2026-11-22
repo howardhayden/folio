@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import Ajv from "ajv";
+import { LATTICE_SERVICE_EVENTS_MIME } from "../app/resume/lattice/serviceTelemetry.js";
 
 import { getLatticeVerificationPriorRejection, preflightLatticeInput, runTextToLattice } from "../app/resume/latticeDemo.js";
 import {
@@ -77,6 +78,7 @@ import {
 import {
   LATTICE_TRANSFORMATIONS_PER_UTC_DAY,
   LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY,
+  isOperatorEndedQualification,
   claimLatticeTransformation,
   latticeTransformationStateExpiresAt,
 } from "../workers/text-to-lattice-api/capacityPolicy.js";
@@ -490,9 +492,9 @@ function acceptingCertificationWire(certificateId, obligationIds) {
   });
 }
 
-function canaryAnalysisWire(body, { retain = false } = {}) {
+function canaryAnalysisWire(body, { retain = false, expectedMode = "operative" } = {}) {
   const payload = inertModelPayload(body);
-  assert.equal(payload.requestedMode, "operative");
+  assert.equal(payload.requestedMode, expectedMode);
   assert.equal(Object.hasOwn(payload, "clarificationAnswers"), false);
   assert.match(body.messages[0].content, /never ask a public question/u);
   assert.equal(payload.passages.length, 1);
@@ -607,12 +609,28 @@ function strictReviewSchema(body, expectedName, expectedModel = TEST_REVIEW_MODE
   return body.response_format.json_schema.schema;
 }
 
-function fittedVerificationSchemaForBody(body) {
+function fittedVerificationSchemaForBody(body, order = ["d", "g", "p", "i"]) {
   assert.equal(isVerificationBody(body), true);
   const schema = strictReviewSchema(body, VERIFICATION_TOOL_NAME);
-  assert.deepEqual(schema.required, ["d", "g", "p", "i"]);
+  assert.deepEqual(schema.required, order);
+  assert.deepEqual(Object.keys(schema.properties), order);
   assert.equal(schema.additionalProperties, false);
   return schema;
+}
+
+function assertVerificationCorrectionPresentation(first, second, evidenceFirst) {
+  const original = fittedVerificationSchemaForBody(first);
+  const order = evidenceFirst ? ["g", "p", "i", "d"] : original.required;
+  const correction = fittedVerificationSchemaForBody(second, order);
+  assert.deepEqual(correction, { ...original, required: order });
+  assert.deepEqual(inertModelPayload(second).wireLayout.rootFields, order);
+  if (evidenceFirst) {
+    assert.match(second.messages[0].content, /Choose d last from that fresh assessment/u);
+    assert.match(second.messages[0].content, /four root fields g, p, i, and d/u);
+    assert.doesNotMatch(second.messages[0].content, /four root fields d, g, p, and i/u);
+  } else {
+    assert.doesNotMatch(second.messages[0].content, /Choose d last from that fresh assessment/u);
+  }
 }
 
 test("Inherited review schema projection preserves exhaustive legal binary masks without mutating fitted constraints", async () => {
@@ -859,7 +877,8 @@ test("issue scope schemas preserve actual host exhaustion, retained negatives an
         wire.p["0"].f = checks.map((name) => name === check ? "1" : "0").join("");
         if (kind !== "negative-without-issue") wire.i = [{ c: issueChecks.indexOf(check), p: 0 }];
       }
-      const validate = new Ajv({ strict: false }).compile(fittedVerificationSchemaForBody(body));
+      const order = current.protocolFeedback ? ["g", "p", "i", "d"] : ["d", "g", "p", "i"];
+      const validate = new Ajv({ strict: false }).compile(fittedVerificationSchemaForBody(body, order));
       assert.equal(validate(wire), kind !== "document-scope");
       if (current.protocolFeedback) {
         assert.equal(current.protocolFeedback.attempt, 2);
@@ -1075,6 +1094,21 @@ test("the qualification API fails closed at its absolute evidence expiry", async
   assert.equal(response.headers.has("set-cookie"), false);
   assert.equal(response.headers.has("access-control-allow-origin"), false);
   assert.equal(downstreamCalls, 0);
+});
+
+test("only the operator-ended deployment binding opens G06 without a service expiry", async () => {
+  const open = { LATTICE_QUALIFICATION_MODE: "operator-ended" };
+  const conflicting = {
+    ...open,
+    [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z",
+  };
+  assert.equal(isOperatorEndedQualification(open), true);
+  const worker = createLatticeApiWorker();
+  for (const env of [conflicting, { LATTICE_QUALIFICATION_MODE: "" }, { LATTICE_QUALIFICATION_MODE: "unknown" }]) {
+    assert.equal(isOperatorEndedQualification(env), false);
+    assert.equal((await worker.fetch(apiRequest(), env)).status, 503);
+  }
+  assert.equal(isOperatorEndedQualification({}), false);
 });
 
 test("an admitted stalled pipeline is cut off at qualification expiry without output or cookie leakage", async () => {
@@ -2124,7 +2158,9 @@ test("actual layer, conformance and issue corrections precede material repair wi
               "issue-mask-index": /Rebuild issue\/check\/scope alignment/u,
               "issue-global-scope": /Rebuild issue\/check\/scope alignment/u };
             assert.match(body.messages[0].content, hints[firstFailure]);
-            if (firstFailure !== "V01F") assert.match(body.messages[0].content, /Replace the complete d\/g\/p\/i result/u);
+            if (firstFailure !== "V01F" && !firstFailure.startsWith("issue-")) {
+              assert.match(body.messages[0].content, /Replace the complete d\/g\/p\/i result/u);
+            }
             if (correctionFailure === "V01F") delete wire.i;
             if (correctionFailure === "V19") wire.p["0"].c.s = "100";
             if (correctionFailure === "V24O") wire.i = [0];
@@ -2172,7 +2208,7 @@ test("actual layer, conformance and issue corrections precede material repair wi
           assert.match(prompt, /Never invent or erase a failure or change the independent verdict/u);
         } else assert.doesNotMatch(prompt, /Rebuild issue\/check\/scope alignment/u);
       }
-      assert.deepEqual(fittedVerificationSchemaForBody(bodies[0]), fittedVerificationSchemaForBody(bodies[1]));
+      assertVerificationCorrectionPresentation(bodies[0], bodies[1], firstFailure.startsWith("issue-"));
       for (const body of bodies.slice(0, 2)) {
         assert.deepEqual(inertModelPayload(body).deterministicFindings.map(({ id }) => id), ["candidate-not-material"]);
         assert.doesNotMatch(JSON.stringify(body), /V17M|V19|V01F|V24O|D14/u);
@@ -2249,7 +2285,7 @@ test("actual decision-alignment corrections preserve independent judgment, exhau
       assert.equal(Boolean(inertModelPayload(target[0]).deterministicFindings?.length), false);
       assert.equal(Object.hasOwn(inertModelPayload(target[0]), "retry"), false);
       assert.equal(inertModelPayload(target[1]).retry, "private-verification-wire-invalid");
-      assert.deepEqual(fittedVerificationSchemaForBody(target[0]), fittedVerificationSchemaForBody(target[1]));
+      assertVerificationCorrectionPresentation(target[0], target[1], true);
       for (let index = 0; index < bodies.length; index += 1) {
         const body = bodies[index], prompt = body.messages[0].content;
         assert.equal(body.model, TEST_REVIEW_MODEL);
@@ -2273,6 +2309,42 @@ test("actual decision-alignment corrections preserve independent judgment, exhau
       }
     });
   }
+});
+
+test("visitor auto and qualification use the same verifier correction for conflicting evidence", async () => {
+  const repairText = "A guest sets a blue notebook on the desk, reads the first page, then shuts it.";
+  const corrections = [];
+  for (const mode of ["qualification", "ordinary JSON", "ordinary stream"]) {
+    const reviews = [];
+    const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body, { expectedMode: "auto" }));
+      if (isCandidateBody(body)) return successfulProviderResponse(canaryCandidateFromProviderBody(body, repairText));
+      assert.ok(isVerificationBody(body), "contradictory reviews must withhold before certification");
+      reviews.push(body);
+      const wire = canaryVerificationWire(body);
+      wire.d = 2;
+      return successfulProviderResponse(wire);
+    } });
+    const stream = mode === "ordinary stream";
+    const response = await worker.fetch(apiRequest({ ...LATTICE_PRODUCTION_CANARY_REQUEST, requested_mode: "auto" }, {
+      accept: stream ? LATTICE_SERVICE_EVENTS_MIME : "application/json",
+      headers: mode === "qualification" ? {
+        [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+      } : {},
+    }), { HF_TOKEN: "server-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-10-04T14:00:00.000Z" });
+    assert.equal(response.status, 200);
+    const result = stream
+      ? JSON.parse((await response.text()).trimEnd().split("\n").at(-1)).body.result
+      : (await json(response)).result;
+    assert.equal(result.status, "unable-to-attempt");
+    assert.equal(result.text, null);
+    assert.equal(reviews.length, 2);
+    assertVerificationCorrectionPresentation(reviews[0], reviews[1], true);
+    corrections.push(reviews);
+  }
+  assert.deepEqual(corrections[0], corrections[1]);
+  assert.deepEqual(corrections[0], corrections[2]);
 });
 
 test("independent acceptance cannot clear a candidate atom claim mismatch", async (context) => {
@@ -2493,7 +2565,7 @@ test("reverification corrections preserve fixed strict-schema transport, decisio
             if (toolName === VERIFICATION_TOOL_NAME) {
               verifies += 1;
               assert.equal(url, TEST_REVIEW_URL);
-              fittedVerificationSchemaForBody(body);
+              fittedVerificationSchemaForBody(body, verifies === 3 ? ["g", "p", "i", "d"] : ["d", "g", "p", "i"]);
               const wire = structuredClone(canaryVerificationWire(body));
               if (verifies === 1) {
                 wire.d = 1;
@@ -2533,7 +2605,7 @@ test("reverification corrections preserve fixed strict-schema transport, decisio
         assert.equal(calls.length, recover ? 7 : 6);
         assert.equal(envelope.result.status === "translated", recover);
         const verifyBodies = calls.filter(isVerificationBody);
-        assert.deepEqual(fittedVerificationSchemaForBody(verifyBodies[1]), fittedVerificationSchemaForBody(verifyBodies[2]));
+        assertVerificationCorrectionPresentation(verifyBodies[1], verifyBodies[2], true);
         for (const body of verifyBodies) {
           assert.equal(body.model, TEST_REVIEW_MODEL);
           assert.equal(body.max_tokens, 2_048);
@@ -2619,6 +2691,75 @@ test("repair and reject wire records still require grounded layer support and ev
   }
 });
 
+test("repair feedback legend describes only outgoing negative passage tuples", async (context) => {
+  const base = minimalVerificationRequest();
+  const passageId = base.batch.passages[0].id;
+  const atomId = base.analysis.passages[0].atoms[0].id;
+  const spanId = base.sourceSpans[0].spans[0].id;
+  const criterion = LATTICE_CONFORMANCE_CRITERIA.universal[0];
+  const negativePassage = {
+    passageId, missingAtomIds: [atomId],
+    unsupportedClaims: [{ claim: "PRIVATE-UNSUPPORTED-CLAIM", evidence: "PRIVATE-CLAIM-EVIDENCE" }],
+    unmodeledSpanIds: [spanId], semanticFidelity: false,
+    conformanceEvidenceSpanIds: [spanId], requiresPositiveConformance: true,
+    conformanceConfirmed: false, independentLayer: "operative",
+    layerEvidenceAtomIds: [atomId], layerEvidenceSpanIds: [spanId],
+    criterionChecks: [{ criterion, passed: false, evidenceSpanIds: [spanId] }],
+  };
+  const emptyPassage = {
+    ...negativePassage, missingAtomIds: [], unsupportedClaims: [], unmodeledSpanIds: [],
+    semanticFidelity: true, conformanceEvidenceSpanIds: [], requiresPositiveConformance: false,
+    conformanceConfirmed: true, criterionChecks: [],
+  };
+  const feedback = (decision, passages) => ({
+    decision, gates: { semanticFidelity: decision === "accept" }, passages,
+    issues: decision === "accept" ? [] : [{ check: "semanticFidelity", passageId }], questions: [],
+  });
+  const cases = [
+    ["repair", feedback("repair", [negativePassage]), true],
+    ["reject", feedback("reject", [negativePassage]), true],
+    ["empty feedback passages", feedback("repair", []), false],
+    ["passage filtered out of outgoing feedback", feedback("repair", [emptyPassage]), false],
+    ["no feedback", null, false],
+    ["positive feedback with an encoded passage", feedback("accept", [{
+      ...emptyPassage, conformanceEvidenceSpanIds: [spanId],
+    }]), false],
+  ];
+  for (const [name, verification, expectLegend] of cases) {
+    await context.test(name, async () => {
+      const calls = [];
+      const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+        calls.push(JSON.parse(init.body));
+        return successfulProviderResponse({ passages: [] });
+      } });
+      await adapter.repair({ ...base, verification });
+      assert.equal(calls.length, 1);
+      assert.equal(adapter.completionCapacity().used, 1);
+      const body = calls[0];
+      const encoded = inertModelPayload(body).verification;
+      const system = body.messages[0].content;
+      if (expectLegend) {
+        assert.deepEqual(encoded, [name, ["semanticFidelity"], [[
+          passageId, [atomId], ["unsupported-meaning"], [spanId], ["semanticFidelity"],
+          [spanId], true, "operative", [atomId], [spanId], [[criterion, [spanId]]],
+        ]], [["semanticFidelity", passageId]]]);
+        assert.match(system, /Feedback passage tuples are \[passage ID, missing atom IDs, unsupported marker list, unmodeled span IDs, failed check names, conformance evidence span IDs, conformance-failed boolean, independent layer, layer-evidence atom IDs, layer-evidence span IDs, failed criterion checks\]/u);
+        assert.match(system, /unsupported marker list is \[\] or \["unsupported-meaning"\], never claim prose/u);
+        assert.match(system, /failed criterion check is \[criterion name, evidence span IDs\]/u);
+      } else {
+        assert.doesNotMatch(system, /Feedback passage tuples are/u);
+        if (verification === null) assert.equal(encoded, null);
+        else assert.equal(encoded[2].length, name.startsWith("positive") ? 1 : 0);
+      }
+      assert.doesNotMatch(JSON.stringify(body), /PRIVATE-UNSUPPORTED-CLAIM|PRIVATE-CLAIM-EVIDENCE/u);
+      assert.deepEqual(body.response_format, { type: "json_object" });
+      assert.equal(body.model, LATTICE_REMOTE_MODELS.generator);
+      assert.equal(body.max_tokens, LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.repair);
+      assert.match(system, /repair every finding/u);
+    });
+  }
+});
+
 test("compact drafting and repair derive concrete plans from source rather than generic layer labels", async () => {
   const base = minimalAnalysisRequest("A visitor places a blue notebook on the desk, reads the first page, and closes it.");
   const request = { ...base, sourceSpans: latticeSourceSpansForBatch(base.batch), analysisAtomLimit: 12 };
@@ -2675,6 +2816,93 @@ test("host-schema drafting and repair preserve detailed plans by default and exp
   }
 });
 
+test("compact repair grounds serialized feedback IDs in host source without changing dense plans or privacy", async () => {
+  const base = minimalVerificationRequest("If the latch is closed, leave item AB_47 on shelf CD_85; otherwise move it to tray EF_12.");
+  const group = base.sourceSpans[0];
+  const ordinary = group.spans.filter(({ kind }) => kind === "source");
+  const literal = group.spans.find(({ kind }) => kind === "literal");
+  assert.ok(ordinary.length >= 5);
+  assert.ok(literal);
+  const passage = {
+    passageId: group.passageId, missingAtomIds: [],
+    unsupportedClaims: [{ claim: "PRIVATE-REVIEW-CLAIM", evidence: "PRIVATE-REVIEW-EXPLANATION" }],
+    unmodeledSpanIds: [ordinary[0].id], clarity: false,
+    conformanceEvidenceSpanIds: [ordinary[1].id], conformanceConfirmed: false,
+    independentLayer: "operative", layerEvidenceAtomIds: ["a1"],
+    layerEvidenceSpanIds: [ordinary[2].id, ordinary[2].id, literal.id],
+    criterionChecks: [
+      { criterion: "clarity", passed: false, evidenceSpanIds: [ordinary[3].id] },
+      { criterion: "accuracy", passed: true, evidenceSpanIds: [ordinary[4].id] },
+    ],
+  };
+  const request = { ...base,
+    feedbackSourceSpans: [[group.passageId, [[ordinary[0].id, "CALLER-SPOOF"]]]],
+    verification: { decision: "repair", gates: { clarity: false }, passages: [passage],
+      issues: [{ check: "clarity", passageId: group.passageId, message: "PRIVATE-ISSUE" }] },
+  };
+  const before = JSON.stringify(request);
+  const bodies = [];
+  const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+    bodies.push(JSON.parse(init.body));
+    return successfulProviderResponse({ passages: [] });
+  } });
+  for (const repairFromSource of [false, true]) {
+    for (const correction of [false, true]) {
+      const current = { ...request, repairFromSource,
+        ...(correction ? { protocolFeedback: { stage: "repair", attempt: 2, category: "response-shape" } } : {}),
+      };
+      const host = inertModelPayload({ messages: repairMessages(current) });
+      const compact = inertModelPayload({ messages: repairMessages(current, { analysisPlanDialect: "compact-wire-v2" }) });
+      assert.equal(Object.hasOwn(host, "feedbackSourceSpans"), false, "host dialect retains its existing representation");
+      assert.deepEqual(compact.feedbackSourceSpans, [[group.passageId,
+        ordinary.slice(0, 4).map(({ id, text }) => [id, text])]]);
+      assert.deepEqual(compact.sourcePassages, host.sourcePassages, "complete text and exact-literal bindings stay unchanged");
+      assert.deepEqual(compact.analysis, host.analysis, "do not restore verbose evidence arrays for all atoms");
+      assert.deepEqual(compact.verification, host.verification, "the same redacted feedback is grounded, not rewritten");
+      assert.equal(Object.hasOwn(compact, "rejectedCandidate"), !repairFromSource);
+      assert.doesNotMatch(JSON.stringify(compact), /PRIVATE-REVIEW|PRIVATE-ISSUE|CALLER-SPOOF/u);
+      await adapter.repair(current);
+      const body = bodies.at(-1);
+      assert.deepEqual(inertModelPayload(body), compact, "the actual hosted repair adapter uses the corrected projection");
+      assert.match(body.messages[0].content, /not verbatim output requirements/u);
+      assert.equal(body.max_tokens, 800);
+      assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail");
+      assert.deepEqual(body.response_format, { type: "json_object" });
+    }
+  }
+  const clarityOnly = { ...request, verification: { decision: "repair", gates: { clarity: false }, issues: [],
+    passages: [{ ...passage, unsupportedClaims: [], unmodeledSpanIds: [], conformanceEvidenceSpanIds: [],
+      layerEvidenceSpanIds: [ordinary[0].id], criterionChecks: [] }],
+  } };
+  assert.deepEqual(inertModelPayload({ messages: repairMessages(clarityOnly, { analysisPlanDialect: "compact-wire-v2" }) })
+    .feedbackSourceSpans, [[group.passageId, [[ordinary[0].id, ordinary[0].text]]]], "ordinary clarity-only repair reproduces the disconnected-reference defect");
+  for (const verification of [null, { decision: "repair", gates: {}, passages: [], issues: [] },
+    { ...clarityOnly.verification, passages: [{ ...clarityOnly.verification.passages[0], layerEvidenceSpanIds: [literal.id] }] }]) {
+    const projected = repairMessages({ ...request, verification }, { analysisPlanDialect: "compact-wire-v2" });
+    assert.equal(Object.hasOwn(inertModelPayload({ messages: projected }), "feedbackSourceSpans"), false);
+    assert.doesNotMatch(projected[0].content, /feedbackSourceSpans/u);
+  }
+  for (const layerEvidenceSpanIds of [["unknown-span"], [`other-passage:${ordinary[0].id}`]]) {
+    const invalid = { ...clarityOnly, verification: { ...clarityOnly.verification,
+      passages: [{ ...clarityOnly.verification.passages[0], layerEvidenceSpanIds }],
+    } };
+    assert.throws(() => repairMessages(invalid, { analysisPlanDialect: "compact-wire-v2" }), /unavailable source evidence/u);
+  }
+  const measuredBytes = Buffer.byteLength(JSON.stringify(bodies[0]), "utf8");
+  assert.ok(measuredBytes < LATTICE_PROVIDER_REQUEST_BYTE_LIMIT);
+  let exactCalls = 0;
+  await createHuggingFaceLatticeAdapter({ token: "server-token", maximumRequestBytes: measuredBytes,
+    fetchImpl: async () => { exactCalls += 1; return successfulProviderResponse({ passages: [] }); },
+  }).repair({ ...request, repairFromSource: false });
+  assert.equal(exactCalls, 1);
+  await assert.rejects(createHuggingFaceLatticeAdapter({ token: "server-token", maximumRequestBytes: measuredBytes - 1,
+    fetchImpl: async () => { assert.fail("oversized grounded repair must refuse before transport"); },
+  }).repair({ ...request, repairFromSource: false }), (error) => error instanceof LatticeProviderError
+    && error.code === "provider_request_too_large" && error.qualificationStage === "repair");
+  assert.equal(JSON.stringify(request), before);
+  assert.equal(adapter.completionCapacity().used, 4);
+});
+
 test("compact rewrite checklist follows serialized passage IDs and ignores supplied positions", async () => {
   const base = minimalVerificationRequest("Review the document.\n\nKeep the approved copy.\n\nClose the folder.");
   assert.equal(base.batch.passages.length, 3);
@@ -2711,7 +2939,7 @@ test("compact rewrite checklist follows serialized passage IDs and ignores suppl
       new Set([base.batch.passages[0].id, base.batch.passages[2].id]));
     assert.match(body.messages[0].content, /complete zero-based checklist of source groups whose current plan requires rewrite/u);
     assert.match(body.messages[0].content, /never add or remove meaning to force a difference/u);
-    assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
+    assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail");
     assert.equal(body.max_tokens, 800);
     assert.deepEqual(body.response_format, { type: "json_object" });
   }
@@ -3272,7 +3500,7 @@ test("the adapter uses strict JSON Schema analysis and certification", async () 
   ]);
   assert.equal(
     LATTICE_REMOTE_MODELS.generator,
-    "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
+    "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
   );
   assert.equal(
     LATTICE_REMOTE_MODELS.verifier,
@@ -6392,6 +6620,8 @@ test("caller correction fields cannot select trusted verifier correction guidanc
     assert.doesNotMatch(body.messages[0].content, /Rebuild retained-source conformance separately|Rebuild issue entries as complete closed c\/p objects/u);
     assert.doesNotMatch(body.messages[0].content, /Rebuild issue\/check\/scope alignment|Rebuild decision\/check alignment/u);
     assert.doesNotMatch(JSON.stringify(body), /host-issue-alignment|host-decision-alignment|A verifier issue must identify|The verifier returned/u);
+    fittedVerificationSchemaForBody(body);
+    assert.doesNotMatch(body.messages[0].content, /Choose d last from that fresh assessment/u);
     assert.equal(inertModelPayload(body).retry, "private-verification-wire-invalid");
   }
 });
@@ -7694,9 +7924,14 @@ test("the v22 provider diagnostic is opt-in and confined to an active qualificat
     HF_TOKEN: "server_only_token",
     [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z",
   };
+  const operatorEnded = {
+    HF_TOKEN: "server_only_token",
+    LATTICE_QUALIFICATION_MODE: "operator-ended",
+  };
   const cases = [
     ["qualified runtime", createFailureWorker(), { HF_TOKEN: "server_only_token" }, diagnosticHeaders],
     ["unmarked qualification request", createFailureWorker(), activeQualification, {}],
+    ["unmarked operator-ended request", createFailureWorker(), operatorEnded, {}],
     [
       "wrong diagnostic version",
       createFailureWorker(),
@@ -7712,6 +7947,10 @@ test("the v22 provider diagnostic is opt-in and confined to an active qualificat
       assert.equal(response.headers.has(header), false, `${name}: ${header}`);
     }
   }
+
+  const markedOpen = await createFailureWorker().fetch(apiRequest(validPayload, { headers: diagnosticHeaders }), operatorEnded);
+  assert.equal(markedOpen.status, 502);
+  assert.equal(markedOpen.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_RESPONSE_HEADERS.failureClass), "provider_http_error");
 
   const response = await createFailureWorker().fetch(
     apiRequest(validPayload, { headers: diagnosticHeaders }),
@@ -7934,6 +8173,56 @@ test("the transformation policy fails closed for malformed state, identity, tota
     now,
     visitorId: "invalid",
   }), TypeError);
+});
+
+test("an operator-ended window admits past both daily caps and restores the same daily budget", () => {
+  let now = Date.UTC(2026, 10, 22, 12);
+  let state;
+  let storedQualificationExcess;
+  function claim(visitor, operatorEnded = false) {
+    const outcome = claimLatticeTransformation(state, { now, visitorId: capacityVisitor(visitor) }, {
+      operatorEnded, storedQualificationExcess,
+    });
+    state = outcome.state;
+    if (outcome.qualificationExcess) storedQualificationExcess = outcome.qualificationExcess;
+    return outcome.result;
+  }
+  for (let i = 0; i < 3; i += 1) assert.equal(claim(1).allowed, true);
+  assert.equal(claim(1).scope, "visitor-day");
+  assert.equal(claim(1, true).allowed, true);
+  assert.equal(claim(1).scope, "visitor-day");
+  assert.equal(claim(2).allowed, true);
+  for (let i = 0; i < 25; i += 1) assert.equal(claim(1, true).allowed, true);
+  assert.equal(claim(3).scope, "global-day");
+  for (let i = 0; i < 40; i += 1) assert.equal(claim(3, true).allowed, true);
+  assert.equal(claim(3).scope, "global-day");
+  assert.equal(state.acceptedTransformations, 4);
+  assert.equal(Object.keys(state.visitorTransformations).length, 2);
+  assert.equal(storedQualificationExcess.count, 26);
+  assert.equal(latticeTransformationStateExpiresAt(state), Date.UTC(2026, 10, 23));
+
+  now = Date.UTC(2026, 10, 23);
+  assert.equal(claim(1).allowed, true);
+  assert.equal(state.acceptedTransformations, 1);
+});
+
+test("a corrupt qualification admission count fails closed", () => {
+  const now = Date.UTC(2026, 10, 22);
+  for (const storedQualificationExcess of [
+    null, { dayStartedAt: now, count: -1 }, { dayStartedAt: now, count: 31 }, { dayStartedAt: now, count: 1 },
+    { dayStartedAt: now + 1, count: 1 }, { dayStartedAt: Date.UTC(2026, 10, 23), count: 1 },
+  ]) {
+    assert.throws(() => claimLatticeTransformation(undefined, { now, visitorId: capacityVisitor(1) }, {
+      operatorEnded: true, storedQualificationExcess,
+    }), /qualification admission count/u);
+  }
+  let state;
+  for (let index = 0; index < 30; index += 1) {
+    state = claimLatticeTransformation(state, { now, visitorId: capacityVisitor(Math.floor(index / 3)) }).state;
+  }
+  assert.throws(() => claimLatticeTransformation(state, { now, visitorId: capacityVisitor(0) }, {
+    operatorEnded: true, storedQualificationExcess: { dayStartedAt: now, count: 1 },
+  }), /qualification admission count/u);
 });
 
 test("the capacity client sends one bodyless pseudonymous claim to one global object", async () => {
@@ -9539,7 +9828,9 @@ async function runEmptySupportMaterialRepair({
         applyEmptySupportRegressionFailure(wire, verifies === 1 ? first : verifies === 2 ? second : freshFailure);
         assert.equal(body.max_tokens, 2048);
         assert.equal(body.response_format.type, "json_schema");
-        fittedVerificationSchemaForBody(body);
+        const alignmentCorrection = (verifies === 2 && first === "host issue")
+          || (verifies === 4 && freshFailure === "host issue");
+        fittedVerificationSchemaForBody(body, alignmentCorrection ? ["g", "p", "i", "d"] : ["d", "g", "p", "i"]);
         return successfulProviderResponse(wire);
       }
       certificates += 1;
@@ -11094,5 +11385,184 @@ test("host-owned exact-source regeneration correction reaches the Worker adapter
       runs.push({ bodies, result, status: response.status });
     }
     assert.deepEqual(runs[0], runs[1], "qualification diagnostics cannot change calls, prompts or public outcomes");
+  });
+});
+
+
+test("reanalysis feedback grounds prior atom IDs without carrying them into the replacement graph", async () => {
+  const runs = [];
+  for (const marked of [false, true]) {
+    const bodies = []; let analyses = 0, drafts = 0, reviews = 0;
+    const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body); bodies.push(body);
+      if (isAnalysisBody(body)) {
+        analyses += 1;
+        const wire = canaryAnalysisWire(body);
+        // Deliberately change the meaning at local atom index0 in the replacement.
+        const order = analyses === 1 ? [0, 1, 2] : [2, 0, 1];
+        wire.p[0][2] = order.map((position) => [1, 0, 1, [position]]);
+        return successfulProviderResponse(wire);
+      }
+      if (isCandidateBody(body)) {
+        drafts += 1;
+        return successfulProviderResponse(canaryCandidateFromProviderBody(body,
+          "A guest sets a blue notebook on the desk, reviews the first page, then shuts it."));
+      }
+      if (isVerificationBody(body)) {
+        reviews += 1;
+        const wire = canaryVerificationWire(body);
+        if (reviews === 1) {
+          wire.d = 1;
+          wire.g = VERIFICATION_SCHEMA.properties.failedGates.items.enum
+            .map((name) => ["sourceCoverage", "atomCoverage"].includes(name) ? "1" : "0").join("");
+          wire.p["0"].a = "112";
+          wire.p["0"].x = "110";
+          wire.p["0"].y = "110";
+        }
+        return successfulProviderResponse(wire);
+      }
+      const payload = inertModelPayload(body);
+      return successfulProviderResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds));
+    } });
+    const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: marked
+      ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: "v22" } : {} }), {
+      HF_TOKEN: "synthetic-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z",
+    });
+    const result = await json(response);
+    assert.equal(response.status, 200);
+    assert.equal(result.result.status, "translated");
+    assert.deepEqual([analyses, drafts, reviews, bodies.length], [2, 2, 2, 7]);
+    const analysisBodies = bodies.filter(isAnalysisBody);
+    const initialDraft = inertModelPayload(bodies.filter(isCandidateBody)[0]);
+    const reanalysis = inertModelPayload(analysisBodies[1]);
+    const replacementDraft = inertModelPayload(bodies.filter(isCandidateBody)[1]);
+    const priorAtoms = initialDraft.analysis[1][0][5];
+    assert.deepEqual(reanalysis.documentLedger, []);
+    assert.deepEqual(reanalysis.reanalysisFeedback[2][0][1], [priorAtoms[2][0]]);
+    assert.deepEqual(reanalysis.reanalysisFeedback[2][0][8], priorAtoms.slice(0, 2).map(([id]) => id));
+    assert.deepEqual(reanalysis.reanalysisAtomEvidence,
+      [[initialDraft.analysis[1][0][0], priorAtoms.map((atom) => [atom[0], atom[5]])]]);
+    assert.match(analysisBodies[1].messages[0].content, /prior-review references only/u);
+    assert.equal(Object.hasOwn(reanalysis, "analysis"), false);
+    assert.equal(Object.hasOwn(reanalysis, "candidate"), false);
+    assert.equal(Object.hasOwn(reanalysis, "reanalysisPriorAnalysis"), false);
+    const newAtoms = replacementDraft.analysis[1][0][5];
+    assert.notEqual(priorAtoms[0][0], newAtoms[0][0]);
+    assert.notDeepEqual(priorAtoms[0][5], newAtoms[0][5]);
+    for (const body of bodies.filter((body) => body !== analysisBodies[1])) {
+      assert.equal(Object.hasOwn(inertModelPayload(body), "reanalysisAtomEvidence"), false);
+    }
+    assert.doesNotMatch(JSON.stringify(reanalysis.reanalysisAtomEvidence), /notebook|guest|desk|PRIVATE/u);
+    runs.push({ bodies, result });
+  }
+  assert.deepEqual(runs[0], runs[1], "observation does not alter old-reference grounding or the pipeline");
+});
+
+test("register-fit rejected retention reaches first regeneration without widening exact-copy correction", async (context) => {
+  for (const failureScope of ["batch", "passage"]) await context.test(failureScope, async () => {
+    const runs = [];
+    for (const marked of [false, true]) {
+      const bodies = [], normalized = []; let drafts = 0, verifies = 0;
+      const worker = createLatticeApiWorker({
+        runTextToLatticeImpl: (source, options) => runTextToLattice(source, { ...options,
+          adapter: { ...options.adapter, generate: (request) => {
+            if (request.regenerationFromReanalysis) normalized.push(request);
+            return options.adapter.generate(request);
+          } },
+        }),
+        fetchImpl: async (_url, init) => {
+          const body = JSON.parse(init.body); bodies.push(body);
+          if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body, { retain: true }));
+          if (isCandidateBody(body)) {
+            drafts += 1;
+            return successfulProviderResponse(canaryCandidateFromProviderBody(body, LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1)));
+          }
+          assert.equal(isVerificationBody(body), true, "a copied rewrite must not reach certification");
+          verifies += 1;
+          const wire = canaryVerificationWire(body, { retain: verifies === 1 });
+          wire.d = 1;
+          if (failureScope === "batch") wire.g = "00000000100";
+          else wire.p["0"].f = "000001000";
+          return successfulProviderResponse(wire);
+        },
+      });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: marked
+        ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE } : {} }), {
+        HF_TOKEN: "synthetic-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z",
+      });
+      const result = await json(response);
+      assert.equal(response.status, 200); assert.equal(result.result.status, "unable-to-attempt");
+      assert.equal(bodies.length, 6); assert.equal(drafts, 2); assert.equal(verifies, 2);
+      assert.equal(normalized.length, 1);
+      assert.equal(normalized[0].verification.available, true);
+      assert.equal(normalized[0].verification.passages[0].requiresPositiveConformance, true);
+      assert.equal(normalized[0].verification.passages[0].conformanceConfirmed, true);
+      assert.equal(normalized[0].verification.gates.registerFit, false);
+      assert.equal(normalized[0].analysis.passages[0].disposition, "rewrite");
+      const [initial, regenerated] = bodies.filter(isCandidateBody).map(inertModelPayload);
+      assert.equal(initial.regenerationFeedback, undefined);
+      assert.deepEqual(regenerated.requiredRewritePassagePositions, [0]);
+      assert.deepEqual(regenerated.regenerationFeedback, { retentionRegisterFitRejectedPassagePositions: [0] });
+      assert.equal(regenerated.regenerationFeedback.exactSourceCopyPassagePositions, undefined);
+      assert.equal(regenerated.regenerationFeedback.retentionNotConfirmedPassagePositions, undefined);
+      assert.match(bodies.filter(isCandidateBody)[1].messages[0].content, /prior batch or passage register-fit check failed/u);
+      for (const body of bodies) assert.ok(Buffer.byteLength(JSON.stringify(body)) < LATTICE_PROVIDER_REQUEST_BYTE_LIMIT);
+      if (marked) {
+        const h = LATTICE_QUALIFICATION_PIPELINE_DIAGNOSTIC_RESPONSE_HEADERS;
+        assert.equal(response.headers.get(h.structuralRetryReason), "register-fit");
+        assert.equal(response.headers.get(h.committedRetainOverride), "present");
+        assert.equal(response.headers.get(h.finalD14Comparison), "exact-source");
+      }
+      assert.doesNotMatch(JSON.stringify(result), /retentionRegisterFitRejected|regenerationFeedback/u);
+      runs.push({ bodies, result });
+    }
+    assert.deepEqual(runs[0], runs[1], "diagnostic observation does not change the committed context or retries");
+  });
+});
+
+test("register-fit rejection context survives existing protocol correction and still requires fresh acceptance", async (context) => {
+  for (const malformedFirst of [false, true]) await context.test(String(malformedFirst), async () => {
+    const runs = [];
+    for (const marked of [false, true]) {
+      const bodies = []; let drafts = 0, reviews = 0, certificates = 0;
+      const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body); bodies.push(body);
+        if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body, { retain: true }));
+        if (isCandidateBody(body)) {
+          drafts += 1;
+          if (drafts > 1) {
+            const p = inertModelPayload(body);
+            assert.deepEqual(p.regenerationFeedback, { retentionRegisterFitRejectedPassagePositions: [0] });
+            assert.equal(p.analysis[1][0][3], "rewrite");
+            assert.deepEqual(p.analysis[1][0].slice(7), [[], [], []]);
+            assert.equal(Object.hasOwn(p, "candidate"), false); assert.equal(Object.hasOwn(p, "verification"), false);
+            assert.deepEqual(body.response_format, { type: "json_object" }); assert.equal(body.max_tokens, 800);
+          }
+          if (drafts === 2 && malformedFirst) return successfulProviderResponse({});
+          return successfulProviderResponse(canaryCandidateFromProviderBody(body, drafts === 1
+            ? LATTICE_PRODUCTION_CANARY_TEXT.slice(0, -1)
+            : "A guest sets a blue notebook on the desk, reviews the first page, then shuts it."));
+        }
+        if (isVerificationBody(body)) {
+          reviews += 1; const wire = canaryVerificationWire(body, { retain: reviews === 1 });
+          if (reviews === 1) { wire.d = 1; wire.g = "00000000100"; }
+          return successfulProviderResponse(wire);
+        }
+        certificates += 1; const p = inertModelPayload(body);
+        return successfulProviderResponse(acceptingCertificationWire(p.certificateId, p.obligationIds));
+      } });
+      const response = await worker.fetch(apiRequest(LATTICE_PRODUCTION_CANARY_REQUEST, { headers: marked
+        ? { [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE } : {} }), {
+        HF_TOKEN: "synthetic-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-09-17T12:00:00.000Z",
+      });
+      const result = await json(response);
+      assert.equal(response.status, 200); assert.equal(result.result.status, "translated");
+      assert.equal(drafts, malformedFirst ? 3 : 2); assert.equal(bodies.length, malformedFirst ? 8 : 7);
+      assert.equal(reviews, 2); assert.equal(certificates, 1);
+      for (const body of bodies) assert.ok(Buffer.byteLength(JSON.stringify(body)) < LATTICE_PROVIDER_REQUEST_BYTE_LIMIT);
+      assert.doesNotMatch(JSON.stringify(result), /retentionRegisterFitRejected|regenerationFeedback/u);
+      runs.push({ bodies, result });
+    }
+    assert.deepEqual(runs[0], runs[1]);
   });
 });

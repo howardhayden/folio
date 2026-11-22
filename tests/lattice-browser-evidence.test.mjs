@@ -1212,3 +1212,69 @@ test("current browser evidence refuses historical JSON and bounds actual phase s
   invalidAfter((candidate) => { delete candidate.engines[0].response.stream_eof_observed; }, /response/u);
   invalidAfter((candidate) => { candidate.engines[0].response.raw_phase_frames = "forbidden"; }, /response/u);
 });
+
+function operatorEndedEvidence() {
+  const evidence = validEvidence();
+  evidence.deployment.qualification_expires_at = null;
+  evidence.deployment.qualification_mode = "operator-ended";
+  return evidence;
+}
+function operatorEndedIndex(evidence) {
+  const initial = deploymentIndexFor(evidence);
+  initial.workers.api.activeVersionBindings.splice(-1, 1, { name: "LATTICE_QUALIFICATION_MODE", type: "plain_text", mode: "operator-ended" });
+  const result = {};
+  for (const [key, value] of Object.entries(initial)) {
+    result[key] = value;
+    if (key === "evidenceFiles") result.admissionEnvironment = {
+      validatedBeforeAt: "2026-09-14T09:59:01.000Z", validatedAfterAt: initial.deployedAt,
+      liveCompletedAt: "2026-09-14T09:59:59.000Z", deploymentId: initial.workers.api.deploymentId,
+      versionId: initial.workers.api.versionId, matchingBeforeAfterSnapshots: true,
+      runtime: { namespaceId: "0123456789abcdef0123456789abcdef", className: "LatticeTransformationBudget",
+        storageBackend: "sqlite", migrationTag: "v1", compatibilityDate: "2026-09-14", compatibilityFlags: ["enable_request_signal"],
+        declaredObjectName: "text-to-lattice-transformation-budget-v1", namespaceIdentityBasis: "active-version-local-binding",
+        storageBackendBasis: "active-version-local-class-and-observed-namespace-sqlite" },
+    };
+  }
+  return result;
+}
+
+test("operator-ended browser evidence has explicit null expiry and preserves the independent thirty-minute capture span", async () => {
+  const schema = JSON.parse(await readFile(schemaPath, "utf8"));
+  const validate = new Ajv2020({ allErrors: true, strict: true }).compile(schema);
+  const evidence = operatorEndedEvidence();
+  assert.doesNotThrow(() => verifyBrowserEvidence(evidence));
+  assert.equal(validate(evidence), true, JSON.stringify(validate.errors));
+  for (const change of [
+    e => delete e.deployment.qualification_mode,
+    e => e.deployment.qualification_mode = "unlimited",
+    e => e.deployment.qualification_expires_at = "2026-09-14T11:15:00.000Z",
+  ]) {
+    const invalid = structuredClone(evidence); change(invalid);
+    assert.throws(() => verifyBrowserEvidence(invalid)); assert.equal(validate(invalid), false);
+  }
+  const late = structuredClone(evidence);
+  late.deployment.deployment_evidence_checked_after_captures_at = "2026-09-14T11:29:00.001Z";
+  assert.throws(() => verifyBrowserEvidence(late), /within 30 minutes/u);
+});
+
+test("operator-ended browser bundle joins the actual deployed mode and rejects a normal index even with refreshed hashes", async context => {
+  const directory = await mkdtemp(join(tmpdir(), "ttl-browser-operator-ended-"));
+  context.after(() => rm(directory, { force: true, recursive: true }));
+  const path = join(directory, "TEXT-TO-LATTICE-BROWSER-EVIDENCE.json");
+  const evidence = operatorEndedEvidence();
+  const index = operatorEndedIndex(evidence);
+  for (const [i, png] of [capturePng(16), capturePng(32)].entries()) {
+    const capture = evidence.engines[i].sanitized_capture;
+    capture.byte_count = png.length; capture.sha256 = browserEvidenceSha256(png);
+    await writeFile(join(directory, capture.basename), png);
+  }
+  await writeDeploymentIndexCopies(directory, evidence, { before: index });
+  await writeFile(path, JSON.stringify(evidence, null, 2) + "\n");
+  const bundle = await verifyBrowserEvidenceBundle(path);
+  assert.equal(bundle.evidence.deployment.qualification_expires_at, null);
+  assert.equal(bundle.evidence.deployment.qualification_mode, "operator-ended");
+  const ordinary = structuredClone(index); ordinary.workers.api.activeVersionBindings.pop();
+  await writeDeploymentIndexCopies(directory, evidence, { before: ordinary });
+  await writeFile(path, JSON.stringify(evidence, null, 2) + "\n");
+  await assert.rejects(verifyBrowserEvidenceBundle(path), /qualification_mode.*does not match/u);
+});
