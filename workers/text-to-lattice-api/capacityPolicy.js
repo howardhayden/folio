@@ -2,8 +2,6 @@ export const LATTICE_TRANSFORMATION_CAPACITY_SCHEMA_VERSION = 1;
 export const LATTICE_TRANSFORMATIONS_PER_UTC_DAY = 30;
 export const LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY = 3;
 export const LATTICE_TRANSFORMATION_CAPACITY_DAY_MS = 24 * 60 * 60 * 1_000;
-export const LATTICE_QUALIFICATION_MODE_BINDING = "LATTICE_QUALIFICATION_MODE";
-export const LATTICE_OPERATOR_ENDED_MODE = "operator-ended";
 
 const VISITOR_ID_PATTERN = /^[A-Za-z0-9_-]{24}$/u;
 const STATE_FIELDS = Object.freeze([
@@ -32,11 +30,6 @@ function utcDayStart(now) {
 
 export function isLatticeCapacityVisitorId(value) {
   return typeof value === "string" && VISITOR_ID_PATTERN.test(value);
-}
-
-export function isOperatorEndedQualification(env) {
-  return env[LATTICE_QUALIFICATION_MODE_BINDING] === LATTICE_OPERATOR_ENDED_MODE
-    && env.LATTICE_QUALIFICATION_EXPIRES_AT === undefined;
 }
 
 function freshState(dayStartedAt) {
@@ -103,35 +96,19 @@ function frozenState(state) {
   });
 }
 
-function capacityDecision(state, stateChanged, scope, now) {
+function denied(state, stateChanged, scope, now) {
   return Object.freeze({
     state: frozenState(state),
     stateChanged,
     result: Object.freeze({
-      allowed: scope === null,
+      allowed: false,
       scope,
-      retryAfterSeconds: scope === null ? null : retryAfterSeconds(now, state.dayStartedAt),
+      retryAfterSeconds: retryAfterSeconds(now, state.dayStartedAt),
     }),
   });
 }
 
-function previousQualificationExcess(stored, dayStartedAt) {
-  if (stored === undefined) return 0;
-  if (!exactRecord(stored, ["dayStartedAt", "count"])
-    || !nonNegativeInteger(stored.dayStartedAt)
-    || stored.dayStartedAt % LATTICE_TRANSFORMATION_CAPACITY_DAY_MS !== 0
-    || stored.dayStartedAt > dayStartedAt
-    || !Number.isSafeInteger(stored.count) || stored.count < 1
-    || stored.count > LATTICE_TRANSFORMATIONS_PER_UTC_DAY) {
-    throw new TypeError("The qualification admission count is invalid.");
-  }
-  return stored.dayStartedAt === dayStartedAt ? stored.count : 0;
-}
-
-export function claimLatticeTransformation(storedState, { now, visitorId }, {
-  operatorEnded = false,
-  storedQualificationExcess,
-} = {}) {
+export function claimLatticeTransformation(storedState, { now, visitorId }) {
   if (!nonNegativeInteger(now) || !isLatticeCapacityVisitorId(visitorId)) {
     throw new TypeError("The transformation-capacity claim is invalid.");
   }
@@ -150,27 +127,23 @@ export function claimLatticeTransformation(storedState, { now, visitorId }, {
     stateChanged = true;
   }
 
-  const excess = previousQualificationExcess(storedQualificationExcess, dayStartedAt);
-  const total = state.acceptedTransformations + excess;
-  if (excess > 0 && (total > LATTICE_TRANSFORMATIONS_PER_UTC_DAY
-    || !Object.values(state.visitorTransformations).includes(LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY))) {
-    throw new TypeError("The qualification admission count is inconsistent with the daily state.");
-  }
-  if (total === LATTICE_TRANSFORMATIONS_PER_UTC_DAY) {
-    return capacityDecision(state, stateChanged, operatorEnded === true ? null : "global-day", now);
+  if (state.acceptedTransformations >= LATTICE_TRANSFORMATIONS_PER_UTC_DAY) {
+    return denied(state, stateChanged, "global-day", now);
   }
   const visitorCount = state.visitorTransformations[visitorId] ?? 0;
   if (visitorCount >= LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY) {
-    if (operatorEnded !== true) return capacityDecision(state, stateChanged, "visitor-day", now);
-    // Charge the remaining ordinary global allowance without changing the v1
-    // visitor record. Once that allowance is spent, open admissions need no storage.
-    return Object.freeze({
-      ...capacityDecision(state, stateChanged, null, now),
-      qualificationExcess: Object.freeze({ dayStartedAt, count: excess + 1 }),
-    });
+    return denied(state, stateChanged, "visitor-day", now);
   }
 
   state.acceptedTransformations += 1;
   state.visitorTransformations[visitorId] = visitorCount + 1;
-  return capacityDecision(state, true, null, now);
+  return Object.freeze({
+    state: frozenState(state),
+    stateChanged: true,
+    result: Object.freeze({
+      allowed: true,
+      scope: null,
+      retryAfterSeconds: null,
+    }),
+  });
 }
