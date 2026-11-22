@@ -23,9 +23,9 @@ export const LATTICE_QUALIFICATION_CATALOG = Object.freeze({
   unit: "USD-per-million-tokens",
   unit_documentation_url: "https://huggingface.co/docs/inference-providers/en/hub-api",
   generator: Object.freeze({
-    model: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-    input_rate: "0.09",
-    output_rate: "0.55",
+    model: "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
+    input_rate: "0.14",
+    output_rate: "0.80",
   }),
   verifier: Object.freeze({
     model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
