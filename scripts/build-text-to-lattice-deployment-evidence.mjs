@@ -54,6 +54,7 @@ const MAXIMUM_EVIDENCE_BYTES = 64 * 1024;
 const API_WORKER = "hahdev-text-to-lattice-api";
 const POLICY_WORKER = "hahdev-text-to-lattice-response-policy";
 export const LATTICE_QUALIFICATION_EXPIRY_BINDING = "LATTICE_QUALIFICATION_EXPIRES_AT";
+export const LATTICE_QUALIFICATION_MODE_BINDING = "LATTICE_QUALIFICATION_MODE";
 const API_VERSION_BINDINGS = Object.freeze([
   Object.freeze({ name: "HF_TOKEN", type: "secret_text" }),
   Object.freeze({ name: LATTICE_API_VISITOR_COOKIE_SECRET_BINDING, type: "secret_text" }),
@@ -70,7 +71,17 @@ const API_VERSION_BINDINGS = Object.freeze([
   }),
 ]);
 
-function expectedApiVersionBindings(qualificationExpiresAt = null) {
+function expectedApiVersionBindings(qualificationExpiresAt = null, qualificationMode = null) {
+  if (qualificationMode !== null && qualificationMode !== "operator-ended") {
+    fail("The qualification mode must be operator-ended or absent.");
+  }
+  if (qualificationMode !== null && qualificationExpiresAt !== null) {
+    fail("Operator-ended qualification cannot also declare an expiry.");
+  }
+  if (qualificationMode === "operator-ended") return Object.freeze([
+    ...API_VERSION_BINDINGS,
+    Object.freeze({ name: LATTICE_QUALIFICATION_MODE_BINDING, type: "plain_text", mode: qualificationMode }),
+  ]);
   if (qualificationExpiresAt === null) return API_VERSION_BINDINGS;
   return Object.freeze([
     ...API_VERSION_BINDINGS,
@@ -80,6 +91,13 @@ function expectedApiVersionBindings(qualificationExpiresAt = null) {
       expiresAt: qualificationExpiresAt,
     }),
   ]);
+}
+
+/** Read only after strict index validation; the deployed binding is the mode authority. */
+export function deploymentIndexQualificationMode(index) {
+  return index?.workers?.api?.activeVersionBindings?.find(
+    binding => binding.name === LATTICE_QUALIFICATION_MODE_BINDING,
+  )?.mode ?? null;
 }
 
 function fail(message) {
@@ -146,6 +164,7 @@ function exactKeys(value, expected) {
 
 export function sanitizeTextToLatticeApiVersion(raw, expectedVersionId, {
   qualificationExpiresAt = null,
+  qualificationMode = null,
 } = {}) {
   if (!UUID_PATTERN.test(expectedVersionId ?? "")) {
     fail("The expected Text to Lattice API version identifier is invalid.");
@@ -157,7 +176,7 @@ export function sanitizeTextToLatticeApiVersion(raw, expectedVersionId, {
   const normalizedQualificationExpiresAt = qualificationExpiresAt === null
     ? null
     : exactTimestamp(qualificationExpiresAt, "qualification expiry timestamp");
-  const expectedBindings = expectedApiVersionBindings(normalizedQualificationExpiresAt);
+  const expectedBindings = expectedApiVersionBindings(normalizedQualificationExpiresAt, qualificationMode);
   if (raw.resources.bindings.length !== expectedBindings.length) {
     fail(`The active Text to Lattice API version must have exactly ${expectedBindings.length} reviewed bindings.`);
   }
@@ -201,6 +220,14 @@ export function sanitizeTextToLatticeApiVersion(raw, expectedVersionId, {
         type: binding.type,
         className: binding.class_name,
       }));
+      continue;
+    }
+    if (binding.name === LATTICE_QUALIFICATION_MODE_BINDING && binding.type === "plain_text") {
+      if (qualificationMode !== "operator-ended" || !exactKeys(binding, ["name", "type", "text"])
+        || binding.text !== qualificationMode) {
+        fail("The active Text to Lattice API qualification-mode binding is not the reviewed mode.");
+      }
+      observed.set(binding.name, Object.freeze({ name: binding.name, type: binding.type, mode: qualificationMode }));
       continue;
     }
     if (binding.name === LATTICE_QUALIFICATION_EXPIRY_BINDING && binding.type === "plain_text") {
@@ -320,7 +347,7 @@ export function sanitizeTextToLatticeAdmissionEnvironment(raw, namespaceMetadata
 }
 
 export async function inspectTextToLatticeApiEnvironment({
-  apiDeploymentPath, apiVersionPath, qualifiedSourceSetSha256, qualificationExpiresAt = null,
+  apiDeploymentPath, apiVersionPath, qualifiedSourceSetSha256, qualificationExpiresAt = null, qualificationMode = null,
   environment = process.env, now = () => new Date(), fetchImpl = globalThis.fetch,
   monotonicNow = () => performance.now(),
 } = {}) {
@@ -331,7 +358,7 @@ export async function inspectTextToLatticeApiEnvironment({
     readJson(apiVersionPath, "API active version"),
   ]);
   const api = sanitizeTextToLatticeDeploymentStatus(deploymentRaw, API_WORKER);
-  sanitizeTextToLatticeApiVersion(versionRaw, api.versionId, { qualificationExpiresAt });
+  sanitizeTextToLatticeApiVersion(versionRaw, api.versionId, { qualificationExpiresAt, qualificationMode });
   const expected = admissionVersionFacts(versionRaw);
   let namespaceMetadata = null;
   let reader = null;
@@ -528,6 +555,7 @@ function verifyDeploymentWorker(value, {
   includeBindings,
   deployedAt,
   qualificationExpiresAt = null,
+  qualificationMode = null,
 } = {}) {
   const fields = includeBindings
     ? ["worker", "deploymentId", "versionId", "percentage", "createdAt", "activeVersionBindings", "bindingSetExact"]
@@ -544,7 +572,7 @@ function verifyDeploymentWorker(value, {
   if (includeBindings) {
     if (record.bindingSetExact !== true
       || JSON.stringify(record.activeVersionBindings)
-        !== JSON.stringify(expectedApiVersionBindings(qualificationExpiresAt))) {
+        !== JSON.stringify(expectedApiVersionBindings(qualificationExpiresAt, qualificationMode))) {
       fail(`${worker} deployment evidence does not contain the exact reviewed binding set.`);
     }
   }
@@ -619,6 +647,7 @@ export function verifyTextToLatticeDeploymentEvidenceIndex(value) {
     includeBindings: true,
     deployedAt,
     qualificationExpiresAt: index.qualificationExpiresAt,
+    qualificationMode: deploymentIndexQualificationMode(index),
   });
   verifyDeploymentWorker(workers.responsePolicy, {
     worker: POLICY_WORKER,
@@ -630,6 +659,9 @@ export function verifyTextToLatticeDeploymentEvidenceIndex(value) {
     fail("API and response-policy Worker deployment identities must be distinct.");
   }
 
+  if (deploymentIndexQualificationMode(index) === "operator-ended" && !hasAdmissionEnvironment) {
+    fail("Operator-ended qualification requires actual admission environment custody.");
+  }
   if (hasAdmissionEnvironment) {
     const record = exactObjectFields(index.admissionEnvironment, [
       "validatedBeforeAt", "validatedAfterAt", "liveCompletedAt", "deploymentId", "versionId",
@@ -695,6 +727,7 @@ export async function buildTextToLatticeDeploymentEvidence({
   siteArtifactSha256,
   qualifiedSourceSetSha256,
   qualificationExpiresAt = null,
+  qualificationMode = null,
   environment = process.env,
   now = () => new Date(),
 } = {}) {
@@ -744,6 +777,7 @@ export async function buildTextToLatticeDeploymentEvidence({
   const apiDeployment = sanitizeTextToLatticeDeploymentStatus(apiRaw, API_WORKER);
   const apiVersion = sanitizeTextToLatticeApiVersion(apiVersionRaw, apiDeployment.versionId, {
     qualificationExpiresAt: normalizedQualificationExpiresAt,
+    qualificationMode,
   });
   const apiAfter = sanitizeTextToLatticeDeploymentStatus(apiAfterRaw, API_WORKER);
   const currentEnvironment = admissionVersionFacts(apiVersionRaw);
@@ -751,7 +785,7 @@ export async function buildTextToLatticeDeploymentEvidence({
   const sampledAfterAt = exactTimestamp(environmentAfter.validatedAt, "API post-live validation time");
   const liveStartedAt = exactTimestamp(live.value.verified_at, "live verification start");
   verifyLatticeProductionAdmissionEvidence(live.value.request_admission, {
-    requireComplete: normalizedQualificationExpiresAt !== null,
+    requireComplete: normalizedQualificationExpiresAt !== null || qualificationMode === "operator-ended",
   });
   const liveCompletedAt = exactTimestamp(live.value.request_admission.completed_at, "live admission completion");
   const identity = workflowIdentity(environment);
@@ -842,6 +876,7 @@ function cliArguments(argumentsList) {
     ["--site-artifact-sha256", "siteArtifactSha256"],
     ["--qualified-source-set-sha256", "qualifiedSourceSetSha256"],
     ["--qualification-expires-at", "qualificationExpiresAt"],
+    ["--qualification-mode", "qualificationMode"],
     ["--output", "outputPath"],
   ]);
   for (let index = 0; index < argumentsList.length; index += 1) {
@@ -856,8 +891,8 @@ function cliArguments(argumentsList) {
   }
   const required = inspectMode
     ? ["apiDeploymentPath", "apiVersionPath", "qualifiedSourceSetSha256", "outputPath"]
-    : [...optionMap.values()].filter((value) => value !== "qualificationExpiresAt");
-  if (inspectMode && Object.keys(values).some((key) => ![...required, "qualificationExpiresAt", "inspectMode"].includes(key))) {
+    : [...optionMap.values()].filter((value) => !["qualificationExpiresAt", "qualificationMode"].includes(value));
+  if (inspectMode && Object.keys(values).some((key) => ![...required, "qualificationExpiresAt", "qualificationMode", "inspectMode"].includes(key))) {
     fail("API environment inspection received an unsupported option.");
   }
   for (const key of required) {

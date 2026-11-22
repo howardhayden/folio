@@ -3999,7 +3999,7 @@ test("D26 actual regeneration carries unconfirmed retention through provider mod
         assert.equal(body.messages[0].content.includes("previous unchanged retention did not obtain required positive conformance"),
           index > 0 && expectedCue);
         assert.doesNotMatch(body.messages[0].content, /regenerationFeedback\.nonmaterialPassagePositions/u);
-        assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
+        assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail");
         assert.equal(body.max_tokens, 800);assert.equal(body.temperature, 0.45);assert.equal(body.top_p, 0.9);
         assert.deepEqual(body.response_format, { type: "json_object" });
         assert.doesNotMatch(JSON.stringify(body), /SYNTHETIC-PRIVATE-REVIEW-PROSE|synthetic-private-id/u);
