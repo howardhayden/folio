@@ -56,6 +56,10 @@ import {
   claimGlobalLatticeTransformation,
 } from "./capacityClient.js";
 import {
+  LATTICE_QUALIFICATION_MODE_BINDING,
+  isOperatorEndedQualification,
+} from "./capacityPolicy.js";
+import {
   LatticeApiVisitorCookieError,
   establishLatticeApiVisitor,
   resolveLatticeApiVisitor,
@@ -832,8 +836,12 @@ export function createLatticeApiWorker({
         env[LATTICE_QUALIFICATION_EXPIRES_AT_BINDING],
         now(),
       );
-      if (!qualificationWindow.allowsRequests) return qualificationHeldResponse();
-      const qualificationDiagnosticRequested = qualificationWindow.expiresAt !== null
+      const operatorEnded = isOperatorEndedQualification(env);
+      if (!qualificationWindow.allowsRequests
+        || (env[LATTICE_QUALIFICATION_MODE_BINDING] !== undefined && !operatorEnded)) {
+        return qualificationHeldResponse();
+      }
+      const qualificationDiagnosticRequested = (operatorEnded || qualificationWindow.expiresAt !== null)
         && request.headers.get(LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER)
           === LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE;
 
