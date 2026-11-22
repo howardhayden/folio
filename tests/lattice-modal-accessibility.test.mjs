@@ -45,7 +45,7 @@ test("the modal discloses the external boundary before the user can submit", () 
   );
   assert.match(resumeProjectsSource, /<button className="lattice-run-button" type="submit"[^>]*>[\s\S]*?Process with external service[\s\S]*?<\/button>/u);
   assert.match(resumeProjectsSource, /id="lattice-use-confirmation"[\s\S]*?type="checkbox"[\s\S]*?required/u);
-  assert.match(resumeProjectsSource, /authorized to send it through Hugging Face and OpenRouter to DeepInfra and CoreWeave/u);
+  assert.match(resumeProjectsSource, /authorized to send it through Hugging Face and OpenRouter to Parasail and CoreWeave/u);
   assert.match(resumeProjectsSource, /if \(!latticeUseConfirmed\)[\s\S]*?return;/u);
   assert.match(resumeProjectsSource, /const updateLatticeInput = \(value: string\) => \{\s*setLatticeUseConfirmed\(false\)/u);
 });
@@ -64,7 +64,7 @@ test("model and language disclosures remain available with confirmation always v
   assert.match(resumeProjectsSource, /from "\.\/lattice\/publicTerms\.js"/u);
   assert.doesNotMatch(resumeProjectsSource, /\.\/lattice\/modelContract\.js/u);
   assert.match(resumeProjectsSource, /LLAMA_3_3_PUBLIC_TERMS/u);
-  assert.match(resumeProjectsSource, /https:\/\/deepinfra\.com\/terms/u);
+  assert.match(resumeProjectsSource, /https:\/\/www\.parasail\.io\/legal\/terms-of-service/u);
   assert.match(resumeProjectsSource, /CoreWeave describes zero data retention by default for serverless inference/u);
   assert.match(resumeProjectsSource, /The tracing setting for this route is unknown/u);
   assert.match(resumeProjectsSource, /Llama 3\.3 Acceptable Use Policy/u);
