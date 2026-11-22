@@ -17,6 +17,8 @@ import {
   verifyHistoricalOvhProviderEvidence,
   verifyHistoricalDeepInfraProviderEvidence,
   verifyCoreWeaveReviewSelection,
+  verifyParasailGenerationSelection,
+  verifyVeniceGenerationSelection,
   verifyHistoricalCoreWeaveEnvelopeEvidence,
   verifyLifecycleGateContract,
   verifyReleaseStatusState,
@@ -54,8 +56,8 @@ const browserEvidenceIdentityFields = [
 ];
 
 const publishedDossierPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHistoryBoundary = Buffer.from("The complete held-parent dossier for the corrected operator capture after run #504 follows verbatim as dated history.");
-const datedHistorySeparator = Buffer.from("The complete held-parent dossier for the corrected operator capture after run #504 follows verbatim as dated history.\n\n---\n\n");
+const datedHistoryBoundary = Buffer.from("The complete held-parent dossier after the Safari result in run #510 follows as dated history.");
+const datedHistorySeparator = Buffer.from("The complete held-parent dossier after the Safari result in run #510 follows as dated history.\n\n---\n\n");
 const staleEnabledClaims = [
   "release gates remain open",
   "must agree before the converter can open",
@@ -106,8 +108,8 @@ test("enabled publication history permits only the exact bound canonical held do
   const boundary = dossier.indexOf(datedHistorySeparator);
   assert.ok(boundary > 0);
   const history = dossier.subarray(boundary + datedHistorySeparator.length);
-  assert.equal(history.length, 669634);
-  assert.equal(sha256(history), "abc1bc1e7fe954bc0ee938f1e40a335fbb7895c9eddb66e7cb47b497c7fabe5b");
+  assert.equal(history.length, 673885);
+  assert.equal(sha256(history), "9e4ee1874e2e4e3f57e8bdde60ad2d5257f622ec7fc6b07589cd7840c3d9a540");
   assert.match(history.toString("utf8"), /hold the interactive client/iu);
   const phase = verifyReleaseStatusState(await releaseRegister());
   if (phase.enabled) assert.doesNotThrow(() => verifyEqualDossierCopies(dossier));
@@ -591,7 +593,7 @@ test("the release register enforces its exact current phase and preserves histor
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.verificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
-  assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
+  assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-235B-A22B-Instruct-2507:venice");
   assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
   assert.equal(capability.provider.certificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
@@ -1165,6 +1167,14 @@ test("the held-site validator rejects executable bypasses outside the résumé",
     /contains Qwen\/Qwen3-235B-A22B-Instruct-2507:deepinfra/u,
   );
   await withHeldSiteFixture(
+    (site) => appendToHtml(route(site), '<script>const model="Qwen/Qwen3-235B-A22B-Instruct-2507:parasail"</script>'),
+    /contains Qwen\/Qwen3-235B-A22B-Instruct-2507:parasail/u,
+  );
+  await withHeldSiteFixture(
+    (site) => appendToHtml(route(site), '<script>const model="Qwen/Qwen3-235B-A22B-Instruct-2507:venice"</script>'),
+    /contains Qwen\/Qwen3-235B-A22B-Instruct-2507:venice/u,
+  );
+  await withHeldSiteFixture(
     (site) => appendToHtml(route(site), '<script>fetch("/api/lattice")</script>'),
     /contains an executable \/api\/lattice request path/u,
   );
@@ -1236,4 +1246,83 @@ test("the held-site validator rejects executable bypasses outside the résumé",
     (site) => appendToHtml(route(site), '<style>.preview { background: url("https://huggingface.co/mlc-ai/Llama-3.2-3B-Instruct-q4f16_1-MLC/resolve/model.safetensors"); }</style>'),
     /contains huggingface\.co\/mlc-ai\/Llama-3\.2-3B-Instruct-q4f16_1-MLC\/resolve\//u,
   );
+});
+
+test("qualified release retains the operator-ended browser mode and rejects omitted or contradictory authority", async () => {
+  const register = qualifyRegister(await releaseRegister());
+  const fixture = browserEvidenceFixture(register.authority.qualifiedSourceSet.sha256);
+  fixture.evidence.deployment.qualification_expires_at = null;
+  fixture.evidence.deployment.qualification_mode = "operator-ended";
+  fixture.record.qualificationExpiresAt = null;
+  fixture.record.qualificationMode = "operator-ended";
+  register.authority.browserEvidence = structuredClone(fixture.record);
+  const verifyBundle = async () => fixture.bundle;
+  await assert.doesNotReject(verifyBrowserEvidenceAuthority(register, verifyReleaseStatusState(register), verifyBundle));
+  for (const change of [v => delete v.qualificationMode, v => v.qualificationMode = "timed", v => v.qualificationExpiresAt = "2099-01-01T00:00:00.000Z"]) {
+    const invalid = structuredClone(register); change(invalid.authority.browserEvidence);
+    await assert.rejects(verifyBrowserEvidenceAuthority(invalid, verifyReleaseStatusState(invalid), verifyBundle), /qualificationMode|qualificationExpiresAt/u);
+  }
+  delete fixture.evidence.deployment.qualification_mode;
+  await assert.rejects(verifyBrowserEvidenceAuthority(register, verifyReleaseStatusState(register), verifyBundle), /qualificationMode/u);
+});
+
+
+test("manual Parasail generation preserves standard history and forbids request-level substitution", async () => {
+  const register = JSON.parse(await readFile(registerPath, "utf8"));
+  assert.doesNotThrow(() => verifyParasailGenerationSelection(register));
+  for (const mutate of [
+    r => { r.parasailGenerationBackupSelection.selectedGeneratorModel = "Qwen/another-model:parasail"; },
+    r => { r.parasailGenerationBackupSelection.standardGeneratorModel = "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail"; },
+    r => { r.parasailGenerationBackupSelection.requestLevelFallback = true; },
+    r => { r.parasailGenerationBackupSelection.requestLevelSecondRoute = true; },
+    r => { r.parasailGenerationBackupSelection.automaticRetry = true; },
+    r => { r.parasailGenerationBackupSelection.reviewModel = "meta-llama/Llama-3.3-70B-Instruct:parasail"; },
+    r => { r.parasailGenerationBackupSelection.backendEvidenceScope = "current-backup-qualified"; },
+  ]) {
+    const changed = structuredClone(register); mutate(changed);
+    assert.throws(() => verifyParasailGenerationSelection(changed), /manual Parasail backup/u);
+  }
+  const history = structuredClone(register);
+  history.priorStandardGenerationBeforeParasailBackup.provider.generatorModel += " changed";
+  assert.throws(() => verifyParasailGenerationSelection(history), /historical standard-generation/u);
+  const gateHistory = structuredClone(register);
+  gateHistory.gates.find(({ id }) => id === "GATE-02").requirement += " changed";
+  assert.throws(() => verifyParasailGenerationSelection(gateHistory), /gate history/u);
+});
+
+
+test("manual Venice third backup authenticates current route and preserved Parasail history", async () => {
+  const register = JSON.parse(await readFile(registerPath, "utf8"));
+  assert.doesNotThrow(() => verifyVeniceGenerationSelection(register));
+  for (const mutate of [
+    r => { delete r.veniceGenerationThirdBackupSelection; },
+    r => { r.veniceGenerationThirdBackupSelection.selectedGeneratorModel = "Qwen/another-model:venice"; },
+    r => { r.veniceGenerationThirdBackupSelection.standardGeneratorModel += " changed"; },
+    r => { r.veniceGenerationThirdBackupSelection.previousBackupGeneratorModel += " changed"; },
+    r => { r.veniceGenerationThirdBackupSelection.ownerDesignation = "automatic fallback"; },
+    r => { r.veniceGenerationThirdBackupSelection.ownerChoice.sha256 = "0".repeat(64); },
+    r => { r.veniceGenerationThirdBackupSelection.requestLevelFallback = true; },
+    r => { r.veniceGenerationThirdBackupSelection.requestLevelSecondRoute = true; },
+    r => { r.veniceGenerationThirdBackupSelection.automaticRetry = true; },
+    r => { r.veniceGenerationThirdBackupSelection.reviewModel = "meta-llama/Llama-3.3-70B-Instruct:venice"; },
+    r => { r.veniceGenerationThirdBackupSelection.backendEvidenceScope = "current-backup-qualified"; },
+    r => { r.veniceGenerationThirdBackupSelection.privacyTier = "zero-retention"; },
+    r => { r.veniceGenerationThirdBackupSelection.computePartner = "known"; },
+    r => { r.veniceGenerationThirdBackupSelection.possibleComputePartnerRecipient = false; },
+    r => { r.artifactSet.activeCapability.provider.generatorModel = "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail"; },
+    r => { r.artifactSet.activeCapability.alternateProviderFallback = true; },
+  ]) {
+    const changed = structuredClone(register); mutate(changed);
+    assert.throws(() => verifyVeniceGenerationSelection(changed), /manual Venice third backup/u);
+  }
+  for (const mutate of [
+    r => { r.priorParasailGenerationBeforeVeniceBackup.provider.generatorModel += " changed"; },
+    r => { r.parasailGenerationBackupSelection.claimBoundary += " changed"; },
+  ]) {
+    const changed = structuredClone(register); mutate(changed);
+    assert.throws(() => verifyVeniceGenerationSelection(changed), /historical Parasail selection/u);
+  }
+  const gateHistory = structuredClone(register);
+  gateHistory.gates.find(({ id }) => id === "GATE-02").requirement += " changed";
+  assert.throws(() => verifyVeniceGenerationSelection(gateHistory), /Parasail gate history/u);
 });
