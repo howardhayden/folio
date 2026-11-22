@@ -38,7 +38,7 @@ export default function TextToLatticePage() {
             ) : (
               <>
                 <p>The interactive client’s availability follows the machine-checked release record for this build.</p>
-                <p>Text is submitted only after explicit confirmation through the same-origin <code>/api/lattice</code> capability. Hugging Face routes both models through OpenRouter. Parasail generates the draft on the selected backup route. CoreWeave reviews it. The hah.dev application does not retain the source or result, write raw-content logs, or send content to analytics.</p>
+                <p>Text is submitted only after explicit confirmation through the same-origin <code>/api/lattice</code> capability. Hugging Face routes both models through OpenRouter. DeepInfra generates the draft and CoreWeave reviews it. The hah.dev application does not retain the source or result, write raw-content logs, or send content to analytics.</p>
                 <p><a href="/resume/#text-to-lattice">Use Text to Lattice</a></p>
               </>
             )}
@@ -96,7 +96,7 @@ export default function TextToLatticePage() {
             <dl className="paper-meta">
               <div className="paper-meta-item"><dt>Browser destination</dt><dd>Same-origin <code>POST /api/lattice</code>; no query string, redirect, or provider origin; one browser-owned API-scoped quota cookie</dd></div>
               <div className="paper-meta-item"><dt>Exact request</dt><dd><code>{"{text, requested_mode, schema_version: 1}"}</code>; requested mode is auto, operative, or experiential</dd></div>
-              <div className="paper-meta-item"><dt>Server-side roles</dt><dd>Parasail serves the fixed Qwen3-235B-A22B-Instruct-2507 generator as the selected backup for DeepInfra. CoreWeave serves the Llama 3.3 70B Instruct verifier and certifier. Hugging Face routes both models through OpenRouter.</dd></div>
+              <div className="paper-meta-item"><dt>Server-side roles</dt><dd>DeepInfra serves the fixed Qwen3-235B-A22B-Instruct-2507 generator. CoreWeave serves the Llama 3.3 70B Instruct verifier and certifier. Hugging Face routes both models through OpenRouter.</dd></div>
               <div className="paper-meta-item"><dt>Retention</dt><dd>No hah.dev application storage, raw-content logging, caching, queueing, or analytics for the source, prompts, candidates, or result</dd></div>
               <div className="paper-meta-item"><dt>Failure</dt><dd>Bounded machine-readable error; no browser retry and no provider or model fallback</dd></div>
             </dl>
@@ -117,7 +117,7 @@ export default function TextToLatticePage() {
                 </dl>
                 <p>{security.api.limitation}</p>
                 <ul>{security.api.sources.map((source) => <li key={source.url}><a href={source.url}>{source.label}</a></li>)}</ul>
-                <p>Hugging Face, OpenRouter, Parasail and CoreWeave process this text. <a href="#text-to-lattice-privacy">Read how each service handles it.</a></p>
+                <p>Hugging Face, OpenRouter, DeepInfra and CoreWeave process this text. <a href="#text-to-lattice-privacy">Read how each service handles it.</a></p>
               </div>
             </details>
           </section>

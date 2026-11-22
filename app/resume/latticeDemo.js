@@ -3877,7 +3877,6 @@ export async function runTextToLattice(value, options = {}) {
       documentLedger: reanalysisLedger,
       clarificationDocumentProvenance,
       reanalysisFeedback: closedReanalysisFeedback(entry.verification),
-      reanalysisPriorAnalysis: entry.analysis,
       requestedMode,
       allowClarification: false,
       signal,

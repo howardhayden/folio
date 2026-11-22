@@ -3,7 +3,6 @@ import { DurableObject } from "cloudflare:workers";
 import {
   LATTICE_TRANSFORMATION_CAPACITY_SCHEMA_VERSION,
   claimLatticeTransformation,
-  isOperatorEndedQualification,
   isLatticeCapacityVisitorId,
   latticeTransformationStateExpiresAt,
 } from "./capacityPolicy.js";
@@ -13,7 +12,6 @@ import {
 } from "./capacityClient.js";
 
 const CAPACITY_STATE_KEY = "transformation-capacity-v1";
-const QUALIFICATION_EXCESS_KEY = "qualification-admissions-above-visitor-limit-v1";
 const RESPONSE_HEADERS = Object.freeze({
   "Cache-Control": "no-store",
   "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
@@ -41,22 +39,12 @@ export class LatticeTransformationBudget extends DurableObject {
 
     let outcome;
     await this.ctx.storage.transaction(async (transaction) => {
-      const ledger = await transaction.get([CAPACITY_STATE_KEY, QUALIFICATION_EXCESS_KEY]);
       outcome = claimLatticeTransformation(
-        ledger.get(CAPACITY_STATE_KEY),
+        await transaction.get(CAPACITY_STATE_KEY),
         { now: Date.now(), visitorId },
-        {
-          operatorEnded: isOperatorEndedQualification(this.env),
-          storedQualificationExcess: ledger.get(QUALIFICATION_EXCESS_KEY),
-        },
       );
       if (outcome.stateChanged) {
         await transaction.put(CAPACITY_STATE_KEY, outcome.state);
-      }
-      if (outcome.qualificationExcess) {
-        await transaction.put(QUALIFICATION_EXCESS_KEY, outcome.qualificationExcess);
-      }
-      if (outcome.stateChanged || outcome.qualificationExcess) {
         await this.ctx.storage.setAlarm(
           latticeTransformationStateExpiresAt(outcome.state),
         );
@@ -82,10 +70,9 @@ export class LatticeTransformationBudget extends DurableObject {
       const storedState = await transaction.get(CAPACITY_STATE_KEY);
       const expiresAt = latticeTransformationStateExpiresAt(storedState);
       if (expiresAt === null) {
-        await transaction.delete(QUALIFICATION_EXCESS_KEY);
         await this.ctx.storage.deleteAlarm();
       } else if (expiresAt <= Date.now()) {
-        await transaction.delete([CAPACITY_STATE_KEY, QUALIFICATION_EXCESS_KEY]);
+        await transaction.delete(CAPACITY_STATE_KEY);
         await this.ctx.storage.deleteAlarm();
       } else {
         await this.ctx.storage.setAlarm(expiresAt);
