@@ -35,7 +35,7 @@ test("the documentation generator binds current remote evidence and preserves in
   assert.match(builder, /productionSatisfiedGateIds = new Set\(\["GATE-02", "GATE-03", "GATE-06"\]\)/u);
   assert.match(builder, /"historical-inactive"/u);
   assert.match(builder, /"historicalInactiveRecord",[\s\S]{0,100}"activeCurrentEvidence",[\s\S]{0,100}"activeEvidence"/u);
-  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with fixed DeepInfra generation and CoreWeave review through OpenRouter/u);
+  assert.match(builder, /GATE-02 must bind the exact same-origin request, server-only secret, fixed Hugging Face router with manually selected Venice third-backup generation and CoreWeave review through OpenRouter/u);
   assert.match(builder, /GATE-03 must keep the provider call, stage, response, limiter, cost, generic-proxy, retry, fallback/u);
   assert.match(builder, /GATE-06 must require one explicit canonical-browser setup-plus-content lifecycle/u);
   assert.match(builder, /verifyReleaseStatusState\(releaseRegister\)/u);
@@ -201,7 +201,7 @@ test("the qualification dossier leads with its current phase and retains verbati
   }[releaseState.releasePhase];
   assert.match(dossier, heading);
   assert.ok(dossier.includes(`**Qualification date:** ${releaseRegister.revision}`));
-  const controllingPrefix = dossier.split("The complete held-parent dossier for the corrected operator capture after run #504 follows verbatim as dated history.")[0];
+  const controllingPrefix = dossier.split("The complete held-parent dossier after the Safari result in run #510 follows as dated history.")[0];
   if (releaseState.qualificationPending) {
     assert.match(controllingPrefix, /not qualified|non-qualified/iu);
     assert.match(controllingPrefix, /canonical-browser qualification/iu);
@@ -481,7 +481,7 @@ test("interactive editions remain complete, self-contained, accessible, and exec
     assert.match(artifact, /Backstage client\/server/u);
     assert.match(artifact, /POST \/api\/lattice/u);
     assert.match(artifact, /HF_TOKEN/u);
-    assert.match(artifact, /Hugging Face, OpenRouter, DeepInfra and CoreWeave/u);
+    assert.match(artifact, /Hugging Face, OpenRouter, Venice and CoreWeave/u);
     assert.match(artifact, /no automatic retry/iu);
     assert.match(artifact, /no alternate provider or model fallback/iu);
     assert.doesNotMatch(artifact, /Backstage browser-local/u);
@@ -539,4 +539,41 @@ test("current phase-stream documentation binds terminal EOF and preserves defaul
   assert.equal(releaseRegister.priorDefaultJsonTransportBeforePhaseTelemetry.contentRequest.accept, "application/json");
   assert.match(atlas.historicalBoundary.currentArchitecture, /actual engine progress/u);
   assert.match(atlas.serviceBlueprint.stages[7].backstage, /terminal plus EOF/u);
+});
+
+
+test("preserved Parasail documentation distinguishes manual selection from dated standard-route evidence", async () => {
+  const dossier = await readText(sourceRoot, "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md");
+  const preceding = "The complete preceding Parasail dossier follows verbatim as dated history.";
+  const boundary = "The complete preceding standard-generation dossier follows verbatim as dated history.";
+  assert.ok(dossier.indexOf(preceding) > 0);
+  assert.ok(dossier.indexOf(boundary) > dossier.indexOf(preceding));
+  const current = dossier.slice(dossier.indexOf(preceding) + preceding.length, dossier.indexOf(boundary));
+  assert.match(current, /DeepInfra remains the standard generator service/u);
+  assert.match(current, /Qwen\/Qwen3-235B-A22B-Instruct-2507:parasail/u);
+  assert.match(current, /no automatic retry and no alternate provider or model fallback/u);
+  assert.match(current, /Backend run 501 remains dated standard DeepInfra-generation evidence/u);
+  assert.match(current, /Firefox run 479 remains dated input-behavior evidence/u);
+  assert.match(current, /Neither establishes Parasail generation success/u);
+  assert.match(current, /actual backup service check must pass before interactive qualification/u);
+  assert.match(current, /retains inputs and outputs through generation and delivery/u);
+});
+
+
+test("current Venice third-backup documentation discloses route uncertainty and preserves dated evidence", async () => {
+  const dossier = await readText(sourceRoot, "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md");
+  const boundary = "The complete preceding Parasail dossier follows verbatim as dated history.";
+  const offset = dossier.indexOf(boundary);
+  assert.ok(offset > 0);
+  const current = dossier.slice(0, offset);
+  assert.match(current, /DeepInfra remains the standard generator service/u);
+  assert.match(current, /Parasail remains the previous manually selected backup/u);
+  assert.match(current, /Qwen\/Qwen3-235B-A22B-Instruct-2507:venice/u);
+  assert.match(current, /no automatic retry and no alternate provider or model fallback/u);
+  assert.match(current, /Backend run 501 remains dated standard DeepInfra-generation evidence/u);
+  assert.match(current, /Firefox run 479 remains dated input-behavior evidence/u);
+  assert.match(current, /Neither establishes Venice generation success/u);
+  assert.match(current, /The tier and compute partner for this Hugging Face route are unverified/u);
+  assert.match(current, /Venice and potentially a compute partner handle generation/u);
+  assert.match(current, /both actual native browser traces must pass/u);
 });

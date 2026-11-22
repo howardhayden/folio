@@ -2,7 +2,7 @@ import { documentsForProject } from "../content/projectDocuments.js";
 
 export const PROJECT_CONTENT_VERSION = "hah-portfolio-projects.v12";
 export const PROJECT_CONTENT_UPDATED = "2026-09-23";
-export const TEXT_TO_LATTICE_CONTENT_UPDATED = "2026-11-21";
+export const TEXT_TO_LATTICE_CONTENT_UPDATED = "2026-11-22";
 
 const LATTICE_CARD_RESOURCE_LABELS = Object.freeze({
   "lattice-concept-map": "Concept and Ecosystem Map",
@@ -57,13 +57,13 @@ export const projects = Object.freeze([
       "Passage-level register selection",
       "Relational Systems Register",
     ]),
-    technologies: Object.freeze(["JavaScript", "Node.js", "npm", "Cloudflare Workers", "Hugging Face Inference Providers", "OpenRouter", "DeepInfra", "CoreWeave", "Wrangler"]),
+    technologies: Object.freeze(["JavaScript", "Node.js", "npm", "Cloudflare Workers", "Hugging Face Inference Providers", "OpenRouter", "Venice", "CoreWeave", "Wrangler"]),
     evidence: Object.freeze(["https://github.com/howardhayden/lattice"]),
     limitations: Object.freeze([
       "The hah.dev Text to Lattice demonstrator accepts at most 700 words and submits text only after explicit confirmation through the same-origin /api/lattice capability.",
       "Its exact request body is {text, requested_mode, schema_version: 1}; hah.dev does not retain or write the source or result to application storage, raw logs, caches, queues, or analytics.",
-      "The demonstrator accepts at most 30 transformations globally per UTC day and 3 from one ordinary persistent browser cookie jar. Its opaque HttpOnly quota cookie is scoped to /api/lattice, expires at the next UTC day, and contains no submitted content; no IP or browser fingerprint is used as a second quota identity.",
-      "DeepInfra serves the fixed Qwen3-235B-A22B-Instruct-2507 generator. CoreWeave serves the Llama 3.3 70B Instruct verifier and certifier. Hugging Face routes both models through OpenRouter. There is no automatic provider or model fallback, and the remote runtime is not asserted to be byte-for-byte equivalent to the historical MLC/WebGPU artifacts.",
+      "In standard operation the demonstrator accepts at most 30 transformations globally per UTC day and 3 from one ordinary persistent browser cookie jar. Both daily limits are lifted during the operator-ended browser qualification. Its opaque HttpOnly quota cookie is scoped to /api/lattice, expires at the next UTC day, and contains no submitted content; no IP or browser fingerprint is used as a second quota identity.",
+      "Venice serves the fixed Qwen3-235B-A22B-Instruct-2507 generator as the manually selected third backup. CoreWeave serves the Llama 3.3 70B Instruct verifier and certifier. Hugging Face routes both models through OpenRouter. There is no automatic provider or model fallback, and the remote runtime is not asserted to be byte-for-byte equivalent to the historical MLC/WebGPU artifacts.",
       "Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information; external services process submitted content under their own policies.",
       "A review-required draft is not certified as semantically equivalent.",
       "Provider timeouts, rate limits, malformed responses, and availability failures terminate explicitly and require another deliberate submission.",
@@ -81,8 +81,8 @@ export const projects = Object.freeze([
     ]),
     publication: Object.freeze({ label: "September 2026", value: "2026-09", precision: "month" }),
     status: "public",
-    interaction: null,
-    interactiveRelease: "held",
+    interaction: "lattice-demo",
+    interactiveRelease: "enabled",
     readmeAfterFirstParagraph: true,
   }),
   Object.freeze({
