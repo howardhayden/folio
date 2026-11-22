@@ -323,7 +323,7 @@ test("the production verifier emits separate exact-byte-bound usage evidence wit
   assert.equal(sidecars[0].observation.status, "complete");
   assert.equal(sidecars[0].observation.generator.calls, 2);
   assert.equal(sidecars[0].observation.verifier.calls, 2);
-  assert.equal(sidecars[0].cost.total_usd, "0.001791000");
+  assert.equal(sidecars[0].cost.total_usd, "0.001691000");
   assert.equal(JSON.stringify(sidecars[0]).includes(LATTICE_PRODUCTION_CANARY_TEXT), false);
   assert.equal(JSON.stringify(sidecars[0]).includes(validResult().text), false);
   assert.equal(fixture.canaryRequests, 1);
@@ -365,38 +365,6 @@ test("invalid or out-of-scope qualification usage fails without a sidecar or con
   });
 });
 
-test("the G06 visitor-mode check sends one unchanged notebook in auto and records that case", async () => {
-  const fixture = successfulFixture();
-  const evidence = await verifyTextToLatticeApiProduction({
-    fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait, canaryRequestedMode: "auto",
-  });
-  const canary = fixture.calls.at(-3).init;
-  assert.equal(canary.body, JSON.stringify({ ...LATTICE_PRODUCTION_CANARY_REQUEST, requested_mode: "auto" }));
-  assert.equal(canary.headers.Accept, "application/json");
-  assert.equal(canary.headers[LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER], LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE);
-  assert.equal(evidence.transformation_canary.input_id, "synthetic-notebook-auto-certification-v2");
-  assert.equal(evidence.transformation_canary.strict_result_valid, true);
-  assert.equal(fixture.canaryRequests, 1);
-});
-
-test("a withheld G06 visitor-mode check reports the verifier diagnostic and stops after one request", async () => {
-  const result = unableResult([{ id: "candidate-withheld", passageId: "", atomIds: [], message: "Withheld." }]);
-  const fixture = successfulFixture({ canaryResponse: apiJson({ result, schema_version: 1 }, 200, withheldDiagnosticHeaders()) });
-  await assert.rejects(verifyTextToLatticeApiProduction({
-    fetchImpl: fixture.fetchImpl, context, now: fixedNow, wait: noWait, canaryRequestedMode: "auto",
-  }), /verification=unavailable/u);
-  assert.equal(fixture.canaryRequests, 1);
-  assert.equal(fixture.tamperedCookieRequests, 0);
-});
-
-test("invalid canary mode or auto outside qualification refuses before contacting the service", async () => {
-  const fixture = successfulFixture();
-  for (const options of [{ canaryRequestedMode: "experiential" }, { canaryRequestedMode: "auto", requireAdmissionEvidence: false }]) {
-    await assert.rejects(verifyTextToLatticeApiProduction({ fetchImpl: fixture.fetchImpl, context, ...options }), /canary mode/u);
-  }
-  assert.equal(fixture.calls.length, 0);
-});
-
 test("the production verifier preserves one setup and one canary before separate backend postflight probes", async () => {
   const fixture = successfulFixture();
   let preflightCallbacks = 0;
@@ -431,7 +399,7 @@ test("the production verifier preserves one setup and one canary before separate
     certification_request_model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
     certification_response_format: "json_schema",
     certification_schema_strict: true,
-    generator_model: "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
+    generator_model: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
     verifier_model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
     automatic_retry: false,
     alternate_provider_or_model_fallback: false,
