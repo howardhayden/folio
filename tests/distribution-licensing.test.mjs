@@ -266,7 +266,7 @@ test("active Llama terms, required attribution, and historical artifacts are reg
   assert.match(notices, /OVHcloud[\s\S]*?standard synchronous service does not store or reuse inputs and outputs/iu);
   assert.match(notices, /does not establish KV\/prefix-cache behavior, exact metadata-retention periods/iu);
   const activeNotice = notices.split("## Historical OVHcloud remote verifier")[0];
-  assert.match(activeNotice, /Hugging Face, OpenRouter, DeepInfra and CoreWeave process submitted text/u);
+  assert.match(activeNotice, /Hugging Face, OpenRouter, Parasail and CoreWeave process submitted text/u);
   assert.match(activeNotice, /including unflagged requests on Safety Retention endpoints/u);
   assert.match(activeNotice, /Optional tracing can record requests/u);
   assert.doesNotMatch(activeNotice, /:ovhcloud/u);
