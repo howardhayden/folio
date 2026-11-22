@@ -15,7 +15,7 @@ Additional reserved identity scope: LicenseRef-Hayden-Portfolio-Content.
 
 Text to Lattice uses Qwen3-235B-A22B-Instruct-2507 for generation and Llama 3.3
 70B Instruct for verification and certification. Hugging Face routes both models
-through OpenRouter. The selected Venice backup serves Qwen and CoreWeave serves Llama. See THIRD_PARTY_NOTICES.md and LICENSES/.
+through OpenRouter. DeepInfra serves Qwen and CoreWeave serves Llama. See THIRD_PARTY_NOTICES.md and LICENSES/.
 Built with Llama.
 Llama 3.3 is licensed under the Llama 3.3 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved.
 

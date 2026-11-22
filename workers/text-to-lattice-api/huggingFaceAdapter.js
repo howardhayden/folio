@@ -22,7 +22,6 @@ import {
   documentCertificationMessages,
   repairMessages,
   verificationMessages,
-  isVerificationAlignmentCorrection,
 } from "../../app/resume/lattice/promptContract.js";
 import {
   LITERAL_BATCH_SPAN_LIMIT,
@@ -42,7 +41,7 @@ export const HUGGING_FACE_CHAT_COMPLETIONS_URL =
 export const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL = HUGGING_FACE_CHAT_COMPLETIONS_URL;
 
 export const LATTICE_REMOTE_MODELS = Object.freeze({
-  generator: "Qwen/Qwen3-235B-A22B-Instruct-2507:venice",
+  generator: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
   verifier: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
 });
 
@@ -694,23 +693,18 @@ const VERIFICATION_WIRE_SCHEMA = Object.freeze({
   }),
   required: Object.freeze(["d", "g", "p", "i"]),
 });
-function verificationWireGuide(fields) {
-  return [
-    LATTICE_VERIFICATION_MASK_LAYOUT_INSTRUCTION,
-    `Return one minified private verification instance with exactly the four root fields ${fields}; never echo the schema. Keep i as [] when no additional issue is needed, never omit it. Return every fitted passage record completely for every decision, including repair and reject.`,
-    `Root d is the zero-based decision index [${VERIFICATION_DECISIONS.join(",")}]. Root g is the ${VERIFICATION_GATES.length}-character failed-gate bit string in this order: [${VERIFICATION_GATES.join(",")}].`,
-    "Set d to accept only when every reported gate and passage condition passes. Repair or reject requires at least one actual failed condition represented by g or a passage record; never invent a failure to justify a negative decision.",
-    "Root p is the fitted object whose numeric keys are supplied passage positions. Each passage is {a,u,s,f,l,x,y,c}: atom-status digits, unsupported-meaning boolean, unmodeled-span bit string, failed-check bit string, independent-layer index, layer-evidence atom bit string, layer-evidence span bit string, and conformance object.",
-    `Atom-status digits use supplied atom order: 1 checked, 2 missing, 0 unaccounted. Failed-check mask order: [${VERIFICATION_PASSAGE_CHECKS.join(",")}]. Layer indices are zero-based in this order: [${VERIFICATION_LAYERS.join(",")}].`,
-    "Every bit string uses supplied order and exact fitted width; 1 selects an item. Layer-support masks x and y each contain at least one 1, even for repair or reject. x selects supplied atoms supporting the independent layer; y selects source spans grounded by those atoms. Never select unsupported evidence merely to make a mask nonempty. Conformance c is {v,s,k}: unchanged-source retention confirmed, conformance-span bit string, and criterion checks in fitted order. It is not candidate quality or layer support. Each criterion check is {v,s}: passed and evidence-span bit string. Rewrites use {v:false,s:all-zero,k:[]}, matching wireLayout conformance.fixedProtocolValue; this emptiness applies only to c, never to x or y.",
-    "The unmodeled-span mask selects at most 12 positions. Every passed criterion selects at least one evidence bit.",
-    LATTICE_VERIFICATION_ISSUE_WIRE_INSTRUCTION,
-    `Issue check index order: [${VERIFICATION_ISSUE_CHECKS.join(",")}]. Emit no source identifiers, long-form host field names, explanations, schema text, or whitespace after the closing brace.`,
-  ].join("\n");
-}
-
-const VERIFICATION_WIRE_GUIDE = verificationWireGuide("d, g, p, and i");
-const VERIFICATION_ALIGNMENT_GUIDE = verificationWireGuide("g, p, i, and d");
+const VERIFICATION_WIRE_GUIDE = [
+  LATTICE_VERIFICATION_MASK_LAYOUT_INSTRUCTION,
+  "Return one minified private verification instance with exactly the four root fields d, g, p, and i; never echo the schema. Keep i as [] when no additional issue is needed, never omit it. Return every fitted passage record completely for every decision, including repair and reject.",
+  `Root d is the zero-based decision index [${VERIFICATION_DECISIONS.join(",")}]. Root g is the ${VERIFICATION_GATES.length}-character failed-gate bit string in this order: [${VERIFICATION_GATES.join(",")}].`,
+  "Set d to accept only when every reported gate and passage condition passes. Repair or reject requires at least one actual failed condition represented by g or a passage record; never invent a failure to justify a negative decision.",
+  "Root p is the fitted object whose numeric keys are supplied passage positions. Each passage is {a,u,s,f,l,x,y,c}: atom-status digits, unsupported-meaning boolean, unmodeled-span bit string, failed-check bit string, independent-layer index, layer-evidence atom bit string, layer-evidence span bit string, and conformance object.",
+  `Atom-status digits use supplied atom order: 1 checked, 2 missing, 0 unaccounted. Failed-check mask order: [${VERIFICATION_PASSAGE_CHECKS.join(",")}]. Layer indices are zero-based in this order: [${VERIFICATION_LAYERS.join(",")}].`,
+  "Every bit string uses supplied order and exact fitted width; 1 selects an item. Layer-support masks x and y each contain at least one 1, even for repair or reject. x selects supplied atoms supporting the independent layer; y selects source spans grounded by those atoms. Never select unsupported evidence merely to make a mask nonempty. Conformance c is {v,s,k}: unchanged-source retention confirmed, conformance-span bit string, and criterion checks in fitted order. It is not candidate quality or layer support. Each criterion check is {v,s}: passed and evidence-span bit string. Rewrites use {v:false,s:all-zero,k:[]}, matching wireLayout conformance.fixedProtocolValue; this emptiness applies only to c, never to x or y.",
+  "The unmodeled-span mask selects at most 12 positions. Every passed criterion selects at least one evidence bit.",
+  LATTICE_VERIFICATION_ISSUE_WIRE_INSTRUCTION,
+  `Issue check index order: [${VERIFICATION_ISSUE_CHECKS.join(",")}]. Emit no source identifiers, long-form host field names, explanations, schema text, or whitespace after the closing brace.`,
+].join("\n");
 
 function verificationWireMessages(request, wireLayout, wireCorrection) {
   return verificationMessages(request, { responseDialect: "compact-wire-v2", wireLayout, wireCorrection });
@@ -1469,7 +1463,7 @@ function fitVerificationRequest(request) {
   return Object.freeze({ passages, evidenceByPassage, plans });
 }
 
-function verificationWireSchemaForFit(fit, evidenceFirst) {
+function verificationWireSchemaForFit(fit) {
   const passageSchemas = fit.passages.map((_passage, index) => {
     const plan = fit.plans[index];
     const atomCount = plan.atomIds.length;
@@ -1558,11 +1552,17 @@ function verificationWireSchemaForFit(fit, evidenceFirst) {
   const passageProperties = Object.fromEntries(
     passageSchemas.map((schema, index) => [String(index), schema]),
   );
-  const { d, g } = VERIFICATION_WIRE_SCHEMA.properties;
-  const p = closedWireObject(passageProperties);
-  const i = Object.freeze({ ...VERIFICATION_WIRE_SCHEMA.properties.i, items: issueSchema });
-  // Both presentations require the same fields and enforce the same fitted constraints.
-  return closedWireObject(evidenceFirst ? { g, p, i, d } : { d, g, p, i });
+  return Object.freeze({
+    ...VERIFICATION_WIRE_SCHEMA,
+    properties: Object.freeze({
+      ...VERIFICATION_WIRE_SCHEMA.properties,
+      p: closedWireObject(passageProperties),
+      i: Object.freeze({
+        ...VERIFICATION_WIRE_SCHEMA.properties.i,
+        items: issueSchema,
+      }),
+    }),
+  });
 }
 
 function verificationWireLayoutForSchema(schema) {
@@ -3056,17 +3056,16 @@ export function createHuggingFaceLatticeAdapter({
       analysisFit = stageName === "analysis" ? fitAnalysisRequest(request) : null;
       verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
       certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
-      const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
-      const evidenceFirst = isVerificationAlignmentCorrection(verificationCorrection);
       const fittedRequest = analysisFit?.request ?? request;
       const fittedSchema = analysisFit
         ? analysisWireSchemaForFit(analysisFit)
         : verificationFit
-        ? verificationWireSchemaForFit(verificationFit, evidenceFirst)
+        ? verificationWireSchemaForFit(verificationFit)
         : certificationFit
         ? certificationWireSchemaForFit(certificationFit)
         : stage.schema;
       const verificationLayout = verificationFit ? verificationWireLayoutForSchema(fittedSchema) : null;
+      const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
       const messageFactory = verificationFit
         ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection)
         : stage.messages;
@@ -3076,7 +3075,7 @@ export function createHuggingFaceLatticeAdapter({
         messages: messagesWithMode(messageFactory, fittedRequest, requestedMode),
         schema: fittedSchema,
         schemaName: stage.schemaName,
-        responseGuide: evidenceFirst ? VERIFICATION_ALIGNMENT_GUIDE : stage.responseGuide,
+        responseGuide: stage.responseGuide,
         schemaDescription: stage.schemaDescription,
         responseFormat: stage.responseFormat,
         toolName: stage.toolName,
