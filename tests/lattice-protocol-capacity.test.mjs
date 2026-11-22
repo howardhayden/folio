@@ -421,7 +421,7 @@ async function reviewedActiveVerifierRepositoryTokenizer() {
 async function reviewedActiveGeneratorRepositoryTokenizer() {
   const Tokenizer = await tokenizerRuntime();
   const bytes = await readFile(ACTIVE_QWEN_REPOSITORY_TOKENIZER_PATH);
-  // This binds the reviewed Qwen repository file only, not the selected provider's managed
+  // This binds the reviewed Qwen repository file only, not DeepInfra's managed
   // tokenizer, chat template, or structured-output token accounting.
   assert.equal(bytes.byteLength, REVIEWED_QWEN_2507_REPOSITORY_TOKENIZER.bytes);
   assert.equal(
