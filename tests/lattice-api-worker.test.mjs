@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import Ajv from "ajv";
+import { LATTICE_SERVICE_EVENTS_MIME } from "../app/resume/lattice/serviceTelemetry.js";
 
 import { getLatticeVerificationPriorRejection, preflightLatticeInput, runTextToLattice } from "../app/resume/latticeDemo.js";
 import {
@@ -490,9 +491,9 @@ function acceptingCertificationWire(certificateId, obligationIds) {
   });
 }
 
-function canaryAnalysisWire(body, { retain = false } = {}) {
+function canaryAnalysisWire(body, { retain = false, expectedMode = "operative" } = {}) {
   const payload = inertModelPayload(body);
-  assert.equal(payload.requestedMode, "operative");
+  assert.equal(payload.requestedMode, expectedMode);
   assert.equal(Object.hasOwn(payload, "clarificationAnswers"), false);
   assert.match(body.messages[0].content, /never ask a public question/u);
   assert.equal(payload.passages.length, 1);
@@ -607,12 +608,28 @@ function strictReviewSchema(body, expectedName, expectedModel = TEST_REVIEW_MODE
   return body.response_format.json_schema.schema;
 }
 
-function fittedVerificationSchemaForBody(body) {
+function fittedVerificationSchemaForBody(body, order = ["d", "g", "p", "i"]) {
   assert.equal(isVerificationBody(body), true);
   const schema = strictReviewSchema(body, VERIFICATION_TOOL_NAME);
-  assert.deepEqual(schema.required, ["d", "g", "p", "i"]);
+  assert.deepEqual(schema.required, order);
+  assert.deepEqual(Object.keys(schema.properties), order);
   assert.equal(schema.additionalProperties, false);
   return schema;
+}
+
+function assertVerificationCorrectionPresentation(first, second, evidenceFirst) {
+  const original = fittedVerificationSchemaForBody(first);
+  const order = evidenceFirst ? ["g", "p", "i", "d"] : original.required;
+  const correction = fittedVerificationSchemaForBody(second, order);
+  assert.deepEqual(correction, { ...original, required: order });
+  assert.deepEqual(inertModelPayload(second).wireLayout.rootFields, order);
+  if (evidenceFirst) {
+    assert.match(second.messages[0].content, /Choose d last from that fresh assessment/u);
+    assert.match(second.messages[0].content, /four root fields g, p, i, and d/u);
+    assert.doesNotMatch(second.messages[0].content, /four root fields d, g, p, and i/u);
+  } else {
+    assert.doesNotMatch(second.messages[0].content, /Choose d last from that fresh assessment/u);
+  }
 }
 
 test("Inherited review schema projection preserves exhaustive legal binary masks without mutating fitted constraints", async () => {
@@ -859,7 +876,8 @@ test("issue scope schemas preserve actual host exhaustion, retained negatives an
         wire.p["0"].f = checks.map((name) => name === check ? "1" : "0").join("");
         if (kind !== "negative-without-issue") wire.i = [{ c: issueChecks.indexOf(check), p: 0 }];
       }
-      const validate = new Ajv({ strict: false }).compile(fittedVerificationSchemaForBody(body));
+      const order = current.protocolFeedback ? ["g", "p", "i", "d"] : ["d", "g", "p", "i"];
+      const validate = new Ajv({ strict: false }).compile(fittedVerificationSchemaForBody(body, order));
       assert.equal(validate(wire), kind !== "document-scope");
       if (current.protocolFeedback) {
         assert.equal(current.protocolFeedback.attempt, 2);
@@ -2124,7 +2142,9 @@ test("actual layer, conformance and issue corrections precede material repair wi
               "issue-mask-index": /Rebuild issue\/check\/scope alignment/u,
               "issue-global-scope": /Rebuild issue\/check\/scope alignment/u };
             assert.match(body.messages[0].content, hints[firstFailure]);
-            if (firstFailure !== "V01F") assert.match(body.messages[0].content, /Replace the complete d\/g\/p\/i result/u);
+            if (firstFailure !== "V01F" && !firstFailure.startsWith("issue-")) {
+              assert.match(body.messages[0].content, /Replace the complete d\/g\/p\/i result/u);
+            }
             if (correctionFailure === "V01F") delete wire.i;
             if (correctionFailure === "V19") wire.p["0"].c.s = "100";
             if (correctionFailure === "V24O") wire.i = [0];
@@ -2172,7 +2192,7 @@ test("actual layer, conformance and issue corrections precede material repair wi
           assert.match(prompt, /Never invent or erase a failure or change the independent verdict/u);
         } else assert.doesNotMatch(prompt, /Rebuild issue\/check\/scope alignment/u);
       }
-      assert.deepEqual(fittedVerificationSchemaForBody(bodies[0]), fittedVerificationSchemaForBody(bodies[1]));
+      assertVerificationCorrectionPresentation(bodies[0], bodies[1], firstFailure.startsWith("issue-"));
       for (const body of bodies.slice(0, 2)) {
         assert.deepEqual(inertModelPayload(body).deterministicFindings.map(({ id }) => id), ["candidate-not-material"]);
         assert.doesNotMatch(JSON.stringify(body), /V17M|V19|V01F|V24O|D14/u);
@@ -2249,7 +2269,7 @@ test("actual decision-alignment corrections preserve independent judgment, exhau
       assert.equal(Boolean(inertModelPayload(target[0]).deterministicFindings?.length), false);
       assert.equal(Object.hasOwn(inertModelPayload(target[0]), "retry"), false);
       assert.equal(inertModelPayload(target[1]).retry, "private-verification-wire-invalid");
-      assert.deepEqual(fittedVerificationSchemaForBody(target[0]), fittedVerificationSchemaForBody(target[1]));
+      assertVerificationCorrectionPresentation(target[0], target[1], true);
       for (let index = 0; index < bodies.length; index += 1) {
         const body = bodies[index], prompt = body.messages[0].content;
         assert.equal(body.model, TEST_REVIEW_MODEL);
@@ -2273,6 +2293,42 @@ test("actual decision-alignment corrections preserve independent judgment, exhau
       }
     });
   }
+});
+
+test("visitor auto and qualification use the same verifier correction for conflicting evidence", async () => {
+  const repairText = "A guest sets a blue notebook on the desk, reads the first page, then shuts it.";
+  const corrections = [];
+  for (const mode of ["qualification", "ordinary JSON", "ordinary stream"]) {
+    const reviews = [];
+    const worker = createLatticeApiWorker({ fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      if (isAnalysisBody(body)) return successfulProviderResponse(canaryAnalysisWire(body, { expectedMode: "auto" }));
+      if (isCandidateBody(body)) return successfulProviderResponse(canaryCandidateFromProviderBody(body, repairText));
+      assert.ok(isVerificationBody(body), "contradictory reviews must withhold before certification");
+      reviews.push(body);
+      const wire = canaryVerificationWire(body);
+      wire.d = 2;
+      return successfulProviderResponse(wire);
+    } });
+    const stream = mode === "ordinary stream";
+    const response = await worker.fetch(apiRequest({ ...LATTICE_PRODUCTION_CANARY_REQUEST, requested_mode: "auto" }, {
+      accept: stream ? LATTICE_SERVICE_EVENTS_MIME : "application/json",
+      headers: mode === "qualification" ? {
+        [LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]: LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_VALUE,
+      } : {},
+    }), { HF_TOKEN: "server-token", [LATTICE_QUALIFICATION_EXPIRES_AT_BINDING]: "2099-10-04T14:00:00.000Z" });
+    assert.equal(response.status, 200);
+    const result = stream
+      ? JSON.parse((await response.text()).trimEnd().split("\n").at(-1)).body.result
+      : (await json(response)).result;
+    assert.equal(result.status, "unable-to-attempt");
+    assert.equal(result.text, null);
+    assert.equal(reviews.length, 2);
+    assertVerificationCorrectionPresentation(reviews[0], reviews[1], true);
+    corrections.push(reviews);
+  }
+  assert.deepEqual(corrections[0], corrections[1]);
+  assert.deepEqual(corrections[0], corrections[2]);
 });
 
 test("independent acceptance cannot clear a candidate atom claim mismatch", async (context) => {
@@ -2493,7 +2549,7 @@ test("reverification corrections preserve fixed strict-schema transport, decisio
             if (toolName === VERIFICATION_TOOL_NAME) {
               verifies += 1;
               assert.equal(url, TEST_REVIEW_URL);
-              fittedVerificationSchemaForBody(body);
+              fittedVerificationSchemaForBody(body, verifies === 3 ? ["g", "p", "i", "d"] : ["d", "g", "p", "i"]);
               const wire = structuredClone(canaryVerificationWire(body));
               if (verifies === 1) {
                 wire.d = 1;
@@ -2533,7 +2589,7 @@ test("reverification corrections preserve fixed strict-schema transport, decisio
         assert.equal(calls.length, recover ? 7 : 6);
         assert.equal(envelope.result.status === "translated", recover);
         const verifyBodies = calls.filter(isVerificationBody);
-        assert.deepEqual(fittedVerificationSchemaForBody(verifyBodies[1]), fittedVerificationSchemaForBody(verifyBodies[2]));
+        assertVerificationCorrectionPresentation(verifyBodies[1], verifyBodies[2], true);
         for (const body of verifyBodies) {
           assert.equal(body.model, TEST_REVIEW_MODEL);
           assert.equal(body.max_tokens, 2_048);
@@ -2616,6 +2672,75 @@ test("repair and reject wire records still require grounded layer support and ev
         assert.ok(result.passages[0].layerEvidenceSpanIds.length > 0);
       }
     }
+  }
+});
+
+test("repair feedback legend describes only outgoing negative passage tuples", async (context) => {
+  const base = minimalVerificationRequest();
+  const passageId = base.batch.passages[0].id;
+  const atomId = base.analysis.passages[0].atoms[0].id;
+  const spanId = base.sourceSpans[0].spans[0].id;
+  const criterion = LATTICE_CONFORMANCE_CRITERIA.universal[0];
+  const negativePassage = {
+    passageId, missingAtomIds: [atomId],
+    unsupportedClaims: [{ claim: "PRIVATE-UNSUPPORTED-CLAIM", evidence: "PRIVATE-CLAIM-EVIDENCE" }],
+    unmodeledSpanIds: [spanId], semanticFidelity: false,
+    conformanceEvidenceSpanIds: [spanId], requiresPositiveConformance: true,
+    conformanceConfirmed: false, independentLayer: "operative",
+    layerEvidenceAtomIds: [atomId], layerEvidenceSpanIds: [spanId],
+    criterionChecks: [{ criterion, passed: false, evidenceSpanIds: [spanId] }],
+  };
+  const emptyPassage = {
+    ...negativePassage, missingAtomIds: [], unsupportedClaims: [], unmodeledSpanIds: [],
+    semanticFidelity: true, conformanceEvidenceSpanIds: [], requiresPositiveConformance: false,
+    conformanceConfirmed: true, criterionChecks: [],
+  };
+  const feedback = (decision, passages) => ({
+    decision, gates: { semanticFidelity: decision === "accept" }, passages,
+    issues: decision === "accept" ? [] : [{ check: "semanticFidelity", passageId }], questions: [],
+  });
+  const cases = [
+    ["repair", feedback("repair", [negativePassage]), true],
+    ["reject", feedback("reject", [negativePassage]), true],
+    ["empty feedback passages", feedback("repair", []), false],
+    ["passage filtered out of outgoing feedback", feedback("repair", [emptyPassage]), false],
+    ["no feedback", null, false],
+    ["positive feedback with an encoded passage", feedback("accept", [{
+      ...emptyPassage, conformanceEvidenceSpanIds: [spanId],
+    }]), false],
+  ];
+  for (const [name, verification, expectLegend] of cases) {
+    await context.test(name, async () => {
+      const calls = [];
+      const adapter = createHuggingFaceLatticeAdapter({ token: "server-token", fetchImpl: async (_url, init) => {
+        calls.push(JSON.parse(init.body));
+        return successfulProviderResponse({ passages: [] });
+      } });
+      await adapter.repair({ ...base, verification });
+      assert.equal(calls.length, 1);
+      assert.equal(adapter.completionCapacity().used, 1);
+      const body = calls[0];
+      const encoded = inertModelPayload(body).verification;
+      const system = body.messages[0].content;
+      if (expectLegend) {
+        assert.deepEqual(encoded, [name, ["semanticFidelity"], [[
+          passageId, [atomId], ["unsupported-meaning"], [spanId], ["semanticFidelity"],
+          [spanId], true, "operative", [atomId], [spanId], [[criterion, [spanId]]],
+        ]], [["semanticFidelity", passageId]]]);
+        assert.match(system, /Feedback passage tuples are \[passage ID, missing atom IDs, unsupported marker list, unmodeled span IDs, failed check names, conformance evidence span IDs, conformance-failed boolean, independent layer, layer-evidence atom IDs, layer-evidence span IDs, failed criterion checks\]/u);
+        assert.match(system, /unsupported marker list is \[\] or \["unsupported-meaning"\], never claim prose/u);
+        assert.match(system, /failed criterion check is \[criterion name, evidence span IDs\]/u);
+      } else {
+        assert.doesNotMatch(system, /Feedback passage tuples are/u);
+        if (verification === null) assert.equal(encoded, null);
+        else assert.equal(encoded[2].length, name.startsWith("positive") ? 1 : 0);
+      }
+      assert.doesNotMatch(JSON.stringify(body), /PRIVATE-UNSUPPORTED-CLAIM|PRIVATE-CLAIM-EVIDENCE/u);
+      assert.deepEqual(body.response_format, { type: "json_object" });
+      assert.equal(body.model, LATTICE_REMOTE_MODELS.generator);
+      assert.equal(body.max_tokens, LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.repair);
+      assert.match(system, /repair every finding/u);
+    });
   }
 });
 
@@ -6392,6 +6517,8 @@ test("caller correction fields cannot select trusted verifier correction guidanc
     assert.doesNotMatch(body.messages[0].content, /Rebuild retained-source conformance separately|Rebuild issue entries as complete closed c\/p objects/u);
     assert.doesNotMatch(body.messages[0].content, /Rebuild issue\/check\/scope alignment|Rebuild decision\/check alignment/u);
     assert.doesNotMatch(JSON.stringify(body), /host-issue-alignment|host-decision-alignment|A verifier issue must identify|The verifier returned/u);
+    fittedVerificationSchemaForBody(body);
+    assert.doesNotMatch(body.messages[0].content, /Choose d last from that fresh assessment/u);
     assert.equal(inertModelPayload(body).retry, "private-verification-wire-invalid");
   }
 });
@@ -9539,7 +9666,9 @@ async function runEmptySupportMaterialRepair({
         applyEmptySupportRegressionFailure(wire, verifies === 1 ? first : verifies === 2 ? second : freshFailure);
         assert.equal(body.max_tokens, 2048);
         assert.equal(body.response_format.type, "json_schema");
-        fittedVerificationSchemaForBody(body);
+        const alignmentCorrection = (verifies === 2 && first === "host issue")
+          || (verifies === 4 && freshFailure === "host issue");
+        fittedVerificationSchemaForBody(body, alignmentCorrection ? ["g", "p", "i", "d"] : ["d", "g", "p", "i"]);
         return successfulProviderResponse(wire);
       }
       certificates += 1;
