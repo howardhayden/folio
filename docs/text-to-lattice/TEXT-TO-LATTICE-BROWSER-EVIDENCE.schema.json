@@ -196,8 +196,15 @@
           "$ref": "#/$defs/timestamp"
         },
         "qualification_expires_at": {
-          "$ref": "#/$defs/timestamp",
-          "description": "The workflow-generated absolute end of the guarded qualification-pending exposure. Both captures and the post-capture deployment-index check must complete no later than this instant."
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Actual absolute expiry for timed qualification; null only with the deployed operator-ended qualification mode. The independent BEFORE/AFTER capture span remains at most 30 minutes."
         },
         "deployment_evidence_checked_before_captures_at": {
           "$ref": "#/$defs/timestamp"
@@ -207,8 +214,40 @@
         },
         "deployment_evidence_unchanged_across_captures": {
           "const": true
+        },
+        "qualification_mode": {
+          "const": "operator-ended",
+          "description": "Explicit operator-ended G06 exposure, joined to the actual deployed API mode binding; restoration is operator initiated."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "qualification_mode"
+            ],
+            "properties": {
+              "qualification_mode": {
+                "const": "operator-ended"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "qualification_expires_at": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "qualification_expires_at": {
+                "$ref": "#/$defs/timestamp"
+              }
+            }
+          }
+        }
+      ]
     },
     "redaction": {
       "type": "object",
