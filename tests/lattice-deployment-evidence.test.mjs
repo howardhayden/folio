@@ -61,7 +61,7 @@ const liveProviderContract = Object.freeze({
   certification_request_model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
   certification_response_format: "json_schema",
   certification_schema_strict: true,
-  generator_model: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
+  generator_model: "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
   verifier_model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
   automatic_retry: false,
   alternate_provider_or_model_fallback: false,
@@ -222,7 +222,7 @@ async function withEvidenceFiles(callback, overrides = {}) {
       schemaVersion: 3,
       verified_at: "2026-09-14T08:01:00.000Z",
       deployment: { repository: "howardhayden/folio", commit: "a".repeat(40), run_url: "https://github.com/howardhayden/folio/actions/runs/123456789", run_attempt: 2 },
-      request_admission: admissionFixture(Boolean(overrides.apiVersionPath?.resources?.bindings?.some((entry) => entry.name === "LATTICE_QUALIFICATION_EXPIRES_AT"))),
+      request_admission: admissionFixture(Boolean(overrides.apiVersionPath?.resources?.bindings?.some((entry) => ["LATTICE_QUALIFICATION_EXPIRES_AT", "LATTICE_QUALIFICATION_MODE"].includes(entry.name)))),
       declared_provider_contract: liveProviderContract,
       declared_hard_limits: {
         provider_stage_call_timeout_ms: LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS,
@@ -1007,6 +1007,7 @@ test("deployment evidence binds format-specific versions and the complete curren
   });
   for (const [name, patch] of [
     ["old verification route", { verification_endpoint: "https://router.huggingface.co/deepinfra/v1/openai/chat/completions" }],
+    ["unselected standard generator", { generator_model: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra" }],
     ["prior Next80B generator selector", { generator_model: "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra" }],
     ["old generator selector", { generator_model: "Qwen/Qwen3-4B-Instruct-2507:nscale" }],
     ["old verifier selector", { verifier_model: "meta-llama/Llama-3.1-8B-Instruct:deepinfra" }],
@@ -1383,4 +1384,61 @@ test("second namespace inspection independently rejects mismatch and operation e
     assert.equal(calls, 2);
     assert.equal(before.validatedAt, "2026-09-14T08:00:01.000Z");
   }, { apiVersionPath: namespaceVersion() }));
+});
+
+
+function operatorEndedApiVersion() {
+  const version = apiVersionView();
+  version.resources.bindings.push({ name: "LATTICE_QUALIFICATION_MODE", type: "plain_text", text: "operator-ended" });
+  return version;
+}
+
+test("operator-ended deployment binds the actual closed mode without an expiry or fabricated admission", async () => {
+  const raw = operatorEndedApiVersion();
+  const options = { qualificationMode: "operator-ended" };
+  const sanitized = sanitizeTextToLatticeApiVersion(raw, apiVersion, options);
+  assert.deepEqual(sanitized.bindings.at(-1), { name: "LATTICE_QUALIFICATION_MODE", type: "plain_text", mode: "operator-ended" });
+  assert.equal(JSON.stringify(sanitized).includes('"text"'), false);
+  await withEvidenceFiles(async paths => {
+    const observed = await inspectTextToLatticeApiEnvironment({ ...paths, ...deploymentCustody, ...options,
+      environment: environment(), now: () => new Date("2026-09-14T08:05:00.000Z") });
+    assert.equal(observed.api.versionId, apiVersion);
+    const output = join(dirname(paths.apiVersionPath), "operator-inspection.json");
+    const args = [resolve("scripts/build-text-to-lattice-deployment-evidence.mjs"), "--inspect-api-environment",
+      "--api-deployment", paths.apiDeploymentPath, "--api-version", paths.apiVersionPath,
+      "--qualified-source-set-sha256", deploymentCustody.qualifiedSourceSetSha256,
+      "--qualification-mode", "operator-ended", "--output", output];
+    const inspected = spawnSync(process.execPath, args, { encoding: "utf8", env: { ...process.env, ...environment() } });
+    assert.equal(inspected.status, 0, inspected.stderr);
+    assert.equal(JSON.parse(await readFile(output, "utf8")).api.versionId, apiVersion);
+    const refused = spawnSync(process.execPath, [...args.slice(0, -2), "--qualification-expires-at", "2026-09-14T08:30:00.000Z", "--output", output + ".refused"], { encoding: "utf8", env: { ...process.env, ...environment() } });
+    assert.notEqual(refused.status, 0);
+    await assert.rejects(readFile(output + ".refused"), /ENOENT/u);
+    const buildOptions = { ...paths, ...deploymentCustody, ...options, environment: environment(), now: () => new Date("2026-09-14T08:05:00.000Z") };
+    const index = await buildTextToLatticeDeploymentEvidence(buildOptions);
+    assert.equal(index.qualificationExpiresAt, null);
+    assert.deepEqual(index.workers.api.activeVersionBindings.at(-1), sanitized.bindings.at(-1));
+    assert.doesNotThrow(() => verifyTextToLatticeDeploymentEvidenceIndex(index));
+    const incomplete = structuredClone(index); delete incomplete.admissionEnvironment;
+    assert.throws(() => verifyTextToLatticeDeploymentEvidenceIndex(incomplete), /requires actual admission/u);
+    const live = JSON.parse(await readFile(paths.liveEvidencePath, "utf8"));
+    for (const observation of [admissionFixture(false), { ...admissionFixture(true), canary: { status: "unavailable", claim: "unavailable", order: "unavailable", provider: "unavailable" } }]) {
+      live.request_admission = observation;
+      await writeFile(paths.liveEvidencePath, JSON.stringify(live));
+      await assert.rejects(buildTextToLatticeDeploymentEvidence(buildOptions), /admission/u);
+    }
+  }, { apiVersionPath: raw });
+});
+
+test("operator-ended mode cannot be inferred, spoofed, combined with expiry, or carried into normal deployment", () => {
+  const raw = operatorEndedApiVersion();
+  assert.throws(() => sanitizeTextToLatticeApiVersion(raw, apiVersion), /exactly|unreviewed/u);
+  assert.throws(() => sanitizeTextToLatticeApiVersion(apiVersionView(), apiVersion, { qualificationMode: "operator-ended" }), /exactly/u);
+  assert.throws(() => sanitizeTextToLatticeApiVersion(raw, apiVersion, { qualificationMode: "unknown" }), /mode/u);
+  assert.throws(() => sanitizeTextToLatticeApiVersion(raw, apiVersion, { qualificationMode: "operator-ended", qualificationExpiresAt: "2026-09-14T08:30:00.000Z" }), /cannot also/u);
+  for (const change of [v => v.resources.bindings.at(-1).text = "operator-ended\n", v => v.resources.bindings.at(-1).value = "operator-ended", v => v.resources.bindings.push({ ...v.resources.bindings.at(-1) })]) {
+    const invalid = structuredClone(raw); change(invalid);
+    assert.throws(() => sanitizeTextToLatticeApiVersion(invalid, apiVersion, { qualificationMode: "operator-ended" }));
+  }
+  assert.equal(sanitizeTextToLatticeApiVersion(apiVersionView(), apiVersion).bindings.some(b => b.name === "LATTICE_QUALIFICATION_MODE"), false);
 });
