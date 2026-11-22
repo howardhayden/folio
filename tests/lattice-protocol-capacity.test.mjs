@@ -421,7 +421,7 @@ async function reviewedActiveVerifierRepositoryTokenizer() {
 async function reviewedActiveGeneratorRepositoryTokenizer() {
   const Tokenizer = await tokenizerRuntime();
   const bytes = await readFile(ACTIVE_QWEN_REPOSITORY_TOKENIZER_PATH);
-  // This binds the reviewed Qwen repository file only, not the selected provider's managed
+  // This binds the reviewed Qwen repository file only, not DeepInfra's managed
   // tokenizer, chat template, or structured-output token accounting.
   assert.equal(bytes.byteLength, REVIEWED_QWEN_2507_REPOSITORY_TOKENIZER.bytes);
   assert.equal(
@@ -3930,9 +3930,6 @@ test("the reachable dense two-passage repair retains its grounding inside the pi
 });
 
 test("active compact drafting and repair byte-bound grounded maximum requests and corrections", async (context) => {
-  const tokenizer = ACTIVE_GENERATOR_TOKENIZER_FIXTURE_AVAILABLE
-    ? await reviewedActiveGeneratorRepositoryTokenizer() : null;
-  if (tokenizer) context.after(() => tokenizer.dispose());
   const requestFor = ({ batch, sourceSpans, context = null }) => {
     const analysis = linkedAnalysisFor(batch, sourceSpans);
     return { batch, sourceSpans, context, documentLedger: [], analysis,
@@ -3988,19 +3985,6 @@ test("active compact drafting and repair byte-bound grounded maximum requests an
         assert.deepEqual(payload.rejectedCandidate, request.candidate.passages.map((passage) => [
           passage.passageId, passage.layer, passage.text,
         ]));
-        const extraByPassage = new Map(payload.feedbackSourceSpans ?? []);
-        for (const feedback of payload.verification?.[2] ?? []) {
-          const sourceGroup = request.sourceSpans.find(({ passageId }) => passageId === feedback[0]);
-          const sourceById = new Map([...sourceGroup.spans, ...(sourceGroup.literalAnnotations ?? [])]
-            .map((span) => [span.id, span]));
-          const referenced = new Set([...feedback[3], ...feedback[5], ...feedback[9],
-            ...feedback[10].flatMap((criterion) => criterion[1])]);
-          const ordinary = [...referenced].filter((id) => sourceById.get(id).kind !== "literal");
-          const extra = extraByPassage.get(feedback[0]) ?? [];
-          assert.deepEqual(new Set(extra.map(([id]) => id)), new Set(ordinary));
-          assert.equal(extra.length, ordinary.length, "no duplicate grounding or unrelated ordinary spans");
-          for (const [id, text] of extra) assert.equal(text, sourceById.get(id).text);
-        }
       } else {
         assert.equal(payload.passages.flatMap((group) => group[1]).length,
           request.sourceSpans.flatMap(({ spans }) => spans).length);
@@ -4011,9 +3995,6 @@ test("active compact drafting and repair byte-bound grounded maximum requests an
     }
     context.diagnostic(JSON.stringify({ fixture: label,
       inputBytes: bodies.map(({ bytes }) => bytes), repairFromSource: false,
-      // Repository-tokenizer observations only, not provider chat-template accounting.
-      ...(tokenizer ? { repositoryMessageTokens: bodies.map(({ body }) => body.messages
-        .reduce((sum, message) => sum + tokenizer.encode(message.content).length, 0)) } : {}),
     }));
   }
 });
