@@ -300,10 +300,10 @@ const heldForbiddenExecutableStrings = Object.freeze([
 ]);
 const staleEnabledPublicationPattern = /release gates remain open|must agree before the converter can open|model-use controls[\s\S]{0,120}WebAssembly provenance are qualified|dormant (?:interface|dialog)|sole open (?:release )?blocker|held solely because|hold the interactive client/iu;
 const datedHeldDossierPublicationPath = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md";
-const datedHeldDossierBoundary = Buffer.from("The complete held-parent dossier after the Safari result in run #510 follows as dated history.");
-const datedHeldDossierSeparator = Buffer.from("The complete held-parent dossier after the Safari result in run #510 follows as dated history.\n\n---\n\n");
-const datedHeldDossierBytes = 673885;
-const datedHeldDossierSha256 = "9e4ee1874e2e4e3f57e8bdde60ad2d5257f622ec7fc6b07589cd7840c3d9a540";
+const datedHeldDossierBoundary = Buffer.from("The complete held-parent dossier for the corrected operator capture after run #504 follows verbatim as dated history.");
+const datedHeldDossierSeparator = Buffer.from("The complete held-parent dossier for the corrected operator capture after run #504 follows verbatim as dated history.\n\n---\n\n");
+const datedHeldDossierBytes = 669634;
+const datedHeldDossierSha256 = "abc1bc1e7fe954bc0ee938f1e40a335fbb7895c9eddb66e7cb47b497c7fabe5b";
 const publishedReleaseRegister = "documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json";
 const previousOwnerDecisionSha256 = "b6cbc8c1fb9a75390acd0662e13c16859aadac847cf57330b28e7421da2ec135";
 const serializedVinextRscScript = /^\s*\(\(self\[Symbol\.for\("vinext\.navigationRuntime"\)\]\?\?=\{bootstrap:\{routeManifest:null\},functions:\{\}\}\)\.bootstrap\.rsc\?\?=\{rsc:\[\]\}\)\.rsc\.push\(("(?:\\[\s\S]|[^"\\])*")\)\s*;?\s*$/u;
@@ -896,7 +896,6 @@ function browserEvidenceIdentity(evidence) {
     deploymentEvidenceCheckedBeforeCapturesAt: deployment.deployment_evidence_checked_before_captures_at,
     deploymentEvidenceCheckedAfterCapturesAt: deployment.deployment_evidence_checked_after_captures_at,
     deploymentEvidenceUnchangedAcrossCaptures: deployment.deployment_evidence_unchanged_across_captures,
-    ...(Object.hasOwn(deployment, "qualification_mode") ? { qualificationMode: deployment.qualification_mode } : {}),
   });
 }
 
@@ -910,18 +909,16 @@ export async function verifyBrowserEvidenceAuthority(
   releaseState = verifyReleaseStatusState(register),
   verifyBundle = verifyBrowserEvidenceBundle,
 ) {
-  const hasMode = Object.hasOwn(register.authority?.browserEvidence ?? {}, "qualificationMode");
-  const authorityFields = [...browserEvidenceAuthorityFields, ...(hasMode ? ["qualificationMode"] : [])];
   const record = exactObjectFields(
     register.authority?.browserEvidence,
-    authorityFields,
+    browserEvidenceAuthorityFields,
     "authority.browserEvidence",
   );
   if (!releaseState.qualified) {
     if (record.status !== "not-collected") {
       fail("held and qualification-pending releases must classify browser evidence as not-collected.");
     }
-    for (const field of authorityFields.slice(1)) {
+    for (const field of browserEvidenceAuthorityFields.slice(1)) {
       if (record[field] !== null) {
         fail(`authority.browserEvidence.${field} must be null until the release is qualified.`);
       }
@@ -959,9 +956,6 @@ export async function verifyBrowserEvidenceAuthority(
     fail("qualified authority.browserEvidence.sha256 does not match the strict browser-evidence bundle bytes.");
   }
   const expectedIdentity = browserEvidenceIdentity(bundle.evidence);
-  if (hasMode !== Object.hasOwn(expectedIdentity, "qualificationMode")) {
-    fail("qualified authority.browserEvidence.qualificationMode does not match the strict browser-evidence bundle.");
-  }
   for (const [field, expected] of Object.entries(expectedIdentity)) {
     if (record[field] !== expected) {
       fail(`qualified authority.browserEvidence.${field} does not match the strict browser-evidence bundle.`);
