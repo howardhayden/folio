@@ -2416,7 +2416,7 @@ test("the canonical no-JavaScript contract exposes remote capability and privacy
   assert.match(source, /WebLLM\/MLC download path, bodyless quota lease, Turnstile attestation frame, renewal, and release protocol are inactive/u);
   assert.match(source, /Hugging Face, OpenRouter, DeepInfra and CoreWeave process this text/u);
   assert.match(textToLatticeContract.securityAndPrivacy.huggingFace.residualDisclosure, /including unflagged requests on Safety Retention endpoints/u);
-  assert.match(textToLatticeContract.securityAndPrivacy.huggingFace.residualDisclosure, /temporary in-memory caching, operational metadata, authorized support retention of up to 30 days/u);
+  assert.match(textToLatticeContract.securityAndPrivacy.huggingFace.residualDisclosure, /With written authorization, DeepInfra may retain data to resolve a support issue\. It deletes that data within 30 days after resolving the issue/u);
   assert.match(source, /<noscript><p className="lattice-noscript-note">/u);
   assert.doesNotMatch(source, /policy\.(?:globalRequests|globalDailyRequests|globalAttempts|globalGrants|activeLeases|enforcement|freeTierBasis)/u);
 });
