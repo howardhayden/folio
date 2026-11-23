@@ -3877,6 +3877,7 @@ export async function runTextToLattice(value, options = {}) {
       documentLedger: reanalysisLedger,
       clarificationDocumentProvenance,
       reanalysisFeedback: closedReanalysisFeedback(entry.verification),
+      reanalysisPriorAnalysis: entry.analysis,
       requestedMode,
       allowClarification: false,
       signal,
@@ -3994,6 +3995,7 @@ export async function runTextToLattice(value, options = {}) {
             currentRequest, original.batch, original.verification, replacementAnalysis,
             () => options.adapter.generate(currentRequest),
             correctionPositions,
+            retainedOverrideIdsByBatch.get(original.batch.id),
           )
           : options.adapter.repair(currentRequest),
         normalize: (raw) => normalizeCandidate(raw, original.batch, replacementAnalysis),
