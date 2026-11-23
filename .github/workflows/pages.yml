@@ -17,6 +17,11 @@ on:
         required: false
         default: false
         type: boolean
+      use_visitor_mode_for_g06:
+        description: Use operator-ended G06 qualification with the visitor's auto-mode service check
+        required: false
+        default: false
+        type: boolean
       restore_text_to_lattice_qualification:
         description: Restore held API and Pages immediately during qualification
         required: false
@@ -87,6 +92,7 @@ jobs:
           LATTICE_RESTORE_QUALIFICATION: ${{ inputs.restore_text_to_lattice_qualification }}
           LATTICE_ACTIVATE_QUALIFICATION: ${{ inputs.activate_text_to_lattice_qualification }}
           LATTICE_DEPLOY_SERVICES: ${{ inputs.deploy_text_to_lattice_services }}
+          LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}
         run: node scripts/plan-text-to-lattice-qualification-window.mjs --validate-operation
 
   build:
@@ -152,6 +158,7 @@ jobs:
           "$RUNNER_TEMP/artifact.tar"
           --github-output
           "$GITHUB_OUTPUT"
+
 
   restore_text_to_lattice_qualification_api:
     name: Immediately restore the qualification API to held
@@ -415,6 +422,22 @@ jobs:
           throw new Error("Build and publication boundaries did not prove one exact qualified source-set digest.")'
       - name: Install pinned Worker deployment tooling
         run: npm ci --ignore-scripts --prefix workers
+      - name: Verify the original Pages archive for the G06 browser window
+        if: github.event_name == 'workflow_dispatch' && inputs.use_visitor_mode_for_g06 == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_ID: ${{ needs.build.outputs.pages_artifact_id }}
+          SITE_ARTIFACT_SHA256: ${{ needs.build.outputs.site_artifact_sha256 }}
+          QUALIFIED_SOURCE_SHA256: ${{ needs.build.outputs.qualified_source_set_sha256 }}
+        run: node scripts/build-text-to-lattice-browser-page-receipt.mjs
+      - name: Upload the G06 browser page receipt
+        if: github.event_name == 'workflow_dispatch' && inputs.use_visitor_mode_for_g06 == true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: text-to-lattice-g06-browser-page-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/g06-browser-page.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Require protected Cloudflare deployment configuration
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -440,10 +463,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/text-to-lattice-held-deploy.jsonl
-        run: >-
-          ./workers/node_modules/.bin/wrangler deploy
-          workers/text-to-lattice-api/held.js
-          --config workers/text-to-lattice-api/wrangler.jsonc
+          LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}
+        run: |
+          if [[ "$LATTICE_G06_VISITOR_MODE" == "true" ]]; then
+            env -u WRANGLER_OUTPUT_FILE_PATH node scripts/read-text-to-lattice-active-version.mjs --capture-incumbent \
+              --wrangler ./workers/node_modules/.bin/wrangler \
+              --config workers/text-to-lattice-api/wrangler.jsonc \
+              --output "$RUNNER_TEMP/text-to-lattice-before-bootstrap.json"
+          fi
+          ./workers/node_modules/.bin/wrangler deploy workers/text-to-lattice-api/held.js \
+            --config workers/text-to-lattice-api/wrangler.jsonc
       - name: Inspect Text to Lattice API encrypted binding names before bootstrap
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -488,7 +517,7 @@ jobs:
           "$RUNNER_TEMP/text-to-lattice-deployment-evidence/secret-bindings.json"
       - name: Establish the absolute bounded active-service expiry
         id: qualification-window
-        if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
+        if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' && inputs.use_visitor_mode_for_g06 != true }}
         run: >-
           node scripts/plan-text-to-lattice-qualification-window.mjs
           --github-output
@@ -504,11 +533,18 @@ jobs:
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/text-to-lattice-api-deploy.jsonl
           RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
           QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
+          LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}
         run: |
           if [[ "$RELEASE_PHASE" != "qualified" ]]; then
-            ./workers/node_modules/.bin/wrangler deploy \
-              --config workers/text-to-lattice-api/wrangler.jsonc \
-              --var "LATTICE_QUALIFICATION_EXPIRES_AT:$QUALIFICATION_EXPIRES_AT"
+            if [[ "$LATTICE_G06_VISITOR_MODE" == "true" ]]; then
+              ./workers/node_modules/.bin/wrangler deploy \
+                --config workers/text-to-lattice-api/wrangler.jsonc \
+                --var "LATTICE_QUALIFICATION_MODE:operator-ended"
+            else
+              ./workers/node_modules/.bin/wrangler deploy \
+                --config workers/text-to-lattice-api/wrangler.jsonc \
+                --var "LATTICE_QUALIFICATION_EXPIRES_AT:$QUALIFICATION_EXPIRES_AT"
+            fi
           else
             node scripts/read-text-to-lattice-active-version.mjs --capture-incumbent \
               --wrangler ./workers/node_modules/.bin/wrangler \
@@ -535,10 +571,14 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
           RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
+          LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}
         run: |
           SELECTION_ARGUMENTS=()
           if [[ "$RELEASE_PHASE" != "qualified" ]]; then
             SELECTION_ARGUMENTS=(--preceding-held-deployment "$RUNNER_TEMP/text-to-lattice-held-deploy.jsonl")
+            if [[ "$LATTICE_G06_VISITOR_MODE" == "true" ]]; then
+              SELECTION_ARGUMENTS+=(--pre-bootstrap-incumbent "$RUNNER_TEMP/text-to-lattice-before-bootstrap.json")
+            fi
           else
             SELECTION_ARGUMENTS=(--preceding-incumbent "$RUNNER_TEMP/text-to-lattice-api-incumbent.json")
           fi
@@ -560,10 +600,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
           QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
           RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
+          LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}
         run: |
-          EXPIRY_ARGUMENTS=()
+          QUALIFICATION_ARGUMENTS=()
           if [[ "$RELEASE_PHASE" != "qualified" ]]; then
-            EXPIRY_ARGUMENTS=(--qualification-expires-at "$QUALIFICATION_EXPIRES_AT")
+            if [[ "$LATTICE_G06_VISITOR_MODE" == "true" ]]; then
+              QUALIFICATION_ARGUMENTS=(--qualification-mode operator-ended)
+            else
+              QUALIFICATION_ARGUMENTS=(--qualification-expires-at "$QUALIFICATION_EXPIRES_AT")
+            fi
           fi
           node scripts/build-text-to-lattice-deployment-evidence.mjs \
             --inspect-api-environment \
@@ -571,7 +616,7 @@ jobs:
             --api-version "$RUNNER_TEMP/text-to-lattice-api-version.raw.json" \
             --qualified-source-set-sha256 "${{ needs.build.outputs.qualified_source_set_sha256 }}" \
             --output "$RUNNER_TEMP/text-to-lattice-deployment-evidence/api-environment-before.json" \
-            "${EXPIRY_ARGUMENTS[@]}"
+            "${QUALIFICATION_ARGUMENTS[@]}"
       - name: Verify reversible preactivation route ownership
         if: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
         env:
@@ -588,6 +633,7 @@ jobs:
           LATTICE_API_BASE_URL: https://hah.dev
           LATTICE_API_EVIDENCE_PATH: ${{ runner.temp }}/text-to-lattice-deployment-evidence/live-boundary.json
           LATTICE_REQUIRE_ADMISSION_EVIDENCE: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
+          LATTICE_CANARY_REQUEST_MODE: ${{ inputs.use_visitor_mode_for_g06 && 'auto' || 'operative' }}
         run: node scripts/verify-text-to-lattice-api-production.mjs
       - name: Inspect API deployment after live verification
         env:
@@ -595,6 +641,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
           QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
           RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
+          LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}
         run: |
           API_VERSION_ID="$(node scripts/read-text-to-lattice-active-version.mjs --inspect-deployed \
             --expected-deployment "$RUNNER_TEMP/text-to-lattice-api-deploy.jsonl" \
@@ -604,9 +651,13 @@ jobs:
           ./workers/node_modules/.bin/wrangler versions view "$API_VERSION_ID" --json \
             --config workers/text-to-lattice-api/wrangler.jsonc \
             > "$RUNNER_TEMP/text-to-lattice-api-version-after.raw.json"
-          EXPIRY_ARGUMENTS=()
+          QUALIFICATION_ARGUMENTS=()
           if [[ "$RELEASE_PHASE" != "qualified" ]]; then
-            EXPIRY_ARGUMENTS=(--qualification-expires-at "$QUALIFICATION_EXPIRES_AT")
+            if [[ "$LATTICE_G06_VISITOR_MODE" == "true" ]]; then
+              QUALIFICATION_ARGUMENTS=(--qualification-mode operator-ended)
+            else
+              QUALIFICATION_ARGUMENTS=(--qualification-expires-at "$QUALIFICATION_EXPIRES_AT")
+            fi
           fi
           node scripts/build-text-to-lattice-deployment-evidence.mjs \
             --inspect-api-environment \
@@ -614,7 +665,7 @@ jobs:
             --api-version "$RUNNER_TEMP/text-to-lattice-api-version-after.raw.json" \
             --qualified-source-set-sha256 "${{ needs.build.outputs.qualified_source_set_sha256 }}" \
             --output "$RUNNER_TEMP/text-to-lattice-deployment-evidence/api-environment-after.json" \
-            "${EXPIRY_ARGUMENTS[@]}"
+            "${QUALIFICATION_ARGUMENTS[@]}"
       - name: Require current main before legacy surface retirement
         if: ${{ needs.publication-boundary.outputs.release_phase == 'qualified' }}
         env:
@@ -654,10 +705,15 @@ jobs:
         env:
           QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
           RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
+          LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}
         run: |
-          EXPIRY_ARGUMENTS=()
+          QUALIFICATION_ARGUMENTS=()
           if [[ "$RELEASE_PHASE" != "qualified" ]]; then
-            EXPIRY_ARGUMENTS=(--qualification-expires-at "$QUALIFICATION_EXPIRES_AT")
+            if [[ "$LATTICE_G06_VISITOR_MODE" == "true" ]]; then
+              QUALIFICATION_ARGUMENTS=(--qualification-mode operator-ended)
+            else
+              QUALIFICATION_ARGUMENTS=(--qualification-expires-at "$QUALIFICATION_EXPIRES_AT")
+            fi
           fi
           node scripts/build-text-to-lattice-deployment-evidence.mjs \
             --api-deployment "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json" \
@@ -673,7 +729,7 @@ jobs:
             --pages-artifact-id "${{ needs.build.outputs.pages_artifact_id }}" \
             --site-artifact-sha256 "${{ needs.build.outputs.site_artifact_sha256 }}" \
             --qualified-source-set-sha256 "${{ needs.build.outputs.qualified_source_set_sha256 }}" \
-            "${EXPIRY_ARGUMENTS[@]}" \
+            "${QUALIFICATION_ARGUMENTS[@]}" \
             --output "$RUNNER_TEMP/text-to-lattice-deployment-evidence/deployment-index.json"
       - name: Require current main after service verification
         env:
@@ -800,6 +856,7 @@ jobs:
       always() &&
       github.ref == 'refs/heads/main' &&
       inputs.restore_text_to_lattice_qualification != true &&
+      inputs.use_visitor_mode_for_g06 != true &&
       needs.publication-boundary.result == 'success' &&
       needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
       needs.deploy_text_to_lattice_services.result == 'success' &&
@@ -831,6 +888,7 @@ jobs:
       needs.publication-boundary.result == 'success' &&
       needs.publication-boundary.outputs.release_phase == 'qualification-pending' &&
       inputs.restore_text_to_lattice_qualification != true &&
+      inputs.use_visitor_mode_for_g06 != true &&
       needs.deploy_text_to_lattice_services.result == 'success' &&
       needs.deploy.result == 'success' &&
       contains(fromJSON('["success", "failure", "cancelled"]'), needs.wait_for_text_to_lattice_qualification_expiry.result)
@@ -926,9 +984,22 @@ jobs:
         ) ||
         (
           inputs.restore_text_to_lattice_qualification != true &&
+          inputs.use_visitor_mode_for_g06 != true &&
           needs.expire_text_to_lattice_qualification_api.result == 'success' &&
           needs.expire_text_to_lattice_qualification_api.outputs.rollback_authorized == 'true' &&
           needs.expire_text_to_lattice_qualification_api.outputs.held_api_verified == 'true'
+        ) ||
+        (
+          inputs.restore_text_to_lattice_qualification != true &&
+          inputs.use_visitor_mode_for_g06 == true &&
+          inputs.activate_text_to_lattice_qualification == true &&
+          (
+            contains(fromJSON('["failure", "cancelled"]'), needs.deploy_text_to_lattice_services.result) ||
+            contains(fromJSON('["failure", "cancelled"]'), needs.deploy.result)
+          ) &&
+          needs.enforce_text_to_lattice_held_api.result == 'success' &&
+          needs.enforce_text_to_lattice_held_api.outputs.rollback_authorized == 'true' &&
+          needs.enforce_text_to_lattice_held_api.outputs.held_api_verified == 'true'
         )
       )
     needs:
@@ -936,6 +1007,9 @@ jobs:
       - build_qualification_rollback
       - restore_text_to_lattice_qualification_api
       - expire_text_to_lattice_qualification_api
+      - deploy_text_to_lattice_services
+      - deploy
+      - enforce_text_to_lattice_held_api
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -1017,6 +1091,9 @@ jobs:
       group: text-to-lattice-services
       cancel-in-progress: false
     needs: [publication-boundary, build, deploy_held, deploy_text_to_lattice_services, deploy, restore_text_to_lattice_qualification_api]
+    outputs:
+      held_api_verified: ${{ steps.enforced-held-api-verification.outcome == 'success' }}
+      rollback_authorized: ${{ steps.current-main-before-enforced-api.outcome == 'success' }}
     permissions:
       contents: read
     steps:
@@ -1056,6 +1133,7 @@ jobs:
           node -e 'for (const name of ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"])
           if (!process.env[name]) throw new Error(`${name} is not configured in the protected environment.`)'
       - name: Require current main immediately before held API enforcement
+        id: current-main-before-enforced-api
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-current-main-sha.mjs
@@ -1068,6 +1146,7 @@ jobs:
           workers/text-to-lattice-api/held.js
           --config workers/text-to-lattice-api/wrangler.jsonc
       - name: Verify and retain enforced held API disposition
+        id: enforced-held-api-verification
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}

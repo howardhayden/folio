@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
@@ -497,12 +498,18 @@ export default function ResumeProjects() {
   const progressText = serviceState.label;
   const primaryUnavailable = busy || latticeInputInvalid || wordCount === 0 || overLimit || !latticeUseConfirmed;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     latticePhaseRef.current = latticePhase;
   }, [latticePhase]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     latticeResultRef.current = latticeResult;
+    if (!latticeResult) return;
+
+    const output = latticeOutputRef.current;
+    if (!output || output.closest("[hidden]")) return;
+    output.scrollIntoView({ block: "nearest" });
+    output.focus({ preventScroll: true });
   }, [latticeResult]);
 
   const cancelLattice = useCallback(() => {
@@ -582,7 +589,7 @@ export default function ResumeProjects() {
         && active.getClientRects().length > 0
         && !active.matches(":disabled, [hidden], [aria-hidden='true'], [tabindex='-1']");
       const preferred = preferredFocusTarget();
-      if (activeIsUsable) return;
+      if (activeIsUsable || active === preferred) return;
       preferred?.focus({ preventScroll: true });
     };
     const scheduleFocusContainment = () => {
@@ -850,14 +857,6 @@ export default function ResumeProjects() {
       if (!latticeMountedRef.current || latticeJobRef.current !== jobId || controller.signal.aborted) return;
       setLatticeResult(result);
       setLatticePhase("success");
-      window.requestAnimationFrame(() => {
-        const output = latticeOutputRef.current;
-        const modal = output?.closest(".modal");
-        if (!output || modal?.hasAttribute("hidden") || output.closest("[hidden]")) return;
-        latticeOutputRefreshRef.current?.();
-        output.scrollIntoView({ block: "nearest" });
-        output.focus({ preventScroll: true });
-      });
     } catch (error) {
       if (!latticeMountedRef.current || latticeJobRef.current !== jobId) return;
       if (controller.signal.aborted || error instanceof DOMException && error.name === "AbortError") {
