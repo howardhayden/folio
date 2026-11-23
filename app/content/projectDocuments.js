@@ -124,7 +124,7 @@ export const latticeReadingGuide = {
       id: "repair-and-outcomes", subject: "text-to-lattice-api", title: "A copied draft and an accepted original have different outcomes",
       observation: "A repair that merely copies the source fails when a rewrite is required. A separately reviewed original can pass if its wording already fits. A changed draft can be shown for human review when safety and meaning checks pass but issues such as clarity or register remain. A failed required check can leave the reader with no candidate text.",
       kind: "implementation-and-tests",
-      sources: [{ label: "Four result states and their conditions", url: serviceSource + "app/resume/latticeDemo.js#L3251-L3288" }, { label: "Rechecking a revised candidate", url: serviceSource + "app/resume/latticeDemo.js#L4020-L4133" }, { label: "Copied repair and real repair compared in tests", url: serviceSource + "tests/lattice-api-worker.test.mjs#L9870-L9886" }, { label: "Retained-original certification test", url: serviceSource + "tests/lattice-demo.test.mjs#L2887-L2940" }],
+      sources: [{ label: "Four result states and their conditions", url: serviceSource + "app/resume/latticeDemo.js#L3251-L3288" }, { label: "Rechecking a revised candidate", url: serviceSource + "app/resume/latticeDemo.js#L4036-L4073" }, { label: "Copied repair and real repair compared in tests", url: serviceSource + "tests/lattice-api-worker.test.mjs#L9870-L9886" }, { label: "Retained-original certification test", url: serviceSource + "tests/lattice-demo.test.mjs#L2887-L2940" }],
     },
     {
       id: "server-progress", subject: "text-to-lattice-api", title: "The terminal follows real server work",

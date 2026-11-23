@@ -916,7 +916,7 @@ const sourceCarryEditorialPage = Object.freeze({
 });
 const documentationPublicationFiles = Object.freeze({
   ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "bd93648d926c7dbc37681abf3b23cfbe6348bd012c5ca71b582ed7e8cde42058" },
-  "app/content/projectDocuments.js": { before: "261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251", after: "ccb9bd33abf5f9ccba8d9f470fac4789bfd207508aa637d52bc480a53825d1a5" },
+  "app/content/projectDocuments.js": { before: "261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251", after: "c6d4e9e011a0fb7f282f0ad4b69a91663c4b3b34522b1b332e8f9b657babef48" },
   "app/projects/[slug]/page.tsx": { before: "d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62", after: "9be6e0ff22cc4dec8ee34954df06a49d23e4333bfe09e7cc82ea412da17339a4" },
   "app/semantic/portfolio.js": { before: "7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6", after: "6dfc25652de9a3ea1c79746fea4a1a61a3b00daa47ae353e58e25d727609f636" },
   "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "9de393af9459626e99c7562aaa8d3a22fd7640535a9ef5d5a6319aa83091469e" },
