@@ -100,7 +100,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "36a405cf6b01ff9fd8908da13e6842d25eaba9e99fc7e2883f5ea64aae11a7dd",
+    "qualificationDossierSha256": "dac365998c805036d23edc5c90930125bf177bafedf2012895746906af9d0162",
     "browserEvidence": {
       "status": "verified-sanitized-bundle",
       "path": "docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json",
