@@ -38,7 +38,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `b2ac10b03eacfd40391c6624645a2ded34a5333828a2c63443c94e4b56517837`
+**Qualified source-set SHA-256:** `5296c1e353d12da5cc8aa0e9ace4db4a20fb969cb8b7034bcc8e428f27622db7`
 
 **Artifact-set projection SHA-256:** `58e9c64506ecb739ca2a5b6a5dbf142d988fc95e9178115e0f2bed9dd120b644`
 
@@ -72,19 +72,19 @@ These are the register’s current capability values, including the exact reques
 
 The documentation revision and the browser capture share 267 qualified paths. 257 are byte-identical. The comparison below identifies every change. The converter, client request handling and Workers match the deployed release. The [original production-release comparison](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/release-evidence/text-to-lattice/run-729-source-comparison.json) remains available.
 
-The current fingerprint is `b2ac10b03eacfd40391c6624645a2ded34a5333828a2c63443c94e4b56517837`. The original captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The repository appendix `docs/release-evidence/text-to-lattice/nov23-documentation-source-comparison.json` contains 870,940 bytes (SHA-256 `ce88d11ec28db8110a379b397cbba133a12edadab9f5e4753bfed7a9b2a85025`) and retains each original beforeimage.
+The current fingerprint is `5296c1e353d12da5cc8aa0e9ace4db4a20fb969cb8b7034bcc8e428f27622db7`. The original captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The repository appendix `docs/release-evidence/text-to-lattice/nov23-documentation-source-comparison.json` contains 870,940 bytes (SHA-256 `52cd39b48c9f84b124ae16000376bc7bd26f02fa2dc4d62ca56519dfddc59318`) and retains each original beforeimage.
 
 | Qualified path | Captured SHA-256 | Documentation revision SHA-256 |
 | --- | --- | --- |
 | `app/projects/lattice/text-to-lattice/page.tsx` | `1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8` | `08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870` |
-| `scripts/verify-text-to-lattice-release.mjs` | `e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a` | `e4a31815f847b855ee8ff01fb42b1101d073083c4796407f74ef34dfd72d3554` |
-| `tests/lattice-documentation.test.mjs` | `66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e` | `41fa297a0c06cc2b3cef900499929b24a8fa0cfedef4b1185e27a5c48961b88c` |
+| `scripts/verify-text-to-lattice-release.mjs` | `e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a` | `453b12289f2a1fb281102646e54faa90506d4e1701006277690cfadfabe3f881` |
+| `tests/lattice-documentation.test.mjs` | `66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e` | `0eb871fc8daaa26fb9063a058d6f7424182d115feb6795954464896072bf4bd6` |
 | `tests/lattice-release-boundary.test.mjs` | `7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114` | `b8c71d865c0edcdf9f5dd86e20e837069bc6af2f0a7ea61067512b2bcefdbb7f` |
 | `.github/workflows/pages.yml` | `c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd` | `22a0366b136273ba952cbb20969050193925b20e1351b21122a9a98f3e160846` |
-| `app/content/projectDocuments.js` | `261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251` | `ad1aea0cb263305fb995209c1e889c19b76f1465ef83dff8d094ee9ba8e4335f` |
-| `app/projects/[slug]/page.tsx` | `d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62` | `e0c169f962d08e12a6cb7b52839ce300cd08b86ccbbfa71b4d3780f16adf05e2` |
+| `app/content/projectDocuments.js` | `261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251` | `c0bd22681a3f00ee0eb9ffa3aa29ac2a4c0b4fae6af4a0ebeea99746c92fbc70` |
+| `app/projects/[slug]/page.tsx` | `d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62` | `9eaaec80da853c7033fb6013ca91c03920831e79eeacc31ee7c8311c2c636e92` |
 | `app/semantic/portfolio.js` | `7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6` | `6dfc25652de9a3ea1c79746fea4a1a61a3b00daa47ae353e58e25d727609f636` |
-| `scripts/docs/build-text-to-lattice-documentation.mjs` | `69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc` | `7a4b737503bf8760dd6224c0fd41c513f951e10290280d7ec4570bf100e3c42b` |
+| `scripts/docs/build-text-to-lattice-documentation.mjs` | `69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc` | `9de393af9459626e99c7562aaa8d3a22fd7640535a9ef5d5a6319aa83091469e` |
 | `tests/lattice-deployment-workflow.test.mjs` | `3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089` | `6e4edb74b86264d6b25e48baf01e5c255b6cca3db4cb29e49280e081b14950d2` |
 
 ### Captured identity and five immutable files

@@ -48,7 +48,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
           <dl className="paper-meta">
             <div className="paper-meta-item"><dt>Status</dt><dd>{project.status}</dd></div>
             <div className="paper-meta-item"><dt>Publication</dt><dd>{project.publication.label}</dd></div>
-            <div className="paper-meta-item"><dt>Authoritative source</dt><dd><a href={project.url}>{project.url}</a></dd></div>
+            <div className="paper-meta-item"><dt>{record.readingGuide ? "Public reference" : "Authoritative source"}</dt><dd>{record.readingGuide
+              ? <a href={record.readingGuide.documentation}>Lattice documentation</a> : <a href={project.url}>{project.url}</a>}</dd></div>
           </dl>
           <h2 id="emphasis">Emphasis</h2>
           {project.id === "lattice" ? <LatticeSection field="emphasis" /> : <ul>{project.emphasis.map((item) => <li key={item}>{item}</li>)}</ul>}
@@ -60,7 +61,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
           {project.id === "lattice" ? (
             <ul>
               <li><a href={latticeReadingGuide.documentationUrl}>Documentation</a> explains the meaning contract, candidate selection, service path and privacy controls.</li>
-              <li><a href={latticeReadingGuide.evidenceUrl}>Evidence</a> links each claim to a worked example, source code, browser observation or production receipt.</li>
+              <li><a href={latticeReadingGuide.evidenceUrl}>Evidence</a> links the method to a wording illustration and the API to implementation evidence, browser observations and production receipts.</li>
               {projectDocuments.map((doc) => <li key={doc.id}><a href={doc.htmlUrl}>{doc.label}</a></li>)}
               <li><a href={latticeReadingGuide.jsonUrl}>Reading guide (JSON)</a> connects subjects, claims, documents and primary sources by stable identifiers.</li>
             </ul>

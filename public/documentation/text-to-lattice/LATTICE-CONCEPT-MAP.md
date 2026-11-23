@@ -9,11 +9,11 @@ generator: scripts/docs/build-text-to-lattice-documentation.mjs
 
 # Lattice concept and ecosystem map
 
-Start with the export notice. Its meaning contract names the finding, the required action and the conclusion a reader must avoid. Follow those requirements from semantic atoms to the selected passage.
+Compare a direct request to return a key by Friday with a more courteous version. The tone may change. The action and deadline must survive. The public map explains how a caller states those requirements.
 
 [Meaning contract](https://hah.dev/documentation/text-to-lattice/lattice-concept-map.html#lat-n-002) · [Semantic atoms](https://hah.dev/documentation/text-to-lattice/lattice-concept-map.html#lat-n-003) · [Derivation receipt](https://hah.dev/documentation/text-to-lattice/lattice-concept-map.html#lat-n-017)
 
-[The caller defines what must survive a rewrite](https://hah.dev/documentation/text-to-lattice/evidence.html#meaning-contract)
+[A change of tone can preserve an instruction](https://hah.dev/documentation/text-to-lattice/evidence.html#meaning-contract)
 
 [Reading guide (JSON)](https://hah.dev/documentation/text-to-lattice/reading-guide.json)
 
@@ -577,14 +577,14 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-LLAMA-AUP — Historical Llama 3.2 Acceptable Use Policy** [Reviewed source](https://developer.meta.com/ai/llama3_2/use-policy/)
 - **SRC-LLAMA-EVAL — Non-operational Llama-use evaluation cases** [docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json)
 - **SRC-WASM-PR — Upstream current-WASM rebuild record** [Reviewed source](https://github.com/mlc-ai/binary-mlc-llm-libs/pull/158)
-- **SRC-LAT-README — Lattice README at the reviewed revision** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/README.md)
-- **SRC-LAT-ARCH — Lattice architecture at the reviewed revision** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/architecture.md)
-- **SRC-LAT-REQ — Lattice requirements at the reviewed revision** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/requirements.md)
-- **SRC-LAT-SEMANTIC — Lattice semantic core at the reviewed revision** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/semantic.ts)
-- **SRC-LAT-CONTEXT — Lattice context core at the reviewed revision** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/context.ts)
-- **SRC-LAT-PROFILE — Lattice profile compiler at the reviewed revision** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/profile.ts)
-- **SRC-LAT-ENGINE — Lattice engine at the reviewed revision** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/engine.ts)
-- **SRC-LAT-ADVERSARIAL — Lattice adversarial executable contracts at the reviewed revision** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/test/adversarial.test.mjs)
+- **SRC-LAT-README — Lattice README at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-ARCH — Lattice architecture at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-REQ — Lattice requirements at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-SEMANTIC — Lattice semantic core at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-CONTEXT — Lattice context core at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-PROFILE — Lattice profile compiler at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-ENGINE — Lattice engine at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-ADVERSARIAL — Lattice adversarial executable contracts at the reviewed revision** Owner repository reference (restricted access)
 - **SRC-NNG-SKILL — NN/g skill mapping** [Reviewed source](https://www.nngroup.com/articles/skill-mapping/)
 - **SRC-NNG-BLUEPRINT — NN/g service blueprint definition** [Reviewed source](https://www.nngroup.com/articles/service-blueprints-definition/)
 - **SRC-HF-CHAT — Hugging Face OpenAI-compatible chat-completions API** [Reviewed source](https://huggingface.co/docs/inference-providers/tasks/chat-completion)
@@ -592,7 +592,7 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 - **SRC-HF-SECURITY — Hugging Face security and privacy policy** [Reviewed source](https://huggingface.co/security)
 - **SRC-HF-NSCALE — Historical predecessor source; original label: Hugging Face Nscale provider documentation** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/nscale)
 - **SRC-HF-DEEPINFRA — Hugging Face DeepInfra provider documentation** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/deepinfra)
-- **SRC-LATTICE-UPSTREAM — Lattice upstream repository** [Reviewed source](https://github.com/howardhayden/lattice)
+- **SRC-LATTICE-UPSTREAM — Lattice upstream repository** Owner repository reference (restricted access)
 - **SRC-HF-MODEL-CATALOG — Hugging Face current routed model/provider metadata** [Reviewed source](https://router.huggingface.co/v1/models)
 - **SRC-HF-NSCALE-MAPPING — Historical predecessor source; original label: Hugging Face Nscale model mapping** [Reviewed source](https://huggingface.co/api/partners/nscale/models)
 - **SRC-NSCALE-CHAT — Historical predecessor source; original label: Nscale chat-completion schema contract** [Reviewed source](https://docs.nscale.com/api-reference/inference/create-chat-completion)

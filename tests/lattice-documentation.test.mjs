@@ -619,6 +619,9 @@ test("Lattice reading paths resolve each subject and claim to visible documentat
   const evidence = await readText(publicRoot, "evidence.html");
   const subjects = new Map(guide.subjects.map((subject) => [subject.id, subject]));
   const claims = new Map(guide.evidence.map((claim) => [claim.id, claim]));
+  const methodClaims = guide.evidence.filter((claim) => claim.subject === "lattice-method");
+  assert.equal(methodClaims.find((claim) => claim.id === "meaning-contract").kind, "editorial-illustration");
+  assert.ok(methodClaims.every((claim) => claim.sources.every((source) => new URL(source.url).hostname === "hah.dev")));
   assert.deepEqual(guide.subjects, latticeReadingGuide.subjects);
   assert.deepEqual([...subjects.keys()], ["lattice-method", "text-to-lattice-api"]);
   assert.equal(digest(await readBytes(rootUrl, manifest.authority.readingGuideSource)), manifest.authority.readingGuideSourceSha256);

@@ -916,10 +916,10 @@ const sourceCarryEditorialPage = Object.freeze({
 });
 const documentationPublicationFiles = Object.freeze({
   ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "22a0366b136273ba952cbb20969050193925b20e1351b21122a9a98f3e160846" },
-  "app/content/projectDocuments.js": { before: "261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251", after: "ad1aea0cb263305fb995209c1e889c19b76f1465ef83dff8d094ee9ba8e4335f" },
-  "app/projects/[slug]/page.tsx": { before: "d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62", after: "e0c169f962d08e12a6cb7b52839ce300cd08b86ccbbfa71b4d3780f16adf05e2" },
+  "app/content/projectDocuments.js": { before: "261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251", after: "c0bd22681a3f00ee0eb9ffa3aa29ac2a4c0b4fae6af4a0ebeea99746c92fbc70" },
+  "app/projects/[slug]/page.tsx": { before: "d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62", after: "9eaaec80da853c7033fb6013ca91c03920831e79eeacc31ee7c8311c2c636e92" },
   "app/semantic/portfolio.js": { before: "7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6", after: "6dfc25652de9a3ea1c79746fea4a1a61a3b00daa47ae353e58e25d727609f636" },
-  "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "7a4b737503bf8760dd6224c0fd41c513f951e10290280d7ec4570bf100e3c42b" },
+  "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "9de393af9459626e99c7562aaa8d3a22fd7640535a9ef5d5a6319aa83091469e" },
   "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "6e4edb74b86264d6b25e48baf01e5c255b6cca3db4cb29e49280e081b14950d2" },
 });
 const sourceCarryExceptions = Object.freeze({

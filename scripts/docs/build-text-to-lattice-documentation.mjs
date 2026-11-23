@@ -801,6 +801,7 @@ function sourceMapFor(data) {
 }
 
 function reviewedSourceUrl(source) {
+  if (source.url === "https://github.com/howardhayden/lattice" || source.url?.startsWith("https://github.com/howardhayden/lattice/")) return null;
   return source.url ?? "https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/" + source.path;
 }
 
@@ -808,7 +809,11 @@ function markdownSourceRegister(data) {
   return [
     "## Source register",
     "",
-    ...data.sources.map((source) => `- **${source.id} — ${source.label}** [${source.path ?? "Reviewed source"}](${reviewedSourceUrl(source)})`),
+    ...data.sources.map((source) => {
+      const url = reviewedSourceUrl(source);
+      const citation = url ? `[${source.path ?? "Reviewed source"}](${url})` : "Owner repository reference (restricted access)";
+      return `- **${source.id} — ${source.label}** ${citation}`;
+    }),
     "",
   ];
 }
@@ -1084,7 +1089,7 @@ function evidenceHtml(data) {
       `<article id="${entry.id}"><h3>${escapeHtml(entry.title)}</h3><p>${escapeHtml(entry.observation)}</p><ul>${entry.sources.map(({ label, url }) => `<li><a href="${escapeHtml(url)}">${escapeHtml(label)}</a></li>`).join("")}</ul></article>`).join("");
     return `<section class="panel" id="${subject.id}"><h2>${escapeHtml(subject.name)}</h2>${rows}</section>`;
   }).join("");
-  return htmlPage(data, { title: "Lattice evidence", description: "Trace a claim to its worked example, implementation, browser observation or production receipt.", current: "evidence", interactive: false,
+  return htmlPage(data, { title: "Lattice evidence", description: "Compare a wording illustration and the published method with direct evidence from the hosted API.", current: "evidence", interactive: false,
     content: sections + htmlTerms() });
 }
 
@@ -1133,9 +1138,12 @@ ${interactive ? `<script>${interactionScript}</script>` : ""}
 
 function htmlSources(data, sourceIds = data.sources.map((source) => source.id)) {
   const sources = sourceMapFor(data);
-  const items = sourceIds.map((id) => sources.get(id)).filter(Boolean).map((source) => (
-    `<li id="${escapeHtml(source.id.toLowerCase())}"><strong>${escapeHtml(source.id)} — ${escapeHtml(source.label)}</strong> <a href="${escapeHtml(reviewedSourceUrl(source))}">${escapeHtml(source.path ?? "Reviewed source")}</a></li>`
-  )).join("");
+  const items = sourceIds.map((id) => sources.get(id)).filter(Boolean).map((source) => {
+    const url = reviewedSourceUrl(source);
+    const citation = url ? `<a href="${escapeHtml(url)}">${escapeHtml(source.path ?? "Reviewed source")}</a>`
+      : "Owner repository reference (restricted access)";
+    return `<li id="${escapeHtml(source.id.toLowerCase())}"><strong>${escapeHtml(source.id)} — ${escapeHtml(source.label)}</strong> ${citation}</li>`;
+  }).join("");
   return `<section class="panel" aria-labelledby="sources-heading"><h2 id="sources-heading">Source register</h2><ul class="source-list">${items}</ul></section>`;
 }
 
@@ -1805,7 +1813,7 @@ function indexHtml(data, releaseRegister) {
       : "The interactive client is qualified. The records preserve accepted residuals, workflow controls, post-deployment checks, and rollback conditions without overstating remote runtime or provider evidence.";
   const releaseEvidence = `<section class="panel"><p class="eyebrow">Release evidence</p><h2>Text to Lattice qualification</h2><p>${escapeHtml(releaseSummary)}</p><ul><li><a href="TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md">Release qualification</a></li><li><a href="TEXT-TO-LATTICE-RELEASE-REGISTER.json">Machine release register</a></li><li><a href="LLAMA-USE-EVALUATION-CASES.json">Llama-use evaluation cases</a></li></ul></section>`;
   const content = `${cards}
-  <section class="panel"><h2><a href="evidence.html">Evidence by claim</a></h2><p>Inspect the export notice, the two browser outcomes and the production publication. <a href="reading-guide.json">Download the linked reading guide (JSON)</a>.</p></section>
+  <section class="panel"><h2><a href="evidence.html">Evidence by claim</a></h2><p>Compare the wording illustration with the two browser outcomes and the production publication. <a href="reading-guide.json">Download the linked reading guide (JSON)</a>.</p></section>
   ${releaseEvidence}
   ${htmlTerms()}`;
   return htmlPage(data, {

@@ -58,7 +58,6 @@ export function documentsForProject(projectId) {
   return projectDocuments.filter((document) => document.projectId === projectId);
 }
 
-const methodSource = "https://github.com/howardhayden/lattice/blob/c0658b7e92a2defb0a8ab45ad17cc00295a45fd2/";
 const serviceSource = "https://github.com/howardhayden/folio/blob/a47ca0557d3678f5e5c64f8d5a9bc8e433b43b39/";
 const browserBundle = documentationRoot + "browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE";
 
@@ -89,16 +88,16 @@ export const latticeReadingGuide = {
   ],
   evidence: [
     {
-      id: "meaning-contract", subject: "lattice-method", title: "The caller defines what must survive a rewrite",
-      observation: "The export notice records a digest mismatch and requires the recipient to isolate the export until its provenance is reviewed. It expressly forbids attributing the change to a person. These are three distinct constraints on candidate wording.",
-      kind: "worked-example",
-      sources: [{ label: "Export mismatch notice, example input", url: methodSource + "examples/export-mismatch-notice.request.json" }, { label: "Typed meaning contract", url: documentationRoot + "lattice-concept-map.html#lat-n-002" }],
+      id: "meaning-contract", subject: "lattice-method", title: "A change of tone can preserve an instruction",
+      observation: "In this illustration, “Return the key by Friday” becomes “Please return the key by Friday.” The tone shifts while the action and deadline stay the same. Moving the deadline to Monday would change the instruction. These sentences were written for this guide.",
+      kind: "editorial-illustration",
+      sources: [{ label: "Public concept map, meaning contract", url: documentationRoot + "lattice-concept-map.html#lat-n-002" }],
     },
     {
-      id: "selection", subject: "lattice-method", title: "Required meaning takes priority over style",
-      observation: "The engine checks a candidate against protected requirements before comparing register fit. Its receipt identifies the selected wording and the decisions that led to it. A host can inspect that record when reviewing a passage.",
-      kind: "implementation-and-tests",
-      sources: [{ label: "Engine selection and receipt", url: methodSource + "src/engine.ts" }, { label: "Executable boundary cases", url: methodSource + "test/adversarial.test.mjs" }, { label: "Deterministic selection", url: documentationRoot + "lattice-skill-map.html#lat-sk-05" }],
+      id: "selection", subject: "lattice-method", title: "The caller supplies the meaning to preserve",
+      observation: "The published method assigns the caller responsibility for the intended meaning. The engine evaluates wording against that contract and returns a record of its decision. The skill map describes the responsibility the host keeps when it presents the result.",
+      kind: "published-method-documentation",
+      sources: [{ label: "Public concept map, decision record", url: documentationRoot + "lattice-concept-map.html#lat-n-017" }, { label: "Public skill map, host responsibilities", url: documentationRoot + "lattice-skill-map.html#lat-sk-10" }],
     },
     {
       id: "service-path", subject: "text-to-lattice-api", title: "The service infers meaning from visitor prose",
@@ -126,8 +125,8 @@ export const latticeReadingGuide = {
     },
   ],
   documents: [
-    { id: "lattice-concept-map", subject: "lattice-method", question: "What must a rewrite preserve?", answer: "Start with the export notice. Its meaning contract names the finding, the required action and the conclusion a reader must avoid. Follow those requirements from semantic atoms to the selected passage.", evidence: ["meaning-contract"], sections: [{ id: "lat-n-002", label: "Meaning contract" }, { id: "lat-n-003", label: "Semantic atoms" }, { id: "lat-n-017", label: "Derivation receipt" }] },
-    { id: "lattice-skill-map", subject: "lattice-method", question: "What can the engine decide?", answer: "Follow one selection. The engine can check protected meaning and choose among eligible candidates in a defined order. The host supplies the meaning contract and remains responsible for its accuracy.", evidence: ["selection"], sections: [{ id: "lat-sk-01", label: "Meaning and relations" }, { id: "lat-sk-05", label: "Deterministic selection" }, { id: "lat-sk-10", label: "Host responsibilities" }] },
+    { id: "lattice-concept-map", subject: "lattice-method", question: "What must a rewrite preserve?", answer: "Compare a direct request to return a key by Friday with a more courteous version. The tone may change. The action and deadline must survive. The public map explains how a caller states those requirements.", evidence: ["meaning-contract"], sections: [{ id: "lat-n-002", label: "Meaning contract" }, { id: "lat-n-003", label: "Semantic atoms" }, { id: "lat-n-017", label: "Derivation receipt" }] },
+    { id: "lattice-skill-map", subject: "lattice-method", question: "What can the engine decide?", answer: "The caller supplies the intended meaning. The engine assesses proposed wording and returns a decision record. Follow the public skill map to see which judgments still belong to the host.", evidence: ["selection"], sections: [{ id: "lat-sk-01", label: "Meaning and relations" }, { id: "lat-sk-05", label: "Deterministic selection" }, { id: "lat-sk-10", label: "Host responsibilities" }] },
     { id: "text-to-lattice-service-blueprint", subject: "text-to-lattice-api", question: "What happens after I submit?", answer: "The visitor confirms processing. The Worker checks admission, asks Qwen to analyze and draft, then checks the result with Llama. The terminal presents an accepted outcome or explains that the service withheld it.", evidence: ["service-path", "browser-results"], sections: [{ id: "bp-04", label: "Admission" }, { id: "bp-06", label: "Drafting and checks" }, { id: "bp-07", label: "Review and outcome" }] },
     { id: "text-to-lattice-security-model", subject: "text-to-lattice-api", question: "Where does my passage go, and what bounds the risk?", answer: "Typing stays local until confirmation. hah.dev then sends the passage through Hugging Face and OpenRouter to the named providers. Admission limits constrain work, the application avoids storing passage content, and a hard reload clears the visitor’s text.", evidence: ["admission-and-consent", "browser-results"], sections: [{ id: "sec-01", label: "Consent and destinations" }, { id: "sec-04", label: "Resource bounds" }, { id: "sec-07", label: "Content retention" }] },
   ],
