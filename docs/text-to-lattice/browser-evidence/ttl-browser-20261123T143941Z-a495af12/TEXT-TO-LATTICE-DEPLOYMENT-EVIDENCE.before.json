@@ -1,0 +1,106 @@
+{
+  "format": "TEXT_TO_LATTICE_DEPLOYMENT_EVIDENCE_INDEX",
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-23T14:01:27.694Z",
+  "deployedAt": "2026-11-23T14:01:27.694Z",
+  "deployedAtBasis": "post-live-verification-service-evidence-index-generation",
+  "canonicalUrl": "https://hah.dev/resume/#text-to-lattice",
+  "qualificationExpiresAt": null,
+  "workflow": {
+    "repository": "howardhayden/folio",
+    "commit": "6166a3f430338331ca3f0336450e500571cbb896",
+    "ref": "refs/heads/main",
+    "runId": "45188974550",
+    "runAttempt": "1",
+    "runUrl": "https://github.com/howardhayden/folio/actions/runs/45188974550"
+  },
+  "serviceJobId": "137743723408",
+  "pagesArtifactId": "14825600759",
+  "siteArtifactSha256": "7fd5737cfeef573178daafe5059a363307898d5eacc179927fcc09a7f9fe5385",
+  "qualifiedSourceSetSha256": "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
+  "workers": {
+    "api": {
+      "worker": "hahdev-text-to-lattice-api",
+      "deploymentId": "abbd2729-30d9-40f3-bf62-df6b95a08eaf",
+      "versionId": "2c10e8d8-5dab-48db-a13d-b11087ca62ec",
+      "percentage": 100,
+      "createdAt": "2026-11-23T14:00:28.797Z",
+      "activeVersionBindings": [
+        {
+          "name": "HF_TOKEN",
+          "type": "secret_text"
+        },
+        {
+          "name": "VISITOR_COOKIE_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "LATTICE_API_RATE_LIMITER",
+          "type": "ratelimit",
+          "namespaceId": "857321",
+          "simple": {
+            "limit": 30,
+            "period": 60
+          }
+        },
+        {
+          "name": "LATTICE_TRANSFORMATION_BUDGET",
+          "type": "durable_object_namespace",
+          "className": "LatticeTransformationBudget"
+        },
+        {
+          "name": "LATTICE_QUALIFICATION_MODE",
+          "type": "plain_text",
+          "mode": "operator-ended"
+        }
+      ],
+      "bindingSetExact": true
+    },
+    "responsePolicy": {
+      "worker": "hahdev-text-to-lattice-response-policy",
+      "deploymentId": "7dfc936a-2d55-45fc-b54f-c2deb5d5bacd",
+      "versionId": "94264b61-411e-4333-a4bd-447d32d39112",
+      "percentage": 100,
+      "createdAt": "2026-11-23T14:00:34.540Z"
+    }
+  },
+  "evidenceFiles": {
+    "secretBindings": {
+      "basename": "secret-bindings.json",
+      "sha256": "1259f337060c605925e086c4314d5e9add26ff71d94afdf94dee4488adee53aa"
+    },
+    "routeInventory": {
+      "basename": "route-inventory.json",
+      "sha256": "0e27a734e6655b56ad8d2d3c85cffa9c5b0841104c4784301c937e4569e9c84c"
+    },
+    "liveBoundary": {
+      "basename": "live-boundary.json",
+      "sha256": "dfeb4e55c16d0f873d14c690c909212a858242430cabd571ee264b8a10d6b0c9"
+    }
+  },
+  "admissionEnvironment": {
+    "validatedBeforeAt": "2026-11-23T14:00:42.227Z",
+    "validatedAfterAt": "2026-11-23T14:01:27.694Z",
+    "liveCompletedAt": "2026-11-23T14:01:21.700Z",
+    "deploymentId": "abbd2729-30d9-40f3-bf62-df6b95a08eaf",
+    "versionId": "2c10e8d8-5dab-48db-a13d-b11087ca62ec",
+    "matchingBeforeAfterSnapshots": true,
+    "runtime": {
+      "namespaceId": "1427646ecd3a43a6aa4fdf21a419675b",
+      "className": "LatticeTransformationBudget",
+      "storageBackend": "sqlite",
+      "migrationTag": "v1",
+      "compatibilityDate": "2026-09-14",
+      "compatibilityFlags": [
+        "enable_request_signal"
+      ],
+      "declaredObjectName": "text-to-lattice-transformation-budget-v1",
+      "namespaceIdentityBasis": "active-version-local-binding",
+      "storageBackendBasis": "active-version-local-class-and-observed-namespace-sqlite"
+    }
+  },
+  "rawWranglerStatusRetained": false,
+  "rawWranglerVersionRetained": false,
+  "contentBodiesRetained": false,
+  "secretValuesRead": false
+}

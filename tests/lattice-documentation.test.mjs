@@ -29,6 +29,16 @@ const [atlas, manifest, releaseRegister] = await Promise.all([
 ]);
 const releaseState = verifyReleaseStatusState(releaseRegister);
 
+async function qualificationHistory(currentDossier) {
+  if (!releaseRegister.authority.browserEvidenceSourceCarry) return currentDossier;
+  const appendix = "../release-evidence/text-to-lattice/qualification-history-2026-11-23.md";
+  assert.ok(currentDossier.includes(appendix), "readers can locate the dated qualification history");
+  const archived = await readBytes(sourceRoot, appendix);
+  assert.equal(digest(archived), "097d59a7779e108788e7d489a6f8123ae03dd92f3909792dc79ae4818a9e7593");
+  return archived.toString("utf8");
+}
+
+
 test("the documentation generator binds current remote evidence and preserves inactive browser-local evidence", async () => {
   const [builder, releaseVerifier] = await Promise.all([
     readText(rootUrl, "scripts/docs/build-text-to-lattice-documentation.mjs"),
@@ -196,21 +206,22 @@ test("the atlas models the exact current remote phase without promoting historic
   assert.equal(atlas.historicalBrowserLocalSecurityModel.prePublicationGates.length, 8);
 });
 
-test("the qualification dossier leads with its current phase and retains verbatim dated held evidence", async () => {
-  const dossier = await readText(sourceRoot, "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md");
+test("the qualification dossier leads with the release decision and authenticates its dated evidence", async () => {
+  const current = await readText(sourceRoot, "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md");
   const heading = {
     held: /^# Text to Lattice release qualification — held/u,
     "qualification-pending": /^# Text to Lattice release qualification — qualification-pending/u,
     qualified: /^# Text to Lattice release qualification — qualified/u,
   }[releaseState.releasePhase];
-  assert.match(dossier, heading);
-  assert.ok(dossier.includes(`**Qualification date:** ${releaseRegister.revision}`));
-  const controllingPrefix = dossier.split("The complete held-parent dossier after the Safari result in run #510 follows as dated history.")[0];
+  assert.match(current, heading);
+  assert.ok(current.includes(`**Qualification date:** ${releaseRegister.revision}`));
+  const controllingPrefix = current.split("The complete held-parent dossier after the Safari result in run #510 follows as dated history.")[0];
   if (releaseState.qualificationPending) {
     assert.match(controllingPrefix, /not qualified|non-qualified/iu);
     assert.match(controllingPrefix, /canonical-browser qualification/iu);
     assert.match(controllingPrefix, /immediate held documentation-only rollback/iu);
   }
+  const dossier = await qualificationHistory(current);
   const heldDossierStart = dossier.indexOf("# Text to Lattice release qualification — held after backend qualification");
   assert.ok(heldDossierStart >= 0, "the prior held dossier stays readable as dated history");
   const heldDossier = dossier.slice(heldDossierStart);
@@ -311,7 +322,7 @@ test("the qualification dossier leads with its current phase and retains verbati
   assert.match(dossier, /earlier bounded qualification,[\s\S]{0,100}run #154/iu);
   assert.match(dossier, /preceding bounded qualification,[\s\S]{0,100}run #152/iu);
   assert.match(dossier, /run #147[\s\S]{0,180}`43e70d05c1b5783ecf26f0b784541bfffa5217c1`[\s\S]{0,100}`5fca1bc272cfaf5ef16bce29f3c4d96d9ff741683aad3d6c24adf5c49a320b18`/iu);
-  assert.ok(dossier.includes(`**Artifact-set projection SHA-256:** \`${digest(JSON.stringify(canonicalJson(releaseRegister.artifactSet)))}\``));
+  assert.ok(current.includes(`**Artifact-set projection SHA-256:** \`${digest(JSON.stringify(canonicalJson(releaseRegister.artifactSet)))}\``));
   assert.match(dossier, /workflow run 34325228788[\s\S]{0,300}9ab26b95cc1f9a94697118c0fc20a849db8f6ad2/u);
   assert.match(dossier, /266db6b8264a0aa42ac16916ddf696554c846b239960e7d19fc002917d843950/u);
 });
@@ -564,7 +575,7 @@ test("current phase-stream documentation binds terminal EOF and preserves defaul
 
 
 test("preserved Parasail documentation distinguishes manual selection from dated standard-route evidence", async () => {
-  const dossier = await readText(sourceRoot, "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md");
+  const dossier = await qualificationHistory(await readText(sourceRoot, "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"));
   const preceding = "The complete preceding Parasail dossier follows verbatim as dated history.";
   const boundary = "The complete preceding standard-generation dossier follows verbatim as dated history.";
   assert.ok(dossier.indexOf(preceding) > 0);
@@ -582,7 +593,7 @@ test("preserved Parasail documentation distinguishes manual selection from dated
 
 
 test("historical Venice documentation preserves its route disclosures and dated evidence", async () => {
-  const dossier = await readText(sourceRoot, "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md");
+  const dossier = await qualificationHistory(await readText(sourceRoot, "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"));
   const boundary = "The complete preceding Parasail dossier follows verbatim as dated history.";
   const offset = dossier.indexOf(boundary);
   assert.ok(offset > 0);

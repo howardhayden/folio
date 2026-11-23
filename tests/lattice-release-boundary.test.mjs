@@ -7,11 +7,14 @@ import { dirname, join, relative } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
 
 import { projectBySlug } from "../app/resume/projects.js";
 import {
   qualifiedFilesBelow,
   verifyBrowserEvidenceAuthority,
+  verifyBrowserEvidenceSourceCarry,
+  verifyQualificationHistory,
   verifyEnabledPublicationCopy,
   verifyHeldBuiltBoundary,
   verifyHistoricalOvhProviderEvidence,
@@ -72,7 +75,21 @@ const staleEnabledClaims = [
 ];
 
 async function canonicalPublicationDossier() {
+  if ((await releaseRegister()).authority.browserEvidenceSourceCarry) {
+    const history = await readFile(join(root, "docs/release-evidence/text-to-lattice/qualification-history-2026-11-23.md"));
+    assert.equal(history.length, 708796);
+    assert.equal(sha256(history), "097d59a7779e108788e7d489a6f8123ae03dd92f3909792dc79ae4818a9e7593");
+    return history;
+  }
   return readFile(join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"));
+}
+
+async function historicalReleaseRegister(register) {
+  if (!register.authority.browserEvidenceSourceCarry) return register;
+  const bytes = gunzipSync(await readFile(join(root, "docs/release-evidence/text-to-lattice/register-history-2026-11-23.json.gz")), { maxOutputLength: 30300968 });
+  assert.equal(bytes.length, 30300968);
+  assert.equal(sha256(bytes), "031425b388f1448473c09129690c25de89c7c1337bae3ee54d9dc6ad796cc0da");
+  return JSON.parse(bytes);
 }
 
 function verifyEqualDossierCopies(bytes) {
@@ -266,6 +283,7 @@ function browserEvidenceFixture(qualifiedSourceSetSha256) {
 }
 
 function clearBrowserEvidence(register) {
+  delete register.authority.browserEvidenceSourceCarry;
   register.authority.browserEvidence = Object.fromEntries(
     Object.keys(register.authority.browserEvidence).map((key) => [key, key === "status" ? "not-collected" : null]),
   );
@@ -346,6 +364,7 @@ test("the release register enforces its exact current phase and preserves histor
     readFile(join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"), "utf8"),
   ]);
   const phase = verifyReleaseStatusState(register);
+  const historical = await historicalReleaseRegister(register);
   const heldBoundary = register.publicClient.heldBoundary ?? register.publicClient.priorHeldDisposition?.heldBoundary;
   assert.ok(heldBoundary, "held rollback boundary remains explicit in current or typed predecessor evidence");
   assert.equal(register.overallStatus, phase.releasePhase);
@@ -359,40 +378,40 @@ test("the release register enforces its exact current phase and preserves histor
   assert.ok(dossier.includes(`**Qualification date:** ${register.revision}`));
   if (phase.enabled) assert.equal(register.publicClient.heldBoundary, undefined);
   assert.match(register.qualificationScope, /last pulled hah\.dev deployment and ancestry baseline/u);
-  assert.match(register.publicClient.reason, /run #162[\s\S]{0,140}diagnostic revision 5 merged by PR #51/iu);
-  assert.match(register.publicClient.reason, /terminal_failure=host-validation, stage=verification, attempt=2, validation=response-shape, prior_validation=response-shape, calls_used=5, batch_count=1, verification_passes=0, and finding_count=1/u);
-  assert.match(register.publicClient.reason, /aggregate calls_used=5 is not a failure-call ordinal/u);
-  assert.match(register.publicClient.reason, /No exact invalid private structure or decoding-versus-host-normalization rejection origin was retained/u);
-  assert.match(register.publicClient.reason, /diagnostic extension, revision 7/iu);
-  assert.match(register.publicClient.reason, /Qualification run #166[\s\S]{0,250}diagnostic revision 7 merged by PR #53/iu);
-  assert.match(register.publicClient.reason, /provider-envelope rejection at initial verification before private-wire decoding/iu);
-  assert.match(register.publicClient.reason, /retained no revision-7 host predicate code or first deterministic finding/iu);
-  assert.match(register.publicClient.reason, /diagnostic extension, revision 8/iu);
-  assert.match(register.publicClient.reason, /Qualification run #168[\s\S]{0,250}diagnostic revision 8 merged by PR #54/iu);
-  assert.match(register.publicClient.reason, /rejection_rule=V01F, prior_rejection_boundary=wire-decoder, prior_rejection_category=coverage, prior_rejection_rule=V16M/u);
-  assert.match(register.publicClient.reason, /first_deterministic_rule=D14/u);
-  assert.match(register.publicClient.reason, /four readiness probes observed one active response followed by three consecutive held responses/iu);
-  assert.match(register.publicClient.reason, /no retrospective exact-predicate or deterministic-finding evidence for run #164/iu);
-  assert.match(register.publicClient.reason, /source-only until separately deployed and observed/iu);
-  assert.match(register.publicClient.reason, /run #160 exercised the merged correction/iu);
-  assert.match(register.publicClient.reason, /run #158 supplied earlier partial, non-qualifying production failure/iu);
-  assert.match(register.publicClient.reason, /verification under the 2,048-token ceiling[\s\S]*finish_reason=length[\s\S]*call_ordinal=3/iu);
-  assert.match(register.publicClient.reason, /correction merged by PR #50 changes the private verifier and certifier representation/iu);
+  assert.match(historical.publicClient.reason, /run #162[\s\S]{0,140}diagnostic revision 5 merged by PR #51/iu);
+  assert.match(historical.publicClient.reason, /terminal_failure=host-validation, stage=verification, attempt=2, validation=response-shape, prior_validation=response-shape, calls_used=5, batch_count=1, verification_passes=0, and finding_count=1/u);
+  assert.match(historical.publicClient.reason, /aggregate calls_used=5 is not a failure-call ordinal/u);
+  assert.match(historical.publicClient.reason, /No exact invalid private structure or decoding-versus-host-normalization rejection origin was retained/u);
+  assert.match(historical.publicClient.reason, /diagnostic extension, revision 7/iu);
+  assert.match(historical.publicClient.reason, /Qualification run #166[\s\S]{0,250}diagnostic revision 7 merged by PR #53/iu);
+  assert.match(historical.publicClient.reason, /provider-envelope rejection at initial verification before private-wire decoding/iu);
+  assert.match(historical.publicClient.reason, /retained no revision-7 host predicate code or first deterministic finding/iu);
+  assert.match(historical.publicClient.reason, /diagnostic extension, revision 8/iu);
+  assert.match(historical.publicClient.reason, /Qualification run #168[\s\S]{0,250}diagnostic revision 8 merged by PR #54/iu);
+  assert.match(historical.publicClient.reason, /rejection_rule=V01F, prior_rejection_boundary=wire-decoder, prior_rejection_category=coverage, prior_rejection_rule=V16M/u);
+  assert.match(historical.publicClient.reason, /first_deterministic_rule=D14/u);
+  assert.match(historical.publicClient.reason, /four readiness probes observed one active response followed by three consecutive held responses/iu);
+  assert.match(historical.publicClient.reason, /no retrospective exact-predicate or deterministic-finding evidence for run #164/iu);
+  assert.match(historical.publicClient.reason, /source-only until separately deployed and observed/iu);
+  assert.match(historical.publicClient.reason, /run #160 exercised the merged correction/iu);
+  assert.match(historical.publicClient.reason, /run #158 supplied earlier partial, non-qualifying production failure/iu);
+  assert.match(historical.publicClient.reason, /verification under the 2,048-token ceiling[\s\S]*finish_reason=length[\s\S]*call_ordinal=3/iu);
+  assert.match(historical.publicClient.reason, /correction merged by PR #50 changes the private verifier and certifier representation/iu);
   const reviewedBaseline = dossier.match(/^\*\*Reviewed baseline:\*\* `([a-f0-9]{40})`$/mu)?.[1];
   assert.equal(reviewedBaseline, register.implementationBaselineRevision, "the dossier binds the current register baseline");
-  assert.match(register.publicClient.reason, /merged by PR #50 was deployed for bounded qualification by run #160 but remains unqualified/iu);
-  assert.match(register.publicClient.reason, /The current qualification-only diagnostic extension, revision 8/iu);
+  assert.match(historical.publicClient.reason, /merged by PR #50 was deployed for bounded qualification by run #160 but remains unqualified/iu);
+  assert.match(historical.publicClient.reason, /The current qualification-only diagnostic extension, revision 8/iu);
   assert.ok(heldBoundary.deny.some((item) => /production-verified or qualified/iu.test(item)));
   assert.ok(heldBoundary.deny.some((item) => /public client is activated/iu.test(item)));
   assert.ok(heldBoundary.deny.every((item) => !/candidate is deployed/iu.test(item)));
-  assert.match(register.publicClient.reason, /2,048-token verifier cap, 520-token certifier cap[\s\S]*remain unchanged/iu);
-  assert.match(register.publicClient.reason, /complete legal verifier output at 1,326 tokens[\s\S]*722 tokens or 54\.45 percent/iu);
-  assert.match(register.publicClient.reason, /conservative accepted legal maximum is 440 tokens[\s\S]*80 under its 520-token cap/iu);
-  assert.match(register.publicClient.reason, /correction remains unqualified and has no successful remote transformation or canonical-browser trace/iu);
-  assert.match(register.publicClient.reason, /do not prove prior-call outcomes, the size or validity of a discarded object, or provider-managed token accounting/iu);
-  assert.match(register.publicClient.reason, /Attempt 1 did not reach the live request boundary or provider canary and remains inconclusive transport evidence/iu);
-  assert.doesNotMatch(register.publicClient.reason, /run #158[^.]{0,200}(?:proves|establishes)[^.]{0,100}(?:insufficient|budget is too small)/iu);
-  assert.doesNotMatch(register.publicClient.reason, /run #150 supplied the newest/iu);
+  assert.match(historical.publicClient.reason, /2,048-token verifier cap, 520-token certifier cap[\s\S]*remain unchanged/iu);
+  assert.match(historical.publicClient.reason, /complete legal verifier output at 1,326 tokens[\s\S]*722 tokens or 54\.45 percent/iu);
+  assert.match(historical.publicClient.reason, /conservative accepted legal maximum is 440 tokens[\s\S]*80 under its 520-token cap/iu);
+  assert.match(historical.publicClient.reason, /correction remains unqualified and has no successful remote transformation or canonical-browser trace/iu);
+  assert.match(historical.publicClient.reason, /do not prove prior-call outcomes, the size or validity of a discarded object, or provider-managed token accounting/iu);
+  assert.match(historical.publicClient.reason, /Attempt 1 did not reach the live request boundary or provider canary and remains inconclusive transport evidence/iu);
+  assert.doesNotMatch(historical.publicClient.reason, /run #158[^.]{0,200}(?:proves|establishes)[^.]{0,100}(?:insufficient|budget is too small)/iu);
+  assert.doesNotMatch(historical.publicClient.reason, /run #150 supplied the newest/iu);
   assert.equal(register.ownerDisposition.status, phase.held ? "hold-directed" : "release-directed");
   assert.deepEqual(register.gates.map(({ id }) => id), expectedGateIds);
   assert.deepEqual(
@@ -408,7 +427,7 @@ test("the release register enforces its exact current phase and preserves histor
       "GATE-06": phase.qualified ? "satisfied-in-production" : phase.qualificationPending ? "post-deployment-verification" : "open-release-blocker",
     },
   );
-  const workflowGate = register.gates.find(({ id }) => id === "GATE-01");
+  const workflowGate = historical.gates.find(({ id }) => id === "GATE-01");
   assert.match(
     workflowGate.currentEvidence,
     /run #158 built merged main commit 66c34fd4775efa8de6cf35110f8d623f4418210f[\s\S]*verification call ordinal 3[\s\S]*predecessor private representation[\s\S]*does not establish a complete legal verifier object, successful transformation, or qualification of the later private-representation correction/iu,
@@ -416,8 +435,8 @@ test("the release register enforces its exact current phase and preserves histor
   assert.match(workflowGate.currentEvidence, /Runs #156, #154, #152, #150, #147[^.]*remain earlier held-publication history/iu);
 
   const retainedRemoteEvidence = [
-    register.publicClient.reason,
-    ...[...register.gates, ...register.priorOVHReviewRolesBeforeDeepInfraMigration.gates]
+    historical.publicClient.reason,
+    ...[...historical.gates, ...historical.priorOVHReviewRolesBeforeDeepInfraMigration.gates]
       .flatMap((gate) => [gate.activeCurrentEvidence, ...(gate.activeEvidence ?? [])]),
   ].join(" ");
   for (const exactEvidence of [
@@ -1012,6 +1031,142 @@ test("qualified browser evidence binds one strict bundle path, digest, and every
     ),
     /qualifiedSourceSetSha256 must match authority\.qualifiedSourceSet\.sha256/u,
   );
+});
+
+async function sourceCarryFixture() {
+  const register = await releaseRegister();
+  const carry = register.authority.browserEvidenceSourceCarry;
+  assert.equal(carry?.format, "TEXT_TO_LATTICE_G06_SOURCE_CARRY_V1");
+  const paths = [...register.authority.qualifiedSourceSet.files];
+  for (const tree of register.authority.qualifiedSourceSet.trees) {
+    paths.push(...(await qualifiedFilesBelow(join(root, tree), tree)).map((path) => relative(root, path).split("\\").join("/")));
+  }
+  paths.sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
+  const files = await Promise.all(paths.map(async (path) => ({ path, bytes: await readFile(join(root, path)) })));
+  const proofBytes = await readFile(join(root, carry.proof.path));
+  return { register, record: register.authority.browserEvidence, files, proofBytes };
+}
+
+function carryFingerprint(files) {
+  const hash = createHash("sha256").update("TEXT_TO_LATTICE_QUALIFIED_SOURCE_SET_V1\0");
+  for (const { path, bytes } of files) hash.update(`${Buffer.byteLength(path)}\0${path}\0${bytes.length}\0`).update(bytes).update("\0");
+  return hash.digest("hex");
+}
+
+function repinCarryProof(fixture, proof) {
+  fixture.proofBytes = Buffer.from(`${JSON.stringify(proof, null, 2)}\n`);
+  fixture.register.authority.browserEvidenceSourceCarry.proof.bytes = fixture.proofBytes.length;
+  fixture.register.authority.browserEvidenceSourceCarry.proof.sha256 = sha256(fixture.proofBytes);
+}
+
+function checkSourceCarry(fixture) {
+  return verifyBrowserEvidenceSourceCarry(fixture.register, fixture.record, fixture.files, fixture.proofBytes);
+}
+
+test("one-release source carry independently binds the unchanged original proof and both source fingerprints", async () => {
+  const fixture = await sourceCarryFixture();
+  const result = checkSourceCarry(fixture);
+  assert.equal(result.capturedCommit, "6166a3f430338331ca3f0336450e500571cbb896");
+  assert.equal(result.capturedSourceSetSha256, "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa");
+  assert.equal(result.currentSourceSetSha256, carryFingerprint(fixture.files));
+  assert.notEqual(result.currentSourceSetSha256, result.capturedSourceSetSha256);
+  assert.equal(fixture.files.length, 267);
+  assert.equal(sha256(await readFile(join(root, fixture.record.path))), result.evidenceSha256);
+});
+
+test("one-release source carry refuses unrelated bytes even after repinning the current fingerprint", async () => {
+  for (const path of ["app/resume/ResumeProjects.tsx", ".github/workflows/pages.yml", "workers/text-to-lattice-api/worker.js"]) {
+    const fixture = await sourceCarryFixture();
+    const file = fixture.files.find((entry) => entry.path === path);
+    assert.ok(file, path);
+    file.bytes = Buffer.concat([file.bytes, Buffer.from("\n// unapproved change\n")]);
+    const current = carryFingerprint(fixture.files);
+    fixture.register.authority.qualifiedSourceSet.sha256 = current;
+    fixture.register.authority.browserEvidenceSourceCarry.currentSourceSetSha256 = current;
+    assert.throws(() => checkSourceCarry(fixture), /unaffected captured source byte or path/u, path);
+  }
+});
+
+test("one-release source carry refuses missing, extra, renamed or reordered source paths", async () => {
+  for (const mutate of [
+    (files) => files.pop(),
+    (files) => files.push({ path: "tests/unapproved.test.mjs", bytes: Buffer.from("test") }),
+    (files) => { files[0].path += ".renamed"; },
+    (files) => files.reverse(),
+  ]) {
+    const fixture = await sourceCarryFixture();mutate(fixture.files);
+    assert.throws(() => checkSourceCarry(fixture), /same sorted267 captured paths/u);
+  }
+});
+
+test("one-release source carry refuses widening, wildcard, duplicate and missing exceptions", async () => {
+  for (const mutate of [
+    (rows) => rows.push({ ...rows[0], path: "app/resume/ResumeProjects.tsx" }),
+    (rows) => { rows[0].path = "scripts/*"; },
+    (rows) => { rows[1] = { ...rows[0] }; },
+    (rows) => rows.pop(),
+  ]) {
+    const fixture = await sourceCarryFixture();const proof = JSON.parse(fixture.proofBytes);
+    mutate(proof.exceptions);repinCarryProof(fixture, proof);
+    assert.throws(() => checkSourceCarry(fixture), /exactly the three approved file exceptions/u);
+  }
+});
+
+test("one-release source carry refuses changed beforeimages and stale allowed-file after digests", async () => {
+  for (const field of ["beforeSha256", "afterSha256", "beforeBase64"]) {
+    const fixture = await sourceCarryFixture();const proof = JSON.parse(fixture.proofBytes);
+    proof.exceptions[0][field] = field === "beforeBase64" ? Buffer.from("wrong original").toString("base64") : "0".repeat(64);
+    repinCarryProof(fixture, proof);
+    assert.throws(() => checkSourceCarry(fixture), /before and after bytes|beforeimage/u, field);
+  }
+  const fixture = await sourceCarryFixture();
+  fixture.files.find(({ path }) => path === "tests/lattice-documentation.test.mjs").bytes = Buffer.from("different allowed-file bytes");
+  const current = carryFingerprint(fixture.files);
+  fixture.register.authority.qualifiedSourceSet.sha256 = current;
+  fixture.register.authority.browserEvidenceSourceCarry.currentSourceSetSha256 = current;
+  assert.throws(() => checkSourceCarry(fixture), /exact approved before and after bytes/u);
+});
+
+test("one-release source carry refuses altered proof identity, appendix custody and unknown fields", async () => {
+  for (const field of ["authorization", "capturedCommit", "capturedSourceSetSha256", "currentSourceSetSha256", "evidenceId", "evidenceSha256"]) {
+    const fixture = await sourceCarryFixture();fixture.register.authority.browserEvidenceSourceCarry[field] = "changed";
+    assert.throws(() => checkSourceCarry(fixture), /approved original729 proof/u, field);
+  }
+  for (const field of ["path", "bytes", "sha256"]) {
+    const fixture = await sourceCarryFixture();fixture.register.authority.browserEvidenceSourceCarry.proof[field] = field === "bytes" ? 1 : "changed";
+    assert.throws(() => checkSourceCarry(fixture), /fixed path, byte count and SHA-256/u, field);
+  }
+  const fixture = await sourceCarryFixture();const proof = JSON.parse(fixture.proofBytes);proof.additionalAllowance = true;repinCarryProof(fixture, proof);
+  assert.throws(() => checkSourceCarry(fixture), /exact typed fields/u);
+});
+
+test("one-release source carry retains strict bundle rejection and cannot qualify a held release", async () => {
+  const fixture = await sourceCarryFixture();let strictCalls = 0;
+  await assert.rejects(verifyBrowserEvidenceAuthority(fixture.register, verifyReleaseStatusState(fixture.register), async () => {
+    strictCalls += 1;throw new Error("original strict proof refused");
+  }), /bundle failed strict validation: original strict proof refused/u);
+  assert.equal(strictCalls, 1);
+  const held = heldRegisterFixture(fixture.register);
+  held.authority.browserEvidenceSourceCarry = fixture.register.authority.browserEvidenceSourceCarry;
+  await assert.rejects(verifyBrowserEvidenceAuthority(held), /only for the approved qualified release/u);
+});
+
+test("one-release qualification summary requires the exact history and refuses stale live prose", async () => {
+  const register = await releaseRegister();
+  const current = await readFile(join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"));
+  const history = await readFile(join(root, "docs/release-evidence/text-to-lattice/qualification-history-2026-11-23.md"));
+  const canonicalRegister = await readFile(registerPath);
+  assert.doesNotThrow(() => verifyQualificationHistory(register, current, history));
+  assert.doesNotThrow(() => verifyEnabledPublicationCopy(publishedDossierPath, current, current, canonicalRegister, history));
+  assert.throws(() => verifyQualificationHistory(register, current, undefined), /complete pinned b211 dossier/u);
+  const changed = Buffer.from(history);changed[100] ^= 1;
+  assert.throws(() => verifyQualificationHistory(register, current, changed), /complete pinned b211 dossier/u);
+  assert.throws(() => verifyQualificationHistory(register, Buffer.from(current.toString().replace("**Technical history:**", "History omitted")), history), /exact technical history/u);
+  for (const claim of staleEnabledClaims) {
+    const stale = Buffer.concat([Buffer.from(`Current decision: ${claim}.\n`), current]);
+    assert.throws(() => verifyQualificationHistory(register, stale, history), /stale held-gate copy/u);
+    assert.throws(() => verifyEnabledPublicationCopy(publishedDossierPath, stale, stale, canonicalRegister, history), /stale held-gate copy/u);
+  }
 });
 
 test("the active remote gate contract is semantic and historical evidence is tamper-evident", async () => {
