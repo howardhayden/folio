@@ -38,7 +38,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `323cf94e2224605da0d98afe5eb708dd7ac444021b3153398417c6e99359e45a`
+**Qualified source-set SHA-256:** `57a18fb42a14480084758b80ae0e5e7a4eefc763dbf2df4cb5f8f3c5366f151e`
 
 **Artifact-set projection SHA-256:** `58e9c64506ecb739ca2a5b6a5dbf142d988fc95e9178115e0f2bed9dd120b644`
 
@@ -72,16 +72,16 @@ These are the register’s current capability values, including the exact reques
 
 The documentation revision and the browser capture share 267 qualified paths. 255 are byte-identical. This update explains how the Cloudflare edge Workers control access and cost. The preceding documentation release and this edition have byte-identical Workers, converter and résumé components. The [preceding documentation comparison](https://github.com/howardhayden/folio/blob/c04dac7d51afb17566039c2dcd270009f16b58f3/docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json) and [original production comparison](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/release-evidence/text-to-lattice/run-729-source-comparison.json) retain the earlier decisions.
 
-The current fingerprint is `323cf94e2224605da0d98afe5eb708dd7ac444021b3153398417c6e99359e45a`. The original captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The repository appendix `docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json` contains 946,838 bytes (SHA-256 `d046e5a31cfa070b8840761f0656ea5d6aaedbcff80ab543af21721a59dfef27`) and retains each original beforeimage.
+The current fingerprint is `57a18fb42a14480084758b80ae0e5e7a4eefc763dbf2df4cb5f8f3c5366f151e`. The original captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The repository appendix `docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json` contains 946,838 bytes (SHA-256 `7d934e93afe137ec6d9f1bbf1761f02b560aac850a0d6f791ef02179df0d1ec9`) and retains each original beforeimage.
 
 | Qualified path | Captured SHA-256 | Documentation revision SHA-256 |
 | --- | --- | --- |
 | `app/projects/lattice/text-to-lattice/page.tsx` | `1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8` | `08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870` |
-| `scripts/verify-text-to-lattice-release.mjs` | `e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a` | `5684984daef5fc5e7f34f9ae522ffeff3d984f1bb066f3d7920758859ad5b85b` |
+| `scripts/verify-text-to-lattice-release.mjs` | `e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a` | `0dd579abc50bd5fb714d8936c7a2084f181cea47f915fff59bfe57979db48e3c` |
 | `tests/lattice-documentation.test.mjs` | `66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e` | `c4ec022476a6aea7c43ffaeb8cc813bd7d24093dd33f463904160c8bbcdcde8d` |
 | `tests/lattice-release-boundary.test.mjs` | `7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114` | `b8c71d865c0edcdf9f5dd86e20e837069bc6af2f0a7ea61067512b2bcefdbb7f` |
 | `.github/workflows/pages.yml` | `c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd` | `f40a09196adc6423f6148d69e32899e9bf0a94a21c98d0656d6ff71fd82e376d` |
-| `app/content/projectDocuments.js` | `261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251` | `29196c3643535f4b6f1dd8bff723924f2392f1f724a800c9831cbe589012a592` |
+| `app/content/projectDocuments.js` | `261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251` | `a7e92316b513757b6a19ece0fbc2fd4390e08d3c8766edc146c61184e4d21ca3` |
 | `app/projects/[slug]/page.tsx` | `d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62` | `02b7b92a48aeee4a963986c3c14e4c964c472c9450e809382c7b3f804ec9cdbb` |
 | `app/semantic/portfolio.js` | `7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6` | `8506fd4f7d49f5b6ab672b5ba00265c39774c4e71ff035fee70beaa82462380c` |
 | `scripts/docs/build-text-to-lattice-documentation.mjs` | `69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc` | `9de393af9459626e99c7562aaa8d3a22fd7640535a9ef5d5a6319aa83091469e` |

@@ -68,10 +68,10 @@ const edgeArchitecture = {
   claims: [
     {
       id: "edge-browser-policy", title: "Where the browser can send text",
-      summary: "One Worker adds security headers to the résumé pages served by GitHub Pages. The browser can make API connections only to hah.dev, and other sites cannot embed those pages. Only the separate API Worker holds the provider credential.",
+      summary: "A response-policy Worker runs on the four addresses that serve the résumé, so unrelated pages avoid that invocation. Its headers restrict browser API connections to hah.dev and keep other sites from embedding the résumé. Only the separate API Worker holds the provider credential.",
     },
     {
-      id: "admission-and-consent", title: "When a request can spend money",
+      id: "admission-and-consent", title: "When paid inference can begin",
       summary: "The API Worker checks the origin, signed quota cookie, request format and size. Requests arriving at different edge locations share one transactional quota ledger, so two cannot both spend the last daily admission. Tests recorded zero provider calls when admission was denied or the quota ledger was unavailable.",
     },
     {
@@ -165,9 +165,9 @@ export const latticeReadingGuide = {
     },
     {
       id: "admission-and-consent", subject: "text-to-lattice-api", title: "Consent and admission bound each submission",
-      observation: "Typing stays local until the visitor confirms external processing. The API validates the request before inference. Edge requests share a named Durable Object. It reserves both daily allowances in one transaction and stores counts and opaque browser identifiers. Ordinary service permits 30 admissions globally and three per cooperating browser cookie jar per UTC day. Each admission allows up to 32 logical provider calls. External providers apply their own processing terms.",
+      observation: "Typing stays local until the visitor confirms external processing. The API validates the request before inference. Edge requests share a named Durable Object. It reserves both daily allowances in one transaction and stores counts and opaque browser identifiers. Ordinary service permits 30 admissions globally and three per cooperating browser cookie jar per UTC day. Each admission allows up to 32 logical provider calls. Cloudflare meters edge usage separately from model inference. External providers apply their own processing terms.",
       kind: "policy-and-implementation",
-      sources: [{ label: "API contract and processing terms", url: "https://hah.dev/projects/lattice/text-to-lattice/" }, { label: "How every edge request reaches the same quota object", url: serviceSource + "workers/text-to-lattice-api/capacityClient.js#L43-L71" }, { label: "Transactional quota ledger", url: serviceSource + "workers/text-to-lattice-api/capacityGate.js#L29-L76" }, { label: "Admission before provider work, including a failed ledger", url: serviceSource + "tests/lattice-api-worker.test.mjs#L8334-L8424" }, { label: "Production admission policy", url: serviceSource + "workers/text-to-lattice-api/capacityPolicy.js" }, { label: "Consent boundary", url: documentationRoot + "text-to-lattice-security-model.html#sec-01" }],
+      sources: [{ label: "API contract and processing terms", url: "https://hah.dev/projects/lattice/text-to-lattice/" }, { label: "How every edge request reaches the same quota object", url: serviceSource + "workers/text-to-lattice-api/capacityClient.js#L43-L71" }, { label: "Transactional quota ledger", url: serviceSource + "workers/text-to-lattice-api/capacityGate.js#L29-L76" }, { label: "Admission before provider work, including a failed ledger", url: serviceSource + "tests/lattice-api-worker.test.mjs#L8334-L8424" }, { label: "Production admission policy", url: serviceSource + "workers/text-to-lattice-api/capacityPolicy.js" }, { label: "Consent boundary", url: documentationRoot + "text-to-lattice-security-model.html#sec-01" }, { label: "Cloudflare Workers pricing", url: "https://developers.cloudflare.com/workers/platform/pricing/" }],
     },
     {
       id: "edge-release-verification", subject: "text-to-lattice-api", title: "The browser evidence identifies the Workers that served the test",
