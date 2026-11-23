@@ -5,7 +5,7 @@
   "overallStatus": "qualified",
   "executiveAssessment": {
     "readiness": "The site owner has qualified Text to Lattice. The last ordinary deployment kept the public converter held.",
-    "blockingIssue": "The ordinary service check returned HTTP 429 after earlier qualifications had used the daily allowance.",
+    "blockingIssue": "The final ordinary service check returned HTTP 429, so interactive publication was withheld.",
     "operatingRisk": "Providers can refuse work and a checked result can still change the author's meaning.",
     "direction": "Preserve ordinary limits. Use fresh daily capacity for one production check, then publish the converter if it passes."
   },
@@ -57,7 +57,8 @@
       "subsequentPublicationHistory": "https://github.com/howardhayden/folio/deployments/github-pages",
       "observationsThrough": "2026-11-23T16:54:35.837343Z",
       "publicProjectPageHeldObservedAt": "2026-11-23T16:54:35.837343Z",
-      "nextCheckAuthorization": "awaiting an additional ordinary deployment decision"
+      "nextCheckAuthorization": "awaiting an additional ordinary deployment decision",
+      "capacityAssessment": "At least 32 requests were admitted under the same configuration. Treat ordinary capacity as spent until reset. The public response does not identify which limiter replied."
     }
   },
   "evidenceAppendix": {
@@ -123,7 +124,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "34a5f09d8f7d18209b75223da3c29909d7f80c06bffa58a36182901d779708c6",
+    "qualificationDossierSha256": "5e6326636504c29d6e47a6a05a7dc779b21d062b940995bb689c12d10efaad09",
     "browserEvidence": {
       "status": "verified-sanitized-bundle",
       "path": "docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json",

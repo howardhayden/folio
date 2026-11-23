@@ -1,10 +1,10 @@
 # Text to Lattice release qualification — qualified
 
-Text to Lattice has cleared its release gates for short, non-sensitive passages. The November 23 production check was rate-limited after qualification work had used the ordinary daily allowance. Keep the converter held until one production check succeeds on fresh daily capacity.
+Text to Lattice has cleared its release gates for short, non-sensitive passages. The final ordinary request returned HTTP 429, so public conversion remains held. Keep the converter held until one production check succeeds on fresh daily capacity.
 
 ## Production decision, November 23
 
-The final check returned HTTP 429. The workflow restored the held API and kept the existing public page in place. Fourteen successful service checks and eighteen native submissions had used the same daily ledger. Qualification could continue above 30 admissions. Ordinary production could not.
+The final check returned HTTP 429. The workflow restored the held API and kept the existing public page in place. Fourteen successful service checks and eighteen native submissions used the same configured admission budget that day. Qualification could continue above the ordinary limit of 30. Those receipts give the maintainer enough reason to treat the day’s ordinary capacity as spent.
 
 The release owner will preserve the daily limit and use fresh capacity for the next service check. Repeating Safari, Brave or Firefox would spend that capacity on questions their completed tests already answered. The daily counter resets at 00:00 UTC, which is 7:00 p.m. on November 23 in Indianapolis. The [production deployment history](https://github.com/howardhayden/folio/deployments/github-pages) records subsequent publications.
 
