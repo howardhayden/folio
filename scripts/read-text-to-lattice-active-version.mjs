@@ -51,7 +51,6 @@ export function intendedTextToLatticeApiVersion(text) {
 export async function selectTextToLatticeApiDeployment(expectedVersionId, {
   readDeployment,
   precedingVersionId = null,
-  preBootstrapVersionId = null,
   wait = delay,
   monotonicNow = () => performance.now(),
 } = {}) {
@@ -59,18 +58,12 @@ export async function selectTextToLatticeApiDeployment(expectedVersionId, {
     || typeof wait !== "function" || typeof monotonicNow !== "function"
     || (precedingVersionId !== null && (!UUID_PATTERN.test(precedingVersionId)
       || precedingVersionId === expectedVersionId))) fail("invalid selection inputs");
-  if (preBootstrapVersionId !== null && (precedingVersionId === null
-    || !UUID_PATTERN.test(preBootstrapVersionId) || preBootstrapVersionId === expectedVersionId)) {
-    fail("invalid pre-bootstrap incumbent");
-  }
   const start = monotonicNow();
   let last = start;
-  let precedingObserved = false;
   const observations = [];
   const report = (status, boundary = null) => Object.freeze({
     format: "TEXT_TO_LATTICE_API_DEPLOYMENT_SELECTION", schemaVersion: 1,
     status, boundary, expectedVersionId, precedingVersionId,
-    ...(preBootstrapVersionId === null ? {} : { preBootstrapVersionId }),
     observations: Object.freeze([...observations]), rawMetadataLogged: false,
   });
   function refuse(boundary) {
@@ -98,10 +91,9 @@ export async function selectTextToLatticeApiDeployment(expectedVersionId, {
     if (selected.versionId === expectedVersionId) {
       return Object.freeze({ raw, selected, evidence: report("matched") });
     }
-    // The G06 rollout publishes the held bootstrap and then the active version.
-    // Wait only on versions witnessed in this run, in deployment order.
-    if (selected.versionId === precedingVersionId) precedingObserved = true;
-    else if (precedingObserved || selected.versionId !== preBootstrapVersionId) refuse("unexpected-version");
+    // Only the exact observed incumbent or preceding bootstrap may briefly remain selected.
+    // Every post-probe check passes no predecessor and never waits.
+    if (precedingVersionId === null || selected.versionId !== precedingVersionId) refuse("unexpected-version");
     if (attempt === PRECEDING_REREAD_DELAYS_MS.length) refuse("preceding-selection-did-not-converge");
     const milliseconds = PRECEDING_REREAD_DELAYS_MS[attempt];
     if (remaining() <= milliseconds) refuse("deadline");
@@ -116,7 +108,6 @@ function captureArguments(args, incumbent = false) {
   const names = new Map([
     ["--expected-deployment", "expectedPath"], ["--preceding-held-deployment", "heldPath"],
     ["--preceding-incumbent", "incumbentPath"],
-    ["--pre-bootstrap-incumbent", "preBootstrapPath"],
     ["--wrangler", "wranglerPath"], ["--config", "configPath"], ["--output", "outputPath"],
   ]);
   for (let index = 0; index < args.length; index += 2) {
@@ -125,7 +116,7 @@ function captureArguments(args, incumbent = false) {
     values[key] = value;
   }
   if ([...(incumbent ? [] : ["expectedPath"]), "wranglerPath", "configPath", "outputPath"].some(key => !values[key])) fail("missing selection arguments");
-  if ((values.preBootstrapPath && !values.heldPath) || (values.heldPath && values.incumbentPath)
+  if ((values.heldPath && values.incumbentPath)
     || (incumbent && (values.expectedPath || values.heldPath || values.incumbentPath))) fail("conflicting selection arguments");
   if (resolve(values.configPath) !== resolve("workers/text-to-lattice-api/wrangler.jsonc")
     || resolve(values.wranglerPath) !== resolve("workers/node_modules/.bin/wrangler")) fail("unreviewed metadata target");
@@ -163,10 +154,8 @@ async function captureSelectedDeployment(args) {
   const precedingVersionId = inputs.heldPath
     ? intendedTextToLatticeApiVersion(await boundedText(inputs.heldPath))
     : inputs.incumbentPath ? checkedIncumbent(JSON.parse(await boundedText(inputs.incumbentPath))).versionId : null;
-  const preBootstrapVersionId = inputs.preBootstrapPath
-    ? checkedIncumbent(JSON.parse(await boundedText(inputs.preBootstrapPath))).versionId : null;
   const result = await selectTextToLatticeApiDeployment(expectedVersionId, {
-    precedingVersionId, preBootstrapVersionId, readDeployment: timeout => readDeployment(inputs, timeout),
+    precedingVersionId, readDeployment: timeout => readDeployment(inputs, timeout),
   });
   // Raw status stays ephemeral outside the uploaded sanitized-evidence directory, as before.
   await writeFile(resolve(inputs.outputPath), `${JSON.stringify(result.raw)}\n`, { encoding: "utf8", mode: 0o600, flag: "wx" });
