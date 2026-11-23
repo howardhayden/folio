@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
 
 import {
+  deploymentIndexQualificationMode,
   parseTextToLatticeDeploymentEvidenceIndexText,
 } from "./build-text-to-lattice-deployment-evidence.mjs";
 import {
@@ -500,7 +501,9 @@ function noSensitiveStrings(value, path = "$") {
 }
 
 function verifyDeployment(value) {
-  const deployment = exactObject(value, DEPLOYMENT_FIELDS, "$.deployment");
+  const hasMode = value !== null && typeof value === "object" && Object.hasOwn(value, "qualification_mode");
+  const deployment = exactObject(value, [...DEPLOYMENT_FIELDS, ...(hasMode ? ["qualification_mode"] : [])], "$.deployment");
+  if (hasMode) exactValue(deployment.qualification_mode, "operator-ended", "$.deployment.qualification_mode");
   nonzeroCommit(deployment.deployed_commit, "$.deployment.deployed_commit");
   pattern(deployment.workflow_run_id, /^[1-9][0-9]{0,19}$/u, "a positive decimal workflow-run identifier", "$.deployment.workflow_run_id");
   pattern(deployment.workflow_run_attempt, /^[1-9][0-9]{0,5}$/u, "a positive decimal workflow-run attempt", "$.deployment.workflow_run_attempt");
@@ -542,7 +545,8 @@ function verifyDeployment(value) {
     "$.deployment.qualified_source_set_sha256",
   );
   const deployedAt = timestamp(deployment.deployed_at, "$.deployment.deployed_at");
-  const qualificationExpiresAt = timestamp(
+  if (hasMode) exactValue(deployment.qualification_expires_at, null, "$.deployment.qualification_expires_at");
+  const qualificationExpiresAt = hasMode ? null : timestamp(
     deployment.qualification_expires_at,
     "$.deployment.qualification_expires_at",
   );
@@ -563,10 +567,10 @@ function verifyDeployment(value) {
   if (evidenceCheckedAfterAt - evidenceCheckedBeforeAt > 1_800_000) {
     fail("$.deployment.deployment_evidence_checked_after_captures_at", "must close the complete two-browser capture and deployment-evidence window within 30 minutes");
   }
-  if (qualificationExpiresAt <= deployedAt) {
+  if (qualificationExpiresAt !== null && qualificationExpiresAt <= deployedAt) {
     fail("$.deployment.qualification_expires_at", "must follow deployment");
   }
-  if (evidenceCheckedAfterAt > qualificationExpiresAt) {
+  if (qualificationExpiresAt !== null && evidenceCheckedAfterAt > qualificationExpiresAt) {
     fail("$.deployment.deployment_evidence_checked_after_captures_at", "must not follow qualification expiry");
   }
   trueValue(
@@ -1137,6 +1141,7 @@ function deploymentIndexIdentity(index) {
     qualified_source_set_sha256: index.qualifiedSourceSetSha256,
     deployed_at: index.deployedAt,
     qualification_expires_at: index.qualificationExpiresAt,
+    ...(deploymentIndexQualificationMode(index) === "operator-ended" ? { qualification_mode: "operator-ended" } : {}),
   });
 }
 
@@ -1183,6 +1188,9 @@ async function verifyDeploymentIndexCustody(evidencePath, deployment) {
     index = parseTextToLatticeDeploymentEvidenceIndexText(source);
   } catch (error) {
     throw new Error(`The retained deployment evidence index is invalid: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if ((deployment.qualification_mode ?? null) !== deploymentIndexQualificationMode(index)) {
+    fail("$.deployment.qualification_mode", "does not match the retained deployment evidence index");
   }
   for (const [field, expected] of Object.entries(deploymentIndexIdentity(index))) {
     if (deployment[field] !== expected) {
