@@ -1074,6 +1074,36 @@ test("one-release source carry independently binds the unchanged original proof 
   assert.equal(sha256(await readFile(join(root, fixture.record.path))), result.evidenceSha256);
 });
 
+test("one-release source carry pins the approved editorial page even when changed bytes are repinned", async () => {
+  const pagePath = "app/projects/lattice/text-to-lattice/page.tsx";
+  const beforeSha256 = "1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8";
+  const afterSha256 = "08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870";
+  const accepted = await sourceCarryFixture();
+  const acceptedProof = JSON.parse(accepted.proofBytes);
+  const pageException = acceptedProof.exceptions.find(({ path }) => path === pagePath);
+  assert.equal(pageException.beforeSha256, beforeSha256);
+  assert.equal(sha256(Buffer.from(pageException.beforeBase64, "base64")), beforeSha256);
+  assert.equal(pageException.afterSha256, afterSha256);
+  assert.equal(sha256(accepted.files.find(({ path }) => path === pagePath).bytes), afterSha256);
+  assert.doesNotThrow(() => checkSourceCarry(accepted));
+  for (const change of [
+    (bytes) => Buffer.concat([bytes, Buffer.from("\n// unapproved editorial change\n")]),
+    (bytes) => Buffer.from(bytes.toString("utf8").replace("/api/lattice", "/api/other")),
+  ]) {
+    const fixture = await sourceCarryFixture();
+    const file = fixture.files.find(({ path }) => path === pagePath);
+    file.bytes = change(file.bytes);
+    assert.notEqual(sha256(file.bytes), afterSha256);
+    const current = carryFingerprint(fixture.files);
+    fixture.register.authority.qualifiedSourceSet.sha256 = current;
+    fixture.register.authority.browserEvidenceSourceCarry.currentSourceSetSha256 = current;
+    const proof = JSON.parse(fixture.proofBytes);
+    proof.exceptions.find(({ path }) => path === pagePath).afterSha256 = sha256(file.bytes);
+    repinCarryProof(fixture, proof);
+    assert.throws(() => checkSourceCarry(fixture), /editorial page must match the frozen owner-approved after bytes/u);
+  }
+});
+
 test("one-release source carry refuses unrelated bytes even after repinning the current fingerprint", async () => {
   for (const path of ["app/resume/ResumeProjects.tsx", ".github/workflows/pages.yml", "workers/text-to-lattice-api/worker.js"]) {
     const fixture = await sourceCarryFixture();
@@ -1108,7 +1138,7 @@ test("one-release source carry refuses widening, wildcard, duplicate and missing
   ]) {
     const fixture = await sourceCarryFixture();const proof = JSON.parse(fixture.proofBytes);
     mutate(proof.exceptions);repinCarryProof(fixture, proof);
-    assert.throws(() => checkSourceCarry(fixture), /exactly the three approved file exceptions/u);
+    assert.throws(() => checkSourceCarry(fixture), /exactly the four approved file exceptions/u);
   }
 });
 

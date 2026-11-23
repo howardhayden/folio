@@ -1,0 +1,27 @@
+{
+  "state": {
+    "ordinary": 0,
+    "qualificationExcess": 0,
+    "ordinaryKeyPresent": false,
+    "excessKeyPresent": false,
+    "alarm": null
+  },
+  "receipt": {
+    "operation": "text-to-lattice-ordinary-usage-2026-11-23-after-740",
+    "appliedAt": "2026-11-23T19:56:38.482Z",
+    "before": {
+      "ordinary": 30,
+      "qualificationExcess": 0,
+      "ordinaryKeyPresent": true,
+      "excessKeyPresent": false,
+      "alarm": 1795478400000
+    },
+    "after": {
+      "ordinary": 0,
+      "qualificationExcess": 0,
+      "ordinaryKeyPresent": false,
+      "excessKeyPresent": false,
+      "alarm": null
+    }
+  }
+}
