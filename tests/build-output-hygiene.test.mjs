@@ -20,8 +20,6 @@ const foreignClientMarkers = [
   "meta-llama/Llama-3.3-70B-Instruct:deepinfra",
   "meta-llama/Llama-3.3-70B-Instruct:coreweave",
   "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-  "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
-  "Qwen/Qwen3-235B-A22B-Instruct-2507:venice",
 ];
 
 function assertResumeClientBoundary(register, names, client) {
