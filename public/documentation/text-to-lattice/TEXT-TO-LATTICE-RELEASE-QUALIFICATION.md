@@ -1,3 +1,38 @@
+# Text to Lattice release qualification — qualified
+
+**Qualification date:** 2026-11-23
+
+**Evidence updated:** 2026-11-23
+
+**Reviewed baseline:** `6166a3f430338331ca3f0336450e500571cbb896`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`
+
+**Artifact-set projection SHA-256:** `58e9c64506ecb739ca2a5b6a5dbf142d988fc95e9178115e0f2bed9dd120b644`
+
+The qualified remote capability has current production evidence from canonical-browser Safari/WebKit and Brave/Chromium captures on deployed commit 6166a3f430338331ca3f0336450e500571cbb896. GATE-02, GATE-03 and GATE-06 are satisfied-in-production with null acceptance. The captured qualified source-set SHA-256 remains 0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Satisfied in production | High |
+
+Accepted structured browser evidence docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json, SHA-256 b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595, binds supported-browser Safari/WebKit sanitized capture with SHA-256 6eee316114d5caa67cb4d025a83dd45c96601868fbe995e2f38c697fc2872c05 and Brave/Chromium sanitized capture with SHA-256 ff6d4051975dcea7050f8e6a400d965bd67a2d482853f5bb1ca3fc2c4e88b9a7, deployed commit 6166a3f430338331ca3f0336450e500571cbb896, a non-error terminal result, and exactly one content-bearing POST /api/lattice after the bodyless setup per engine.
+
+The five public evidence files preserve their exact reviewed safe bytes. The original capture run, Worker versions, BEFORE/AFTER index, authenticated operator-ended qualification mode with null service expiry, and source identities remain recorded in the bundle. Final publication uses the ordinary gated main deployment and its separate live backend check. The project’s content date remains 2026-11-23, as recorded in the captured source. The final ordinary production deployment removes the qualification-mode binding and uses the standard 30 global and 3 per signed visitor daily controls. Existing usage is retained; no quota reset is implied. Per-request processing terms and the consequence × plausibility × lifecycle value rule remain unchanged. The verified held parent remains available for the finite reviewed recovery procedure.
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
 # Text to Lattice release qualification — qualification-pending
 
 **Qualification date:** 2026-11-23
