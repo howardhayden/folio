@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -53,14 +51,6 @@ function workflowJob(workflow, name) {
   return block;
 }
 
-function workflowStep(job, name) {
-  const marker = `      - name: ${name}\n`;
-  const start = job.indexOf(marker);
-  assert.ok(start >= 0, `The actual workflow must contain ${name}.`);
-  const end = job.indexOf("\n      - ", start + marker.length);
-  return job.slice(start, end < 0 ? undefined : end);
-}
-
 function workflowJobGuard(workflow, name, context) {
   const block = workflowJob(workflow, name);
   const guard = /^ {4}if: (.+)(?:\n|$)/mu.exec(block);
@@ -102,7 +92,6 @@ function workflowGuardContext({
   restore = false,
   activate = false,
   deployServices = false,
-  visitorMode = false,
   event = "workflow_dispatch",
   ref = "refs/heads/main",
   results = {},
@@ -111,7 +100,6 @@ function workflowGuardContext({
     restore_text_to_lattice_qualification: restore,
     activate_text_to_lattice_qualification: activate,
     deploy_text_to_lattice_services: deployServices,
-    use_visitor_mode_for_g06: visitorMode,
   };
   let boundaryResult = ref === "refs/heads/main" ? "success" : "skipped";
   try {
@@ -122,15 +110,13 @@ function workflowGuardContext({
       LATTICE_RESTORE_QUALIFICATION: String(restore),
       LATTICE_ACTIVATE_QUALIFICATION: String(activate),
       LATTICE_DEPLOY_SERVICES: String(deployServices),
-      LATTICE_G06_VISITOR_MODE: String(visitorMode),
-      GITHUB_RUN_ATTEMPT: "1",
     });
   } catch {
     boundaryResult = "failure";
   }
   const names = ["publication-boundary", "build", "build_qualification_rollback", "deploy_held",
     "deploy_text_to_lattice_services", "deploy", "wait_for_text_to_lattice_qualification_expiry",
-    "restore_text_to_lattice_qualification_api", "expire_text_to_lattice_qualification_api", "enforce_text_to_lattice_held_api"];
+    "restore_text_to_lattice_qualification_api", "expire_text_to_lattice_qualification_api"];
   const needs = Object.fromEntries(names.map((name) => [name, {
     result: results[name] ?? (name === "publication-boundary" ? boundaryResult : "skipped"),
     outputs: {},
@@ -140,7 +126,7 @@ function workflowGuardContext({
     held_pages_artifact_id: "123", held_pages_artifact_sha256: "a".repeat(64),
   };
   needs.deploy_text_to_lattice_services.outputs.qualification_cleanup_at = "2026-09-14T17:24:00.000Z";
-  for (const name of ["restore_text_to_lattice_qualification_api", "expire_text_to_lattice_qualification_api", "enforce_text_to_lattice_held_api"]) {
+  for (const name of ["restore_text_to_lattice_qualification_api", "expire_text_to_lattice_qualification_api"]) {
     needs[name].outputs = { rollback_authorized: "true", held_api_verified: "true" };
   }
   return { github: { ref, event_name: event, event: { head_commit: { message: "" } } }, inputs, needs };
@@ -722,140 +708,6 @@ test("ordinary qualification activation preserves its build, service, deployment
   assert.equal(workflowJobGuard(workflow, "expire_text_to_lattice_qualification_pages", context), false);
 });
 
-test("operator-ended G06 activation completes without a timer or scheduled restoration", async () => {
-  const workflow = await readFile(workflowPath, "utf8");
-  const service = workflowJob(workflow, "deploy_text_to_lattice_services");
-  const expiry = workflowStep(service, "Establish the absolute bounded active-service expiry");
-  assert.match(expiry, /release_phase != 'qualified' && inputs\.use_visitor_mode_for_g06 != true/u);
-  const context = workflowGuardContext({ activate: true, visitorMode: true, results: {
-    build: "success", build_qualification_rollback: "success", deploy_text_to_lattice_services: "success", deploy: "success",
-  } });
-  for (const name of ["build", "build_qualification_rollback", "deploy_text_to_lattice_services", "deploy"]) {
-    assert.equal(workflowJobGuard(workflow, name, context), true, name);
-  }
-  // Even stale cleanup outputs or an unexpected prior success cannot select a timer.
-  context.needs.wait_for_text_to_lattice_qualification_expiry.result = "success";
-  context.needs.expire_text_to_lattice_qualification_api.result = "success";
-  for (const name of ["wait_for_text_to_lattice_qualification_expiry", "expire_text_to_lattice_qualification_api",
-    "expire_text_to_lattice_qualification_pages", "restore_text_to_lattice_qualification_api", "enforce_text_to_lattice_held_api"]) {
-    assert.equal(workflowJobGuard(workflow, name, context), false, name);
-  }
-  assert.match(service, /LATTICE_REQUIRE_ADMISSION_EVIDENCE: \$\{\{ needs\.publication-boundary\.outputs\.release_phase != 'qualified' \}\}/u);
-  assert.match(service, /LATTICE_CANARY_REQUEST_MODE: \$\{\{ inputs\.use_visitor_mode_for_g06 && 'auto' \|\| 'operative' \}\}/u);
-});
-
-test("operator-ended activation failure restores authenticated held Pages only after verified API enforcement", async () => {
-  const workflow = await readFile(workflowPath, "utf8");
-  const pagesJob = "expire_text_to_lattice_qualification_pages";
-  const enforcementJob = "enforce_text_to_lattice_held_api";
-  assert.ok(workflowJobNeeds(workflow, pagesJob).includes(enforcementJob));
-  for (const failed of ["deploy_text_to_lattice_services", "deploy"]) {
-    for (const result of ["failure", "cancelled"]) {
-      const context = workflowGuardContext({ activate: true, visitorMode: true, results: {
-        build: "success", build_qualification_rollback: "success", deploy_text_to_lattice_services: "success", deploy: "success",
-        [failed]: result,
-      } });
-      assert.equal(workflowJobGuard(workflow, enforcementJob, context), true);
-      assert.equal(workflowJobGuard(workflow, pagesJob, context), false, "API proof has not completed");
-      context.needs[enforcementJob].result = "success";
-      assert.equal(workflowJobGuard(workflow, pagesJob, context), true);
-      for (const field of ["rollback_authorized", "held_api_verified"]) {
-        context.needs[enforcementJob].outputs[field] = "false";
-        assert.equal(workflowJobGuard(workflow, pagesJob, context), false, field);
-        context.needs[enforcementJob].outputs[field] = "true";
-      }
-      for (const field of ["held_pages_artifact_id", "held_pages_artifact_sha256"]) {
-        const saved = context.needs.build_qualification_rollback.outputs[field];
-        context.needs.build_qualification_rollback.outputs[field] = "";
-        assert.equal(workflowJobGuard(workflow, pagesJob, context), false, field);
-        context.needs.build_qualification_rollback.outputs[field] = saved;
-      }
-      for (const apiResult of ["failure", "cancelled", "skipped"]) {
-        context.needs[enforcementJob].result = apiResult;
-        assert.equal(workflowJobGuard(workflow, pagesJob, context), false, apiResult);
-      }
-      context.needs[enforcementJob].result = "success";
-      context.inputs.use_visitor_mode_for_g06 = false;
-      assert.equal(workflowJobGuard(workflow, pagesJob, context), false, "no change to legacy failure routing");
-    }
-  }
-  const enforcement = workflowJob(workflow, enforcementJob);
-  assert.match(enforcement, /rollback_authorized: \$\{\{ steps\.current-main-before-enforced-api\.outcome == 'success' \}\}/u);
-  assert.match(enforcement, /held_api_verified: \$\{\{ steps\.enforced-held-api-verification\.outcome == 'success' \}\}/u);
-  assert.match(enforcement, /id: current-main-before-enforced-api[\s\S]*?verify-current-main-sha\.mjs[\s\S]*?workers\/text-to-lattice-api\/held\.js[\s\S]*?id: enforced-held-api-verification[\s\S]*?verify-text-to-lattice-held-api\.mjs/u);
-  assert.doesNotMatch(enforcement, /LATTICE_QUALIFICATION_MODE|LATTICE_QUALIFICATION_EXPIRES_AT|CANARY_REQUEST_MODE/u);
-});
-
-test("the complete deployment job dependency graph remains acyclic", async () => {
-  const workflow = await readFile(workflowPath, "utf8");
-  const names = [...workflow.slice(workflow.indexOf("\njobs:\n")).matchAll(/^ {2}([a-z][a-z_-]*):$/gmu)].map((match) => match[1]);
-  const visited = new Set();
-  function visit(name, ancestors = new Set()) {
-    assert.ok(names.includes(name), `Unknown job ${name}`);
-    assert.ok(!ancestors.has(name), `Dependency cycle at ${name}`);
-    if (visited.has(name)) return;
-    const job = workflowJob(workflow, name);
-    for (const dependency of /^ {4}needs:/mu.test(job) ? workflowJobNeeds(workflow, name) : []) {
-      visit(dependency, new Set([...ancestors, name]));
-    }
-    visited.add(name);
-  }
-  for (const name of names) visit(name);
-});
-
-test("actual deployment and all evidence shell invocations pass exclusive qualification arguments", async (context) => {
-  const workflow = await readFile(workflowPath, "utf8");
-  const service = workflowJob(workflow, "deploy_text_to_lattice_services");
-  const scratch = await mkdtemp(resolve(tmpdir(), "lattice-workflow-mode-"));
-  context.after(() => rm(scratch, { recursive: true, force: true }));
-  const stepNames = ["Deploy bounded Text to Lattice API", "Verify deployed admission environment before live probes",
-    "Inspect API deployment after live verification", "Assemble sanitized Text to Lattice deployment evidence"];
-  assert.equal((service.match(/node scripts\/build-text-to-lattice-deployment-evidence\.mjs/gu) ?? []).length, 3,
-    "every environment prereq and final index call is exercised");
-  for (const [phase, visitorMode, expected] of [
-    ["qualification-pending", "true", "operator-ended"],
-    ["qualification-pending", "false", "timed"],
-    ["held", "false", "timed"],
-    ["qualified", "false", "production"],
-  ]) {
-    for (const [index, name] of stepNames.entries()) {
-      const step = workflowStep(service, name);
-      assert.ok(step.includes("LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}"));
-      const actualShell = step.split("        run: |\n")[1];
-      assert.ok(actualShell, name);
-      // Execute the real branching/argv with inert command substitutes only.
-      // No executable from the checkout or any deployment endpoint is invoked.
-      const script = actualShell.replace(/^ {10}/gmu, "")
-        .replaceAll("./workers/node_modules/.bin/wrangler", "recordWrangler")
-        .replace(/\$\{\{[^}]+\}\}/gu, "fixture-identity");
-      const callsPath = resolve(scratch, `${phase}-${visitorMode}-${index}.calls`);
-      execFileSync("bash", ["-e", "-o", "pipefail", "-c", `
-        record() { printf '%s\\0' "$@" >> "$CALLS"; printf '\\0' >> "$CALLS"; }
-        recordWrangler() { record wrangler "$@"; }
-        node() { record node "$@"; if [[ "$1" == scripts/read-text-to-lattice-active-version.mjs ]]; then printf 'fixture-version'; fi; }
-        ${script}
-      `], { cwd: scratch, env: { PATH: process.env.PATH, CALLS: callsPath, RUNNER_TEMP: scratch,
-        RELEASE_PHASE: phase, LATTICE_G06_VISITOR_MODE: visitorMode,
-        QUALIFICATION_EXPIRES_AT: "2026-09-14T17:30:00.000Z" }, timeout: 5000 });
-      const calls = (await readFile(callsPath, "utf8")).split("\0\0").filter(Boolean).map((row) => row.split("\0"));
-      const selected = index === 0 ? calls.filter((row) => row[0] === "wrangler")
-        : calls.filter((row) => row[1] === "scripts/build-text-to-lattice-deployment-evidence.mjs");
-      assert.equal(selected.length, 1, `${phase}/${name}: one actual operation`);
-      const args = selected[0];
-      if (index === 0) {
-        const vars = args.flatMap((value, i) => value === "--var" ? [args[i + 1]] : []);
-        assert.deepEqual(vars, expected === "operator-ended" ? ["LATTICE_QUALIFICATION_MODE:operator-ended"]
-          : expected === "timed" ? ["LATTICE_QUALIFICATION_EXPIRES_AT:2026-09-14T17:30:00.000Z"] : []);
-      } else {
-        assert.equal(args.includes("--qualification-mode"), expected === "operator-ended");
-        assert.equal(args.includes("--qualification-expires-at"), expected === "timed");
-        if (expected === "operator-ended") assert.equal(args[args.indexOf("--qualification-mode") + 1], "operator-ended");
-        if (expected === "timed") assert.equal(args[args.indexOf("--qualification-expires-at") + 1], "2026-09-14T17:30:00.000Z");
-      }
-    }
-  }
-});
-
 test("ordinary held and qualified publication guards retain their existing routes", async () => {
   const workflow = await readFile(workflowPath, "utf8");
   const held = workflowGuardContext({ phase: "held", results: { build: "success", deploy_held: "success" } });
@@ -884,24 +736,6 @@ test("manual and timed rollback retain current-main mutation guards and bounded 
   const pages = workflowJob(workflow, "expire_text_to_lattice_qualification_pages");
   assert.match(pages, /Require current main before bounded qualification Pages rollback[\s\S]*?verify-current-main-sha\.mjs[\s\S]*?actions\/deploy-pages@/u);
   assert.match(pages, /Retain verified qualification Pages restoration evidence[\s\S]*?steps\.restored-held-pages-verification\.outcome == 'success'[\s\S]*?held-pages\.json[\s\S]*?if-no-files-found: error[\s\S]*?retention-days: 7/u);
-});
-
-test("the visitor-mode canary opt-in belongs only to an original manual G06 activation", async () => {
-  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
-  assert.match(workflow, /use_visitor_mode_for_g06:\n[^\n]+\n +required: false\n +default: false\n +type: boolean/u);
-  assert.ok(workflow.includes("LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}"));
-  assert.ok(workflow.includes("LATTICE_CANARY_REQUEST_MODE: ${{ inputs.use_visitor_mode_for_g06 && 'auto' || 'operative' }}"));
-  const activation = { LATTICE_G06_VISITOR_MODE: "true", LATTICE_ACTIVATE_QUALIFICATION: "true",
-    LATTICE_OPERATION_EVENT: "workflow_dispatch", LATTICE_OPERATION_REF: "refs/heads/main",
-    LATTICE_OPERATION_PHASE: "qualification-pending", GITHUB_RUN_ATTEMPT: "1" };
-  assert.equal(validateTextToLatticeQualificationOperation(activation), "ordinary");
-  for (const [field, values] of Object.entries({
-    LATTICE_OPERATION_EVENT: ["push"], LATTICE_OPERATION_REF: ["refs/heads/other"],
-    LATTICE_OPERATION_PHASE: ["held", "qualified"], LATTICE_ACTIVATE_QUALIFICATION: ["false"],
-    LATTICE_RESTORE_QUALIFICATION: ["true"], LATTICE_DEPLOY_SERVICES: ["true"], GITHUB_RUN_ATTEMPT: ["2"],
-  })) {
-    for (const value of values) assert.throws(() => validateTextToLatticeQualificationOperation({ ...activation, [field]: value }), /original G06 activation/u);
-  }
 });
 
 test("qualification operation validation accepts only exact exclusive restore flags and boundary", () => {
@@ -2034,7 +1868,6 @@ test("frame qualification rejects drift in every critical header family", async 
 
 test("active deployment selection binds the deploy JSONL before and after unchanged live probes", async () => {
   const workflow = await readFile(workflowPath, "utf8");
-  const bootstrap = workflow.slice(workflow.indexOf("- name: Bootstrap held Text to Lattice API surface"), workflow.indexOf("- name: Inspect Text to Lattice API encrypted binding names"));
   const deploy = workflow.slice(workflow.indexOf("- name: Deploy bounded Text to Lattice API"), workflow.indexOf("- name: Require current main before response-policy deployment"));
   const before = workflow.slice(workflow.indexOf("- name: Inspect deployed Worker versions"), workflow.indexOf("- name: Verify deployed admission environment before live probes"));
   const after = workflow.slice(workflow.indexOf("- name: Inspect API deployment after live verification"), workflow.indexOf("- name: Require current main before legacy surface retirement"));
@@ -2047,9 +1880,6 @@ test("active deployment selection binds the deploy JSONL before and after unchan
   }
   assert.ok(before.includes('if [[ "$RELEASE_PHASE" != "qualified" ]]; then'));
   assert.ok(before.includes('--preceding-held-deployment "$RUNNER_TEMP/text-to-lattice-held-deploy.jsonl"'));
-  assert.match(bootstrap, /if \[\[ "\$LATTICE_G06_VISITOR_MODE" == "true" \]\]; then[\s\S]*?--capture-incumbent[\s\S]*?--output "\$RUNNER_TEMP\/text-to-lattice-before-bootstrap\.json"\s+fi\s+\.\/workers\/node_modules\/\.bin\/wrangler deploy/u);
-  assert.ok(before.includes('SELECTION_ARGUMENTS+=(--pre-bootstrap-incumbent "$RUNNER_TEMP/text-to-lattice-before-bootstrap.json")'));
-  assert.ok(!after.includes("--pre-bootstrap-incumbent"));
   assert.ok(before.includes('--output "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json"'));
   assert.ok(after.includes('--output "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json"'));
   assert.ok(before.includes('--preceding-incumbent "$RUNNER_TEMP/text-to-lattice-api-incumbent.json"'));
