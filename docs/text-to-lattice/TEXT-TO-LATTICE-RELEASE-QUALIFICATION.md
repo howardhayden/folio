@@ -1,3 +1,318 @@
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-23
+
+**Evidence updated:** 2026-11-23
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `bf84dc45cc950835c7ea6438c8866c2776c2d830019615a58dc6954eff6093da`
+
+**Artifact-set projection SHA-256:** `5c35392ed8bf0cb84a0d75146dea5874acdb442f7be76b75e080a94be9ef42ee`
+
+The documentation tests now check the operator-ended field and the five published browser-evidence files. The visitor application, Workers, providers, workflows and acceptance checks are unchanged. GATE-02 and GATE-03 retain their accepted production results. The canonical-browser qualification in run 729 passed on source `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. [PR 245](https://github.com/howardhayden/folio/pull/245) preserves that evidence. [Run 730](https://github.com/howardhayden/folio/actions/runs/45194346668) returned the service and site to held. The corrected full source has not qualified for final publication under exact-source matching. Any qualification on this source retains immediate held documentation-only rollback.
+
+The complete preceding dossier follows as dated history.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-23
+
+**Evidence updated:** 2026-11-23
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`
+
+**Artifact-set projection SHA-256:** `5c35392ed8bf0cb84a0d75146dea5874acdb442f7be76b75e080a94be9ef42ee`
+
+Run 717 stopped during deployment. Cloudflare returned the previous held Worker version after the workflow published the held bootstrap and the intended active version. The check stopped before the service canary, and neither browser submitted. Restore 718 verified the API and the page were held. [Run 717](https://github.com/howardhayden/folio/actions/runs/45168524795) · [Restore 718](https://github.com/howardhayden/folio/actions/runs/45169159866)
+
+The G06 workflow now records the incumbent before the bootstrap. During the existing bounded rollout wait, the selector can observe that incumbent and then the bootstrap. Only the intended active version can proceed to the service check. Unknown versions, split traffic and a return to the old incumbent after observing the bootstrap stop the workflow. The post-check still requires the exact active version.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-23
+
+**Evidence updated:** 2026-11-23
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `0b51982bea996c7ec336eb9a02d54eb222c5b88e3755fa6526b5bb1da3fafc34`
+
+**Artifact-set projection SHA-256:** `5c35392ed8bf0cb84a0d75146dea5874acdb442f7be76b75e080a94be9ef42ee`
+
+Run 705's service check passed. Native Safari displayed and focused the translated result 660 ms after the response. Its network, privacy and reload recording passed. Brave displayed a result and its source field retained focus at the later observation. The operator stopped before the screenshot and hard reload. Restore 706 verified the held API and Pages. [Qualification run 705](https://github.com/howardhayden/folio/actions/runs/45143227368) · [Restore run 706](https://github.com/howardhayden/folio/actions/runs/45146705288)
+
+The modal now focuses the visible result when React commits it. A local Brave check observed focus on the result at its first committed render and on subsequent frames. When the diagram was open or the modal was closed, focus stayed on the selected view or launcher. The production qualification still requires paired hosted traces on this version. The previously accepted backend run 501 and Firefox run 479 retain their original scope.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-23
+
+**Evidence updated:** 2026-11-23
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `562939870325f0329041cc739e717d17363164e55f15c6f1650d527883648cb7`
+
+**Artifact-set projection SHA-256:** `5c35392ed8bf0cb84a0d75146dea5874acdb442f7be76b75e080a94be9ef42ee`
+
+The fixed Hugging Face router sends requests through OpenRouter to the DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets. This release selects Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra and meta-llama/Llama-3.3-70B-Instruct:coreweave. Parasail and Venice remain manual backup choices. Each request uses one selected route with no automatic retry and no alternate provider or model fallback.
+
+Hugging Face, OpenRouter, DeepInfra and CoreWeave process submitted text after confirmation. DeepInfra describes deletion of ordinary inputs and outputs after inference. Its terms allow temporary in-memory caching, operational metadata, and legal or elected-feature exceptions. With written authorization, DeepInfra may retain data to resolve a support issue. It deletes that data within 30 days after resolving the issue. OpenRouter can retain metadata, categorize prompts and retain content for safety or legal reasons. Its settings for the Hugging Face route are unknown. CoreWeave describes zero retention by default. Tracing settings for this route are unknown. Previous Venice disclosure follows verbatim as dated history. Hugging Face, OpenRouter, Venice and CoreWeave process submitted text after confirmation. Venice and potentially a compute partner handle generation. Venice describes different privacy tiers. The tier and compute partner for this Hugging Face route are unverified. Venice’s terms allow content monitoring under its privacy policy. OpenRouter metadata, prompt categorization and applicable safety or legal retention remain disclosed. Hugging Face route settings are unknown. CoreWeave’s default serverless zero-retention statement does not establish this route’s tracing setting. External-provider retention is not guaranteed by hah.dev. Previous Parasail disclosure follows verbatim as dated history. Hugging Face, OpenRouter, Parasail and CoreWeave process submitted text after confirmation. Parasail’s serverless service retains inputs and outputs through generation and delivery. It may inspect masked usage metadata for service or support. It does not train on visitor content without explicit agreement. OpenRouter metadata, prompt categorization and applicable safety or legal retention remain disclosed. Hugging Face route settings are unknown. CoreWeave’s default serverless zero-retention statement does not establish this route’s tracing setting. External-provider retention is not guaranteed by hah.dev. Previous standard-generation disclosure follows verbatim as dated history. Hugging Face routes both models through OpenRouter. DeepInfra serves Qwen generation and CoreWeave serves Llama verification and certification. OpenRouter metadata, prompt categorization and applicable safety or legal retention remain disclosed; its Hugging Face route settings are unknown. DeepInfra ordinary deletion has temporary caching, support, legal and elected-feature exceptions. CoreWeave describes zero data retention by default for serverless inference. Optional tracing can record requests. The tracing setting for this route is unknown. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev.
+
+Backend run 501 remains dated standard DeepInfra-generation evidence and Firefox run 479 remains dated input-behavior evidence. G06 remains open pending the visitor-mode service check and complete Safari and Brave traces on one deployment. The operator restores the held API before held Pages at the end of qualification. Production admissions remain 30 globally and 3 per browser cookie jar each UTC day.
+
+Run 648 produced a service result and a focused Brave result on Venice. It ended before the original browser photograph, hard reload and seal. Run 652 received upstream HTTP 400 during the first analysis call. Its API returned HTTP 502 and the interactive page stayed held. The two browser collectors remained unarmed. The private upstream cause is unknown. Restoration 653 verified the held API at 00:12:42 UTC and the held page at 00:13:49 UTC.
+
+This non-qualified deployment is only for canonical-browser qualification and requires immediate held documentation-only rollback on failure. Prior backend and Firefox results retain their dated scope.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Post deployment verification | High |
+
+The preceding Venice dossier is preserved as dated history.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-22
+
+**Evidence updated:** 2026-11-22
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `54a70a2e0bd0c4be8f5428c81b35d619da55f471bb4ed1dba21f63e992c5048c`
+
+**Artifact-set projection SHA-256:** `e9e34f18a098e041d218421b50ededa94527fb76169f02b9b6c9e98b9b34d778`
+
+The manually selected Venice third backup for the same Qwen generator and CoreWeave-qualified Llama verifier/certifier targets uses the fixed Hugging Face router through OpenRouter. DeepInfra remains the standard generator service. Parasail remains the previous manually selected backup. The selected generator is Qwen/Qwen3-235B-A22B-Instruct-2507:venice. Review and certification remain meta-llama/Llama-3.3-70B-Instruct:coreweave. The selection is made in reviewed source. Each request uses only that route with no automatic retry and no alternate provider or model fallback.
+
+Hugging Face, OpenRouter, Venice and CoreWeave process submitted text after confirmation. Venice and potentially a compute partner handle generation. Venice describes different privacy tiers. The tier and compute partner for this Hugging Face route are unverified. Venice’s terms allow content monitoring under its privacy policy. OpenRouter metadata, prompt categorization and applicable safety or legal retention remain disclosed. Hugging Face route settings are unknown. CoreWeave’s default serverless zero-retention statement does not establish this route’s tracing setting. External-provider retention is not guaranteed by hah.dev. Previous Parasail disclosure follows verbatim as dated history. Hugging Face, OpenRouter, Parasail and CoreWeave process submitted text after confirmation. Parasail’s serverless service retains inputs and outputs through generation and delivery. It may inspect masked usage metadata for service or support. It does not train on visitor content without explicit agreement. OpenRouter metadata, prompt categorization and applicable safety or legal retention remain disclosed. Hugging Face route settings are unknown. CoreWeave’s default serverless zero-retention statement does not establish this route’s tracing setting. External-provider retention is not guaranteed by hah.dev. Previous standard-generation disclosure follows verbatim as dated history. Hugging Face routes both models through OpenRouter. DeepInfra serves Qwen generation and CoreWeave serves Llama verification and certification. OpenRouter metadata, prompt categorization and applicable safety or legal retention remain disclosed; its Hugging Face route settings are unknown. DeepInfra ordinary deletion has temporary caching, support, legal and elected-feature exceptions. CoreWeave describes zero data retention by default for serverless inference. Optional tracing can record requests. The tracing setting for this route is unknown. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev.
+
+Backend run 501 remains dated standard DeepInfra-generation evidence and Firefox run 479 remains dated input-behavior evidence. Neither establishes Venice generation success. G06 remains pending. The actual backup service check must pass before interactive qualification, then both actual native browser traces must pass with successful output, privacy and reload evidence in the same deployment. The operator-ended qualification retains the existing per-request and edge limits, lifts both daily admission caps and has no service expiry. The operator restores the held API before held Pages. Ordinary deployment retains 30 global and 3 per browser-cookie-jar daily admissions.
+
+Original run 640 stopped with upstream HTTP 429 during repair at logical call ordinal 4. The earlier run 636 stopped with upstream HTTP 429 during candidate generation at ordinal 3. These ordinals do not establish successful or billed provider-call counts. The available diagnostic does not identify the responsible account or rate-limit policy. Run 640 did not publish the interactive page or enter either browser. Separate provider-free restoration 641 verified held API at 22:03:18.035 UTC and held Pages at 22:04:26.438 UTC on November 22. The owner then selected Venice as the manual third backup for the same Qwen model through G06 and deployment.
+
+This non-qualified deployment is only for canonical-browser qualification and requires immediate held documentation-only rollback on failure. Prior backend and Firefox results retain their dated route and input scope. The consequence × plausibility × lifecycle value rule is unchanged.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Post deployment verification | High |
+
+The complete preceding Parasail dossier follows verbatim as dated history.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-22
+
+**Evidence updated:** 2026-11-22
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `2ceffaee9849777563f4fec91ccbcbbb72e2d5a96c17de75b806bd187bbf0994`
+
+**Artifact-set projection SHA-256:** `20245347b06dc7007771c31a4f03b24a1e82c8eb79f4f1319b60fc757d0a186a`
+
+For a retained passage that the host has rejected for register fit and committed to rewriting, the first regeneration prompt now states that decision explicitly. The prompt directs the generator to repair the register-fit problem while preserving meaning. The existing exact-copy retry guard and final acceptance checks are unchanged. All 70 focused feedback-binding, Worker, and host checks passed. Lint passed.
+
+Parasail remains the explicitly selected manual generator backup. CoreWeave remains the reviewer and certifier. Admission policy, bounded attempts, request-size budgets, and deterministic and semantic acceptance criteria are unchanged. Backend run 501 and Firefox run 479 remain dated evidence in their existing scopes. The integrated service check in run 604 failed after six logical adapter calls. Its final host candidate matched the source text and failed D14. Certification was not reached. Neither browser submitted. The finite diagnostic does not establish the private model decision or the effect of this correction. Restore 605 verified the held API at 16:18:19.792Z and held Pages at 16:19:27.776Z. G06 remains open. It requires accepted native traces from both browsers on the same deployment.
+
+This non-qualified deployment is for canonical-browser qualification. Failure requires immediate held documentation-only rollback. G06 verification and final production deployment remain pending.
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-22
+
+**Evidence updated:** 2026-11-22
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `90d693928904278d829d8361fbbe6365fc2ea20593694609415af865ac8d318c`
+
+**Artifact-set projection SHA-256:** `20245347b06dc7007771c31a4f03b24a1e82c8eb79f4f1319b60fc757d0a186a`
+
+Compact reanalysis prompts now map prior atom IDs referenced by missing-atom or layer-evidence feedback to the same passage’s existing source span or annotation IDs. The replacement analysis can locate those references in the supplied source text. The replacement graph uses host-assigned atom identities. The prompt excludes the prior graph and claim prose. The local regression reproduced the missing reference. Focused projection and request-size checks passed.
+
+Parasail remains the explicitly selected manual generator backup. CoreWeave remains the reviewer and certifier. Admission policy, bounded attempts, request-size budgets, and deterministic and semantic acceptance criteria are unchanged. Backend run 501 and Firefox run 479 remain dated evidence in their existing scopes. The separate service canary and BEFORE observation in run 600 passed. Brave submitted once and reached a withheld result. Safari did not submit. The specific reason for Brave’s refusal remains unknown. Restore 601 verified the held API at 15:36:02.027Z and held Pages at 15:36:54.691Z. G06 remains open. It requires accepted native traces from both browsers on the same deployment.
+
+This non-qualified deployment is for canonical-browser qualification. Failure requires immediate held documentation-only rollback. G06 verification and final production deployment remain pending.
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-22
+
+**Evidence updated:** 2026-11-22
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `0d85f98fe17c495b632bca1473f6711682d992f2ee44338d259d2ea1fc32e35f`
+
+**Artifact-set projection SHA-256:** `20245347b06dc7007771c31a4f03b24a1e82c8eb79f4f1319b60fc757d0a186a`
+
+When the verifier identifies an ordinary source span during repair, the compact prompt now includes its ID and that span’s exact text. The generator can use that reference to act on the finding. The focused regression and active request-size checks passed. An optional test of the historical host format still exceeds its 4,096-token budget on both the previous and current versions.
+
+Parasail remains the explicitly selected manual generator backup. CoreWeave remains the reviewer and certifier. Admission policy, bounded attempts, and deterministic and semantic acceptance criteria are unchanged. Backend run 501 and Firefox run 479 remain dated evidence in their existing scopes. The separate service canary in run 588 passed. Brave submitted once and reached a withheld result. Safari did not submit. The specific reason for Brave’s refusal remains unknown. Restore 589 verified the held API at 13:40:52.716Z and held Pages at 13:41:58.989Z. G06 remains open. It requires accepted native traces from both browsers on the same deployment.
+
+This non-qualified deployment is for canonical-browser qualification. Failure requires immediate held documentation-only rollback. G06 verification and final production deployment remain pending.
+
+The complete preceding qualification dossier follows verbatim as dated history.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-22
+
+**Evidence updated:** 2026-11-22
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `e5dac4bf2b835777e34b43c5ff285329f065d1d6322d64ee8e8aba2208d33f05`
+
+**Artifact-set projection SHA-256:** `20245347b06dc7007771c31a4f03b24a1e82c8eb79f4f1319b60fc757d0a186a`
+
+The browser response reader receives a four-line streaming correction: it clones the native Fetch Response and immediately cancels the unused branch before reading the original stream through EOF. Local synthetic Chromium comparisons verified early phases, native completion and original body availability for identity, gzip and Brotli responses, plus abort, oversize, interrupted and truncated-response boundaries. The strict private collector and original capture checks remain unchanged. These local results do not establish the exact failed operand in run 581 or an accepted hosted G06 trace.
+
+The reviewed browser-client correction retains the selected Parasail generator and CoreWeave review route, request and telemetry semantics, admission policy and release criteria. Backend run 501 and Firefox run 479 remain dated evidence in their existing scopes. Run 581 passed its service check; Brave produced a visible result and reload but no accepted native trace. Safari did not submit. Restore 582 verified the held API before held Pages. G06 remains open and requires both genuine accepted native traces from the same actual deployment.
+
+This non-qualified deployment is only for canonical-browser qualification and requires immediate held documentation-only rollback on failure. This source record does not accept G06 or select permanent production deployment.
+
+The complete preceding Parasail qualification dossier follows verbatim as dated history.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-22
+
+**Evidence updated:** 2026-11-22
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `bdce4bdc869d48a6421bb91eb0f463faf22912e836e80f322cd67d2546fc1093`
+
+**Artifact-set projection SHA-256:** `20245347b06dc7007771c31a4f03b24a1e82c8eb79f4f1319b60fc757d0a186a`
+
+The manually selected Parasail backup for the same Qwen generator and CoreWeave-qualified Llama verifier/certifier targets uses the fixed Hugging Face router through OpenRouter. DeepInfra remains the standard generator service. The selected generator is Qwen/Qwen3-235B-A22B-Instruct-2507:parasail; review and certification remain meta-llama/Llama-3.3-70B-Instruct:coreweave. The selection is made in reviewed source. Each request uses only that route with no automatic retry and no alternate provider or model fallback.
+
+Hugging Face, OpenRouter, Parasail and CoreWeave process submitted text after confirmation. Parasail’s serverless service retains inputs and outputs through generation and delivery. It may inspect masked usage metadata for service or support. It does not train on visitor content without explicit agreement. OpenRouter metadata, prompt categorization and applicable safety or legal retention remain disclosed. Hugging Face route settings are unknown. CoreWeave’s default serverless zero-retention statement does not establish this route’s tracing setting. External-provider retention is not guaranteed by hah.dev. Previous standard-generation disclosure follows verbatim as dated history. Hugging Face routes both models through OpenRouter. DeepInfra serves Qwen generation and CoreWeave serves Llama verification and certification. OpenRouter metadata, prompt categorization and applicable safety or legal retention remain disclosed; its Hugging Face route settings are unknown. DeepInfra ordinary deletion has temporary caching, support, legal and elected-feature exceptions. CoreWeave describes zero data retention by default for serverless inference. Optional tracing can record requests. The tracing setting for this route is unknown. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev.
+
+Backend run 501 remains dated standard DeepInfra-generation evidence and Firefox run 479 remains dated input-behavior evidence. Neither establishes Parasail generation success. G06 remains pending: the actual backup service check must pass before interactive qualification, followed by one successful output, privacy and reload trace from each native Safari and Brave browser in the same deployment. The operator-ended qualification retains the existing per-request and edge limits, lifts both daily admission caps and has no service expiry. The operator restores the held API before held Pages. Ordinary deployment retains 30 global and 3 per browser-cookie-jar daily admissions.
+
+This non-qualified deployment is only for canonical-browser qualification and requires immediate held documentation-only rollback on failure. It is not an accepted Parasail production result. Prior backend and Firefox results retain their dated route and input scope. The consequence × plausibility × lifecycle value rule is unchanged.
+
+| Gate | Status | Marginal value |
+| --- | --- | --- |
+| GATE-01 · Exact release artifact | Release workflow enforced | High |
+| GATE-02 · Remote API origin, secret, and privacy boundary | Satisfied in production | High |
+| GATE-03 · Remote provider capacity and cost boundary | Satisfied in production | High |
+| GATE-04A · Llama behavior and public-use controls | Accepted residual risk | Moderate |
+| GATE-04B · Historical inactive Llama MLC-artifact provenance | Historical inactive | Moderate |
+| GATE-04C · Historical inactive WASM provenance and license boundary | Historical inactive | Moderate |
+| GATE-05 · Manual interaction and accessibility | Accepted residual risk | Moderate |
+| GATE-06 · Remote production lifecycle and privacy trace | Post deployment verification | High |
+
+The complete preceding standard-generation dossier follows verbatim as dated history.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-22
+
+**Evidence updated:** 2026-11-22
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
+**Qualified source-set SHA-256:** `e85c628098eb2ea7e14667f89ab09ea1ed605a65c5ed7f7f87ce471b1858e73c`
+
+**Artifact-set projection SHA-256:** `1f865e7e1bb5f0879a29ff1d3257c3f6f082c9cd44c6f00c0c270ba5935e8863`
+
+During the owner-authorized public G06 qualification, the service admits requests without either daily admission cap or an automatic service expiry. The operator restores the held API before the held page on completion or failure. Ordinary deployment enforces 30 transformations globally and 3 per browser cookie jar each UTC day. Other visitors can incur provider charges until the operator closes the qualification. Each request retains its existing provider-call, token and time limits.
+
+Acceptance requires successful Safari and Brave traces from the same deployed version, with a verified deployment observation before and after both captures within 30 minutes. The backend evidence from run 501 and all 14 Firefox input checks from run 479 carry forward.
+
+Run 563 passed the visitor-mode service check. Brave returned a translated result in the Operative register and reported the Result container focused. Its evidence recorder stopped before reload. In a later observation of the same page, the container extended 0.1797 CSS pixels below the viewport. The current layout gives the result a two-pixel scroll margin. A local Brave test reproduced the clipping and then completed the same strict lifecycle and mask checks with this margin. GATE-06 remains open pending complete Safari and Brave traces on one hosted deployment. The backend acceptance from run 501 and the fourteen Firefox input checks from run 479 carry forward. [Run 563](https://github.com/howardhayden/folio/actions/runs/44979994240)
+
+Run 539 made seven provider calls. The first draft failed the material-change check. After repair the candidate cleared deterministic checks and the verifier accepted it. Document certification withheld the result. The recorded diagnostic does not identify which certification check failed. Neither browser submitted. Restore 540 verified the API held at 23:24:45 UTC and Pages held at 23:25:59 UTC on November 21, 2026. [Run 539](https://github.com/howardhayden/folio/actions/runs/44961268132) · [Restore 540](https://github.com/howardhayden/folio/actions/runs/44961614630)
+
+Whole-document certification now explains how to read the analysis tuples supplied with the complete source and candidate. Different atoms can share a source excerpt. The certifier independently checks each commitment and whether the candidate introduces, removes, or changes a relation. Existing meaning checks, provider roles and call limits still apply. G06 requires a completed Safari trace and a completed Brave trace from the same revision. The earlier backend acceptance from run 501 and fourteen Firefox input checks from run 479 carry forward. The visitor-mode service check exercises the current certifier before the interactive page opens.
+
+Run 535 used the visitor’s auto mode and verified the uploaded Pages archive. The notebook candidate passed deterministic checks. After one repair, semantic verification still withheld the result before certification. The service reported five model calls. Neither Safari nor Brave submitted text. Restoration 536 verified the API held at 20:52:25 UTC and the page held at 20:53:07 UTC on November 21, 2026. [Run 535](https://github.com/howardhayden/folio/actions/runs/44947920264) · [Restoration 536](https://github.com/howardhayden/folio/actions/runs/44948487734)
+
+The repair prompt now explains the eleven fields in each passage’s verification feedback. This gives the generator the positions of missing atoms, failed checks and their evidence on its existing repair attempt. The exact reason for the notebook’s rejection remains unknown. G06 still requires output, network and reload evidence from native Safari and Brave on the same release revision. The accepted backend checks from run 501 and the fourteen Firefox input checks from run 479 remain current for their recorded scope.
+
+Run 532 used the visitor’s auto mode. The candidate cleared deterministic checks, but both verifier replies failed decision consistency. The service withheld the result before certification. The interactive page stayed held and neither browser submitted text. [Run 532](https://github.com/howardhayden/folio/actions/runs/44942945279).
+
+The owner authorized one corrected G06 window. Its auto-mode service check must pass before Safari and Brave can submit once each. Both browsers must produce output, privacy and reload evidence from the same revision. The earlier backend and Firefox results are retained. On its existing second attempt after a decision or issue conflicts with the reported checks, the verifier records gates, passage checks and supported issues before choosing its verdict. The strict host checks and provider call limits still apply. Before changing the service, the qualification runner authenticates the original GitHub Pages ZIP, verifies the TAR against the build digest and hashes the canonical résumé page inside it. The operator authenticates the small runner receipt during native capture and checks the full original archive after restoration before accepting G06.
+
+The site owner selected the visitor’s auto mode for the single notebook check already included in the next G06 browser window. The original activation must explicitly select it. The check sends the same notebook text, terminal line feed and JSON diagnostic request through the existing service. It applies the existing certification and meaning checks before publishing the interactive page. Other operations use the existing operative check. A refusal keeps the page held.
+
+In run 528 the built-in operative check accepted the unchanged passage. Safari submitted identical text in auto mode and received a withheld result after verification. Brave had not submitted when the window was restored. G06 remains open pending an output-bearing privacy and reload trace in each browser on the same revision. Runs 501 and 479 supply the accepted backend and Firefox evidence.
+
+GATE-06 needs one accepted Safari trace and one accepted Brave trace from this qualification window. Safari focused a withheld result in #510. Its public finding did not identify the underlying cause. The #511 restore and the separate scheduled cleanup recorded the API and page held. The GATE-02 and GATE-03 decisions from #501 and the fourteen Firefox input checks from #479 carry forward. This build is deployed only for immediate canonical-browser qualification and is not qualified for final release. The workflow retains immediate held documentation-only rollback.
+
+This source change carries accepted backend and Firefox evidence. Only authentic new G06 evidence can close the remaining gate; no new API-only or Firefox qualification is requested.
+
+The complete held-parent dossier after the Safari result in run #510 follows as dated history.
+
+---
+
 # Text to Lattice release qualification — held after the Safari result in run #510
 
 **Decision:** hold the interactive client; publish the method, implementation record, and documentation only.
