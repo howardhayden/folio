@@ -8,6 +8,26 @@
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
+**Qualified source-set SHA-256:** `bf84dc45cc950835c7ea6438c8866c2776c2d830019615a58dc6954eff6093da`
+
+**Artifact-set projection SHA-256:** `5c35392ed8bf0cb84a0d75146dea5874acdb442f7be76b75e080a94be9ef42ee`
+
+The documentation tests now check the operator-ended field and the five published browser-evidence files. The visitor application, Workers, providers, workflows and acceptance checks are unchanged. GATE-02 and GATE-03 retain their accepted production results. The canonical-browser qualification in run 729 passed on source `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. [PR 245](https://github.com/howardhayden/folio/pull/245) preserves that evidence. [Run 730](https://github.com/howardhayden/folio/actions/runs/45194346668) returned the service and site to held. The corrected full source has not qualified for final publication under exact-source matching. Any qualification on this source retains immediate held documentation-only rollback.
+
+The complete preceding dossier follows as dated history.
+
+---
+
+# Text to Lattice release qualification — qualification-pending
+
+**Qualification date:** 2026-11-23
+
+**Evidence updated:** 2026-11-23
+
+**Reviewed baseline:** `1ae4d2253b7a0c2edc05174bc999b847814a9f69`
+
+**Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+
 **Qualified source-set SHA-256:** `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`
 
 **Artifact-set projection SHA-256:** `5c35392ed8bf0cb84a0d75146dea5874acdb442f7be76b75e080a94be9ef42ee`
