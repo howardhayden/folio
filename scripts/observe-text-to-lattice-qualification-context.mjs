@@ -5,7 +5,7 @@ import { lstat, readFile, mkdir, writeFile, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { LatticeMetadataError, LATTICE_CLOUDFLARE_METADATA_LIMITS } from "./text-to-lattice-cloudflare-metadata.mjs";
-import { deploymentIndexQualificationMode, parseTextToLatticeDeploymentEvidenceIndexText, sanitizeTextToLatticeDeploymentStatus } from "./build-text-to-lattice-deployment-evidence.mjs";
+import { parseTextToLatticeDeploymentEvidenceIndexText, sanitizeTextToLatticeDeploymentStatus } from "./build-text-to-lattice-deployment-evidence.mjs";
 import { verifyTextToLatticeRouteInventory } from "./verify-text-to-lattice-route-inventory.mjs";
 import { verifyCurrentMainSha } from "./verify-current-main-sha.mjs";
 import { verifyQualifiedSourceSet, verifyReleaseStatusState } from "./verify-text-to-lattice-release.mjs";
@@ -135,7 +135,7 @@ export function parseExpectedQualificationContext(encoded) {
   need(value.format === "TEXT_TO_LATTICE_EXPECTED_QUALIFICATION_CONTEXT" && value.schemaVersion === 1 && digest(value.indexSha256), "input");
   let index;
   try { index = parseTextToLatticeDeploymentEvidenceIndexText(jsonBytes(value.index).toString("utf8")); } catch { fail("index"); }
-  need(hash(jsonBytes(index)) === value.indexSha256 && index.workflow.repository === REPO && index.workflow.runAttempt === "1" && (index.qualificationExpiresAt !== null || deploymentIndexQualificationMode(index) === "operator-ended") && record(index.admissionEnvironment), "index");
+  need(hash(jsonBytes(index)) === value.indexSha256 && index.workflow.repository === REPO && index.workflow.runAttempt === "1" && index.qualificationExpiresAt !== null && record(index.admissionEnvironment), "index");
   exact(value.resumeMember, ["path", "bytes", "sha256"], "input");
   need(value.resumeMember.path === "resume/index.html" && Number.isSafeInteger(value.resumeMember.bytes) && value.resumeMember.bytes > 0 && value.resumeMember.bytes <= PAGE_LIMIT && digest(value.resumeMember.sha256), "input");
   return { payloadSha256: hash(raw), index, indexSha256: value.indexSha256, resumeMember: value.resumeMember };
@@ -149,8 +149,7 @@ function identity(index) {
 }
 
 function checkRun(run, index) {
-  const operatorEnded = deploymentIndexQualificationMode(index) === "operator-ended";
-  need(record(run) && run.id === Number(index.workflow.runId) && run.run_attempt === 1 && run.head_sha === index.workflow.commit && run.path === ".github/workflows/pages.yml" && run.repository?.full_name === REPO && run.head_branch === "main" && run.event === "workflow_dispatch" && run.html_url === index.workflow.runUrl && (operatorEnded ? run.status === "completed" && run.conclusion === "success" : run.status === "in_progress" && run.conclusion === null), "activation");
+  need(record(run) && run.id === Number(index.workflow.runId) && run.run_attempt === 1 && run.head_sha === index.workflow.commit && run.path === ".github/workflows/pages.yml" && run.repository?.full_name === REPO && run.head_branch === "main" && run.event === "workflow_dispatch" && run.html_url === index.workflow.runUrl && run.status === "in_progress" && run.conclusion === null, "activation");
 }
 function checkJobs(value, index) {
   need(record(value), "activation");
@@ -162,21 +161,11 @@ function checkJobs(value, index) {
   need(service.id === Number(index.serviceJobId), "activation");
   for (const j of [service, pages]) need(j.status === "completed" && j.conclusion === "success" && Array.isArray(j.steps) && j.steps.every(s => s.status === "completed" && ["success", "skipped"].includes(s.conclusion)), "activation");
   for (const name of REQUIRED_STEPS) { const s = service.steps.filter(s => s.name === name); need(s.length === 1 && s[0].conclusion === "success", "activation"); }
-  need(pages.steps.some(s => s.name === "Deploy interactive Pages" && s.conclusion === "success"), "activation");
-  if (deploymentIndexQualificationMode(index) === "operator-ended") {
-    need(wait.status === "completed" && wait.conclusion === "skipped", "activation");
-    for (const name of STOP_JOBS) {
-      const j = named(name);
-      need(j.status === "completed" && j.conclusion === "skipped", "restoration");
-    }
-    need(date(service.completed_at) <= date(pages.completed_at), "activation");
-  } else {
-    need(wait.status === "in_progress" && wait.conclusion === null && Array.isArray(wait.steps), "activation");
-    const waiting = wait.steps.filter(s => s.name === WAIT_STEP);
-    need(waiting.length === 1 && waiting[0].status === "in_progress" && waiting[0].conclusion === null, "activation");
-    for (const j of jobs) if (STOP_JOBS.has(j.name)) need((j.status === "completed" && j.conclusion === "skipped") || (j.started_at === null && ["queued", "waiting", "pending"].includes(j.status)), "restoration");
-    need(date(service.completed_at) <= date(pages.completed_at) && date(pages.completed_at) <= date(wait.started_at), "activation");
-  }
+  need(pages.steps.some(s => s.name === "Deploy interactive Pages" && s.conclusion === "success") && wait.status === "in_progress" && wait.conclusion === null && Array.isArray(wait.steps), "activation");
+  const waiting = wait.steps.filter(s => s.name === WAIT_STEP);
+  need(waiting.length === 1 && waiting[0].status === "in_progress" && waiting[0].conclusion === null, "activation");
+  for (const j of jobs) if (STOP_JOBS.has(j.name)) need((j.status === "completed" && j.conclusion === "skipped") || (j.started_at === null && ["queued", "waiting", "pending"].includes(j.status)), "restoration");
+  need(date(service.completed_at) <= date(pages.completed_at) && date(pages.completed_at) <= date(wait.started_at), "activation");
   return { service_job_id: String(service.id), pages_job_id: String(pages.id), wait_job_id: String(wait.id) };
 }
 
@@ -223,12 +212,10 @@ async function observeQualificationContextImpl({ expectedContextBase64, parsedEx
   const e = environment;
   need(e.GITHUB_REPOSITORY === REPO && e.GITHUB_REF === "refs/heads/main" && e.GITHUB_EVENT_NAME === "workflow_dispatch" && e.GITHUB_SHA === index.workflow.commit && e.GITHUB_RUN_ATTEMPT === "1" && decimal(e.GITHUB_RUN_ID) && e.GITHUB_RUN_ID !== index.workflow.runId, "source");
   need(typeof e.GITHUB_TOKEN === "string" && e.GITHUB_TOKEN.length > 0 && !/[\r\n]/u.test(e.GITHUB_TOKEN) && typeof e.CLOUDFLARE_ACCOUNT_ID === "string" && /^[a-f0-9]{32}$/u.test(e.CLOUDFLARE_ACCOUNT_ID) && typeof e.CLOUDFLARE_API_TOKEN === "string" && e.CLOUDFLARE_API_TOKEN.length >= 20 && !/\s/u.test(e.CLOUDFLARE_API_TOKEN), "configuration");
-  const started = operationStartedAt ?? now(), mono = operationStartedMono ?? monotonicNow();
-  const operatorEnded = deploymentIndexQualificationMode(index) === "operator-ended";
-  const cleanup = operatorEnded ? null : new Date(date(index.qualificationExpiresAt).valueOf() - TEXT_TO_LATTICE_QUALIFICATION_CLEANUP_LEAD_MS);
+  const started = operationStartedAt ?? now(), mono = operationStartedMono ?? monotonicNow(), cleanup = new Date(date(index.qualificationExpiresAt).valueOf() - TEXT_TO_LATTICE_QUALIFICATION_CLEANUP_LEAD_MS);
   let lastMono = mono, lastWall = started.valueOf(), total = 0;
   const receipts = [];
-  const clock = () => { operationAssert(); const m = monotonicNow(), w = now(); need(Number.isFinite(m) && m >= lastMono && w instanceof Date && Number.isFinite(w.valueOf()) && w.valueOf() >= lastWall && m - mono < OPERATION_MS && date(index.deployedAt) <= w && (cleanup === null || w < cleanup), "deadline"); lastMono = m; lastWall = w.valueOf(); return { m, w, remaining: Math.min(OPERATION_MS - (m - mono), cleanup === null ? Infinity : cleanup.valueOf() - w.valueOf()) }; };
+  const clock = () => { operationAssert(); const m = monotonicNow(), w = now(); need(Number.isFinite(m) && m >= lastMono && w instanceof Date && Number.isFinite(w.valueOf()) && w.valueOf() >= lastWall && m - mono < OPERATION_MS && date(index.deployedAt) <= w && w < cleanup, "deadline"); lastMono = m; lastWall = w.valueOf(); return { m, w, remaining: Math.min(OPERATION_MS - (m - mono), cleanup.valueOf() - w.valueOf()) }; };
   clock();
   const initialRegister = await registerReader();
   let reg;
@@ -312,7 +299,7 @@ async function observeQualificationContextImpl({ expectedContextBase64, parsedEx
     observationStartedAt: started.toISOString(), observationCompletedAt: completed.toISOString(), validatedAt: completed.toISOString(),
     observer: { repository: REPO, commit: e.GITHUB_SHA, runId: e.GITHUB_RUN_ID, runAttempt: "1", workflow: ".github/workflows/text-to-lattice-qualification-context.yml" },
     expectedContextSha256: expected.payloadSha256, indexSha256: expected.indexSha256, identity: identity(index),
-    activationJobIds: before.ids, ...(operatorEnded ? { qualificationMode: "operator-ended" } : {}), cleanupAt: cleanup?.toISOString() ?? null, qualificationExpiresAt: index.qualificationExpiresAt, workers, routeInventory,
+    activationJobIds: before.ids, cleanupAt: cleanup.toISOString(), qualificationExpiresAt: index.qualificationExpiresAt, workers, routeInventory,
     pages: { canonicalURL: PAGE, artifactMember: expected.resumeMember.path, status: 200, bytes: pageBytes.length, sha256: hash(pageBytes), documentPolicyMatches: true, noTransform: true, contentBodyRetained: false },
     requests: receipts, GETs: total, matches_expected_context: true, expected_artifact_custody_verified_by_observer: false,
     rawResponsesRetained: false, rawBindingsRetained: false, cookieValuesRetained: false, secretValuesRead: false, providerCalls: 0,
@@ -324,7 +311,7 @@ export async function observeQualificationContext(options = {}) {
   const operationTimeoutMs = options.operationTimeoutMs ?? OPERATION_MS;
   need(typeof now === "function" && typeof monotonicNow === "function" && Number.isSafeInteger(operationTimeoutMs) && operationTimeoutMs > 0 && operationTimeoutMs <= OPERATION_MS, "configuration");
   const started = now(), mono = monotonicNow(), expected = parseExpectedQualificationContext(options.expectedContextBase64);
-  const cleanup = deploymentIndexQualificationMode(expected.index) === "operator-ended" ? Infinity : date(expected.index.qualificationExpiresAt).valueOf() - TEXT_TO_LATTICE_QUALIFICATION_CLEANUP_LEAD_MS;
+  const cleanup = date(expected.index.qualificationExpiresAt).valueOf() - TEXT_TO_LATTICE_QUALIFICATION_CLEANUP_LEAD_MS;
   need(started instanceof Date && Number.isFinite(started.valueOf()) && Number.isFinite(mono) && started.valueOf() < cleanup, "deadline");
   const controller = new AbortController(); let stopped = false, timer;
   const operationAssert = () => { const w = now(), m = monotonicNow(); need(!stopped && w instanceof Date && Number.isFinite(w.valueOf()) && w.valueOf() >= started.valueOf() && w.valueOf() < cleanup && Number.isFinite(m) && m >= mono && m - mono < operationTimeoutMs, "deadline"); };
