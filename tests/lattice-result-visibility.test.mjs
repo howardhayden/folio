@@ -5,12 +5,37 @@ import vm from "node:vm";
 import { mayRevealLatticeOutput } from "../app/resume/lattice/outputProtection.js";
 
 const source = await readFile(new URL("../app/resume/ResumeProjects.tsx", import.meta.url), "utf8");
-const outputSetup = source.indexOf("    const output = latticeOutputRef.current;");
+const outputSetup = source.indexOf("    const handlePrintScreen = ");
 const effectStart = source.lastIndexOf("  useEffect(() => {", outputSetup);
 const effectEnd = source.indexOf("  const openLattice = useCallback", outputSetup);
 assert.ok(outputSetup > 0 && effectStart > 0 && effectEnd > outputSetup);
 // Execute the actual shipped effects, removing only their TypeScript event annotation.
 const visibilityEffects = source.slice(effectStart, effectEnd).replace(/event: KeyboardEvent/gu, "event");
+
+test("a newly committed result focuses its visible region before the next paint", () => {
+  const assignment = source.indexOf("    latticeResultRef.current = latticeResult;");
+  const start = source.lastIndexOf("  useLayoutEffect(() => {", assignment);
+  const ending = "  }, [latticeResult]);";
+  const end = source.indexOf(ending, assignment);
+  assert.ok(start >= 0 && assignment > start && end > assignment);
+  for (const [result, hidden] of [[{}, false], [{}, true], [null, false]]) {
+    const calls = [];
+    const resultRef = { current: null };
+    const output = {
+      closest: () => hidden ? {} : null,
+      scrollIntoView: options => calls.push(["scroll", options.block]),
+      focus: options => calls.push(["focus", options.preventScroll]),
+    };
+    vm.runInNewContext(source.slice(start, end + ending.length), {
+      useLayoutEffect: effect => effect(),
+      latticeResult: result,
+      latticeResultRef: resultRef,
+      latticeOutputRef: { current: output },
+    });
+    assert.equal(resultRef.current, result);
+    assert.deepEqual(calls, result && !hidden ? [["scroll", "nearest"], ["focus", true]] : []);
+  }
+});
 
 function events() {
   const listeners = new Map();
