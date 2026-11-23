@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Compare a wording illustration and the published method with direct evidence from the hosted API.">
+<meta name="theme-color" content="#ffffff">
+<meta name="generator" content="scripts/docs/build-text-to-lattice-documentation.mjs">
+<link rel="canonical" href="https://hah.dev/documentation/text-to-lattice/evidence.html">
+<link rel="alternate" type="application/json" href="https://hah.dev/documentation/text-to-lattice/reading-guide.json">
+<title>Lattice evidence · Lattice documentation</title>
+<style>
+:root {
+  color-scheme: light;
+  --ink: #20231f;
+  --muted: #5f655f;
+  --paper: #ffffff;
+  --field: #f7faf5;
+  --green: #0b4705;
+  --green-soft: #e8f1e5;
+  --red: #950f22;
+  --red-soft: #f8e9ec;
+  --amber: #7a4f00;
+  --blue: #075b78;
+  --line: #cfd6cd;
+  --focus: #077995;
+  font-family: "Jost", "Avenir Next", Avenir, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); color: var(--ink); scroll-behavior: smooth; }
+body { margin: 0; min-width: 280px; background: linear-gradient(180deg, var(--field), var(--paper) 22rem); line-height: 1.62; }
+a { color: var(--green); text-underline-offset: .18em; }
+a:hover { color: var(--red); text-decoration-thickness: .14em; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.skip-link { position: absolute; z-index: 20; left: 1rem; top: -6rem; padding: .75rem 1rem; background: var(--ink); color: white; border-radius: .25rem; }
+.skip-link:focus { top: 1rem; }
+.site-header { padding: clamp(2.4rem, 7vw, 5.6rem) max(1rem, calc((100vw - 76rem) / 2)); border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .92); }
+.eyebrow, .identifier { color: var(--red); font: 700 .76rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .11em; text-transform: uppercase; }
+h1, h2, h3 { line-height: 1.16; text-wrap: balance; }
+h1 { max-width: 20ch; margin: 0; color: var(--green); font-size: clamp(2.25rem, 6vw, 5.4rem); font-weight: 500; letter-spacing: -.04em; }
+h2 { color: var(--green); font-size: clamp(1.5rem, 3vw, 2.15rem); }
+h3 { color: var(--ink); }
+.lede { max-width: 75ch; margin: 1.25rem 0 0; color: var(--muted); font-size: clamp(1rem, 2vw, 1.22rem); }
+.doc-nav, .link-row, .button-row { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: 1.4rem; }
+.doc-nav a, .button-link, .link-row a { display: inline-flex; align-items: center; min-height: 44px; padding: .55rem .85rem; border: 1px solid var(--line); border-radius: 999px; background: white; text-decoration: none; }
+.doc-nav a[aria-current="page"] { border-color: var(--red); color: var(--red); }
+main { width: min(76rem, calc(100% - 2rem)); margin: 0 auto; padding: 2.2rem 0 5rem; }
+.panel { margin: 0 0 1.35rem; padding: clamp(1rem, 3vw, 1.65rem); border: 1px solid var(--line); border-radius: .2rem; background: rgba(255, 255, 255, .96); }
+.panel > :first-child { margin-top: 0; }
+.boundary { border-left: .25rem solid var(--red); }
+.method-note { border-left: .25rem solid var(--green); background: var(--green-soft); }
+.method-note strong { color: var(--green); }
+.toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .8rem; align-items: end; margin: 1rem 0; padding: 1rem; border: 1px solid var(--line); background: var(--field); }
+.toolbar label { display: block; color: var(--green); font-weight: 650; }
+.toolbar input, .toolbar select, .toolbar button { min-height: 44px; width: 100%; margin-top: .3rem; border: 1px solid var(--line); border-radius: .2rem; background: white; color: var(--ink); font: inherit; }
+.toolbar input, .toolbar select { padding: .55rem .65rem; }
+.toolbar button { padding: .55rem .75rem; cursor: pointer; }
+.toolbar button:hover { border-color: var(--red); color: var(--red); }
+.status-line { min-height: 1.55em; margin: .5rem 0; color: var(--green); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.record-grid, .index-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)); gap: 1rem; }
+.record, .index-card { min-width: 0; border: 1px solid var(--line); border-top: .2rem solid var(--green); background: white; }
+.record[hidden] { display: none !important; }
+.record details { height: 100%; }
+.record summary { min-height: 44px; padding: 1rem; cursor: pointer; }
+.record summary::marker { color: var(--red); }
+.record-title { display: inline; font-weight: 700; }
+.record-body { padding: 0 1rem 1rem; border-top: 1px solid var(--line); }
+.record-body dl { margin: .75rem 0 0; }
+.record-body dt { margin-top: .65rem; color: var(--green); font-weight: 700; }
+.record-body dd { margin: .1rem 0 0; }
+.tag { display: inline-block; margin: .15rem .2rem .15rem 0; padding: .12rem .45rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: 650 .73rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.table-wrap, .radar-wrap { max-width: 100%; overflow: auto; border: 1px solid var(--line); background: white; overscroll-behavior: contain; }
+table { width: 100%; min-width: 48rem; border-collapse: collapse; }
+caption { padding: .9rem; color: var(--red); font-weight: 700; text-align: left; }
+th, td { padding: .72rem; border-top: 1px solid var(--line); vertical-align: top; text-align: left; }
+thead th { background: var(--green-soft); color: var(--green); }
+tbody th { color: var(--red); }
+.relation-table { min-width: 60rem; }
+.blueprint-table { min-width: 94rem; }
+.source-list { padding-left: 1.25rem; }
+.source-list code { overflow-wrap: anywhere; }
+.index-card { padding: 1rem; border-top-color: var(--red); }
+.index-card h2 { margin: .25rem 0 .6rem; font-size: 1.45rem; }
+.radar-wrap svg { display: block; width: min(100%, 46rem); min-width: 40rem; height: auto; margin: auto; }
+.radar-ring, .radar-axis { fill: none; stroke: var(--line); stroke-width: 1; }
+.radar-shape { fill: rgba(11, 71, 5, .14); stroke: var(--green); stroke-width: 3; }
+.radar-point { fill: var(--red); stroke: white; stroke-width: 2; }
+.radar-label { fill: var(--ink); font: 700 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.score { color: var(--red); font-weight: 750; }
+.overview-wrap { max-width: 100%; overflow: auto; border: 1px solid var(--line); background: var(--field); }
+.overview-wrap svg { display: block; width: min(100%, 52rem); min-width: 38rem; height: auto; margin: auto; }
+.overview-line { fill: none; stroke: var(--green); stroke-width: 2; marker-end: url(#overview-arrow); }
+.overview-branch { stroke: var(--red); stroke-dasharray: 6 5; }
+.overview-node { fill: white; stroke: var(--green); stroke-width: 2; rx: 4; }
+.overview-node-branch { stroke: var(--red); }
+.overview-title { fill: var(--green); font: 700 16px "Jost", "Avenir Next", sans-serif; }
+.overview-caption { fill: var(--ink); font: 12px "Jost", "Avenir Next", sans-serif; }
+.boundary-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: .7rem; padding: 0; list-style: none; }
+.boundary-list li { padding: 1rem; border: 1px solid var(--line); border-left: .25rem solid var(--red); background: var(--field); }
+.classification-high { border-top-color: var(--red); }
+.classification-moderate { border-top-color: #9a6500; }
+.gate-open-release-blocker { border-left: .25rem solid var(--red); }
+.gate-post-deployment-verification { border-left: .25rem solid var(--amber); }
+.gate-accepted-residual-risk { border-left: .25rem solid var(--blue); }
+.gate-historical-inactive { border-left: .25rem solid var(--muted); background: var(--field); }
+.gate-release-workflow-enforced,
+.gate-satisfied-in-production,
+.gate-satisfied-in-source { border-left: .25rem solid var(--green); }
+.no-script { color: var(--muted); }
+.js .no-script { display: none; }
+.site-footer { padding: 1.5rem max(1rem, calc((100vw - 76rem) / 2)); border-top: 1px solid var(--line); color: var(--muted); }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+.reference > summary { padding: 1rem; font-weight: 600; cursor: pointer; } .panel article + article { border-top: 1px solid currentColor; margin-top: 1.5rem; padding-top: 1rem; }
+@media (max-width: 42rem) { main { width: min(100% - 1rem, 76rem); } .toolbar { grid-template-columns: 1fr; } .panel { padding: 1rem; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
+@media (forced-colors: active) { * { box-shadow: none !important; } .panel, .record, .index-card, .toolbar, .table-wrap, .radar-wrap, .overview-wrap, .boundary-list li { border-color: CanvasText; } .radar-ring, .radar-axis, .radar-shape, .overview-line, .overview-node { stroke: CanvasText; } .radar-shape, .overview-node { fill: Canvas; } .radar-point { fill: CanvasText; stroke: Canvas; } .overview-title, .overview-caption { fill: CanvasText; } }
+@media print { html, body, .site-header, .panel, .record, .index-card { background: white; color: #111; } .doc-nav, .toolbar, .skip-link, .button-row, .no-script { display: none !important; } main { width: 100%; } .record-grid, .index-grid { display: block; } .record, .index-card { break-inside: avoid; margin-bottom: .8rem; } details, details:not([open]) > :not(summary) { display: block !important; } .table-wrap, .radar-wrap, .overview-wrap { overflow: visible; } table { min-width: 0; font-size: 8pt; } a { color: #111; } }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to documentation</a>
+<header class="site-header">
+  <p><a href="https://hah.dev/projects/lattice/">Lattice project</a></p>
+  <h1>Lattice evidence</h1>
+  <p class="lede">Compare a wording illustration and the published method with direct evidence from the hosted API.</p>
+  <nav class="doc-nav" aria-label="Lattice documentation navigation"><a href="index.html">Documentation</a><a href="evidence.html" aria-current="page">Evidence</a><a href="lattice-concept-map.html">Concept map</a><a href="lattice-skill-map.html">System skill map</a><a href="text-to-lattice-service-blueprint.html">Service blueprint</a><a href="text-to-lattice-security-model.html">Security model</a></nav>
+</header>
+<main id="main"><section class="panel" id="lattice-method"><h2>Lattice method and engine</h2><article id="meaning-contract"><h3>A change of tone can preserve an instruction</h3><p>In this illustration, “Return the key by Friday” becomes “Please return the key by Friday.” The tone shifts while the action and deadline stay the same. Moving the deadline to Monday would change the instruction. These sentences were written for this guide.</p><ul><li><a href="https://hah.dev/documentation/text-to-lattice/lattice-concept-map.html#lat-n-002">Public concept map, meaning contract</a></li></ul></article><article id="selection"><h3>The caller supplies the meaning to preserve</h3><p>The published method assigns the caller responsibility for the intended meaning. The engine evaluates wording against that contract and returns a record of its decision. The skill map describes the responsibility the host keeps when it presents the result.</p><ul><li><a href="https://hah.dev/documentation/text-to-lattice/lattice-concept-map.html#lat-n-017">Public concept map, decision record</a></li><li><a href="https://hah.dev/documentation/text-to-lattice/lattice-skill-map.html#lat-sk-10">Public skill map, host responsibilities</a></li></ul></article></section><section class="panel" id="text-to-lattice-api"><h2>Text to Lattice API</h2><article id="service-path"><h3>The service infers meaning from visitor prose</h3><p>After confirmation, the browser sends the passage to hah.dev. The Worker uses Qwen to analyze and draft, deterministic checks to screen the draft, and Llama to review it. A failed check can withhold the result. The hosted service implements its own inference pipeline.</p><ul><li><a href="https://github.com/howardhayden/folio/blob/a47ca0557d3678f5e5c64f8d5a9bc8e433b43b39/workers/text-to-lattice-api/worker.js">Deployed Worker source</a></li><li><a href="https://github.com/howardhayden/folio/blob/a47ca0557d3678f5e5c64f8d5a9bc8e433b43b39/workers/text-to-lattice-api/huggingFaceAdapter.js">Inference and review adapter</a></li><li><a href="https://hah.dev/documentation/text-to-lattice/text-to-lattice-service-blueprint.html#bp-07">Review and classification</a></li></ul></article><article id="admission-and-consent"><h3>Consent and admission bound each submission</h3><p>Until the visitor confirms external processing, typing stays in the browser. Ordinary service admits 30 transformations globally and three per cooperating browser cookie jar each UTC day. The external services apply their own data-handling terms.</p><ul><li><a href="https://hah.dev/projects/lattice/text-to-lattice/">API contract and processing terms</a></li><li><a href="https://github.com/howardhayden/folio/blob/a47ca0557d3678f5e5c64f8d5a9bc8e433b43b39/workers/text-to-lattice-api/capacityPolicy.js">Production admission policy</a></li><li><a href="https://hah.dev/documentation/text-to-lattice/text-to-lattice-security-model.html#sec-01">Consent boundary</a></li></ul></article><article id="browser-results"><h3>Safari and Brave completed the visitor path</h3><p>In run 729, Safari returned a translation. Brave found its original passage already suited to the context. Each browser sent one content-bearing request to hah.dev, focused the result, and cleared the input and output on a hard reload. Firefox separately passed 14 input-only checks.</p><ul><li><a href="https://hah.dev/documentation/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json">Sanitized browser observations (JSON)</a></li><li><a href="https://hah.dev/documentation/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.safari-webkit.png">Safari capture</a></li><li><a href="https://hah.dev/documentation/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.brave-chromium.png">Brave capture</a></li><li><a href="https://hah.dev/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md">Release qualification, including Firefox scope</a></li></ul></article><article id="production-publication"><h3>The qualified build reached production</h3><p>On November 23, the production service check returned HTTP 200 and accepted the original wording. The subsequent Pages recovery published the build from that check. The two runs record the service result and the publication separately.</p><ul><li><a href="https://github.com/howardhayden/folio/actions/runs/45255468630">Run 744, production service check</a></li><li><a href="https://github.com/howardhayden/folio/actions/runs/45259201772">Pages publication receipt</a></li><li><a href="https://hah.dev/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json">Machine-readable release register</a></li></ul></article></section><section class="panel" aria-labelledby="terms-heading"><h2 id="terms-heading">Terms and provenance</h2><p>Authored documentation follows the hah.dev portfolio-content terms. The generator and executable documentation shell retain the applicable source-component terms. The separately licensed Relational Systems Register profile is not reproduced.</p></section></main>
+<footer class="site-footer"><p><a href="reading-guide.json">Reading guide (JSON)</a> · <a href="documentation-atlas.json">Technical atlas (JSON)</a> · <a href="artifact-manifest.json">Artifact manifest</a></p></footer>
+
+</body>
+</html>

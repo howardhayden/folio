@@ -907,18 +907,27 @@ const sourceCarryCapture = Object.freeze({
   source: "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
   evidenceId: "ttl-browser-20261123T143941Z-a495af12",
   evidenceSha256: "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
-  proofPath: "docs/release-evidence/text-to-lattice/run-729-source-comparison.json",
+  proofPath: "docs/release-evidence/text-to-lattice/nov23-documentation-source-comparison.json",
 });
 const sourceCarryEditorialPage = Object.freeze({
   path: "app/projects/lattice/text-to-lattice/page.tsx",
   beforeSha256: "1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8",
   afterSha256: "08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870",
 });
+const documentationPublicationFiles = Object.freeze({
+  ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "22a0366b136273ba952cbb20969050193925b20e1351b21122a9a98f3e160846" },
+  "app/content/projectDocuments.js": { before: "261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251", after: "c0bd22681a3f00ee0eb9ffa3aa29ac2a4c0b4fae6af4a0ebeea99746c92fbc70" },
+  "app/projects/[slug]/page.tsx": { before: "d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62", after: "9eaaec80da853c7033fb6013ca91c03920831e79eeacc31ee7c8311c2c636e92" },
+  "app/semantic/portfolio.js": { before: "7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6", after: "6dfc25652de9a3ea1c79746fea4a1a61a3b00daa47ae353e58e25d727609f636" },
+  "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "9de393af9459626e99c7562aaa8d3a22fd7640535a9ef5d5a6319aa83091469e" },
+  "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "6e4edb74b86264d6b25e48baf01e5c255b6cca3db4cb29e49280e081b14950d2" },
+});
 const sourceCarryExceptions = Object.freeze({
   [sourceCarryEditorialPage.path]: sourceCarryEditorialPage.beforeSha256,
   "scripts/verify-text-to-lattice-release.mjs": "e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a",
   "tests/lattice-documentation.test.mjs": "66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e",
   "tests/lattice-release-boundary.test.mjs": "7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114",
+  ...Object.fromEntries(Object.entries(documentationPublicationFiles).map(([path, hashes]) => [path, hashes.before])),
 });
 const qualificationHistory = Object.freeze({
   path: "docs/release-evidence/text-to-lattice/qualification-history-2026-11-23.md",
@@ -932,7 +941,7 @@ function approvedSourceCarry(register) {
   const carry = register?.authority?.browserEvidenceSourceCarry;
   const record = register?.authority?.browserEvidence;
   return carry?.format === "TEXT_TO_LATTICE_G06_SOURCE_CARRY_V1"
-    && carry.authorization === "owner-approved-one-release-729"
+    && carry.authorization === "owner-approved-documentation-publication-20261123"
     && carry.capturedCommit === sourceCarryCapture.commit && record?.deployedCommit === carry.capturedCommit
     && carry.capturedSourceSetSha256 === sourceCarryCapture.source && record.qualifiedSourceSetSha256 === carry.capturedSourceSetSha256
     && carry.evidenceId === sourceCarryCapture.evidenceId && record.evidenceId === carry.evidenceId
@@ -980,7 +989,7 @@ export function verifyBrowserEvidenceSourceCarry(register, record, files, proofB
     ["format", "authorization", "capturedCommit", "capturedSourceSetSha256", "currentSourceSetSha256", "evidenceId", "evidenceSha256", "proof"],
     "authority.browserEvidenceSourceCarry");
   if (carry.format !== "TEXT_TO_LATTICE_G06_SOURCE_CARRY_V1"
-    || carry.authorization !== "owner-approved-one-release-729"
+    || carry.authorization !== "owner-approved-documentation-publication-20261123"
     || carry.capturedCommit !== sourceCarryCapture.commit || record.deployedCommit !== carry.capturedCommit
     || carry.capturedSourceSetSha256 !== sourceCarryCapture.source || record.qualifiedSourceSetSha256 !== carry.capturedSourceSetSha256
     || carry.evidenceId !== sourceCarryCapture.evidenceId || record.evidenceId !== carry.evidenceId
@@ -1008,7 +1017,7 @@ export function verifyBrowserEvidenceSourceCarry(register, record, files, proofB
   if (sourceFingerprint(files) !== carry.currentSourceSetSha256) fail("source carry current source fingerprint differs.");
   if (!Array.isArray(proof.exceptions)
     || JSON.stringify(proof.exceptions.map((entry) => entry?.path)) !== JSON.stringify(Object.keys(sourceCarryExceptions))) {
-    fail("source carry requires exactly the four approved file exceptions.");
+    fail("source carry requires exactly the approved file exceptions.");
   }
   const originals = new Map();
   for (const entry of proof.exceptions) {
@@ -1022,6 +1031,10 @@ export function verifyBrowserEvidenceSourceCarry(register, record, files, proofB
       && (entry.afterSha256 !== sourceCarryEditorialPage.afterSha256
         || digest(current.bytes) !== sourceCarryEditorialPage.afterSha256)) {
       fail("source carry editorial page must match the frozen owner-approved after bytes.");
+    }
+    if (Object.hasOwn(documentationPublicationFiles, entry.path)
+      && entry.afterSha256 !== documentationPublicationFiles[entry.path].after) {
+      fail("source carry must use the frozen documentation publication bytes.");
     }
     const before = Buffer.from(entry.beforeBase64, "base64");
     if (before.toString("base64") !== entry.beforeBase64 || digest(before) !== entry.beforeSha256) {

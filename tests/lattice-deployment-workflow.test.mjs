@@ -327,7 +327,7 @@ test("the Pages graph branches explicitly across held, qualification, and qualif
     /release_phase == 'held' &&[\s\S]*?needs\.deploy_held\.result == 'success'[\s\S]*?github\.event_name == 'push' &&[\s\S]*?contains\(github\.event\.head_commit\.message, '\[deploy-text-to-lattice-services\]'\)[\s\S]*?github\.event_name == 'workflow_dispatch' &&[\s\S]*?inputs\.deploy_text_to_lattice_services == true[\s\S]*?release_phase == 'qualification-pending' &&[\s\S]*?github\.event_name == 'workflow_dispatch' &&[\s\S]*?inputs\.activate_text_to_lattice_qualification == true[\s\S]*?release_phase == 'qualified'/u,
   );
   assert.equal(
-    [...workflow.matchAll(/github\.event_name == 'push'/gu)].length,
+    [...workflowJob(workflow, "deploy_text_to_lattice_services").matchAll(/github\.event_name == 'push'/gu)].length,
     1,
   );
   assert.match(workflow, /workers\/text-to-lattice-api\/wrangler\.jsonc/u);
@@ -2055,4 +2055,20 @@ test("active deployment selection binds the deploy JSONL before and after unchan
   assert.ok(before.includes('--preceding-incumbent "$RUNNER_TEMP/text-to-lattice-api-incumbent.json"'));
   assert.match(deploy, /else\s+node scripts\/read-text-to-lattice-active-version\.mjs --capture-incumbent[\s\S]*?--output "\$RUNNER_TEMP\/text-to-lattice-api-incumbent\.json"\s+\.\/workers\/node_modules\/\.bin\/wrangler deploy/u);
   assert.ok(!after.includes("--preceding-"), "no post-probe settling or provider retry");
+});
+
+test("the one approved editorial publication builds Pages without starting a service or held rollback", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  const context = workflowGuardContext({ event: "push", phase: "qualified", results: { build: "success" } });
+  context.github.event.before = "784cc7c62f20a073986bae09a174ca688fb6608f";
+  context.github.event.head_commit.message = "Publish documentation [lattice-docs-20261123]";
+  context.needs["publication-boundary"].outputs.documentation_only = "true";
+  assert.equal(workflowJobGuard(workflow, "deploy_text_to_lattice_services", context), false);
+  assert.equal(workflowJobGuard(workflow, "deploy", context), true);
+  context.needs.build.result = "failure";
+  assert.equal(workflowJobGuard(workflow, "deploy", context), false);
+  context.needs["publication-boundary"].result = "failure";
+  assert.equal(workflowJobGuard(workflow, "enforce_text_to_lattice_held_api", context), false);
+  context.github.event.before = "another base";
+  assert.equal(workflowJobGuard(workflow, "enforce_text_to_lattice_held_api", context), true);
 });

@@ -5,9 +5,21 @@ authority: docs/text-to-lattice/LATTICE-DOCUMENTATION-ATLAS.json
 generator: scripts/docs/build-text-to-lattice-documentation.mjs
 ---
 
-<!-- Generated file. Edit the authoritative JSON register, then run the builder. -->
+<!-- The reading guide comes from app/content/projectDocuments.js. The full technical reference comes from the documentation atlas. -->
 
 # Lattice concept and ecosystem map
+
+Compare a direct request to return a key by Friday with a more courteous version. The tone may change. The action and deadline must survive. The public map explains how a caller states those requirements.
+
+[Meaning contract](https://hah.dev/documentation/text-to-lattice/lattice-concept-map.html#lat-n-002) · [Semantic atoms](https://hah.dev/documentation/text-to-lattice/lattice-concept-map.html#lat-n-003) · [Derivation receipt](https://hah.dev/documentation/text-to-lattice/lattice-concept-map.html#lat-n-017)
+
+[A change of tone can preserve an instruction](https://hah.dev/documentation/text-to-lattice/evidence.html#meaning-contract)
+
+[Reading guide (JSON)](https://hah.dev/documentation/text-to-lattice/reading-guide.json)
+
+<details>
+<summary>Full technical reference</summary>
+
 
 A typed map of the upstream Lattice engine: who supplies authority, how meaning becomes a bounded output plan, how candidates clear protected gates, and where hosts and ecosystem applications remain responsible.
 
@@ -19,7 +31,7 @@ This register describes the Lattice method at an architectural level and the bou
 
 Stable identifiers persist. A claim changes here with cited evidence; a rendered filter, expansion, or downloaded view never changes authoritative state.
 
-Markdown and HTML are deterministic projections of this register. Filtered browser exports are nonauthoritative reading views.
+The technical reference is generated from the atlas. The editorial overview and cited examples come from app/content/projectDocuments.js.
 
 ## Typed map
 
@@ -510,122 +522,124 @@ A host context that selectively applies Lattice to embodied guidance and care wh
 
 ## Source register
 
-- **SRC-HF-DEEPINFRA-CLIENT — Hugging Face DeepInfra explicit-provider client at e59d02918671448aeca3a5d96a5f9ac05556a9e9:** [Reviewed source](https://github.com/huggingface/huggingface.js/blob/e59d02918671448aeca3a5d96a5f9ac05556a9e9/packages/inference/src/providers/deepinfra.ts)
-- **SRC-REQUIREMENTS — Text to Lattice public requirements:** `docs/lattice-resume-demo-requirements.md`
-- **SRC-DEMO — Bounded pipeline coordinator:** `app/resume/latticeDemo.js`
-- **SRC-INPUT — Input and clarification policy:** `app/resume/lattice/inputPolicy.js`
-- **SRC-SEGMENTS — Lossless segmentation:** `app/resume/lattice/segments.js`
-- **SRC-PROTECTED — Protected-span handling:** `app/resume/lattice/protectedSpans.js`
-- **SRC-PROMPTS — Closed prompts and schemas:** `app/resume/lattice/promptContract.js`
-- **SRC-VALIDATORS — Deterministic semantic validators:** `app/resume/lattice/validators.js`
-- **SRC-LOCAL-MODEL — Historical inactive local model adapter:** `app/resume/lattice/localModel.js`
-- **SRC-MODEL-CONTRACT — Historical inactive browser-model contract:** `app/resume/lattice/modelContract.js`
-- **SRC-MODEL-WORKER — Historical inactive isolated WebLLM worker:** `app/resume/lattice/latticeWebllm.worker.ts`
-- **SRC-ASSET-POLICY — Historical inactive model-asset request policy:** `app/resume/lattice/assetRequestPolicy.js`
-- **SRC-ATTESTATION — Historical inactive cross-origin attestation protocol:** `app/resume/lattice/attestation.js`
-- **SRC-USAGE-LEASE — Historical inactive browser lease client:** `app/resume/lattice/usageLease.js`
-- **SRC-USAGE-POLICY — Historical inactive usage and capacity policy:** `app/resume/lattice/usagePolicy.js`
-- **SRC-OUTPUT — Output protection controls:** `app/resume/lattice/outputProtection.js`
-- **SRC-LEASE-WORKER — Historical inactive lease Worker request coordinator:** `workers/text-to-lattice-lease/worker.js`
-- **SRC-DEMO-PROFILE — Historical inactive bounded Cloudflare demonstration profile:** `workers/text-to-lattice-lease/demonstrationProfile.js`
-- **SRC-USAGE-STORAGE — Historical inactive global usage authority:** `workers/text-to-lattice-lease/usageStorage.js`
-- **SRC-FRAME — Historical inactive Turnstile verification bridge:** `workers/text-to-lattice-attestation-frame/public/turnstile/bridge.js`
-- **SRC-RESPONSE-POLICY — Résumé response-policy Worker:** `workers/text-to-lattice-response-policy/worker.js`
-- **SRC-PUBLIC-CONTRACT — Public Text to Lattice disclosure and policy contract:** `app/content/textToLatticeContent.js`
-- **SRC-NETWORK-CAPABILITY — Named browser network capability:** `app/privacy/networkCapabilities.js`
-- **SRC-REMOTE-PROTOCOL — Remote request and response protocol:** `app/resume/lattice/remoteProtocol.js`
-- **SRC-REMOTE-CLIENT — Same-origin remote request client:** `app/resume/lattice/remoteRequest.js`
-- **SRC-API-WORKER — Same-origin Text to Lattice API Worker:** `workers/text-to-lattice-api/worker.js`
-- **SRC-HF-ADAPTER — Fixed Hugging Face chat adapter for Qwen generation and Llama review:** `workers/text-to-lattice-api/huggingFaceAdapter.js`
-- **SRC-API-CONFIG — Text to Lattice API Worker configuration:** `workers/text-to-lattice-api/wrangler.jsonc`
-- **SRC-CAPACITY-POLICY — Atomic Text to Lattice request-admission policy:** `workers/text-to-lattice-api/capacityPolicy.js`
-- **SRC-CAPACITY-CLIENT — Text to Lattice request-admission client:** `workers/text-to-lattice-api/capacityClient.js`
-- **SRC-CAPACITY-GATE — Text to Lattice Durable Object admission authority:** `workers/text-to-lattice-api/capacityGate.js`
-- **SRC-VISITOR-COOKIE — API-scoped signed browser quota cookie:** `workers/text-to-lattice-api/visitorCookie.js`
-- **SRC-API-SECRET-BOOTSTRAP — Fail-closed API secret bootstrap:** `scripts/bootstrap-text-to-lattice-api-secrets.mjs`
-- **SRC-API-DEPLOYMENT-EVIDENCE — Text to Lattice API deployment-evidence builder:** `scripts/build-text-to-lattice-deployment-evidence.mjs`
-- **SRC-API-PRODUCTION-VERIFY — Text to Lattice production API verifier:** `scripts/verify-text-to-lattice-api-production.mjs`
-- **SRC-API-QUALIFICATION-USAGE — Qualification-only provider usage and catalog cost evidence:** `scripts/text-to-lattice-qualification-usage.mjs`
-- **SRC-SECRET-BOOTSTRAP — Historical inactive lease secret bootstrap:** `scripts/bootstrap-text-to-lattice-secrets.mjs`
-- **SRC-ROUTE-INVENTORY — Authenticated Worker route inventory verifier:** `scripts/verify-text-to-lattice-route-inventory.mjs`
-- **SRC-TEST-ENGINE — Engine executable contracts:** `tests/lattice-demo.test.mjs`
-- **SRC-TEST-SECURITY — Security executable contracts:** `tests/lattice-security.test.mjs`
-- **SRC-TEST-ISOLATE — Isolate hardening executable contracts:** `tests/lattice-isolate-hardening.test.mjs`
-- **SRC-TEST-CAPACITY — Protocol capacity executable contracts:** `tests/lattice-protocol-capacity.test.mjs`
-- **SRC-TEST-A11Y — Modal accessibility source contracts:** `tests/lattice-modal-accessibility.test.mjs`
-- **SRC-TEST-CAPABILITY — Remote capability executable contracts:** `tests/lattice-network-capability.test.mjs`
-- **SRC-TEST-GOVERNANCE — Remote governance executable contracts:** `tests/lattice-network-governance.test.mjs`
-- **SRC-TEST-API — Remote API Worker executable contracts:** `tests/lattice-api-worker.test.mjs`
-- **SRC-PROJECTS — Portfolio project and ecosystem register:** `app/resume/projects.js`
-- **SRC-RELEASE-REGISTER — Machine-enforced Text to Lattice release register:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json`
-- **SRC-RELEASE-QUALIFICATION — Text to Lattice release qualification:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
-- **SRC-LLAMA-3-1-LICENSE — Historical predecessor source; original label: Active Llama 3.1 Community License at the reviewed model revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/LICENSE)
-- **SRC-LLAMA-3-1-AUP — Historical predecessor source; original label: Active Llama 3.1 Acceptable Use Policy at the reviewed model revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/USE_POLICY.md)
-- **SRC-LLAMA-LICENSE — Historical Llama 3.2 Community License:** [Reviewed source](https://developer.meta.com/ai/llama3_2/license/)
-- **SRC-LLAMA-AUP — Historical Llama 3.2 Acceptable Use Policy:** [Reviewed source](https://developer.meta.com/ai/llama3_2/use-policy/)
-- **SRC-LLAMA-EVAL — Non-operational Llama-use evaluation cases:** `docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json`
-- **SRC-WASM-PR — Upstream current-WASM rebuild record:** [Reviewed source](https://github.com/mlc-ai/binary-mlc-llm-libs/pull/158)
-- **SRC-LAT-README — Lattice README at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/README.md)
-- **SRC-LAT-ARCH — Lattice architecture at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/architecture.md)
-- **SRC-LAT-REQ — Lattice requirements at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/docs/requirements.md)
-- **SRC-LAT-SEMANTIC — Lattice semantic core at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/semantic.ts)
-- **SRC-LAT-CONTEXT — Lattice context core at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/context.ts)
-- **SRC-LAT-PROFILE — Lattice profile compiler at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/profile.ts)
-- **SRC-LAT-ENGINE — Lattice engine at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/src/engine.ts)
-- **SRC-LAT-ADVERSARIAL — Lattice adversarial executable contracts at the reviewed revision:** [Reviewed source](https://github.com/howardhayden/lattice/blob/d6cc85b275e3f14163a5a547f626832fd21b27b0/test/adversarial.test.mjs)
-- **SRC-NNG-SKILL — NN/g skill mapping:** [Reviewed source](https://www.nngroup.com/articles/skill-mapping/)
-- **SRC-NNG-BLUEPRINT — NN/g service blueprint definition:** [Reviewed source](https://www.nngroup.com/articles/service-blueprints-definition/)
-- **SRC-HF-CHAT — Hugging Face OpenAI-compatible chat-completions API:** [Reviewed source](https://huggingface.co/docs/inference-providers/tasks/chat-completion)
-- **SRC-HF-STRUCTURED — Hugging Face structured-output guidance:** [Reviewed source](https://huggingface.co/docs/inference-providers/guides/structured-output)
-- **SRC-HF-SECURITY — Hugging Face security and privacy policy:** [Reviewed source](https://huggingface.co/security)
-- **SRC-HF-NSCALE — Historical predecessor source; original label: Hugging Face Nscale provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/nscale)
-- **SRC-HF-DEEPINFRA — Hugging Face DeepInfra provider documentation:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/deepinfra)
-- **SRC-LATTICE-UPSTREAM — Lattice upstream repository:** [Reviewed source](https://github.com/howardhayden/lattice)
-- **SRC-HF-MODEL-CATALOG — Hugging Face current routed model/provider metadata:** [Reviewed source](https://router.huggingface.co/v1/models)
-- **SRC-HF-NSCALE-MAPPING — Historical predecessor source; original label: Hugging Face Nscale model mapping:** [Reviewed source](https://huggingface.co/api/partners/nscale/models)
-- **SRC-NSCALE-CHAT — Historical predecessor source; original label: Nscale chat-completion schema contract:** [Reviewed source](https://docs.nscale.com/api-reference/inference/create-chat-completion)
-- **SRC-HF-PROVIDER-SECURITY — Hugging Face inference-provider security boundary:** [Reviewed source](https://huggingface.co/docs/inference-providers/security)
-- **SRC-NSCALE-PRIVACY — Historical predecessor source; original label: Nscale public privacy policy:** [Reviewed source](https://www.nscale.com/policies/privacy-policy)
-- **SRC-NSCALE-SHARED-RESPONSIBILITY — Historical predecessor source; original label: Nscale shared responsibility model:** [Reviewed source](https://docs.nscale.com/docs/help/shared-responsibility)
-- **SRC-NSCALE-WEBSITE-TERMS — Historical predecessor source; original label: Nscale public website terms and their scope:** [Reviewed source](https://www.nscale.com/policies/terms-conditions)
-- **SRC-QWEN-NEXT-SOURCE — Qwen3 Next 80B A3B Instruct reviewed author revision:** [Reviewed source](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct/tree/9c7f2fbe84465e40164a94cc16cd30b6999b0cc7)
-- **SRC-DEEPINFRA-NEXT — DeepInfra Qwen3 Next model metadata:** [Reviewed source](https://deepinfra.com/Qwen/Qwen3-Next-80B-A3B-Instruct)
-- **SRC-DEEPINFRA-DATA-PRIVACY — DeepInfra public inference data-privacy statements:** [Reviewed source](https://docs.deepinfra.com/account/data-privacy)
-- **SRC-DEEPINFRA-TERMS — DeepInfra public service terms:** [Reviewed source](https://deepinfra.com/terms)
-- **SRC-DEEPINFRA-PRIVACY — DeepInfra public privacy policy:** [Reviewed source](https://deepinfra.com/privacy)
-- **SRC-QWEN-235B-SOURCE — Qwen3 235B A22B Instruct 2507 reviewed author revision:** [Reviewed source](https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507/tree/ac9c66cc9b46af7306746a9250f23d47083d689e)
-- **SRC-DEEPINFRA-235B — DeepInfra Qwen3 235B Instruct 2507 model metadata:** [Reviewed source](https://deepinfra.com/Qwen/Qwen3-235B-A22B-Instruct-2507)
-- **SRC-LLAMA-3-3-LICENSE — U28 Llama 3.3 Community License at reviewed author revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/LICENSE)
-- **SRC-LLAMA-3-3-AUP — U28 Llama 3.3 Acceptable Use Policy at reviewed author revision:** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/USE_POLICY.md)
-- **SRC-HF-SCALEWAY — Hugging Face Scaleway provider routing:** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/scaleway)
-- **SRC-SCALEWAY-STRUCTURED — Scaleway documented structured output capabilities:** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/how-to/use-structured-outputs/)
-- **SRC-SCALEWAY-PRIVACY — Scaleway processing, investigation retention and cache policy:** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/reference-content/data-privacy/)
-- **SRC-SCALEWAY-AI-CONDITIONS — Scaleway AI Specific Conditions reviewed for U28:** [Reviewed source](https://www-uploads.scaleway.com/Specific_Conditions_AI_Services_275907180f.pdf)
-- **SRC-SCALEWAY-LIFECYCLE — Scaleway model lifecycle and replacement boundary:** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/reference-content/model-lifecycle/)
-- **SRC-D31-REQUIREMENTS — D31 source-only v22 strict-message shape contract and spent U28 boundary:** `docs/lattice-resume-demo-requirements.md`
-- **SRC-D31-EVIDENCE — Actual #315 partial failure evidence and D31 diagnostic claim boundaries:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
-- **SRC-D32-REQUIREMENTS — U29/D32 approved source-only optional null review-message contract and zero paid scope:** `docs/lattice-resume-demo-requirements.md`
-- **SRC-D32-EVIDENCE — Actual #318 finite shape, partial failure and held scope; approved D32 validation pending:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
-- **SRC-D33-REQUIREMENTS — D33 scoped metadata-only active-context method under the conditional U13 window:** `docs/lattice-resume-demo-requirements.md`
-- **SRC-D33-EVIDENCE — Source-only current-context method, exact point-observation limits and pending actual native evidence:** `docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md`
-- **SRC-HF-OVHCLOUD — Historical OVHcloud route. Hugging Face OVHcloud routed provider integration:** [Reviewed source](https://huggingface.co/docs/inference-providers/en/providers/ovhcloud)
-- **SRC-OVHCLOUD-TERMS — Historical OVHcloud route. OVHcloud standard AI Endpoints service conditions, Aug26 2026 Appendix10:** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-we.pdf)
-- **SRC-OVHCLOUD-PRIVACY — Historical OVHcloud route. OVHcloud AI Endpoints published content and billing-data boundary:** [Reviewed source](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/)
-- **SRC-OVHCLOUD-CONDUCT — Historical OVHcloud route. OVHcloud canonical AI Code of Conduct, Apr28 2025:** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/AI_Code-IE.pdf)
-- **SRC-OVHCLOUD-LIFECYCLE — Historical OVHcloud route. OVHcloud AI Endpoints troubleshooting and lifecycle:** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-troubleshooting)
-- **SRC-OVHCLOUD-STRUCTURED — Historical OVHcloud route. OVHcloud structured-output documented subset and ordering:** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-structured-output)
-- **SRC-HF-CHAT-ROUTING — Hugging Face language-model routing through OpenRouter:** [Reviewed source](https://huggingface.co/docs/inference-providers/en/providers)
-- **SRC-OPENROUTER-DATA — OpenRouter processing, screening and retention:** [Reviewed source](https://openrouter.ai/docs/guides/privacy/data-collection)
-- **SRC-COREWEAVE-INFERENCE — CoreWeave serverless inference retention and optional tracing:** [Reviewed source](https://www.coreweave.com/products/coreweave-forge/serverless-inference)
-- **SRC-COREWEAVE-TERMS — CoreWeave service terms:** [Reviewed source](https://docs.coreweave.com/policies/terms-of-service)
-- **SRC-COREWEAVE-PRIVACY — CoreWeave privacy policy:** [Reviewed source](https://docs.coreweave.com/policies/terms-of-service/privacy-policy)
-- **SRC-PARASAIL-TERMS — Parasail terms of service:** [Reviewed source](https://www.parasail.io/legal/terms-of-service)
-- **SRC-PARASAIL-PRIVACY — Parasail privacy policy:** [Reviewed source](https://www.parasail.io/legal/privacy-policy)
-- **SRC-PARASAIL-SECURITY — Parasail serverless security and account management:** [Reviewed source](https://docs.parasail.io/parasail-docs/security-and-account-management/overview)
-- **SRC-VENICE-PRIVACY-OVERVIEW — Venice privacy tiers overview:** [Reviewed source](https://venice.ai/privacy)
-- **SRC-VENICE-PRIVACY-POLICY — Venice privacy policy:** [Reviewed source](https://venice.ai/legal/privacy-policy)
-- **SRC-VENICE-TERMS — Venice terms of service:** [Reviewed source](https://venice.ai/legal/tos)
+- **SRC-HF-DEEPINFRA-CLIENT — Hugging Face DeepInfra explicit-provider client at e59d02918671448aeca3a5d96a5f9ac05556a9e9** [Reviewed source](https://github.com/huggingface/huggingface.js/blob/e59d02918671448aeca3a5d96a5f9ac05556a9e9/packages/inference/src/providers/deepinfra.ts)
+- **SRC-REQUIREMENTS — Text to Lattice public requirements** [docs/lattice-resume-demo-requirements.md](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/lattice-resume-demo-requirements.md)
+- **SRC-DEMO — Bounded pipeline coordinator** [app/resume/latticeDemo.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/latticeDemo.js)
+- **SRC-INPUT — Input and clarification policy** [app/resume/lattice/inputPolicy.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/inputPolicy.js)
+- **SRC-SEGMENTS — Lossless segmentation** [app/resume/lattice/segments.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/segments.js)
+- **SRC-PROTECTED — Protected-span handling** [app/resume/lattice/protectedSpans.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/protectedSpans.js)
+- **SRC-PROMPTS — Closed prompts and schemas** [app/resume/lattice/promptContract.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/promptContract.js)
+- **SRC-VALIDATORS — Deterministic semantic validators** [app/resume/lattice/validators.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/validators.js)
+- **SRC-LOCAL-MODEL — Historical inactive local model adapter** [app/resume/lattice/localModel.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/localModel.js)
+- **SRC-MODEL-CONTRACT — Historical inactive browser-model contract** [app/resume/lattice/modelContract.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/modelContract.js)
+- **SRC-MODEL-WORKER — Historical inactive isolated WebLLM worker** [app/resume/lattice/latticeWebllm.worker.ts](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/latticeWebllm.worker.ts)
+- **SRC-ASSET-POLICY — Historical inactive model-asset request policy** [app/resume/lattice/assetRequestPolicy.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/assetRequestPolicy.js)
+- **SRC-ATTESTATION — Historical inactive cross-origin attestation protocol** [app/resume/lattice/attestation.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/attestation.js)
+- **SRC-USAGE-LEASE — Historical inactive browser lease client** [app/resume/lattice/usageLease.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/usageLease.js)
+- **SRC-USAGE-POLICY — Historical inactive usage and capacity policy** [app/resume/lattice/usagePolicy.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/usagePolicy.js)
+- **SRC-OUTPUT — Output protection controls** [app/resume/lattice/outputProtection.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/outputProtection.js)
+- **SRC-LEASE-WORKER — Historical inactive lease Worker request coordinator** [workers/text-to-lattice-lease/worker.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-lease/worker.js)
+- **SRC-DEMO-PROFILE — Historical inactive bounded Cloudflare demonstration profile** [workers/text-to-lattice-lease/demonstrationProfile.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-lease/demonstrationProfile.js)
+- **SRC-USAGE-STORAGE — Historical inactive global usage authority** [workers/text-to-lattice-lease/usageStorage.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-lease/usageStorage.js)
+- **SRC-FRAME — Historical inactive Turnstile verification bridge** [workers/text-to-lattice-attestation-frame/public/turnstile/bridge.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-attestation-frame/public/turnstile/bridge.js)
+- **SRC-RESPONSE-POLICY — Résumé response-policy Worker** [workers/text-to-lattice-response-policy/worker.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-response-policy/worker.js)
+- **SRC-PUBLIC-CONTRACT — Public Text to Lattice disclosure and policy contract** [app/content/textToLatticeContent.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/content/textToLatticeContent.js)
+- **SRC-NETWORK-CAPABILITY — Named browser network capability** [app/privacy/networkCapabilities.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/privacy/networkCapabilities.js)
+- **SRC-REMOTE-PROTOCOL — Remote request and response protocol** [app/resume/lattice/remoteProtocol.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/remoteProtocol.js)
+- **SRC-REMOTE-CLIENT — Same-origin remote request client** [app/resume/lattice/remoteRequest.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/lattice/remoteRequest.js)
+- **SRC-API-WORKER — Same-origin Text to Lattice API Worker** [workers/text-to-lattice-api/worker.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-api/worker.js)
+- **SRC-HF-ADAPTER — Fixed Hugging Face chat adapter for Qwen generation and Llama review** [workers/text-to-lattice-api/huggingFaceAdapter.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-api/huggingFaceAdapter.js)
+- **SRC-API-CONFIG — Text to Lattice API Worker configuration** [workers/text-to-lattice-api/wrangler.jsonc](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-api/wrangler.jsonc)
+- **SRC-CAPACITY-POLICY — Atomic Text to Lattice request-admission policy** [workers/text-to-lattice-api/capacityPolicy.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-api/capacityPolicy.js)
+- **SRC-CAPACITY-CLIENT — Text to Lattice request-admission client** [workers/text-to-lattice-api/capacityClient.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-api/capacityClient.js)
+- **SRC-CAPACITY-GATE — Text to Lattice Durable Object admission authority** [workers/text-to-lattice-api/capacityGate.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-api/capacityGate.js)
+- **SRC-VISITOR-COOKIE — API-scoped signed browser quota cookie** [workers/text-to-lattice-api/visitorCookie.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/workers/text-to-lattice-api/visitorCookie.js)
+- **SRC-API-SECRET-BOOTSTRAP — Fail-closed API secret bootstrap** [scripts/bootstrap-text-to-lattice-api-secrets.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/scripts/bootstrap-text-to-lattice-api-secrets.mjs)
+- **SRC-API-DEPLOYMENT-EVIDENCE — Text to Lattice API deployment-evidence builder** [scripts/build-text-to-lattice-deployment-evidence.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/scripts/build-text-to-lattice-deployment-evidence.mjs)
+- **SRC-API-PRODUCTION-VERIFY — Text to Lattice production API verifier** [scripts/verify-text-to-lattice-api-production.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/scripts/verify-text-to-lattice-api-production.mjs)
+- **SRC-API-QUALIFICATION-USAGE — Qualification-only provider usage and catalog cost evidence** [scripts/text-to-lattice-qualification-usage.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/scripts/text-to-lattice-qualification-usage.mjs)
+- **SRC-SECRET-BOOTSTRAP — Historical inactive lease secret bootstrap** [scripts/bootstrap-text-to-lattice-secrets.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/scripts/bootstrap-text-to-lattice-secrets.mjs)
+- **SRC-ROUTE-INVENTORY — Authenticated Worker route inventory verifier** [scripts/verify-text-to-lattice-route-inventory.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/scripts/verify-text-to-lattice-route-inventory.mjs)
+- **SRC-TEST-ENGINE — Engine executable contracts** [tests/lattice-demo.test.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/tests/lattice-demo.test.mjs)
+- **SRC-TEST-SECURITY — Security executable contracts** [tests/lattice-security.test.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/tests/lattice-security.test.mjs)
+- **SRC-TEST-ISOLATE — Isolate hardening executable contracts** [tests/lattice-isolate-hardening.test.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/tests/lattice-isolate-hardening.test.mjs)
+- **SRC-TEST-CAPACITY — Protocol capacity executable contracts** [tests/lattice-protocol-capacity.test.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/tests/lattice-protocol-capacity.test.mjs)
+- **SRC-TEST-A11Y — Modal accessibility source contracts** [tests/lattice-modal-accessibility.test.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/tests/lattice-modal-accessibility.test.mjs)
+- **SRC-TEST-CAPABILITY — Remote capability executable contracts** [tests/lattice-network-capability.test.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/tests/lattice-network-capability.test.mjs)
+- **SRC-TEST-GOVERNANCE — Remote governance executable contracts** [tests/lattice-network-governance.test.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/tests/lattice-network-governance.test.mjs)
+- **SRC-TEST-API — Remote API Worker executable contracts** [tests/lattice-api-worker.test.mjs](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/tests/lattice-api-worker.test.mjs)
+- **SRC-PROJECTS — Portfolio project and ecosystem register** [app/resume/projects.js](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/app/resume/projects.js)
+- **SRC-RELEASE-REGISTER — Machine-enforced Text to Lattice release register** [docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json)
+- **SRC-RELEASE-QUALIFICATION — Text to Lattice release qualification** [docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md)
+- **SRC-LLAMA-3-1-LICENSE — Historical predecessor source; original label: Active Llama 3.1 Community License at the reviewed model revision** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/LICENSE)
+- **SRC-LLAMA-3-1-AUP — Historical predecessor source; original label: Active Llama 3.1 Acceptable Use Policy at the reviewed model revision** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/USE_POLICY.md)
+- **SRC-LLAMA-LICENSE — Historical Llama 3.2 Community License** [Reviewed source](https://developer.meta.com/ai/llama3_2/license/)
+- **SRC-LLAMA-AUP — Historical Llama 3.2 Acceptable Use Policy** [Reviewed source](https://developer.meta.com/ai/llama3_2/use-policy/)
+- **SRC-LLAMA-EVAL — Non-operational Llama-use evaluation cases** [docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/text-to-lattice/LLAMA-USE-EVALUATION-CASES.json)
+- **SRC-WASM-PR — Upstream current-WASM rebuild record** [Reviewed source](https://github.com/mlc-ai/binary-mlc-llm-libs/pull/158)
+- **SRC-LAT-README — Lattice README at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-ARCH — Lattice architecture at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-REQ — Lattice requirements at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-SEMANTIC — Lattice semantic core at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-CONTEXT — Lattice context core at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-PROFILE — Lattice profile compiler at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-ENGINE — Lattice engine at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-LAT-ADVERSARIAL — Lattice adversarial executable contracts at the reviewed revision** Owner repository reference (restricted access)
+- **SRC-NNG-SKILL — NN/g skill mapping** [Reviewed source](https://www.nngroup.com/articles/skill-mapping/)
+- **SRC-NNG-BLUEPRINT — NN/g service blueprint definition** [Reviewed source](https://www.nngroup.com/articles/service-blueprints-definition/)
+- **SRC-HF-CHAT — Hugging Face OpenAI-compatible chat-completions API** [Reviewed source](https://huggingface.co/docs/inference-providers/tasks/chat-completion)
+- **SRC-HF-STRUCTURED — Hugging Face structured-output guidance** [Reviewed source](https://huggingface.co/docs/inference-providers/guides/structured-output)
+- **SRC-HF-SECURITY — Hugging Face security and privacy policy** [Reviewed source](https://huggingface.co/security)
+- **SRC-HF-NSCALE — Historical predecessor source; original label: Hugging Face Nscale provider documentation** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/nscale)
+- **SRC-HF-DEEPINFRA — Hugging Face DeepInfra provider documentation** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/deepinfra)
+- **SRC-LATTICE-UPSTREAM — Lattice upstream repository** Owner repository reference (restricted access)
+- **SRC-HF-MODEL-CATALOG — Hugging Face current routed model/provider metadata** [Reviewed source](https://router.huggingface.co/v1/models)
+- **SRC-HF-NSCALE-MAPPING — Historical predecessor source; original label: Hugging Face Nscale model mapping** [Reviewed source](https://huggingface.co/api/partners/nscale/models)
+- **SRC-NSCALE-CHAT — Historical predecessor source; original label: Nscale chat-completion schema contract** [Reviewed source](https://docs.nscale.com/api-reference/inference/create-chat-completion)
+- **SRC-HF-PROVIDER-SECURITY — Hugging Face inference-provider security boundary** [Reviewed source](https://huggingface.co/docs/inference-providers/security)
+- **SRC-NSCALE-PRIVACY — Historical predecessor source; original label: Nscale public privacy policy** [Reviewed source](https://www.nscale.com/policies/privacy-policy)
+- **SRC-NSCALE-SHARED-RESPONSIBILITY — Historical predecessor source; original label: Nscale shared responsibility model** [Reviewed source](https://docs.nscale.com/docs/help/shared-responsibility)
+- **SRC-NSCALE-WEBSITE-TERMS — Historical predecessor source; original label: Nscale public website terms and their scope** [Reviewed source](https://www.nscale.com/policies/terms-conditions)
+- **SRC-QWEN-NEXT-SOURCE — Qwen3 Next 80B A3B Instruct reviewed author revision** [Reviewed source](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct/tree/9c7f2fbe84465e40164a94cc16cd30b6999b0cc7)
+- **SRC-DEEPINFRA-NEXT — DeepInfra Qwen3 Next model metadata** [Reviewed source](https://deepinfra.com/Qwen/Qwen3-Next-80B-A3B-Instruct)
+- **SRC-DEEPINFRA-DATA-PRIVACY — DeepInfra public inference data-privacy statements** [Reviewed source](https://docs.deepinfra.com/account/data-privacy)
+- **SRC-DEEPINFRA-TERMS — DeepInfra public service terms** [Reviewed source](https://deepinfra.com/terms)
+- **SRC-DEEPINFRA-PRIVACY — DeepInfra public privacy policy** [Reviewed source](https://deepinfra.com/privacy)
+- **SRC-QWEN-235B-SOURCE — Qwen3 235B A22B Instruct 2507 reviewed author revision** [Reviewed source](https://huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507/tree/ac9c66cc9b46af7306746a9250f23d47083d689e)
+- **SRC-DEEPINFRA-235B — DeepInfra Qwen3 235B Instruct 2507 model metadata** [Reviewed source](https://deepinfra.com/Qwen/Qwen3-235B-A22B-Instruct-2507)
+- **SRC-LLAMA-3-3-LICENSE — U28 Llama 3.3 Community License at reviewed author revision** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/LICENSE)
+- **SRC-LLAMA-3-3-AUP — U28 Llama 3.3 Acceptable Use Policy at reviewed author revision** [Reviewed source](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/blob/6f6073b423013f6a7d4d9f39144961bfbfbc386b/USE_POLICY.md)
+- **SRC-HF-SCALEWAY — Hugging Face Scaleway provider routing** [Reviewed source](https://huggingface.co/docs/inference-providers/providers/scaleway)
+- **SRC-SCALEWAY-STRUCTURED — Scaleway documented structured output capabilities** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/how-to/use-structured-outputs/)
+- **SRC-SCALEWAY-PRIVACY — Scaleway processing, investigation retention and cache policy** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/reference-content/data-privacy/)
+- **SRC-SCALEWAY-AI-CONDITIONS — Scaleway AI Specific Conditions reviewed for U28** [Reviewed source](https://www-uploads.scaleway.com/Specific_Conditions_AI_Services_275907180f.pdf)
+- **SRC-SCALEWAY-LIFECYCLE — Scaleway model lifecycle and replacement boundary** [Reviewed source](https://www.scaleway.com/en/docs/generative-apis/reference-content/model-lifecycle/)
+- **SRC-D31-REQUIREMENTS — D31 source-only v22 strict-message shape contract and spent U28 boundary** [docs/lattice-resume-demo-requirements.md](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/lattice-resume-demo-requirements.md)
+- **SRC-D31-EVIDENCE — Actual #315 partial failure evidence and D31 diagnostic claim boundaries** [docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md)
+- **SRC-D32-REQUIREMENTS — U29/D32 approved source-only optional null review-message contract and zero paid scope** [docs/lattice-resume-demo-requirements.md](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/lattice-resume-demo-requirements.md)
+- **SRC-D32-EVIDENCE — Actual #318 finite shape, partial failure and held scope; approved D32 validation pending** [docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md)
+- **SRC-D33-REQUIREMENTS — D33 scoped metadata-only active-context method under the conditional U13 window** [docs/lattice-resume-demo-requirements.md](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/lattice-resume-demo-requirements.md)
+- **SRC-D33-EVIDENCE — Source-only current-context method, exact point-observation limits and pending actual native evidence** [docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md)
+- **SRC-HF-OVHCLOUD — Historical OVHcloud route. Hugging Face OVHcloud routed provider integration** [Reviewed source](https://huggingface.co/docs/inference-providers/en/providers/ovhcloud)
+- **SRC-OVHCLOUD-TERMS — Historical OVHcloud route. OVHcloud standard AI Endpoints service conditions, Aug26 2026 Appendix10** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-we.pdf)
+- **SRC-OVHCLOUD-PRIVACY — Historical OVHcloud route. OVHcloud AI Endpoints published content and billing-data boundary** [Reviewed source](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/)
+- **SRC-OVHCLOUD-CONDUCT — Historical OVHcloud route. OVHcloud canonical AI Code of Conduct, Apr28 2025** [Reviewed source](https://contract.eu.ovhapis.com/1.0/pdf/AI_Code-IE.pdf)
+- **SRC-OVHCLOUD-LIFECYCLE — Historical OVHcloud route. OVHcloud AI Endpoints troubleshooting and lifecycle** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-troubleshooting)
+- **SRC-OVHCLOUD-STRUCTURED — Historical OVHcloud route. OVHcloud structured-output documented subset and ordering** [Reviewed source](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-structured-output)
+- **SRC-HF-CHAT-ROUTING — Hugging Face language-model routing through OpenRouter** [Reviewed source](https://huggingface.co/docs/inference-providers/en/providers)
+- **SRC-OPENROUTER-DATA — OpenRouter processing, screening and retention** [Reviewed source](https://openrouter.ai/docs/guides/privacy/data-collection)
+- **SRC-COREWEAVE-INFERENCE — CoreWeave serverless inference retention and optional tracing** [Reviewed source](https://www.coreweave.com/products/coreweave-forge/serverless-inference)
+- **SRC-COREWEAVE-TERMS — CoreWeave service terms** [Reviewed source](https://docs.coreweave.com/policies/terms-of-service)
+- **SRC-COREWEAVE-PRIVACY — CoreWeave privacy policy** [Reviewed source](https://docs.coreweave.com/policies/terms-of-service/privacy-policy)
+- **SRC-PARASAIL-TERMS — Parasail terms of service** [Reviewed source](https://www.parasail.io/legal/terms-of-service)
+- **SRC-PARASAIL-PRIVACY — Parasail privacy policy** [Reviewed source](https://www.parasail.io/legal/privacy-policy)
+- **SRC-PARASAIL-SECURITY — Parasail serverless security and account management** [Reviewed source](https://docs.parasail.io/parasail-docs/security-and-account-management/overview)
+- **SRC-VENICE-PRIVACY-OVERVIEW — Venice privacy tiers overview** [Reviewed source](https://venice.ai/privacy)
+- **SRC-VENICE-PRIVACY-POLICY — Venice privacy policy** [Reviewed source](https://venice.ai/legal/privacy-policy)
+- **SRC-VENICE-TERMS — Venice terms of service** [Reviewed source](https://venice.ai/legal/tos)
 
 ## Terms and provenance
 
 Authored documentation follows the hah.dev portfolio-content terms. The generator and executable documentation shell retain the applicable source-component terms. The separately licensed Relational Systems Register profile is not reproduced.
+
+</details>
