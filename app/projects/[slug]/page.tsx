@@ -60,6 +60,19 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
             <div className="paper-meta-item"><dt>{record.readingGuide ? "Public reference" : "Authoritative source"}</dt><dd>{record.readingGuide
               ? <a href={record.readingGuide.documentation}>Lattice documentation</a> : <a href={project.url}>{project.url}</a>}</dd></div>
           </dl>
+          {project.id === "lattice" ? (
+            <section aria-labelledby={latticeReadingGuide.edgeArchitecture.anchor}>
+              <h2 id={latticeReadingGuide.edgeArchitecture.anchor}>{latticeReadingGuide.edgeArchitecture.title}</h2>
+              <dl>
+                {latticeReadingGuide.edgeArchitecture.claims.map(({ id, title, summary }) => (
+                  <div key={id}>
+                    <dt><a href={`${latticeReadingGuide.evidenceUrl}#${id}`}>{title}</a></dt>
+                    <dd>{summary}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ) : null}
           <h2 id="emphasis">Emphasis</h2>
           {project.id === "lattice" ? <LatticeSection field="emphasis" /> : <ul>{project.emphasis.map((item) => <li key={item}>{item}</li>)}</ul>}
           <h2 id="capabilities">Capabilities</h2>

@@ -38,7 +38,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `98f7a16689aac6ad32ae4f534889591dbffcfb6fb65070e58d14c2564978d220`
+**Qualified source-set SHA-256:** `57a18fb42a14480084758b80ae0e5e7a4eefc763dbf2df4cb5f8f3c5366f151e`
 
 **Artifact-set projection SHA-256:** `58e9c64506ecb739ca2a5b6a5dbf142d988fc95e9178115e0f2bed9dd120b644`
 
@@ -70,22 +70,22 @@ These are the register’s current capability values, including the exact reques
 
 ### Current-to-captured source comparison
 
-The documentation revision and the browser capture share 267 qualified paths. 255 are byte-identical. The two résumé components change descriptive copy and its project link. Request handling, conversion and Workers match the deployed release. The [preceding documentation comparison](https://github.com/howardhayden/folio/blob/da885106687e8a8428dce063f6915bb2b3668c5b/docs/release-evidence/text-to-lattice/nov23-documentation-source-comparison.json) and [original production comparison](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/release-evidence/text-to-lattice/run-729-source-comparison.json) retain the earlier decisions.
+The documentation revision and the browser capture share 267 qualified paths. 255 are byte-identical. This update explains how the Cloudflare edge Workers control access and cost. The preceding documentation release and this edition have byte-identical Workers, converter and résumé components. The [preceding documentation comparison](https://github.com/howardhayden/folio/blob/c04dac7d51afb17566039c2dcd270009f16b58f3/docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json) and [original production comparison](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/release-evidence/text-to-lattice/run-729-source-comparison.json) retain the earlier decisions.
 
-The current fingerprint is `98f7a16689aac6ad32ae4f534889591dbffcfb6fb65070e58d14c2564978d220`. The original captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The repository appendix `docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json` contains 946,838 bytes (SHA-256 `8a303a311c33bdb76e6ddc4352332245df702e31416bd72c36ba1aa964889575`) and retains each original beforeimage.
+The current fingerprint is `57a18fb42a14480084758b80ae0e5e7a4eefc763dbf2df4cb5f8f3c5366f151e`. The original captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The repository appendix `docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json` contains 946,838 bytes (SHA-256 `7d934e93afe137ec6d9f1bbf1761f02b560aac850a0d6f791ef02179df0d1ec9`) and retains each original beforeimage.
 
 | Qualified path | Captured SHA-256 | Documentation revision SHA-256 |
 | --- | --- | --- |
 | `app/projects/lattice/text-to-lattice/page.tsx` | `1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8` | `08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870` |
-| `scripts/verify-text-to-lattice-release.mjs` | `e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a` | `90d1decfd861ed0c923de761379625b25d3c16f108ee99090d7df75c115747d0` |
-| `tests/lattice-documentation.test.mjs` | `66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e` | `ee991d5421d52511884732116fa7a3a2e293f884378927780a2ac9bdb107f62d` |
+| `scripts/verify-text-to-lattice-release.mjs` | `e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a` | `0dd579abc50bd5fb714d8936c7a2084f181cea47f915fff59bfe57979db48e3c` |
+| `tests/lattice-documentation.test.mjs` | `66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e` | `c4ec022476a6aea7c43ffaeb8cc813bd7d24093dd33f463904160c8bbcdcde8d` |
 | `tests/lattice-release-boundary.test.mjs` | `7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114` | `b8c71d865c0edcdf9f5dd86e20e837069bc6af2f0a7ea61067512b2bcefdbb7f` |
-| `.github/workflows/pages.yml` | `c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd` | `bd93648d926c7dbc37681abf3b23cfbe6348bd012c5ca71b582ed7e8cde42058` |
-| `app/content/projectDocuments.js` | `261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251` | `c6d4e9e011a0fb7f282f0ad4b69a91663c4b3b34522b1b332e8f9b657babef48` |
-| `app/projects/[slug]/page.tsx` | `d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62` | `9be6e0ff22cc4dec8ee34954df06a49d23e4333bfe09e7cc82ea412da17339a4` |
-| `app/semantic/portfolio.js` | `7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6` | `6dfc25652de9a3ea1c79746fea4a1a61a3b00daa47ae353e58e25d727609f636` |
+| `.github/workflows/pages.yml` | `c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd` | `f40a09196adc6423f6148d69e32899e9bf0a94a21c98d0656d6ff71fd82e376d` |
+| `app/content/projectDocuments.js` | `261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251` | `a7e92316b513757b6a19ece0fbc2fd4390e08d3c8766edc146c61184e4d21ca3` |
+| `app/projects/[slug]/page.tsx` | `d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62` | `02b7b92a48aeee4a963986c3c14e4c964c472c9450e809382c7b3f804ec9cdbb` |
+| `app/semantic/portfolio.js` | `7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6` | `8506fd4f7d49f5b6ab672b5ba00265c39774c4e71ff035fee70beaa82462380c` |
 | `scripts/docs/build-text-to-lattice-documentation.mjs` | `69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc` | `9de393af9459626e99c7562aaa8d3a22fd7640535a9ef5d5a6319aa83091469e` |
-| `tests/lattice-deployment-workflow.test.mjs` | `3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089` | `4f1ccc7b566e5270f2611d81d302e9dc90c0534cf371d3af94cc0c5e2dc2b9ac` |
+| `tests/lattice-deployment-workflow.test.mjs` | `3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089` | `366acd4a9aedfd2fb36667557b75942e91c67b698c7097a245aa1fe293f35364` |
 | `app/resume/ProjectDescriptionDisclosure.tsx` | `5e75a6ab95b261ea2ff77c5012998f618126de1c59456acde2310b663b174e89` | `cef3f61fa66e2ceeb91cb61f8d236751c9d6f2e4688062bb496741110541d832` |
 | `app/resume/ResumeProjects.tsx` | `42b88aa9be93601a305f266f2948722f401dc17d712293fee6e6ea78bffa7db4` | `0c33c2c88a96f29ff17cd0e29d191f22c252ea4ff4677bafdbd62aa55f379ef6` |
 

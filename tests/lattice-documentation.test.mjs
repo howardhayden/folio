@@ -662,3 +662,30 @@ test("the project and résumé explain the hosted service at their normal entry 
   assert.ok(fallback.includes('href="/projects/lattice/#text-to-lattice-api-capabilities"'));
   if (releaseState.qualified) assert.match(resume, /One model drafts and another checks the meaning against your source/u);
 });
+
+test("the project links its edge controls to the same claims in HTML, Markdown and JSON", async () => {
+  const [project, markdown, guide] = await Promise.all([
+    readText(rootUrl, "site/projects/lattice/index.html"),
+    readText(rootUrl, "site/content/projects/lattice.md"),
+    readText(publicRoot, "reading-guide.json").then(JSON.parse),
+  ]);
+  assert.ok(project.includes(guide.introduction) && markdown.includes(guide.introduction));
+  assert.match(guide.introduction, /Cloudflare edge Workers run on demand/u);
+  const { anchor, title, claims } = guide.edgeArchitecture;
+  const start = project.indexOf(`id="${anchor}"`);
+  const end = project.indexOf('id="emphasis"');
+  assert.ok(start >= 0 && start < end);
+  const visible = project.slice(start, end);
+  assert.ok(visible.includes(title) && markdown.includes(title));
+  assert.deepEqual(claims.map(({ id }) => id), [
+    "edge-browser-policy", "admission-and-consent", "service-path", "edge-release-verification",
+  ]);
+  for (const claim of claims) {
+    const evidence = guide.evidence.find(({ id }) => id === claim.id);
+    assert.equal(evidence?.subject, "text-to-lattice-api");
+    const link = `${guide.evidenceUrl}#${claim.id}`;
+    for (const text of [claim.title, claim.summary, link]) {
+      assert.ok(visible.includes(text) && markdown.includes(text), claim.id);
+    }
+  }
+});
