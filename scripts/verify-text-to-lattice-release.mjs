@@ -902,6 +902,130 @@ function browserEvidenceIdentity(evidence) {
   });
 }
 
+const sourceCarryCapture = Object.freeze({
+  commit: "6166a3f430338331ca3f0336450e500571cbb896",
+  source: "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
+  evidenceId: "ttl-browser-20261123T143941Z-a495af12",
+  evidenceSha256: "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
+  proofPath: "docs/release-evidence/text-to-lattice/run-729-source-comparison.json",
+});
+const sourceCarryExceptions = Object.freeze({
+  "scripts/verify-text-to-lattice-release.mjs": "e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a",
+  "tests/lattice-documentation.test.mjs": "66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e",
+  "tests/lattice-release-boundary.test.mjs": "7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114",
+});
+const qualificationHistory = Object.freeze({
+  path: "docs/release-evidence/text-to-lattice/qualification-history-2026-11-23.md",
+  pointer: "../release-evidence/text-to-lattice/qualification-history-2026-11-23.md",
+  immutableUrl: "https://github.com/howardhayden/folio/blob/b211964213cd49e8335a73bcbebce3221c3a6bc2/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
+  bytes: 708796,
+  sha256: "097d59a7779e108788e7d489a6f8123ae03dd92f3909792dc79ae4818a9e7593",
+});
+
+function approvedSourceCarry(register) {
+  const carry = register?.authority?.browserEvidenceSourceCarry;
+  const record = register?.authority?.browserEvidence;
+  return carry?.format === "TEXT_TO_LATTICE_G06_SOURCE_CARRY_V1"
+    && carry.authorization === "owner-approved-one-release-729"
+    && carry.capturedCommit === sourceCarryCapture.commit && record?.deployedCommit === carry.capturedCommit
+    && carry.capturedSourceSetSha256 === sourceCarryCapture.source && record.qualifiedSourceSetSha256 === carry.capturedSourceSetSha256
+    && carry.evidenceId === sourceCarryCapture.evidenceId && record.evidenceId === carry.evidenceId
+    && carry.evidenceSha256 === sourceCarryCapture.evidenceSha256 && record.sha256 === carry.evidenceSha256
+    && carry.currentSourceSetSha256 === register.authority.qualifiedSourceSet.sha256
+    && verifyReleaseStatusState(register).qualified;
+}
+
+export function verifyQualificationHistory(register, currentBytes, historyBytes) {
+  if (!approvedSourceCarry(register)) fail("separate qualification history requires the approved qualified source carry.");
+  if (!Buffer.isBuffer(currentBytes) || !Buffer.isBuffer(historyBytes)
+    || historyBytes.length !== qualificationHistory.bytes || digest(historyBytes) !== qualificationHistory.sha256) {
+    fail("qualification history appendix must match the complete pinned b211 dossier bytes.");
+  }
+  // Keep the original unique separator, exact held suffix and stale-prefix rules.
+  const historicalPrefix = datedDossierCurrentBytes(historyBytes);
+  if (staleEnabledPublicationPattern.test(historicalPrefix.toString("utf8"))) {
+    fail("qualification history appendix contains stale copy outside its original dated boundary.");
+  }
+  const current = currentBytes.toString("utf8");
+  if (!current.includes("**Technical history:**") || !current.includes(qualificationHistory.pointer)
+    || !current.includes(qualificationHistory.immutableUrl)) {
+    fail("current qualification dossier must link its exact technical history and immutable source.");
+  }
+  if (staleEnabledPublicationPattern.test(current)) fail("current qualification dossier contains stale held-gate copy.");
+  return historyBytes.toString("utf8");
+}
+
+function sourceFingerprint(files) {
+  const hash = createHash("sha256").update("TEXT_TO_LATTICE_QUALIFIED_SOURCE_SET_V1\0");
+  for (const { path, bytes } of files) {
+    hash.update(`${Buffer.byteLength(path)}\0${path}\0${bytes.length}\0`);
+    hash.update(bytes);
+    hash.update("\0");
+  }
+  return hash.digest("hex");
+}
+
+/** Compare actual source bytes with the one owner-approved original capture.
+ * Production supplies filesystem-verified source entries and the pinned appendix;
+ * the explicit byte arguments let regression tests exercise refusal boundaries.
+ */
+export function verifyBrowserEvidenceSourceCarry(register, record, files, proofBytes) {
+  const carry = exactObjectFields(register.authority?.browserEvidenceSourceCarry,
+    ["format", "authorization", "capturedCommit", "capturedSourceSetSha256", "currentSourceSetSha256", "evidenceId", "evidenceSha256", "proof"],
+    "authority.browserEvidenceSourceCarry");
+  if (carry.format !== "TEXT_TO_LATTICE_G06_SOURCE_CARRY_V1"
+    || carry.authorization !== "owner-approved-one-release-729"
+    || carry.capturedCommit !== sourceCarryCapture.commit || record.deployedCommit !== carry.capturedCommit
+    || carry.capturedSourceSetSha256 !== sourceCarryCapture.source || record.qualifiedSourceSetSha256 !== carry.capturedSourceSetSha256
+    || carry.evidenceId !== sourceCarryCapture.evidenceId || record.evidenceId !== carry.evidenceId
+    || carry.evidenceSha256 !== sourceCarryCapture.evidenceSha256 || record.sha256 !== carry.evidenceSha256
+    || carry.currentSourceSetSha256 !== register.authority.qualifiedSourceSet.sha256
+    || carry.currentSourceSetSha256 === carry.capturedSourceSetSha256) {
+    fail("source carry must bind the approved original729 proof and distinct current qualified source.");
+  }
+  const proofRef = exactObjectFields(carry.proof, ["path", "bytes", "sha256"], "source carry proof");
+  if (proofRef.path !== sourceCarryCapture.proofPath || !Number.isSafeInteger(proofRef.bytes)
+    || proofRef.bytes <= 0 || proofRef.bytes > 1048576 || !sha256Pattern.test(proofRef.sha256 ?? "")
+    || !Buffer.isBuffer(proofBytes) || proofBytes.length !== proofRef.bytes || digest(proofBytes) !== proofRef.sha256) {
+    fail("source carry appendix must match its fixed path, byte count and SHA-256.");
+  }
+  let proof;
+  try { proof = JSON.parse(proofBytes.toString("utf8")); } catch { fail("source carry appendix must be JSON."); }
+  exactObjectFields(proof, ["format", "capturedPaths", "exceptions"], "source carry appendix");
+  if (proof.format !== "TEXT_TO_LATTICE_G06_SOURCE_COMPARISON_V1" || !Array.isArray(files)
+    || files.length !== 267 || files.some((entry) => typeof entry.path !== "string" || !Buffer.isBuffer(entry.bytes))
+    || new Set(files.map(({ path }) => path)).size !== 267
+    || JSON.stringify(files.map(({ path }) => path)) !== JSON.stringify(files.map(({ path }) => path).sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b))))
+    || JSON.stringify(proof.capturedPaths) !== JSON.stringify(files.map(({ path }) => path))) {
+    fail("source carry requires the exact same sorted267 captured paths.");
+  }
+  if (sourceFingerprint(files) !== carry.currentSourceSetSha256) fail("source carry current source fingerprint differs.");
+  if (!Array.isArray(proof.exceptions)
+    || JSON.stringify(proof.exceptions.map((entry) => entry?.path)) !== JSON.stringify(Object.keys(sourceCarryExceptions))) {
+    fail("source carry requires exactly the three approved file exceptions.");
+  }
+  const originals = new Map();
+  for (const entry of proof.exceptions) {
+    exactObjectFields(entry, ["path", "beforeSha256", "afterSha256", "beforeBase64"], "source carry exception");
+    const current = files.find(({ path }) => path === entry.path);
+    if (!current || entry.beforeSha256 !== sourceCarryExceptions[entry.path]
+      || !sha256Pattern.test(entry.afterSha256 ?? "") || digest(current.bytes) !== entry.afterSha256
+      || entry.afterSha256 === entry.beforeSha256 || typeof entry.beforeBase64 !== "string"
+      || entry.beforeBase64.length > 524288) fail("source carry exception must bind exact approved before and after bytes.");
+    const before = Buffer.from(entry.beforeBase64, "base64");
+    if (before.toString("base64") !== entry.beforeBase64 || digest(before) !== entry.beforeSha256) {
+      fail("source carry original beforeimage is not exact canonical bytes.");
+    }
+    originals.set(entry.path, before);
+  }
+  const captured = files.map(({ path, bytes }) => ({ path, bytes: originals.get(path) ?? bytes }));
+  if (sourceFingerprint(captured) !== sourceCarryCapture.source) {
+    fail("source carry changes an unaffected captured source byte or path.");
+  }
+  return Object.freeze({ capturedCommit: carry.capturedCommit, capturedSourceSetSha256: carry.capturedSourceSetSha256,
+    currentSourceSetSha256: carry.currentSourceSetSha256, evidenceId: carry.evidenceId, evidenceSha256: carry.evidenceSha256 });
+}
+
 /**
  * Bind a qualified release to one strict, sanitized browser-evidence bundle.
  * The verifier argument exists only so unit tests can exercise every comparison;
@@ -920,6 +1044,9 @@ export async function verifyBrowserEvidenceAuthority(
     "authority.browserEvidence",
   );
   if (!releaseState.qualified) {
+    if (Object.hasOwn(register.authority, "browserEvidenceSourceCarry")) {
+      fail("source carry is allowed only for the approved qualified release.");
+    }
     if (record.status !== "not-collected") {
       fail("held and qualification-pending releases must classify browser evidence as not-collected.");
     }
@@ -970,7 +1097,21 @@ export async function verifyBrowserEvidenceAuthority(
     }
   }
   if (record.qualifiedSourceSetSha256 !== register.authority?.qualifiedSourceSet?.sha256) {
-    fail("qualified authority.browserEvidence.qualifiedSourceSetSha256 must match authority.qualifiedSourceSet.sha256.");
+    if (!Object.hasOwn(register.authority, "browserEvidenceSourceCarry")) {
+      fail("qualified authority.browserEvidence.qualifiedSourceSetSha256 must match authority.qualifiedSourceSet.sha256.");
+    }
+    const proofPath = pathWithinRoot(sourceCarryCapture.proofPath, "source carry appendix");
+    let cursor = root;
+    for (const part of sourceCarryCapture.proofPath.split("/")) {
+      cursor = join(cursor, part);
+      if ((await lstat(cursor)).isSymbolicLink()) fail("source carry appendix must not use symbolic links.");
+    }
+    const metadata = await lstat(proofPath.absolute);
+    if (!metadata.isFile() || metadata.size > 1048576) fail("source carry appendix must be a bounded regular file.");
+    const current = await readVerifiedQualifiedSourceSet(register);
+    verifyBrowserEvidenceSourceCarry(register, record, current.files, await readFile(proofPath.absolute));
+  } else if (Object.hasOwn(register.authority, "browserEvidenceSourceCarry")) {
+    fail("source carry cannot replace an exact-source evidence binding.");
   }
   return Object.freeze({ path: record.path, sha256: record.sha256, ...expectedIdentity });
 }
@@ -989,7 +1130,7 @@ export async function qualifiedFilesBelow(directory, directoryLabel) {
   return nested;
 }
 
-export async function verifyQualifiedSourceSet(register) {
+async function readVerifiedQualifiedSourceSet(register) {
   const sourceSet = register.authority?.qualifiedSourceSet;
   if (sourceSet?.algorithm !== qualifiedSourceSetAlgorithm) fail("qualified source set uses an unsupported digest algorithm.");
   if (!sha256Pattern.test(sourceSet.sha256 ?? "")) fail("qualified source set must carry a lowercase SHA-256 digest.");
@@ -1030,15 +1171,21 @@ export async function verifyQualifiedSourceSet(register) {
     fail("qualified source set files and trees overlap.");
   }
   const hash = createHash("sha256").update("TEXT_TO_LATTICE_QUALIFIED_SOURCE_SET_V1\0");
+  const files = [];
   for (const entry of expanded) {
     const bytes = await readFile(entry.absolute);
+    files.push({ path: entry.relative, bytes });
     hash.update(`${Buffer.byteLength(entry.relative)}\0${entry.relative}\0${bytes.length}\0`);
     hash.update(bytes);
     hash.update("\0");
   }
   const observed = hash.digest("hex");
   if (observed !== sourceSet.sha256) fail("qualified source-set digest does not match the named activation, runtime, validator, test, license-routing, legal-notice, response-policy, secret-bootstrap, and workflow sources.");
-  return observed;
+  return { sha256: observed, files };
+}
+
+export async function verifyQualifiedSourceSet(register) {
+  return (await readVerifiedQualifiedSourceSet(register)).sha256;
 }
 
 function canonicalJson(value) {
@@ -1157,9 +1304,18 @@ async function verifyQualificationDossier(register) {
     fail("release qualification dossier digest drifted from the release register.");
   }
   const source = bytes.toString("utf8");
+  let historySource = null;
+  if (approvedSourceCarry(register)) {
+    const historyPath = pathWithinRoot(qualificationHistory.path, "qualification history appendix");
+    const metadata = await lstat(historyPath.absolute);
+    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size !== qualificationHistory.bytes) {
+      fail("qualification history appendix must be the pinned regular file.");
+    }
+    historySource = verifyQualificationHistory(register, bytes, await readFile(historyPath.absolute));
+  }
   const artifactSetDigest = digest(Buffer.from(JSON.stringify(canonicalJson(register.artifactSet))));
   const artifacts = register.artifactSet;
-  const artifactClaims = [
+  const activeArtifactClaims = [
     artifacts.activeCapability.status,
     artifacts.activeCapability.route,
     artifacts.activeCapability.method,
@@ -1194,6 +1350,9 @@ async function verifyQualificationDossier(register) {
     artifacts.activeCapability.provider.revisionStatus,
     artifacts.activeCapability.applicationRetention,
     artifacts.activeCapability.providerRetentionBoundary,
+  ];
+  const artifactClaims = [
+    ...activeArtifactClaims,
     artifacts.historicalBrowserLocalArtifacts.status,
     artifacts.historicalBrowserLocalArtifacts.verbatimSha256,
     ...[artifacts.runtime, artifacts.tokenizerRuntime, artifacts.structuredOutputRuntime]
@@ -1238,6 +1397,10 @@ async function verifyQualificationDossier(register) {
     artifacts.llamaBehaviorEvaluation.targetVerifier.modelRepositoryRevision,
     artifacts.llamaBehaviorEvaluation.sha256,
   ];
+  const currentArtifactClaims = historySource === null ? artifactClaims : activeArtifactClaims.map((claim) =>
+    claim === artifacts.activeCapability.providerRetentionBoundary
+      ? claim.split(" Previous Venice disclosure follows verbatim as dated history. ")[0]
+      : claim);
   const gateRows = register.gates.map((gate) => `| ${gate.id} · ${gate.label} | ${machineValueLabel(gate.status)} | ${machineValueLabel(gate.marginalValue)} |`);
   const productionLifecycleGate = register.gates.find(({ id }) => id === "GATE-06");
   for (const required of [
@@ -1245,7 +1408,7 @@ async function verifyQualificationDossier(register) {
     artifactSetDigest,
     register.authority.qualifiedSourceSet.sha256,
     `**Qualification date:** ${register.revision}`,
-    ...artifactClaims,
+    ...currentArtifactClaims,
     ...(register.overallStatus === "held" && register.publicClient?.status === "held"
       ? ["**Decision:** hold the interactive client; publish the method, implementation record, and documentation only."]
       : []),
@@ -1257,6 +1420,13 @@ async function verifyQualificationDossier(register) {
     ...expectedGateIds,
   ]) {
     if (!source.includes(required)) fail(`release qualification dossier omits ${required}.`);
+  }
+  if (historySource !== null) {
+    for (const required of artifactClaims) {
+      if (!source.includes(required) && !historySource.includes(required)) {
+        fail(`release qualification dossier and pinned history omit ${required}.`);
+      }
+    }
   }
   if (!/same-origin `?POST \/api\/lattice`?/iu.test(source)
     || !/application\/vnd\.hah\.text-to-lattice-visitor-session\.v1\+json/u.test(source)
@@ -2553,7 +2723,22 @@ function currentRegisterCopy(publishedBytes, canonicalRegisterBytes) {
   return Buffer.concat([publishedBytes.subarray(0, at), publishedBytes.subarray(at + literal.length)]);
 }
 
-export function verifyEnabledPublicationCopy(relativePath, publishedBytes, canonicalDossierBytes, canonicalRegisterBytes) {
+function datedDossierCurrentBytes(publishedBytes) {
+  const boundary = publishedBytes.indexOf(datedHeldDossierBoundary);
+  if (boundary < 0
+    || publishedBytes.indexOf(datedHeldDossierBoundary, boundary + datedHeldDossierBoundary.length) !== -1
+    || (boundary > 0 && publishedBytes[boundary - 1] !== 10)
+    || !publishedBytes.subarray(boundary, boundary + datedHeldDossierSeparator.length).equals(datedHeldDossierSeparator)) {
+    fail("enabled release dossier must retain its unique exact dated-history boundary.");
+  }
+  const historyBytes = publishedBytes.subarray(boundary + datedHeldDossierSeparator.length);
+  if (historyBytes.length !== datedHeldDossierBytes || digest(historyBytes) !== datedHeldDossierSha256) {
+    fail("enabled release dossier dated history differs from the independently pinned held dossier.");
+  }
+  return publishedBytes.subarray(0, boundary);
+}
+
+export function verifyEnabledPublicationCopy(relativePath, publishedBytes, canonicalDossierBytes, canonicalRegisterBytes, qualificationHistoryBytes) {
   if (!Buffer.isBuffer(publishedBytes)) fail("enabled publication copy must be verified as raw bytes.");
   let currentBytes = publishedBytes;
   if (relativePath === publishedReleaseRegister) {
@@ -2562,18 +2747,16 @@ export function verifyEnabledPublicationCopy(relativePath, publishedBytes, canon
     if (!Buffer.isBuffer(canonicalDossierBytes) || !publishedBytes.equals(canonicalDossierBytes)) {
       fail("enabled release dossier is not byte-identical to its canonical source.");
     }
-    const boundary = publishedBytes.indexOf(datedHeldDossierBoundary);
-    if (boundary < 0
-      || publishedBytes.indexOf(datedHeldDossierBoundary, boundary + datedHeldDossierBoundary.length) !== -1
-      || (boundary > 0 && publishedBytes[boundary - 1] !== 10)
-      || !publishedBytes.subarray(boundary, boundary + datedHeldDossierSeparator.length).equals(datedHeldDossierSeparator)) {
-      fail("enabled release dossier must retain its unique exact dated-history boundary.");
+    const register = Buffer.isBuffer(canonicalRegisterBytes) ? JSON.parse(canonicalRegisterBytes) : null;
+    if (approvedSourceCarry(register)) {
+      verifyQualificationHistory(register, publishedBytes, qualificationHistoryBytes);
+    } else {
+      currentBytes = datedDossierCurrentBytes(publishedBytes);
     }
-    const historyBytes = publishedBytes.subarray(boundary + datedHeldDossierSeparator.length);
-    if (historyBytes.length !== datedHeldDossierBytes || digest(historyBytes) !== datedHeldDossierSha256) {
-      fail("enabled release dossier dated history differs from the independently pinned held dossier.");
-    }
-    currentBytes = publishedBytes.subarray(0, boundary);
+  } else if (relativePath === "documentation/release-evidence/text-to-lattice/qualification-history-2026-11-23.md"
+    && Buffer.isBuffer(canonicalRegisterBytes) && approvedSourceCarry(JSON.parse(canonicalRegisterBytes))) {
+    verifyQualificationHistory(JSON.parse(canonicalRegisterBytes), canonicalDossierBytes, publishedBytes);
+    currentBytes = datedDossierCurrentBytes(publishedBytes);
   }
   if (staleEnabledPublicationPattern.test(currentBytes.toString("utf8"))) {
     fail(`enabled release artifact contains stale held-gate copy in ${relativePath}.`);
@@ -2606,11 +2789,13 @@ async function verifyEnabledBuiltBoundary(site, files) {
     readFile(join(root, canonicalQualificationSource)),
     readFile(join(root, "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json")),
   ]);
+  const qualificationHistoryBytes = approvedSourceCarry(JSON.parse(canonicalRegisterBytes))
+    ? await readFile(join(root, qualificationHistory.path)) : undefined;
   const renderedEvidence = await Promise.all(files
     .filter((path) => [".html", ".json", ".jsonld", ".md", ".txt"].includes(extname(path).toLowerCase()))
     .map(async (path) => [relative(site, path).split("\\").join("/"), await readFile(path)]));
   for (const [path, publishedBytes] of renderedEvidence) {
-    verifyEnabledPublicationCopy(path, publishedBytes, canonicalDossierBytes, canonicalRegisterBytes);
+    verifyEnabledPublicationCopy(path, publishedBytes, canonicalDossierBytes, canonicalRegisterBytes, qualificationHistoryBytes);
   }
 
   const executableEntries = await Promise.all(files
