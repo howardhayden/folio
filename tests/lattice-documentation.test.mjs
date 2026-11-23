@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
+import { relative, sep } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
-import { verifyBrowserEvidenceAuthority, verifyReleaseStatusState, verifyServicePhaseTransport } from "../scripts/verify-text-to-lattice-release.mjs";
+import { qualifiedFilesBelow, verifyBrowserEvidenceAuthority, verifyReleaseStatusState, verifyServicePhaseTransport } from "../scripts/verify-text-to-lattice-release.mjs";
 import { projectDocuments } from "../app/content/projectDocuments.js";
 
 const rootUrl = new URL("../", import.meta.url);
@@ -160,6 +162,8 @@ test("the atlas models the exact current remote phase without promoting historic
     "deploymentEvidenceCheckedBeforeCapturesAt",
     "deploymentEvidenceCheckedAfterCapturesAt",
     "deploymentEvidenceUnchangedAcrossCaptures",
+    ...(releaseState.qualified && releaseRegister.authority.browserEvidence.qualificationExpiresAt === null
+      ? ["qualificationMode"] : []),
   ]);
   if (releaseState.qualified) {
     await verifyBrowserEvidenceAuthority(releaseRegister, releaseState);
@@ -506,14 +510,31 @@ test("interactive editions remain complete, self-contained, accessible, and exec
 });
 
 test("the static site preserves every exported documentation byte", async () => {
-  const filenames = (await readdir(publicRoot)).sort();
-  assert.equal(filenames.length, 14);
+  async function exportedFiles(base) {
+    const root = fileURLToPath(base);
+    const files = await qualifiedFilesBelow(root, "documentation");
+    return files.map((file) => relative(root, file).split(sep).join("/")).sort();
+  }
+
+  const filenames = await exportedFiles(publicRoot);
+  assert.deepEqual(await exportedFiles(siteRoot), filenames);
+  const nestedFiles = filenames.filter((name) => name.includes("/"));
+  assert.equal(filenames.length - nestedFiles.length, 14);
+  if (releaseState.qualified) {
+    const directory = `browser-evidence/${releaseRegister.authority.browserEvidence.evidenceId}/`;
+    const canonical = (await readdir(new URL(directory, sourceRoot))).sort();
+    assert.equal(canonical.length, 5);
+    assert.deepEqual(nestedFiles.filter((name) => name.startsWith(directory)), canonical.map((name) => directory + name));
+  } else {
+    assert.deepEqual(nestedFiles, []);
+  }
   for (const filename of filenames) {
     const [published, staged] = await Promise.all([
       readBytes(publicRoot, filename),
       readBytes(siteRoot, filename),
     ]);
     assert.deepEqual(staged, published, `${filename} survives the public-to-site copy unchanged`);
+    if (filename.startsWith("browser-evidence/")) assert.deepEqual(published, await readBytes(sourceRoot, filename));
   }
 });
 
