@@ -435,10 +435,6 @@ async function boundedServiceEvents(response, signal, onServicePhase) {
     declaredResponseLength(response);
     if (!response.body || typeof response.body.getReader !== "function"
       || typeof TextDecoder !== "function") throw invalidResponse(response.status);
-    // Chromium can report a streamed fetch as canceled after the reader reaches EOF.
-    // Cloning the Response preserves its native completion event. Discard the extra
-    // branch immediately so only the original consumes the phase and result bytes.
-    if (typeof response.clone === "function") cancelReadable(response.clone().body);
     reader = response.body.getReader();
   } catch (cause) {
     cancelReadable(response.body);
