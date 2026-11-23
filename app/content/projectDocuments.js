@@ -61,9 +61,11 @@ export function documentsForProject(projectId) {
 const serviceSource = "https://github.com/howardhayden/folio/blob/a47ca0557d3678f5e5c64f8d5a9bc8e433b43b39/";
 const browserBundle = documentationRoot + "browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE";
 
+export const latticeApiOverview = "Text to Lattice starts with ordinary prose. Qwen identifies what the passage says and drafts a rewrite. Llama compares that draft with the source, while server code checks details such as quantities and protected quotations. A copied passage fails when a rewrite is required. Returning the original takes a separate decision that its wording already fits.";
+
 export const latticeReadingGuide = {
   updated: PROJECT_DOCUMENTS_UPDATED,
-  introduction: "The Lattice engine evaluates candidate wording against meaning supplied by the caller. Text to Lattice is a separate hosted service that starts with ordinary prose, proposes a rewrite, and checks whether it preserves the passage’s meaning.",
+  introduction: "The Lattice engine starts with a meaning contract supplied by its caller. The hosted Text to Lattice API starts with prose, so it has to infer what a rewrite must preserve. One model drafts, another compares the draft with the source, and server code decides which result the reader can see.",
   projectUrl: "https://hah.dev/projects/lattice/",
   documentationUrl: documentationRoot + "index.html",
   evidenceUrl: documentationRoot + "evidence.html",
@@ -80,10 +82,23 @@ export const latticeReadingGuide = {
     {
       id: "text-to-lattice-api",
       name: "Text to Lattice API",
-      emphasis: ["Let visitors try a register change on a short passage and compare the result with their original.", "Give visitors control over external processing and bound the cost of each request."],
-      capabilities: ["Accept prose after confirmation, infer its meaning, and send drafting and review to designated models.", "Check the proposed wording, return a translation or an already-suitable result, and withhold drafts that fail review."],
-      technologies: ["Cloudflare Workers and Durable Objects", "Same-origin HTTP API", "Hugging Face via OpenRouter", "Qwen on DeepInfra", "Llama on CoreWeave"],
-      evidence: ["service-path", "admission-and-consent", "browser-results", "production-publication"],
+      emphasis: [
+        "Preserve the force of the original. Changing “may” to “must” can alter an obligation even when every name and number survives.",
+        "Give drafting and acceptance to different components. A fluent rewrite earns its way back to the reader through checks against the source.",
+        "Make external processing a deliberate choice. The application keeps passage text out of storage and logs, and bounds the inference work a submission can start.",
+      ],
+      capabilities: [
+        "Check quantities, URLs and protected quotations in code. A separate model reviews obligations and relationships that literal matching can miss.",
+        "Send a failed draft back with specific feedback, then check the revised wording again. A document-level review checks across passages when their relationship or the proposed outcome calls for it.",
+        "Return a checked rewrite, affirm that the original already fits, label a draft that needs human review, or withhold the text when required checks fail.",
+        "Show the server’s current phase in the terminal and diagram. The browser waits for a complete result before displaying output.",
+      ],
+      technologies: [
+        "A same-origin Cloudflare Worker handles consented requests and keeps provider credentials on the server. A Durable Object coordinates daily admissions across visitors.",
+        "Hugging Face routes through OpenRouter to Qwen on DeepInfra for analysis and drafting, and to Llama on CoreWeave for verification and document certification.",
+        "A single HTTP response carries numbered, content-free phase updates followed by the terminal result or error.",
+      ],
+      evidence: ["service-path", "repair-and-outcomes", "server-progress", "admission-and-consent", "browser-results", "production-publication"],
     },
   ],
   evidence: [
@@ -100,14 +115,26 @@ export const latticeReadingGuide = {
       sources: [{ label: "Public concept map, decision record", url: documentationRoot + "lattice-concept-map.html#lat-n-017" }, { label: "Public skill map, host responsibilities", url: documentationRoot + "lattice-skill-map.html#lat-sk-10" }],
     },
     {
-      id: "service-path", subject: "text-to-lattice-api", title: "The service infers meaning from visitor prose",
-      observation: "After confirmation, the browser sends the passage to hah.dev. The Worker uses Qwen to analyze and draft, deterministic checks to screen the draft, and Llama to review it. A failed check can withhold the result. The hosted service implements its own inference pipeline.",
+      id: "service-path", subject: "text-to-lattice-api", title: "Separate drafting from acceptance",
+      observation: "Qwen analyzes the source and proposes wording. Server code checks protected details such as quantities, URLs and quoted dialogue. Llama compares the passage and candidate for changes in meaning. When the document needs certification, the service checks the assembled text as a whole.",
       kind: "implementation",
-      sources: [{ label: "Deployed Worker source", url: serviceSource + "workers/text-to-lattice-api/worker.js" }, { label: "Inference and review adapter", url: serviceSource + "workers/text-to-lattice-api/huggingFaceAdapter.js" }, { label: "Review and classification", url: documentationRoot + "text-to-lattice-service-blueprint.html#bp-07" }],
+      sources: [{ label: "Checks on protected details", url: serviceSource + "app/resume/lattice/validators.js#L661-L845" }, { label: "Document certification decision", url: serviceSource + "app/resume/latticeDemo.js#L2454-L2482" }, { label: "Service blueprint, review and classification", url: documentationRoot + "text-to-lattice-service-blueprint.html#bp-07" }],
+    },
+    {
+      id: "repair-and-outcomes", subject: "text-to-lattice-api", title: "A copied draft and an accepted original have different outcomes",
+      observation: "A repair that merely copies the source fails when a rewrite is required. A separately reviewed original can pass if its wording already fits. A changed draft can be shown for human review when safety and meaning checks pass but issues such as clarity or register remain. A failed required check can leave the reader with no candidate text.",
+      kind: "implementation-and-tests",
+      sources: [{ label: "Four result states and their conditions", url: serviceSource + "app/resume/latticeDemo.js#L3251-L3288" }, { label: "Rechecking a revised candidate", url: serviceSource + "app/resume/latticeDemo.js#L4036-L4073" }, { label: "Copied repair and real repair compared in tests", url: serviceSource + "tests/lattice-api-worker.test.mjs#L9870-L9886" }, { label: "Retained-original certification test", url: serviceSource + "tests/lattice-demo.test.mjs#L2887-L2940" }],
+    },
+    {
+      id: "server-progress", subject: "text-to-lattice-api", title: "The terminal follows real server work",
+      observation: "The Worker reports named phases such as drafting, verification and repair over the original request. Phase updates carry no passage text. The client waits for the terminal result and the end of the response. An interrupted response cannot turn a progress indication into an accepted rewrite.",
+      kind: "protocol-and-tests",
+      sources: [{ label: "Worker phase and terminal records", url: serviceSource + "workers/text-to-lattice-api/worker.js#L1174-L1247" }, { label: "Client completion check", url: serviceSource + "app/resume/lattice/remoteRequest.js#L451-L502" }, { label: "Streaming success, error and cancellation tests", url: serviceSource + "tests/lattice-service-telemetry-worker.test.mjs" }],
     },
     {
       id: "admission-and-consent", subject: "text-to-lattice-api", title: "Consent and admission bound each submission",
-      observation: "Until the visitor confirms external processing, typing stays in the browser. Ordinary service admits 30 transformations globally and three per cooperating browser cookie jar each UTC day. The external services apply their own data-handling terms.",
+      observation: "Typing stays local until the visitor confirms external processing. The application stores content-free usage counters. Ordinary service admits up to 30 requests globally and three per cooperating browser cookie jar each UTC day. Each admission allows up to 32 logical provider calls, including repair and review. Provider processing terms apply to the passage itself.",
       kind: "policy-and-implementation",
       sources: [{ label: "API contract and processing terms", url: "https://hah.dev/projects/lattice/text-to-lattice/" }, { label: "Production admission policy", url: serviceSource + "workers/text-to-lattice-api/capacityPolicy.js" }, { label: "Consent boundary", url: documentationRoot + "text-to-lattice-security-model.html#sec-01" }],
     },
@@ -127,7 +154,7 @@ export const latticeReadingGuide = {
   documents: [
     { id: "lattice-concept-map", subject: "lattice-method", question: "What must a rewrite preserve?", answer: "Compare a direct request to return a key by Friday with a more courteous version. The tone may change. The action and deadline must survive. The public map explains how a caller states those requirements.", evidence: ["meaning-contract"], sections: [{ id: "lat-n-002", label: "Meaning contract" }, { id: "lat-n-003", label: "Semantic atoms" }, { id: "lat-n-017", label: "Derivation receipt" }] },
     { id: "lattice-skill-map", subject: "lattice-method", question: "What can the engine decide?", answer: "The caller supplies the intended meaning. The engine assesses proposed wording and returns a decision record. Follow the public skill map to see which judgments still belong to the host.", evidence: ["selection"], sections: [{ id: "lat-sk-01", label: "Meaning and relations" }, { id: "lat-sk-05", label: "Deterministic selection" }, { id: "lat-sk-10", label: "Host responsibilities" }] },
-    { id: "text-to-lattice-service-blueprint", subject: "text-to-lattice-api", question: "What happens after I submit?", answer: "The visitor confirms processing. The Worker checks admission, asks Qwen to analyze and draft, then checks the result with Llama. The terminal presents an accepted outcome or explains that the service withheld it.", evidence: ["service-path", "browser-results"], sections: [{ id: "bp-04", label: "Admission" }, { id: "bp-06", label: "Drafting and checks" }, { id: "bp-07", label: "Review and outcome" }] },
+    { id: "text-to-lattice-service-blueprint", subject: "text-to-lattice-api", question: "What happens after I submit?", answer: "Follow one submission from consent to a terminal result. Qwen drafts, server code checks protected details, and Llama compares the candidate with the source. A repair must pass review on its own wording. The reader receives a checked rewrite, a checked original, a labeled review draft, or an explanation that the text was withheld.", evidence: ["service-path", "repair-and-outcomes", "server-progress", "browser-results"], sections: [{ id: "bp-04", label: "Admission" }, { id: "bp-06", label: "Drafting and checks" }, { id: "bp-07", label: "Review and outcome" }] },
     { id: "text-to-lattice-security-model", subject: "text-to-lattice-api", question: "Where does my passage go, and what bounds the risk?", answer: "Typing stays local until confirmation. hah.dev then sends the passage through Hugging Face and OpenRouter to the named providers. Admission limits constrain work, the application avoids storing passage content, and a hard reload clears the visitor’s text.", evidence: ["admission-and-consent", "browser-results"], sections: [{ id: "sec-01", label: "Consent and destinations" }, { id: "sec-04", label: "Resource bounds" }, { id: "sec-07", label: "Content retention" }] },
   ],
 };

@@ -2060,8 +2060,8 @@ test("active deployment selection binds the deploy JSONL before and after unchan
 test("the one approved editorial publication builds Pages without starting a service or held rollback", async () => {
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
   const context = workflowGuardContext({ event: "push", phase: "qualified", results: { build: "success" } });
-  context.github.event.before = "784cc7c62f20a073986bae09a174ca688fb6608f";
-  context.github.event.head_commit.message = "Publish documentation [lattice-docs-20261123]";
+  context.github.event.before = "da885106687e8a8428dce063f6915bb2b3668c5b";
+  context.github.event.head_commit.message = "Publish documentation [lattice-architecture-20261123]";
   context.needs["publication-boundary"].outputs.documentation_only = "true";
   assert.equal(workflowJobGuard(workflow, "deploy_text_to_lattice_services", context), false);
   assert.equal(workflowJobGuard(workflow, "deploy", context), true);

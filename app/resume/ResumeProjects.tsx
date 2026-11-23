@@ -958,7 +958,7 @@ export default function ResumeProjects() {
 
           <div className="lattice-modal-introduction">
             <p id="lattice-demo-description" className="lattice-modal-description">
-              Enter up to {LATTICE_WORD_LIMIT} words. Meaning remains binding; register may change.
+              Enter up to {LATTICE_WORD_LIMIT} words. One model drafts and another checks the meaning against your source. Follow their progress in the terminal. It can show a rewrite, keep your original, flag a draft for review, or explain why it withheld the text.
             </p>
             <details className="lattice-disclosure">
               <summary id="lattice-processing-summary">External processing, privacy and limits</summary>

@@ -23,7 +23,16 @@ function LatticeSection({ field }: { field: "emphasis" | "capabilities" | "techn
     <section key={subject.id} aria-labelledby={`${subject.id}-${field}`}>
       <h3 id={`${subject.id}-${field}`}>{subject.name}</h3>
       <ul>{subject[field].map((item) => <li key={item}>{item}</li>)}</ul>
-      {field === "capabilities" ? <p><a href={`${latticeReadingGuide.evidenceUrl}#${subject.id}`}>Evidence for {subject.name}</a></p> : null}
+      {field === "capabilities" ? (
+        <p>
+          {subject.id === "text-to-lattice-api" ? (
+            <>
+              <a href={`${latticeReadingGuide.evidenceUrl}#repair-and-outcomes`}>How the service decides what to return</a>
+              {" · "}<a href={`${latticeReadingGuide.evidenceUrl}#browser-results`}>What Safari and Brave returned</a>
+            </>
+          ) : <a href={`${latticeReadingGuide.evidenceUrl}#meaning-contract`}>Compare a change of tone with a change of meaning</a>}
+        </p>
+      ) : null}
     </section>
   ));
 }
