@@ -4,10 +4,10 @@
   "revision": "2026-11-23",
   "overallStatus": "qualified",
   "executiveAssessment": {
-    "readiness": "The site owner has qualified Text to Lattice for public use on short, non-sensitive passages.",
+    "readiness": "Text to Lattice is qualified for short, non-sensitive passages using the accepted Safari and Brave evidence and the approved source comparison.",
     "blockingIssue": null,
-    "operatingRisk": "Providers can refuse work and a checked result can still change the author's meaning.",
-    "direction": "Publish after the final production service check and keep ordinary consent and capacity controls in force."
+    "operatingRisk": "Providers can refuse work, checked wording can change meaning, and a one-off application usage reset permits additional work beyond the usual daily allowance.",
+    "direction": "Confirm external processing, review each result, and withdraw the converter if consent, privacy, admission or result clearing fails."
   },
   "operationalAssessment": {
     "mission": "Let a visitor try a change of register while preserving control over disclosure and limiting the cost of the demonstration.",
@@ -33,10 +33,81 @@
       "admissionsPerCooperatingCookieJarPerUtcDay": 3,
       "providerCallsPerAdmission": 32,
       "maximumProviderCallsFromDailyAdmissions": 960,
-      "costDecision": "Limit admitted work and stop after a failed request. Run 736 used five provider calls at an estimated USD 0.0062 for that passage. Actual charges depend on tokens and current rates."
+      "costDecision": "Limit admitted work and stop after a failed request. Run 736 used five provider calls at an estimated USD 0.0062 for that passage. Actual charges depend on tokens and current rates.",
+      "oneOffResetCapacity": "The one application usage reset allows up to 30 further global admissions before the next UTC-day reset, with the ordinary three-per-cooperating-cookie-jar limit in that reset ledger. Earlier usage and any provider charges remain separate from the reset."
     },
     "response": "A provider refusal ends the request without exposing a rejected draft. If consent, privacy, admission or result clearing fails, the maintainer withdraws the converter, verifies the held API and public page, and requalifies the affected behavior.",
-    "currency": "Update the release decision when the route, quota, consent boundary, browser behavior or evidence changes."
+    "currency": "Update the release decision when the route, quota, consent boundary, browser behavior or evidence changes.",
+    "publicationDecision": {
+      "qualification": "passed",
+      "ownerDecision": "One application usage reset followed by one additional ordinary deployment, preserving the accepted browser evidence and all ordinary limits.",
+      "applicationUsageReset": {
+        "authorization": "owner-approved-one-off",
+        "status": "completed-and-read-back",
+        "operation": "text-to-lattice-ordinary-usage-2026-11-23-after-740",
+        "appliedAt": "2026-11-23T19:56:38.482Z",
+        "namespace": "1427646ecd3a43a6aa4fdf21a419675b",
+        "singleton": "text-to-lattice-transformation-budget-v1",
+        "before": {
+          "ordinary": 30,
+          "qualificationExcess": 0,
+          "ordinaryKeyPresent": true,
+          "excessKeyPresent": false,
+          "alarm": 1795478400000
+        },
+        "after": {
+          "ordinary": 0,
+          "qualificationExcess": 0,
+          "ordinaryKeyPresent": false,
+          "excessKeyPresent": false,
+          "alarm": null
+        },
+        "readback": {
+          "ordinary": 0,
+          "qualificationExcess": 0,
+          "ordinaryKeyPresent": false,
+          "excessKeyPresent": false,
+          "alarm": null
+        },
+        "evidence": {
+          "path": "docs/release-evidence/text-to-lattice/application-usage-reset-2026-11-23.json",
+          "bytes": 624,
+          "sha256": "038c8986a3eeec5d44f3ad08d1119a9134449e98d6b6ae13351712ead6db2a04"
+        }
+      },
+      "ordinaryDeployment": "The workflow publishes the interactive page only after its ordinary production request succeeds.",
+      "finalProductionReceipt": "https://github.com/howardhayden/folio/pull/249",
+      "normalGlobalDailyLimit": 30,
+      "normalPerCooperatingCookieJarDailyLimit": 3,
+      "providerCallsPerAdmission": 32,
+      "extraCapacityBoundary": "The one application usage reset allows up to 30 further global admissions before the next UTC-day reset, with the ordinary three-per-cooperating-cookie-jar limit in that reset ledger. Earlier usage and any provider charges remain separate from the reset.",
+      "monetaryCeiling": false,
+      "subsequentPublicationHistory": "https://github.com/howardhayden/folio/deployments/github-pages"
+    },
+    "priorPublicationDecision740": {
+      "qualification": "passed",
+      "lastOrdinaryPublication": "held",
+      "evidenceRun": "https://github.com/howardhayden/folio/actions/runs/45220488480",
+      "ordinaryServiceRequestHttpStatus": 429,
+      "ordinaryServiceRequestResult": "rate_limited",
+      "providerInvocationOnFailedRequest": "unobserved",
+      "interactivePagesPublished": false,
+      "heldApiVerifiedAt": "2026-11-23T16:53:06.132Z",
+      "confirmedPriorAdmissionsOnSameUtcDay": {
+        "service": 14,
+        "native": 18,
+        "minimum": 32
+      },
+      "ordinaryGlobalDailyLimit": 30,
+      "nextUtcDay": "2026-11-24T00:00:00Z",
+      "releaseOwnerDecision": "Keep consent, the daily quotas and the accepted browser evidence. Use an ordinary production check on fresh capacity.",
+      "subsequentPublicationHistory": "https://github.com/howardhayden/folio/deployments/github-pages",
+      "observationsThrough": "2026-11-23T16:54:35.837343Z",
+      "publicProjectPageHeldObservedAt": "2026-11-23T16:54:35.837343Z",
+      "nextCheckAuthorization": "awaiting an additional ordinary deployment decision",
+      "capacityAssessment": "At least 32 requests were admitted under the same configuration. Treat ordinary capacity as spent until reset. The public response does not identify which limiter replied.",
+      "claimBoundary": "Dated original refusal and held observations. Daily exhaustion is conditional on stored-state continuity; the public 429 does not identify its originating layer."
+    }
   },
   "evidenceAppendix": {
     "readingOrder": "Original browser captures, source comparison and prior release decisions. The authority objects below retain the exact identities and policy evidence used by the verifier.",
@@ -55,7 +126,8 @@
       "sha256": "031425b388f1448473c09129690c25de89c7c1337bae3ee54d9dc6ad796cc0da"
     },
     "originalG06Decision": "https://github.com/howardhayden/folio/blob/546c194a84a015c8d027b62ec20be8b9157ce8df/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
-    "sourceComparison": "docs/release-evidence/text-to-lattice/run-729-source-comparison.json"
+    "sourceComparison": "docs/release-evidence/text-to-lattice/run-729-source-comparison.json",
+    "ordinaryReleaseAttempt": "https://github.com/howardhayden/folio/actions/runs/45220488480"
   },
   "qualificationScope": "Safari and Brave supplied the canonical-browser traces for the qualified remote capability. The current production evidence carries those original results through the release owner's one-time source comparison. The last pulled hah.dev deployment and ancestry baseline are recorded in the evidence appendix. The earlier browser-local implementation is historical and inactive.",
   "publicClient": {
@@ -83,9 +155,9 @@
     "status": "release-directed",
     "owner": "site owner",
     "decidedOn": "2026-11-23",
-    "record": "The site owner accepted the Safari and Brave results and the comparison with the captured source. Ordinary publication is authorized subject to a successful final production service check.",
-    "note": "The site owner accepts intermittent upstream refusal and limited output fidelity for a consent-based demonstrator. A failed privacy or admission boundary requires taking the converter offline.",
-    "qualifiedSourceSetSha256": "e9816048c1b14bb73c60e1eff5d1b863d1dfd8d7ce958210b4c170f67bd286e0"
+    "record": "The site owner accepted original run729 Safari and Brave evidence, the exact four-file source comparison, and one application usage reset followed by one additional ordinary publication attempt. Publication still requires its successful ordinary service check.",
+    "note": "The completed one-off reset permits extra ordinary capacity with the 30/3 policy unchanged. Actual usage and rates determine charges. Intermittent upstream refusal and limited output fidelity remain accepted demonstrator risks. Privacy or admission failure requires withdrawal.",
+    "qualifiedSourceSetSha256": "249dd9bf692d7a67f2b3ec99006aa07acfd78f13db8c6f0e2081ac4c17f607bf"
   },
   "implementationBaselineRevision": "b211964213cd49e8335a73bcbebce3221c3a6bc2",
   "statusVocabulary": [
@@ -100,7 +172,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "dac365998c805036d23edc5c90930125bf177bafedf2012895746906af9d0162",
+    "qualificationDossierSha256": "feb11dd422750fce87cbda335d668556caf19e76abc32a0e16b62b171910d9d4",
     "browserEvidence": {
       "status": "verified-sanitized-bundle",
       "path": "docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json",
@@ -173,7 +245,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "e9816048c1b14bb73c60e1eff5d1b863d1dfd8d7ce958210b4c170f67bd286e0",
+      "sha256": "249dd9bf692d7a67f2b3ec99006aa07acfd78f13db8c6f0e2081ac4c17f607bf",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, controlling Owner terms and baseline record, license-routing map, package metadata, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -184,13 +256,13 @@
       "authorization": "owner-approved-one-release-729",
       "capturedCommit": "6166a3f430338331ca3f0336450e500571cbb896",
       "capturedSourceSetSha256": "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
-      "currentSourceSetSha256": "e9816048c1b14bb73c60e1eff5d1b863d1dfd8d7ce958210b4c170f67bd286e0",
+      "currentSourceSetSha256": "249dd9bf692d7a67f2b3ec99006aa07acfd78f13db8c6f0e2081ac4c17f607bf",
       "evidenceId": "ttl-browser-20261123T143941Z-a495af12",
       "evidenceSha256": "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
       "proof": {
         "path": "docs/release-evidence/text-to-lattice/run-729-source-comparison.json",
-        "bytes": 366981,
-        "sha256": "3700c2ad857c9430851a701e8e530a12f6d21755aa13262c439b04e48af69fb7"
+        "bytes": 385077,
+        "sha256": "4e9b704777338e1e289451a7901bfae7d3f2499c63cedadf9e16c95879a774f5"
       }
     }
   },

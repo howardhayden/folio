@@ -909,7 +909,13 @@ const sourceCarryCapture = Object.freeze({
   evidenceSha256: "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
   proofPath: "docs/release-evidence/text-to-lattice/run-729-source-comparison.json",
 });
+const sourceCarryEditorialPage = Object.freeze({
+  path: "app/projects/lattice/text-to-lattice/page.tsx",
+  beforeSha256: "1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8",
+  afterSha256: "08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870",
+});
 const sourceCarryExceptions = Object.freeze({
+  [sourceCarryEditorialPage.path]: sourceCarryEditorialPage.beforeSha256,
   "scripts/verify-text-to-lattice-release.mjs": "e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a",
   "tests/lattice-documentation.test.mjs": "66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e",
   "tests/lattice-release-boundary.test.mjs": "7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114",
@@ -1002,7 +1008,7 @@ export function verifyBrowserEvidenceSourceCarry(register, record, files, proofB
   if (sourceFingerprint(files) !== carry.currentSourceSetSha256) fail("source carry current source fingerprint differs.");
   if (!Array.isArray(proof.exceptions)
     || JSON.stringify(proof.exceptions.map((entry) => entry?.path)) !== JSON.stringify(Object.keys(sourceCarryExceptions))) {
-    fail("source carry requires exactly the three approved file exceptions.");
+    fail("source carry requires exactly the four approved file exceptions.");
   }
   const originals = new Map();
   for (const entry of proof.exceptions) {
@@ -1012,6 +1018,11 @@ export function verifyBrowserEvidenceSourceCarry(register, record, files, proofB
       || !sha256Pattern.test(entry.afterSha256 ?? "") || digest(current.bytes) !== entry.afterSha256
       || entry.afterSha256 === entry.beforeSha256 || typeof entry.beforeBase64 !== "string"
       || entry.beforeBase64.length > 524288) fail("source carry exception must bind exact approved before and after bytes.");
+    if (entry.path === sourceCarryEditorialPage.path
+      && (entry.afterSha256 !== sourceCarryEditorialPage.afterSha256
+        || digest(current.bytes) !== sourceCarryEditorialPage.afterSha256)) {
+      fail("source carry editorial page must match the frozen owner-approved after bytes.");
+    }
     const before = Buffer.from(entry.beforeBase64, "base64");
     if (before.toString("base64") !== entry.beforeBase64 || digest(before) !== entry.beforeSha256) {
       fail("source carry original beforeimage is not exact canonical bytes.");

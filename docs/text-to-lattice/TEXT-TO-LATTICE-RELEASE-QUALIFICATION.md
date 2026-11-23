@@ -1,12 +1,20 @@
 # Text to Lattice release qualification — qualified
 
-Text to Lattice is qualified for public use on short, non-sensitive passages. Safari and Brave closed the final release gate by showing that a visitor could consent, receive a checked result and clear it on reload. Publish the converter after its final production service check, with daily admission limits in force.
+Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave cleared the visitor path, and the site owner accepts occasional provider refusal and imperfect wording. Confirm external processing and compare the result with your original before relying on it.
+
+## One-off capacity decision
+
+The owner approved one application usage reset followed by one additional ordinary deployment. At 19:56:38 UTC on November 23, the application’s ordinary count changed from 30 to 0 and qualification excess remained at 0. A separate readback found both usage keys absent and the charged-day alarm cleared.
+
+This one-off reset permits up to 30 further global admissions before the next UTC-day reset, with the ordinary three-per-cooperating-cookie-jar limit in the reset ledger. Earlier usage and any provider charges remain separate from the reset. The 30/3 admission rules, 32-call request bound, consent and refusal behavior remain in force. Actual tokens and rates determine the bill.
+
+Each ordinary publication must pass its own production service check before interactive Pages are published. The accepted Safari and Brave traces and the dated Firefox checks retain their existing scopes. The exact reset operation and original evidence are recorded in the appendix.
 
 ## What decided the release
 
 Earlier windows exposed two different failure modes. An unavailable provider could stop a request before review. When a draft changed meaning or failed certification, the service withheld it. Those outcomes justified an explicit refusal in the interface and a check on the actual visitor path.
 
-Both browsers completed that path on the same deployment. Safari returned a translation and focused the output after 18 ms. Brave found the wording already suitable for its context and focused it after 52 ms. Each sent one content-free setup request and one request containing the passage. After a hard reload, each showed an empty input and output. The earlier backend qualification and fourteen Firefox input checks stand.
+Both browsers completed that path on the same deployment. Safari returned a translation and focused the output 18 ms after response completion. Brave found the wording already suitable for its context and focused it 52 ms after response completion. Each sent one content-free setup request and one request containing the passage. After a hard reload, each showed an empty input and output. The earlier backend qualification and fourteen Firefox input checks stand.
 
 The site owner accepted the original browser evidence after a file-by-file comparison with the release candidate. Repeating the browser cases would exercise the same converter and spend additional public capacity. The fingerprints, original traces and approved differences are in the appendix.
 
@@ -14,7 +22,7 @@ The site owner accepted the original browser evidence after a file-by-file compa
 
 **The site owner accepts intermittent refusals and imperfect wording for this demonstrator.** Use a short passage you are entitled to share, then compare the result with your original before relying on it. Typing stays local until you confirm external processing. Hugging Face routes the passage through OpenRouter to DeepInfra for drafting and CoreWeave for review. hah.dev keeps no copy of your passage or result. The external services apply their own processing and retention terms.
 
-**The owner limits the work a visitor can initiate.** Ordinary production admits 30 transformations globally per UTC day and 3 per cooperating browser cookie jar per UTC day. A request can use at most 32 provider calls, so the global limit admits up to 960 call opportunities per UTC day. A later service check took 8.49 seconds and five calls, with an estimated token cost of about $0.0062 for that passage. The budget limits work, and the bill depends on actual tokens and rates.
+**The owner limits the work a visitor can initiate.** Ordinary production admits 30 transformations globally per UTC day and 3 per cooperating browser cookie jar per UTC day. A request can use at most 32 provider calls, so the ordinary daily allowance admits up to 960 call opportunities. The one-off reset above permits additional work that day. A later service check took 8.49 seconds and five calls, with an estimated token cost of about $0.0062 for that passage. The budget limits work, and the bill depends on actual tokens and rates.
 
 **The maintainer withdraws the converter if consent, privacy, admission or result clearing fails.** A routine upstream refusal ends the individual request. The maintainer verifies both the API and public page when restoring held service and reassesses the affected behavior before publication resumes.
 
@@ -28,7 +36,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `e9816048c1b14bb73c60e1eff5d1b863d1dfd8d7ce958210b4c170f67bd286e0`
+**Qualified source-set SHA-256:** `249dd9bf692d7a67f2b3ec99006aa07acfd78f13db8c6f0e2081ac4c17f607bf`
 
 **Artifact-set projection SHA-256:** `58e9c64506ecb739ca2a5b6a5dbf142d988fc95e9178115e0f2bed9dd120b644`
 
@@ -58,6 +66,17 @@ These are the register’s current capability values, including the exact reques
 - Application handling is recorded as “no application storage, raw-content logs, cache, queue, or analytics for source, prompts, candidates, raw provider bodies, or results”.
 - Hugging Face, OpenRouter, DeepInfra and CoreWeave process submitted text after confirmation. DeepInfra describes deletion of ordinary inputs and outputs after inference. Its terms allow temporary in-memory caching, operational metadata, and legal or elected-feature exceptions. With written authorization, DeepInfra may retain data to resolve a support issue. It deletes that data within 30 days after resolving the issue. OpenRouter can retain metadata, categorize prompts and retain content for safety or legal reasons. Its settings for the Hugging Face route are unknown. CoreWeave describes zero retention by default. Tracing settings for this route are unknown.
 
+### Current-to-captured source comparison
+
+The comparison covers the same 267 qualified paths: 263 files are byte-identical and the following four are the exact approved exceptions. The current fingerprint is `249dd9bf692d7a67f2b3ec99006aa07acfd78f13db8c6f0e2081ac4c17f607bf`. The original captured fingerprint remains `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The proof at `docs/release-evidence/text-to-lattice/run-729-source-comparison.json` is 385,077 bytes with SHA-256 `4e9b704777338e1e289451a7901bfae7d3f2499c63cedadf9e16c95879a774f5` and retains each original beforeimage.
+
+| Qualified path | Captured SHA-256 | Current SHA-256 |
+| --- | --- | --- |
+| `app/projects/lattice/text-to-lattice/page.tsx` | `1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8` | `08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870` |
+| `scripts/verify-text-to-lattice-release.mjs` | `e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a` | `ac11a08bf74a16cd1a6d3b4f5182284ffe8a86338dcd7762b6d72300dea8f1dc` |
+| `tests/lattice-documentation.test.mjs` | `66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e` | `5dd1cd6df10b6b041d35c085320069444e83278d6100b35a9ab41146870fe689` |
+| `tests/lattice-release-boundary.test.mjs` | `7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114` | `4c222018f4cce028f4a112f0fe809be68abff8089ef2f0bd06d1dbeaab62a27c` |
+
 ### Captured identity and five immutable files
 
 | Typed evidence field | Original value |
@@ -84,9 +103,17 @@ These are the register’s current capability values, including the exact reques
 The Pages workflow resolves the current main branch and requires its exact commit to equal `GITHUB_SHA` at its publication boundaries. An unreadable main ref and a stale workflow commit fail closed. The archive also preserves the earlier production qualification for commit `a9b1db818dc7bb87b5bee16d0e168bf17d130185`. [Historical workflow run](https://github.com/howardhayden/folio/actions/runs/34320931448).
 
 - [Run #729: accepted Safari and Brave pair](https://github.com/howardhayden/folio/actions/runs/45188974550) and [run #730: ordered held restoration](https://github.com/howardhayden/folio/actions/runs/45194346668). The API was verified held at `2026-11-23T14:27:52.607Z`, followed by held Pages at `2026-11-23T14:28:59.464Z`.
-- [Run #736: later successful service canary](https://github.com/howardhayden/folio/actions/runs/45213457190) on commit `b211964213cd49e8335a73bcbebce3221c3a6bc2`. Its original `qualification-usage.json` is 2,067 bytes, SHA-256 `0c9acf89a6d41a0570395358748d2b03a3d6ea768313d8b617f9cc7691abe873`; its `live-boundary.json` SHA-256 is `a4dedb5694d5c070303b974624e3ecc1686da45bbe8e7cf9bab76288e0242112`. Generator usage was 3,040 prompt / 148 completion tokens; review usage was 7,767 prompt / 164 completion tokens. The dated input/output rates in USD per million tokens were 0.135 / 0.825 for generation and 0.71 / 0.71 for review.
-- [Run #737: ordered held restoration](https://github.com/howardhayden/folio/actions/runs/45214683657). The original API verification at `2026-11-23T16:17:27.794Z` preceded held Pages verification at `2026-11-23T16:18:59.855Z`; both required jobs succeeded. This closes that qualification opportunity without adding a browser trace.
+- [Run #736: later successful service canary](https://github.com/howardhayden/folio/actions/runs/45213457190) on commit `b211964213cd49e8335a73bcbebce3221c3a6bc2`. Its original `qualification-usage.json` is 2,067 bytes with SHA-256 `0c9acf89a6d41a0570395358748d2b03a3d6ea768313d8b617f9cc7691abe873`. Its `live-boundary.json` SHA-256 is `a4dedb5694d5c070303b974624e3ecc1686da45bbe8e7cf9bab76288e0242112`. Generation used 3,040 prompt and 148 completion tokens. Review used 7,767 prompt and 164 completion tokens. The dated input/output rates in USD per million tokens were 0.135 / 0.825 for generation and 0.71 / 0.71 for review.
+- [Run #737: ordered held restoration](https://github.com/howardhayden/folio/actions/runs/45214683657). The original API verification at `2026-11-23T16:17:27.794Z` preceded held Pages verification at `2026-11-23T16:18:59.855Z`. Both jobs succeeded. This closes that qualification opportunity without adding a browser trace.
+
+The [final ordinary attempt](https://github.com/howardhayden/folio/actions/runs/45220488480) returned HTTP 429 at 16:52 UTC. The workflow verified the held API at 16:52:37 and again at 16:53:06 UTC. Interactive Pages publication was skipped. The ordinary error identifies a rate limit. Several layers can return that response.
 
 **Technical history:** The exact preceding dossier is preserved at repository path `../release-evidence/text-to-lattice/qualification-history-2026-11-23.md` and can be read in the [immutable original dossier at b211964213cd49e8335a73bcbebce3221c3a6bc2](https://github.com/howardhayden/folio/blob/b211964213cd49e8335a73bcbebce3221c3a6bc2/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md). Its 708,796 bytes have SHA-256 `097d59a7779e108788e7d489a6f8123ae03dd92f3909792dc79ae4818a9e7593`. That archive retains the prior run logs and history links, earlier decisions and provider selections, backend #501 and Firefox #479 records, and the historical inactive WebLLM and lease appendix. Those dated records remain historical evidence, not active routes or new observations.
 
 The [previous machine register](https://github.com/howardhayden/folio/blob/b211964213cd49e8335a73bcbebce3221c3a6bc2/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json) preserves the complete pre-release decision history.
+
+**Prior operational station:** The [qualification account after run #740](https://github.com/howardhayden/folio/blob/f4c24f15050278ae6e94de4ac31e6576fc9d345b/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md) and [its machine register](https://github.com/howardhayden/folio/blob/f4c24f15050278ae6e94de4ac31e6576fc9d345b/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json) preserve that dated public hold and then-current decision. The original 429 remains a rate refusal with an unidentified originating layer. At least 32 authenticated earlier admissions support daily exhaustion only under continuity of the same stored ledger.
+
+**Completed application usage reset:** Operation `text-to-lattice-ordinary-usage-2026-11-23-after-740` was applied at `2026-11-23T19:56:38.482Z` to namespace `1427646ecd3a43a6aa4fdf21a419675b`, singleton `text-to-lattice-transformation-budget-v1`. The ordinary count changed from 30 to 0 and qualification excess remained at 0. The separate post-operation readback matched the receipt’s after-state, with both usage keys absent and alarm `null`. The exact aggregate receipt is retained at repository path `docs/release-evidence/text-to-lattice/application-usage-reset-2026-11-23.json` (624 bytes, SHA-256 `038c8986a3eeec5d44f3ad08d1119a9134449e98d6b6ae13351712ead6db2a04`) and in the machine register’s publication decision.
+
+**Final production receipt:** Follow [PR #249](https://github.com/howardhayden/folio/pull/249) for the ordinary production run and verification of the public project page, converter, qualification dossier and machine register. The workflow publishes the interactive page only after its ordinary production request succeeds.

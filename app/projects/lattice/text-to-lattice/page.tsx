@@ -37,8 +37,8 @@ export default function TextToLatticePage() {
               </>
             ) : (
               <>
-                <p>The interactive client’s availability follows the machine-checked release record for this build.</p>
-                <p>Text is submitted only after explicit confirmation through the same-origin <code>/api/lattice</code> capability. Hugging Face routes both models through OpenRouter. DeepInfra generates the draft and CoreWeave reviews it. The hah.dev application does not retain the source or result, write raw-content logs, or send content to analytics.</p>
+                <p>Text to Lattice is available for short, non-sensitive passages. Safari and Brave cleared the final release gate when both completed a confirmed request and cleared the result on reload. Open the converter and compare its wording with your original before relying on it.</p>
+                <p>The site owner accepts occasional provider refusals and limits ordinary use to 30 transformations globally and three per cooperating browser cookie jar per UTC day. After you confirm, Hugging Face routes your passage through OpenRouter to DeepInfra for drafting and CoreWeave for review. The hah.dev application keeps no copy of your source or result.</p>
                 <p><a href="/resume/#text-to-lattice">Use Text to Lattice</a></p>
               </>
             )}
