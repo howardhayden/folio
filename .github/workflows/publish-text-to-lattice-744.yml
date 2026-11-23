@@ -1,0 +1,370 @@
+name: Publish the verified run 744 artifact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: text-to-lattice-744-recovery
+  cancel-in-progress: false
+
+env:
+  ORIGINAL_SHA: a47ca0557d3678f5e5c64f8d5a9bc8e433b43b39
+  ORIGINAL_RUN: '45255468630'
+  TESTED_VERSION: 298cae10-c6aa-4c74-bf43-b70472b03551
+  HELD_VERSION: a2446a58-80ac-4bf7-a61f-df8224ff99cb
+  HELD_DEPLOYMENT: d402848e-3c09-45af-9bfc-df52ed72617f
+  QUALIFIED_SOURCE: 249dd9bf692d7a67f2b3ec99006aa07acfd78f13db8c6f0e2081ac4c17f607bf
+  PAGES_ARTIFACT: '14858936267'
+  PAGES_DIGEST: sha256:920137aa1a00e221aaf919f31e8f779979ba84a5dc5907e967d548d0ebc0b38c
+  WRANGLER_SEND_METRICS: 'false'
+
+jobs:
+  recover:
+    name: Recover the exact verified Worker version
+    if: github.repository == 'howardhayden/folio' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: text-to-lattice-production
+    concurrency:
+      group: text-to-lattice-services
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      attempted: ${{ steps.promote.outputs.attempted }}
+      deployment: ${{ steps.promote.outputs.deployment }}
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: workers/package-lock.json
+      - name: Require only this recovery workflow on current main
+        run: |
+          node scripts/verify-current-main-sha.mjs
+          test "$(git diff --name-status "$ORIGINAL_SHA" HEAD)" = $'A\t.github/workflows/publish-text-to-lattice-744.yml'
+          test "$(git ls-tree HEAD .github/workflows/publish-text-to-lattice-744.yml | cut -d ' ' -f 1)" = 100644
+          test -z "$(git status --porcelain --untracked-files=no)"
+      - name: Install the unchanged pinned Worker tooling
+        run: npm ci --ignore-scripts --prefix workers
+      - name: Authenticate original run and immutable artifacts
+        run: |
+          mkdir -p "$RUNNER_TEMP/recovery744"
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { createHash } from 'node:crypto';
+          import { writeFile, readFile } from 'node:fs/promises';
+          import { execFileSync } from 'node:child_process';
+          const e = process.env, out = `${e.RUNNER_TEMP}/recovery744`;
+          const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+          const save = (name, value) => writeFile(`${out}/${name}.json`, `${JSON.stringify(value, null, 2)}\n`);
+          const headers = { Authorization: `Bearer ${e.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+          async function get(suffix) {
+            const response = await fetch(`https://api.github.com/repos/howardhayden/folio/${suffix}`, { headers, redirect: 'error', signal: AbortSignal.timeout(30000) });
+            assert.equal(response.status, 200, `GitHub ${suffix} status`);
+            return response.json();
+          }
+          const run = await get(`actions/runs/${e.ORIGINAL_RUN}/attempts/1`);
+          assert.equal(run.id, Number(e.ORIGINAL_RUN)); assert.equal(run.run_number, 744);
+          assert.equal(run.run_attempt, 1); assert.equal(run.head_sha, e.ORIGINAL_SHA);
+          assert.equal(run.head_branch, 'main'); assert.equal(run.event, 'push');
+          assert.equal(run.path, '.github/workflows/pages.yml');
+          assert.equal(run.status, 'completed'); assert.equal(run.conclusion, 'failure');
+          await save('original-run', { id: run.id, run_number: run.run_number, run_attempt: run.run_attempt, head_sha: run.head_sha, event: run.event, status: run.status, conclusion: run.conclusion });
+          const jobs = await get(`actions/runs/${e.ORIGINAL_RUN}/attempts/1/jobs?per_page=100`);
+          const service = jobs.jobs.filter(job => job.name === 'Qualify or verify Text to Lattice services');
+          assert.equal(service.length, 1);
+          for (const name of ['Verify deployed Text to Lattice API boundary and response policy', 'Inspect API deployment after live verification']) {
+            const steps = service[0].steps.filter(step => step.name === name);
+            assert.equal(steps.length, 1); assert.equal(steps[0].conclusion, 'success');
+          }
+          assert.equal(service[0].steps.find(step => step.name === 'Retire exact legacy entry surfaces only after qualification')?.conclusion, 'failure');
+          await save('original-service', { id: service[0].id, name: service[0].name, conclusion: service[0].conclusion, steps: service[0].steps.map(({ name, conclusion }) => ({ name, conclusion })) });
+          for (const [id, name, digest] of [
+            [Number(e.PAGES_ARTIFACT), 'github-pages', e.PAGES_DIGEST],
+            [14857523652, `text-to-lattice-deployment-evidence-${e.ORIGINAL_RUN}-1`, 'sha256:8f69ef0b004e630cc552ef50f25254c6c9fd5572565102fbcf7982e9d39fbe2d'],
+          ]) {
+            const artifact = await get(`actions/artifacts/${id}`);
+            assert.equal(artifact.id, id); assert.equal(artifact.name, name); assert.equal(artifact.digest, digest);
+            assert.equal(artifact.expired, false); assert.equal(artifact.workflow_run.id, Number(e.ORIGINAL_RUN));
+            assert.equal(artifact.workflow_run.head_sha, e.ORIGINAL_SHA);
+            await save(`original-artifact-${id}`, { id, name, digest, expired: artifact.expired, workflow_run: artifact.workflow_run });
+          }
+          const archive = await fetch('https://api.github.com/repos/howardhayden/folio/actions/artifacts/14857523652/zip', { headers, signal: AbortSignal.timeout(60000) });
+          assert.equal(archive.status, 200);
+          const bytes = Buffer.from(await archive.arrayBuffer());
+          assert.equal(hash(bytes), '8f69ef0b004e630cc552ef50f25254c6c9fd5572565102fbcf7982e9d39fbe2d');
+          const zip = `${e.RUNNER_TEMP}/original744-evidence.zip`; await writeFile(zip, bytes);
+          function member(name) {
+            const bytes = execFileSync('unzip', ['-p', zip, name], { maxBuffer: 1048576 });
+            return { bytes, value: JSON.parse(bytes) };
+          }
+          const live = member('live-boundary.json');
+          assert.equal(hash(live.bytes), '620b5550d3d952d5ec92b2ed09229bfe7b6a4cd3cfe0df0b48f896435bb1bcaf');
+          assert.equal(live.value.transformation_canary.http_status, 200);
+          assert.equal(live.value.transformation_canary.strict_result_valid, true);
+          assert.equal(live.value.transformation_canary.elapsed_ms, 10563);
+          assert.equal(live.value.transformation_canary.terminal_status, 'conformant-for-context');
+          const before = member('api-environment-before.json').value;
+          const after = member('api-environment-after.json').value;
+          for (const snapshot of [before, after]) {
+            assert.equal(snapshot.workflow.commit, e.ORIGINAL_SHA); assert.equal(snapshot.workflow.runId, e.ORIGINAL_RUN);
+            assert.equal(snapshot.workflow.runAttempt, '1'); assert.equal(snapshot.qualifiedSourceSetSha256, e.QUALIFIED_SOURCE);
+            assert.equal(snapshot.api.versionId, e.TESTED_VERSION); assert.equal(snapshot.api.percentage, 100);
+          }
+          assert.deepEqual(before.api, after.api); assert.deepEqual(before.admissionEnvironment, after.admissionEnvironment);
+          const register = JSON.parse(await readFile('docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json'));
+          assert.equal(register.overallStatus, 'qualified'); assert.equal(register.authority.qualifiedSourceSet.sha256, e.QUALIFIED_SOURCE);
+          await writeFile(`${out}/original-live-boundary.json`, live.bytes);
+          await save('original-api-before', before); await save('original-api-after', after);
+          JS
+      - name: Prove zero remaining retirement mutations and exact routes
+        run: |
+          node scripts/retire-text-to-lattice-legacy-surfaces.mjs --output "$RUNNER_TEMP/recovery744/retirement-plan.json"
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFile } from 'node:fs/promises';
+          const plan = JSON.parse(await readFile(`${process.env.RUNNER_TEMP}/recovery744/retirement-plan.json`));
+          assert.equal(plan.mode, 'plan'); assert.equal(plan.outcome, 'planned');
+          assert.deepEqual(plan.plannedMutations, []); assert.equal(plan.appliedMutationCount, 0);
+          assert.equal(plan.before.leaseRoute.status, 'detached');
+          assert.equal(plan.before.verificationDomain.status, 'detached');
+          JS
+          node scripts/verify-text-to-lattice-route-inventory.mjs --release-phase qualified --output "$RUNNER_TEMP/recovery744/routes-before.json"
+      - name: Promote only the exact tested version from the exact held deployment
+        id: promote
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { execFileSync } from 'node:child_process';
+          import { appendFile, writeFile, readFile } from 'node:fs/promises';
+          import { sanitizeTextToLatticeDeploymentStatus, sanitizeTextToLatticeApiVersion, sanitizeTextToLatticeAdmissionEnvironment, inspectTextToLatticeApiEnvironment } from './scripts/build-text-to-lattice-deployment-evidence.mjs';
+          import { createLatticeCloudflareMetadataReader } from './scripts/text-to-lattice-cloudflare-metadata.mjs';
+          const e = process.env, dir = `${e.RUNNER_TEMP}/recovery744`, config = 'workers/text-to-lattice-api/wrangler.jsonc';
+          const wrangler = (...args) => execFileSync('./workers/node_modules/.bin/wrangler', [...args, '--config', config], { encoding: 'utf8', maxBuffer: 4194304 });
+          const status = () => JSON.parse(wrangler('deployments', 'status', '--json'));
+          const currentMain = () => execFileSync('node', ['scripts/verify-current-main-sha.mjs'], { stdio: 'inherit' });
+          currentMain();
+          const heldRaw = status(), held = sanitizeTextToLatticeDeploymentStatus(heldRaw, 'hahdev-text-to-lattice-api');
+          assert.equal(held.versionId, e.HELD_VERSION); assert.equal(held.deploymentId, e.HELD_DEPLOYMENT);
+          await writeFile(`${dir}/held-before-promotion.json`, `${JSON.stringify(held, null, 2)}\n`);
+          const version = JSON.parse(wrangler('versions', 'view', e.TESTED_VERSION, '--json'));
+          sanitizeTextToLatticeApiVersion(version, e.TESTED_VERSION); // Normal production: no qualification bindings.
+          const original = JSON.parse(await readFile(`${dir}/original-api-before.json`));
+          const namespace = version.resources.bindings.find(binding => binding.name === 'LATTICE_TRANSFORMATION_BUDGET')?.namespace_id;
+          assert.equal(namespace, original.admissionEnvironment.namespaceId);
+          const metadata = createLatticeCloudflareMetadataReader({ accountId: e.CLOUDFLARE_ACCOUNT_ID, token: e.CLOUDFLARE_API_TOKEN });
+          const namespaceRecord = (await metadata.namespace(namespace)).result; metadata.finish();
+          const admission = sanitizeTextToLatticeAdmissionEnvironment(version, namespaceRecord);
+          assert.deepEqual(admission, original.admissionEnvironment);
+          await writeFile(`${dir}/tested-version-admission-before-promotion.json`, `${JSON.stringify(admission, null, 2)}\n`);
+          currentMain();
+          assert.equal(sanitizeTextToLatticeDeploymentStatus(status(), 'hahdev-text-to-lattice-api').deploymentId, held.deploymentId);
+          await appendFile(e.GITHUB_OUTPUT, 'attempted=true\n');
+          wrangler('versions', 'deploy', `${e.TESTED_VERSION}@100%`, '--yes');
+          const activeRaw = status(), active = sanitizeTextToLatticeDeploymentStatus(activeRaw, 'hahdev-text-to-lattice-api');
+          assert.equal(active.versionId, e.TESTED_VERSION);
+          await appendFile(e.GITHUB_OUTPUT, `deployment=${active.deploymentId}\n`);
+          await writeFile(`${dir}/promoted-worker.json`, `${JSON.stringify(active, null, 2)}\n`);
+          const deploymentPath = `${e.RUNNER_TEMP}/active744.raw.json`, versionPath = `${e.RUNNER_TEMP}/version744.raw.json`;
+          await writeFile(deploymentPath, JSON.stringify(activeRaw)); await writeFile(versionPath, JSON.stringify(version));
+          const environment = await inspectTextToLatticeApiEnvironment({ apiDeploymentPath: deploymentPath, apiVersionPath: versionPath, qualifiedSourceSetSha256: e.QUALIFIED_SOURCE });
+          assert.deepEqual(environment.admissionEnvironment, original.admissionEnvironment);
+          await writeFile(`${dir}/normal-api-environment.json`, `${JSON.stringify(environment, null, 2)}\n`);
+          currentMain();
+          JS
+      - name: Retain recovery evidence even on refusal
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: recovery744-worker-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/recovery744
+          if-no-files-found: warn
+          retention-days: 14
+
+  publish:
+    name: Publish original run 744 Pages artifact
+    needs: recover
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Deploy the authenticated immutable artifact with fresh job OIDC
+        id: pages
+        run: |
+          mkdir -p "$RUNNER_TEMP/recovery744-pages"
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { execFileSync } from 'node:child_process';
+          import { writeFile, appendFile } from 'node:fs/promises';
+          const e = process.env, dir = `${e.RUNNER_TEMP}/recovery744-pages`;
+          const save = (name, value) => writeFile(`${dir}/${name}.json`, `${JSON.stringify(value, null, 2)}\n`);
+          async function github(path, method = 'GET', body) {
+            const response = await fetch(`https://api.github.com/repos/howardhayden/folio/${path}`, { method,
+              headers: { Authorization: `Bearer ${e.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' },
+              ...(body ? { body: JSON.stringify(body) } : {}), redirect: 'error', signal: AbortSignal.timeout(30000) });
+            assert.ok(response.ok, `GitHub ${method} ${path} HTTP ${response.status}`);
+            return response.status === 204 ? null : response.json();
+          }
+          const currentMain = () => execFileSync('node', ['scripts/verify-current-main-sha.mjs'], { stdio: 'inherit' });
+          let deploymentId;
+          try {
+            currentMain();
+            const artifact = await github(`actions/artifacts/${e.PAGES_ARTIFACT}`);
+            assert.equal(artifact.id, Number(e.PAGES_ARTIFACT)); assert.equal(artifact.name, 'github-pages');
+            assert.equal(artifact.digest, e.PAGES_DIGEST); assert.equal(artifact.expired, false);
+            assert.equal(artifact.workflow_run.id, Number(e.ORIGINAL_RUN)); assert.equal(artifact.workflow_run.head_sha, e.ORIGINAL_SHA);
+            await save('artifact', { id: artifact.id, name: artifact.name, digest: artifact.digest, expired: artifact.expired, workflow_run: artifact.workflow_run });
+            const tokenResponse = await fetch(e.ACTIONS_ID_TOKEN_REQUEST_URL, { headers: { Authorization: `Bearer ${e.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` }, signal: AbortSignal.timeout(30000) });
+            assert.equal(tokenResponse.status, 200); const token = await tokenResponse.json();
+            assert.equal(typeof token.value, 'string'); assert.ok(token.value.length > 0);
+            currentMain();
+            await save('submission', { artifact_id: Number(e.PAGES_ARTIFACT), pages_build_version: e.ORIGINAL_SHA, recovery_commit: e.GITHUB_SHA });
+            // Same official Pages REST contract as actions/deploy-pages v4; never rebuild or re-upload.
+            const created = await github('pages/deployments', 'POST', { artifact_id: Number(e.PAGES_ARTIFACT), pages_build_version: e.ORIGINAL_SHA, oidc_token: token.value });
+            deploymentId = created.id;
+            assert.ok(deploymentId && /^[A-Za-z0-9-]+$/.test(String(deploymentId)));
+            await save('deployment', created);
+            for (let attempt = 0; attempt < 60; attempt += 1) {
+              const status = await github(`pages/deployments/${deploymentId}`);
+              await save('status', { observed_at: new Date().toISOString(), attempt: attempt + 1, ...status });
+              if (status.status === 'succeed') {
+                currentMain();
+                await appendFile(e.GITHUB_OUTPUT, `page_url=${created.page_url || 'https://hah.dev/'}\n`);
+                process.exit(0);
+              }
+              if (['deployment_failed', 'deployment_perms_error', 'deployment_content_failed', 'deployment_cancelled', 'deployment_lost'].includes(status.status)) throw new Error(`Pages ${status.status}`);
+              await new Promise(resolve => setTimeout(resolve, 10000));
+            }
+            throw new Error('Pages deployment polling deadline');
+          } catch (error) {
+            await save('failure', { at: new Date().toISOString(), message: error.message, deployment_id: deploymentId ?? null, original_run_conclusion: 'failure' });
+            if (deploymentId) {
+              try { await save('cancel', { response: await github(`pages/deployments/${deploymentId}/cancel`, 'POST') }); }
+              catch (cancelError) { await save('cancel-failure', { message: cancelError.message }); }
+            }
+            throw error;
+          }
+          JS
+      - name: Retain Pages submission and actual status
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: recovery744-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/recovery744-pages
+          if-no-files-found: warn
+          retention-days: 14
+
+  finalize:
+    name: Verify publication or restore the exact held Worker
+    needs: [recover, publish]
+    if: always() && needs.recover.outputs.attempted == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: text-to-lattice-production
+    concurrency:
+      group: text-to-lattice-services
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+      RECOVER_RESULT: ${{ needs.recover.result }}
+      PUBLISH_RESULT: ${{ needs.publish.result }}
+      PROMOTED_DEPLOYMENT: ${{ needs.recover.outputs.deployment }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: workers/package-lock.json
+      - run: npm ci --ignore-scripts --prefix workers
+      - name: Verify actual disposition without overwriting a concurrent revision
+        run: |
+          mkdir -p "$RUNNER_TEMP/recovery744-final"
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { execFileSync } from 'node:child_process';
+          import { writeFile } from 'node:fs/promises';
+          import { sanitizeTextToLatticeDeploymentStatus, sanitizeTextToLatticeApiVersion } from './scripts/build-text-to-lattice-deployment-evidence.mjs';
+          const e = process.env, dir = `${e.RUNNER_TEMP}/recovery744-final`, config = 'workers/text-to-lattice-api/wrangler.jsonc';
+          const report = { original_run: e.ORIGINAL_RUN, original_conclusion: 'failure', recovery_result: e.RECOVER_RESULT, pages_result: e.PUBLISH_RESULT, disposition: 'unverified', restoration_attempted: false };
+          const save = () => writeFile(`${dir}/disposition.json`, `${JSON.stringify(report, null, 2)}\n`);
+          const wrangler = (...args) => execFileSync('./workers/node_modules/.bin/wrangler', [...args, '--config', config], { encoding: 'utf8', maxBuffer: 4194304 });
+          const currentMain = () => execFileSync('node', ['scripts/verify-current-main-sha.mjs'], { stdio: 'inherit' });
+          const observe = () => { const raw = JSON.parse(wrangler('deployments', 'status', '--json')); return { raw, safe: sanitizeTextToLatticeDeploymentStatus(raw, 'hahdev-text-to-lattice-api') }; };
+          try {
+            try { currentMain(); } catch { report.disposition = 'concurrent-main-refused'; throw new Error('Current main changed; no Worker mutation attempted.'); }
+            let current = observe(); report.before = current.safe;
+            if (![e.HELD_VERSION, e.TESTED_VERSION].includes(current.safe.versionId)
+              || (current.safe.versionId === e.TESTED_VERSION && e.PROMOTED_DEPLOYMENT && current.safe.deploymentId !== e.PROMOTED_DEPLOYMENT)) {
+              report.disposition = 'concurrent-worker-refused'; throw new Error('Worker revision changed; no Worker mutation attempted.');
+            }
+            if (e.RECOVER_RESULT === 'success' && e.PUBLISH_RESULT === 'success') {
+              try {
+                assert.equal(current.safe.versionId, e.TESTED_VERSION);
+                sanitizeTextToLatticeApiVersion(JSON.parse(wrangler('versions', 'view', e.TESTED_VERSION, '--json')), e.TESTED_VERSION);
+                execFileSync('node', ['scripts/verify-text-to-lattice-route-inventory.mjs', '--release-phase', 'qualified', '--output', `${dir}/routes-after.json`], { stdio: 'inherit' });
+                currentMain(); report.disposition = 'published-original744-with-tested-worker'; await save(); process.exit(0);
+              } catch (error) { report.publication_verification_failure = error.message; }
+            }
+            currentMain();
+            const beforeRestore = observe();
+            assert.equal(beforeRestore.safe.deploymentId, current.safe.deploymentId, 'Concurrent Worker deployment; refuse restoration');
+            if (current.safe.versionId !== e.HELD_VERSION) {
+              report.restoration_attempted = true; await save();
+              wrangler('versions', 'deploy', `${e.HELD_VERSION}@100%`, '--yes');
+            }
+            current = observe(); report.after = current.safe;
+            assert.equal(current.safe.versionId, e.HELD_VERSION);
+            const rawPath = `${e.RUNNER_TEMP}/restored744.raw.json`; await writeFile(rawPath, JSON.stringify(current.raw));
+            execFileSync('node', ['scripts/verify-text-to-lattice-held-api.mjs', '--deployment', rawPath, '--output', `${dir}/held-api.json`], { stdio: 'inherit' });
+            report.disposition = 'publication-failed-held-worker-verified'; await save();
+            process.exitCode = 1;
+          } catch (error) {
+            report.failure = error.message; await save(); process.exitCode = 1;
+          }
+          JS
+      - name: Retain both publication and restoration dispositions
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: recovery744-final-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/recovery744-final
+          if-no-files-found: warn
+          retention-days: 14
