@@ -9,11 +9,11 @@ generator: scripts/docs/build-text-to-lattice-documentation.mjs
 
 # Text to Lattice service blueprint
 
-The visitor confirms processing. The Worker checks admission, asks Qwen to analyze and draft, then checks the result with Llama. The terminal presents an accepted outcome or explains that the service withheld it.
+Follow one submission from consent to a terminal result. Qwen drafts, server code checks protected details, and Llama compares the candidate with the source. A repair must pass review on its own wording. The reader receives a checked rewrite, a checked original, a labeled review draft, or an explanation that the text was withheld.
 
 [Admission](https://hah.dev/documentation/text-to-lattice/text-to-lattice-service-blueprint.html#bp-04) · [Drafting and checks](https://hah.dev/documentation/text-to-lattice/text-to-lattice-service-blueprint.html#bp-06) · [Review and outcome](https://hah.dev/documentation/text-to-lattice/text-to-lattice-service-blueprint.html#bp-07)
 
-[The service infers meaning from visitor prose](https://hah.dev/documentation/text-to-lattice/evidence.html#service-path) · [Safari and Brave completed the visitor path](https://hah.dev/documentation/text-to-lattice/evidence.html#browser-results)
+[Separate drafting from acceptance](https://hah.dev/documentation/text-to-lattice/evidence.html#service-path) · [A copied draft and an accepted original have different outcomes](https://hah.dev/documentation/text-to-lattice/evidence.html#repair-and-outcomes) · [The terminal follows real server work](https://hah.dev/documentation/text-to-lattice/evidence.html#server-progress) · [Safari and Brave completed the visitor path](https://hah.dev/documentation/text-to-lattice/evidence.html#browser-results)
 
 [Reading guide (JSON)](https://hah.dev/documentation/text-to-lattice/reading-guide.json)
 

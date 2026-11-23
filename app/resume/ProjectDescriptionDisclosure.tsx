@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { latticeApiOverview } from "../content/projectDocuments.js";
 import ChromebookManagementViews from "./ChromebookManagementViews";
 
 type ProjectDescriptionDisclosureProps = Readonly<{
@@ -30,6 +31,12 @@ export default function ProjectDescriptionDisclosure({
   const modalContentId = `project-readme-modal-content-${projectId}`;
   const closeDescription = useCallback(() => setOpen(false), []);
   const hasChromebookViews = projectSlug === "chromebook-management";
+  const latticeApiParagraph = projectSlug === "lattice" ? (
+    <p className="card-text">
+      {latticeApiOverview}{" "}
+      <a href="/projects/lattice/#text-to-lattice-api-capabilities">API capabilities and evidence</a>
+    </p>
+  ) : null;
 
   useEffect(() => {
     detailsRef.current?.removeAttribute("open");
@@ -123,6 +130,7 @@ export default function ProjectDescriptionDisclosure({
         </summary>
         <div className="project-readme-copy" id={inlineContentId}>
           <p className="card-text">{paragraph}</p>
+          {latticeApiParagraph}
         </div>
       </details>
 
@@ -147,6 +155,7 @@ export default function ProjectDescriptionDisclosure({
             <h3 id={modalTitleId}>{projectName}</h3>
             <div className="project-readme-copy">
               <p className="card-text" id={modalContentId}>{paragraph}</p>
+              {latticeApiParagraph}
               {hasChromebookViews ? (
                 <ChromebookManagementViews
                   instanceId={projectId}

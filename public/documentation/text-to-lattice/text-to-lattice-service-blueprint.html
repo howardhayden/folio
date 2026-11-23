@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="The visitor confirms processing. The Worker checks admission, asks Qwen to analyze and draft, then checks the result with Llama. The terminal presents an accepted outcome or explains that the service withheld it.">
+<meta name="description" content="Follow one submission from consent to a terminal result. Qwen drafts, server code checks protected details, and Llama compares the candidate with the source. A repair must pass review on its own wording. The reader receives a checked rewrite, a checked original, a labeled review draft, or an explanation that the text was withheld.">
 <meta name="theme-color" content="#ffffff">
 <meta name="generator" content="scripts/docs/build-text-to-lattice-documentation.mjs">
 <link rel="canonical" href="https://hah.dev/documentation/text-to-lattice/text-to-lattice-service-blueprint.html">
@@ -126,10 +126,10 @@ tbody th { color: var(--red); }
 <header class="site-header">
   <p><a href="https://hah.dev/projects/lattice/">Lattice project</a></p>
   <h1>Text to Lattice service blueprint</h1>
-  <p class="lede">The visitor confirms processing. The Worker checks admission, asks Qwen to analyze and draft, then checks the result with Llama. The terminal presents an accepted outcome or explains that the service withheld it.</p>
+  <p class="lede">Follow one submission from consent to a terminal result. Qwen drafts, server code checks protected details, and Llama compares the candidate with the source. A repair must pass review on its own wording. The reader receives a checked rewrite, a checked original, a labeled review draft, or an explanation that the text was withheld.</p>
   <nav class="doc-nav" aria-label="Lattice documentation navigation"><a href="index.html">Documentation</a><a href="evidence.html">Evidence</a><a href="lattice-concept-map.html">Concept map</a><a href="lattice-skill-map.html">System skill map</a><a href="text-to-lattice-service-blueprint.html" aria-current="page">Service blueprint</a><a href="text-to-lattice-security-model.html">Security model</a></nav>
 </header>
-<main id="main"><section class="panel" aria-labelledby="reading-heading"><h2 id="reading-heading">Follow the example</h2><p><a href="#bp-04">Admission</a> · <a href="#bp-06">Drafting and checks</a> · <a href="#bp-07">Review and outcome</a></p><h3>Evidence</h3><p><a href="evidence.html#service-path">The service infers meaning from visitor prose</a> · <a href="evidence.html#browser-results">Safari and Brave completed the visitor path</a></p></section><details class="reference" id="technical-reference"><summary>Full technical reference</summary><section class="panel boundary" aria-labelledby="authority-heading">
+<main id="main"><section class="panel" aria-labelledby="reading-heading"><h2 id="reading-heading">Follow the example</h2><p><a href="#bp-04">Admission</a> · <a href="#bp-06">Drafting and checks</a> · <a href="#bp-07">Review and outcome</a></p><h3>Evidence</h3><p><a href="evidence.html#service-path">Separate drafting from acceptance</a> · <a href="evidence.html#repair-and-outcomes">A copied draft and an accepted original have different outcomes</a> · <a href="evidence.html#server-progress">The terminal follows real server work</a> · <a href="evidence.html#browser-results">Safari and Brave completed the visitor path</a></p></section><details class="reference" id="technical-reference"><summary>Full technical reference</summary><section class="panel boundary" aria-labelledby="authority-heading">
   <p class="eyebrow">Claim boundary</p>
   <h2 id="authority-heading">Authority stays typed</h2>
   <p>This register describes the Lattice method at an architectural level and the bounded Text to Lattice implementation evidenced in this repository. It does not redistribute the exclusive register profile, certify universal conformance, or convert source tests into deployed proof.</p>

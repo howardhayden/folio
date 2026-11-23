@@ -643,3 +643,22 @@ test("Lattice reading paths resolve each subject and claim to visible documentat
     }
   }
 });
+
+test("the project and résumé explain the hosted service at their normal entry points", async () => {
+  const project = await readText(rootUrl, "site/projects/lattice/index.html");
+  const resume = await readText(rootUrl, "site/resume/index.html");
+  const method = project.indexOf('id="lattice-method-capabilities"');
+  const service = project.indexOf('id="text-to-lattice-api-capabilities"');
+  assert.ok(method !== -1 && service > method);
+  const capabilities = project.slice(service, project.indexOf('id="technologies"', service));
+  assert.match(capabilities, /protected quotations/u);
+  assert.match(capabilities, /review the source|revised wording again/u);
+  for (const claim of ["repair-and-outcomes", "browser-results"]) {
+    assert.ok(capabilities.includes(latticeReadingGuide.evidenceUrl + "#" + claim));
+  }
+  const fallback = resume.match(/id="project-readme-content-lattice">([\s\S]+?)<\/details>/u)?.[1] ?? "";
+  assert.match(fallback, /Qwen identifies what the passage says/u);
+  assert.match(fallback, /Llama compares that draft with the source/u);
+  assert.ok(fallback.includes('href="/projects/lattice/#text-to-lattice-api-capabilities"'));
+  if (releaseState.qualified) assert.match(resume, /One model drafts and another checks the meaning against your source/u);
+});
