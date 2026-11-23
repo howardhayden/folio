@@ -2,13 +2,15 @@
 
 Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave cleared the visitor path, and the site owner accepts occasional provider refusal and imperfect wording. Confirm external processing and compare the result with your original before relying on it.
 
+The November 23 production check accepted the original passage in 10.563 seconds. The protected Pages publication delivered that build. [Service check](https://github.com/howardhayden/folio/actions/runs/45255468630) · [Publication receipt](https://github.com/howardhayden/folio/actions/runs/45259201772) · [Evidence by claim](https://hah.dev/documentation/text-to-lattice/evidence.html)
+
 ## One-off capacity decision
 
 The owner approved one application usage reset followed by one additional ordinary deployment. At 19:56:38 UTC on November 23, the application’s ordinary count changed from 30 to 0 and qualification excess remained at 0. A separate readback found both usage keys absent and the charged-day alarm cleared.
 
 This one-off reset permits up to 30 further global admissions before the next UTC-day reset, with the ordinary three-per-cooperating-cookie-jar limit in the reset ledger. Earlier usage and any provider charges remain separate from the reset. The 30/3 admission rules, 32-call request bound, consent and refusal behavior remain in force. Actual tokens and rates determine the bill.
 
-Each ordinary publication must pass its own production service check before interactive Pages are published. The accepted Safari and Brave traces and the dated Firefox checks retain their existing scopes. The exact reset operation and original evidence are recorded in the appendix.
+Each ordinary publication must pass its own production service check before interactive Pages are published. For the November 23 documentation update, the owner approved publishing reviewed editorial changes against the successful production check and the deployed converter and Worker source. The accepted Safari and Brave traces and the dated Firefox checks retain their existing scopes. The exact reset operation and original evidence are recorded in the appendix.
 
 ## What decided the release
 
@@ -36,7 +38,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `249dd9bf692d7a67f2b3ec99006aa07acfd78f13db8c6f0e2081ac4c17f607bf`
+**Qualified source-set SHA-256:** `b2ac10b03eacfd40391c6624645a2ded34a5333828a2c63443c94e4b56517837`
 
 **Artifact-set projection SHA-256:** `58e9c64506ecb739ca2a5b6a5dbf142d988fc95e9178115e0f2bed9dd120b644`
 
@@ -68,14 +70,22 @@ These are the register’s current capability values, including the exact reques
 
 ### Current-to-captured source comparison
 
-The comparison covers the same 267 qualified paths: 263 files are byte-identical and the following four are the exact approved exceptions. The current fingerprint is `249dd9bf692d7a67f2b3ec99006aa07acfd78f13db8c6f0e2081ac4c17f607bf`. The original captured fingerprint remains `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The proof at `docs/release-evidence/text-to-lattice/run-729-source-comparison.json` is 385,077 bytes with SHA-256 `4e9b704777338e1e289451a7901bfae7d3f2499c63cedadf9e16c95879a774f5` and retains each original beforeimage.
+The documentation revision and the browser capture share 267 qualified paths. 257 are byte-identical. The comparison below identifies every change. The converter, client request handling and Workers match the deployed release. The [original production-release comparison](https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/docs/release-evidence/text-to-lattice/run-729-source-comparison.json) remains available.
 
-| Qualified path | Captured SHA-256 | Current SHA-256 |
+The current fingerprint is `b2ac10b03eacfd40391c6624645a2ded34a5333828a2c63443c94e4b56517837`. The original captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The repository appendix `docs/release-evidence/text-to-lattice/nov23-documentation-source-comparison.json` contains 870,940 bytes (SHA-256 `ce88d11ec28db8110a379b397cbba133a12edadab9f5e4753bfed7a9b2a85025`) and retains each original beforeimage.
+
+| Qualified path | Captured SHA-256 | Documentation revision SHA-256 |
 | --- | --- | --- |
 | `app/projects/lattice/text-to-lattice/page.tsx` | `1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8` | `08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870` |
-| `scripts/verify-text-to-lattice-release.mjs` | `e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a` | `ac11a08bf74a16cd1a6d3b4f5182284ffe8a86338dcd7762b6d72300dea8f1dc` |
-| `tests/lattice-documentation.test.mjs` | `66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e` | `5dd1cd6df10b6b041d35c085320069444e83278d6100b35a9ab41146870fe689` |
-| `tests/lattice-release-boundary.test.mjs` | `7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114` | `4c222018f4cce028f4a112f0fe809be68abff8089ef2f0bd06d1dbeaab62a27c` |
+| `scripts/verify-text-to-lattice-release.mjs` | `e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a` | `e4a31815f847b855ee8ff01fb42b1101d073083c4796407f74ef34dfd72d3554` |
+| `tests/lattice-documentation.test.mjs` | `66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e` | `41fa297a0c06cc2b3cef900499929b24a8fa0cfedef4b1185e27a5c48961b88c` |
+| `tests/lattice-release-boundary.test.mjs` | `7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114` | `b8c71d865c0edcdf9f5dd86e20e837069bc6af2f0a7ea61067512b2bcefdbb7f` |
+| `.github/workflows/pages.yml` | `c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd` | `22a0366b136273ba952cbb20969050193925b20e1351b21122a9a98f3e160846` |
+| `app/content/projectDocuments.js` | `261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251` | `ad1aea0cb263305fb995209c1e889c19b76f1465ef83dff8d094ee9ba8e4335f` |
+| `app/projects/[slug]/page.tsx` | `d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62` | `e0c169f962d08e12a6cb7b52839ce300cd08b86ccbbfa71b4d3780f16adf05e2` |
+| `app/semantic/portfolio.js` | `7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6` | `6dfc25652de9a3ea1c79746fea4a1a61a3b00daa47ae353e58e25d727609f636` |
+| `scripts/docs/build-text-to-lattice-documentation.mjs` | `69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc` | `7a4b737503bf8760dd6224c0fd41c513f951e10290280d7ec4570bf100e3c42b` |
+| `tests/lattice-deployment-workflow.test.mjs` | `3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089` | `6e4edb74b86264d6b25e48baf01e5c255b6cca3db4cb29e49280e081b14950d2` |
 
 ### Captured identity and five immutable files
 

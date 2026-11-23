@@ -16,7 +16,7 @@ import {
 } from "../content/siteContent.js";
 import { textToLatticeContract } from "../content/textToLatticeContent.js";
 import {
-  PROJECT_DOCUMENTS_UPDATED, PROJECT_DOCUMENTS_VERSION, projectDocuments,
+  PROJECT_DOCUMENTS_UPDATED, PROJECT_DOCUMENTS_VERSION, latticeReadingGuide, projectDocuments,
 } from "../content/projectDocuments.js";
 import {
   PROJECT_CONTENT_UPDATED, PROJECT_CONTENT_VERSION, projectBySlug, projects,
@@ -158,6 +158,11 @@ function projectRecord(project) {
     thesis: project.thesis,
     summary: [...project.summary],
     emphasis: [...project.emphasis],
+    ...(project.id === "lattice" ? {
+      subjects: latticeReadingGuide.subjects,
+      readingGuide: { introduction: latticeReadingGuide.introduction, documentation: latticeReadingGuide.documentationUrl,
+        evidence: latticeReadingGuide.evidenceUrl, json: latticeReadingGuide.jsonUrl },
+    } : {}),
     purpose: { documented: true, items: [project.thesis] },
     problem: { documented: false, items: [] },
     users: { documented: false, items: [] },
@@ -294,7 +299,7 @@ function projectJsonLdNode(project) {
     "@type": project.type,
     name: project.name,
     description: project.thesis,
-    abstract: project.summary.join("\n\n"),
+    abstract: record.summary.join("\n\n"),
     url: record.canonicalUrl,
     sameAs: project.url,
     datePublished: project.publication.value,
@@ -310,6 +315,7 @@ function projectJsonLdNode(project) {
     [namespaceGraphId("technology")]: record.technologies.items,
     [namespaceGraphId("emphasis")]: record.emphasis,
     [namespaceGraphId("evidence")]: record.evidence.map(({ url }) => url),
+    ...(record.subjects ? { subjectOf: { "@id": latticeReadingGuide.jsonUrl } } : {}),
     [namespaceGraphId("limitation")]: record.limitations.items,
     [namespaceGraphId("documentation")]: record.documentation,
     ...(documentation.length ? { hasPart: documentation.map(({ htmlUrl }) => ({ "@id": htmlUrl })) } : {}),
@@ -487,6 +493,9 @@ export const knowledgeGraph = {
     },
     ...thirdPartyDocumentNodes,
     ...projectDocumentNodes,
+    { "@id": latticeReadingGuide.jsonUrl, "@type": "DigitalDocument", name: "Lattice documentation and evidence guide",
+      url: latticeReadingGuide.jsonUrl, encodingFormat: "application/json", dateModified: latticeReadingGuide.updated,
+      about: { "@id": projectGraphId(projectBySlug("lattice")) } },
     ...projects.map(projectJsonLdNode),
     { "@id": projectsListId, "@type": "ItemList", name: "Projects", itemListElement: projects.map((project, index) => ({ "@type": "ListItem", position: index + 1, item: { "@id": projectGraphId(project) } })) },
     {
@@ -715,7 +724,13 @@ export function renderProjectMarkdown(slug) {
       ? "The public interactive client is included in the public bundle."
       : "No public interactive client is represented as available.";
   const tool = slug === "lattice" ? `\n\n## ${textToLatticeContract.name}\n\nCanonical URL: ${absoluteUrl(textToLatticeContract.canonicalPath)}\n\nPublic client status: ${machineValueLabel(applicationReleaseStatus)}\n\nPublication mode: ${machineValueLabel(applicationPublicationMode)}. ${applicationAvailability}\n\n${textToLatticeContract.purpose}${applicationReleaseNotes.length > 0 ? `\n\n### Release status\n\n${applicationReleaseNotes.join("\n\n")}` : ""}\n\n### Input\n\n${textToLatticeContract.input}\n\n### Output\n\n${textToLatticeContract.output}\n\n### Process\n\n${bullets(textToLatticeContract.process)}\n\n### Constraints\n\n${bullets(textToLatticeContract.constraints)}\n\n${securityAndPrivacyMarkdown()}\n\n${usagePolicyMarkdown()}\n\n${implementationMarkdown()}` : "";
-  return `# ${heading(project.name)}\n\nCanonical URL: ${project.canonicalUrl}\n\nExternal URL: ${project.externalUrl}\n\nStatus: ${project.status.value} as of ${project.status.asOf}\n\nPublication: ${project.publication.label} (${project.publication.precision})${releaseStatus}\n\n${project.summary.join("\n\n")}\n\n## Emphasis\n\n${bullets(project.emphasis)}\n\n## Capabilities\n\n${bullets(project.capabilities.items)}\n\n## Technologies\n\n${bullets(project.technologies.items)}\n\n## Evidence\n\n${bullets(project.evidence.map(({ url }) => url))}\n\n## Documentation\n\n${bullets(project.documentation.map(documentationMarkdownLine))}\n\n## Limitations\n\n${bullets(project.limitations.items)}\n\n## Relationships\n\n${bullets(project.relationships.map(relationshipLabel))}\n\n## Inherited requirements\n\n${bullets(sharedRequirements.map(({ label, id }) => `${label}: ${absoluteUrl(`/requirements/#${id}`)}`))}\n\n## Provenance\n\n- Repository: ${project.provenance.repository}\n- Sources: ${project.provenance.sourcePaths.join(", ")}\n- Version: ${project.provenance.version}\n- Last updated: ${project.provenance.lastUpdated}\n- External project license: not documented in this portfolio record.\n- This portfolio record’s authored content: ${SITE_CONTENT_TERMS_URL}.${tool}\n`;
+  const overview = project.readingGuide ? [project.thesis, project.readingGuide.introduction] : project.summary;
+  const evidence = project.evidence.map(({ url }) => url);
+  if (project.readingGuide) evidence.push(`[Evidence by claim](${project.readingGuide.evidence})`, `[Reading guide (JSON)](${project.readingGuide.json})`);
+  const scopedList = (field, fallback) => project.subjects
+    ? project.subjects.map((subject) => `### ${subject.name}\n\n${bullets(subject[field])}`).join("\n\n")
+    : bullets(fallback);
+  return `# ${heading(project.name)}\n\nCanonical URL: ${project.canonicalUrl}\n\nExternal URL: ${project.externalUrl}\n\nStatus: ${project.status.value} as of ${project.status.asOf}\n\nPublication: ${project.publication.label} (${project.publication.precision})${releaseStatus}\n\n${overview.join("\n\n")}\n\n## Emphasis\n\n${scopedList("emphasis", project.emphasis)}\n\n## Capabilities\n\n${scopedList("capabilities", project.capabilities.items)}\n\n## Technologies\n\n${scopedList("technologies", project.technologies.items)}\n\n## Evidence\n\n${bullets(evidence)}\n\n## Documentation\n\n${bullets(project.documentation.map(documentationMarkdownLine))}\n\n## Limitations\n\n${bullets(project.limitations.items)}\n\n## Relationships\n\n${bullets(project.relationships.map(relationshipLabel))}\n\n## Inherited requirements\n\n${bullets(sharedRequirements.map(({ label, id }) => `${label}: ${absoluteUrl(`/requirements/#${id}`)}`))}\n\n## Provenance\n\n- Repository: ${project.provenance.repository}\n- Sources: ${project.provenance.sourcePaths.join(", ")}\n- Version: ${project.provenance.version}\n- Last updated: ${project.provenance.lastUpdated}\n- External project license: not documented in this portfolio record.\n- This portfolio record’s authored content: ${SITE_CONTENT_TERMS_URL}.${tool}\n`;
 }
 
 export function renderProjectsMarkdown() {
@@ -926,6 +941,18 @@ export const projectsSchema = {
         id: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }, slug: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
         name: { "$ref": "#/$defs/nonEmptyString" }, kind: { type: "string", enum: projectKinds }, thesis: { "$ref": "#/$defs/nonEmptyString" },
         summary: { type: "array", minItems: 1, items: { "$ref": "#/$defs/nonEmptyString" } }, emphasis: { type: "array", minItems: 1, uniqueItems: true, items: { "$ref": "#/$defs/nonEmptyString" } },
+        readingGuide: { type: "object", additionalProperties: false, required: ["introduction", "documentation", "evidence", "json"],
+          properties: { introduction: { "$ref": "#/$defs/nonEmptyString" }, documentation: { "$ref": "#/$defs/uri" },
+            evidence: { "$ref": "#/$defs/uri" }, json: { "$ref": "#/$defs/uri" } } },
+        subjects: { type: "array", items: {
+          type: "object", additionalProperties: false, required: ["id", "name", "emphasis", "capabilities", "technologies", "evidence"],
+          properties: {
+            id: { "$ref": "#/$defs/nonEmptyString" }, name: { "$ref": "#/$defs/nonEmptyString" },
+            ...Object.fromEntries(["emphasis", "capabilities", "technologies", "evidence"].map((key) => [key, {
+              type: "array", minItems: 1, uniqueItems: true, items: { "$ref": "#/$defs/nonEmptyString" },
+            }])),
+          },
+        } },
         purpose: { "$ref": "#/$defs/stringList" }, problem: { "$ref": "#/$defs/stringList" }, users: { "$ref": "#/$defs/stringList" }, invariants: { "$ref": "#/$defs/stringList" },
         capabilities: { "$ref": "#/$defs/stringList" }, technologies: { "$ref": "#/$defs/stringList" }, evidence: { type: "array", minItems: 1, items: { "$ref": "#/$defs/evidence" } },
         limitations: { "$ref": "#/$defs/stringList" }, status: { "$ref": "#/$defs/status" }, publication: { "$ref": "#/$defs/publication" },

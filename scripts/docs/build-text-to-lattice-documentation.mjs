@@ -10,6 +10,7 @@ import {
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { latticeReadingGuide, projectDocuments } from "../../app/content/projectDocuments.js";
 import { verifyReleaseStatusState, verifyServicePhaseTransport, verifyCoreWeaveReviewSelection, verifyParasailGenerationSelection, verifyVeniceGenerationSelection, verifyStandardGenerationResumption } from "../verify-text-to-lattice-release.mjs";
 
 const scriptPath = fileURLToPath(import.meta.url);
@@ -799,13 +800,15 @@ function sourceMapFor(data) {
   return new Map(data.sources.map((source) => [source.id, source]));
 }
 
+function reviewedSourceUrl(source) {
+  return source.url ?? "https://github.com/howardhayden/folio/blob/784cc7c62f20a073986bae09a174ca688fb6608f/" + source.path;
+}
+
 function markdownSourceRegister(data) {
   return [
     "## Source register",
     "",
-    ...data.sources.flatMap((source) => [
-      `- **${source.id} — ${source.label}:** ${source.url ? `[Reviewed source](${source.url})` : `\`${source.path}\``}`,
-    ]),
+    ...data.sources.map((source) => `- **${source.id} — ${source.label}** [${source.path ?? "Reviewed source"}](${reviewedSourceUrl(source)})`),
     "",
   ];
 }
@@ -819,9 +822,16 @@ function markdownFrontmatter(data, title) {
     `generator: ${data.authority.builder}`,
     "---",
     "",
-    "<!-- Generated file. Edit the authoritative JSON register, then run the builder. -->",
+    "<!-- The reading guide comes from app/content/projectDocuments.js. The full technical reference comes from the documentation atlas. -->",
     "",
   ];
+}
+
+function markdownReadingGuide(id) {
+  const item = readingDocuments.find((entry) => entry.id === id);
+  const records = item.sections.map(({ label, url }) => `[${label}](${url})`).join(" · ");
+  return ["", item.answer, "", records, "", evidenceLinks(item.evidence, true), "",
+    `[Reading guide (JSON)](${latticeReadingGuide.jsonUrl})`, "", "<details>", "<summary>Full technical reference</summary>", ""];
 }
 
 function markdownAuthority(data) {
@@ -832,7 +842,7 @@ function markdownAuthority(data) {
     "",
     data.authority.changePolicy,
     "",
-    data.authority.exportPolicy,
+    "The technical reference is generated from the atlas. The editorial overview and cited examples come from app/content/projectDocuments.js.",
     "",
   ];
 }
@@ -941,6 +951,7 @@ tbody th { color: var(--red); }
 .js .no-script { display: none; }
 .site-footer { padding: 1.5rem max(1rem, calc((100vw - 76rem) / 2)); border-top: 1px solid var(--line); color: var(--muted); }
 .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+.reference > summary { padding: 1rem; font-weight: 600; cursor: pointer; } .panel article + article { border-top: 1px solid currentColor; margin-top: 1.5rem; padding-top: 1rem; }
 @media (max-width: 42rem) { main { width: min(100% - 1rem, 76rem); } .toolbar { grid-template-columns: 1fr; } .panel { padding: 1rem; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
 @media (forced-colors: active) { * { box-shadow: none !important; } .panel, .record, .index-card, .toolbar, .table-wrap, .radar-wrap, .overview-wrap, .boundary-list li { border-color: CanvasText; } .radar-ring, .radar-axis, .radar-shape, .overview-line, .overview-node { stroke: CanvasText; } .radar-shape, .overview-node { fill: Canvas; } .radar-point { fill: CanvasText; stroke: Canvas; } .overview-title, .overview-caption { fill: CanvasText; } }
@@ -975,13 +986,31 @@ const interactionScript = `
     });
     if (status) status.textContent = count + " of " + records.length + " records visible.";
   };
+  function clearFilters() {
+    if (search) search.value = "";
+    filters.forEach(function (filter) { filter.value = ""; });
+    apply();
+  }
+  function revealRecord() {
+    var target = document.getElementById(window.location.hash.slice(1));
+    if (!target) return;
+    var record = target.closest("[data-record]");
+    if (record && record.hidden) clearFilters();
+    for (var node = target; node; node = node.parentElement) {
+      if (node.tagName === "DETAILS") node.open = true;
+    }
+  }
+  revealRecord();
+  window.addEventListener("hashchange", revealRecord);
+  document.addEventListener("click", function (event) {
+    var link = event.target.closest("a[href^='#']");
+    if (link && link.hash === window.location.hash) revealRecord();
+  });
   if (search) search.addEventListener("input", apply);
   filters.forEach(function (filter) { filter.addEventListener("change", apply); });
   var reset = root.querySelector("[data-reset]");
   if (reset) reset.addEventListener("click", function () {
-    if (search) search.value = "";
-    filters.forEach(function (filter) { filter.value = ""; });
-    apply();
+    clearFilters();
     if (search) search.focus();
   });
   var setExpanded = function (expanded) {
@@ -1022,6 +1051,7 @@ const interactionScript = `
 function navigation(current) {
   const items = [
     ["index", "index.html", "Documentation"],
+    ["evidence", "evidence.html", "Evidence"],
     ["concept", "lattice-concept-map.html", "Concept map"],
     ["skill", "lattice-skill-map.html", "System skill map"],
     ["blueprint", "text-to-lattice-service-blueprint.html", "Service blueprint"],
@@ -1030,15 +1060,45 @@ function navigation(current) {
   return items.map(([id, href, label]) => `<a href="${href}"${id === current ? ' aria-current="page"' : ""}>${label}</a>`).join("");
 }
 
+const readingDocuments = latticeReadingGuide.documents.map((item) => {
+  const { htmlUrl, markdownUrl, title } = projectDocuments.find(({ id }) => id === item.id);
+  return { ...item, title, htmlUrl, markdownUrl, sections: item.sections.map((section) => ({ ...section, url: htmlUrl + "#" + section.id })) };
+});
+
+function evidenceLinks(ids, markdown = false) {
+  return ids.map((id) => {
+    const item = latticeReadingGuide.evidence.find((entry) => entry.id === id);
+    return markdown ? `[${item.title}](${latticeReadingGuide.evidenceUrl}#${id})`
+      : `<a href="evidence.html#${id}">${escapeHtml(item.title)}</a>`;
+  }).join(" · ");
+}
+
+function readingOverview(document) {
+  const links = document.sections.map(({ id, label }) => `<a href="#${id}">${escapeHtml(label)}</a>`).join(" · ");
+  return `<section class="panel" aria-labelledby="reading-heading"><h2 id="reading-heading">Follow the example</h2><p>${links}</p><h3>Evidence</h3><p>${evidenceLinks(document.evidence)}</p></section>`;
+}
+
+function evidenceHtml(data) {
+  const sections = latticeReadingGuide.subjects.map((subject) => {
+    const rows = latticeReadingGuide.evidence.filter((entry) => entry.subject === subject.id).map((entry) =>
+      `<article id="${entry.id}"><h3>${escapeHtml(entry.title)}</h3><p>${escapeHtml(entry.observation)}</p><ul>${entry.sources.map(({ label, url }) => `<li><a href="${escapeHtml(url)}">${escapeHtml(label)}</a></li>`).join("")}</ul></article>`).join("");
+    return `<section class="panel" id="${subject.id}"><h2>${escapeHtml(subject.name)}</h2>${rows}</section>`;
+  }).join("");
+  return htmlPage(data, { title: "Lattice evidence", description: "Trace a claim to its worked example, implementation, browser observation or production receipt.", current: "evidence", interactive: false,
+    content: sections + htmlTerms() });
+}
+
 function htmlPage(data, { title, description, current, content, interactive = true }) {
   const pageFiles = new Map([
     ["index", ["index.html", null]],
+    ["evidence", ["evidence.html", null]],
     ["concept", ["lattice-concept-map.html", "LATTICE-CONCEPT-MAP.md"]],
     ["skill", ["lattice-skill-map.html", "LATTICE-SKILL-MAP.md"]],
     ["blueprint", ["text-to-lattice-service-blueprint.html", "TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md"]],
     ["security", ["text-to-lattice-security-model.html", "TEXT-TO-LATTICE-SECURITY-MODEL.md"]],
   ]);
   const [htmlFilename, markdownFilename] = pageFiles.get(current) ?? fail(`unknown HTML page kind ${current}.`);
+  const document = readingDocuments.find((item) => item.htmlUrl === publicBaseUrl + htmlFilename);
   const alternate = markdownFilename
     ? `<link rel="alternate" type="text/markdown" href="${publicBaseUrl}${markdownFilename}">\n`
     : "";
@@ -1047,23 +1107,24 @@ function htmlPage(data, { title, description, current, content, interactive = tr
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="${escapeHtml(description)}">
+<meta name="description" content="${escapeHtml(document?.answer ?? description)}">
 <meta name="theme-color" content="#ffffff">
 <meta name="generator" content="${escapeHtml(data.authority.builder)}">
 <link rel="canonical" href="${publicBaseUrl}${htmlFilename}">
+<link rel="alternate" type="application/json" href="${latticeReadingGuide.jsonUrl}">
 ${alternate}<title>${escapeHtml(title)} · Lattice documentation</title>
 <style>${commonCss}</style>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to documentation</a>
 <header class="site-header">
-  <p class="eyebrow">Lattice technical record · revision ${escapeHtml(data.revision)}</p>
+  <p><a href="${latticeReadingGuide.projectUrl}">Lattice project</a></p>
   <h1>${escapeHtml(title)}</h1>
-  <p class="lede">${escapeHtml(description)}</p>
+  <p class="lede">${escapeHtml(document?.answer ?? description)}</p>
   <nav class="doc-nav" aria-label="Lattice documentation navigation">${navigation(current)}</nav>
 </header>
-<main id="main">${content}</main>
-<footer class="site-footer"><p>One authoritative register · deterministic Markdown and HTML · authored documentation follows hah.dev portfolio-content terms · executable shell retains source-component terms · the separately licensed RSR profile is not reproduced</p></footer>
+<main id="main">${document ? readingOverview(document) + `<details class="reference" id="technical-reference"><summary>Full technical reference</summary>${content}</details>` : content}</main>
+<footer class="site-footer"><p><a href="reading-guide.json">Reading guide (JSON)</a> · <a href="documentation-atlas.json">Technical atlas (JSON)</a> · <a href="artifact-manifest.json">Artifact manifest</a></p></footer>
 ${interactive ? `<script>${interactionScript}</script>` : ""}
 </body>
 </html>
@@ -1073,9 +1134,7 @@ ${interactive ? `<script>${interactionScript}</script>` : ""}
 function htmlSources(data, sourceIds = data.sources.map((source) => source.id)) {
   const sources = sourceMapFor(data);
   const items = sourceIds.map((id) => sources.get(id)).filter(Boolean).map((source) => (
-    source.url
-      ? `<li><strong>${escapeHtml(source.id)} — ${escapeHtml(source.label)}:</strong> <a href="${escapeHtml(source.url)}">Reviewed source</a></li>`
-      : `<li><strong>${escapeHtml(source.id)} — ${escapeHtml(source.label)}:</strong> <code>${escapeHtml(source.path)}</code></li>`
+    `<li id="${escapeHtml(source.id.toLowerCase())}"><strong>${escapeHtml(source.id)} — ${escapeHtml(source.label)}</strong> <a href="${escapeHtml(reviewedSourceUrl(source))}">${escapeHtml(source.path ?? "Reviewed source")}</a></li>`
   )).join("");
   return `<section class="panel" aria-labelledby="sources-heading"><h2 id="sources-heading">Source register</h2><ul class="source-list">${items}</ul></section>`;
 }
@@ -1086,7 +1145,7 @@ function htmlAuthority(data) {
   <h2 id="authority-heading">Authority stays typed</h2>
   <p>${escapeHtml(data.authority.claimBoundary)}</p>
   <p>${escapeHtml(data.authority.changePolicy)}</p>
-  <p>${escapeHtml(data.authority.exportPolicy)}</p>
+  <p>The atlas supplies the technical reference. The editorial guide and its sources are listed in the <a href="artifact-manifest.json">artifact manifest</a>.</p>
 </section>`;
 }
 
@@ -1154,6 +1213,7 @@ function conceptMarkdown(data) {
   const lines = [
     ...markdownFrontmatter(data, "Lattice concept and ecosystem map"),
     "# Lattice concept and ecosystem map",
+    ...markdownReadingGuide("lattice-concept-map"),
     "",
     map.description,
     "",
@@ -1210,7 +1270,7 @@ function conceptMarkdown(data) {
     ...markdownSourceRegister(data),
     ...markdownTerms(),
   );
-  return `${lines.join("\n").trimEnd()}\n`;
+  return `${lines.join("\n").trimEnd()}\n\n</details>\n`;
 }
 
 function conceptHtml(data) {
@@ -1273,6 +1333,7 @@ function skillMarkdown(data) {
   const lines = [
     ...markdownFrontmatter(data, "Lattice system skill map"),
     "# Lattice system skill map",
+    ...markdownReadingGuide("lattice-skill-map"),
     "",
     `> **System evidence, never human proficiency.** ${skillMap.methodNote}`,
     "",
@@ -1323,7 +1384,7 @@ function skillMarkdown(data) {
     ...markdownSourceRegister(data),
     ...markdownTerms(),
   );
-  return `${lines.join("\n").trimEnd()}\n`;
+  return `${lines.join("\n").trimEnd()}\n\n</details>\n`;
 }
 
 function radarSvg(skillMap) {
@@ -1399,6 +1460,7 @@ function blueprintMarkdown(data) {
   const lines = [
     ...markdownFrontmatter(data, "Text to Lattice service blueprint"),
     "# Text to Lattice service blueprint",
+    ...markdownReadingGuide("text-to-lattice-service-blueprint"),
     "",
     blueprint.scenario,
     "",
@@ -1457,7 +1519,7 @@ function blueprintMarkdown(data) {
     ...markdownSourceRegister(data),
     ...markdownTerms(),
   );
-  return `${lines.join("\n").trimEnd()}\n`;
+  return `${lines.join("\n").trimEnd()}\n\n</details>\n`;
 }
 
 function blueprintHtml(data) {
@@ -1550,6 +1612,7 @@ function securityMarkdown(data) {
   const lines = [
     ...markdownFrontmatter(data, "Text to Lattice security model"),
     "# Text to Lattice security model",
+    ...markdownReadingGuide("text-to-lattice-security-model"),
     "",
     "This is an as-built source model, not a penetration test, formal semantic proof, privacy guarantee, or deployed-control attestation.",
     "",
@@ -1649,7 +1712,7 @@ function securityMarkdown(data) {
     ...markdownSourceRegister(data),
     ...markdownTerms(),
   );
-  return `${lines.join("\n").trimEnd()}\n`;
+  return `${lines.join("\n").trimEnd()}\n\n</details>\n`;
 }
 
 function htmlList(items) {
@@ -1717,13 +1780,14 @@ function securityHtml(data) {
 }
 
 function indexHtml(data, releaseRegister) {
-  const summaries = new Map([
-    ["DOC-CONCEPT", "Trace caller authority through meaning contracts, protected evaluation, evidence, host duties, and four ecosystem applications."],
-    ["DOC-SKILL", "Inspect the upstream engine's capability shape on a zero-to-five system-evidence scale adapted from NN/g skill mapping."],
-    ["DOC-BLUEPRINT", "Follow the wrapper across eight stages, six service layers, four accountability lines, and eight lifecycle owners."],
-    ["DOC-SECURITY", "Review assets, boundaries, SEC-01 through SEC-12, marginal value, release qualification gates, and honest residuals."],
-  ]);
-  const cards = data.artifacts.map((artifact) => `<article class="index-card"><p class="eyebrow">${escapeHtml(artifact.scope)}</p><h2>${escapeHtml(artifact.title)}</h2><p>${escapeHtml(summaries.get(artifact.id))}</p><div class="link-row"><a href="${escapeHtml(artifact.html)}">Open interactive edition</a><a href="${escapeHtml(artifact.markdown)}" download>Download Markdown</a></div></article>`).join("");
+  const cards = latticeReadingGuide.subjects.map((subject) => {
+    const entries = readingDocuments.filter((item) => item.subject === subject.id).map((item) => {
+      const html = item.htmlUrl.split("/").at(-1);
+      const markdown = item.markdownUrl.split("/").at(-1);
+      return `<article><h3><a href="${html}">${escapeHtml(item.question)}</a></h3><p>${escapeHtml(item.answer)}</p><p><a href="${html}">${escapeHtml(item.title)}</a> · <a href="${markdown}">Markdown</a></p></article>`;
+    }).join("");
+    return `<section class="panel" id="${subject.id}"><h2>${escapeHtml(subject.name)}</h2>${entries}</section>`;
+  }).join("");
   const productionLifecycleSatisfied = releaseRegister.gates
     .some(({ id, status }) => id === "GATE-06" && status === "satisfied-in-production");
   const heldOpenGateIds = releaseRegister.gates
@@ -1740,14 +1804,13 @@ function indexHtml(data, releaseRegister) {
       ? "The remote interactive client is qualified with current canonical-browser lifecycle, same-origin API, fixed-provider, capacity, and application privacy evidence. External-provider retention remains outside hah.dev's guarantee."
       : "The interactive client is qualified. The records preserve accepted residuals, workflow controls, post-deployment checks, and rollback conditions without overstating remote runtime or provider evidence.";
   const releaseEvidence = `<section class="panel"><p class="eyebrow">Release evidence</p><h2>Text to Lattice qualification</h2><p>${escapeHtml(releaseSummary)}</p><ul><li><a href="TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md">Release qualification</a></li><li><a href="TEXT-TO-LATTICE-RELEASE-REGISTER.json">Machine release register</a></li><li><a href="LLAMA-USE-EVALUATION-CASES.json">Llama-use evaluation cases</a></li></ul></section>`;
-  const content = `<section class="panel boundary"><p class="eyebrow">Method beside implementation</p><h2>Two authorities, four coordinated views</h2><p>The concept and system skill maps describe the upstream typed Lattice engine. The service blueprint and security model describe the separate Text to Lattice wrapper. The wrapper infers bounded meaning from prose and does not inherit a caller-supplied typed authority guarantee.</p><p>Every document remains complete without JavaScript. Scripting adds read-only search, filters, disclosure controls, and local Markdown export.</p></section>
-  <section class="index-grid" aria-label="Available Lattice documentation">${cards}</section>
+  const content = `${cards}
+  <section class="panel"><h2><a href="evidence.html">Evidence by claim</a></h2><p>Inspect the export notice, the two browser outcomes and the production publication. <a href="reading-guide.json">Download the linked reading guide (JSON)</a>.</p></section>
   ${releaseEvidence}
-  <section class="panel"><h2>Authority and integrity</h2><p><a class="button-link" href="documentation-atlas.json">Machine-readable authoritative register</a> <a class="button-link" href="artifact-manifest.json">SHA-256 artifact manifest</a></p><p>These pages load no remote fonts, icons, scripts, analytics, or media. Reviewed source links leave this documentation only when activated.</p></section>
   ${htmlTerms()}`;
   return htmlPage(data, {
     title: "Lattice documentation",
-    description: "Interactive, downloadable maps for the upstream Lattice engine and its held, bounded remote Text to Lattice wrapper.",
+    description: "Read how the engine preserves caller-defined meaning and how the hosted API checks a passage submitted as prose.",
     current: "index",
     content,
     interactive: false,
@@ -1875,6 +1938,11 @@ function buildArtifacts(data, canonicalBytes, releaseRegister) {
     artifacts.set(join(publicOutputRoot, descriptor.html), Buffer.from(document.html));
   }
 
+  const evidence = evidenceHtml(data);
+  validateGeneratedHtml("evidence.html", evidence, { interactive: false, releasePhase });
+  artifacts.set(join(publicOutputRoot, "evidence.html"), Buffer.from(evidence));
+  const guide = { ...latticeReadingGuide, documents: readingDocuments };
+  artifacts.set(join(publicOutputRoot, "reading-guide.json"), Buffer.from(JSON.stringify(guide, null, 2) + "\n"));
   const index = indexHtml(data, releaseRegister);
   validateGeneratedHtml("index.html", index, { interactive: false, releasePhase });
   for (const descriptor of data.artifacts) {
@@ -1922,6 +1990,8 @@ function buildArtifacts(data, canonicalBytes, releaseRegister) {
       canonicalSourceSha256: sha256(canonicalBytes),
       builder: data.authority.builder,
       builderSha256: sha256(readFileSync(scriptPath)),
+      readingGuideSource: "app/content/projectDocuments.js",
+      readingGuideSourceSha256: sha256(readFileSync(join(projectRoot, "app/content/projectDocuments.js"))),
     },
     publicRoot: "/documentation/text-to-lattice/",
     artifactPairs,

@@ -1113,7 +1113,22 @@ test("one-release source carry refuses unrelated bytes even after repinning the 
     const current = carryFingerprint(fixture.files);
     fixture.register.authority.qualifiedSourceSet.sha256 = current;
     fixture.register.authority.browserEvidenceSourceCarry.currentSourceSetSha256 = current;
-    assert.throws(() => checkSourceCarry(fixture), /unaffected captured source byte or path/u, path);
+    assert.throws(() => checkSourceCarry(fixture), /unaffected captured source byte or path|exact approved before and after bytes/u, path);
+  }
+});
+
+test("the editorial extension pins the reviewed workflow and authored documentation after independent repinning", async () => {
+  for (const path of [".github/workflows/pages.yml", "app/content/projectDocuments.js", "app/projects/[slug]/page.tsx"]) {
+    const fixture = await sourceCarryFixture();
+    const file = fixture.files.find((entry) => entry.path === path);
+    file.bytes = Buffer.concat([file.bytes, Buffer.from("\n")]);
+    const current = carryFingerprint(fixture.files);
+    fixture.register.authority.qualifiedSourceSet.sha256 = current;
+    fixture.register.authority.browserEvidenceSourceCarry.currentSourceSetSha256 = current;
+    const proof = JSON.parse(fixture.proofBytes);
+    proof.exceptions.find((entry) => entry.path === path).afterSha256 = sha256(file.bytes);
+    repinCarryProof(fixture, proof);
+    assert.throws(() => checkSourceCarry(fixture), /frozen documentation publication bytes/u);
   }
 });
 
@@ -1138,7 +1153,7 @@ test("one-release source carry refuses widening, wildcard, duplicate and missing
   ]) {
     const fixture = await sourceCarryFixture();const proof = JSON.parse(fixture.proofBytes);
     mutate(proof.exceptions);repinCarryProof(fixture, proof);
-    assert.throws(() => checkSourceCarry(fixture), /exactly the four approved file exceptions/u);
+    assert.throws(() => checkSourceCarry(fixture), /exactly the approved file exceptions/u);
   }
 });
 

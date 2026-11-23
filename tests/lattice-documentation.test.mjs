@@ -6,7 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { qualifiedFilesBelow, verifyBrowserEvidenceAuthority, verifyReleaseStatusState, verifyServicePhaseTransport } from "../scripts/verify-text-to-lattice-release.mjs";
-import { projectDocuments } from "../app/content/projectDocuments.js";
+import { latticeReadingGuide, projectDocuments } from "../app/content/projectDocuments.js";
 
 const rootUrl = new URL("../", import.meta.url);
 const publicRoot = new URL("../public/documentation/text-to-lattice/", import.meta.url);
@@ -530,7 +530,8 @@ test("the static site preserves every exported documentation byte", async () => 
   const filenames = await exportedFiles(publicRoot);
   assert.deepEqual(await exportedFiles(siteRoot), filenames);
   const nestedFiles = filenames.filter((name) => name.includes("/"));
-  assert.equal(filenames.length - nestedFiles.length, 14);
+  assert.equal(filenames.length - nestedFiles.length, 16);
+  assert.ok(filenames.includes("reading-guide.json") && filenames.includes("evidence.html"));
   if (releaseState.qualified) {
     const directory = `browser-evidence/${releaseRegister.authority.browserEvidence.evidenceId}/`;
     const canonical = (await readdir(new URL(directory, sourceRoot))).sort();
@@ -611,4 +612,31 @@ test("historical Venice documentation preserves its route disclosures and dated 
   assert.match(current, /The tier and compute partner for this Hugging Face route are unverified/u);
   assert.match(current, /Venice and potentially a compute partner handle generation/u);
   assert.match(current, /both actual native browser traces must pass/u);
+});
+
+test("Lattice reading paths resolve each subject and claim to visible documentation and original evidence", async () => {
+  const guide = JSON.parse(await readText(publicRoot, "reading-guide.json"));
+  const evidence = await readText(publicRoot, "evidence.html");
+  const subjects = new Map(guide.subjects.map((subject) => [subject.id, subject]));
+  const claims = new Map(guide.evidence.map((claim) => [claim.id, claim]));
+  assert.deepEqual(guide.subjects, latticeReadingGuide.subjects);
+  assert.deepEqual([...subjects.keys()], ["lattice-method", "text-to-lattice-api"]);
+  assert.equal(digest(await readBytes(rootUrl, manifest.authority.readingGuideSource)), manifest.authority.readingGuideSourceSha256);
+  for (const claim of claims.values()) {
+    assert.ok(subjects.get(claim.subject).evidence.includes(claim.id));
+    assert.ok(evidence.includes(`id="${claim.id}"`));
+    for (const source of claim.sources) assert.ok(evidence.includes(`href="${source.url}"`));
+  }
+  for (const doc of guide.documents) {
+    const html = await readText(publicRoot, new URL(doc.htmlUrl).pathname.split("/").at(-1));
+    assert.ok(html.includes(doc.answer));
+    for (const section of doc.sections) {
+      assert.equal(section.url, `${doc.htmlUrl}#${section.id}`);
+      assert.ok(html.includes(`id="${section.id}"`));
+    }
+    for (const id of doc.evidence) {
+      assert.equal(claims.get(id).subject, doc.subject);
+      assert.ok(html.includes(`href="evidence.html#${id}"`));
+    }
+  }
 });

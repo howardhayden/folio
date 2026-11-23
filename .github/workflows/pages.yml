@@ -71,16 +71,50 @@ jobs:
     permissions:
       contents: read
     outputs:
+      documentation_only: ${{ steps.editorial.outputs.selected }}
       public_client_status: ${{ steps.release-state.outputs.public_client_status }}
       release_phase: ${{ steps.release-state.outputs.release_phase }}
       qualified_source_set_sha256: ${{ steps.release-state.outputs.qualified_source_set_sha256 }}
     steps:
+      - id: editorial
+        name: Identify the approved documentation-only publication
+        env:
+          SELECTED: ${{ github.event_name == 'push' && github.event.before == '784cc7c62f20a073986bae09a174ca688fb6608f' && contains(github.event.head_commit.message, '[lattice-docs-20261123]') }}
+        run: echo "selected=$SELECTED" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          fetch-depth: 2
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
+      - name: Limit the editorial publication to reviewed files
+        if: steps.editorial.outputs.selected == 'true'
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from "node:child_process";
+          const baseline = "784cc7c62f20a073986bae09a174ca688fb6608f";
+          const head = process.env.GITHUB_SHA;
+          const paths = execFileSync("git", ["diff", "--no-renames", "--name-only", "-z", baseline, head], { encoding: "utf8" }).split("\0").filter(Boolean);
+          const allowed = new Set([
+            ".github/workflows/pages.yml", "app/content/projectDocuments.js", "app/projects/[slug]/page.tsx",
+            "app/semantic/portfolio.js", "scripts/docs/build-text-to-lattice-documentation.mjs",
+            "scripts/verify-text-to-lattice-release.mjs", "tests/lattice-documentation.test.mjs",
+            "tests/lattice-release-boundary.test.mjs", "tests/lattice-deployment-workflow.test.mjs",
+            "docs/release-evidence/text-to-lattice/nov23-documentation-source-comparison.json",
+          ]);
+          const paired = ["LATTICE-CONCEPT-MAP.md", "LATTICE-SKILL-MAP.md", "TEXT-TO-LATTICE-SECURITY-MODEL.md",
+            "TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md", "TEXT-TO-LATTICE-RELEASE-REGISTER.json", "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"];
+          for (const name of paired) {
+            allowed.add("docs/text-to-lattice/" + name);
+            allowed.add("public/documentation/text-to-lattice/" + name);
+          }
+          for (const name of ["index.html", "evidence.html", "reading-guide.json", "artifact-manifest.json",
+            "lattice-concept-map.html", "lattice-skill-map.html", "text-to-lattice-service-blueprint.html", "text-to-lattice-security-model.html"]) {
+            allowed.add("public/documentation/text-to-lattice/" + name);
+          }
+          if (!paths.length || paths.some((path) => !allowed.has(path))) throw new Error("The documentation-only publication includes unapproved files.");
+          NODE
       - id: release-state
         name: Read Text to Lattice publication boundary
         run: node scripts/read-text-to-lattice-release-state.mjs
@@ -355,6 +389,7 @@ jobs:
       github.ref == 'refs/heads/main' &&
       inputs.restore_text_to_lattice_qualification != true &&
       needs.publication-boundary.result == 'success' &&
+      needs.publication-boundary.outputs.documentation_only != 'true' &&
       needs.build.result == 'success' &&
       (
         (
@@ -811,7 +846,14 @@ jobs:
       inputs.restore_text_to_lattice_qualification != true &&
       needs.publication-boundary.result == 'success' &&
       needs.build.result == 'success' &&
-      needs.deploy_text_to_lattice_services.result == 'success' &&
+      (
+        needs.deploy_text_to_lattice_services.result == 'success' ||
+        (
+          needs.publication-boundary.outputs.documentation_only == 'true' &&
+          needs.publication-boundary.outputs.release_phase == 'qualified' &&
+          needs.deploy_text_to_lattice_services.result == 'skipped'
+        )
+      ) &&
       (
         (
           needs.publication-boundary.outputs.release_phase == 'qualified' &&
@@ -1058,6 +1100,11 @@ jobs:
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
+      !(
+        github.event_name == 'push' &&
+        github.event.before == '784cc7c62f20a073986bae09a174ca688fb6608f' &&
+        contains(github.event.head_commit.message, '[lattice-docs-20261123]')
+      ) &&
       (
         (
           needs.publication-boundary.result != 'success'
