@@ -109,13 +109,13 @@ test("Resume Search covers every canonical content class and preserves evidence 
       text: "Shift work",
       fieldPath: "TIMELINE_AUTHORED_SEARCH_METADATA[\"madison-correctional-facility-corrections-officer\"][0]",
       strength: "curated",
-      conceptIds: ["shift-work"],
+      conceptIds: ["shift-work", "continuous-operations"],
     },
     {
       text: "Night shift",
       fieldPath: "TIMELINE_AUTHORED_SEARCH_METADATA[\"madison-correctional-facility-corrections-officer\"][1]",
       strength: "curated",
-      conceptIds: ["night-shift"],
+      conceptIds: ["night-shift", "night-correctional-officer"],
     },
     {
       text: "Long shifts",
@@ -127,13 +127,13 @@ test("Resume Search covers every canonical content class and preserves evidence 
       text: "12-plus-hour shifts",
       fieldPath: "TIMELINE_AUTHORED_SEARCH_METADATA[\"madison-correctional-facility-corrections-officer\"][3]",
       strength: "curated",
-      conceptIds: ["long-shift"],
+      conceptIds: ["long-shift", "twelve-hour-shift"],
     },
     {
       text: "Government service",
       fieldPath: "TIMELINE_AUTHORED_SEARCH_METADATA[\"madison-correctional-facility-corrections-officer\"][4]",
       strength: "curated",
-      conceptIds: ["government", "government-service"],
+      conceptIds: ["government", "government-service", "state-service", "civil-service", "uniformed-service"],
     },
     {
       text: "First responder",
@@ -292,12 +292,21 @@ test("Resume recruiter concepts retain precise shift, corrections, emergency, an
     "night",
     "night shift",
     "overnight work",
+    "graveyard shift",
+    "graveyard",
+    "third shift",
+    "3rd shift",
+    "midnight shift",
+    "red-eye shift",
+    "night watch",
     "long shifts",
     "12-hour shift",
     "12 hr shifts",
     "twelve-hour shift",
     "12 plus hour shifts",
     "12+ hour shifts",
+    "12s",
+    "twelves",
     "extended hours",
     "long hours",
   ]) {
@@ -314,7 +323,34 @@ test("Resume recruiter concepts retain precise shift, corrections, emergency, an
     assert.ok(experienceTitles(query).includes("Corrections Officer"), query);
   }
 
-  for (const query of ["night school", "long form", "shift UX", "shift work UX"]) {
+  for (const query of [
+    "NCO",
+    "night custody officer",
+    "CO",
+    "C/O",
+    "C.O.",
+    "CPO",
+    "prison officer",
+    "prison guard",
+    "detention officer",
+    "custody officer",
+    "jailer",
+    "turnkey",
+    "prison screw",
+    "behind the wall",
+    "protective services",
+    "custody operations",
+    "civil service",
+    "state employee",
+  ]) {
+    assert.deepEqual(experienceTitles(query), ["Corrections Officer"], query);
+  }
+
+  for (const query of ["noncommissioned officer", "non-commissioned officer", "second shift", "day shift", "swing shift", "double shift"]) {
+    assert.equal(experienceTitles(query).includes("Corrections Officer"), false, query);
+  }
+
+  for (const query of ["night school", "long form", "shift UX", "shift work UX", "graveyard UX", "NCO UX"]) {
     assert.equal(experienceTitles(query).includes("Corrections Officer"), false, query);
   }
 
@@ -355,6 +391,62 @@ test("Resume public-service and wargaming access points are precise, typo-tolera
   assert.equal(ids("government").some((id) => id.includes("substitute-teacher") || id.includes("public-library")), false);
   assert.equal(ids("wargaming").includes("resume-project-chorus"), false);
   assert.equal(ids("wargaming").includes("resume-timeline-american-public-university-system-student"), false);
+});
+
+test("Resume adjacent role language and recruiter shorthand resolve to truthful ontology owners", () => {
+  const ids = (query) => search(query).map(({ record }) => record.id);
+  const corrections = "resume-timeline-madison-correctional-facility-corrections-officer";
+  const officerCandidate = "resume-timeline-united-states-navy-officer-candidate";
+  const madisonTeacher = "resume-timeline-madison-consolidated-schools-substitute-teacher";
+  const daytonTeacher = "resume-timeline-dayton-area-school-consortium-substitute-teacher";
+  const germantown = "resume-timeline-germantown-public-library-intern";
+  const teachingAssistant = "resume-timeline-miami-university-undergraduate-teaching-assistant";
+  const kettering = "resume-timeline-kettering-health-network-volunteer";
+
+  for (const query of [
+    "military service",
+    "armed forces",
+    "service member",
+    "OCS",
+    "officer accession",
+    "precommissioning training",
+    "watchstander",
+    "watchkeeping",
+    "OPSEC",
+    "secret cleared",
+  ]) assert.deepEqual(ids(query), [officerCandidate], query);
+
+  assert.deepEqual(ids("uniformed service"), [corrections, officerCandidate]);
+  for (const query of ["sub", "guest teacher", "supply teacher", "relief teacher"]) {
+    assert.deepEqual(ids(query), [madisonTeacher, daytonTeacher], query);
+  }
+  assert.deepEqual(ids("invigilator"), [daytonTeacher]);
+  assert.deepEqual(ids("ISS"), [madisonTeacher]);
+  assert.ok(ids("library tech").includes(germantown));
+  for (const query of ["TA", "UTA", "course assistant"]) assert.deepEqual(ids(query), [teachingAssistant], query);
+  assert.deepEqual(ids("hospital volunteer"), [kettering]);
+
+  for (const [shorthand, canonical] of [
+    ["SWE", "software engineering"],
+    ["SDE", "software engineering"],
+    ["a11y", "accessibility"],
+    ["GenAI", "generative AI"],
+    ["QA", "verification"],
+    ["PM", "project management"],
+    ["BCP", "continuity"],
+    ["COOP", "continuity"],
+    ["SOP", "technical documentation"],
+    ["MAS", "multi-agent systems"],
+    ["ABM", "multi-agent systems"],
+    ["FDM", "fabrication"],
+    ["UX/UI", "interaction design"],
+    ["InfoSec", "security"],
+    ["API", "API integration"],
+    ["DB", "database"],
+  ]) assert.deepEqual(ids(shorthand), ids(canonical), shorthand);
+
+  const ir = new Set(ids("IR"));
+  for (const id of [...ids("incident response"), ...ids("information retrieval")]) assert.ok(ir.has(id), id);
 });
 
 test("Resume subject ontology exposes high-value occupational paths without adjacent-domain leakage", () => {
