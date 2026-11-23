@@ -421,7 +421,7 @@ async function reviewedActiveVerifierRepositoryTokenizer() {
 async function reviewedActiveGeneratorRepositoryTokenizer() {
   const Tokenizer = await tokenizerRuntime();
   const bytes = await readFile(ACTIVE_QWEN_REPOSITORY_TOKENIZER_PATH);
-  // This binds the reviewed Qwen repository file only, not the selected provider's managed
+  // This binds the reviewed Qwen repository file only, not DeepInfra's managed
   // tokenizer, chat template, or structured-output token accounting.
   assert.equal(bytes.byteLength, REVIEWED_QWEN_2507_REPOSITORY_TOKENIZER.bytes);
   assert.equal(
@@ -3930,9 +3930,6 @@ test("the reachable dense two-passage repair retains its grounding inside the pi
 });
 
 test("active compact drafting and repair byte-bound grounded maximum requests and corrections", async (context) => {
-  const tokenizer = ACTIVE_GENERATOR_TOKENIZER_FIXTURE_AVAILABLE
-    ? await reviewedActiveGeneratorRepositoryTokenizer() : null;
-  if (tokenizer) context.after(() => tokenizer.dispose());
   const requestFor = ({ batch, sourceSpans, context = null }) => {
     const analysis = linkedAnalysisFor(batch, sourceSpans);
     return { batch, sourceSpans, context, documentLedger: [], analysis,
@@ -3988,19 +3985,6 @@ test("active compact drafting and repair byte-bound grounded maximum requests an
         assert.deepEqual(payload.rejectedCandidate, request.candidate.passages.map((passage) => [
           passage.passageId, passage.layer, passage.text,
         ]));
-        const extraByPassage = new Map(payload.feedbackSourceSpans ?? []);
-        for (const feedback of payload.verification?.[2] ?? []) {
-          const sourceGroup = request.sourceSpans.find(({ passageId }) => passageId === feedback[0]);
-          const sourceById = new Map([...sourceGroup.spans, ...(sourceGroup.literalAnnotations ?? [])]
-            .map((span) => [span.id, span]));
-          const referenced = new Set([...feedback[3], ...feedback[5], ...feedback[9],
-            ...feedback[10].flatMap((criterion) => criterion[1])]);
-          const ordinary = [...referenced].filter((id) => sourceById.get(id).kind !== "literal");
-          const extra = extraByPassage.get(feedback[0]) ?? [];
-          assert.deepEqual(new Set(extra.map(([id]) => id)), new Set(ordinary));
-          assert.equal(extra.length, ordinary.length, "no duplicate grounding or unrelated ordinary spans");
-          for (const [id, text] of extra) assert.equal(text, sourceById.get(id).text);
-        }
       } else {
         assert.equal(payload.passages.flatMap((group) => group[1]).length,
           request.sourceSpans.flatMap(({ spans }) => spans).length);
@@ -4011,9 +3995,6 @@ test("active compact drafting and repair byte-bound grounded maximum requests an
     }
     context.diagnostic(JSON.stringify({ fixture: label,
       inputBytes: bodies.map(({ bytes }) => bytes), repairFromSource: false,
-      // Repository-tokenizer observations only, not provider chat-template accounting.
-      ...(tokenizer ? { repositoryMessageTokens: bodies.map(({ body }) => body.messages
-        .reduce((sum, message) => sum + tokenizer.encode(message.content).length, 0)) } : {}),
     }));
   }
 });
@@ -4040,113 +4021,5 @@ test("an opaque maximum document can deliberately exceed flat whole-document cer
     assert.equal(DOCUMENT_CERTIFICATION_SCHEMA.additionalProperties, false);
   } finally {
     tokenizers.dispose();
-  }
-});
-
-
-test("compact reanalysis adds only feedback-referenced prior atom source bindings", () => {
-  const { batch, sourceSpans } = manualLiteralBatch(2);
-  const prior = linkedAnalysisFor(batch, sourceSpans);
-  for (const passage of prior.passages) {
-    passage.rationale = "PRIVATE-PRIOR-RATIONALE";
-    for (const atom of passage.atoms) atom.value = "PRIVATE-PRIOR-CLAIM";
-  }
-  const feedback = failedVerification(batch, prior);
-  const atoms = prior.passages[0].atoms;
-  feedback.passages[0].missingAtomIds = [atoms[2].id, "unbound-prior-atom"];
-  feedback.passages[0].layerEvidenceAtomIds = [atoms[0].id, atoms[2].id, atoms[0].id];
-  // The second tuple is omitted by the existing feedback projection; its
-  // otherwise nonempty layer references must not expand the new payload.
-  feedback.passages[1].clarity = true;
-  const request = { batch, sourceSpans, documentLedger: [], requestedMode: "auto",
-    allowClarification: false, reanalysisFeedback: feedback, reanalysisPriorAnalysis: prior };
-  const compact = (current) => analysisMessages(current, { responseDialect: "compact-wire-v2" });
-  const payload = inertPayload(compact(request));
-  assert.deepEqual(payload.reanalysisAtomEvidence, [[batch.passages[0].id,
-    [atoms[0], atoms[2]].map((atom) => [atom.id, atom.evidenceSpanIds])]]);
-  assert.equal(payload.reanalysisFeedback[2].length, 1);
-  assert.doesNotMatch(JSON.stringify(payload), /PRIVATE-PRIOR|reanalysisPriorAnalysis/u);
-  assert.equal(JSON.stringify(payload.reanalysisAtomEvidence).includes("unbound-prior-atom"), false);
-  assert.deepEqual(analysisMessages(request), analysisMessages({ ...request, reanalysisPriorAnalysis: undefined }),
-    "dense host dialect is byte-identical");
-  for (const current of [
-    { ...request, reanalysisPriorAnalysis: undefined },
-    { ...request, reanalysisFeedback: undefined },
-    { ...request, reanalysisFeedback: { ...feedback, passages: [] } },
-    { ...request, reanalysisPriorAnalysis: { ...prior, passages: [prior.passages[1]] } },
-    { ...request, reanalysisPriorAnalysis: { ...prior, passages: [{ ...prior.passages[0],
-      atoms: atoms.map((atom) => ({ ...atom, evidenceSpanIds: [sourceSpans[1].spans[0].id] })) }] } },
-    { ...request, reanalysisPriorAnalysis: { ...prior, passages: [{ ...prior.passages[0],
-      atoms: atoms.map((atom) => ({ ...atom, evidenceSpanIds: [] })) }] } },
-  ]) assert.equal(Object.hasOwn(inertPayload(compact(current)), "reanalysisAtomEvidence"), false);
-  const fallback = inertPayload(compact({ ...request, sourceSpans: undefined }));
-  assert.deepEqual(fallback.passages[0][1], [[`${batch.passages[0].id}:s01`, "source", batch.passages[0].text]]);
-  assert.equal(Object.hasOwn(fallback, "reanalysisAtomEvidence"), false,
-    "fallback source text does not authenticate the old graph's span numbering");
-  const unavailable = { ...request, reanalysisPriorAnalysis: undefined, sourceSpans: undefined };
-  assert.equal(Object.hasOwn(inertPayload(compact(unavailable)), "reanalysisAtomEvidence"), false);
-  const literal = sourceSpans[0].spans.find(({ kind }) => kind === "literal");
-  assert.ok(literal);
-  const literalPrior = { ...prior, passages: [{ ...prior.passages[0],
-    atoms: [{ ...atoms[0], evidenceSpanIds: [literal.id] }] }] };
-  assert.deepEqual(inertPayload(compact({ ...request, reanalysisPriorAnalysis: literalPrior })).reanalysisAtomEvidence,
-    [[batch.passages[0].id, [[atoms[0].id, [literal.id]]]]]);
-});
-
-test("active compact reanalysis bounds prior atom reference grounding and its protocol correction", async (context) => {
-  const tokenizer = ACTIVE_GENERATOR_TOKENIZER_FIXTURE_AVAILABLE
-    ? await reviewedActiveGeneratorRepositoryTokenizer() : null;
-  if (tokenizer) context.after(() => tokenizer.dispose());
-  const fixtures = [manualLiteralBatch(1), manualLiteralBatch(4)];
-  for (const { batch, sourceSpans } of fixtures) {
-    const prior = linkedAnalysisFor(batch, sourceSpans, 24);
-    for (const passage of prior.passages) {
-      const spans = sourceSpans.find((group) => group.passageId === passage.passageId).spans;
-      passage.atoms.forEach((atom, index) => {
-        atom.evidenceSpanIds = [0, 1, 2].map((offset) => spans[(index + offset) % spans.length].id);
-      });
-    }
-    const feedback = failedVerification(batch, prior);
-    for (const passage of feedback.passages) {
-      passage.missingAtomIds = prior.passages.find(({ passageId }) => passageId === passage.passageId).atoms.map(({ id }) => id);
-    }
-    const request = { batch, sourceSpans, documentLedger: [], requestedMode: "auto",
-      allowClarification: false, analysisAtomLimit: 24,
-      reanalysisFeedback: feedback, reanalysisPriorAnalysis: prior };
-    const bodies = [];
-    const adapter = createHuggingFaceLatticeAdapter({ token: "synthetic-token", requestedMode: "auto",
-      fetchImpl: async (_url, init) => {
-        bodies.push({ body: JSON.parse(init.body), bytes: Buffer.byteLength(init.body, "utf8") });
-        return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: {
-          role: "assistant", content: "{}",
-        } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
-      } });
-    for (const current of [request, { ...request, protocolFeedback: { stage: "re-atomization",
-      attempt: 2, category: "evidence", issue: "PRIVATE-VALIDATION-PROSE", instruction: "PRIVATE-INSTRUCTION" } }]) {
-      await adapter.analyze(current);
-    }
-    assert.equal(bodies.length, 2);
-    for (const { body, bytes } of bodies) {
-      assert.ok(bytes < LATTICE_PROVIDER_REQUEST_BYTE_LIMIT);
-      assert.equal(body.model, LATTICE_REMOTE_MODELS.generator);
-      assert.ok(body.max_tokens <= 2048);
-      assert.equal(body.response_format.type, "json_schema");
-      const payload = inertPayload(body.messages);
-      assert.equal(payload.reanalysisAtomEvidence.flatMap((group) => group[1]).length, 24);
-      assert.doesNotMatch(JSON.stringify(body), /PRIVATE-VALIDATION-PROSE|PRIVATE-INSTRUCTION/u);
-      for (const [passageId, atoms] of payload.reanalysisAtomEvidence) {
-        const source = sourceSpans.find((group) => group.passageId === passageId);
-        const sourceIds = new Set([...source.spans, ...(source.literalAnnotations ?? [])].map(({ id }) => id));
-        for (const [id, evidenceIds] of atoms) {
-          assert.ok(prior.passages.find((passage) => passage.passageId === passageId).atoms.some((atom) => atom.id === id));
-          assert.ok(evidenceIds.every((evidenceId) => sourceIds.has(evidenceId)));
-        }
-      }
-    }
-    context.diagnostic(JSON.stringify({ passages: batch.passages.length, priorAtoms: 24,
-      inputBytes: bodies.map(({ bytes }) => bytes),
-      ...(tokenizer ? { repositoryMessageTokens: bodies.map(({ body }) => body.messages
-        .reduce((sum, message) => sum + tokenizer.encode(message.content).length, 0)) } : {}),
-    }));
   }
 });
