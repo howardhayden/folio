@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Typing stays local until confirmation. hah.dev then sends the passage through Hugging Face and OpenRouter to the named providers. Admission limits constrain work, the application avoids storing passage content, and a hard reload clears the visitor’s text.">
+<meta name="description" content="Typing stays local until confirmation. The page policy confines browser API connections to hah.dev. The API Worker checks admission before sending text through Hugging Face and OpenRouter to the named providers. The quota ledger stores usage counts without the passage. The release record shows which Workers served the tested build.">
 <meta name="theme-color" content="#ffffff">
 <meta name="generator" content="scripts/docs/build-text-to-lattice-documentation.mjs">
 <link rel="canonical" href="https://hah.dev/documentation/text-to-lattice/text-to-lattice-security-model.html">
@@ -126,10 +126,10 @@ tbody th { color: var(--red); }
 <header class="site-header">
   <p><a href="https://hah.dev/projects/lattice/">Lattice project</a></p>
   <h1>Text to Lattice security model</h1>
-  <p class="lede">Typing stays local until confirmation. hah.dev then sends the passage through Hugging Face and OpenRouter to the named providers. Admission limits constrain work, the application avoids storing passage content, and a hard reload clears the visitor’s text.</p>
+  <p class="lede">Typing stays local until confirmation. The page policy confines browser API connections to hah.dev. The API Worker checks admission before sending text through Hugging Face and OpenRouter to the named providers. The quota ledger stores usage counts without the passage. The release record shows which Workers served the tested build.</p>
   <nav class="doc-nav" aria-label="Lattice documentation navigation"><a href="index.html">Documentation</a><a href="evidence.html">Evidence</a><a href="lattice-concept-map.html">Concept map</a><a href="lattice-skill-map.html">System skill map</a><a href="text-to-lattice-service-blueprint.html">Service blueprint</a><a href="text-to-lattice-security-model.html" aria-current="page">Security model</a></nav>
 </header>
-<main id="main"><section class="panel" aria-labelledby="reading-heading"><h2 id="reading-heading">Follow the example</h2><p><a href="#sec-01">Consent and destinations</a> · <a href="#sec-04">Resource bounds</a> · <a href="#sec-07">Content retention</a></p><h3>Evidence</h3><p><a href="evidence.html#admission-and-consent">Consent and admission bound each submission</a> · <a href="evidence.html#browser-results">Safari and Brave completed the visitor path</a></p></section><details class="reference" id="technical-reference"><summary>Full technical reference</summary><section class="panel boundary" aria-labelledby="authority-heading">
+<main id="main"><section class="panel" aria-labelledby="reading-heading"><h2 id="reading-heading">Follow the example</h2><p><a href="#sec-01">Consent and destinations</a> · <a href="#sec-04">Resource bounds</a> · <a href="#sec-07">Content retention</a></p><h3>Evidence</h3><p><a href="evidence.html#edge-browser-policy">Two Workers separate page policy from provider access</a> · <a href="evidence.html#admission-and-consent">Consent and admission bound each submission</a> · <a href="evidence.html#edge-release-verification">The browser evidence identifies the Workers that served the test</a> · <a href="evidence.html#browser-results">Safari and Brave completed the visitor path</a></p></section><details class="reference" id="technical-reference"><summary>Full technical reference</summary><section class="panel boundary" aria-labelledby="authority-heading">
   <p class="eyebrow">Claim boundary</p>
   <h2 id="authority-heading">Authority stays typed</h2>
   <p>This register describes the Lattice method at an architectural level and the bounded Text to Lattice implementation evidenced in this repository. It does not redistribute the exclusive register profile, certify universal conformance, or convert source tests into deployed proof.</p>

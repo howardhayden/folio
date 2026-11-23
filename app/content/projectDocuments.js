@@ -59,17 +59,42 @@ export function documentsForProject(projectId) {
 }
 
 const serviceSource = "https://github.com/howardhayden/folio/blob/a47ca0557d3678f5e5c64f8d5a9bc8e433b43b39/";
-const browserBundle = documentationRoot + "browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE";
+const captureDirectory = documentationRoot + "browser-evidence/ttl-browser-20261123T143941Z-a495af12/";
+const browserBundle = captureDirectory + "TEXT-TO-LATTICE-BROWSER-EVIDENCE";
+
+const edgeArchitecture = {
+  anchor: "cloudflare-edge",
+  title: "Security, cost and verification at the Cloudflare edge",
+  claims: [
+    {
+      id: "edge-browser-policy", title: "Where the browser can send text",
+      summary: "One Worker adds security headers to the résumé pages served by GitHub Pages. The browser can make API connections only to hah.dev, and other sites cannot embed those pages. Only the separate API Worker holds the provider credential.",
+    },
+    {
+      id: "admission-and-consent", title: "When a request can spend money",
+      summary: "The API Worker checks the origin, signed quota cookie, request format and size. Requests arriving at different edge locations share one transactional quota ledger, so two cannot both spend the last daily admission. Tests recorded zero provider calls when admission was denied or the quota ledger was unavailable.",
+    },
+    {
+      id: "service-path", title: "Which results reach the reader",
+      summary: "The server checks proposed wording against the source for changed obligations. The API Worker also checks the fields and byte size of the final result. A rewrite that drops a required condition can be withheld even when the provider returned well-formed data.",
+    },
+    {
+      id: "edge-release-verification", title: "How the tested deployment is identified",
+      summary: "Release checks read route ownership and API bindings from Cloudflare. The Safari and Brave evidence identifies the tested Pages build and the version of each Worker assigned 100% of its traffic at qualification.",
+    },
+  ],
+};
 
 export const latticeApiOverview = "Text to Lattice starts with ordinary prose. Qwen identifies what the passage says and drafts a rewrite. Llama compares that draft with the source, while server code checks details such as quantities and protected quotations. A copied passage fails when a rewrite is required. Returning the original takes a separate decision that its wording already fits.";
 
 export const latticeReadingGuide = {
   updated: PROJECT_DOCUMENTS_UPDATED,
-  introduction: "The Lattice engine starts with a meaning contract supplied by its caller. The hosted Text to Lattice API starts with prose, so it has to infer what a rewrite must preserve. One model drafts, another compares the draft with the source, and server code decides which result the reader can see.",
+  introduction: "Lattice evaluates wording against a meaning contract supplied by its caller. Text to Lattice starts with ordinary prose. Its interface stays on GitHub Pages, while two Cloudflare edge Workers run on demand to enforce browser policy and decide when to call paid external models. This lets the portfolio operate without a dedicated API server.",
   projectUrl: "https://hah.dev/projects/lattice/",
   documentationUrl: documentationRoot + "index.html",
   evidenceUrl: documentationRoot + "evidence.html",
   jsonUrl: documentationRoot + "reading-guide.json",
+  edgeArchitecture,
   subjects: [
     {
       id: "lattice-method",
@@ -84,7 +109,7 @@ export const latticeReadingGuide = {
       name: "Text to Lattice API",
       emphasis: [
         "Preserve the force of the original. Changing “may” to “must” can alter an obligation even when every name and number survives.",
-        "Give drafting and acceptance to different components. A fluent rewrite earns its way back to the reader through checks against the source.",
+        "Keep browser access, permission to spend provider capacity and acceptance of a rewrite separate. Each decision has a check the next component can rely on.",
         "Make external processing a deliberate choice. The application keeps passage text out of storage and logs, and bounds the inference work a submission can start.",
       ],
       capabilities: [
@@ -94,11 +119,11 @@ export const latticeReadingGuide = {
         "Show the server’s current phase in the terminal and diagram. The browser waits for a complete result before displaying output.",
       ],
       technologies: [
-        "A same-origin Cloudflare Worker handles consented requests and keeps provider credentials on the server. A Durable Object coordinates daily admissions across visitors.",
+        "Two Cloudflare edge Workers handle the résumé’s security headers and API submissions. A SQLite-backed Durable Object coordinates the daily quota across requests.",
         "Hugging Face routes through OpenRouter to Qwen on DeepInfra for analysis and drafting, and to Llama on CoreWeave for verification and document certification.",
         "A single HTTP response carries numbered, content-free phase updates followed by the terminal result or error.",
       ],
-      evidence: ["service-path", "repair-and-outcomes", "server-progress", "admission-and-consent", "browser-results", "production-publication"],
+      evidence: ["edge-browser-policy", "admission-and-consent", "service-path", "repair-and-outcomes", "server-progress", "edge-release-verification", "browser-results", "production-publication"],
     },
   ],
   evidence: [
@@ -115,10 +140,16 @@ export const latticeReadingGuide = {
       sources: [{ label: "Public concept map, decision record", url: documentationRoot + "lattice-concept-map.html#lat-n-017" }, { label: "Public skill map, host responsibilities", url: documentationRoot + "lattice-skill-map.html#lat-sk-10" }],
     },
     {
+      id: "edge-browser-policy", subject: "text-to-lattice-api", title: "Two Workers separate page policy from provider access",
+      observation: "The response-policy Worker adds the Content Security Policy to the four addresses that serve the résumé. It restricts browser API connections to the same origin and blocks embedding. The API Worker owns the inference route and keeps the provider credential on the server. During qualification, Safari and Brave each sent one request containing the passage to hah.dev.",
+      kind: "implementation-and-browser-evidence",
+      sources: [{ label: "Cloudflare’s request-driven edge runtime", url: "https://developers.cloudflare.com/workers/reference/how-workers-works/" }, { label: "Response headers and their four document paths", url: serviceSource + "workers/text-to-lattice-response-policy/worker.js#L1-L35" }, { label: "Same-origin connection policy test", url: serviceSource + "tests/lattice-network-governance.test.mjs#L226-L235" }, { label: "Observed browser requests (JSON)", url: browserBundle + ".json" }],
+    },
+    {
       id: "service-path", subject: "text-to-lattice-api", title: "Separate drafting from acceptance",
       observation: "Qwen analyzes the source and proposes wording. Server code checks protected details such as quantities, URLs and quoted dialogue. Llama compares the passage and candidate for changes in meaning. When the document needs certification, the service checks the assembled text as a whole.",
       kind: "implementation",
-      sources: [{ label: "Checks on protected details", url: serviceSource + "app/resume/lattice/validators.js#L661-L845" }, { label: "Document certification decision", url: serviceSource + "app/resume/latticeDemo.js#L2454-L2482" }, { label: "Service blueprint, review and classification", url: documentationRoot + "text-to-lattice-service-blueprint.html#bp-07" }],
+      sources: [{ label: "Final result and response-size checks", url: serviceSource + "workers/text-to-lattice-api/worker.js#L1115-L1128" }, { label: "Checks on protected details", url: serviceSource + "app/resume/lattice/validators.js#L661-L845" }, { label: "Document certification decision", url: serviceSource + "app/resume/latticeDemo.js#L2454-L2482" }, { label: "Service blueprint, review and classification", url: documentationRoot + "text-to-lattice-service-blueprint.html#bp-07" }],
     },
     {
       id: "repair-and-outcomes", subject: "text-to-lattice-api", title: "A copied draft and an accepted original have different outcomes",
@@ -134,9 +165,15 @@ export const latticeReadingGuide = {
     },
     {
       id: "admission-and-consent", subject: "text-to-lattice-api", title: "Consent and admission bound each submission",
-      observation: "Typing stays local until the visitor confirms external processing. The application stores content-free usage counters. Ordinary service admits up to 30 requests globally and three per cooperating browser cookie jar each UTC day. Each admission allows up to 32 logical provider calls, including repair and review. Provider processing terms apply to the passage itself.",
+      observation: "Typing stays local until the visitor confirms external processing. The API validates the request before inference. Edge requests share a named Durable Object. It reserves both daily allowances in one transaction and stores counts and opaque browser identifiers. Ordinary service permits 30 admissions globally and three per cooperating browser cookie jar per UTC day. Each admission allows up to 32 logical provider calls. External providers apply their own processing terms.",
       kind: "policy-and-implementation",
-      sources: [{ label: "API contract and processing terms", url: "https://hah.dev/projects/lattice/text-to-lattice/" }, { label: "Production admission policy", url: serviceSource + "workers/text-to-lattice-api/capacityPolicy.js" }, { label: "Consent boundary", url: documentationRoot + "text-to-lattice-security-model.html#sec-01" }],
+      sources: [{ label: "API contract and processing terms", url: "https://hah.dev/projects/lattice/text-to-lattice/" }, { label: "How every edge request reaches the same quota object", url: serviceSource + "workers/text-to-lattice-api/capacityClient.js#L43-L71" }, { label: "Transactional quota ledger", url: serviceSource + "workers/text-to-lattice-api/capacityGate.js#L29-L76" }, { label: "Admission before provider work, including a failed ledger", url: serviceSource + "tests/lattice-api-worker.test.mjs#L8334-L8424" }, { label: "Production admission policy", url: serviceSource + "workers/text-to-lattice-api/capacityPolicy.js" }, { label: "Consent boundary", url: documentationRoot + "text-to-lattice-security-model.html#sec-01" }],
+    },
+    {
+      id: "edge-release-verification", subject: "text-to-lattice-api", title: "The browser evidence identifies the Workers that served the test",
+      observation: "The service deployment checks Cloudflare’s route and custom-domain inventory against the declared routes. Run 729 recorded the API Worker’s secret and quota binding types without reading secret values. The records checked before and after the Safari and Brave captures match on the Pages artifact, the two Worker versions and their traffic assignments.",
+      kind: "deployment-verification-and-observation",
+      sources: [{ label: "Route ownership check", url: serviceSource + "scripts/verify-text-to-lattice-route-inventory.mjs#L224-L262" }, { label: "Deployment before browser capture (JSON)", url: captureDirectory + "TEXT-TO-LATTICE-DEPLOYMENT-EVIDENCE.before.json" }, { label: "Deployment after browser capture (JSON)", url: captureDirectory + "TEXT-TO-LATTICE-DEPLOYMENT-EVIDENCE.after.json" }, { label: "Version and traffic assignment tests", url: serviceSource + "tests/lattice-deployment-evidence.test.mjs#L429-L462" }],
     },
     {
       id: "browser-results", subject: "text-to-lattice-api", title: "Safari and Brave completed the visitor path",
@@ -155,6 +192,6 @@ export const latticeReadingGuide = {
     { id: "lattice-concept-map", subject: "lattice-method", question: "What must a rewrite preserve?", answer: "Compare a direct request to return a key by Friday with a more courteous version. The tone may change. The action and deadline must survive. The public map explains how a caller states those requirements.", evidence: ["meaning-contract"], sections: [{ id: "lat-n-002", label: "Meaning contract" }, { id: "lat-n-003", label: "Semantic atoms" }, { id: "lat-n-017", label: "Derivation receipt" }] },
     { id: "lattice-skill-map", subject: "lattice-method", question: "What can the engine decide?", answer: "The caller supplies the intended meaning. The engine assesses proposed wording and returns a decision record. Follow the public skill map to see which judgments still belong to the host.", evidence: ["selection"], sections: [{ id: "lat-sk-01", label: "Meaning and relations" }, { id: "lat-sk-05", label: "Deterministic selection" }, { id: "lat-sk-10", label: "Host responsibilities" }] },
     { id: "text-to-lattice-service-blueprint", subject: "text-to-lattice-api", question: "What happens after I submit?", answer: "Follow one submission from consent to a terminal result. Qwen drafts, server code checks protected details, and Llama compares the candidate with the source. A repair must pass review on its own wording. The reader receives a checked rewrite, a checked original, a labeled review draft, or an explanation that the text was withheld.", evidence: ["service-path", "repair-and-outcomes", "server-progress", "browser-results"], sections: [{ id: "bp-04", label: "Admission" }, { id: "bp-06", label: "Drafting and checks" }, { id: "bp-07", label: "Review and outcome" }] },
-    { id: "text-to-lattice-security-model", subject: "text-to-lattice-api", question: "Where does my passage go, and what bounds the risk?", answer: "Typing stays local until confirmation. hah.dev then sends the passage through Hugging Face and OpenRouter to the named providers. Admission limits constrain work, the application avoids storing passage content, and a hard reload clears the visitor’s text.", evidence: ["admission-and-consent", "browser-results"], sections: [{ id: "sec-01", label: "Consent and destinations" }, { id: "sec-04", label: "Resource bounds" }, { id: "sec-07", label: "Content retention" }] },
+    { id: "text-to-lattice-security-model", subject: "text-to-lattice-api", question: "Where does my passage go, and what bounds the risk?", answer: "Typing stays local until confirmation. The page policy confines browser API connections to hah.dev. The API Worker checks admission before sending text through Hugging Face and OpenRouter to the named providers. The quota ledger stores usage counts without the passage. The release record shows which Workers served the tested build.", evidence: ["edge-browser-policy", "admission-and-consent", "edge-release-verification", "browser-results"], sections: [{ id: "sec-01", label: "Consent and destinations" }, { id: "sec-04", label: "Resource bounds" }, { id: "sec-07", label: "Content retention" }] },
   ],
 };

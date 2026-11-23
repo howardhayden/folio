@@ -79,7 +79,7 @@ jobs:
       - id: editorial
         name: Identify the approved documentation-only publication
         env:
-          SELECTED: ${{ github.event_name == 'push' && github.event.before == 'da885106687e8a8428dce063f6915bb2b3668c5b' && contains(github.event.head_commit.message, '[lattice-architecture-20261123]') }}
+          SELECTED: ${{ github.event_name == 'push' && github.event.before == 'c04dac7d51afb17566039c2dcd270009f16b58f3' && contains(github.event.head_commit.message, '[lattice-edge-20261123]') }}
         run: echo "selected=$SELECTED" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -93,25 +93,24 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import { execFileSync } from "node:child_process";
-          const baseline = "da885106687e8a8428dce063f6915bb2b3668c5b";
+          const baseline = "c04dac7d51afb17566039c2dcd270009f16b58f3";
           const head = process.env.GITHUB_SHA;
           const paths = execFileSync("git", ["diff", "--no-renames", "--name-only", "-z", baseline, head], { encoding: "utf8" }).split("\0").filter(Boolean);
           const allowed = new Set([
             ".github/workflows/pages.yml", "app/content/projectDocuments.js", "app/projects/[slug]/page.tsx",
-            "app/resume/ProjectDescriptionDisclosure.tsx", "app/resume/ResumeProjects.tsx",
-            "app/semantic/portfolio.js", "scripts/docs/build-text-to-lattice-documentation.mjs",
+            "app/semantic/portfolio.js",
             "scripts/verify-text-to-lattice-release.mjs", "tests/lattice-documentation.test.mjs",
-            "tests/lattice-release-boundary.test.mjs", "tests/lattice-deployment-workflow.test.mjs",
+            "tests/lattice-deployment-workflow.test.mjs",
             "docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json",
           ]);
-          const paired = ["LATTICE-CONCEPT-MAP.md", "LATTICE-SKILL-MAP.md", "TEXT-TO-LATTICE-SECURITY-MODEL.md",
-            "TEXT-TO-LATTICE-SERVICE-BLUEPRINT.md", "TEXT-TO-LATTICE-RELEASE-REGISTER.json", "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"];
+          const paired = ["TEXT-TO-LATTICE-SECURITY-MODEL.md", "TEXT-TO-LATTICE-RELEASE-REGISTER.json",
+            "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md"];
           for (const name of paired) {
             allowed.add("docs/text-to-lattice/" + name);
             allowed.add("public/documentation/text-to-lattice/" + name);
           }
           for (const name of ["index.html", "evidence.html", "reading-guide.json", "artifact-manifest.json",
-            "lattice-concept-map.html", "lattice-skill-map.html", "text-to-lattice-service-blueprint.html", "text-to-lattice-security-model.html"]) {
+            "text-to-lattice-security-model.html"]) {
             allowed.add("public/documentation/text-to-lattice/" + name);
           }
           if (!paths.length || paths.some((path) => !allowed.has(path))) throw new Error("The documentation-only publication includes unapproved files.");
@@ -1103,8 +1102,8 @@ jobs:
       github.ref == 'refs/heads/main' &&
       !(
         github.event_name == 'push' &&
-        github.event.before == 'da885106687e8a8428dce063f6915bb2b3668c5b' &&
-        contains(github.event.head_commit.message, '[lattice-architecture-20261123]')
+        github.event.before == 'c04dac7d51afb17566039c2dcd270009f16b58f3' &&
+        contains(github.event.head_commit.message, '[lattice-edge-20261123]')
       ) &&
       (
         (

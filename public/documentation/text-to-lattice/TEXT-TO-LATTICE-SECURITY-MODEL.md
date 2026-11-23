@@ -9,11 +9,11 @@ generator: scripts/docs/build-text-to-lattice-documentation.mjs
 
 # Text to Lattice security model
 
-Typing stays local until confirmation. hah.dev then sends the passage through Hugging Face and OpenRouter to the named providers. Admission limits constrain work, the application avoids storing passage content, and a hard reload clears the visitor’s text.
+Typing stays local until confirmation. The page policy confines browser API connections to hah.dev. The API Worker checks admission before sending text through Hugging Face and OpenRouter to the named providers. The quota ledger stores usage counts without the passage. The release record shows which Workers served the tested build.
 
 [Consent and destinations](https://hah.dev/documentation/text-to-lattice/text-to-lattice-security-model.html#sec-01) · [Resource bounds](https://hah.dev/documentation/text-to-lattice/text-to-lattice-security-model.html#sec-04) · [Content retention](https://hah.dev/documentation/text-to-lattice/text-to-lattice-security-model.html#sec-07)
 
-[Consent and admission bound each submission](https://hah.dev/documentation/text-to-lattice/evidence.html#admission-and-consent) · [Safari and Brave completed the visitor path](https://hah.dev/documentation/text-to-lattice/evidence.html#browser-results)
+[Two Workers separate page policy from provider access](https://hah.dev/documentation/text-to-lattice/evidence.html#edge-browser-policy) · [Consent and admission bound each submission](https://hah.dev/documentation/text-to-lattice/evidence.html#admission-and-consent) · [The browser evidence identifies the Workers that served the test](https://hah.dev/documentation/text-to-lattice/evidence.html#edge-release-verification) · [Safari and Brave completed the visitor path](https://hah.dev/documentation/text-to-lattice/evidence.html#browser-results)
 
 [Reading guide (JSON)](https://hah.dev/documentation/text-to-lattice/reading-guide.json)
 

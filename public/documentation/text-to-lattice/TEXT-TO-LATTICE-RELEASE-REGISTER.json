@@ -117,7 +117,8 @@
       "identicalToBrowserCapture": 255,
       "allowedDifferences": 12,
       "changedConverterLogicOrWorkerFiles": 0,
-      "resumePresentationFiles": 2
+      "resumePresentationFiles": 2,
+      "scopeOfCurrentPublication": "Project explanation of edge execution, admission cost, output validity and deployment evidence"
     },
     "precedingDocumentationPublication": {
       "ownerDecision": "Publish the reviewed documentation and presentation changes using the deployed service and original browser receipts.",
@@ -129,6 +130,18 @@
       "allowedDifferences": 10,
       "changedRuntimeOrWorkerFiles": 0,
       "pagesReceipt": "https://github.com/howardhayden/folio/actions/runs/45267435735"
+    },
+    "precedingArchitecturePublication": {
+      "ownerDecision": "Publish the reviewed documentation and presentation changes using the deployed service and original browser receipts.",
+      "serviceCheck": "https://github.com/howardhayden/folio/actions/runs/45255468630",
+      "serviceCheckOutcome": "HTTP 200, conformant-for-context",
+      "publicationReceipt": "https://github.com/howardhayden/folio/actions/runs/45259201772",
+      "qualifiedFilesCompared": 267,
+      "identicalToBrowserCapture": 255,
+      "allowedDifferences": 12,
+      "changedConverterLogicOrWorkerFiles": 0,
+      "resumePresentationFiles": 2,
+      "pagesReceipt": "https://github.com/howardhayden/folio/actions/runs/45272264118"
     }
   },
   "evidenceAppendix": {
@@ -155,7 +168,9 @@
     "readingGuide": "https://hah.dev/documentation/text-to-lattice/reading-guide.json",
     "productionServiceCheck": "https://github.com/howardhayden/folio/actions/runs/45255468630",
     "publishedServiceArtifact": "https://github.com/howardhayden/folio/actions/runs/45259201772",
-    "precedingDocumentationSourceComparison": "docs/release-evidence/text-to-lattice/nov23-documentation-source-comparison.json"
+    "precedingDocumentationSourceComparison": "docs/release-evidence/text-to-lattice/nov23-documentation-source-comparison.json",
+    "precedingArchitectureSourceComparison": "https://github.com/howardhayden/folio/blob/c04dac7d51afb17566039c2dcd270009f16b58f3/docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json",
+    "edgeArchitecture": "https://hah.dev/projects/lattice/#cloudflare-edge"
   },
   "qualificationScope": "Safari and Brave supplied the canonical-browser traces for the qualified remote capability. The current production evidence carries those original results through the release owner's one-time source comparison. The last pulled hah.dev deployment and ancestry baseline are recorded in the evidence appendix. The earlier browser-local implementation is historical and inactive.",
   "publicClient": {
@@ -185,7 +200,7 @@
     "decidedOn": "2026-11-23",
     "record": "The owner accepted the original browser evidence and the successful production check. The November 23 documentation publication reuses those results after an exact comparison of the converter, Workers and reviewed presentation files.",
     "note": "The completed one-off reset permits extra ordinary capacity with the 30/3 policy unchanged. Actual usage and rates determine charges. Intermittent upstream refusal and limited output fidelity remain accepted demonstrator risks. Privacy or admission failure requires withdrawal.",
-    "qualifiedSourceSetSha256": "98f7a16689aac6ad32ae4f534889591dbffcfb6fb65070e58d14c2564978d220"
+    "qualifiedSourceSetSha256": "323cf94e2224605da0d98afe5eb708dd7ac444021b3153398417c6e99359e45a"
   },
   "implementationBaselineRevision": "b211964213cd49e8335a73bcbebce3221c3a6bc2",
   "statusVocabulary": [
@@ -200,7 +215,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "912ee7e5f88c89ef3f00e7739e5f51d7a15514cc4ba2e82accb9333cb0c9d57f",
+    "qualificationDossierSha256": "9546372b0ebf6f3432139acba0b03965508cdbe5da984b8240987322402c6b18",
     "browserEvidence": {
       "status": "verified-sanitized-bundle",
       "path": "docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json",
@@ -273,7 +288,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "98f7a16689aac6ad32ae4f534889591dbffcfb6fb65070e58d14c2564978d220",
+      "sha256": "323cf94e2224605da0d98afe5eb708dd7ac444021b3153398417c6e99359e45a",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, controlling Owner terms and baseline record, license-routing map, package metadata, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -284,13 +299,13 @@
       "authorization": "owner-directed-architecture-publication-20261123",
       "capturedCommit": "6166a3f430338331ca3f0336450e500571cbb896",
       "capturedSourceSetSha256": "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
-      "currentSourceSetSha256": "98f7a16689aac6ad32ae4f534889591dbffcfb6fb65070e58d14c2564978d220",
+      "currentSourceSetSha256": "323cf94e2224605da0d98afe5eb708dd7ac444021b3153398417c6e99359e45a",
       "evidenceId": "ttl-browser-20261123T143941Z-a495af12",
       "evidenceSha256": "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
       "proof": {
         "path": "docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json",
         "bytes": 946838,
-        "sha256": "8a303a311c33bdb76e6ddc4352332245df702e31416bd72c36ba1aa964889575"
+        "sha256": "d046e5a31cfa070b8840761f0656ea5d6aaedbcff80ab543af21721a59dfef27"
       }
     }
   },
