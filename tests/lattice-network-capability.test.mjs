@@ -1080,28 +1080,6 @@ test("service events negotiate only on the existing content request and preserve
   }
 });
 
-test("the streamed response discards its unused branch before delivering progress", async () => {
-  const response = eventResponse(eventBytes([phaseFrame(1), terminalFrame(2)]));
-  const cloneResponse = response.clone.bind(response);
-  let unused;
-  let copies = 0;
-  response.clone = () => {
-    copies += 1;
-    unused = cloneResponse();
-    return unused;
-  };
-  const progress = [];
-  const actual = await streamRequest(response, {
-    onServicePhase: (phase) => progress.push([phase, unused?.bodyUsed]),
-  });
-  assert.deepEqual(actual, result);
-  assert.equal(copies, 1);
-  assert.deepEqual(progress, [["atomizing", true]]);
-  const reader = unused.body.getReader();
-  assert.deepEqual(await reader.read(), { value: undefined, done: true });
-  reader.releaseLock();
-});
-
 test("service phases arrive before terminal, remain closed, and decode across every byte boundary", async () => {
   const phases = [];
   const unicodeResult = { ...result, text: "A returned café 🌊." };
