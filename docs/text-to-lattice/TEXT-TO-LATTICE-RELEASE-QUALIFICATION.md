@@ -1,6 +1,12 @@
 # Text to Lattice release qualification — qualified
 
-Text to Lattice is qualified for public use on short, non-sensitive passages. Safari and Brave closed the final release gate by showing that a visitor could consent, receive a checked result and clear it on reload. Publish the converter after its final production service check, with daily admission limits in force.
+Text to Lattice has cleared its release gates for short, non-sensitive passages. The November 23 production check was rate-limited after qualification work had used the ordinary daily allowance. Keep the converter held until one production check succeeds on fresh daily capacity.
+
+## Production decision, November 23
+
+The final check returned HTTP 429. The workflow restored the held API and kept the existing public page in place. Fourteen successful service checks and eighteen native submissions had used the same daily ledger. Qualification could continue above 30 admissions. Ordinary production could not.
+
+The release owner will preserve the daily limit and use fresh capacity for the next service check. Repeating Safari, Brave or Firefox would spend that capacity on questions their completed tests already answered. The daily counter resets at 00:00 UTC, which is 7:00 p.m. on November 23 in Indianapolis. The [production deployment history](https://github.com/howardhayden/folio/deployments/github-pages) records subsequent publications.
 
 ## What decided the release
 
@@ -84,8 +90,10 @@ These are the register’s current capability values, including the exact reques
 The Pages workflow resolves the current main branch and requires its exact commit to equal `GITHUB_SHA` at its publication boundaries. An unreadable main ref and a stale workflow commit fail closed. The archive also preserves the earlier production qualification for commit `a9b1db818dc7bb87b5bee16d0e168bf17d130185`. [Historical workflow run](https://github.com/howardhayden/folio/actions/runs/34320931448).
 
 - [Run #729: accepted Safari and Brave pair](https://github.com/howardhayden/folio/actions/runs/45188974550) and [run #730: ordered held restoration](https://github.com/howardhayden/folio/actions/runs/45194346668). The API was verified held at `2026-11-23T14:27:52.607Z`, followed by held Pages at `2026-11-23T14:28:59.464Z`.
-- [Run #736: later successful service canary](https://github.com/howardhayden/folio/actions/runs/45213457190) on commit `b211964213cd49e8335a73bcbebce3221c3a6bc2`. Its original `qualification-usage.json` is 2,067 bytes, SHA-256 `0c9acf89a6d41a0570395358748d2b03a3d6ea768313d8b617f9cc7691abe873`; its `live-boundary.json` SHA-256 is `a4dedb5694d5c070303b974624e3ecc1686da45bbe8e7cf9bab76288e0242112`. Generator usage was 3,040 prompt / 148 completion tokens; review usage was 7,767 prompt / 164 completion tokens. The dated input/output rates in USD per million tokens were 0.135 / 0.825 for generation and 0.71 / 0.71 for review.
-- [Run #737: ordered held restoration](https://github.com/howardhayden/folio/actions/runs/45214683657). The original API verification at `2026-11-23T16:17:27.794Z` preceded held Pages verification at `2026-11-23T16:18:59.855Z`; both required jobs succeeded. This closes that qualification opportunity without adding a browser trace.
+- [Run #736: later successful service canary](https://github.com/howardhayden/folio/actions/runs/45213457190) on commit `b211964213cd49e8335a73bcbebce3221c3a6bc2`. Its original `qualification-usage.json` is 2,067 bytes with SHA-256 `0c9acf89a6d41a0570395358748d2b03a3d6ea768313d8b617f9cc7691abe873`. Its `live-boundary.json` SHA-256 is `a4dedb5694d5c070303b974624e3ecc1686da45bbe8e7cf9bab76288e0242112`. Generation used 3,040 prompt and 148 completion tokens. Review used 7,767 prompt and 164 completion tokens. The dated input/output rates in USD per million tokens were 0.135 / 0.825 for generation and 0.71 / 0.71 for review.
+- [Run #737: ordered held restoration](https://github.com/howardhayden/folio/actions/runs/45214683657). The original API verification at `2026-11-23T16:17:27.794Z` preceded held Pages verification at `2026-11-23T16:18:59.855Z`. Both jobs succeeded. This closes that qualification opportunity without adding a browser trace.
+
+The [final ordinary attempt](https://github.com/howardhayden/folio/actions/runs/45220488480) returned HTTP 429 at 16:52 UTC. The workflow verified the held API at 16:52:37 and again at 16:53:06 UTC. Interactive Pages publication was skipped. The ordinary error identifies a rate limit. Several layers can return that response.
 
 **Technical history:** The exact preceding dossier is preserved at repository path `../release-evidence/text-to-lattice/qualification-history-2026-11-23.md` and can be read in the [immutable original dossier at b211964213cd49e8335a73bcbebce3221c3a6bc2](https://github.com/howardhayden/folio/blob/b211964213cd49e8335a73bcbebce3221c3a6bc2/docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md). Its 708,796 bytes have SHA-256 `097d59a7779e108788e7d489a6f8123ae03dd92f3909792dc79ae4818a9e7593`. That archive retains the prior run logs and history links, earlier decisions and provider selections, backend #501 and Firefox #479 records, and the historical inactive WebLLM and lease appendix. Those dated records remain historical evidence, not active routes or new observations.
 
