@@ -28,14 +28,6 @@ export function validateTextToLatticeQualificationOperation(environment) {
   const restore = flag("LATTICE_RESTORE_QUALIFICATION");
   const activate = flag("LATTICE_ACTIVATE_QUALIFICATION");
   const deploy = flag("LATTICE_DEPLOY_SERVICES");
-  if (flag("LATTICE_G06_VISITOR_MODE")
-    && (environment.LATTICE_OPERATION_EVENT !== "workflow_dispatch"
-      || environment.LATTICE_OPERATION_REF !== "refs/heads/main"
-      || environment.LATTICE_OPERATION_PHASE !== "qualification-pending"
-      || environment.GITHUB_RUN_ATTEMPT !== "1"
-      || !activate || deploy || restore)) {
-    fail("the visitor-mode canary requires an original G06 activation on qualification-pending main.");
-  }
   if (!restore) return "ordinary";
   if (environment.LATTICE_OPERATION_EVENT !== "workflow_dispatch"
     || environment.LATTICE_OPERATION_REF !== "refs/heads/main"
