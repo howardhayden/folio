@@ -126,11 +126,13 @@ test("switching the shipped service tabs preserves the mounted request and resul
     setLatticeInput: forbidden,
   });
   select("diagram");
+  select("network");
   select("api");
   select("unknown");
-  assert.deepEqual(selections, ["diagram", "api"]);
+  assert.deepEqual(selections, ["diagram", "network", "api"]);
   assert.match(source, /<div className="lattice-api-view" hidden=\{latticeView !== "api"\}>/u);
   assert.match(source, /<div className="lattice-service-view" hidden=\{latticeView !== "diagram"\}>/u);
+  assert.match(source, /<div className="lattice-service-view" hidden=\{latticeView !== "network"\}>/u);
   assert.doesNotMatch(source, /latticeView === "api"\s*&&/u, "switching views must not unmount the API form or protected result");
 });
 

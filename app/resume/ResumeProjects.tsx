@@ -301,6 +301,7 @@ export function ResumeProjectCard({
 }
 
 type LatticeResult = Awaited<ReturnType<typeof requestRemoteLattice>>;
+type LatticeView = "api" | "diagram" | "network";
 type LatticePhase = "idle" | "ready" | "validating" | "submitting" | "processing" | "success" | "canceling" | "error";
 
 function latticeOutcomeLabel(result: LatticeResult | null) {
@@ -429,6 +430,77 @@ function LatticeServiceDiagram({ state }: Readonly<{
   );
 }
 
+const networkSteps = [
+  {
+    id: "page", label: "Open page", route: ["pages", "delivery", "policy", "rules", "browser"],
+    explanation: "GitHub Pages serves the résumé. The page Worker tells your browser it can send API requests only to hah.dev. While you type, the passage stays on your device.",
+  },
+  {
+    id: "limits", label: "Check limits", route: ["browser", "exchange", "api", "claim", "counter"],
+    explanation: "When you confirm and submit, the browser sets up a cookie without text, then sends your passage. The API Worker checks the request. All locations share one daily counter, so only one request gets the last place. A full or unavailable counter stops work before any paid model call.",
+  },
+  {
+    id: "models", label: "Use models", route: ["api", "admitted", "router", "fork", "qwen", "llama"],
+    explanation: "Once admitted, the API Worker sends the passage through Hugging Face and OpenRouter. Qwen drafts new wording. Llama checks it against your source. If a draft changes an obligation, the Worker can send it back for repair.",
+  },
+  {
+    id: "result", label: "Return result", route: ["api", "exchange", "browser"],
+    explanation: "The API Worker checks that the reply has the expected parts and fits the size limit. Your browser can show a checked rewrite, your original if it already fits, a draft marked for human review, or a reason the service withheld the text.",
+  },
+];
+
+function LatticeNetworkDiagram() {
+  const [step, setStep] = useState(networkSteps[0]);
+  const node = (area: string, name: string, detail: string) => (
+    <div className="lattice-map-node" style={{ gridArea: area }} data-traced={step.route.includes(area)}>
+      <strong>{name}</strong><small>{detail}</small>
+    </div>
+  );
+  const edge = (area: string, arrow: string, label?: string) => (
+    <span className="lattice-map-edge" style={{ gridArea: area }} data-traced={step.route.includes(area)}>
+      {arrow}{label && <small>{label}</small>}
+    </span>
+  );
+  return (
+    <figure className="lattice-network-figure" tabIndex={0} aria-labelledby="lattice-network-title">
+      <figcaption id="lattice-network-title">Where your text goes</figcaption>
+      <p>Edge Workers are small programs that Cloudflare can run close to visitors. These two run on demand, so hah.dev can offer this tool without keeping an API server running.</p>
+      <RovingStateTabs
+        className="lattice-map-steps"
+        idPrefix="lattice-map-step"
+        items={networkSteps}
+        label="Trace an example request"
+        onSelect={(id) => {
+          const next = networkSteps.find((item) => item.id === id);
+          if (next) setStep(next);
+        }}
+        panelId="lattice-map-step-panel"
+        selected={step.id}
+      />
+      <div id="lattice-map-step-panel" role="tabpanel" aria-labelledby={`lattice-map-step-${step.id}-tab`}>
+        <p className="lattice-map-explanation">{step.explanation}</p>
+        <div className="lattice-map-grid" role="img" aria-label="GitHub Pages delivers the page through Cloudflare’s page Worker to your browser. Your browser exchanges text and results only with the API Worker on hah.dev. The API Worker checks a shared counter that holds no passage text. Only admitted requests reach Hugging Face and OpenRouter, which route drafting to Qwen on DeepInfra and review to Llama on CoreWeave. The result returns through the API Worker to your browser.">
+          {node("pages", "GitHub Pages", "Serves the résumé")}
+          {edge("delivery", "→")}
+          {node("policy", "Page Worker", "Cloudflare · sets browser rules")}
+          {edge("rules", "↓", "page + rules")}
+          {node("browser", "Your browser", "Holds your passage as you type")}
+          {edge("exchange", "↕", "passage / result")}
+          {node("counter", "Shared daily counter", "Full or unavailable → stop here")}
+          {edge("claim", "↔")}
+          {node("api", "API Worker", "Cloudflare · checks each request")}
+          {edge("admitted", "↕", "admitted work")}
+          {node("router", "Hugging Face → OpenRouter", "Routes the Worker’s model calls")}
+          <span className="lattice-map-fork" style={{ gridArea: "fork" }} data-traced={step.route.includes("fork")} />
+          {node("qwen", "Qwen · DeepInfra", "Analyzes and drafts")}
+          {node("llama", "Llama · CoreWeave", "Reviews the meaning")}
+        </div>
+      </div>
+      <p className="chromebook-view-note"><a href="/documentation/text-to-lattice/evidence.html#edge-release-verification">See which page and Worker versions served the browser tests</a>.</p>
+    </figure>
+  );
+}
+
 function latticeFindingMessage(finding: { id: string }) {
   const id = finding.id.toLowerCase();
   if (/(?:unsupported|addition|added-meaning)/u.test(id)) {
@@ -468,7 +540,7 @@ export default function ResumeProjects() {
   const [latticeInputInvalid, setLatticeInputInvalid] = useState(false);
   const [latticeResult, setLatticeResult] = useState<LatticeResult | null>(null);
   const [latticePhase, setLatticePhase] = useState<LatticePhase>("idle");
-  const [latticeView, setLatticeView] = useState<"api" | "diagram">("api");
+  const [latticeView, setLatticeView] = useState<LatticeView>("api");
   const [latticeLastActivePhase, setLatticeLastActivePhase] = useState<LatticePhase | null>(null);
   const [latticeServicePhase, setLatticeServicePhase] = useState<string | null>(null);
   const latticeDialogRef = useRef<HTMLDivElement>(null);
@@ -644,9 +716,7 @@ export default function ResumeProjects() {
         subtree: true,
       });
     }
-    const focusFrame = window.requestAnimationFrame(() => {
-      preferredFocusTarget()?.focus({ preventScroll: true });
-    });
+    const focusFrame = window.requestAnimationFrame(containFocus);
 
     return () => {
       window.cancelAnimationFrame(focusFrame);
@@ -757,8 +827,9 @@ export default function ResumeProjects() {
     if (latticeOpen && latticeResult) latticeOutputRefreshRef.current?.();
   }, [latticeOpen, latticeResult]);
 
-  const openLattice = useCallback((trigger: HTMLAnchorElement) => {
+  const openLattice = useCallback((trigger: HTMLAnchorElement, view?: LatticeView) => {
     latticeTriggerRef.current = trigger;
+    if (view) setLatticeView(view);
     setLatticeOpen(true);
     setLatticePhase((current) => current === "idle" ? "ready" : current);
   }, []);
@@ -783,7 +854,8 @@ export default function ResumeProjects() {
       window.location.replace("/resume/#text-to-lattice");
       return;
     }
-    if (url.hash !== "#text-to-lattice") return;
+    const openNetwork = url.hash === "#text-to-lattice-network";
+    if (url.hash !== "#text-to-lattice" && !openNetwork) return;
     const trigger = latticeDirectLaunchRef.current;
     if (!trigger) return;
     url.hash = "#project-lattice";
@@ -792,7 +864,8 @@ export default function ResumeProjects() {
       "",
       `${url.pathname}${url.search}${url.hash}`,
     );
-    openLattice(trigger);
+    if (openNetwork) openLattice(trigger, "network");
+    else openLattice(trigger);
   }, [openLattice]);
 
   const updateLatticeInput = (value: string) => {
@@ -946,9 +1019,9 @@ export default function ResumeProjects() {
           <RovingStateTabs
             className="chromebook-view-tabs"
             idPrefix="lattice-view"
-            items={[{ id: "api", label: "Use the API" }, { id: "diagram", label: "Service diagram" }]}
+            items={[{ id: "api", label: "Use the API" }, { id: "diagram", label: "Service diagram" }, { id: "network", label: "Network map" }]}
             label="Text to Lattice views"
-            onSelect={(view) => { if (view === "api" || view === "diagram") setLatticeView(view); }}
+            onSelect={(view) => { if (view === "api" || view === "diagram" || view === "network") setLatticeView(view); }}
             panelId="lattice-view-panel"
             selected={latticeView}
           />
@@ -1126,6 +1199,9 @@ export default function ResumeProjects() {
           <div className="lattice-service-view" hidden={latticeView !== "diagram"}>
             <LatticeServiceDiagram state={serviceState} />
             <p className="chromebook-view-note">The highlight follows the live request. Repair can revisit earlier phases; bar position identifies the phase, not time remaining.</p>
+          </div>
+          <div className="lattice-service-view" hidden={latticeView !== "network"}>
+            <LatticeNetworkDiagram />
           </div>
           </div>
           <div className="lattice-actions">

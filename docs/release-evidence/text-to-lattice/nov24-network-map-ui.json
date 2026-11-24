@@ -1,0 +1,76 @@
+{
+  "scope": "Network map presentation on the local production Pages build",
+  "checkedAt": "2026-11-24T11:58:09.391Z",
+  "sourceSetSha256": "fae358def0edbcf0f4499546d08d303769f432baf4617fd1dff79fedefc26acb",
+  "browser": "Brave, Chromium 157.0.8103.39",
+  "mobileMethod": "Touch and viewport emulation in the desktop browser",
+  "entry": "/projects/lattice/ links to /resume/#text-to-lattice-network",
+  "viewports": [
+    {
+      "width": 1366,
+      "height": 920,
+      "opening": "project link",
+      "steps": [
+        "page",
+        "limits",
+        "models",
+        "result"
+      ],
+      "method": "mouse and keyboard",
+      "dimensions": {
+        "page": 0,
+        "dialog": 0,
+        "map": 0,
+        "spills": 0
+      },
+      "focusReturned": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "opening": "project link",
+      "steps": [
+        "page",
+        "limits",
+        "models",
+        "result"
+      ],
+      "method": "touch",
+      "dimensions": {
+        "page": 0,
+        "dialog": 0,
+        "map": 0,
+        "spills": 0
+      },
+      "focusReturned": true
+    },
+    {
+      "width": 320,
+      "height": 740,
+      "opening": "project link",
+      "steps": [
+        "page",
+        "limits",
+        "models",
+        "result"
+      ],
+      "method": "touch",
+      "dimensions": {
+        "page": 0,
+        "dialog": 0,
+        "map": 0,
+        "spills": 0
+      },
+      "focusReturned": true
+    }
+  ],
+  "observations": [
+    "The accessibility tree exposes the Network map tab, four walkthrough steps and a text description of the topology.",
+    "Each step selects its explanation and highlights the corresponding machines and connections.",
+    "The service diagram and API form remain reachable. Moving between tabs preserves typed input and leaves consent unchecked.",
+    "Escape closes the modal and restores focus to its launcher."
+  ],
+  "apiRequests": 0,
+  "postCount": 0,
+  "scriptExceptions": []
+}

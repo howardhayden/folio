@@ -1118,7 +1118,7 @@ test("one-release source carry refuses unrelated bytes even after repinning the 
 });
 
 test("the editorial extension pins the reviewed workflow and authored documentation after independent repinning", async () => {
-  for (const path of [".github/workflows/pages.yml", "app/content/projectDocuments.js", "app/projects/[slug]/page.tsx"]) {
+  for (const path of [".github/workflows/pages.yml", "app/content/projectDocuments.js", "app/projects/[slug]/page.tsx", "app/resume/ResumeProjects.tsx", "app/globals.css", "tests/lattice-service-view.test.mjs"]) {
     const fixture = await sourceCarryFixture();
     const file = fixture.files.find((entry) => entry.path === path);
     file.bytes = Buffer.concat([file.bytes, Buffer.from("\n")]);
@@ -1146,7 +1146,7 @@ test("one-release source carry refuses missing, extra, renamed or reordered sour
 
 test("one-release source carry refuses widening, wildcard, duplicate and missing exceptions", async () => {
   for (const mutate of [
-    (rows) => rows.push({ ...rows[0], path: "app/resume/ResumeProjects.tsx" }),
+    (rows) => rows.push({ ...rows.find((row) => row.path === "tests/lattice-service-view.test.mjs"), path: "scripts/unapproved.mjs" }),
     (rows) => { rows[0].path = "scripts/*"; },
     (rows) => { rows[1] = { ...rows[0] }; },
     (rows) => rows.pop(),
