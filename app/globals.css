@@ -2382,6 +2382,119 @@ small.lattice-disclosure-content {
 .lattice-service-diagram {
   color: #454b52;
 }
+.lattice-network-figure {
+  color: #303b3b;
+  margin: 0 auto;
+  max-width: 38rem;
+  text-align: left;
+}
+.lattice-network-figure:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: .25rem;
+}
+.lattice-network-figure > figcaption,
+.lattice-map-node strong,
+.lattice-map-edge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 400;
+}
+.lattice-network-figure > figcaption {
+  font-size: 1.05rem;
+}
+.lattice-network-figure > p,
+.lattice-map-explanation {
+  font-size: .94rem;
+  line-height: 1.45;
+  margin: .4rem 0 .9rem;
+}
+.lattice-map-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-block: 1px solid #bcc6c3;
+}
+.lattice-map-steps .chromebook-state-tab {
+  min-height: 2.75rem;
+  padding: .25rem;
+  white-space: normal;
+  width: 100%;
+}
+.lattice-map-steps .chromebook-state-tab[aria-selected="true"]::after {
+  bottom: 0;
+  height: 2px;
+}
+.lattice-map-explanation {
+  margin: .7rem 0 1rem;
+}
+.lattice-map-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1.75rem minmax(0, 1fr);
+  grid-template-areas:
+    "pages delivery policy"
+    ". . rules"
+    "browser browser browser"
+    ". . exchange"
+    "counter claim api"
+    ". . admitted"
+    "router router router"
+    "fork fork fork"
+    "qwen . llama";
+  text-align: center;
+}
+.lattice-map-node {
+  border: 1px solid #a7b1b0;
+  border-radius: .25rem;
+  display: grid;
+  align-content: center;
+  gap: .12rem;
+  padding: .32rem .4rem;
+}
+.lattice-map-node strong { font-size: .88rem; }
+.lattice-map-node small,
+.lattice-map-edge small { font-size: .78rem; line-height: 1.25; }
+.lattice-map-node[data-traced="true"] {
+  background: #edf6f3;
+  border-color: #27685d;
+  box-shadow: inset 0 0 0 1px #27685d;
+}
+.lattice-map-edge {
+  align-items: center;
+  color: #54615f;
+  display: flex;
+  gap: .35rem;
+  justify-content: center;
+  min-height: 1.55rem;
+}
+.lattice-map-fork {
+  color: #71817f;
+  height: 1.2rem;
+  position: relative;
+}
+.lattice-map-fork::before,
+.lattice-map-fork::after {
+  content: "";
+  position: absolute;
+}
+.lattice-map-fork::before {
+  border-left: 1px solid;
+  height: 50%;
+  left: 50%;
+  top: 0;
+}
+.lattice-map-fork::after {
+  border: 1px solid;
+  border-bottom: 0;
+  inset: 50% calc(25% - .4375rem) 0;
+}
+.lattice-map-grid [data-traced="true"] { color: #154e45; }
+@media (max-width: 520px) {
+  .lattice-modal .chromebook-view-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lattice-modal .chromebook-view-tabs .chromebook-state-tab { white-space: normal; }
+  .lattice-map-grid { grid-template-columns: minmax(0, 1fr) 1.3rem minmax(0, 1fr); }
+  .lattice-map-fork::after { inset-inline: calc(25% - .325rem); }
+}
+@media (forced-colors: active) {
+  .lattice-map-node[data-traced="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+}
 .lattice-service-view .chromebook-state-flow > figcaption,
 .lattice-progress .teaching-manifest-percent,
 .lattice-state-text {

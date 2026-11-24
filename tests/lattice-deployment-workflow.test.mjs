@@ -2057,11 +2057,11 @@ test("active deployment selection binds the deploy JSONL before and after unchan
   assert.ok(!after.includes("--preceding-"), "no post-probe settling or provider retry");
 });
 
-test("the one approved editorial publication builds Pages without starting a service or held rollback", async () => {
+test("the approved Network map publication builds Pages without starting a service or held rollback", async () => {
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
   const context = workflowGuardContext({ event: "push", phase: "qualified", results: { build: "success" } });
-  context.github.event.before = "c04dac7d51afb17566039c2dcd270009f16b58f3";
-  context.github.event.head_commit.message = "Publish documentation [lattice-edge-20261123]";
+  context.github.event.before = "cd0e45666b4d0aed3947a64d0c360f0cd3fc0949";
+  context.github.event.head_commit.message = "Publish documentation [lattice-network-map-20261124]";
   context.needs["publication-boundary"].outputs.documentation_only = "true";
   assert.equal(workflowJobGuard(workflow, "deploy_text_to_lattice_services", context), false);
   assert.equal(workflowJobGuard(workflow, "deploy", context), true);

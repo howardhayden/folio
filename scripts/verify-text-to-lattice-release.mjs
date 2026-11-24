@@ -915,14 +915,16 @@ const sourceCarryEditorialPage = Object.freeze({
   afterSha256: "08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870",
 });
 const documentationPublicationFiles = Object.freeze({
-  ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "f40a09196adc6423f6148d69e32899e9bf0a94a21c98d0656d6ff71fd82e376d" },
+  ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "fa93f8c9c22da0d04ed06529750d3601b3c826715a6634fe40e8c2e23521bd5a" },
   "app/content/projectDocuments.js": { before: "261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251", after: "a7e92316b513757b6a19ece0fbc2fd4390e08d3c8766edc146c61184e4d21ca3" },
-  "app/projects/[slug]/page.tsx": { before: "d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62", after: "02b7b92a48aeee4a963986c3c14e4c964c472c9450e809382c7b3f804ec9cdbb" },
+  "app/projects/[slug]/page.tsx": { before: "d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62", after: "43ab6d037e0c9eb5609ce5c17b0a4bbfdbd6a58689fc478f5b3b64f5464d268a" },
   "app/semantic/portfolio.js": { before: "7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6", after: "8506fd4f7d49f5b6ab672b5ba00265c39774c4e71ff035fee70beaa82462380c" },
   "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "9de393af9459626e99c7562aaa8d3a22fd7640535a9ef5d5a6319aa83091469e" },
-  "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "366acd4a9aedfd2fb36667557b75942e91c67b698c7097a245aa1fe293f35364" },
+  "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "5c294cd51e7cce37c39e9f862003ac7224f9ac8cfba6a6b59919e40c8cface2a" },
   "app/resume/ProjectDescriptionDisclosure.tsx": { before: "5e75a6ab95b261ea2ff77c5012998f618126de1c59456acde2310b663b174e89", after: "cef3f61fa66e2ceeb91cb61f8d236751c9d6f2e4688062bb496741110541d832" },
-  "app/resume/ResumeProjects.tsx": { before: "42b88aa9be93601a305f266f2948722f401dc17d712293fee6e6ea78bffa7db4", after: "0c33c2c88a96f29ff17cd0e29d191f22c252ea4ff4677bafdbd62aa55f379ef6" },
+  "app/resume/ResumeProjects.tsx": { before: "42b88aa9be93601a305f266f2948722f401dc17d712293fee6e6ea78bffa7db4", after: "0db90e2903849f9081811363c68b654c72bd9cc5ee68d6ffa971d9a69ec6f5e3" },
+  "app/globals.css": { before: "c92afb6efeb29bdbb96462810cc458137e9ced07d89aab7023f07f701c55663f", after: "cefefec324c8ad824e125be7d465ce9ebbf3e645bc95e5a8754cb84de742f7b1" },
+  "tests/lattice-service-view.test.mjs": { before: "5b35bad121018ef1a9e49f11a202d07529197e96336380c1b43c07c9e9785e73", after: "8621bf54a7b309a54ca43c8ab98070c174c44391cf65f459a9694caf9995ce09" },
 });
 const sourceCarryExceptions = Object.freeze({
   [sourceCarryEditorialPage.path]: sourceCarryEditorialPage.beforeSha256,
@@ -943,7 +945,7 @@ function approvedSourceCarry(register) {
   const carry = register?.authority?.browserEvidenceSourceCarry;
   const record = register?.authority?.browserEvidence;
   return carry?.format === "TEXT_TO_LATTICE_G06_SOURCE_CARRY_V1"
-    && carry.authorization === "owner-directed-architecture-publication-20261123"
+    && carry.authorization === "owner-approved-network-map-presentation-20261124"
     && carry.capturedCommit === sourceCarryCapture.commit && record?.deployedCommit === carry.capturedCommit
     && carry.capturedSourceSetSha256 === sourceCarryCapture.source && record.qualifiedSourceSetSha256 === carry.capturedSourceSetSha256
     && carry.evidenceId === sourceCarryCapture.evidenceId && record.evidenceId === carry.evidenceId
@@ -991,7 +993,7 @@ export function verifyBrowserEvidenceSourceCarry(register, record, files, proofB
     ["format", "authorization", "capturedCommit", "capturedSourceSetSha256", "currentSourceSetSha256", "evidenceId", "evidenceSha256", "proof"],
     "authority.browserEvidenceSourceCarry");
   if (carry.format !== "TEXT_TO_LATTICE_G06_SOURCE_CARRY_V1"
-    || carry.authorization !== "owner-directed-architecture-publication-20261123"
+    || carry.authorization !== "owner-approved-network-map-presentation-20261124"
     || carry.capturedCommit !== sourceCarryCapture.commit || record.deployedCommit !== carry.capturedCommit
     || carry.capturedSourceSetSha256 !== sourceCarryCapture.source || record.qualifiedSourceSetSha256 !== carry.capturedSourceSetSha256
     || carry.evidenceId !== sourceCarryCapture.evidenceId || record.evidenceId !== carry.evidenceId

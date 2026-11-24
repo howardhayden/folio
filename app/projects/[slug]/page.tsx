@@ -63,6 +63,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
           {project.id === "lattice" ? (
             <section aria-labelledby={latticeReadingGuide.edgeArchitecture.anchor}>
               <h2 id={latticeReadingGuide.edgeArchitecture.anchor}>{latticeReadingGuide.edgeArchitecture.title}</h2>
+              {record.interactiveRelease === "enabled" ? <p><a href="/resume/#text-to-lattice-network">Trace a request in the network map</a></p> : null}
               <dl>
                 {latticeReadingGuide.edgeArchitecture.claims.map(({ id, title, summary }) => (
                   <div key={id}>
