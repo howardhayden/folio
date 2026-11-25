@@ -5,12 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { LATTICE_SERVICE_EVENTS_MIME } from "../app/resume/lattice/serviceTelemetry.js";
 import { LATTICE_RESULT_VERSION } from "../app/resume/lattice/remoteProtocol.js";
 import {
   LATTICE_PRODUCTION_EVIDENCE_SCHEMA,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS,
   LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS,
+  withCanaryTransport,
   parseLatticeQualificationAdmissionHeaders,
   parseLatticeRequireAdmissionEvidence,
   verifyLatticeProductionAdmissionEvidence,
@@ -543,7 +545,7 @@ test("the production verifier preserves one setup and one canary before separate
   assert.ok(Number.isSafeInteger(evidence.transformation_canary.elapsed_ms));
   assert.ok(evidence.transformation_canary.response_bytes > 0);
   assert.deepEqual(evidence.declared_hard_limits, {
-    api_request_timeout_ms: 240_000,
+    api_request_timeout_ms: 900_000,
     api_request_bytes: 65_536,
     api_response_bytes: 262_144,
     provider_stage_call_timeout_ms: {
@@ -3081,4 +3083,59 @@ test("negative failure diagnostics refuse invalid status without getters, coerci
     const { message } = await captureNegativeProbeFailure(() => response);
     assert.equal(message, "Text to Lattice live API verification failed: negative probe invalid-text-type returned an invalid response");
   });
+});
+
+test("the staged long-prose check retains only a terminal status, identity, counts and latency", async () => {
+  const { verifyLongProseCandidate } = await import("../scripts/verify-text-to-lattice-api-production.mjs");
+  const version = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  let contents = 0;
+  const check = (accept) => verifyLongProseCandidate(version, async (_url, init) => {
+    assert.equal(init.headers.get("Cloudflare-Workers-Version-Overrides"), 'hahdev-text-to-lattice-api="' + version + '"');
+    assert.equal(init.headers.get("origin"), "https://hah.dev");
+    if (!init.body) {
+      const now = Date.now();
+      const maxAge = Math.ceil((86400000 - now % 86400000) / 1000);
+      const setup = cookieSetupResponse(quotaSetCookie.replace("41104", String(maxAge)));
+      for (const header of Object.values(LATTICE_QUALIFICATION_ADMISSION_RESPONSE_HEADERS)) setup.headers.delete(header);
+      return setup;
+    }
+    contents += 1;
+    assert.ok(init.headers.get("cookie"));
+    const { text } = JSON.parse(init.body);
+    const r = { ...validResult(), text, status: "conformant-for-context", wordCount: 688,
+      passageCount: 25, batchCount: 7, revisedPassageCount: 0, retainedPassageCount: 25 };
+    assert.equal(init.headers.get("accept"), LATTICE_SERVICE_EVENTS_MIME);
+    const frames = [
+      { sequence: 1, type: "phase", phase: "atomizing" },
+      { sequence: 2, type: "terminal", status: 200, body: { schema_version: 1, result: accept ? r : unableResult([]) } },
+    ];
+    return new Response(frames.map((frame) => JSON.stringify(frame) + "\n").join(""), {
+      status: 200, headers: { ...apiHeaders, "Content-Type": `${LATTICE_SERVICE_EVENTS_MIME}; charset=utf-8` },
+    });
+  });
+  const receipt = await check(true);
+  assert.deepEqual(Object.keys(receipt).sort(), ["batches", "candidateVersion", "elapsedMs", "inputWords", "status"]);
+  assert.equal(receipt.inputWords, 688);
+  await assert.rejects(check(false), /ended with unable-to-attempt/u);
+  assert.equal(contents, 2);
+});
+
+test("the Node qualification transport allows the entire client deadline and disposes on failure", async (t) => {
+  let disposed = false;
+  class Agent {
+    constructor(options) {
+      assert.deepEqual(options, { headersTimeout: 1_200_000, bodyTimeout: 1_200_000 });
+    }
+    async destroy() { disposed = true; }
+  }
+  const signal = new AbortController().signal;
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    assert.ok(init.dispatcher instanceof Agent);
+    assert.equal(init.signal, signal);
+    throw new Error("disconnected");
+  });
+  await assert.rejects(withCanaryTransport(
+    (fetchImpl) => fetchImpl("https://hah.dev/api/lattice", { signal }), Agent,
+  ), /disconnected/u);
+  assert.equal(disposed, true);
 });

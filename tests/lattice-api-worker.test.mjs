@@ -108,6 +108,7 @@ import {
 import {
   LATTICE_PRODUCTION_CANARY_REQUEST,
   LATTICE_PRODUCTION_CANARY_TEXT,
+  makeLongProseFixture,
 } from "../scripts/text-to-lattice-production-canary.mjs";
 import {
   LATTICE_API_VISITOR_COOKIE_NAME,
@@ -1878,6 +1879,88 @@ test("the content-free rate limiter allows, denies, and fails closed before prov
   }
   assert.equal(adapterCreations, 1);
   assert.equal(executions, 1);
+});
+
+test("688-word narrative fits the production Worker, strict provider adapters and whole-document proof", async () => {
+  const source = makeLongProseFixture((choices) => choices[0]);
+  const oldPlan = preflightLatticeInput(source);
+  const plan = preflightLatticeInput(source, { providerCallLimit: LATTICE_PROVIDER_CALL_LIMIT });
+  assert.equal(plan.wordCount, 688);
+  assert.ok(oldPlan.batches.length * 3 > LATTICE_PROVIDER_CALL_LIMIT);
+  const byId = new Map(plan.passages.map((passage) => [passage.id, passage.text]));
+  const counts = { analysis: 0, draft: 0, verification: 0, certification: 0 };
+  let admissions = 0;
+  const worker = createLatticeApiWorker({
+    async admitTransformation(...args) { admissions += 1; return allowTransformation(...args); },
+    async fetchImpl(_url, init) {
+      const body = JSON.parse(init.body);
+      const payload = inertModelPayload(body);
+      if (isAnalysisBody(body)) {
+        counts.analysis += 1;
+        const p = payload.passages.map(([, spans, literals]) => {
+          const evidence = [...spans, ...literals];
+          const atoms = [];
+          for (let i = 0; i < evidence.length; i += 3) {
+            atoms.push([atoms.length % 3, 0, 1, evidence.slice(i, i + 3).map((_, offset) => i + offset)]);
+          }
+          const masks = Array.from({ length: 5 }, (_, i) => evidence.map((_, position) =>
+            (i === 4 || position === i % evidence.length ? "1" : "0")).join(""));
+          return [0, 1, atoms, masks];
+        });
+        return successfulProviderResponse({ d: 2, p, l: [] });
+      }
+      if (isCandidateBody(body)) {
+        counts.draft += 1;
+        return successfulProviderResponse({ passages: payload.analysis[1].map((plan) => ({
+          passageId: plan[0], layer: "operative", text: byId.get(plan[0]), preservedAtomIds: plan[5].map(([id]) => id),
+        })) });
+      }
+      if (isVerificationBody(body)) {
+        counts.verification += 1;
+        const p = Object.fromEntries(payload.analysisClaims[1].map((plan, i) => {
+          const group = payload.sourcePassages[i];
+          const count = group[1].length + group[2].length;
+          const atoms = "1".repeat(plan[5].length);
+          const evidence = "1".repeat(count);
+          return [String(i), { a: atoms, u: false, s: "0".repeat(count), f: "000000000", l: 0,
+            x: atoms, y: evidence, c: { v: true, s: evidence, k: plan[7].map(() => ({ v: true, s: evidence })) } }];
+        }));
+        return successfulProviderResponse({ d: 0, g: "00000000000", p, i: [] });
+      }
+      assert.equal(body.response_format.json_schema.name, CERTIFICATION_TOOL_NAME);
+      counts.certification += 1;
+      assert.ok(payload.source === source && payload.candidate === source, "certification must cover the complete fixture");
+      return successfulProviderResponse(acceptingCertificationWire(payload.certificateId, payload.obligationIds));
+    },
+  });
+  const response = await worker.fetch(apiRequest({ ...validPayload, text: source, requested_mode: "auto" }), { HF_TOKEN: "fixture" });
+  const envelope = await json(response);
+  assert.equal(response.status, 200, JSON.stringify({ counts, error: envelope.error }));
+  assert.equal(envelope.result.status, "conformant-for-context", JSON.stringify({ counts, findings: envelope.result.findings }));
+  assert.ok(envelope.result.text === source, "the retained result must match the fixture");
+  assert.equal(envelope.result.batchCount, plan.batches.length);
+  assert.equal(admissions, 1);
+  assert.deepEqual(counts, { analysis: plan.batches.length, draft: plan.batches.length, verification: plan.batches.length, certification: 1 });
+  assert.ok(Object.values(counts).reduce((used, count) => used + count, 0) <= LATTICE_PROVIDER_CALL_LIMIT);
+});
+
+test("a plan too fragmented for one admission is refused before rate limit, visitor charge or provider work", async () => {
+  const text = Array.from({ length: 48 }, () => "A new page.").join("\n\n");
+  assert.ok(preflightLatticeInput(text).wordCount < 700);
+  const calls = [];
+  const worker = createLatticeApiWorker({
+    enforceRateLimit: () => { calls.push("rate"); },
+    admitTransformation: () => { calls.push("claim"); },
+    createAdapter: () => { calls.push("provider"); },
+  });
+  for (const accept of ["application/json", LATTICE_SERVICE_EVENTS_MIME]) {
+    const request = apiRequest({ ...validPayload, text });
+    request.headers.set("Accept", accept);
+    const response = await worker.fetch(request, { HF_TOKEN: "unused" });
+    assert.equal(response.status, 413);
+    assert.deepEqual(await json(response), { error: "input_too_large" });
+  }
+  assert.deepEqual(calls, []);
 });
 
 test("the 700-word boundary is accepted and 701 words is input_too_large", async () => {
@@ -8542,17 +8625,12 @@ test("the whole-request deadline preempts the verifier's longer default deadline
 });
 
 test("the live canary deadline remains outside the bounded request and provider deadlines", async () => {
-  const verifierSource = await readFile(
-    new URL("../scripts/verify-text-to-lattice-api-production.mjs", import.meta.url),
-    "utf8",
-  );
-  const canaryTimeoutMatch = verifierSource.match(/const CANARY_TIMEOUT_MS = ([\d_]+);/u);
-  assert.ok(canaryTimeoutMatch);
-  const canaryTimeoutMs = Number(canaryTimeoutMatch[1].replaceAll("_", ""));
-
+  const { CANARY_TIMEOUT_MS: canaryTimeoutMs } = await import("../scripts/verify-text-to-lattice-api-production.mjs");
+  const { LATTICE_CLIENT_TIMEOUT_MS } = await import("../app/resume/lattice/remoteRequest.js");
   assert.equal(LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS, 180_000);
-  assert.equal(LATTICE_API_REQUEST_TIMEOUT_MS, 240_000);
-  assert.equal(canaryTimeoutMs, 255_000);
+  assert.equal(LATTICE_API_REQUEST_TIMEOUT_MS, 900_000);
+  assert.equal(LATTICE_CLIENT_TIMEOUT_MS - LATTICE_API_REQUEST_TIMEOUT_MS, 300_000);
+  assert.equal(canaryTimeoutMs, LATTICE_CLIENT_TIMEOUT_MS);
   assert.ok(LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS < LATTICE_API_REQUEST_TIMEOUT_MS);
   assert.ok(LATTICE_API_REQUEST_TIMEOUT_MS < canaryTimeoutMs);
 });

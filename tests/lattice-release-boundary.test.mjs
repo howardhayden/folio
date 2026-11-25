@@ -1077,12 +1077,12 @@ test("one-release source carry independently binds the unchanged original proof 
 test("one-release source carry pins the approved editorial page even when changed bytes are repinned", async () => {
   const pagePath = "app/projects/lattice/text-to-lattice/page.tsx";
   const beforeSha256 = "1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8";
-  const afterSha256 = "08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870";
+  const afterSha256 = "204ca06d13bb8cc6ae0bfccf085924f8481c5e6015d12a6ab98191346992fbb0";
   const accepted = await sourceCarryFixture();
   const acceptedProof = JSON.parse(accepted.proofBytes);
   const pageException = acceptedProof.exceptions.find(({ path }) => path === pagePath);
   assert.equal(pageException.beforeSha256, beforeSha256);
-  assert.equal(sha256(Buffer.from(pageException.beforeBase64, "base64")), beforeSha256);
+  assert.deepEqual(Object.keys(pageException).sort(), ["afterSha256", "beforeSha256", "path"]);
   assert.equal(pageException.afterSha256, afterSha256);
   assert.equal(sha256(accepted.files.find(({ path }) => path === pagePath).bytes), afterSha256);
   assert.doesNotThrow(() => checkSourceCarry(accepted));
@@ -1128,7 +1128,7 @@ test("the editorial extension pins the reviewed workflow and authored documentat
     const proof = JSON.parse(fixture.proofBytes);
     proof.exceptions.find((entry) => entry.path === path).afterSha256 = sha256(file.bytes);
     repinCarryProof(fixture, proof);
-    assert.throws(() => checkSourceCarry(fixture), /frozen documentation publication bytes/u);
+    assert.throws(() => checkSourceCarry(fixture), /frozen approved publication bytes/u);
   }
 });
 
@@ -1158,13 +1158,19 @@ test("one-release source carry refuses widening, wildcard, duplicate and missing
 });
 
 test("one-release source carry refuses changed beforeimages and stale allowed-file after digests", async () => {
-  for (const field of ["beforeSha256", "afterSha256", "beforeBase64"]) {
+  for (const field of ["beforeSha256", "afterSha256"]) {
     const fixture = await sourceCarryFixture();const proof = JSON.parse(fixture.proofBytes);
-    proof.exceptions[0][field] = field === "beforeBase64" ? Buffer.from("wrong original").toString("base64") : "0".repeat(64);
+    proof.exceptions[0][field] = "0".repeat(64);
     repinCarryProof(fixture, proof);
     assert.throws(() => checkSourceCarry(fixture), /before and after bytes|beforeimage/u, field);
   }
   const fixture = await sourceCarryFixture();
+  const injected = JSON.parse(fixture.proofBytes);
+  injected.exceptions[0].beforeBase64 = "unapproved";
+  repinCarryProof(fixture, injected);
+  assert.throws(() => checkSourceCarry(fixture), /exact typed fields/u);
+  repinCarryProof(fixture, { ...injected, exceptions: injected.exceptions.map(({ path, beforeSha256, afterSha256 }) =>
+    ({ path, beforeSha256, afterSha256 })) });
   fixture.files.find(({ path }) => path === "tests/lattice-documentation.test.mjs").bytes = Buffer.from("different allowed-file bytes");
   const current = carryFingerprint(fixture.files);
   fixture.register.authority.qualifiedSourceSet.sha256 = current;

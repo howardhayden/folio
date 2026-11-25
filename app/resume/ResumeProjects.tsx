@@ -355,7 +355,10 @@ function latticeFailureMessage(error: unknown) {
     if (error.code === "visitor_session_required") {
       return "The external provider did not receive your text because hah.dev could not establish its private daily-limit cookie. Allow site cookies for hah.dev, then submit again only if you choose.";
     }
-    if (error.code === "invalid_request" || error.code === "input_too_large") {
+    if (error.code === "input_too_large") {
+      return "This source is too large for one request. Split it at a paragraph or sentence, then submit one section at a time.";
+    }
+    if (error.code === "invalid_request") {
       return "The service rejected this source. Review the limits and submit again only if you choose.";
     }
     if (error.code === "rate_limited") {
@@ -363,7 +366,7 @@ function latticeFailureMessage(error: unknown) {
       return `Text to Lattice is at capacity. You can make a new submission ${retry}.`;
     }
     if (error.code === "client_timeout" || error.code === "upstream_timeout") {
-      return "The external transformation timed out. hah.dev does not retain your sample or a partial result. Submit again only if you choose.";
+      return "The transformation timed out. For a longer passage, split at a paragraph and submit one section at a time. hah.dev keeps no partial result.";
     }
     if (error.code === "network_failure" || error.code === "upstream_unavailable") {
       return "The request could not complete and may have reached the configured external service. hah.dev does not retain your sample or result. Submit again only if you choose.";

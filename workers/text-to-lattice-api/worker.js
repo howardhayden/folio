@@ -18,15 +18,18 @@ import {
 } from "../../app/resume/lattice/serviceTelemetry.js";
 import {
   LATTICE_API_PATH,
+  LATTICE_API_REQUEST_TIMEOUT_MS,
   LATTICE_API_SCHEMA_VERSION,
   LATTICE_VISITOR_SESSION_ACCEPT,
   isLatticeApiRequest,
   isLatticeApiResult,
 } from "../../app/resume/lattice/remoteProtocol.js";
 import {
+  LatticePlanCapacityError,
   getLatticeVerificationPriorRejection,
   getLatticeWithheldPipelineObservation,
   preflightLatticeInput,
+  prepareLatticeTransformation,
   runTextToLattice,
 } from "../../app/resume/latticeDemo.js";
 import {
@@ -68,7 +71,7 @@ import {
 
 export const LATTICE_API_ORIGIN = "https://hah.dev";
 export { LATTICE_API_PATH, LATTICE_API_SCHEMA_VERSION };
-export const LATTICE_API_REQUEST_TIMEOUT_MS = 240_000;
+export { LATTICE_API_REQUEST_TIMEOUT_MS };
 export const LATTICE_API_REQUEST_BYTE_LIMIT = 65_536;
 export const LATTICE_API_RESPONSE_BYTE_LIMIT = 262_144;
 export const LATTICE_API_RATE_LIMIT_KEY = "text-to-lattice:transform";
@@ -1002,10 +1005,18 @@ export function createLatticeApiWorker({
           throw apiError(400, "invalid_request");
         }
         const payload = validateEnvelope(body);
+        const planningOptions = { providerCallLimit: LATTICE_PROVIDER_CALL_LIMIT };
+        let runPrepared;
         try {
           observeLatticeAdmissionTrustedStep(admissionObservation, preflightLatticeInputImpl === preflightLatticeInput);
-          preflightLatticeInputImpl(payload.text);
-        } catch {
+          if (preflightLatticeInputImpl === preflightLatticeInput && runTextToLatticeImpl === runTextToLattice) {
+            runPrepared = prepareLatticeTransformation(payload.text, planningOptions);
+          } else {
+            preflightLatticeInputImpl(payload.text, planningOptions);
+            runPrepared = (options) => runTextToLatticeImpl(payload.text, options);
+          }
+        } catch (error) {
+          if (error instanceof LatticePlanCapacityError) throw apiError(413, "input_too_large");
           const inputTooLarge = payload.text.length > LATTICE_INPUT_SAFETY_LIMIT
             || latticeUtf8Length(payload.text) > LATTICE_INPUT_UTF8_LIMIT
             || countLatticeWords(payload.text) > LATTICE_WORD_LIMIT;
@@ -1100,6 +1111,7 @@ export function createLatticeApiWorker({
           };
           assertRequestPhaseOpen(deadline, qualificationWindow, now());
           const runOptions = {
+            providerCallLimit: LATTICE_PROVIDER_CALL_LIMIT,
             adapter,
             signal: deadline.signal,
             allowClarification: false,
@@ -1112,7 +1124,7 @@ export function createLatticeApiWorker({
             runOptions.onCandidateWithheldDiagnostic = captureWithheldDiagnostic;
           }
           if (onProgress !== undefined) runOptions.onProgress = onProgress;
-          const result = await raceAbort(runTextToLatticeImpl(payload.text, runOptions), deadline.signal);
+          const result = await raceAbort(runPrepared(runOptions), deadline.signal);
           if (!isLatticeApiResult(result)) {
             throw apiError(502, "malformed_upstream_response");
           }

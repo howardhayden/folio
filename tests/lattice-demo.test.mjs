@@ -395,6 +395,37 @@ function scriptedAdapter(behavior = {}) {
   };
 }
 
+test("long prose completes analysis, drafting, independent review and certification within the remote budget", async () => {
+  // Original synthetic fixture with 688 words, short sentences and twelve paragraphs.
+  const source = Array.from({ length: 12 }, (_, paragraph) => Array.from({ length: 4 }, (_, sentence) => {
+    const words = 14 + (4 * paragraph + sentence < 16 ? 1 : 0);
+    return opaqueWords(words, "u") + ".";
+  }).join(" ")).join("\n\n");
+  const ordinary = preflightLatticeInput(source);
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  assert.equal(plan.wordCount, 688);
+  assert.ok(ordinary.batches.length * 3 > 32);
+  assert.ok(plan.batches.length * 3 + 4 <= 32);
+  assert.equal(plan.passages.map(p => p.separatorBefore + p.text).join("") + plan.passages.at(-1).separatorAfter, source);
+  assert.equal(plan.passages.filter(p => p.separatorBefore.includes("\n\n")).length, 11);
+  let certificates = 0;
+  const adapter = scriptedAdapter({ certify() { certificates += 1; } });
+  const calls = () => Object.values(adapter.calls).reduce((sum, value) => sum + value, certificates);
+  adapter.completionCapacity = () => ({ used: calls(), limit: 32, remaining: 32 - calls() });
+  const result = await runTextToLattice(source, { adapter, providerCallLimit: 32, allowClarification: false });
+  assert.equal(result.status, "translated");
+  assert.equal(result.batchCount, plan.batches.length);
+  assert.deepEqual(adapter.calls, { analyze: plan.batches.length, generate: plan.batches.length, verify: plan.batches.length, repair: 0 });
+  assert.equal(certificates, 1);
+  assert.ok(calls() <= 32);
+  assert.equal(result.text.split("\n\n").length, 12);
+});
+
+test("an already feasible remote request keeps its original passages and batches", () => {
+  const source = "Meet at the west entrance. Bring the visitor notebook.\nReturn it to the desk.";
+  assert.deepEqual(preflightLatticeInput(source, { providerCallLimit: 32 }), preflightLatticeInput(source));
+});
+
 function withPassageOrigins(raw, request, downgraded = []) {
   return rememberLatticeAnalysisPassageOrigins(raw, raw.passages.map((passage, index) => ({
     passage, source: request.batch.passages[index], retentionDowngraded: downgraded.includes(index),

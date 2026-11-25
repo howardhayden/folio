@@ -38,6 +38,7 @@ import {
   LATTICE_PASSAGE_LIMIT,
   latticeSourceSpansForBatch,
   MODEL_SOURCE_SPAN_LIMIT,
+  packLatticePassages,
   reassembleLatticeSource,
   segmentLatticeSource,
   splitLatticePassage,
@@ -313,16 +314,43 @@ export class LatticeProtocolError extends Error {
   }
 }
 
-export function preflightLatticeInput(value) {
+// The remote certifier reserves four calls for the flat proof and its bounded recovery.
+const FLAT_CERTIFICATION_RESERVATION = 4;
+
+export class LatticePlanCapacityError extends RangeError {}
+
+// Every model batch needs an analysis, a draft, and an independent review.
+function initialProviderCalls(source, passages, batches) {
+  const certify = requiresDocumentCertification(source, batches.length, passages.some((passage) => passage.protected));
+  return 3 * batches.length + (certify ? FLAT_CERTIFICATION_RESERVATION : 0);
+}
+
+function requiresDocumentCertification(source, batchCount, hasProtectedPassages) {
+  return batchCount > 1 || hasProtectedPassages || /[\r\n\u2028\u2029]/u.test(source);
+}
+
+export function preflightLatticeInput(value, { providerCallLimit } = {}) {
   const { source, wordCount } = validateLatticeInput(value);
-  const passages = segmentLatticeSource(source);
+  let passages = segmentLatticeSource(source);
+  let batches = batchLatticePassages(passages, { enforceLimit: providerCallLimit === undefined });
+  if (providerCallLimit !== undefined) {
+    if (!Number.isSafeInteger(providerCallLimit) || providerCallLimit < 1) {
+      throw new TypeError("Invalid provider call budget.");
+    }
+    if (initialProviderCalls(source, passages, batches) > providerCallLimit) {
+      passages = packLatticePassages(source, passages);
+      batches = batchLatticePassages(passages, { fullPassages: true, enforceLimit: false });
+      if (initialProviderCalls(source, passages, batches) > providerCallLimit) {
+        throw new LatticePlanCapacityError("This source needs more work groups than one request can complete. Split it at a paragraph or sentence.");
+      }
+    }
+  }
   if (passages.length === 0) {
     throw new RangeError("Text to Lattice could not create a safe work unit from this input.");
   }
   if (passages.some(({ text }) => hasInvalidLatticeBidiIsolates(text))) {
     throw new RangeError("Text to Lattice cannot safely split these direction-isolated passages.");
   }
-  const batches = batchLatticePassages(passages);
   return Object.freeze({ source, wordCount, passages, batches });
 }
 
@@ -2466,10 +2494,7 @@ async function certifyWholeDocument({
   forceRequired = false,
   pipelineObservation = null,
 }) {
-  const required = forceRequired
-    || batchCount > 1
-    || protectedPassageCount > 0
-    || /[\r\n\u2028\u2029]/u.test(source);
+  const required = forceRequired || requiresDocumentCertification(source, batchCount, protectedPassageCount > 0);
   if (!required) {
     return Object.freeze({ accepted: true, required: false, performed: false, findings: Object.freeze([]) });
   }
@@ -2540,11 +2565,11 @@ async function certifyWholeDocument({
         )]),
       });
     }
-    if (fallbackMinimum !== null && remaining >= fallbackMinimum + 4) {
+    if (fallbackMinimum !== null && remaining >= fallbackMinimum + FLAT_CERTIFICATION_RESERVATION) {
       attemptFlatCertification = true;
     } else if (fallbackMinimum !== null && remaining >= fallbackMinimum) {
       attemptFlatCertification = false;
-    } else if (remaining < 4) {
+    } else if (remaining < FLAT_CERTIFICATION_RESERVATION) {
       return Object.freeze({
         accepted: false,
         required: true,
@@ -3394,8 +3419,16 @@ function adapterContract(adapter) {
     "The model adapter has an invalid certification-context preflight.");
 }
 
+export function prepareLatticeTransformation(value, planningOptions) {
+  const preflight = preflightLatticeInput(value, planningOptions);
+  return (options) => executeLatticePlan(preflight, options);
+}
+
 export async function runTextToLattice(value, options = {}) {
-  const preflight = preflightLatticeInput(value);
+  return prepareLatticeTransformation(value, { providerCallLimit: options.providerCallLimit })(options);
+}
+
+async function executeLatticePlan(preflight, options) {
   const { source, wordCount, batches } = preflight;
   const passages = [...preflight.passages];
   adapterContract(options.adapter);
