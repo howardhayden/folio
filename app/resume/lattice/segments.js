@@ -615,7 +615,37 @@ export function segmentLatticeSource(source) {
   })));
 }
 
-export function batchLatticePassages(passages, { enforceLimit = true } = {}) {
+// Preserve every host-owned gap, literal and direction frame. Only ordinary
+// neighboring prose on the same line can become a single bounded model passage.
+export function packLatticePassages(source, passages) {
+  const packed = [];
+  for (const passage of passages) {
+    const previous = packed.at(-1);
+    if (previous && !previous.protected && !passage.protected
+      && !previous.directionFrames?.length && !passage.directionFrames?.length
+      && /^[ \t]+$/u.test(passage.separatorBefore)
+      && previous.wordCount + passage.wordCount <= PASSAGE_WORD_LIMIT
+      && passage.endUtf16 - previous.startUtf16 <= PASSAGE_CHARACTER_LIMIT) {
+      const merged = {
+        ...previous,
+        text: source.slice(previous.startUtf16, passage.endUtf16),
+        endUtf16: passage.endUtf16,
+        wordCount: previous.wordCount + passage.wordCount,
+        separatorAfter: passage.separatorAfter,
+      };
+      if (scanLiteralSpans(merged, LITERAL_SOURCE_SPAN_LIMIT).complete) {
+        packed[packed.length - 1] = Object.freeze(merged);
+        continue;
+      }
+    }
+    packed.push(Object.freeze({ ...passage, id: `p${String(packed.length + 1).padStart(4, "0")}` }));
+  }
+  return Object.freeze(packed);
+}
+
+export function batchLatticePassages(passages, { enforceLimit = true, fullPassages = false } = {}) {
+  const wordTarget = fullPassages ? BATCH_PASSAGE_LIMIT * PASSAGE_WORD_LIMIT : BATCH_WORD_TARGET;
+  const characterTarget = fullPassages ? BATCH_PASSAGE_LIMIT * PASSAGE_CHARACTER_LIMIT : BATCH_CHARACTER_TARGET;
   const batches = [];
   let current = [];
   let currentWords = 0;
@@ -648,8 +678,8 @@ export function batchLatticePassages(passages, { enforceLimit = true } = {}) {
     const literalCount = literalScan.spans.length;
     const wouldOverflow = current.length > 0 && (
       current.length >= BATCH_PASSAGE_LIMIT
-      || currentWords + passage.wordCount > BATCH_WORD_TARGET
-      || currentCharacters + passage.text.length > BATCH_CHARACTER_TARGET
+      || currentWords + passage.wordCount > wordTarget
+      || currentCharacters + passage.text.length > characterTarget
       || currentLiterals + literalCount > LITERAL_BATCH_SPAN_LIMIT
     );
     if (wouldOverflow) finish();
