@@ -28,6 +28,8 @@ import { REMOTE_CAPABILITIES } from "../app/privacy/networkCapabilities.js";
 import {
   LATTICE_API_PATH,
   LATTICE_API_SCHEMA_VERSION,
+  LATTICE_API_REQUEST_TIMEOUT_MS,
+  LATTICE_CLIENT_TIMEOUT_MS,
   LATTICE_REQUEST_FIELDS,
   LATTICE_REQUEST_MODES,
   LATTICE_VISITOR_SESSION_ACCEPT,
@@ -907,31 +909,45 @@ const sourceCarryCapture = Object.freeze({
   source: "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
   evidenceId: "ttl-browser-20261123T143941Z-a495af12",
   evidenceSha256: "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
-  proofPath: "docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json",
+  fileDigestsSha256: "a3c557dcec1563f2f0023cfe39d89d470e77777059fb25414ff5714b2e18280f",
+  proofPath: "docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json",
 });
 const sourceCarryEditorialPage = Object.freeze({
   path: "app/projects/lattice/text-to-lattice/page.tsx",
   beforeSha256: "1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8",
-  afterSha256: "08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870",
+  afterSha256: "204ca06d13bb8cc6ae0bfccf085924f8481c5e6015d12a6ab98191346992fbb0",
 });
-const documentationPublicationFiles = Object.freeze({
-  ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "fa93f8c9c22da0d04ed06529750d3601b3c826715a6634fe40e8c2e23521bd5a" },
+const approvedPublicationFiles = Object.freeze({
+  ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "901fb98ac1940e50eb7faf2003aa0106bf71ddb92dbd00ffae2a072a4289ba49" },
   "app/content/projectDocuments.js": { before: "261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251", after: "a7e92316b513757b6a19ece0fbc2fd4390e08d3c8766edc146c61184e4d21ca3" },
   "app/projects/[slug]/page.tsx": { before: "d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62", after: "43ab6d037e0c9eb5609ce5c17b0a4bbfdbd6a58689fc478f5b3b64f5464d268a" },
   "app/semantic/portfolio.js": { before: "7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6", after: "8506fd4f7d49f5b6ab672b5ba00265c39774c4e71ff035fee70beaa82462380c" },
-  "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "9de393af9459626e99c7562aaa8d3a22fd7640535a9ef5d5a6319aa83091469e" },
-  "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "5c294cd51e7cce37c39e9f862003ac7224f9ac8cfba6a6b59919e40c8cface2a" },
+  "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "f71e2e3b6130e82d19bcd77d310586be25956f6697cf742f93574cd81afb568a" },
+  "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "8241593fcbe30db3c97e928f2ce86bf0dead118a5c8b444d458d4f9cfdf49b2d" },
   "app/resume/ProjectDescriptionDisclosure.tsx": { before: "5e75a6ab95b261ea2ff77c5012998f618126de1c59456acde2310b663b174e89", after: "cef3f61fa66e2ceeb91cb61f8d236751c9d6f2e4688062bb496741110541d832" },
-  "app/resume/ResumeProjects.tsx": { before: "42b88aa9be93601a305f266f2948722f401dc17d712293fee6e6ea78bffa7db4", after: "0db90e2903849f9081811363c68b654c72bd9cc5ee68d6ffa971d9a69ec6f5e3" },
+  "app/resume/ResumeProjects.tsx": { before: "42b88aa9be93601a305f266f2948722f401dc17d712293fee6e6ea78bffa7db4", after: "55cad4a74e9edee07989f7c15d4939570d7c1e4f0a67503f79ce4eafe896958d" },
   "app/globals.css": { before: "c92afb6efeb29bdbb96462810cc458137e9ced07d89aab7023f07f701c55663f", after: "cefefec324c8ad824e125be7d465ce9ebbf3e645bc95e5a8754cb84de742f7b1" },
   "tests/lattice-service-view.test.mjs": { before: "5b35bad121018ef1a9e49f11a202d07529197e96336380c1b43c07c9e9785e73", after: "8621bf54a7b309a54ca43c8ab98070c174c44391cf65f459a9694caf9995ce09" },
+  "app/content/textToLatticeContent.js": { before: "32f4c7f164c4e872230e12016fdffa0167565bc5afab742a7870935f26d09a41", after: "dde718d79f3b75c4e5d962566bf553d2ec18077948d5a90229fca8ef18776dfe" },
+  "app/resume/lattice/remoteProtocol.js": { before: "a7b33f6969f4593fa87a46e30420c3094f91e9e34dfbba5b65f932097aa9868d", after: "2dd239030a882bd6276e4b1062da806a306f80fc69a90191e2f0fb272e23f250" },
+  "app/resume/lattice/remoteRequest.js": { before: "161a4f068ee7357c4f42cc4c33a3237668ef01196e3fecde2a98694dd0261c92", after: "27ab9f07be6d1ed2a981c9332751563052dae76e4e72062be67599836cce4df6" },
+  "app/resume/lattice/segments.js": { before: "6a32fdd7e9145579d86eb60e34994a89270e6b970db75b1f382b7be91aa7e8fd", after: "487f5156544e5afc6a9f0524396fdde954a2414b3585ec5ecf6ababd1ff1f663" },
+  "app/resume/latticeDemo.js": { before: "fec23b788e1bb970590a38d7046071ba90d62d268ff1cab4105dadaa84e50639", after: "e95af7459af656c5eaab2bbf9bab46f4f5a7b8a07dbbe2da8cd6916445b78376" },
+  "scripts/read-text-to-lattice-active-version.mjs": { before: "1063485afc31efd16123f80f585210c1ae0c9c4e7103cbe7c236e019f73a0155", after: "2f43abcca26e8450d96f0beef70f291cd6dd3cfa5024928a6943f1ea12637f08" },
+  "scripts/text-to-lattice-production-canary.mjs": { before: "fb5ca18a973ad1a6d1eead16535a0c6c4cea8852b72dbd53764e20f0c2f4efa4", after: "2fb3040132859826e9952ca09fe9af486b1d42e0ac68217e0ac6a81143c807f8" },
+  "scripts/verify-text-to-lattice-api-production.mjs": { before: "3c3d1803cbc4f610f1da6a5f571d165782498a3056aea07fb2ca44a6c69f8b90", after: "ec23f05bcf12b5f075480929c8c6622b0122ac59e1e2ec98fef644a2fc7c5c12" },
+  "tests/lattice-api-worker.test.mjs": { before: "460458b7f94de503c46d150da4712ccaef5ed757578aee2ae7d2dca323c2fb29", after: "fe58217c2d48e253213aee493e33c99727e85eb5ea647ea678761868df83af18" },
+  "tests/lattice-demo.test.mjs": { before: "f02129d9939c76903310fae367146b85a5f7b62da55dd421c1a2d4229f5ed201", after: "c0989022baf40c8afbcf39cf52fe9cf4654025355145319f463bc49c7a72e10c" },
+  "tests/lattice-network-capability.test.mjs": { before: "81b667a111103366cad61dae3486a69e3865ceb39b5ab1026319dfe61e39cab6", after: "754125cdf3d408ea9e03b12d72314787cbb63b940d5898ffc07bc1a95c58d82b" },
+  "tests/lattice-production-api-verifier.test.mjs": { before: "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce", after: "10e1fb62049fa32e24165c9b8a0dda24737fc3e73df461b373951d63745d53bd" },
+  "workers/text-to-lattice-api/worker.js": { before: "89f67a96629041cd6f30fc95cba257ad98852be01b1fab144a59d8b3e0b7eac9", after: "7d385c12ed77bf0d9903d4381a3a18cd84de125d212e2e33afc120ade48c76ea" },
 });
 const sourceCarryExceptions = Object.freeze({
   [sourceCarryEditorialPage.path]: sourceCarryEditorialPage.beforeSha256,
   "scripts/verify-text-to-lattice-release.mjs": "e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a",
   "tests/lattice-documentation.test.mjs": "66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e",
   "tests/lattice-release-boundary.test.mjs": "7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114",
-  ...Object.fromEntries(Object.entries(documentationPublicationFiles).map(([path, hashes]) => [path, hashes.before])),
+  ...Object.fromEntries(Object.entries(approvedPublicationFiles).map(([path, hashes]) => [path, hashes.before])),
 });
 const qualificationHistory = Object.freeze({
   path: "docs/release-evidence/text-to-lattice/qualification-history-2026-11-23.md",
@@ -945,7 +961,7 @@ function approvedSourceCarry(register) {
   const carry = register?.authority?.browserEvidenceSourceCarry;
   const record = register?.authority?.browserEvidence;
   return carry?.format === "TEXT_TO_LATTICE_G06_SOURCE_CARRY_V1"
-    && carry.authorization === "owner-approved-network-map-presentation-20261124"
+    && carry.authorization === "owner-approved-long-prose-and-transfer-20261125"
     && carry.capturedCommit === sourceCarryCapture.commit && record?.deployedCommit === carry.capturedCommit
     && carry.capturedSourceSetSha256 === sourceCarryCapture.source && record.qualifiedSourceSetSha256 === carry.capturedSourceSetSha256
     && carry.evidenceId === sourceCarryCapture.evidenceId && record.evidenceId === carry.evidenceId
@@ -993,7 +1009,7 @@ export function verifyBrowserEvidenceSourceCarry(register, record, files, proofB
     ["format", "authorization", "capturedCommit", "capturedSourceSetSha256", "currentSourceSetSha256", "evidenceId", "evidenceSha256", "proof"],
     "authority.browserEvidenceSourceCarry");
   if (carry.format !== "TEXT_TO_LATTICE_G06_SOURCE_CARRY_V1"
-    || carry.authorization !== "owner-approved-network-map-presentation-20261124"
+    || carry.authorization !== "owner-approved-long-prose-and-transfer-20261125"
     || carry.capturedCommit !== sourceCarryCapture.commit || record.deployedCommit !== carry.capturedCommit
     || carry.capturedSourceSetSha256 !== sourceCarryCapture.source || record.qualifiedSourceSetSha256 !== carry.capturedSourceSetSha256
     || carry.evidenceId !== sourceCarryCapture.evidenceId || record.evidenceId !== carry.evidenceId
@@ -1011,7 +1027,7 @@ export function verifyBrowserEvidenceSourceCarry(register, record, files, proofB
   let proof;
   try { proof = JSON.parse(proofBytes.toString("utf8")); } catch { fail("source carry appendix must be JSON."); }
   exactObjectFields(proof, ["format", "capturedPaths", "exceptions"], "source carry appendix");
-  if (proof.format !== "TEXT_TO_LATTICE_G06_SOURCE_COMPARISON_V1" || !Array.isArray(files)
+  if (proof.format !== "TEXT_TO_LATTICE_G06_FILE_DIGESTS_V2" || !Array.isArray(files)
     || files.length !== 267 || files.some((entry) => typeof entry.path !== "string" || !Buffer.isBuffer(entry.bytes))
     || new Set(files.map(({ path }) => path)).size !== 267
     || JSON.stringify(files.map(({ path }) => path)) !== JSON.stringify(files.map(({ path }) => path).sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b))))
@@ -1025,29 +1041,26 @@ export function verifyBrowserEvidenceSourceCarry(register, record, files, proofB
   }
   const originals = new Map();
   for (const entry of proof.exceptions) {
-    exactObjectFields(entry, ["path", "beforeSha256", "afterSha256", "beforeBase64"], "source carry exception");
+    exactObjectFields(entry, ["path", "beforeSha256", "afterSha256"], "source carry exception");
     const current = files.find(({ path }) => path === entry.path);
     if (!current || entry.beforeSha256 !== sourceCarryExceptions[entry.path]
       || !sha256Pattern.test(entry.afterSha256 ?? "") || digest(current.bytes) !== entry.afterSha256
-      || entry.afterSha256 === entry.beforeSha256 || typeof entry.beforeBase64 !== "string"
-      || entry.beforeBase64.length > 524288) fail("source carry exception must bind exact approved before and after bytes.");
+      || entry.afterSha256 === entry.beforeSha256) fail("source carry exception must bind exact approved before and after bytes.");
     if (entry.path === sourceCarryEditorialPage.path
       && (entry.afterSha256 !== sourceCarryEditorialPage.afterSha256
         || digest(current.bytes) !== sourceCarryEditorialPage.afterSha256)) {
       fail("source carry editorial page must match the frozen owner-approved after bytes.");
     }
-    if (Object.hasOwn(documentationPublicationFiles, entry.path)
-      && entry.afterSha256 !== documentationPublicationFiles[entry.path].after) {
-      fail("source carry must use the frozen documentation publication bytes.");
+    if (Object.hasOwn(approvedPublicationFiles, entry.path)
+      && entry.afterSha256 !== approvedPublicationFiles[entry.path].after) {
+      fail("source carry must use the frozen approved publication bytes.");
     }
-    const before = Buffer.from(entry.beforeBase64, "base64");
-    if (before.toString("base64") !== entry.beforeBase64 || digest(before) !== entry.beforeSha256) {
-      fail("source carry original beforeimage is not exact canonical bytes.");
-    }
-    originals.set(entry.path, before);
+    originals.set(entry.path, entry.beforeSha256);
   }
-  const captured = files.map(({ path, bytes }) => ({ path, bytes: originals.get(path) ?? bytes }));
-  if (sourceFingerprint(captured) !== sourceCarryCapture.source) {
+  // The ordered digest list is independently derived from the immutable G06
+  // checkout. Keep test passages and original file bodies out of this evidence.
+  const captured = files.map(({ path, bytes }) => [path, originals.get(path) ?? digest(bytes)]);
+  if (digest(Buffer.from(JSON.stringify(captured))) !== sourceCarryCapture.fileDigestsSha256) {
     fail("source carry changes an unaffected captured source byte or path.");
   }
   return Object.freeze({ capturedCommit: carry.capturedCommit, capturedSourceSetSha256: carry.capturedSourceSetSha256,
@@ -1531,7 +1544,8 @@ export function verifyServicePhaseTransport(capability) {
     "startsAfterAtomicAdmission": true,
     "preadmissionErrors": "existing-non-2xx-json",
     "qualificationDiagnosticHeaderWithStream": "400-invalid_request-before-admission",
-    "wholeRequestDeadlineMs": 240000,
+    "wholeRequestDeadlineMs": LATTICE_API_REQUEST_TIMEOUT_MS,
+    "clientDeadlineMs": LATTICE_CLIENT_TIMEOUT_MS,
     "deadlineAndQualificationExpiryThroughProducerCompletion": true,
     "readerCancellationAbortsPipeline": true,
     "browserLockThroughTerminalEofOrAbort": true,

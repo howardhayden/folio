@@ -494,7 +494,7 @@ test("the service graph proves held publication, qualifies reversibly, and resto
   assert.match(admissionEnvironmentStep, /--output "\$RUNNER_TEMP\/text-to-lattice-deployment-evidence\/api-environment-before\.json"/u);
   assert.match(admissionEnvironmentStep, /if \[\[ "\$RELEASE_PHASE" != "qualified" \]\]; then[\s\S]*?--qualification-expires-at/u);
   assert.match(postLiveDeploymentStep, /CLOUDFLARE_ACCOUNT_ID:[\s\S]*?CLOUDFLARE_API_TOKEN:/u);
-  assert.match(postLiveDeploymentStep, /read-text-to-lattice-active-version\.mjs --inspect-deployed[\s\S]*?--expected-deployment "\$RUNNER_TEMP\/text-to-lattice-api-deploy\.jsonl"[\s\S]*?--config workers\/text-to-lattice-api\/wrangler\.jsonc[\s\S]*?text-to-lattice-api-deployment-after\.raw\.json/u);
+  assert.match(postLiveDeploymentStep, /--expected-deployment "\$RUNNER_TEMP\/text-to-lattice-api-deploy\.jsonl"[\s\S]*?--expected-upload "\$RUNNER_TEMP\/long-prose-upload\.jsonl"[\s\S]*?read-text-to-lattice-active-version\.mjs --inspect-deployed[\s\S]*?"\$\{EXPECTED\[@\]\}"[\s\S]*?--config workers\/text-to-lattice-api\/wrangler\.jsonc[\s\S]*?text-to-lattice-api-deployment-after\.raw\.json/u);
   assert.match(postLiveDeploymentStep, /wrangler versions view "\$API_VERSION_ID" --json/u);
   assert.match(postLiveDeploymentStep, /--api-version "\$RUNNER_TEMP\/text-to-lattice-api-version-after\.raw\.json"/u);
   assert.match(postLiveDeploymentStep, /--inspect-api-environment/u);
@@ -2071,4 +2071,52 @@ test("the approved Network map publication builds Pages without starting a servi
   assert.equal(workflowJobGuard(workflow, "enforce_text_to_lattice_held_api", context), false);
   context.github.event.before = "another base";
   assert.equal(workflowJobGuard(workflow, "enforce_text_to_lattice_held_api", context), true);
+});
+
+test("long-prose update keeps the active release on build, model or publication failure", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  const context = workflowGuardContext({ event: "push", phase: "qualified", results: { build: "failure" } });
+  context.github.event.before = "4a0d0732de986b52de3e69d700db3d1dbe1d6d00";
+  context.github.event.head_commit.message = "Fit long prose [lattice-long-prose]";
+  for (const outcome of ["success", "failure"]) {
+    context.needs["publication-boundary"].result = outcome;
+    assert.equal(workflowJobGuard(workflow, "enforce_text_to_lattice_held_api", context), false);
+  }
+  const service = workflow.slice(workflow.indexOf("  deploy_text_to_lattice_services:\n"), workflow.indexOf("\n  deploy:\n"));
+  for (const [earlier, later] of [
+    ["--capture-incumbent", "wrangler versions upload"], ["wrangler versions upload", "--maintenance-traffic staged"],
+    ["--maintenance-traffic staged", "--long-prose-candidate"], ["--long-prose-candidate", "--maintenance-traffic candidate"],
+  ]) assert.ok(service.indexOf(earlier) >= 0 && service.indexOf(earlier) < service.indexOf(later));
+  assert.match(service, /id: held-api-rollback[\s\S]*?outputs\.long_prose_update != 'true'/u);
+  assert.match(workflow, /restore_long_prose_incumbent:[\s\S]*?needs: \[publication-boundary, deploy_text_to_lattice_services, deploy\][\s\S]*?verify-current-main-sha\.mjs[\s\S]*?--maintenance-traffic incumbent/u);
+});
+
+test("the staged release promotes its tested version and restores only its own traffic", async () => {
+  const { transitionMaintenanceTraffic } = await import("../scripts/read-text-to-lattice-active-version.mjs");
+  const incumbent = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const candidate = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  let versions = [{ version_id: incumbent, percentage: 100 }];
+  const allocations = [];
+  const control = { inspect: () => ({ versions }), async deploy(split) {
+    allocations.push(split);
+    versions = split.map(entry => {
+      const [id, percent] = entry.split("@");
+      return { version_id: id, percentage: Number.parseInt(percent, 10) };
+    });
+  } };
+  const move = (state) => transitionMaintenanceTraffic(state, incumbent, candidate, control);
+  await assert.rejects(move("candidate"), /unexpected traffic transition/u);
+  await move("staged");
+  await move("incumbent");
+  await move("staged");
+  await move("candidate");
+  await move("incumbent");
+  await move("incumbent");
+  assert.deepEqual(allocations, [
+    [incumbent + "@100%", candidate + "@0%"], [incumbent + "@100%"],
+    [incumbent + "@100%", candidate + "@0%"], [candidate + "@100%"], [incumbent + "@100%"],
+  ]);
+  versions = [{ version_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", percentage: 100 }];
+  await assert.rejects(move("incumbent"), /outside this update/u);
+  assert.equal(allocations.length, 5);
 });

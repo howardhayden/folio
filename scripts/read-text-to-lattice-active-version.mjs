@@ -114,7 +114,7 @@ export async function selectTextToLatticeApiDeployment(expectedVersionId, {
 function captureArguments(args, incumbent = false) {
   const values = {};
   const names = new Map([
-    ["--expected-deployment", "expectedPath"], ["--preceding-held-deployment", "heldPath"],
+    ["--expected-deployment", "expectedPath"], ["--expected-upload", "uploadedPath"], ["--preceding-held-deployment", "heldPath"],
     ["--preceding-incumbent", "incumbentPath"],
     ["--pre-bootstrap-incumbent", "preBootstrapPath"],
     ["--wrangler", "wranglerPath"], ["--config", "configPath"], ["--output", "outputPath"],
@@ -124,9 +124,10 @@ function captureArguments(args, incumbent = false) {
     if (!key || !value || value.startsWith("--") || Object.hasOwn(values, key)) fail("invalid selection arguments");
     values[key] = value;
   }
-  if ([...(incumbent ? [] : ["expectedPath"]), "wranglerPath", "configPath", "outputPath"].some(key => !values[key])) fail("missing selection arguments");
+  if ((!incumbent && Boolean(values.expectedPath) === Boolean(values.uploadedPath))
+    || ["wranglerPath", "configPath", "outputPath"].some(key => !values[key])) fail("missing selection arguments");
   if ((values.preBootstrapPath && !values.heldPath) || (values.heldPath && values.incumbentPath)
-    || (incumbent && (values.expectedPath || values.heldPath || values.incumbentPath))) fail("conflicting selection arguments");
+    || (incumbent && (values.expectedPath || values.uploadedPath || values.heldPath || values.incumbentPath))) fail("conflicting selection arguments");
   if (resolve(values.configPath) !== resolve("workers/text-to-lattice-api/wrangler.jsonc")
     || resolve(values.wranglerPath) !== resolve("workers/node_modules/.bin/wrangler")) fail("unreviewed metadata target");
   return values;
@@ -159,7 +160,8 @@ async function captureIncumbent(args) {
 
 async function captureSelectedDeployment(args) {
   const inputs = captureArguments(args);
-  const expectedVersionId = intendedTextToLatticeApiVersion(await boundedText(inputs.expectedPath));
+  const expectedVersionId = inputs.uploadedPath ? uploadedApiVersion(await boundedText(inputs.uploadedPath))
+    : intendedTextToLatticeApiVersion(await boundedText(inputs.expectedPath));
   const precedingVersionId = inputs.heldPath
     ? intendedTextToLatticeApiVersion(await boundedText(inputs.heldPath))
     : inputs.incumbentPath ? checkedIncumbent(JSON.parse(await boundedText(inputs.incumbentPath))).versionId : null;
@@ -174,11 +176,63 @@ async function captureSelectedDeployment(args) {
   process.stdout.write(`${result.selected.versionId}\n`);
 }
 
+export function uploadedApiVersion(text) {
+  if (typeof text !== "string" || Buffer.byteLength(text) > MAXIMUM_STATUS_BYTES) fail("invalid upload record");
+  const records = text.trim().split("\n").map(line => JSON.parse(line)).filter(row => row?.type === "version-upload");
+  if (records.length !== 1 || records[0].version !== 1 || records[0].worker_name !== API_WORKER
+    || !UUID_PATTERN.test(records[0].version_id)) fail("upload did not identify a unique API version");
+  return records[0].version_id;
+}
+
+export function maintenanceTraffic(raw, incumbent, candidate) {
+  if (!UUID_PATTERN.test(incumbent) || !UUID_PATTERN.test(candidate) || incumbent === candidate) fail("invalid version pair");
+  const rows = raw?.versions;
+  if (!Array.isArray(rows)) fail("missing deployment traffic");
+  const serves = (id, percentage) => rows.some(row => row?.version_id === id && row.percentage === percentage);
+  if (rows.length === 1 && serves(incumbent, 100)) return "incumbent";
+  if (rows.length === 1 && serves(candidate, 100)) return "candidate";
+  if (rows.length === 2 && serves(incumbent, 100) && serves(candidate, 0)) return "staged";
+  fail("the current deployment is outside this update");
+}
+
+export async function transitionMaintenanceTraffic(target, incumbent, candidate, { inspect, deploy, wait = delay }) {
+  const traffic = () => maintenanceTraffic(inspect(), incumbent, candidate);
+  const prior = traffic();
+  if (target === "incumbent" && prior === target) return;
+  if (!(target === "staged" && prior === "incumbent" || target === "candidate" && prior === "staged"
+    || target === "incumbent" && ["candidate", "staged"].includes(prior))) fail("unexpected traffic transition");
+  const split = target === "staged" ? [`${incumbent}@100%`, `${candidate}@0%`]
+    : [`${target === "candidate" ? candidate : incumbent}@100%`];
+  await deploy(split);
+  for (const pause of [0, 1000, 2000, 4000, 8000]) {
+    if (pause) await wait(pause);
+    if (traffic() === target) return;
+  }
+  fail("the requested traffic allocation did not converge");
+}
+
+async function changeMaintenanceTraffic(target, incumbent, candidate) {
+  const wranglerPath = "workers/node_modules/.bin/wrangler";
+  const configPath = "workers/text-to-lattice-api/wrangler.jsonc";
+  await transitionMaintenanceTraffic(target, incumbent, candidate, {
+    inspect: () => readDeployment({ wranglerPath, configPath }, 8000),
+    deploy(split) {
+      const result = spawnSync(resolve(wranglerPath), ["versions", "deploy", ...split, "--yes", "--config", configPath],
+        { timeout: 120_000, stdio: "inherit" });
+      if (result.error || result.status !== 0) fail("traffic change was not confirmed");
+    },
+  });
+}
+
 const isCommand = process.argv[1]
   && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 
 if (isCommand) {
-  if (["--inspect-deployed", "--capture-incumbent"].includes(process.argv[2])) {
+  if (process.argv[2] === "--uploaded-version" && process.argv.length === 4) {
+    console.log(uploadedApiVersion(await boundedText(process.argv[3])));
+  } else if (process.argv[2] === "--maintenance-traffic" && process.argv.length === 6) {
+    await changeMaintenanceTraffic(...process.argv.slice(3));
+  } else if (["--inspect-deployed", "--capture-incumbent"].includes(process.argv[2])) {
     try {
       if (process.argv[2] === "--capture-incumbent") await captureIncumbent(process.argv.slice(3));
       else await captureSelectedDeployment(process.argv.slice(3));

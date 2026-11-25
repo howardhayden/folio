@@ -185,7 +185,7 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     /no IP address/iu,
     /browser fingerprint/iu,
     /analysis, candidate, certification, and repair calls have 120-second ceilings; verification has a 180-second ceiling/iu,
-    /240-second (?:whole-|outer )?request/iu,
+    /900-second (?:whole-|outer )?request/iu,
     /32 provider calls/iu,
     /960/iu,
     /(?:2,048-token verifier|verifier (?:stage )?maximum[^.]*2,048 tokens|verification[^.]*2,048-token)/iu,

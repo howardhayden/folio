@@ -4,6 +4,8 @@ Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave
 
 The November 23 production check accepted the original passage in 10.563 seconds. The protected Pages publication delivered that build. [Service check](https://github.com/howardhayden/folio/actions/runs/45255468630) · [Publication receipt](https://github.com/howardhayden/folio/actions/runs/45259201772) · [Evidence by claim](https://hah.dev/documentation/text-to-lattice/evidence.html)
 
+The November 25 update fits long prose to the 32-call limit before admission. The Worker allows 15 minutes and the browser waits up to 20 minutes, including setup and delivery. A source that exceeds the planning budget can be split at a paragraph or sentence. A lost connection ends the request and requires an explicit new submission.
+
 ## One-off capacity decision
 
 The owner approved one application usage reset followed by one additional ordinary deployment. At 19:56:38 UTC on November 23, the application’s ordinary count changed from 30 to 0 and qualification excess remained at 0. A separate readback found both usage keys absent and the charged-day alarm cleared.
@@ -20,7 +22,7 @@ Earlier windows exposed two different failure modes. An unavailable provider cou
 
 Both browsers completed that path on the same deployment. Safari returned a translation and focused the output 18 ms after response completion. Brave found the wording already suitable for its context and focused it 52 ms after response completion. Each sent one content-free setup request and one request containing the passage. After a hard reload, each showed an empty input and output. The earlier backend qualification and fourteen Firefox input checks stand.
 
-The site owner accepted the original browser evidence after a file-by-file comparison with the release candidate. Repeating the browser cases would exercise the same converter and spend additional public capacity. The fingerprints, original traces and approved differences are in the appendix.
+The site owner accepted the original browser evidence after a file-by-file comparison with the release candidate. Those observations cover visitor submission, privacy and result clearing. The planner and extended deadlines are qualified separately. The fingerprints, original traces and approved differences are in the appendix.
 
 ## Operating decision
 
@@ -40,9 +42,9 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `fae358def0edbcf0f4499546d08d303769f432baf4617fd1dff79fedefc26acb`
+**Qualified source-set SHA-256:** `0aea107eccc924b1667e1baffb648d3a4de31f440b99169ac1b14722ccc1b389`
 
-**Artifact-set projection SHA-256:** `58e9c64506ecb739ca2a5b6a5dbf142d988fc95e9178115e0f2bed9dd120b644`
+**Artifact-set projection SHA-256:** `1610ca6ec6d9cdcf929a687ba40f9e0e5b287ce51ed81dce97689c9800649f92`
 
 | Gate | Status | Marginal value |
 | --- | --- | --- |
@@ -65,33 +67,16 @@ These are the register’s current capability values, including the exact reques
 
 - The qualified service accepts POST requests at `/api/lattice`, with schema version 1 and fields `text`, `requested_mode` and `schema_version`. Available modes are `auto`, `operative` and `experiential`.
 - Both stages use https://router.huggingface.co/v1/chat/completions. The generation model is `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`. Review and certification use `meta-llama/Llama-3.3-70B-Instruct:coreweave`. The runtime revision is `provider-managed-not-byte-pinned`.
-- The complete request has 240 seconds. Stage deadlines are 120,000 ms for analysis, drafting, repair and certification, and 180,000 ms for verification.
+- The Worker has 15 minutes per request. The browser allows 20 minutes from submission through receipt of the complete result. Stage deadlines are 120,000 ms for analysis, drafting, repair and certification, and 180,000 ms for verification.
 - Requested output tokens per call are 2,048 for analysis and verification, 800 for drafting and repair, and 520 for certification. The ceilings are 65,536 requested output tokens per admission, 196,608 per cooperating cookie jar per UTC day and 1,966,080 globally per UTC day.
 - Application handling is recorded as “no application storage, raw-content logs, cache, queue, or analytics for source, prompts, candidates, raw provider bodies, or results”.
 - Hugging Face, OpenRouter, DeepInfra and CoreWeave process submitted text after confirmation. DeepInfra describes deletion of ordinary inputs and outputs after inference. Its terms allow temporary in-memory caching, operational metadata, and legal or elected-feature exceptions. With written authorization, DeepInfra may retain data to resolve a support issue. It deletes that data within 30 days after resolving the issue. OpenRouter can retain metadata, categorize prompts and retain content for safety or legal reasons. Its settings for the Hugging Face route are unknown. CoreWeave describes zero retention by default. Tracing settings for this route are unknown.
 
 ### Current-to-captured source comparison
 
-The Network map revision and the original browser capture share 267 qualified paths. 253 are byte-identical. The new tab, its controls, the project link and modal focus handling change the presentation. The converter request code, API Worker, response-policy Worker and original browser traces match the preceding release. [Preceding source comparison](https://github.com/howardhayden/folio/blob/cd0e45666b4d0aed3947a64d0c360f0cd3fc0949/docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json).
+The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Long-input planning and the extended wait have separate regression coverage. Promotion requires an accepted synthetic long document at zero default candidate traffic, followed by the ordinary production check. Only aggregate results are recorded.
 
-The current fingerprint is `fae358def0edbcf0f4499546d08d303769f432baf4617fd1dff79fedefc26acb`. The original captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The repository appendix `docs/release-evidence/text-to-lattice/nov23-architecture-source-comparison.json` contains 1,036,938 bytes (SHA-256 `c4ce37dc1652835c8e2c2dc4d18dd4c10393e123d1baf99bf1f12b20a960242c`) and retains each original beforeimage.
-
-| Qualified path | Captured SHA-256 | Network map revision SHA-256 |
-| --- | --- | --- |
-| `app/projects/lattice/text-to-lattice/page.tsx` | `1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8` | `08d4ba950643d347a4be1903faf4c8b13baf56e4296f8f25ed57a7a7c6093870` |
-| `scripts/verify-text-to-lattice-release.mjs` | `e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a` | `30d90900f029f0bef7652a82bbdec076b9295047370046de26034058101b7bfe` |
-| `tests/lattice-documentation.test.mjs` | `66a6dc7a5c26c4d25afbd39bec5f7f4f93cdb7e66160022d6ef90fa60a3da28e` | `c4ec022476a6aea7c43ffaeb8cc813bd7d24093dd33f463904160c8bbcdcde8d` |
-| `tests/lattice-release-boundary.test.mjs` | `7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114` | `62457873ec243fd8778d8ceac10c6f255f925537fdba4cf9b701a9e603497cc2` |
-| `.github/workflows/pages.yml` | `c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd` | `fa93f8c9c22da0d04ed06529750d3601b3c826715a6634fe40e8c2e23521bd5a` |
-| `app/content/projectDocuments.js` | `261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251` | `a7e92316b513757b6a19ece0fbc2fd4390e08d3c8766edc146c61184e4d21ca3` |
-| `app/projects/[slug]/page.tsx` | `d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62` | `43ab6d037e0c9eb5609ce5c17b0a4bbfdbd6a58689fc478f5b3b64f5464d268a` |
-| `app/semantic/portfolio.js` | `7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6` | `8506fd4f7d49f5b6ab672b5ba00265c39774c4e71ff035fee70beaa82462380c` |
-| `scripts/docs/build-text-to-lattice-documentation.mjs` | `69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc` | `9de393af9459626e99c7562aaa8d3a22fd7640535a9ef5d5a6319aa83091469e` |
-| `tests/lattice-deployment-workflow.test.mjs` | `3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089` | `5c294cd51e7cce37c39e9f862003ac7224f9ac8cfba6a6b59919e40c8cface2a` |
-| `app/resume/ProjectDescriptionDisclosure.tsx` | `5e75a6ab95b261ea2ff77c5012998f618126de1c59456acde2310b663b174e89` | `cef3f61fa66e2ceeb91cb61f8d236751c9d6f2e4688062bb496741110541d832` |
-| `app/resume/ResumeProjects.tsx` | `42b88aa9be93601a305f266f2948722f401dc17d712293fee6e6ea78bffa7db4` | `0db90e2903849f9081811363c68b654c72bd9cc5ee68d6ffa971d9a69ec6f5e3` |
-| `app/globals.css` | `c92afb6efeb29bdbb96462810cc458137e9ced07d89aab7023f07f701c55663f` | `cefefec324c8ad824e125be7d465ce9ebbf3e645bc95e5a8754cb84de742f7b1` |
-| `tests/lattice-service-view.test.mjs` | `5b35bad121018ef1a9e49f11a202d07529197e96336380c1b43c07c9e9785e73` | `8621bf54a7b309a54ca43c8ab98070c174c44391cf65f459a9694caf9995ce09` |
+The current fingerprint is `0aea107eccc924b1667e1baffb648d3a4de31f440b99169ac1b14722ccc1b389`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json) covers all 267 paths. It lists 27 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 

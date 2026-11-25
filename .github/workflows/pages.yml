@@ -72,6 +72,7 @@ jobs:
       contents: read
     outputs:
       documentation_only: ${{ steps.editorial.outputs.selected }}
+      long_prose_update: ${{ steps.editorial.outputs.long_prose_update }}
       public_client_status: ${{ steps.release-state.outputs.public_client_status }}
       release_phase: ${{ steps.release-state.outputs.release_phase }}
       qualified_source_set_sha256: ${{ steps.release-state.outputs.qualified_source_set_sha256 }}
@@ -80,7 +81,10 @@ jobs:
         name: Identify the approved Network map publication
         env:
           SELECTED: ${{ github.event_name == 'push' && github.event.before == 'cd0e45666b4d0aed3947a64d0c360f0cd3fc0949' && contains(github.event.head_commit.message, '[lattice-network-map-20261124]') }}
-        run: echo "selected=$SELECTED" >> "$GITHUB_OUTPUT"
+          LONG_PROSE_UPDATE: ${{ github.event_name == 'push' && github.event.before == '4a0d0732de986b52de3e69d700db3d1dbe1d6d00' && contains(github.event.head_commit.message, '[lattice-long-prose]') }}
+        run: |
+          echo "selected=$SELECTED" >> "$GITHUB_OUTPUT"
+          echo "long_prose_update=$LONG_PROSE_UPDATE" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 2
@@ -114,6 +118,11 @@ jobs:
       - id: release-state
         name: Read Text to Lattice publication boundary
         run: node scripts/read-text-to-lattice-release-state.mjs
+      - name: Require an active release for the long-prose update
+        if: steps.editorial.outputs.long_prose_update == 'true'
+        env:
+          PHASE: ${{ steps.release-state.outputs.release_phase }}
+        run: test "$PHASE" = qualified
       - name: Validate exclusive qualification rollback operation
         env:
           LATTICE_OPERATION_EVENT: ${{ github.event_name }}
@@ -424,6 +433,8 @@ jobs:
       cancel-in-progress: false
     needs: [publication-boundary, build, build_qualification_rollback, deploy_held]
     outputs:
+      incumbent_version: ${{ steps.stage-identities.outputs.incumbent }}
+      candidate_version: ${{ steps.stage-identities.outputs.candidate }}
       qualification_cleanup_at: ${{ steps.qualification-window.outputs.qualification_cleanup_at }}
       qualification_expires_at: ${{ steps.qualification-window.outputs.qualification_expires_at }}
     permissions:
@@ -553,11 +564,46 @@ jobs:
           node scripts/plan-text-to-lattice-qualification-window.mjs
           --github-output
           "$GITHUB_OUTPUT"
+      - name: Preserve the serving version and upload the long-prose candidate
+        id: stage-identities
+        if: needs.publication-boundary.outputs.long_prose_update == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+        run: |
+          node scripts/verify-current-main-sha.mjs
+          node scripts/read-text-to-lattice-active-version.mjs --capture-incumbent \
+            --wrangler ./workers/node_modules/.bin/wrangler --config workers/text-to-lattice-api/wrangler.jsonc \
+            --output "$RUNNER_TEMP/text-to-lattice-api-incumbent.json"
+          incumbent="$(jq -er .versionId "$RUNNER_TEMP/text-to-lattice-api-incumbent.json")"
+          WRANGLER_OUTPUT_FILE_PATH="$RUNNER_TEMP/long-prose-upload.jsonl" \
+            ./workers/node_modules/.bin/wrangler versions upload --config workers/text-to-lattice-api/wrangler.jsonc
+          candidate="$(node scripts/read-text-to-lattice-active-version.mjs --uploaded-version "$RUNNER_TEMP/long-prose-upload.jsonl")"
+          echo "incumbent=$incumbent" >> "$GITHUB_OUTPUT"
+          echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
+      - name: Qualify long prose with the serving version at 100 percent
+        if: needs.publication-boundary.outputs.long_prose_update == 'true'
+        env:
+          INCUMBENT: ${{ steps.stage-identities.outputs.incumbent }}
+          CANDIDATE: ${{ steps.stage-identities.outputs.candidate }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/verify-current-main-sha.mjs
+          node scripts/read-text-to-lattice-active-version.mjs --maintenance-traffic staged "$INCUMBENT" "$CANDIDATE"
+          node scripts/verify-text-to-lattice-api-production.mjs --long-prose-candidate "$CANDIDATE" \
+            | tee "$RUNNER_TEMP/text-to-lattice-deployment-evidence/long-prose.json"
+          node scripts/verify-current-main-sha.mjs
+          node scripts/read-text-to-lattice-active-version.mjs --maintenance-traffic candidate "$INCUMBENT" "$CANDIDATE"
+        shell: bash
       - name: Require current main before active API deployment
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-current-main-sha.mjs
       - name: Deploy bounded Text to Lattice API
+        if: needs.publication-boundary.outputs.long_prose_update != 'true'
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
@@ -599,6 +645,7 @@ jobs:
           --config workers/text-to-lattice-response-policy/wrangler.jsonc
       - name: Inspect deployed Worker versions
         env:
+          LONG_PROSE_UPDATE: ${{ needs.publication-boundary.outputs.long_prose_update }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
           RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
@@ -613,8 +660,12 @@ jobs:
           else
             SELECTION_ARGUMENTS=(--preceding-incumbent "$RUNNER_TEMP/text-to-lattice-api-incumbent.json")
           fi
+          EXPECTED=(--expected-deployment "$RUNNER_TEMP/text-to-lattice-api-deploy.jsonl")
+          if [[ "$LONG_PROSE_UPDATE" == "true" ]]; then
+            EXPECTED=(--expected-upload "$RUNNER_TEMP/long-prose-upload.jsonl")
+          fi
           API_VERSION_ID="$(node scripts/read-text-to-lattice-active-version.mjs --inspect-deployed \
-            --expected-deployment "$RUNNER_TEMP/text-to-lattice-api-deploy.jsonl" \
+            "${EXPECTED[@]}" \
             --wrangler ./workers/node_modules/.bin/wrangler \
             --config workers/text-to-lattice-api/wrangler.jsonc \
             --output "$RUNNER_TEMP/text-to-lattice-api-deployment.raw.json" \
@@ -668,14 +719,19 @@ jobs:
         run: node scripts/verify-text-to-lattice-api-production.mjs
       - name: Inspect API deployment after live verification
         env:
+          LONG_PROSE_UPDATE: ${{ needs.publication-boundary.outputs.long_prose_update }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
           QUALIFICATION_EXPIRES_AT: ${{ steps.qualification-window.outputs.qualification_expires_at }}
           RELEASE_PHASE: ${{ needs.publication-boundary.outputs.release_phase }}
           LATTICE_G06_VISITOR_MODE: ${{ inputs.use_visitor_mode_for_g06 }}
         run: |
+          EXPECTED=(--expected-deployment "$RUNNER_TEMP/text-to-lattice-api-deploy.jsonl")
+          if [[ "$LONG_PROSE_UPDATE" == "true" ]]; then
+            EXPECTED=(--expected-upload "$RUNNER_TEMP/long-prose-upload.jsonl")
+          fi
           API_VERSION_ID="$(node scripts/read-text-to-lattice-active-version.mjs --inspect-deployed \
-            --expected-deployment "$RUNNER_TEMP/text-to-lattice-api-deploy.jsonl" \
+            "${EXPECTED[@]}" \
             --wrangler ./workers/node_modules/.bin/wrangler \
             --config workers/text-to-lattice-api/wrangler.jsonc \
             --output "$RUNNER_TEMP/text-to-lattice-api-deployment-after.raw.json")"
@@ -804,6 +860,7 @@ jobs:
         if: >-
           ${{
             (failure() || cancelled()) &&
+            needs.publication-boundary.outputs.long_prose_update != 'true' &&
             steps.current-main-before-failure-rollback.outcome == 'success'
           }}
         env:
@@ -1091,11 +1148,47 @@ jobs:
           include-hidden-files: false
           retention-days: 7
 
+  restore_long_prose_incumbent:
+    name: Restore the serving API after an unsuccessful long-prose update
+    if: >-
+      always() &&
+      needs.publication-boundary.outputs.long_prose_update == 'true' &&
+      needs.deploy_text_to_lattice_services.outputs.incumbent_version != '' &&
+      needs.deploy_text_to_lattice_services.outputs.candidate_version != '' &&
+      (needs.deploy_text_to_lattice_services.result != 'success' || needs.deploy.result != 'success')
+    needs: [publication-boundary, deploy_text_to_lattice_services, deploy]
+    environment: text-to-lattice-production
+    runs-on: ubuntu-latest
+    concurrency:
+      group: text-to-lattice-services
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts --prefix workers
+      - name: Restore only the versions identified by this release
+        env:
+          INCUMBENT: ${{ needs.deploy_text_to_lattice_services.outputs.incumbent_version }}
+          CANDIDATE: ${{ needs.deploy_text_to_lattice_services.outputs.candidate_version }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TEXT_TO_LATTICE_DEPLOY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/verify-current-main-sha.mjs
+          node scripts/read-text-to-lattice-active-version.mjs --maintenance-traffic incumbent "$INCUMBENT" "$CANDIDATE"
+
   enforce_text_to_lattice_held_api:
     name: Enforce held API after held or failed publication
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
+      !(github.event_name == 'push' && github.event.before == '4a0d0732de986b52de3e69d700db3d1dbe1d6d00' && contains(github.event.head_commit.message, '[lattice-long-prose]')) &&
       !(
         github.event_name == 'push' &&
         github.event.before == 'cd0e45666b4d0aed3947a64d0c360f0cd3fc0949' &&

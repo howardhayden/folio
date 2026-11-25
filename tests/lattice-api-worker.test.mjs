@@ -8625,17 +8625,12 @@ test("the whole-request deadline preempts the verifier's longer default deadline
 });
 
 test("the live canary deadline remains outside the bounded request and provider deadlines", async () => {
-  const verifierSource = await readFile(
-    new URL("../scripts/verify-text-to-lattice-api-production.mjs", import.meta.url),
-    "utf8",
-  );
-  const canaryTimeoutMatch = verifierSource.match(/const CANARY_TIMEOUT_MS = ([\d_]+);/u);
-  assert.ok(canaryTimeoutMatch);
-  const canaryTimeoutMs = Number(canaryTimeoutMatch[1].replaceAll("_", ""));
-
+  const { CANARY_TIMEOUT_MS: canaryTimeoutMs } = await import("../scripts/verify-text-to-lattice-api-production.mjs");
+  const { LATTICE_CLIENT_TIMEOUT_MS } = await import("../app/resume/lattice/remoteRequest.js");
   assert.equal(LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS, 180_000);
-  assert.equal(LATTICE_API_REQUEST_TIMEOUT_MS, 240_000);
-  assert.equal(canaryTimeoutMs, 255_000);
+  assert.equal(LATTICE_API_REQUEST_TIMEOUT_MS, 900_000);
+  assert.equal(LATTICE_CLIENT_TIMEOUT_MS - LATTICE_API_REQUEST_TIMEOUT_MS, 300_000);
+  assert.equal(canaryTimeoutMs, LATTICE_CLIENT_TIMEOUT_MS);
   assert.ok(LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS < LATTICE_API_REQUEST_TIMEOUT_MS);
   assert.ok(LATTICE_API_REQUEST_TIMEOUT_MS < canaryTimeoutMs);
 });

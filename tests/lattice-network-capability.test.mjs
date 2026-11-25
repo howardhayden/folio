@@ -1241,3 +1241,22 @@ test("abort or timeout after a phase or terminal never publishes a result and re
   }), (error) => error.name === "AbortError");
   assert.deepEqual(seen, ["atomizing"]);
 });
+
+test("a slow connection can deliver a complete result after the old four-minute deadline", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let stream;
+  let sawPhase;
+  const phase = new Promise(resolve => { sawPhase = resolve; });
+  const response = new Response(new ReadableStream({ start(controller) { stream = controller; } }),
+    { headers: { "Content-Type": LATTICE_SERVICE_EVENTS_MIME } });
+  const pending = streamRequest(response, { onServicePhase: sawPhase });
+  stream.enqueue(eventBytes([phaseFrame(1)]));
+  await phase;
+  t.mock.timers.tick(16 * 60_000);
+  const terminal = eventBytes([terminalFrame(2)]);
+  stream.enqueue(terminal.slice(0, 5));
+  t.mock.timers.tick(60_000);
+  stream.enqueue(terminal.slice(5));
+  stream.close();
+  assert.deepEqual(await pending, result);
+});

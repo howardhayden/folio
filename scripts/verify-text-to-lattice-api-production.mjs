@@ -1,9 +1,10 @@
-import { createHash } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
+  LATTICE_CLIENT_TIMEOUT_MS,
   LATTICE_API_ERROR_CODES,
   LATTICE_API_PATH,
   LATTICE_API_SCHEMA_VERSION,
@@ -44,6 +45,8 @@ import {
 import {
   LATTICE_ANALYSIS_VALIDATION_CATEGORIES,
 } from "../app/resume/lattice/promptContract.js";
+import { requestRemoteLattice, LatticeRemoteError } from "../app/resume/lattice/remoteRequest.js";
+import { LATTICE_SERVICE_EVENTS_MIME } from "../app/resume/lattice/serviceTelemetry.js";
 import { countLatticeWords } from "../app/resume/lattice/inputPolicy.js";
 import {
   deterministicDocumentReview,
@@ -90,6 +93,7 @@ import {
 import {
   LATTICE_PRODUCTION_CANARY_REQUEST,
   LATTICE_PRODUCTION_CANARY_TEXT,
+  makeLongProseFixture,
 } from "./text-to-lattice-production-canary.mjs";
 import {
   createLatticeQualificationUsageEvidence,
@@ -100,6 +104,7 @@ import {
 export {
   LATTICE_PRODUCTION_CANARY_REQUEST,
   LATTICE_PRODUCTION_CANARY_TEXT,
+  makeLongProseFixture,
 } from "./text-to-lattice-production-canary.mjs";
 
 export const LATTICE_PRODUCTION_EVIDENCE_SCHEMA =
@@ -111,7 +116,7 @@ const API_RESPONSE_LIMIT = LATTICE_API_RESPONSE_BYTE_LIMIT;
 const ERROR_RESPONSE_LIMIT = 4_096;
 const PAGE_RESPONSE_LIMIT = 2 * 1024 * 1024;
 const NEGATIVE_PROBE_TIMEOUT_MS = 15_000;
-const CANARY_TIMEOUT_MS = 255_000;
+export const CANARY_TIMEOUT_MS = LATTICE_CLIENT_TIMEOUT_MS;
 const COOKIE_CLOCK_TOLERANCE_MS = 1_000;
 export const LATTICE_PRODUCTION_VISITOR_SESSION_ACCEPT = LATTICE_VISITOR_SESSION_ACCEPT;
 export const LATTICE_PRODUCTION_READINESS_CONTENT_TYPE = "application/json";
@@ -1923,6 +1928,61 @@ export async function verifyTextToLatticeApiProduction({
   return evidence;
 }
 
+// A candidate at zero percent receives this request via an explicit version
+// override. The incumbent cannot complete this fixture inside its 32-call cap.
+export async function verifyLongProseCandidate(versionId, fetchImpl = fetch) {
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(versionId)) fail("invalid candidate version");
+  const source = makeLongProseFixture((choices) => choices[randomInt(choices.length)]);
+  const origin = LATTICE_API_ORIGIN;
+  const url = origin + LATTICE_API_PATH;
+  let cookie;
+  let lastPhase = "setup";
+  const label = "synthetic long prose";
+  const clock = () => performance.now();
+  const started = clock();
+  // A Node runner supplies the origin and cookie that the browser attaches.
+  // Use the visitor's streaming protocol, including strict terminal/EOF checks.
+  const routedFetch = async (target, init) => {
+    if (String(target) !== url) fail("unexpected candidate request target");
+    const headers = new Headers(init.headers);
+    headers.set("Origin", origin);
+    headers.set("Cloudflare-Workers-Version-Overrides", `hahdev-text-to-lattice-api="${versionId}"`);
+    if (init.body) {
+      if (!cookie) fail("missing candidate visitor session");
+      headers.set("Cookie", cookie);
+    }
+    const response = await fetchImpl(target, { ...init, headers });
+    if (!init.body && response.status === 204) {
+      cookie = assertApiHeaders(response, label, { contentType: null, quotaCookie: "required" }).requestHeader;
+    } else if (init.body && response.status === 200) {
+      assertApiHeaders(response, label, { contentType: `${LATTICE_SERVICE_EVENTS_MIME}; charset=utf-8` });
+    }
+    return response;
+  };
+  let result;
+  try {
+    result = await requestRemoteLattice(source, {
+      baseOrigin: origin, fetchImpl: routedFetch,
+      onServicePhase(phase) { lastPhase = phase; },
+    });
+  } catch (error) {
+    const code = error instanceof LatticeRemoteError ? error.code : "request_failed";
+    fail(`long prose stopped at ${lastPhase} (${code}) after ${elapsedMilliseconds(started, clock, label)} ms`);
+  }
+  const r = result;
+  const elapsedMs = elapsedMilliseconds(started, clock, label);
+  if (!CERTIFICATION_CANARY_STATUS_SET.has(r.status) || r.findings.length || r.wordCount !== 688
+    || r.batchCount < 2 || r.batchCount > 10 || r.passageCount >= 48 || r.verificationPasses < 1
+    || r.retainedPassageCount + r.revisedPassageCount !== r.passageCount
+    || (r.status === "translated" ? r.revisedPassageCount < 1 || !materiallyDifferent(source, r.text)
+      : r.revisedPassageCount !== 0 || source !== r.text)
+    || deterministicDocumentReview(source, r.text).length || elapsedMs >= LATTICE_CLIENT_TIMEOUT_MS) {
+    const finding = r.findings.find(({ id }) => UNABLE_CANARY_CLASSES.has(id))?.id ?? "none";
+    fail(`long prose ended with ${r.status} at ${lastPhase} (${finding}), ${r.batchCount} groups and ${r.verificationPasses} review passes after ${elapsedMs} ms`);
+  }
+  return { candidateVersion: versionId, inputWords: r.wordCount, batches: r.batchCount, elapsedMs, status: r.status };
+}
+
 async function main() {
   const evidencePath = process.env.LATTICE_API_EVIDENCE_PATH;
   if (typeof evidencePath !== "string" || !isAbsolute(evidencePath)) {
@@ -1967,4 +2027,7 @@ async function main() {
 const isCommand = process.argv[1]
   && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 
-if (isCommand) await main();
+if (isCommand && process.argv[2] === "--long-prose-candidate") {
+  if (process.argv.length !== 4) fail("pass the staged candidate version");
+  console.log(JSON.stringify(await verifyLongProseCandidate(process.argv[3])));
+} else if (isCommand) await main();

@@ -18,6 +18,7 @@ import {
 } from "../../app/resume/lattice/serviceTelemetry.js";
 import {
   LATTICE_API_PATH,
+  LATTICE_API_REQUEST_TIMEOUT_MS,
   LATTICE_API_SCHEMA_VERSION,
   LATTICE_VISITOR_SESSION_ACCEPT,
   isLatticeApiRequest,
@@ -70,7 +71,7 @@ import {
 
 export const LATTICE_API_ORIGIN = "https://hah.dev";
 export { LATTICE_API_PATH, LATTICE_API_SCHEMA_VERSION };
-export const LATTICE_API_REQUEST_TIMEOUT_MS = 240_000;
+export { LATTICE_API_REQUEST_TIMEOUT_MS };
 export const LATTICE_API_REQUEST_BYTE_LIMIT = 65_536;
 export const LATTICE_API_RESPONSE_BYTE_LIMIT = 262_144;
 export const LATTICE_API_RATE_LIMIT_KEY = "text-to-lattice:transform";
