@@ -12,6 +12,7 @@ import {
 } from "../../app/resume/lattice/inputPolicy.js";
 import {
   LATTICE_SERVICE_EVENTS_MIME,
+  LATTICE_SERVICE_KEEPALIVE_MS,
   LATTICE_SERVICE_PHASE_LIMIT,
   LATTICE_SERVICE_ERROR_RESERVE_BYTES,
   isLatticeServicePhase,
@@ -1167,10 +1168,22 @@ export function createLatticeApiWorker({
           let sequence = 0;
           let totalBytes = 0;
           let lastPhase = null;
+          let keepaliveTimer;
           const encoder = new TextEncoder();
           streamOwnsDeadline = true;
           const stream = new ReadableStream({
             start(controller) {
+              // A space is valid leading JSON whitespace on the next NDJSON line.
+              // It keeps a quiet connection active without advancing the displayed phase.
+              const keepalive = () => {
+                if (closed || deadline.signal.aborted || controller.desiredSize <= 0
+                  || !qualificationWindowAllowsOutput(qualificationWindow, now())
+                  || totalBytes + 1 + LATTICE_SERVICE_ERROR_RESERVE_BYTES > responseByteLimit) return;
+                controller.enqueue(Uint8Array.of(0x20));
+                totalBytes += 1;
+              };
+              keepalive();
+              keepaliveTimer = setInterval(keepalive, LATTICE_SERVICE_KEEPALIVE_MS);
               const rejectProjection = () => {
                 projectionFailed = true;
                 const error = apiError(500, "internal_error");
@@ -1247,12 +1260,14 @@ export function createLatticeApiWorker({
                   controller.error(apiError(500, "internal_error"));
                 } finally {
                   closed = true;
+                  clearInterval(keepaliveTimer);
                   deadline.dispose();
                 }
               })();
             },
             cancel() {
               closed = true;
+              clearInterval(keepaliveTimer);
               deadline.abort(abortError());
             },
           });

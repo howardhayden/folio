@@ -4,7 +4,7 @@ Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave
 
 The November 23 production check accepted the original passage in 10.563 seconds. The protected Pages publication delivered that build. [Service check](https://github.com/howardhayden/folio/actions/runs/45255468630) · [Publication receipt](https://github.com/howardhayden/folio/actions/runs/45259201772) · [Evidence by claim](https://hah.dev/documentation/text-to-lattice/evidence.html)
 
-The November 25 update fits long prose to the 32-call limit before admission. The Worker allows 15 minutes and the browser waits up to 20 minutes, including setup and delivery. A source that exceeds the planning budget can be split at a paragraph or sentence. A lost connection ends the request and requires an explicit new submission. [The first staged long-input check](https://github.com/howardhayden/folio/actions/runs/45561028682) reported an analysis timeout after 305 seconds. The previous version continued serving. The revised analysis limit is five minutes per call inside the same 15-minute request deadline.
+The November 25 update fits long prose to the 32-call limit before admission. The Worker allows 15 minutes and the browser waits up to 20 minutes, including setup and delivery. A source that exceeds the planning budget can be split at a paragraph or sentence. A lost connection ends the request and requires an explicit new submission. [The first staged long-input check](https://github.com/howardhayden/folio/actions/runs/45561028682) reported an analysis timeout after 305 seconds. The previous version continued serving. The revised analysis limit is five minutes per call inside the same 15-minute request deadline. [The next check](https://github.com/howardhayden/folio/actions/runs/45563307328) lost its connection during analysis after 245 seconds. The visitor stream now sends one JSON whitespace byte every 15 seconds while writable, so a quiet model phase can keep the connection active. Only provider progress changes the displayed phase.
 
 ## One-off capacity decision
 
@@ -42,9 +42,9 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `ca0f150203bfd546c67f28309b83a13868e8c571391d01f4c29db5841a73ae39`
+**Qualified source-set SHA-256:** `1975e7b7817d8dfd2ed8d57bf8024be3cfc103ae77311b24f034684e64d303e5`
 
-**Artifact-set projection SHA-256:** `95893c0e43ecbaff2455a6b91883e3917fa0ae10a7bd91b17acb6da32e2cc5c9`
+**Artifact-set projection SHA-256:** `5e08adae1019fe19845735db24000a2aba6d414455d1a1325615808014a6158d`
 
 | Gate | Status | Marginal value |
 | --- | --- | --- |
@@ -76,7 +76,7 @@ These are the register’s current capability values, including the exact reques
 
 The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Long-input planning and the extended wait have separate regression coverage. Promotion requires an accepted synthetic long document at zero default candidate traffic, followed by the ordinary production check. Only aggregate results are recorded.
 
-The current fingerprint is `ca0f150203bfd546c67f28309b83a13868e8c571391d01f4c29db5841a73ae39`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json) covers all 267 paths. It lists 30 differences and contains file names and hashes.
+The current fingerprint is `1975e7b7817d8dfd2ed8d57bf8024be3cfc103ae77311b24f034684e64d303e5`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json) covers all 267 paths. It lists 32 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 

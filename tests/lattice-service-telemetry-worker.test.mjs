@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { setImmediate as tick } from "node:timers/promises";
 import { runTextToLattice } from "../app/resume/latticeDemo.js";
+import { requestRemoteLattice } from "../app/resume/lattice/remoteRequest.js";
 import { LATTICE_RESULT_VERSION } from "../app/resume/lattice/remoteProtocol.js";
 import {
   LATTICE_SERVICE_EVENTS_MIME,
+  LATTICE_SERVICE_KEEPALIVE_MS,
   LATTICE_SERVICE_PHASE_LIMIT,
   LATTICE_SERVICE_PHASES,
 } from "../app/resume/lattice/serviceTelemetry.js";
@@ -61,6 +63,50 @@ const clock = () => {
   };
 };
 
+test("a quiet five-minute analysis keeps the existing visitor stream open without adding progress", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
+  const finish = deferred();
+  const work = worker({ runTextToLatticeImpl: async (_text, { onProgress }) => {
+    onProgress({ phase: "atomizing" });
+    await finish.promise;
+    return result();
+  } });
+  let keepalives = 0;
+  const phases = [];
+  let responses = 0;
+  let idleTimer;
+  const limit = LATTICE_SERVICE_KEEPALIVE_MS * 2;
+  const pending = requestRemoteLattice(payload.text, {
+    baseOrigin: "https://hah.dev", onServicePhase: phase => phases.push(phase),
+    async fetchImpl(_url, init) {
+      if (!init.body) return new Response(null, { status: 204 });
+      responses++;
+      const response = await work.fetch(request(), env);
+      // Model a proxy that closes an idle stream even while the origin works.
+      const body = response.body.pipeThrough(new TransformStream({
+        transform(chunk, controller) {
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => controller.error(new Error("idle connection")), limit);
+          if (chunk.length === 1 && chunk[0] === 0x20) keepalives++;
+          controller.enqueue(chunk);
+        },
+        flush() { clearTimeout(idleTimer); },
+      }));
+      return new Response(body, { headers: response.headers });
+    },
+  });
+  await tick();
+  for (let elapsed = 0; elapsed < 300_000; elapsed += LATTICE_SERVICE_KEEPALIVE_MS) {
+    t.mock.timers.tick(LATTICE_SERVICE_KEEPALIVE_MS);
+    await tick();
+  }
+  assert.equal(keepalives, 21);
+  assert.deepEqual(phases, ["atomizing"]);
+  assert.equal(responses, 1);
+  finish.resolve();
+  assert.deepEqual(await pending, result());
+});
+
 test("admitted stream exposes only real hook phases before the result settles", async () => {
   const gate = deferred();
   const timer = clock();
@@ -83,6 +129,7 @@ test("admitted stream exposes only real hook phases before the result settles", 
   assert.equal(response.headers.get("content-security-policy"), "default-src 'none'; frame-ancestors 'none'", "stream headers must preserve the held policy before a possible late qualification expiry");
   assert.equal(timer.disposed(), 0, "returning headers must not dispose the request deadline");
   const reader = response.body.getReader();
+  assert.deepEqual((await reader.read()).value, Uint8Array.of(0x20));
   const first = await reader.read();
   assert.deepEqual(JSON.parse(new TextDecoder().decode(first.value)), { type: "phase", sequence: 1, phase: "atomizing" });
   assert.equal(settled, false);

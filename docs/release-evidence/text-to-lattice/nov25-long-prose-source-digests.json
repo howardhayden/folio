@@ -278,7 +278,7 @@
     {
       "path": "scripts/verify-text-to-lattice-release.mjs",
       "beforeSha256": "e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a",
-      "afterSha256": "b3a31c76bdef7ee88e4ab2e3ffdf2d0260cf7d09812fa059cb8cbcecad3a41ce"
+      "afterSha256": "1b589ad9a906fe973204a51595778b2d4518f0a8b7b36648730e579d91148978"
     },
     {
       "path": "tests/lattice-documentation.test.mjs",
@@ -293,7 +293,7 @@
     {
       "path": ".github/workflows/pages.yml",
       "beforeSha256": "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd",
-      "afterSha256": "4b65fa28aaa222764547c53a6358a843f56d195665984add70f88d861ea75e2d"
+      "afterSha256": "0554b8f65511e1ab4c1c85ba88f661269a4e904e0ff73679aa0b70be606ab8c6"
     },
     {
       "path": "app/content/projectDocuments.js",
@@ -318,7 +318,7 @@
     {
       "path": "tests/lattice-deployment-workflow.test.mjs",
       "beforeSha256": "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089",
-      "afterSha256": "9b27b2cc7567adb61bdfb1d0cede1e4cfcc033f22c7da2cd9feee74ab3dcb9e4"
+      "afterSha256": "5b01fec30342db0082a9191d4008c3584a3b182c9be71bf723da329b652d58da"
     },
     {
       "path": "app/resume/ProjectDescriptionDisclosure.tsx",
@@ -361,6 +361,11 @@
       "afterSha256": "487f5156544e5afc6a9f0524396fdde954a2414b3585ec5ecf6ababd1ff1f663"
     },
     {
+      "path": "app/resume/lattice/serviceTelemetry.js",
+      "beforeSha256": "cc38fda1abb8a29d3fea10426b84e32cfff9f6ad14526b3367ccdbce6c52980a",
+      "afterSha256": "0ec5b1de48731d5f9db35c7fa936290668107a049768a45b0c18123a389be167"
+    },
+    {
       "path": "app/resume/latticeDemo.js",
       "beforeSha256": "fec23b788e1bb970590a38d7046071ba90d62d268ff1cab4105dadaa84e50639",
       "afterSha256": "e95af7459af656c5eaab2bbf9bab46f4f5a7b8a07dbbe2da8cd6916445b78376"
@@ -378,7 +383,7 @@
     {
       "path": "scripts/verify-text-to-lattice-api-production.mjs",
       "beforeSha256": "3c3d1803cbc4f610f1da6a5f571d165782498a3056aea07fb2ca44a6c69f8b90",
-      "afterSha256": "3355b8b1cdbf0932c9bf2eb750c6d81e8235ccdf1044355895641391350c3959"
+      "afterSha256": "b063d5f4335ee64762f4d26b4b69b5d6ec8adcc9fc20d31bb1dc30f95407b925"
     },
     {
       "path": "tests/lattice-api-worker.test.mjs",
@@ -398,7 +403,12 @@
     {
       "path": "tests/lattice-production-api-verifier.test.mjs",
       "beforeSha256": "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce",
-      "afterSha256": "9292838114393972e6bbcb061de14d4a5f281a835ef85b3a32e82f0d4afd3524"
+      "afterSha256": "fd2ea8a5b68fcb33572e2dfff89510707f0f0e50ef20ea9f9b135ec3533742f1"
+    },
+    {
+      "path": "tests/lattice-service-telemetry-worker.test.mjs",
+      "beforeSha256": "0d03949ccd4cdda0f5f6bd16ade8c526fd13c599048d91230a556588ecdc1aa4",
+      "afterSha256": "7ae0b496f6221be4f1e7ae9d910dd3e5f22cd432ebf58ee4d2de73a5748f3e10"
     },
     {
       "path": "workers/package-lock.json",
@@ -418,7 +428,7 @@
     {
       "path": "workers/text-to-lattice-api/worker.js",
       "beforeSha256": "89f67a96629041cd6f30fc95cba257ad98852be01b1fab144a59d8b3e0b7eac9",
-      "afterSha256": "7d385c12ed77bf0d9903d4381a3a18cd84de125d212e2e33afc120ade48c76ea"
+      "afterSha256": "0795b8cd7db971c95341bf8063e12319889affd6bb873c8bc74d52fad80e9d04"
     }
   ]
 }
