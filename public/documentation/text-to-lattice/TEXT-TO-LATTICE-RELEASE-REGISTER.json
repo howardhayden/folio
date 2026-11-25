@@ -166,6 +166,14 @@
         "outcome": "upstream_timeout",
         "incumbentRestored": true
       },
+      "subsequentHostedCheck": {
+        "run": 765,
+        "elapsedMilliseconds": 244710,
+        "phase": "atomizing",
+        "outcome": "network_failure",
+        "incumbentRestored": true
+      },
+      "streamKeepaliveSeconds": 15,
       "rollout": "A complete accepted long document precedes promotion. The ordinary production check precedes Pages publication. Failed updates retain or restore the existing active Worker.",
       "evidenceScope": "The carried browser traces cover their original submission, privacy and result-clearing behavior. Synthetic request text and output are excluded from the new evidence."
     }
@@ -205,8 +213,8 @@
     },
     "longProseSourceComparison": {
       "path": "docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json",
-      "bytes": 18957,
-      "sha256": "fe85ea0b0ff04b9bc8034b67e1592607a2211b3c031f70133693e8c4c50c0870"
+      "bytes": 19460,
+      "sha256": "1ed20a54ca07f45a5526320dfa51045b0626b46e50a1523e7f1b45d93e3b3830"
     }
   },
   "qualificationScope": "Safari and Brave supplied the canonical-browser traces for the qualified remote capability. The current production evidence carries those original results through the release owner's one-time source comparison. The last pulled hah.dev deployment and ancestry baseline are recorded in the evidence appendix. The earlier browser-local implementation is historical and inactive.",
@@ -237,7 +245,7 @@
     "decidedOn": "2026-11-25",
     "record": "The owner approved carrying forward Safari and Brave evidence for unchanged visitor behavior, a synthetic long-input check, and deployment after the ordinary production check. The serving release remains available throughout.",
     "note": "The completed one-off reset permits extra ordinary capacity with the 30/3 policy unchanged. Actual usage and rates determine charges. Intermittent upstream refusal and limited output fidelity remain accepted demonstrator risks. Privacy or admission failure requires withdrawal.",
-    "qualifiedSourceSetSha256": "ca0f150203bfd546c67f28309b83a13868e8c571391d01f4c29db5841a73ae39"
+    "qualifiedSourceSetSha256": "1975e7b7817d8dfd2ed8d57bf8024be3cfc103ae77311b24f034684e64d303e5"
   },
   "implementationBaselineRevision": "b211964213cd49e8335a73bcbebce3221c3a6bc2",
   "statusVocabulary": [
@@ -252,7 +260,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "c543cd965ffaee61a00a151f12d6ad8248cbdd644bed822ba2aebbab49bfd47b",
+    "qualificationDossierSha256": "c811993922e52d65007ad0c3901bcce6058f8232138a5f626edbab6fa386c578",
     "browserEvidence": {
       "status": "verified-sanitized-bundle",
       "path": "docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json",
@@ -325,7 +333,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "ca0f150203bfd546c67f28309b83a13868e8c571391d01f4c29db5841a73ae39",
+      "sha256": "1975e7b7817d8dfd2ed8d57bf8024be3cfc103ae77311b24f034684e64d303e5",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, controlling Owner terms and baseline record, license-routing map, package metadata, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -336,13 +344,13 @@
       "authorization": "owner-approved-long-prose-and-transfer-20261125",
       "capturedCommit": "6166a3f430338331ca3f0336450e500571cbb896",
       "capturedSourceSetSha256": "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
-      "currentSourceSetSha256": "ca0f150203bfd546c67f28309b83a13868e8c571391d01f4c29db5841a73ae39",
+      "currentSourceSetSha256": "1975e7b7817d8dfd2ed8d57bf8024be3cfc103ae77311b24f034684e64d303e5",
       "evidenceId": "ttl-browser-20261123T143941Z-a495af12",
       "evidenceSha256": "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
       "proof": {
         "path": "docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json",
-        "bytes": 18957,
-        "sha256": "fe85ea0b0ff04b9bc8034b67e1592607a2211b3c031f70133693e8c4c50c0870"
+        "bytes": 19460,
+        "sha256": "1ed20a54ca07f45a5526320dfa51045b0626b46e50a1523e7f1b45d93e3b3830"
       }
     }
   },
@@ -837,7 +845,9 @@
         "extraRequests": 0,
         "automaticRetry": false,
         "fallback": false,
-        "clientDeadlineMs": 1200000
+        "clientDeadlineMs": 1200000,
+        "transportKeepaliveMs": 15000,
+        "transportKeepalive": "one-leading-json-space-while-writable"
       }
     },
     "historicalBrowserLocalArtifacts": {

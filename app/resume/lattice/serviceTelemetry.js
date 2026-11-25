@@ -1,5 +1,6 @@
 export const LATTICE_SERVICE_EVENTS_MIME = "application/vnd.hah.lattice.events.v1+ndjson";
 export const LATTICE_SERVICE_PHASE_LIMIT = 128;
+export const LATTICE_SERVICE_KEEPALIVE_MS = 15_000;
 export const LATTICE_SERVICE_ERROR_RESERVE_BYTES = 512;
 export const LATTICE_SERVICE_PHASES = Object.freeze([
   "binding-source-integrity",

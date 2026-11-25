@@ -1938,6 +1938,8 @@ export async function verifyLongProseCandidate(versionId, fetchImpl = fetch) {
   const url = origin + LATTICE_API_PATH;
   let cookie;
   let lastPhase = "setup";
+  let streamStarted = false;
+  let lastByteAt = null;
   const label = "synthetic long prose";
   const clock = () => performance.now();
   const started = clock();
@@ -1957,6 +1959,17 @@ export async function verifyLongProseCandidate(versionId, fetchImpl = fetch) {
       cookie = assertApiHeaders(response, label, { contentType: null, quotaCookie: "required" }).requestHeader;
     } else if (init.body && response.status === 200) {
       assertApiHeaders(response, label, { contentType: `${LATTICE_SERVICE_EVENTS_MIME}; charset=utf-8` });
+      const body = response.body.pipeThrough(new TransformStream({
+        transform(chunk, controller) {
+          if (chunk.byteLength) {
+            if (lastByteAt === null) streamStarted = chunk[0] === 0x20;
+            if (!streamStarted) throw new Error("missing candidate stream opening");
+            lastByteAt = clock();
+          }
+          controller.enqueue(chunk);
+        },
+      }));
+      return new Response(body, { status: response.status, headers: response.headers });
     }
     return response;
   };
@@ -1968,7 +1981,9 @@ export async function verifyLongProseCandidate(versionId, fetchImpl = fetch) {
     });
   } catch (error) {
     const code = error instanceof LatticeRemoteError ? error.code : "request_failed";
-    fail(`long prose stopped at ${lastPhase} (${code}) after ${elapsedMilliseconds(started, clock, label)} ms`);
+    const transport = negativeTransportCode(ownDiagnosticValue(error, "cause"));
+    const idleMs = lastByteAt === null ? null : elapsedMilliseconds(lastByteAt, clock, label);
+    fail(`long prose stopped at ${lastPhase} (${code}) after ${elapsedMilliseconds(started, clock, label)} ms; candidate stream=${streamStarted}, idle ms=${idleMs}, transport=${transport}`);
   }
   const r = result;
   const elapsedMs = elapsedMilliseconds(started, clock, label);

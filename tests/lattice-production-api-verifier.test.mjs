@@ -3109,7 +3109,7 @@ test("the staged long-prose check retains only a terminal status, identity, coun
       { sequence: 1, type: "phase", phase: "atomizing" },
       { sequence: 2, type: "terminal", status: 200, body: { schema_version: 1, result: accept ? r : unableResult([]) } },
     ];
-    return new Response(frames.map((frame) => JSON.stringify(frame) + "\n").join(""), {
+    return new Response(" " + frames.map((frame) => JSON.stringify(frame) + "\n").join(""), {
       status: 200, headers: { ...apiHeaders, "Content-Type": `${LATTICE_SERVICE_EVENTS_MIME}; charset=utf-8` },
     });
   });
