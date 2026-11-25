@@ -4,7 +4,7 @@ Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave
 
 The November 23 production check accepted the original passage in 10.563 seconds. The protected Pages publication delivered that build. [Service check](https://github.com/howardhayden/folio/actions/runs/45255468630) · [Publication receipt](https://github.com/howardhayden/folio/actions/runs/45259201772) · [Evidence by claim](https://hah.dev/documentation/text-to-lattice/evidence.html)
 
-The November 25 update fits long prose to the 32-call limit before admission. The Worker allows 15 minutes and the browser waits up to 20 minutes, including setup and delivery. A source that exceeds the planning budget can be split at a paragraph or sentence. A lost connection ends the request and requires an explicit new submission.
+The November 25 update fits long prose to the 32-call limit before admission. The Worker allows 15 minutes and the browser waits up to 20 minutes, including setup and delivery. A source that exceeds the planning budget can be split at a paragraph or sentence. A lost connection ends the request and requires an explicit new submission. [The first staged long-input check](https://github.com/howardhayden/folio/actions/runs/45561028682) reported an analysis timeout after 305 seconds. The previous version continued serving. The revised analysis limit is five minutes per call inside the same 15-minute request deadline.
 
 ## One-off capacity decision
 
@@ -42,9 +42,9 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `45e7da3ca66ef777ddd27b297ba70101cc2597b47945227315b9328aa0abb660`
+**Qualified source-set SHA-256:** `ca0f150203bfd546c67f28309b83a13868e8c571391d01f4c29db5841a73ae39`
 
-**Artifact-set projection SHA-256:** `1610ca6ec6d9cdcf929a687ba40f9e0e5b287ce51ed81dce97689c9800649f92`
+**Artifact-set projection SHA-256:** `95893c0e43ecbaff2455a6b91883e3917fa0ae10a7bd91b17acb6da32e2cc5c9`
 
 | Gate | Status | Marginal value |
 | --- | --- | --- |
@@ -67,7 +67,7 @@ These are the register’s current capability values, including the exact reques
 
 - The qualified service accepts POST requests at `/api/lattice`, with schema version 1 and fields `text`, `requested_mode` and `schema_version`. Available modes are `auto`, `operative` and `experiential`.
 - Both stages use https://router.huggingface.co/v1/chat/completions. The generation model is `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`. Review and certification use `meta-llama/Llama-3.3-70B-Instruct:coreweave`. The runtime revision is `provider-managed-not-byte-pinned`.
-- The Worker has 15 minutes per request. The browser allows 20 minutes from submission through receipt of the complete result. Stage deadlines are 120,000 ms for analysis, drafting, repair and certification, and 180,000 ms for verification.
+- The Worker has 15 minutes per request. The browser allows 20 minutes from submission through receipt of the complete result. Stage deadlines are 300,000 ms for analysis, 180,000 ms for verification and 120,000 ms for drafting, repair and certification.
 - Requested output tokens per call are 2,048 for analysis and verification, 800 for drafting and repair, and 520 for certification. The ceilings are 65,536 requested output tokens per admission, 196,608 per cooperating cookie jar per UTC day and 1,966,080 globally per UTC day.
 - Application handling is recorded as “no application storage, raw-content logs, cache, queue, or analytics for source, prompts, candidates, raw provider bodies, or results”.
 - Hugging Face, OpenRouter, DeepInfra and CoreWeave process submitted text after confirmation. DeepInfra describes deletion of ordinary inputs and outputs after inference. Its terms allow temporary in-memory caching, operational metadata, and legal or elected-feature exceptions. With written authorization, DeepInfra may retain data to resolve a support issue. It deletes that data within 30 days after resolving the issue. OpenRouter can retain metadata, categorize prompts and retain content for safety or legal reasons. Its settings for the Hugging Face route are unknown. CoreWeave describes zero retention by default. Tracing settings for this route are unknown.
@@ -76,7 +76,7 @@ These are the register’s current capability values, including the exact reques
 
 The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Long-input planning and the extended wait have separate regression coverage. Promotion requires an accepted synthetic long document at zero default candidate traffic, followed by the ordinary production check. Only aggregate results are recorded.
 
-The current fingerprint is `45e7da3ca66ef777ddd27b297ba70101cc2597b47945227315b9328aa0abb660`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json) covers all 267 paths. It lists 29 differences and contains file names and hashes.
+The current fingerprint is `ca0f150203bfd546c67f28309b83a13868e8c571391d01f4c29db5841a73ae39`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json) covers all 267 paths. It lists 30 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 

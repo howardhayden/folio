@@ -3537,14 +3537,14 @@ test("compact verifier and certifier dialects replace host-shape output and priv
 test("the adapter uses strict JSON Schema analysis and certification", async () => {
   assert.equal(LATTICE_PROVIDER_CALL_TIMEOUT_MS, 120_000);
   assert.deepEqual(LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS, {
-    analysis: 120_000,
+    analysis: 300_000,
     candidate: 120_000,
     verification: 180_000,
     certification: 120_000,
     repair: 120_000,
   });
   assert.equal(Object.isFrozen(LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS), true);
-  assert.equal(LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS, 180_000);
+  assert.equal(LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS, 300_000);
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, init, body: JSON.parse(init.body) });
@@ -3907,6 +3907,28 @@ test("analysis schemas fit canary, one-word, and multipassage atom and evidence 
   );
   assert.equal(terminalSchema.properties.l.maxItems, 0);
   assert.doesNotMatch(JSON.stringify(schemas[2]), /"maxItems":(?:24|60)/u);
+});
+
+test("production analysis can finish after the previous two-minute cutoff", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let started;
+  let finish;
+  const request = new Promise(resolve => { started = resolve; });
+  const response = new Promise(resolve => { finish = resolve; });
+  const adapter = createHuggingFaceLatticeAdapter({
+    token: "fixture",
+    fetchImpl: async (_url, init) => {
+      started(init.signal);
+      await response;
+      return successfulProviderResponse({ d: "instruction", p: [], q: [] });
+    },
+  });
+  const analysis = adapter.analyze(minimalAnalysisRequest());
+  const signal = await request;
+  t.mock.timers.tick(299_999);
+  assert.equal(signal.aborted, false);
+  finish();
+  await analysis;
 });
 
 test("all five production stages use their exact provider response transport", async () => {
@@ -8627,7 +8649,7 @@ test("the whole-request deadline preempts the verifier's longer default deadline
 test("the live canary deadline remains outside the bounded request and provider deadlines", async () => {
   const { CANARY_TIMEOUT_MS: canaryTimeoutMs } = await import("../scripts/verify-text-to-lattice-api-production.mjs");
   const { LATTICE_CLIENT_TIMEOUT_MS } = await import("../app/resume/lattice/remoteRequest.js");
-  assert.equal(LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS, 180_000);
+  assert.equal(LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS, 300_000);
   assert.equal(LATTICE_API_REQUEST_TIMEOUT_MS, 900_000);
   assert.equal(LATTICE_CLIENT_TIMEOUT_MS - LATTICE_API_REQUEST_TIMEOUT_MS, 300_000);
   assert.equal(canaryTimeoutMs, LATTICE_CLIENT_TIMEOUT_MS);

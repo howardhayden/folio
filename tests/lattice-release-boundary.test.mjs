@@ -622,13 +622,13 @@ test("the release register enforces its exact current phase and preserves histor
   assert.equal(capability.provider.certificationResponseFormat, "json_schema");
   assert.equal(capability.provider.certificationSchemaStrict, true);
   assert.deepEqual(capability.provider.stageCallTimeoutsMs, {
-    analysis: 120_000,
+    analysis: 300_000,
     candidate: 120_000,
     verification: 180_000,
     certification: 120_000,
     repair: 120_000,
   });
-  assert.equal(capability.provider.maximumCallTimeoutMs, 180_000);
+  assert.equal(capability.provider.maximumCallTimeoutMs, 300_000);
   assert.deepEqual(capability.provider.stageMaximumOutputTokens, {
     analysis: 2_048,
     candidate: 800,
@@ -1077,7 +1077,7 @@ test("one-release source carry independently binds the unchanged original proof 
 test("one-release source carry pins the approved editorial page even when changed bytes are repinned", async () => {
   const pagePath = "app/projects/lattice/text-to-lattice/page.tsx";
   const beforeSha256 = "1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8";
-  const afterSha256 = "204ca06d13bb8cc6ae0bfccf085924f8481c5e6015d12a6ab98191346992fbb0";
+  const afterSha256 = "402159cf3350ed98b1f5227a58b42a7520c06c6d9e49cf4e1be7421d714dfbe9";
   const accepted = await sourceCarryFixture();
   const acceptedProof = JSON.parse(accepted.proofBytes);
   const pageException = acceptedProof.exceptions.find(({ path }) => path === pagePath);
