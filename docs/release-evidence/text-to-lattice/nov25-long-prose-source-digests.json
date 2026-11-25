@@ -278,7 +278,7 @@
     {
       "path": "scripts/verify-text-to-lattice-release.mjs",
       "beforeSha256": "e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a",
-      "afterSha256": "93de9c3c9c6bf26872edcfc9d7acfd9ae015dd7b8ef7bf45e05dfc3aedefff7a"
+      "afterSha256": "3d842206aaf8c48e001f4f0884f82574d69e3e34978c966838c4711c19af7886"
     },
     {
       "path": "tests/lattice-documentation.test.mjs",
@@ -378,7 +378,7 @@
     {
       "path": "scripts/verify-text-to-lattice-api-production.mjs",
       "beforeSha256": "3c3d1803cbc4f610f1da6a5f571d165782498a3056aea07fb2ca44a6c69f8b90",
-      "afterSha256": "ec23f05bcf12b5f075480929c8c6622b0122ac59e1e2ec98fef644a2fc7c5c12"
+      "afterSha256": "3355b8b1cdbf0932c9bf2eb750c6d81e8235ccdf1044355895641391350c3959"
     },
     {
       "path": "tests/lattice-api-worker.test.mjs",
@@ -398,7 +398,17 @@
     {
       "path": "tests/lattice-production-api-verifier.test.mjs",
       "beforeSha256": "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce",
-      "afterSha256": "10e1fb62049fa32e24165c9b8a0dda24737fc3e73df461b373951d63745d53bd"
+      "afterSha256": "67a6d2d17459899e02dd617612a8fcd9dbb784f915e8f240f4ac631c662527c1"
+    },
+    {
+      "path": "workers/package-lock.json",
+      "beforeSha256": "74684a6c780f38e5ea646ef6c29329be5541d05f23de1f65f64f050ea21ff96a",
+      "afterSha256": "494d6ea38fd6e7989673cf729c6792d7f4acbc1876bcb76b97c0a8c7c711eb5d"
+    },
+    {
+      "path": "workers/package.json",
+      "beforeSha256": "7fa9a406742ff6a67d0565ea51e5a845384f1e11fa590ed46906ed5b186838bc",
+      "afterSha256": "f52444513091bbd4399396dbf8c3adee027b094c6666923f3acb042522ae9d6f"
     },
     {
       "path": "workers/text-to-lattice-api/worker.js",

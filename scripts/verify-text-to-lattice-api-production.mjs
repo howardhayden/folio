@@ -1,5 +1,6 @@
 import { createHash, randomInt } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -1983,7 +1984,20 @@ export async function verifyLongProseCandidate(versionId, fetchImpl = fetch) {
   return { candidateVersion: versionId, inputWords: r.wordCount, batches: r.batchCount, elapsedMs, status: r.status };
 }
 
-async function main() {
+// Node's default five-minute header and body-idle limits can interrupt a valid
+// model phase. Keep both within the same explicit budget as the browser.
+export async function withCanaryTransport(operation, Agent = createRequire(
+  new URL("../workers/package.json", import.meta.url),
+)("undici").Agent) {
+  const dispatcher = new Agent({ headersTimeout: CANARY_TIMEOUT_MS, bodyTimeout: CANARY_TIMEOUT_MS });
+  try {
+    return await operation((url, init) => fetch(url, { ...init, dispatcher }));
+  } finally {
+    await dispatcher.destroy();
+  }
+}
+
+async function main(fetchImpl) {
   const evidencePath = process.env.LATTICE_API_EVIDENCE_PATH;
   if (typeof evidencePath !== "string" || !isAbsolute(evidencePath)) {
     fail("LATTICE_API_EVIDENCE_PATH must be an absolute path");
@@ -1996,6 +2010,7 @@ async function main() {
   }
   let usageEvidence;
   const evidence = await verifyTextToLatticeApiProduction({
+    fetchImpl,
     origin: process.env.LATTICE_API_BASE_URL,
     canaryRequestedMode: process.env.LATTICE_CANARY_REQUEST_MODE,
     requireAdmissionEvidence: parseLatticeRequireAdmissionEvidence(process.env.LATTICE_REQUIRE_ADMISSION_EVIDENCE),
@@ -2027,7 +2042,10 @@ async function main() {
 const isCommand = process.argv[1]
   && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 
-if (isCommand && process.argv[2] === "--long-prose-candidate") {
-  if (process.argv.length !== 4) fail("pass the staged candidate version");
-  console.log(JSON.stringify(await verifyLongProseCandidate(process.argv[3])));
-} else if (isCommand) await main();
+if (isCommand) {
+  await withCanaryTransport(async (fetchImpl) => {
+    if (process.argv[2] !== "--long-prose-candidate") return main(fetchImpl);
+    if (process.argv.length !== 4) fail("pass the staged candidate version");
+    console.log(JSON.stringify(await verifyLongProseCandidate(process.argv[3], fetchImpl)));
+  });
+}

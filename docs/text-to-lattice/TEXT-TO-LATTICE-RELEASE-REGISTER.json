@@ -197,8 +197,8 @@
     },
     "longProseSourceComparison": {
       "path": "docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json",
-      "bytes": 18236,
-      "sha256": "ce87ab1425098a220a0c28e654ce50c3a2518771d0f0908ea8399ef1e7e41a99"
+      "bytes": 18699,
+      "sha256": "d5f8db41986fcd4076dd92d4491395443ba17e087fd6ad01cd50451a9a22c0dc"
     }
   },
   "qualificationScope": "Safari and Brave supplied the canonical-browser traces for the qualified remote capability. The current production evidence carries those original results through the release owner's one-time source comparison. The last pulled hah.dev deployment and ancestry baseline are recorded in the evidence appendix. The earlier browser-local implementation is historical and inactive.",
@@ -229,7 +229,7 @@
     "decidedOn": "2026-11-25",
     "record": "The owner approved carrying forward Safari and Brave evidence for unchanged visitor behavior, a synthetic long-input check, and deployment after the ordinary production check. The serving release remains available throughout.",
     "note": "The completed one-off reset permits extra ordinary capacity with the 30/3 policy unchanged. Actual usage and rates determine charges. Intermittent upstream refusal and limited output fidelity remain accepted demonstrator risks. Privacy or admission failure requires withdrawal.",
-    "qualifiedSourceSetSha256": "0aea107eccc924b1667e1baffb648d3a4de31f440b99169ac1b14722ccc1b389"
+    "qualifiedSourceSetSha256": "67a444d3eee397a68af87f5f02642ccdca20ea583452d3d01fe78e0f5095d3f6"
   },
   "implementationBaselineRevision": "b211964213cd49e8335a73bcbebce3221c3a6bc2",
   "statusVocabulary": [
@@ -244,7 +244,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "cd25f53119b151cff39adda579f6101cf1b06ad19dfc60dc0f6d23e4563c3f63",
+    "qualificationDossierSha256": "3b074bf26f400f1d88df8672435b31f58587d8227e1622d7635e199bf77532dc",
     "browserEvidence": {
       "status": "verified-sanitized-bundle",
       "path": "docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json",
@@ -317,7 +317,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "0aea107eccc924b1667e1baffb648d3a4de31f440b99169ac1b14722ccc1b389",
+      "sha256": "67a444d3eee397a68af87f5f02642ccdca20ea583452d3d01fe78e0f5095d3f6",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, controlling Owner terms and baseline record, license-routing map, package metadata, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -328,13 +328,13 @@
       "authorization": "owner-approved-long-prose-and-transfer-20261125",
       "capturedCommit": "6166a3f430338331ca3f0336450e500571cbb896",
       "capturedSourceSetSha256": "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
-      "currentSourceSetSha256": "0aea107eccc924b1667e1baffb648d3a4de31f440b99169ac1b14722ccc1b389",
+      "currentSourceSetSha256": "67a444d3eee397a68af87f5f02642ccdca20ea583452d3d01fe78e0f5095d3f6",
       "evidenceId": "ttl-browser-20261123T143941Z-a495af12",
       "evidenceSha256": "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
       "proof": {
         "path": "docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json",
-        "bytes": 18236,
-        "sha256": "ce87ab1425098a220a0c28e654ce50c3a2518771d0f0908ea8399ef1e7e41a99"
+        "bytes": 18699,
+        "sha256": "d5f8db41986fcd4076dd92d4491395443ba17e087fd6ad01cd50451a9a22c0dc"
       }
     }
   },

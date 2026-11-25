@@ -12,6 +12,7 @@ import {
   LATTICE_PRODUCTION_NEGATIVE_PROBE_CONTRACT,
   LATTICE_PRODUCTION_NEGATIVE_PROBE_IDS,
   LATTICE_PRODUCTION_ADMISSION_NEGATIVE_PROBE_IDS,
+  withCanaryTransport,
   parseLatticeQualificationAdmissionHeaders,
   parseLatticeRequireAdmissionEvidence,
   verifyLatticeProductionAdmissionEvidence,
@@ -3117,4 +3118,26 @@ test("the staged long-prose check retains only a terminal status, identity, coun
   assert.equal(receipt.inputWords, 688);
   await assert.rejects(check(false), /ended with unable-to-attempt/u);
   assert.equal(contents, 2);
+});
+
+test("the Node qualification transport allows the entire client deadline and disposes on failure", async (t) => {
+  let dispatcher;
+  let disposed = false;
+  class Agent {
+    constructor(options) {
+      assert.deepEqual(options, { headersTimeout: 1_200_000, bodyTimeout: 1_200_000 });
+      dispatcher = this;
+    }
+    async destroy() { disposed = true; }
+  }
+  const signal = new AbortController().signal;
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    assert.equal(init.dispatcher, dispatcher);
+    assert.equal(init.signal, signal);
+    throw new Error("disconnected");
+  });
+  await assert.rejects(withCanaryTransport(
+    (fetchImpl) => fetchImpl("https://hah.dev/api/lattice", { signal }), Agent,
+  ), /disconnected/u);
+  assert.equal(disposed, true);
 });
