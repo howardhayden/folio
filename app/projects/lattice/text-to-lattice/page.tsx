@@ -109,7 +109,7 @@ export default function TextToLatticePage() {
                   <div className="paper-meta-item"><dt>Request deadline</dt><dd>15 minutes for the API request and 20 minutes overall in the browser</dd></div>
                   <div className="paper-meta-item"><dt>Daily availability</dt><dd>30 accepted transformations globally per UTC day; 3 per ordinary persistent browser cookie jar per UTC day</dd></div>
                   <div className="paper-meta-item"><dt>Quota identity</dt><dd>One opaque, signed, HttpOnly cookie scoped to <code>/api/lattice</code> until the next UTC day; no submitted content, IP identity, or browser fingerprint</dd></div>
-                  <div className="paper-meta-item"><dt>Provider-call deadline</dt><dd>120 seconds for analysis, candidate, certification, and repair; 180 seconds for verification; 15 minutes for the complete API request</dd></div>
+                  <div className="paper-meta-item"><dt>Provider-call deadline</dt><dd>Five minutes for analysis, three minutes for verification and two minutes for drafting, certification and repair</dd></div>
                   <div className="paper-meta-item"><dt>Provider output ceilings</dt><dd>2,048 requested output tokens for analysis and verification; 800 for candidate and repair; 520 for certification; no provider call can request more than 2,048</dd></div>
                   <div className="paper-meta-item"><dt>Secret boundary</dt><dd>The Hugging Face token is an encrypted server-side Worker secret and never enters the browser or response</dd></div>
                   <div className="paper-meta-item"><dt>Correction boundary</dt><dd>A schema-correction or repair pass may call the same fixed role model within the pipeline budget; it never switches provider or model</dd></div>

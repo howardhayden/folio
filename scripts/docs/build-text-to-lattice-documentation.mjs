@@ -184,7 +184,7 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     /(?:without refund|never refunded)/iu,
     /no IP address/iu,
     /browser fingerprint/iu,
-    /analysis, candidate, certification, and repair calls have 120-second ceilings; verification has a 180-second ceiling/iu,
+    /analysis calls have a 300-second ceiling/iu,
     /900-second (?:whole-|outer )?request/iu,
     /32 provider calls/iu,
     /960/iu,
@@ -646,13 +646,13 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || activeProvider?.generatorModel !== "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra"
     || activeProvider?.verifierModel !== "meta-llama/Llama-3.3-70B-Instruct:coreweave"
     || JSON.stringify(activeProvider?.stageCallTimeoutsMs) !== JSON.stringify({
-      analysis: 120_000,
+      analysis: 300_000,
       candidate: 120_000,
       verification: 180_000,
       certification: 120_000,
       repair: 120_000,
     })
-    || activeProvider?.maximumCallTimeoutMs !== 180_000
+    || activeProvider?.maximumCallTimeoutMs !== 300_000
     || JSON.stringify(activeProvider?.stageMaximumOutputTokens) !== JSON.stringify({
       analysis: 2_048,
       candidate: 800,

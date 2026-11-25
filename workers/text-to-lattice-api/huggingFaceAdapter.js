@@ -364,6 +364,7 @@ function qualificationHttpHeaders(response, role) {
 }
 
 export const LATTICE_PROVIDER_CALL_TIMEOUT_MS = 120_000;
+const LATTICE_PROVIDER_ANALYSIS_CALL_TIMEOUT_MS = 300_000;
 const LATTICE_PROVIDER_VERIFICATION_CALL_TIMEOUT_MS = 180_000;
 export const LATTICE_PROVIDER_REQUEST_BYTE_LIMIT = 1_048_576;
 export const LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT = 262_144;
@@ -802,7 +803,7 @@ const STAGES = Object.freeze({
     schemaDescription: "Return one complete private fitted d/p/l analysis result.",
     messages: analysisWireMessages,
     maxTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
-    callTimeoutMs: LATTICE_PROVIDER_CALL_TIMEOUT_MS,
+    callTimeoutMs: LATTICE_PROVIDER_ANALYSIS_CALL_TIMEOUT_MS,
     temperature: 0.7,
     topP: 0.8,
   }),

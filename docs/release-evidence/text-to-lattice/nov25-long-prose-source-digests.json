@@ -273,12 +273,12 @@
     {
       "path": "app/projects/lattice/text-to-lattice/page.tsx",
       "beforeSha256": "1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8",
-      "afterSha256": "204ca06d13bb8cc6ae0bfccf085924f8481c5e6015d12a6ab98191346992fbb0"
+      "afterSha256": "402159cf3350ed98b1f5227a58b42a7520c06c6d9e49cf4e1be7421d714dfbe9"
     },
     {
       "path": "scripts/verify-text-to-lattice-release.mjs",
       "beforeSha256": "e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a",
-      "afterSha256": "c03ce4cb55ca42f7008c090f2c78beb96254ffb87061b109d1529308172d0fff"
+      "afterSha256": "b3a31c76bdef7ee88e4ab2e3ffdf2d0260cf7d09812fa059cb8cbcecad3a41ce"
     },
     {
       "path": "tests/lattice-documentation.test.mjs",
@@ -288,12 +288,12 @@
     {
       "path": "tests/lattice-release-boundary.test.mjs",
       "beforeSha256": "7c50db000140269e6772e7746b84fdc280a4a4d2c666d674f500ca74a2bf1114",
-      "afterSha256": "f1c64a05f08b00294409327e77a11c565a5f1a4b8720ce292964385649d7bc3e"
+      "afterSha256": "11bd405039c2d1d42ad00007a204b1ad0ffe8ed50d81caf8ba7a8d075357ce25"
     },
     {
       "path": ".github/workflows/pages.yml",
       "beforeSha256": "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd",
-      "afterSha256": "901fb98ac1940e50eb7faf2003aa0106bf71ddb92dbd00ffae2a072a4289ba49"
+      "afterSha256": "4b65fa28aaa222764547c53a6358a843f56d195665984add70f88d861ea75e2d"
     },
     {
       "path": "app/content/projectDocuments.js",
@@ -313,12 +313,12 @@
     {
       "path": "scripts/docs/build-text-to-lattice-documentation.mjs",
       "beforeSha256": "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc",
-      "afterSha256": "f71e2e3b6130e82d19bcd77d310586be25956f6697cf742f93574cd81afb568a"
+      "afterSha256": "28e07fb2f93ec1fb160607f1ef63f09e69da99f6db2732cf8529606075472971"
     },
     {
       "path": "tests/lattice-deployment-workflow.test.mjs",
       "beforeSha256": "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089",
-      "afterSha256": "8241593fcbe30db3c97e928f2ce86bf0dead118a5c8b444d458d4f9cfdf49b2d"
+      "afterSha256": "9b27b2cc7567adb61bdfb1d0cede1e4cfcc033f22c7da2cd9feee74ab3dcb9e4"
     },
     {
       "path": "app/resume/ProjectDescriptionDisclosure.tsx",
@@ -343,7 +343,7 @@
     {
       "path": "app/content/textToLatticeContent.js",
       "beforeSha256": "32f4c7f164c4e872230e12016fdffa0167565bc5afab742a7870935f26d09a41",
-      "afterSha256": "dde718d79f3b75c4e5d962566bf553d2ec18077948d5a90229fca8ef18776dfe"
+      "afterSha256": "a0724cb2e0fcdf439edcd89950208ad9e654ec12950e22b21db267646dfa998e"
     },
     {
       "path": "app/resume/lattice/remoteProtocol.js",
@@ -383,7 +383,7 @@
     {
       "path": "tests/lattice-api-worker.test.mjs",
       "beforeSha256": "460458b7f94de503c46d150da4712ccaef5ed757578aee2ae7d2dca323c2fb29",
-      "afterSha256": "fe58217c2d48e253213aee493e33c99727e85eb5ea647ea678761868df83af18"
+      "afterSha256": "5a8806f6fdcaf1d854b33886cb8eb73d1b8309eda14bea90a25f595f5691c71b"
     },
     {
       "path": "tests/lattice-demo.test.mjs",
@@ -398,7 +398,7 @@
     {
       "path": "tests/lattice-production-api-verifier.test.mjs",
       "beforeSha256": "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce",
-      "afterSha256": "1818a1d453ed95f54cbbabd80217c361496161bd0c275f7cc509dc4bcffd1245"
+      "afterSha256": "9292838114393972e6bbcb061de14d4a5f281a835ef85b3a32e82f0d4afd3524"
     },
     {
       "path": "workers/package-lock.json",
@@ -409,6 +409,11 @@
       "path": "workers/package.json",
       "beforeSha256": "7fa9a406742ff6a67d0565ea51e5a845384f1e11fa590ed46906ed5b186838bc",
       "afterSha256": "f52444513091bbd4399396dbf8c3adee027b094c6666923f3acb042522ae9d6f"
+    },
+    {
+      "path": "workers/text-to-lattice-api/huggingFaceAdapter.js",
+      "beforeSha256": "1306ad3d60560cbc9cdb629d1ea3e1ed6abbeb6db7559cda18ccdabe397012a9",
+      "afterSha256": "0a0287b22ba016ad226435c3587c1fdb4a8ce76041ead43900b0d5546b005c8e"
     },
     {
       "path": "workers/text-to-lattice-api/worker.js",
