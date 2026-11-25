@@ -42,7 +42,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `67a444d3eee397a68af87f5f02642ccdca20ea583452d3d01fe78e0f5095d3f6`
+**Qualified source-set SHA-256:** `45e7da3ca66ef777ddd27b297ba70101cc2597b47945227315b9328aa0abb660`
 
 **Artifact-set projection SHA-256:** `1610ca6ec6d9cdcf929a687ba40f9e0e5b287ce51ed81dce97689c9800649f92`
 
@@ -76,7 +76,7 @@ These are the register’s current capability values, including the exact reques
 
 The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Long-input planning and the extended wait have separate regression coverage. Promotion requires an accepted synthetic long document at zero default candidate traffic, followed by the ordinary production check. Only aggregate results are recorded.
 
-The current fingerprint is `67a444d3eee397a68af87f5f02642ccdca20ea583452d3d01fe78e0f5095d3f6`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json) covers all 267 paths. It lists 29 differences and contains file names and hashes.
+The current fingerprint is `45e7da3ca66ef777ddd27b297ba70101cc2597b47945227315b9328aa0abb660`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json) covers all 267 paths. It lists 29 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 

@@ -939,7 +939,7 @@ const approvedPublicationFiles = Object.freeze({
   "tests/lattice-api-worker.test.mjs": { before: "460458b7f94de503c46d150da4712ccaef5ed757578aee2ae7d2dca323c2fb29", after: "fe58217c2d48e253213aee493e33c99727e85eb5ea647ea678761868df83af18" },
   "tests/lattice-demo.test.mjs": { before: "f02129d9939c76903310fae367146b85a5f7b62da55dd421c1a2d4229f5ed201", after: "c0989022baf40c8afbcf39cf52fe9cf4654025355145319f463bc49c7a72e10c" },
   "tests/lattice-network-capability.test.mjs": { before: "81b667a111103366cad61dae3486a69e3865ceb39b5ab1026319dfe61e39cab6", after: "754125cdf3d408ea9e03b12d72314787cbb63b940d5898ffc07bc1a95c58d82b" },
-  "tests/lattice-production-api-verifier.test.mjs": { before: "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce", after: "67a6d2d17459899e02dd617612a8fcd9dbb784f915e8f240f4ac631c662527c1" },
+  "tests/lattice-production-api-verifier.test.mjs": { before: "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce", after: "1818a1d453ed95f54cbbabd80217c361496161bd0c275f7cc509dc4bcffd1245" },
   "workers/package-lock.json": { before: "74684a6c780f38e5ea646ef6c29329be5541d05f23de1f65f64f050ea21ff96a", after: "494d6ea38fd6e7989673cf729c6792d7f4acbc1876bcb76b97c0a8c7c711eb5d" },
   "workers/package.json": { before: "7fa9a406742ff6a67d0565ea51e5a845384f1e11fa590ed46906ed5b186838bc", after: "f52444513091bbd4399396dbf8c3adee027b094c6666923f3acb042522ae9d6f" },
   "workers/text-to-lattice-api/worker.js": { before: "89f67a96629041cd6f30fc95cba257ad98852be01b1fab144a59d8b3e0b7eac9", after: "7d385c12ed77bf0d9903d4381a3a18cd84de125d212e2e33afc120ade48c76ea" },

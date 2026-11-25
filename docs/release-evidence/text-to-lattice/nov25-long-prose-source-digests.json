@@ -278,7 +278,7 @@
     {
       "path": "scripts/verify-text-to-lattice-release.mjs",
       "beforeSha256": "e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a",
-      "afterSha256": "3d842206aaf8c48e001f4f0884f82574d69e3e34978c966838c4711c19af7886"
+      "afterSha256": "c03ce4cb55ca42f7008c090f2c78beb96254ffb87061b109d1529308172d0fff"
     },
     {
       "path": "tests/lattice-documentation.test.mjs",
@@ -398,7 +398,7 @@
     {
       "path": "tests/lattice-production-api-verifier.test.mjs",
       "beforeSha256": "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce",
-      "afterSha256": "67a6d2d17459899e02dd617612a8fcd9dbb784f915e8f240f4ac631c662527c1"
+      "afterSha256": "1818a1d453ed95f54cbbabd80217c361496161bd0c275f7cc509dc4bcffd1245"
     },
     {
       "path": "workers/package-lock.json",

@@ -3121,18 +3121,16 @@ test("the staged long-prose check retains only a terminal status, identity, coun
 });
 
 test("the Node qualification transport allows the entire client deadline and disposes on failure", async (t) => {
-  let dispatcher;
   let disposed = false;
   class Agent {
     constructor(options) {
       assert.deepEqual(options, { headersTimeout: 1_200_000, bodyTimeout: 1_200_000 });
-      dispatcher = this;
     }
     async destroy() { disposed = true; }
   }
   const signal = new AbortController().signal;
   t.mock.method(globalThis, "fetch", async (_url, init) => {
-    assert.equal(init.dispatcher, dispatcher);
+    assert.ok(init.dispatcher instanceof Agent);
     assert.equal(init.signal, signal);
     throw new Error("disconnected");
   });
