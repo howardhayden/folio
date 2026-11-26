@@ -24,13 +24,14 @@ import {
   LATTICE_VISITOR_SESSION_ACCEPT,
   isLatticeApiRequest,
   isLatticeApiResult,
+  latticeProviderCallLimitForPlan,
 } from "../../app/resume/lattice/remoteProtocol.js";
 import {
   LatticePlanCapacityError,
   getLatticeVerificationPriorRejection,
   getLatticeWithheldPipelineObservation,
   preflightLatticeInput,
-  prepareLatticeTransformation,
+  executeLatticePlan,
   runTextToLattice,
 } from "../../app/resume/latticeDemo.js";
 import {
@@ -1009,14 +1010,14 @@ export function createLatticeApiWorker({
         const payload = validateEnvelope(body);
         const planningOptions = { providerCallLimit: LATTICE_PROVIDER_CALL_LIMIT };
         let runPrepared;
+        let providerCallLimit;
         try {
           observeLatticeAdmissionTrustedStep(admissionObservation, preflightLatticeInputImpl === preflightLatticeInput);
-          if (preflightLatticeInputImpl === preflightLatticeInput && runTextToLatticeImpl === runTextToLattice) {
-            runPrepared = prepareLatticeTransformation(payload.text, planningOptions);
-          } else {
-            preflightLatticeInputImpl(payload.text, planningOptions);
-            runPrepared = (options) => runTextToLatticeImpl(payload.text, options);
-          }
+          const plan = preflightLatticeInputImpl(payload.text, planningOptions);
+          providerCallLimit = latticeProviderCallLimitForPlan(plan);
+          runPrepared = runTextToLatticeImpl === runTextToLattice
+            ? (options) => executeLatticePlan(plan, options)
+            : (options) => runTextToLatticeImpl(payload.text, options);
         } catch (error) {
           if (error instanceof LatticePlanCapacityError) throw apiError(413, "input_too_large");
           const inputTooLarge = payload.text.length > LATTICE_INPUT_SAFETY_LIMIT
@@ -1069,6 +1070,7 @@ export function createLatticeApiWorker({
         const transform = async (onProgress) => {
           const adapterOptions = {
             token: env.HF_TOKEN,
+            providerCallLimit,
             requestedMode: payload.requested_mode,
             fetchImpl,
             observeQualificationHttpHeaders: qualificationDiagnosticRequested,

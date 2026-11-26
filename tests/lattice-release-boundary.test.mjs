@@ -511,7 +511,7 @@ test("the release register enforces its exact current phase and preserves histor
     "endpoint", "verificationEndpoint", "verificationRequestModel", "generatorModel", "verifierModel", "stageCallTimeoutsMs",
     "certificationEndpoint", "certificationRequestModel", "verificationResponseFormat",
     "verificationSchemaStrict", "certificationResponseFormat", "certificationSchemaStrict",
-    "maximumCallTimeoutMs", "callLimit", "stageMaximumOutputTokens",
+    "maximumCallTimeoutMs", "callLimit", "defaultCallLimit", "longJobPolicy", "stageMaximumOutputTokens",
     "maximumRequestedOutputTokensPerCall", "maximumRequestedOutputTokensPerAdmittedRequest",
     "maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay",
     "maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay",
@@ -589,6 +589,7 @@ test("the release register enforces its exact current phase and preserves histor
         containsAccountIdentity: false,
         containsBrowserFingerprint: false,
         containsProviderCredential: false,
+        discardedEdgeCookie: "cf_clearance",
       },
       admission: {
         globalPerUtcDay: 30,
@@ -603,8 +604,8 @@ test("the release register enforces its exact current phase and preserves histor
         usesIpAddress: false,
         usesBrowserFingerprint: false,
         storesSubmittedContentOrResult: false,
-        maximumProviderCallsPerAdmittedRequest: 32,
-        maximumProviderCallsFromAdmittedRequestsPerUtcDay: 960,
+        maximumProviderCallsPerAdmittedRequest: 48,
+        maximumProviderCallsFromAdmittedRequestsPerUtcDay: 1440,
       },
       retry: false,
       fallback: false,
@@ -629,6 +630,9 @@ test("the release register enforces its exact current phase and preserves histor
     repair: 120_000,
   });
   assert.equal(capability.provider.maximumCallTimeoutMs, 300_000);
+  assert.equal(capability.provider.defaultCallLimit, 32);
+  assert.equal(capability.provider.callLimit, 48);
+  assert.deepEqual(capability.provider.longJobPolicy, { minimumWords: 500, minimumBatches: 7, providerCallLimit: 48 });
   assert.deepEqual(capability.provider.stageMaximumOutputTokens, {
     analysis: 2_048,
     candidate: 800,
@@ -637,14 +641,14 @@ test("the release register enforces its exact current phase and preserves histor
     repair: 800,
   });
   assert.equal(capability.provider.maximumRequestedOutputTokensPerCall, 2_048);
-  assert.equal(capability.provider.maximumRequestedOutputTokensPerAdmittedRequest, 65_536);
+  assert.equal(capability.provider.maximumRequestedOutputTokensPerAdmittedRequest, 98_304);
   assert.equal(
     capability.provider.maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay,
-    1_966_080,
+    2_949_120,
   );
   assert.equal(
     capability.provider.maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay,
-    196_608,
+    294_912,
   );
   assert.equal(capability.provider.historicalByteEquivalenceEstablished, false);
   assert.equal(register.artifactSet.historicalBrowserLocalArtifacts.status, "historical-inactive");

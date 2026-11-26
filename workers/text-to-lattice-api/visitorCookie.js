@@ -11,7 +11,11 @@ const COOKIE_VERSION = "v1";
 const SIGNATURE_CONTEXT = "hah.dev/api/lattice/visitor-cookie/value/v1";
 const COOKIE_VALUE_PATTERN = /^v1\.([A-Za-z0-9_-]{24})\.([A-Za-z0-9_-]{43})$/u;
 const SIGNATURE_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
-const MAXIMUM_COOKIE_HEADER_CHARACTERS = 256;
+const MAXIMUM_VISITOR_COOKIE_CHARACTERS = 256;
+const MAXIMUM_CLEARANCE_COOKIE_CHARACTERS = 4096;
+const CLEARANCE_COOKIE_PREFIX = "cf_clearance=";
+// RFC 6265 cookie-octet. Cloudflare validates this opaque value before the Worker.
+const CLEARANCE_COOKIE_VALUE = /^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]+$/u;
 const UTC_DAY_MILLISECONDS = 24 * 60 * 60 * 1_000;
 let cachedSecret = null;
 let cachedKeyPromise = null;
@@ -69,19 +73,25 @@ async function visitorHmacKey(secret) {
 function cookieHeaderValue(headers) {
   const header = headers.get("Cookie");
   if (header === null) return null;
-  if (header.length < 1 || header.length > MAXIMUM_COOKIE_HEADER_CHARACTERS) {
+  if (!header.length || header.length > MAXIMUM_VISITOR_COOKIE_CHARACTERS + MAXIMUM_CLEARANCE_COOKIE_CHARACTERS + 2) {
     throw new LatticeApiVisitorCookieError("The API visitor cookie is invalid.");
   }
-  const fields = header.split(";").map((field) => field.trim());
-  if (fields.length !== 1) {
-    throw new LatticeApiVisitorCookieError("The API request contained an undeclared cookie.");
+  let visitorValue = null;
+  let clearanceSeen = false;
+  for (const pair of header.split(";")) {
+    const field = pair.trim();
+    if (field.startsWith(CLEARANCE_COOKIE_PREFIX) && !clearanceSeen
+      && field.length <= MAXIMUM_CLEARANCE_COOKIE_CHARACTERS
+      && CLEARANCE_COOKIE_VALUE.test(field.slice(CLEARANCE_COOKIE_PREFIX.length))) {
+      clearanceSeen = true;
+    } else if (field.startsWith(LATTICE_API_VISITOR_COOKIE_NAME + "=") && visitorValue === null
+      && field.length <= MAXIMUM_VISITOR_COOKIE_CHARACTERS) {
+      visitorValue = field.slice(LATTICE_API_VISITOR_COOKIE_NAME.length + 1);
+    } else {
+      throw new LatticeApiVisitorCookieError("The API request contained an undeclared or invalid cookie.");
+    }
   }
-  const separator = fields[0].indexOf("=");
-  if (separator < 1
-    || fields[0].slice(0, separator) !== LATTICE_API_VISITOR_COOKIE_NAME) {
-    throw new LatticeApiVisitorCookieError("The API request contained an undeclared cookie.");
-  }
-  return fields[0].slice(separator + 1);
+  return visitorValue;
 }
 
 function createVisitorId() {

@@ -11,6 +11,7 @@ import {
   LATTICE_API_SCHEMA_VERSION,
   LATTICE_RESULT_VERSION,
   LATTICE_VISITOR_SESSION_ACCEPT,
+  LATTICE_LONG_JOB_POLICY,
   exactRecord,
   isLatticeApiError,
   isLatticeApiResult,
@@ -1824,7 +1825,10 @@ export async function verifyTextToLatticeApiProduction({
       maximum_provider_call_timeout_ms: LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS,
       provider_request_bytes: LATTICE_PROVIDER_REQUEST_BYTE_LIMIT,
       provider_response_bytes: LATTICE_PROVIDER_RESPONSE_BYTE_LIMIT,
-      provider_calls_per_request: LATTICE_PROVIDER_CALL_LIMIT,
+      provider_calls_per_request: LATTICE_LONG_JOB_POLICY.providerCallLimit,
+      default_provider_calls_per_request: LATTICE_PROVIDER_CALL_LIMIT,
+      long_job_minimum_words: LATTICE_LONG_JOB_POLICY.minimumWords,
+      long_job_minimum_batches: LATTICE_LONG_JOB_POLICY.minimumBatches,
       provider_stage_max_output_tokens: LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS,
       maximum_requested_output_tokens_per_provider_call:
         LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL,
@@ -1834,7 +1838,7 @@ export async function verifyTextToLatticeApiProduction({
       accepted_transformations_per_cooperating_ordinary_persistent_browser_cookie_jar_utc_day:
         LATTICE_TRANSFORMATIONS_PER_VISITOR_UTC_DAY,
       maximum_provider_calls_from_accepted_transformations_per_utc_day:
-        LATTICE_TRANSFORMATIONS_PER_UTC_DAY * LATTICE_PROVIDER_CALL_LIMIT,
+        LATTICE_TRANSFORMATIONS_PER_UTC_DAY * LATTICE_LONG_JOB_POLICY.providerCallLimit,
       maximum_requested_output_tokens_from_accepted_transformations_per_utc_day:
         LATTICE_TRANSFORMATIONS_PER_UTC_DAY
           * LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
@@ -1930,7 +1934,7 @@ export async function verifyTextToLatticeApiProduction({
 }
 
 // A candidate at zero percent receives this request via an explicit version
-// override. The incumbent cannot complete this fixture inside its 32-call cap.
+// override. Only the generated fixture and its aggregate result exercise this route.
 export async function verifyLongProseCandidate(versionId, fetchImpl = fetch) {
   if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(versionId)) fail("invalid candidate version");
   const source = makeLongProseFixture((choices) => choices[randomInt(choices.length)]);
@@ -1988,7 +1992,7 @@ export async function verifyLongProseCandidate(versionId, fetchImpl = fetch) {
   const r = result;
   const elapsedMs = elapsedMilliseconds(started, clock, label);
   if (!CERTIFICATION_CANARY_STATUS_SET.has(r.status) || r.findings.length || r.wordCount !== 688
-    || r.batchCount < 2 || r.batchCount > 10 || r.passageCount >= 48 || r.verificationPasses < 1
+    || r.batchCount < LATTICE_LONG_JOB_POLICY.minimumBatches || r.batchCount > 10 || r.passageCount >= 48 || r.verificationPasses < 1
     || r.retainedPassageCount + r.revisedPassageCount !== r.passageCount
     || (r.status === "translated" ? r.revisedPassageCount < 1 || !materiallyDifferent(source, r.text)
       : r.revisedPassageCount !== 0 || source !== r.text)

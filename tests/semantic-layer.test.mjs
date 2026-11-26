@@ -20,7 +20,7 @@ import {
 import {
   LOCAL_LATTICE_MODEL as HISTORICAL_LOCAL_LATTICE_MODEL,
 } from "../app/resume/lattice/modelContract.js";
-import { LATTICE_PROVIDER_CALL_LIMIT } from "../app/resume/lattice/remoteProtocol.js";
+import { LATTICE_LONG_JOB_POLICY, LATTICE_PROVIDER_CALL_LIMIT } from "../app/resume/lattice/remoteProtocol.js";
 import {
   HUGGING_FACE_CHAT_COMPLETIONS_URL,
   LATTICE_REMOTE_MODELS,
@@ -1051,7 +1051,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
   assert.deepEqual(textToLatticeContract.implementation.runtime, expectedRuntime);
   const publishedLimits = textToLatticeContract.securityAndPrivacy.inputHardening.limits;
   assert.ok(publishedLimits.includes(
-    `${LATTICE_PROVIDER_CALL_LIMIT} provider calls across analysis, candidate generation, verification, certification, correction, repair, and re-atomization work, bounded further by the request and per-call deadlines`,
+    `${LATTICE_PROVIDER_CALL_LIMIT} provider calls per request, or ${LATTICE_LONG_JOB_POLICY.providerCallLimit} when the server plans at least ${LATTICE_LONG_JOB_POLICY.minimumBatches} work groups for ${LATTICE_LONG_JOB_POLICY.minimumWords} or more words`,
   ));
   assert.equal(
     publishedLimits.some((limit) => /512 protocol-level model completions/iu.test(limit)),

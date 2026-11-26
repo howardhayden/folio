@@ -34,6 +34,7 @@ import {
   LATTICE_REQUEST_FIELDS,
   LATTICE_REQUEST_MODES,
   LATTICE_VISITOR_SESSION_ACCEPT,
+  LATTICE_LONG_JOB_POLICY,
 } from "../app/resume/lattice/remoteProtocol.js";
 import { projectBySlug } from "../app/resume/projects.js";
 import {
@@ -760,7 +761,8 @@ export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate
     "browser fingerprint",
     `${LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS.certification.toLocaleString("en-US")}-token certifier`,
     "32 provider calls",
-    "960",
+    "48 provider calls",
+    "1,440",
     "rate limiter",
     "timeout",
     "response size",
@@ -774,9 +776,9 @@ export function verifyLifecycleGateContract(productionBoundaryGate, capacityGate
     /analysis calls have a 300-second ceiling/iu,
     /(?:2,048-token verifier|verifier (?:stage )?maximum[^.]*2,048 tokens|verification[^.]*2,048-token)/iu,
     /requested-output exposure[^.]*2,048(?: requested output tokens)? per (?:provider )?call/iu,
-    /requested-output exposure[^.]*65,536(?: requested output tokens)? per admitted request/iu,
-    /requested-output exposure[^.]*196,608(?: requested output tokens)? per cooperating (?:ordinary persistent )?browser cookie jar per UTC day/iu,
-    /requested-output exposure[^.]*1,966,080(?: requested output tokens)? (?:global(?:ly)?|across[^.]*global)[^.]*UTC day/iu,
+    /requested-output exposure[^.]*98,304(?: requested output tokens)? per admitted request/iu,
+    /requested-output exposure[^.]*294,912(?: requested output tokens)? per cooperating (?:ordinary persistent )?browser cookie jar per UTC day/iu,
+    /requested-output exposure[^.]*2,949,120(?: requested output tokens)? (?:global(?:ly)?|across[^.]*global)[^.]*UTC day/iu,
   ]) {
     if (!required.test(gate03)) fail(`GATE-03 omits the exact stage-budget or aggregate-exposure boundary ${required}.`);
   }
@@ -911,7 +913,7 @@ const sourceCarryCapture = Object.freeze({
   evidenceId: "ttl-browser-20261123T143941Z-a495af12",
   evidenceSha256: "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
   fileDigestsSha256: "a3c557dcec1563f2f0023cfe39d89d470e77777059fb25414ff5714b2e18280f",
-  proofPath: "docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json",
+  proofPath: "docs/release-evidence/text-to-lattice/nov26-long-job-source-digests.json",
 });
 const sourceCarryEditorialPage = Object.freeze({
   path: "app/projects/lattice/text-to-lattice/page.tsx",
@@ -919,34 +921,37 @@ const sourceCarryEditorialPage = Object.freeze({
   afterSha256: "402159cf3350ed98b1f5227a58b42a7520c06c6d9e49cf4e1be7421d714dfbe9",
 });
 const approvedPublicationFiles = Object.freeze({
-  ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "0554b8f65511e1ab4c1c85ba88f661269a4e904e0ff73679aa0b70be606ab8c6" },
+  ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "f58f09c4e25127da34745ee02721f666636c8179fcd45218a7c14916c9f2abd1" },
   "app/content/projectDocuments.js": { before: "261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251", after: "a7e92316b513757b6a19ece0fbc2fd4390e08d3c8766edc146c61184e4d21ca3" },
   "app/projects/[slug]/page.tsx": { before: "d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62", after: "43ab6d037e0c9eb5609ce5c17b0a4bbfdbd6a58689fc478f5b3b64f5464d268a" },
   "app/semantic/portfolio.js": { before: "7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6", after: "8506fd4f7d49f5b6ab672b5ba00265c39774c4e71ff035fee70beaa82462380c" },
-  "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "28e07fb2f93ec1fb160607f1ef63f09e69da99f6db2732cf8529606075472971" },
-  "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "5b01fec30342db0082a9191d4008c3584a3b182c9be71bf723da329b652d58da" },
+  "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "8279fb192f914a8ceaba074a65b75cfe807c710967d9265754ab7f120724efee" },
+  "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "3738e273935c1611d0ebce33d5af7f3be183372e17b3f92ce0de8b45524e6fd8" },
   "app/resume/ProjectDescriptionDisclosure.tsx": { before: "5e75a6ab95b261ea2ff77c5012998f618126de1c59456acde2310b663b174e89", after: "cef3f61fa66e2ceeb91cb61f8d236751c9d6f2e4688062bb496741110541d832" },
   "app/resume/ResumeProjects.tsx": { before: "42b88aa9be93601a305f266f2948722f401dc17d712293fee6e6ea78bffa7db4", after: "55cad4a74e9edee07989f7c15d4939570d7c1e4f0a67503f79ce4eafe896958d" },
   "app/globals.css": { before: "c92afb6efeb29bdbb96462810cc458137e9ced07d89aab7023f07f701c55663f", after: "cefefec324c8ad824e125be7d465ce9ebbf3e645bc95e5a8754cb84de742f7b1" },
   "tests/lattice-service-view.test.mjs": { before: "5b35bad121018ef1a9e49f11a202d07529197e96336380c1b43c07c9e9785e73", after: "8621bf54a7b309a54ca43c8ab98070c174c44391cf65f459a9694caf9995ce09" },
-  "app/content/textToLatticeContent.js": { before: "32f4c7f164c4e872230e12016fdffa0167565bc5afab742a7870935f26d09a41", after: "a0724cb2e0fcdf439edcd89950208ad9e654ec12950e22b21db267646dfa998e" },
-  "app/resume/lattice/remoteProtocol.js": { before: "a7b33f6969f4593fa87a46e30420c3094f91e9e34dfbba5b65f932097aa9868d", after: "2dd239030a882bd6276e4b1062da806a306f80fc69a90191e2f0fb272e23f250" },
+  "app/content/textToLatticeContent.js": { before: "32f4c7f164c4e872230e12016fdffa0167565bc5afab742a7870935f26d09a41", after: "3e1c294e12e725392f8332c96aaad5263625a4e3a9d0e5f04f992b49da5a5541" },
+  "app/resume/lattice/remoteProtocol.js": { before: "a7b33f6969f4593fa87a46e30420c3094f91e9e34dfbba5b65f932097aa9868d", after: "993a50bd791b1b4ee97043c5e33c675d758ef2c14d381cd60ebceb99b7461d0c" },
   "app/resume/lattice/remoteRequest.js": { before: "161a4f068ee7357c4f42cc4c33a3237668ef01196e3fecde2a98694dd0261c92", after: "27ab9f07be6d1ed2a981c9332751563052dae76e4e72062be67599836cce4df6" },
   "app/resume/lattice/segments.js": { before: "6a32fdd7e9145579d86eb60e34994a89270e6b970db75b1f382b7be91aa7e8fd", after: "487f5156544e5afc6a9f0524396fdde954a2414b3585ec5ecf6ababd1ff1f663" },
   "app/resume/lattice/serviceTelemetry.js": { before: "cc38fda1abb8a29d3fea10426b84e32cfff9f6ad14526b3367ccdbce6c52980a", after: "0ec5b1de48731d5f9db35c7fa936290668107a049768a45b0c18123a389be167" },
-  "app/resume/latticeDemo.js": { before: "fec23b788e1bb970590a38d7046071ba90d62d268ff1cab4105dadaa84e50639", after: "e95af7459af656c5eaab2bbf9bab46f4f5a7b8a07dbbe2da8cd6916445b78376" },
+  "app/resume/latticeDemo.js": { before: "fec23b788e1bb970590a38d7046071ba90d62d268ff1cab4105dadaa84e50639", after: "e00582416f9da4238914b4496dfb0c8264f4c0e23733597f5ce9224a38bdc96b" },
   "scripts/read-text-to-lattice-active-version.mjs": { before: "1063485afc31efd16123f80f585210c1ae0c9c4e7103cbe7c236e019f73a0155", after: "2f43abcca26e8450d96f0beef70f291cd6dd3cfa5024928a6943f1ea12637f08" },
-  "scripts/text-to-lattice-production-canary.mjs": { before: "fb5ca18a973ad1a6d1eead16535a0c6c4cea8852b72dbd53764e20f0c2f4efa4", after: "2fb3040132859826e9952ca09fe9af486b1d42e0ac68217e0ac6a81143c807f8" },
-  "scripts/verify-text-to-lattice-api-production.mjs": { before: "3c3d1803cbc4f610f1da6a5f571d165782498a3056aea07fb2ca44a6c69f8b90", after: "b063d5f4335ee64762f4d26b4b69b5d6ec8adcc9fc20d31bb1dc30f95407b925" },
-  "tests/lattice-api-worker.test.mjs": { before: "460458b7f94de503c46d150da4712ccaef5ed757578aee2ae7d2dca323c2fb29", after: "5a8806f6fdcaf1d854b33886cb8eb73d1b8309eda14bea90a25f595f5691c71b" },
+  "scripts/text-to-lattice-production-canary.mjs": { before: "fb5ca18a973ad1a6d1eead16535a0c6c4cea8852b72dbd53764e20f0c2f4efa4", after: "270ba635a44916756a1154bfa498ef6432b489de8392fe1bf3ead9a75677293d" },
+  "scripts/verify-text-to-lattice-api-production.mjs": { before: "3c3d1803cbc4f610f1da6a5f571d165782498a3056aea07fb2ca44a6c69f8b90", after: "ef57f148ccfe5ef69f0e1d0b97848c6781f1aa9b7413392aec780068e3405885" },
+  "tests/lattice-api-worker.test.mjs": { before: "460458b7f94de503c46d150da4712ccaef5ed757578aee2ae7d2dca323c2fb29", after: "6f3db430ecdea6f18e6ac9d7de89486b0235a031f623a0cedde1a60d6d7bc4d6" },
   "tests/lattice-demo.test.mjs": { before: "f02129d9939c76903310fae367146b85a5f7b62da55dd421c1a2d4229f5ed201", after: "c0989022baf40c8afbcf39cf52fe9cf4654025355145319f463bc49c7a72e10c" },
   "tests/lattice-network-capability.test.mjs": { before: "81b667a111103366cad61dae3486a69e3865ceb39b5ab1026319dfe61e39cab6", after: "754125cdf3d408ea9e03b12d72314787cbb63b940d5898ffc07bc1a95c58d82b" },
-  "tests/lattice-production-api-verifier.test.mjs": { before: "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce", after: "fd2ea8a5b68fcb33572e2dfff89510707f0f0e50ef20ea9f9b135ec3533742f1" },
-  "tests/lattice-service-telemetry-worker.test.mjs": { before: "0d03949ccd4cdda0f5f6bd16ade8c526fd13c599048d91230a556588ecdc1aa4", after: "7ae0b496f6221be4f1e7ae9d910dd3e5f22cd432ebf58ee4d2de73a5748f3e10" },
+  "tests/lattice-production-api-verifier.test.mjs": { before: "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce", after: "4f44178fdfef46e1a4a8a049ab4658b8b6d5d5040e02dba824bd86ddc2296d7f" },
+  "tests/lattice-service-telemetry-worker.test.mjs": { before: "0d03949ccd4cdda0f5f6bd16ade8c526fd13c599048d91230a556588ecdc1aa4", after: "5aadb894a43bb09644144a295579031fd0c7328cc770f549c58623e744d1e6e7" },
   "workers/package-lock.json": { before: "74684a6c780f38e5ea646ef6c29329be5541d05f23de1f65f64f050ea21ff96a", after: "494d6ea38fd6e7989673cf729c6792d7f4acbc1876bcb76b97c0a8c7c711eb5d" },
   "workers/package.json": { before: "7fa9a406742ff6a67d0565ea51e5a845384f1e11fa590ed46906ed5b186838bc", after: "f52444513091bbd4399396dbf8c3adee027b094c6666923f3acb042522ae9d6f" },
-  "workers/text-to-lattice-api/huggingFaceAdapter.js": { before: "1306ad3d60560cbc9cdb629d1ea3e1ed6abbeb6db7559cda18ccdabe397012a9", after: "0a0287b22ba016ad226435c3587c1fdb4a8ce76041ead43900b0d5546b005c8e" },
-  "workers/text-to-lattice-api/worker.js": { before: "89f67a96629041cd6f30fc95cba257ad98852be01b1fab144a59d8b3e0b7eac9", after: "0795b8cd7db971c95341bf8063e12319889affd6bb873c8bc74d52fad80e9d04" },
+  "workers/text-to-lattice-api/huggingFaceAdapter.js": { before: "1306ad3d60560cbc9cdb629d1ea3e1ed6abbeb6db7559cda18ccdabe397012a9", after: "f38703be79fcf0a50dda11aa6b4f0ccb400aaf2c3bbf7a8a0a6f0ce9e3080bad" },
+  "workers/text-to-lattice-api/worker.js": { before: "89f67a96629041cd6f30fc95cba257ad98852be01b1fab144a59d8b3e0b7eac9", after: "d5b5b24e4500a44e777c4f187eb9c11b5905f74ca7527d71faa6e7fc9fab927a" },
+  "app/privacy/networkCapabilities.js": { before: "c47c98266b3bb00e1df9784554ce580dd4c4afba46104009491a565c980a793b", after: "941f1b27e998006331d852a5a11460fca4681909152ab685efb9453d7e385a15" },
+  "tests/semantic-layer.test.mjs": { before: "9ed6f496e5bed6665457e825c9352d73029e99da9291101700e7b4e589b60e44", after: "3270c76b08d09a34ddc096ed9bae98359d8085b1cf96625f2fdeca2f5e068ac3" },
+  "workers/text-to-lattice-api/visitorCookie.js": { before: "5863a6b005939c58c54edcf430b82afaf56efc847ad9f373ce175e4fa17aff5e", after: "50db6f1a6d74cbf039c56510593d9fff2b5b9e7ddf74d3f5b24e5fa7bc97d9a2" },
 });
 const sourceCarryExceptions = Object.freeze({
   [sourceCarryEditorialPage.path]: sourceCarryEditorialPage.beforeSha256,
@@ -967,7 +972,7 @@ function approvedSourceCarry(register) {
   const carry = register?.authority?.browserEvidenceSourceCarry;
   const record = register?.authority?.browserEvidence;
   return carry?.format === "TEXT_TO_LATTICE_G06_SOURCE_CARRY_V1"
-    && carry.authorization === "owner-approved-long-prose-and-transfer-20261125"
+    && carry.authorization === "owner-approved-long-job-and-clearance-20261126"
     && carry.capturedCommit === sourceCarryCapture.commit && record?.deployedCommit === carry.capturedCommit
     && carry.capturedSourceSetSha256 === sourceCarryCapture.source && record.qualifiedSourceSetSha256 === carry.capturedSourceSetSha256
     && carry.evidenceId === sourceCarryCapture.evidenceId && record.evidenceId === carry.evidenceId
@@ -1015,7 +1020,7 @@ export function verifyBrowserEvidenceSourceCarry(register, record, files, proofB
     ["format", "authorization", "capturedCommit", "capturedSourceSetSha256", "currentSourceSetSha256", "evidenceId", "evidenceSha256", "proof"],
     "authority.browserEvidenceSourceCarry");
   if (carry.format !== "TEXT_TO_LATTICE_G06_SOURCE_CARRY_V1"
-    || carry.authorization !== "owner-approved-long-prose-and-transfer-20261125"
+    || carry.authorization !== "owner-approved-long-job-and-clearance-20261126"
     || carry.capturedCommit !== sourceCarryCapture.commit || record.deployedCommit !== carry.capturedCommit
     || carry.capturedSourceSetSha256 !== sourceCarryCapture.source || record.qualifiedSourceSetSha256 !== carry.capturedSourceSetSha256
     || carry.evidenceId !== sourceCarryCapture.evidenceId || record.evidenceId !== carry.evidenceId
@@ -1374,7 +1379,7 @@ async function verifyQualificationDossier(register) {
     artifacts.activeCapability.browserQuotaCookie.path,
     String(artifacts.activeCapability.admission.globalPerUtcDay),
     String(artifacts.activeCapability.admission.perOrdinaryPersistentBrowserCookieJarPerUtcDay),
-    String(artifacts.activeCapability.admission.maximumProviderCallsFromAdmittedRequestsPerUtcDay),
+    artifacts.activeCapability.admission.maximumProviderCallsFromAdmittedRequestsPerUtcDay.toLocaleString("en-US"),
     ...Object.values(artifacts.activeCapability.provider.stageCallTimeoutsMs)
       .map((value) => value.toLocaleString("en-US")),
     artifacts.activeCapability.provider.maximumCallTimeoutMs.toLocaleString("en-US"),
@@ -1651,9 +1656,9 @@ function verifyArtifactSet(register) {
     || capability.admission?.usesIpAddress !== false
     || capability.admission?.usesBrowserFingerprint !== false
     || capability.admission?.storesSubmittedContentOrResult !== false
-    || capability.admission?.maximumProviderCallsPerAdmittedRequest !== LATTICE_PROVIDER_CALL_LIMIT
+    || capability.admission?.maximumProviderCallsPerAdmittedRequest !== LATTICE_LONG_JOB_POLICY.providerCallLimit
     || capability.admission?.maximumProviderCallsFromAdmittedRequestsPerUtcDay
-      !== LATTICE_TRANSFORMATIONS_PER_UTC_DAY * LATTICE_PROVIDER_CALL_LIMIT
+      !== LATTICE_TRANSFORMATIONS_PER_UTC_DAY * LATTICE_LONG_JOB_POLICY.providerCallLimit
     || capability.provider.endpoint !== HUGGING_FACE_CHAT_COMPLETIONS_URL
     || capability.provider.verificationEndpoint !== HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL
     || capability.provider.verificationRequestModel !== LATTICE_VERIFICATION_REQUEST_MODEL
@@ -1668,7 +1673,12 @@ function verifyArtifactSet(register) {
     || JSON.stringify(capability.provider.stageCallTimeoutsMs)
       !== JSON.stringify(LATTICE_PROVIDER_STAGE_CALL_TIMEOUTS_MS)
     || capability.provider.maximumCallTimeoutMs !== LATTICE_PROVIDER_MAX_CALL_TIMEOUT_MS
-    || capability.provider.callLimit !== LATTICE_PROVIDER_CALL_LIMIT
+    || capability.provider.callLimit !== LATTICE_LONG_JOB_POLICY.providerCallLimit
+    || capability.provider.defaultCallLimit !== LATTICE_PROVIDER_CALL_LIMIT
+    || capability.provider.longJobPolicy?.minimumWords !== LATTICE_LONG_JOB_POLICY.minimumWords
+    || capability.provider.longJobPolicy?.minimumBatches !== LATTICE_LONG_JOB_POLICY.minimumBatches
+    || capability.provider.longJobPolicy?.providerCallLimit !== LATTICE_LONG_JOB_POLICY.providerCallLimit
+    || capability.browserQuotaCookie?.discardedEdgeCookie !== "cf_clearance"
     || JSON.stringify(capability.provider.stageMaximumOutputTokens)
       !== JSON.stringify(LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS)
     || capability.provider.maximumRequestedOutputTokensPerCall

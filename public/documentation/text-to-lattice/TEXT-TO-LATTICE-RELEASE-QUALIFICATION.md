@@ -4,13 +4,15 @@ Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave
 
 The November 23 production check accepted the original passage in 10.563 seconds. The protected Pages publication delivered that build. [Service check](https://github.com/howardhayden/folio/actions/runs/45255468630) · [Publication receipt](https://github.com/howardhayden/folio/actions/runs/45259201772) · [Evidence by claim](https://hah.dev/documentation/text-to-lattice/evidence.html)
 
+The November 26 update gives requests of at least 500 words and seven planned batches up to 48 provider calls. Other requests receive 32. The Worker ignores Cloudflare’s clearance cookie and requires the signed application cookie for every admission.
+
 The November 25 update fits long prose to the 32-call limit before admission. The Worker allows 15 minutes and the browser waits up to 20 minutes, including setup and delivery. A source that exceeds the planning budget can be split at a paragraph or sentence. A lost connection ends the request and requires an explicit new submission. [The first staged long-input check](https://github.com/howardhayden/folio/actions/runs/45561028682) reported an analysis timeout after 305 seconds. The previous version continued serving. The revised analysis limit is five minutes per call inside the same 15-minute request deadline. [The next check](https://github.com/howardhayden/folio/actions/runs/45563307328) lost its connection during analysis after 245 seconds. The visitor stream now sends one JSON whitespace byte every 15 seconds while writable, so a quiet model phase can keep the connection active. Only provider progress changes the displayed phase.
 
 ## One-off capacity decision
 
 The owner approved one application usage reset followed by one additional ordinary deployment. At 19:56:38 UTC on November 23, the application’s ordinary count changed from 30 to 0 and qualification excess remained at 0. A separate readback found both usage keys absent and the charged-day alarm cleared.
 
-This one-off reset permits up to 30 further global admissions before the next UTC-day reset, with the ordinary three-per-cooperating-cookie-jar limit in the reset ledger. Earlier usage and any provider charges remain separate from the reset. The 30/3 admission rules, 32-call request bound, consent and refusal behavior remain in force. Actual tokens and rates determine the bill.
+This one-off reset permits up to 30 further global admissions before the next UTC-day reset, with the ordinary three-per-cooperating-cookie-jar limit in the reset ledger. Earlier usage and any provider charges remain separate from the reset. The November 23 reset used the 30/3 admission rules and the then-current 32-call request bound. Actual tokens and rates determine the bill.
 
 Each ordinary publication must pass its own production service check before interactive Pages are published. For the November 23 documentation update, the owner approved publishing reviewed editorial changes against the successful production check and the deployed converter and Worker source. The accepted Safari and Brave traces and the dated Firefox checks retain their existing scopes. The exact reset operation and original evidence are recorded in the appendix.
 
@@ -28,7 +30,7 @@ The site owner accepted the original browser evidence after a file-by-file compa
 
 **The site owner accepts intermittent refusals and imperfect wording for this demonstrator.** Use a short passage you are entitled to share, then compare the result with your original before relying on it. Typing stays local until you confirm external processing. Hugging Face routes the passage through OpenRouter to DeepInfra for drafting and CoreWeave for review. hah.dev keeps no copy of your passage or result. The external services apply their own processing and retention terms.
 
-**The owner limits the work a visitor can initiate.** Ordinary production admits 30 transformations globally per UTC day and 3 per cooperating browser cookie jar per UTC day. A request can use at most 32 provider calls, so the ordinary daily allowance admits up to 960 call opportunities. The one-off reset above permits additional work that day. A later service check took 8.49 seconds and five calls, with an estimated token cost of about $0.0062 for that passage. The budget limits work, and the bill depends on actual tokens and rates.
+**The owner limits the work a visitor can initiate.** Ordinary production admits 30 transformations globally per UTC day and 3 per cooperating browser cookie jar per UTC day. The maximum is 32 provider calls for a standard request and 48 for a qualifying long request. If all 30 admissions qualify, they can use up to 1,440 calls. The one-off reset above permits additional work that day. A later service check took 8.49 seconds and five calls, with an estimated token cost of about $0.0062 for that passage. The budget limits work, and the bill depends on actual tokens and rates.
 
 **The maintainer withdraws the converter if consent, privacy, admission or result clearing fails.** A routine upstream refusal ends the individual request. The maintainer verifies both the API and public page when restoring held service and reassesses the affected behavior before publication resumes.
 
@@ -42,9 +44,9 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `1975e7b7817d8dfd2ed8d57bf8024be3cfc103ae77311b24f034684e64d303e5`
+**Qualified source-set SHA-256:** `c2c05c71441c41c51af6962c47705445d7bcb6e8ceb10ef74b5c1be6e17a0846`
 
-**Artifact-set projection SHA-256:** `5e08adae1019fe19845735db24000a2aba6d414455d1a1325615808014a6158d`
+**Artifact-set projection SHA-256:** `0fe378b291e78249d0e030d9a36b278229be9c685988855d42bab2a98f0809ae`
 
 | Gate | Status | Marginal value |
 | --- | --- | --- |
@@ -68,15 +70,15 @@ These are the register’s current capability values, including the exact reques
 - The qualified service accepts POST requests at `/api/lattice`, with schema version 1 and fields `text`, `requested_mode` and `schema_version`. Available modes are `auto`, `operative` and `experiential`.
 - Both stages use https://router.huggingface.co/v1/chat/completions. The generation model is `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`. Review and certification use `meta-llama/Llama-3.3-70B-Instruct:coreweave`. The runtime revision is `provider-managed-not-byte-pinned`.
 - The Worker has 15 minutes per request. The browser allows 20 minutes from submission through receipt of the complete result. Stage deadlines are 300,000 ms for analysis, 180,000 ms for verification and 120,000 ms for drafting, repair and certification.
-- Requested output tokens per call are 2,048 for analysis and verification, 800 for drafting and repair, and 520 for certification. The ceilings are 65,536 requested output tokens per admission, 196,608 per cooperating cookie jar per UTC day and 1,966,080 globally per UTC day.
+- Requested output tokens per call are 2,048 for analysis and verification, 800 for drafting and repair, and 520 for certification. At the long-job ceiling, the maximum requested output is 98,304 tokens per admission, 294,912 per cooperating cookie jar per UTC day and 2,949,120 globally per UTC day.
 - Application handling is recorded as “no application storage, raw-content logs, cache, queue, or analytics for source, prompts, candidates, raw provider bodies, or results”.
 - Hugging Face, OpenRouter, DeepInfra and CoreWeave process submitted text after confirmation. DeepInfra describes deletion of ordinary inputs and outputs after inference. Its terms allow temporary in-memory caching, operational metadata, and legal or elected-feature exceptions. With written authorization, DeepInfra may retain data to resolve a support issue. It deletes that data within 30 days after resolving the issue. OpenRouter can retain metadata, categorize prompts and retain content for safety or legal reasons. Its settings for the Hugging Face route are unknown. CoreWeave describes zero retention by default. Tracing settings for this route are unknown.
 
 ### Current-to-captured source comparison
 
-The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Long-input planning and the extended wait have separate regression coverage. Promotion requires an accepted synthetic long document at zero default candidate traffic, followed by the ordinary production check. Only aggregate results are recorded.
+The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Separate regression tests cover long-job selection, the 32- and 48-call limits, and clearance-cookie handling in setup and admission. Promotion requires an accepted synthetic long document at zero default candidate traffic, followed by the ordinary production check. Only aggregate results are recorded.
 
-The current fingerprint is `1975e7b7817d8dfd2ed8d57bf8024be3cfc103ae77311b24f034684e64d303e5`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov25-long-prose-source-digests.json) covers all 267 paths. It lists 32 differences and contains file names and hashes.
+The current fingerprint is `c2c05c71441c41c51af6962c47705445d7bcb6e8ceb10ef74b5c1be6e17a0846`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov26-long-job-source-digests.json) covers all 267 paths. It lists 35 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 

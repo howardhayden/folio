@@ -7,7 +7,7 @@ import {
   LATTICE_TOKEN_CODE_POINT_LIMIT,
   LATTICE_WORD_LIMIT,
 } from "../resume/lattice/inputPolicy.js";
-import { LATTICE_PROVIDER_CALL_LIMIT } from "../resume/lattice/remoteProtocol.js";
+import { LATTICE_LONG_JOB_POLICY, LATTICE_PROVIDER_CALL_LIMIT } from "../resume/lattice/remoteProtocol.js";
 import { LATTICE_BATCH_LIMIT, LATTICE_PASSAGE_LIMIT } from "../resume/lattice/segments.js";
 import { LATTICE_USAGE_POLICY as HISTORICAL_LATTICE_USAGE_POLICY } from "../resume/lattice/usagePolicy.js";
 import { TEXT_TO_LATTICE_CONTENT_UPDATED } from "../resume/projects.js";
@@ -140,8 +140,8 @@ export const textToLatticeContract = Object.freeze({
         `${LATTICE_WORD_LIMIT} source words, ${LATTICE_INPUT_SAFETY_LIMIT.toLocaleString("en-US")} source UTF-16 code units, and ${LATTICE_INPUT_UTF8_LIMIT.toLocaleString("en-US")} encoded bytes`,
         `${LATTICE_PASSAGE_LIMIT} passages and ${LATTICE_BATCH_LIMIT} model work groups`,
         `${LATTICE_GRAPHEME_CODE_POINT_LIMIT} Unicode code points in any grapheme, ${LATTICE_TOKEN_CODE_POINT_LIMIT} in any word-like token, and ${LATTICE_FORMAT_CONTROL_LIMIT} format controls in an entry`,
-        `${LATTICE_PROVIDER_CALL_LIMIT} provider calls across analysis, candidate generation, verification, certification, correction, repair, and re-atomization work, bounded further by the request and per-call deadlines`,
-        "2,048 requested output tokens per provider call, 65,536 requested output tokens across the 32-call ceiling of one admitted request. Under the standard daily limits the ceilings are 196,608 across the 3-admission ceiling of one cooperating ordinary persistent browser cookie jar per UTC day, and 1,966,080 across the 30-admission global UTC-day ceiling",
+        `${LATTICE_PROVIDER_CALL_LIMIT} provider calls per request, or ${LATTICE_LONG_JOB_POLICY.providerCallLimit} when the server plans at least ${LATTICE_LONG_JOB_POLICY.minimumBatches} work groups for ${LATTICE_LONG_JOB_POLICY.minimumWords} or more words`,
+        "2,048 requested output tokens per provider call. A standard request can reserve up to 65,536 tokens and a qualifying long request up to 98,304. The daily ceilings are 294,912 per cooperating browser cookie jar and 2,949,120 globally",
         "65,536 request bytes; five minutes for analysis, three minutes for verification and two minutes for drafting, certification and repair; 15 minutes for the complete API request and 20 minutes overall in the browser; 262,144 provider-response bytes; and a bounded client response envelope",
         "Standard service limits are 30 accepted transformation requests globally per UTC day and 3 from one ordinary persistent browser cookie jar per UTC day. Both daily limits are lifted during the operator-ended browser qualification.",
       ]),

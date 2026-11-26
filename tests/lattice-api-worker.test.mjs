@@ -6,6 +6,7 @@ import { LATTICE_SERVICE_EVENTS_MIME } from "../app/resume/lattice/serviceTeleme
 
 import { getLatticeVerificationPriorRejection, preflightLatticeInput, runTextToLattice } from "../app/resume/latticeDemo.js";
 import {
+  latticeProviderCallLimitForPlan,
   LATTICE_RESULT_VERSION,
   LATTICE_VISITOR_SESSION_ACCEPT,
   isLatticeApiError,
@@ -1017,6 +1018,7 @@ test("the exact same-origin API accepts the three-field v1 request and returns t
   assert.equal(events.length, 2);
   assert.equal(events[0].options.token, "server_only_token");
   assert.equal(events[0].options.requestedMode, "operative");
+  assert.equal(events[0].options.providerCallLimit, 32);
   assert.equal(events[0].options.observeQualificationUsage, false);
   assert.equal(events[0].options.observeQualificationRetentionDowngrade, false);
   assert.equal(Object.hasOwn(events[0].options, "claimProviderCall"), false);
@@ -1453,7 +1455,7 @@ test("explicit caller credential headers fail closed before body parsing, admiss
   assert.equal(executions, 0);
 });
 
-test("the dedicated API cookie is opaque, signed, day-expiring, and the only permitted cookie", async () => {
+test("the dedicated API cookie is opaque, signed, day-expiring, and the only application identity", async () => {
   const dayStart = Date.UTC(2026, 8, 14);
   assert.equal(await resolveLatticeApiVisitor(new Headers(), TEST_VISITOR_SECRET), null);
   const first = await establishLatticeApiVisitor(new Headers(), TEST_VISITOR_SECRET);
@@ -1687,6 +1689,48 @@ test("a cookie-less transformation requires setup before any limiter, quota, tok
   assert.equal(hfTokenReads, 0);
 });
 
+test("edge clearance coexists with the signed quota cookie and cannot establish quota identity", async () => {
+  const admittedVisitors = [];
+  const worker = createProductionLatticeApiWorker({
+    enforceRateLimit: async () => {},
+    admitTransformation: async (_namespace, visitorId) => {
+      admittedVisitors.push(visitorId);
+      return { allowed: true, retryAfterSeconds: null };
+    },
+    createAdapter: () => ({}),
+    runTextToLatticeImpl: async () => validLatticeResult(),
+  });
+  const env = { VISITOR_COOKIE_SECRET: TEST_VISITOR_SECRET, HF_TOKEN: "unused" };
+  const clearance = "cf_clearance=" + "x".repeat(350);
+  const setup = await worker.fetch(visitorSessionRequest({ headers: { Cookie: clearance } }), env);
+  assert.equal(setup.status, 204);
+  const [signed] = setup.headers.get("set-cookie").split(";");
+  assert.ok(signed.startsWith(LATTICE_API_VISITOR_COOKIE_NAME + "="));
+  assert.equal(setup.headers.get("set-cookie").includes("cf_clearance"), false);
+  const visitor = await resolveLatticeApiVisitor(new Headers({ Cookie: signed }), TEST_VISITOR_SECRET);
+  const missing = await worker.fetch(apiRequest(validPayload, { headers: { Cookie: clearance } }), env);
+  assert.equal(missing.status, 428);
+  for (const header of [clearance + "; " + signed, signed + "; " + clearance]) {
+    const headers = { Cookie: header };
+    const returning = await worker.fetch(visitorSessionRequest({ headers }), env);
+    assert.equal(returning.status, 204);
+    assert.equal(returning.headers.get("set-cookie").split(";")[0], signed);
+    const content = await worker.fetch(apiRequest(validPayload, { headers }), env);
+    assert.equal(content.status, 200);
+    assert.equal(content.headers.has("set-cookie"), false);
+  }
+  for (const invalid of [clearance + "; " + clearance, signed + "; " + signed, signed + "x; " + clearance,
+    clearance + "; other=1", "cf_clearance=", "cf_clearance=x y", "cf_clearance=" + "x".repeat(4096)]) {
+    for (const request of [visitorSessionRequest({ headers: { Cookie: invalid } }),
+      apiRequest(validPayload, { headers: { Cookie: invalid } })]) {
+      const rejection = await worker.fetch(request, env);
+      assert.equal(rejection.status, 403);
+      assert.equal(rejection.headers.has("set-cookie"), false);
+    }
+  }
+  assert.deepEqual(admittedVisitors, [visitor.visitorId, visitor.visitorId]);
+});
+
 test("visitor-session setup rejects an invalid cookie without rotating it or touching downstream work", async () => {
   let downstreamCalls = 0;
   const worker = createProductionLatticeApiWorker({
@@ -1886,12 +1930,17 @@ test("688-word narrative fits the production Worker, strict provider adapters an
   const oldPlan = preflightLatticeInput(source);
   const plan = preflightLatticeInput(source, { providerCallLimit: LATTICE_PROVIDER_CALL_LIMIT });
   assert.equal(plan.wordCount, 688);
+  assert.ok(plan.batches.length >= 7);
   assert.ok(oldPlan.batches.length * 3 > LATTICE_PROVIDER_CALL_LIMIT);
   const byId = new Map(plan.passages.map((passage) => [passage.id, passage.text]));
   const counts = { analysis: 0, draft: 0, verification: 0, certification: 0 };
   let admissions = 0;
   const worker = createLatticeApiWorker({
     async admitTransformation(...args) { admissions += 1; return allowTransformation(...args); },
+    createAdapter(options) {
+      assert.equal(options.providerCallLimit, 48);
+      return createHuggingFaceLatticeAdapter(options);
+    },
     async fetchImpl(_url, init) {
       const body = JSON.parse(init.body);
       const payload = inertModelPayload(body);
@@ -7411,53 +7460,65 @@ test("provider output-token exposure stays explicit and bounded by admission", (
   assert.equal(Object.isFrozen(LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS), true);
   assert.equal(LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL, 2_048);
   assert.equal(LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT, 440);
-  assert.equal(LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST, 65_536);
+  assert.equal(LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST, 98_304);
   assert.equal(
     LATTICE_TRANSFORMATIONS_PER_UTC_DAY
       * LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
-    1_966_080,
+    2_949_120,
   );
 });
 
-test("the immutable 32-call adapter budget blocks a 33rd provider fetch", async () => {
-  let fetches = 0;
-  const adapter = createHuggingFaceLatticeAdapter({
-    token: "server-token",
-    fetchImpl: async () => {
-      fetches += 1;
-      return successfulProviderResponse({ d: "instruction", p: [], q: [] });
-    },
-  });
-  const initial = adapter.completionCapacity();
-  assert.deepEqual(initial, {
-    used: 0,
-    limit: LATTICE_PROVIDER_CALL_LIMIT,
-    remaining: LATTICE_PROVIDER_CALL_LIMIT,
-  });
-  assert.equal(Object.isFrozen(initial), true);
-
-  const request = minimalAnalysisRequest();
-  for (let index = 0; index < LATTICE_PROVIDER_CALL_LIMIT; index += 1) {
-    await adapter.analyze(request);
+test("long-job capacity requires both word count and planned batch thresholds", () => {
+  for (const [words, groups, limit] of [[499, 7, 32], [500, 6, 32], [500, 7, 48], [700, 9, 48]]) {
+    assert.equal(latticeProviderCallLimitForPlan({ wordCount: words, batches: Array(groups) }), limit);
   }
-  assert.deepEqual(adapter.completionCapacity(), {
-    used: LATTICE_PROVIDER_CALL_LIMIT,
-    limit: LATTICE_PROVIDER_CALL_LIMIT,
-    remaining: 0,
-  });
-  await assert.rejects(
-    adapter.analyze(request),
-    (error) => {
-      assert.ok(error instanceof LatticeProviderError);
-      assert.equal(error.code, "provider_call_limit");
-      assert.equal(error.qualificationStage, undefined);
-      assert.equal(error.qualificationCallOrdinal, undefined);
-      assert.equal(LATTICE_PROVIDER_FAILURE_CLASSES.includes(error.code), false);
-      return true;
-    },
-  );
-  assert.equal(fetches, LATTICE_PROVIDER_CALL_LIMIT);
+  for (const limit of [31, 33, 47, 49, Infinity, "48"]) {
+    assert.throws(() => createHuggingFaceLatticeAdapter({ providerCallLimit: limit }), /invalid call limit/u);
+  }
 });
+
+for (const limit of [32, 48]) {
+  test("adapter stops before the first fetch over its " + limit + "-call budget", async () => {
+    let fetches = 0;
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "server-token",
+      ...(limit === 32 ? {} : { providerCallLimit: limit }),
+      fetchImpl: async () => {
+        fetches += 1;
+        return successfulProviderResponse({ d: "instruction", p: [], q: [] });
+      },
+    });
+    const initial = adapter.completionCapacity();
+    assert.deepEqual(initial, {
+      used: 0,
+      limit: limit,
+      remaining: limit,
+    });
+    assert.equal(Object.isFrozen(initial), true);
+
+    const request = minimalAnalysisRequest();
+    for (let index = 0; index < limit; index += 1) {
+      await adapter.analyze(request);
+    }
+    assert.deepEqual(adapter.completionCapacity(), {
+      used: limit,
+      limit: limit,
+      remaining: 0,
+    });
+    await assert.rejects(
+      adapter.analyze(request),
+      (error) => {
+        assert.ok(error instanceof LatticeProviderError);
+        assert.equal(error.code, "provider_call_limit");
+        assert.equal(error.qualificationStage, undefined);
+        assert.equal(error.qualificationCallOrdinal, undefined);
+        assert.equal(LATTICE_PROVIDER_FAILURE_CLASSES.includes(error.code), false);
+        return true;
+      },
+    );
+    assert.equal(fetches, limit);
+  });
+}
 
 test("provider timeout is typed, bounded, and makes only one request", async () => {
   let calls = 0;

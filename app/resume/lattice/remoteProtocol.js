@@ -6,6 +6,17 @@ export const LATTICE_REQUEST_MODES = Object.freeze(["auto", "operative", "experi
 export const LATTICE_REQUEST_FIELDS = Object.freeze(["text", "requested_mode", "schema_version"]);
 export const LATTICE_RESULT_VERSION = "text-to-lattice.v7";
 export const LATTICE_PROVIDER_CALL_LIMIT = 32;
+export const LATTICE_LONG_JOB_POLICY = Object.freeze({
+  minimumWords: 500,
+  minimumBatches: 7,
+  providerCallLimit: 48,
+});
+
+export function latticeProviderCallLimitForPlan({ wordCount, batches }) {
+  return wordCount >= LATTICE_LONG_JOB_POLICY.minimumWords && batches.length >= LATTICE_LONG_JOB_POLICY.minimumBatches
+    ? LATTICE_LONG_JOB_POLICY.providerCallLimit
+    : LATTICE_PROVIDER_CALL_LIMIT;
+}
 export const LATTICE_API_REQUEST_TIMEOUT_MS = 15 * 60_000;
 // Leave time for session setup and transfer over a slow connection.
 export const LATTICE_CLIENT_TIMEOUT_MS = LATTICE_API_REQUEST_TIMEOUT_MS + 5 * 60_000;
