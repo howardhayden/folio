@@ -28,6 +28,7 @@ import {
 } from "../../app/resume/lattice/remoteProtocol.js";
 import {
   LatticePlanCapacityError,
+  balanceLongLatticePlan,
   getLatticeVerificationPriorRejection,
   getLatticeWithheldPipelineObservation,
   preflightLatticeInput,
@@ -1013,8 +1014,11 @@ export function createLatticeApiWorker({
         let providerCallLimit;
         try {
           observeLatticeAdmissionTrustedStep(admissionObservation, preflightLatticeInputImpl === preflightLatticeInput);
-          const plan = preflightLatticeInputImpl(payload.text, planningOptions);
-          providerCallLimit = latticeProviderCallLimitForPlan(plan);
+          const initialPlan = preflightLatticeInputImpl(payload.text, planningOptions);
+          providerCallLimit = latticeProviderCallLimitForPlan(initialPlan);
+          const plan = providerCallLimit > LATTICE_PROVIDER_CALL_LIMIT
+            ? balanceLongLatticePlan(initialPlan, providerCallLimit)
+            : initialPlan;
           runPrepared = runTextToLatticeImpl === runTextToLattice
             ? (options) => executeLatticePlan(plan, options)
             : (options) => runTextToLatticeImpl(payload.text, options);

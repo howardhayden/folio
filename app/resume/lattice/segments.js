@@ -643,8 +643,11 @@ export function packLatticePassages(source, passages) {
   return Object.freeze(packed);
 }
 
-export function batchLatticePassages(passages, { enforceLimit = true, fullPassages = false } = {}) {
-  const wordTarget = fullPassages ? BATCH_PASSAGE_LIMIT * PASSAGE_WORD_LIMIT : BATCH_WORD_TARGET;
+export function batchLatticePassages(passages, {
+  enforceLimit = true,
+  fullPassages = false,
+  wordTarget = fullPassages ? BATCH_PASSAGE_LIMIT * PASSAGE_WORD_LIMIT : BATCH_WORD_TARGET,
+} = {}) {
   const characterTarget = fullPassages ? BATCH_PASSAGE_LIMIT * PASSAGE_CHARACTER_LIMIT : BATCH_CHARACTER_TARGET;
   const batches = [];
   let current = [];
