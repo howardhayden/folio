@@ -7770,7 +7770,7 @@ test("typed provider failures map to exact flat public errors with a bounded 429
   const cases = [
     [new LatticeProviderError("provider_timeout", "private timeout"), 504, { error: "upstream_timeout" }],
     [new LatticeProviderError("provider_unavailable", "private network error"), 502, { error: "upstream_unavailable" }],
-    [new LatticeProviderError("provider_call_limit", "private budget"), 502, { error: "upstream_unavailable" }],
+    [new LatticeProviderError("provider_call_limit", "private budget"), 413, { error: "input_too_large" }],
     [new LatticeProviderError("provider_request_too_large", "private request"), 502, { error: "upstream_unavailable" }],
     [new LatticeProviderError("provider_redirect", "private redirect"), 502, { error: "upstream_unavailable" }],
     [new LatticeProviderError("provider_http_error", "private 500", { status: 500 }), 502, { error: "upstream_unavailable" }],

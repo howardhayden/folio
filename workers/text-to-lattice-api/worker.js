@@ -543,8 +543,9 @@ function safeProviderResponse(error, respond = errorResponse) {
       return error.status === 429
         ? respond(429, "rate_limited", error.retryAfterSeconds)
         : respond(502, "upstream_unavailable");
-    case "provider_unavailable":
     case "provider_call_limit":
+      return respond(413, "input_too_large");
+    case "provider_unavailable":
     case "provider_request_too_large":
     case "provider_redirect":
       return respond(502, "upstream_unavailable");

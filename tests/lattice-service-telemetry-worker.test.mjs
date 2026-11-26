@@ -182,6 +182,7 @@ test("stream preadmission rejection uses original JSON and makes no pipeline cal
 test("stream errors retain existing status and bounded error semantics", async (context) => {
   for (const [error, status, body] of [
     [new LatticeProviderError("provider_timeout", "PRIVATE"), 504, { error: "upstream_timeout" }],
+    [new LatticeProviderError("provider_call_limit", "PRIVATE"), 413, { error: "input_too_large" }],
     [new LatticeProviderError("provider_http_error", "PRIVATE", { status: 402 }), 502, { error: "upstream_unavailable" }],
     [new LatticeProviderError("provider_http_error", "PRIVATE", { status: 429, retryAfterSeconds: 15 }), 429, { error: "rate_limited", retry_after_seconds: 15 }],
     [new LatticeProviderError("provider_malformed_response", "PRIVATE"), 502, { error: "malformed_upstream_response" }],
