@@ -30,7 +30,7 @@ import {
   SOURCE_SPAN_LIMIT,
   graphemeExcerpt,
 } from "../../app/resume/lattice/segments.js";
-import { LATTICE_PROVIDER_CALL_LIMIT } from "../../app/resume/lattice/remoteProtocol.js";
+import { LATTICE_LONG_JOB_POLICY, LATTICE_PROVIDER_CALL_LIMIT } from "../../app/resume/lattice/remoteProtocol.js";
 import { rememberLatticeAnalysisRetentionDowngrade } from "../../app/resume/lattice/qualificationDiagnostics.js";
 import { rememberLatticeAnalysisPassageOrigins } from "../../app/resume/lattice/analysisProvenance.js";
 import { rememberRejectedResult, stageCorrectionRequestDiagnostic } from "../../app/resume/lattice/rejectionDiagnostics.js";
@@ -460,7 +460,7 @@ export const LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL = Math.max(
   ...Object.values(LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS),
 );
 export const LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST =
-  LATTICE_PROVIDER_CALL_LIMIT * LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL;
+  LATTICE_LONG_JOB_POLICY.providerCallLimit * LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL;
 // Certification identifiers are host-generated ASCII. This conservative
 // adapter-boundary guard also covers valid fitted requests that the production
 // orchestrator does not generate, without consuming the full 520-token budget.
@@ -997,7 +997,7 @@ function withQualificationDiagnostic(
     || !LATTICE_PROVIDER_STAGES.includes(stage)
     || !Number.isSafeInteger(callOrdinal)
     || callOrdinal < 1
-    || callOrdinal > LATTICE_PROVIDER_CALL_LIMIT) {
+    || callOrdinal > LATTICE_LONG_JOB_POLICY.providerCallLimit) {
     return error;
   }
   const providerDiagnostic = PROVIDER_DIAGNOSTICS.get(error) ?? Object.freeze({
@@ -3012,6 +3012,7 @@ function messagesWithMode(factory, request, requestedMode) {
 
 export function createHuggingFaceLatticeAdapter({
   token,
+  providerCallLimit = LATTICE_PROVIDER_CALL_LIMIT,
   requestedMode = "auto",
   fetchImpl = globalThis.fetch,
   callTimeoutMs,
@@ -3032,13 +3033,16 @@ export function createHuggingFaceLatticeAdapter({
     throw new TypeError("The Lattice provider received an invalid requested mode.");
   }
 
+  if (providerCallLimit !== LATTICE_PROVIDER_CALL_LIMIT && providerCallLimit !== LATTICE_LONG_JOB_POLICY.providerCallLimit) {
+    throw new TypeError("The Lattice provider received an invalid call limit.");
+  }
   const budget = { used: 0 };
   const usage = observeQualificationUsage ? { budget, reportedCalls: 0,
     generator: { calls: 0, promptTokens: 0, completionTokens: 0 },
     verifier: { calls: 0, promptTokens: 0, completionTokens: 0 } } : null;
 
   const complete = async (stageName, request) => {
-    if (budget.used >= LATTICE_PROVIDER_CALL_LIMIT) {
+    if (budget.used >= providerCallLimit) {
       throw providerError("provider_call_limit", "The Lattice provider call budget was exhausted.");
     }
     budget.used += 1;
@@ -3149,8 +3153,8 @@ export function createHuggingFaceLatticeAdapter({
     completionCapacity() {
       return Object.freeze({
         used: budget.used,
-        limit: LATTICE_PROVIDER_CALL_LIMIT,
-        remaining: LATTICE_PROVIDER_CALL_LIMIT - budget.used,
+        limit: providerCallLimit,
+        remaining: providerCallLimit - budget.used,
       });
     },
     analyze: (request) => complete("analysis", request),

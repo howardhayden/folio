@@ -558,7 +558,10 @@ test("the production verifier preserves one setup and one canary before separate
     maximum_provider_call_timeout_ms: 300_000,
     provider_request_bytes: 1_048_576,
     provider_response_bytes: 262_144,
-    provider_calls_per_request: 32,
+    provider_calls_per_request: 48,
+    default_provider_calls_per_request: 32,
+    long_job_minimum_words: 500,
+    long_job_minimum_batches: 7,
     provider_stage_max_output_tokens: {
       analysis: 2_048,
       candidate: 800,
@@ -567,13 +570,13 @@ test("the production verifier preserves one setup and one canary before separate
       repair: 800,
     },
     maximum_requested_output_tokens_per_provider_call: 2_048,
-    maximum_requested_output_tokens_per_admitted_request: 65_536,
+    maximum_requested_output_tokens_per_admitted_request: 98_304,
     accepted_transformations_per_utc_day: 30,
     accepted_transformations_per_cooperating_ordinary_persistent_browser_cookie_jar_utc_day: 3,
-    maximum_provider_calls_from_accepted_transformations_per_utc_day: 960,
-    maximum_requested_output_tokens_from_accepted_transformations_per_utc_day: 1_966_080,
+    maximum_provider_calls_from_accepted_transformations_per_utc_day: 1440,
+    maximum_requested_output_tokens_from_accepted_transformations_per_utc_day: 2_949_120,
     maximum_requested_output_tokens_from_one_cooperating_ordinary_persistent_browser_cookie_jar_per_utc_day:
-      196_608,
+      294_912,
   });
   assert.equal(
     fixture.calls.length,

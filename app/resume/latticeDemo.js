@@ -3428,7 +3428,7 @@ export async function runTextToLattice(value, options = {}) {
   return prepareLatticeTransformation(value, { providerCallLimit: options.providerCallLimit })(options);
 }
 
-async function executeLatticePlan(preflight, options) {
+export async function executeLatticePlan(preflight, options) {
   const { source, wordCount, batches } = preflight;
   const passages = [...preflight.passages];
   adapterContract(options.adapter);

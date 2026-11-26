@@ -187,11 +187,12 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     /analysis calls have a 300-second ceiling/iu,
     /900-second (?:whole-|outer )?request/iu,
     /32 provider calls/iu,
-    /960/iu,
+    /48 provider calls/iu,
+    /1,440/iu,
     /(?:2,048-token verifier|verifier (?:stage )?maximum[^.]*2,048 tokens|verification[^.]*2,048-token)/iu,
     /520-token certifier/iu,
-    /requested-output exposure[^.]*65,536(?: requested output tokens)? per admitted request/iu,
-    /requested-output exposure[^.]*1,966,080(?: requested output tokens)? (?:global(?:ly)?|across[^.]*global)[^.]*UTC day/iu,
+    /requested-output exposure[^.]*98,304(?: requested output tokens)? per admitted request/iu,
+    /requested-output exposure[^.]*2,949,120(?: requested output tokens)? (?:global(?:ly)?|across[^.]*global)[^.]*UTC day/iu,
     /path-scoped (?:Worker )?rate limiter/iu,
     /response (?:bytes|size)/iu,
     /provider (?:quota|rate|retention|availability|cost)/iu,
@@ -632,8 +633,8 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || activeCapability?.admission?.usesIpAddress !== false
     || activeCapability?.admission?.usesBrowserFingerprint !== false
     || activeCapability?.admission?.storesSubmittedContentOrResult !== false
-    || activeCapability?.admission?.maximumProviderCallsPerAdmittedRequest !== 32
-    || activeCapability?.admission?.maximumProviderCallsFromAdmittedRequestsPerUtcDay !== 960
+    || activeCapability?.admission?.maximumProviderCallsPerAdmittedRequest !== 48
+    || activeCapability?.admission?.maximumProviderCallsFromAdmittedRequestsPerUtcDay !== 1_440
     || activeProvider?.endpoint !== "https://router.huggingface.co/v1/chat/completions"
     || activeProvider?.verificationEndpoint !== "https://router.huggingface.co/v1/chat/completions"
     || activeProvider?.verificationRequestModel !== "meta-llama/Llama-3.3-70B-Instruct:coreweave"
@@ -661,10 +662,10 @@ function validateReleaseGateProjection(data, releaseRegister) {
       repair: 800,
     })
     || activeProvider?.maximumRequestedOutputTokensPerCall !== 2_048
-    || activeProvider?.maximumRequestedOutputTokensPerAdmittedRequest !== 65_536
-    || activeProvider?.maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay !== 1_966_080
+    || activeProvider?.maximumRequestedOutputTokensPerAdmittedRequest !== 98_304
+    || activeProvider?.maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay !== 2_949_120
     || activeProvider?.maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay
-      !== 196_608
+      !== 294_912
     || activeProvider?.revisionStatus !== "provider-managed-not-byte-pinned"
     || activeProvider?.historicalByteEquivalenceEstablished !== false
     || activeCapability?.automaticRetry !== false

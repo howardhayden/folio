@@ -27,9 +27,11 @@ export function makeLongProseFixture(pick) {
       ["They", "walked", "past", "the", place, "together", "and", "set", "the", item, "on", "a", "wooden", "table"],
       ["Before", "leaving", "the", place, "the", person, "thanked", "the", other, "and", "closed", "the", "front", "door"],
     ];
-    return lines.map((words, i) => {
+    const sentences = lines.map((words, i) => {
       if (paragraph < 4) words.splice([10, 6, 10, 10][i], 0, ["quiet", "politely", "down", "gently"][i]);
       return words.join(" ") + ".";
-    }).join(" ");
+    });
+    // Four additional line boundaries exercise the long-job tier after packing.
+    return paragraph < 4 ? sentences[0] + "\n" + sentences.slice(1).join(" ") : sentences.join(" ");
   }).join("\n\n") + "\n";
 }

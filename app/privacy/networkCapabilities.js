@@ -223,9 +223,8 @@ export async function capabilityFetch(
         }),
     ...(operation === "content" ? { body } : {}),
     signal,
-    // The browser may attach only cookies whose own scope includes this exact
-    // same-origin API path. The Worker rejects every cookie except the one
-    // opaque, HttpOnly daily-limit cookie declared by this capability.
+    // The Worker discards the edge's cf_clearance cookie. Only the signed,
+    // path-scoped application cookie establishes the daily-limit identity.
     credentials: policy.credentialMode,
     redirect: "error",
     cache: "no-store",
