@@ -11,7 +11,9 @@ import {
   LATTICE_PROVENANCE_DIGEST_TIMEOUT_MS,
   LATTICE_WORD_LIMIT,
   LatticeProtocolError,
+  balanceLongLatticePlan,
   countLatticeWords,
+  executeLatticePlan,
   preflightLatticeInput,
   getLatticeWithheldPipelineObservation,
   hasOnlyBoundNonmaterialFindings,
@@ -419,6 +421,41 @@ test("long prose completes analysis, drafting, independent review and certificat
   assert.equal(certificates, 1);
   assert.ok(calls() <= 32);
   assert.equal(result.text.split("\n\n").length, 12);
+});
+
+test("long-job balancing avoids redundant analysis calls and preserves every passage through certification", async () => {
+  const lengths = [...Array(16).fill(32), ...Array(12).fill(3)];
+  const source = lengths.map((length, index) => opaqueWords(length, `p${index}w`) + ".").join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const balanced = balanceLongLatticePlan(plan, 48);
+  assert.equal(plan.batches.length, 7);
+  assert.equal(balanced.batches.length, 11);
+  assert.strictEqual(balanced.passages, plan.passages);
+  assert.deepEqual(balanced.batches.flatMap(batch => batch.passages), plan.passages);
+  assert.equal(balanced.source, source);
+  assert.ok(balanced.batches.every(batch => batch.wordCount <= 72));
+
+  async function run(work) {
+    let certificates = 0;
+    const adapter = scriptedAdapter({
+      analyze({ batch }) {
+        if (batch.wordCount > 72) throw Object.assign(new Error("Analysis output limit"), { code: "provider_output_limit" });
+      },
+      certify() { certificates += 1; },
+    });
+    const calls = () => certificates + Object.values(adapter.calls).reduce((sum, count) => sum + count, 0);
+    adapter.completionCapacity = () => ({ used: calls(), limit: 48, remaining: 48 - calls() });
+    const result = await executeLatticePlan(work, { adapter, allowClarification: false });
+    assert.equal(result.status, "translated");
+    assert.equal(result.text.split("\n\n").length, lengths.length);
+    assert.ok(certificates > 0);
+    assert.ok(calls() <= 48);
+    return calls();
+  }
+
+  const originalCalls = await run(plan);
+  const balancedCalls = await run(balanced);
+  assert.ok(balancedCalls < originalCalls);
 });
 
 test("an already feasible remote request keeps its original passages and batches", () => {

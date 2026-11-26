@@ -32,6 +32,7 @@ import {
 } from "./lattice/inputPolicy.js";
 import {
   batchLatticePassages,
+  BATCH_WORD_TARGET,
   contextPassagesForBatch,
   graphemeExcerpt,
   LATTICE_EXECUTION_BATCH_LIMIT,
@@ -352,6 +353,27 @@ export function preflightLatticeInput(value, { providerCallLimit } = {}) {
     throw new RangeError("Text to Lattice cannot safely split these direction-isolated passages.");
   }
   return Object.freeze({ source, wordCount, passages, batches });
+}
+
+// Balance dense prose and short dialogue after admission-tier selection. Each
+// new batch needs analysis, drafting and review. Reserve one correction per
+// batch and four calls for document proof before subdividing expensive groups.
+export function balanceLongLatticePlan(plan, providerCallLimit) {
+  const maximumBatches = Math.floor((providerCallLimit - FLAT_CERTIFICATION_RESERVATION) / 4);
+  let smallest = BATCH_WORD_TARGET;
+  let largest = Math.max(...plan.batches.map((batch) => batch.wordCount));
+  let batches = plan.batches;
+  while (smallest < largest) {
+    const target = Math.floor((smallest + largest) / 2);
+    const candidate = batchLatticePassages(plan.passages, { enforceLimit: false, fullPassages: true, wordTarget: target });
+    if (candidate.length <= maximumBatches) {
+      largest = target;
+      batches = candidate;
+    } else {
+      smallest = target + 1;
+    }
+  }
+  return batches === plan.batches ? plan : Object.freeze({ ...plan, batches });
 }
 
 function protocol(condition, message) {

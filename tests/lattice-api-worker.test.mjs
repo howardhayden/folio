@@ -4,7 +4,7 @@ import test from "node:test";
 import Ajv from "ajv";
 import { LATTICE_SERVICE_EVENTS_MIME } from "../app/resume/lattice/serviceTelemetry.js";
 
-import { getLatticeVerificationPriorRejection, preflightLatticeInput, runTextToLattice } from "../app/resume/latticeDemo.js";
+import { balanceLongLatticePlan, getLatticeVerificationPriorRejection, preflightLatticeInput, runTextToLattice } from "../app/resume/latticeDemo.js";
 import {
   latticeProviderCallLimitForPlan,
   LATTICE_RESULT_VERSION,
@@ -1928,7 +1928,8 @@ test("the content-free rate limiter allows, denies, and fails closed before prov
 test("688-word narrative fits the production Worker, strict provider adapters and whole-document proof", async () => {
   const source = makeLongProseFixture((choices) => choices[0]);
   const oldPlan = preflightLatticeInput(source);
-  const plan = preflightLatticeInput(source, { providerCallLimit: LATTICE_PROVIDER_CALL_LIMIT });
+  const initialPlan = preflightLatticeInput(source, { providerCallLimit: LATTICE_PROVIDER_CALL_LIMIT });
+  const plan = balanceLongLatticePlan(initialPlan, latticeProviderCallLimitForPlan(initialPlan));
   assert.equal(plan.wordCount, 688);
   assert.ok(plan.batches.length >= 7);
   assert.ok(oldPlan.batches.length * 3 > LATTICE_PROVIDER_CALL_LIMIT);
@@ -1990,7 +1991,7 @@ test("688-word narrative fits the production Worker, strict provider adapters an
   assert.equal(envelope.result.batchCount, plan.batches.length);
   assert.equal(admissions, 1);
   assert.deepEqual(counts, { analysis: plan.batches.length, draft: plan.batches.length, verification: plan.batches.length, certification: 1 });
-  assert.ok(Object.values(counts).reduce((used, count) => used + count, 0) <= LATTICE_PROVIDER_CALL_LIMIT);
+  assert.ok(Object.values(counts).reduce((used, count) => used + count, 0) <= latticeProviderCallLimitForPlan(initialPlan));
 });
 
 test("a plan too fragmented for one admission is refused before rate limit, visitor charge or provider work", async () => {
