@@ -81,7 +81,7 @@ jobs:
         name: Identify the approved Network map publication
         env:
           SELECTED: ${{ github.event_name == 'push' && github.event.before == 'cd0e45666b4d0aed3947a64d0c360f0cd3fc0949' && contains(github.event.head_commit.message, '[lattice-network-map-20261124]') }}
-          LONG_PROSE_UPDATE: ${{ github.event_name == 'push' && github.event.before == 'ed065c4456c436234ef9d42cb8993ca937e737f2' && contains(github.event.head_commit.message, '[lattice-long-prose]') }}
+          LONG_PROSE_UPDATE: ${{ github.event_name == 'push' && github.event.before == '114890286e19ee67141e39bdbe04dfb2a0e81f1b' && contains(github.event.head_commit.message, '[lattice-long-prose]') }}
         run: |
           echo "selected=$SELECTED" >> "$GITHUB_OUTPUT"
           echo "long_prose_update=$LONG_PROSE_UPDATE" >> "$GITHUB_OUTPUT"
@@ -1188,7 +1188,7 @@ jobs:
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
-      !(github.event_name == 'push' && github.event.before == 'ed065c4456c436234ef9d42cb8993ca937e737f2' && contains(github.event.head_commit.message, '[lattice-long-prose]')) &&
+      !(github.event_name == 'push' && github.event.before == '114890286e19ee67141e39bdbe04dfb2a0e81f1b' && contains(github.event.head_commit.message, '[lattice-long-prose]')) &&
       !(
         github.event_name == 'push' &&
         github.event.before == 'cd0e45666b4d0aed3947a64d0c360f0cd3fc0949' &&

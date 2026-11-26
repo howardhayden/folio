@@ -6,7 +6,7 @@ The November 23 production check accepted the original passage in 10.563 seconds
 
 The November 26 update gives requests of at least 500 words and seven planned batches up to 48 provider calls. Other requests receive 32. The Worker ignores Cloudflare’s clearance cookie and requires the signed application cookie for every admission.
 
-The [November 26 production rollout](https://github.com/howardhayden/folio/actions/runs/45897490003) translated the synthetic long document in 350 seconds. A subsequent regular Firefox submission passed cookie setup and reached verification, where it exhausted the 48-call budget. The revised planner distributes the work across smaller groups before any provider call. It preserves the original passages and leaves capacity for corrections and document certification.
+The [November 26 production rollout](https://github.com/howardhayden/folio/actions/runs/45897490003) translated the synthetic long document in 350 seconds. A subsequent regular Firefox submission passed cookie setup and reached verification, where it exhausted the 48-call budget. The revised planner distributes the work across smaller groups before any provider call. It preserves the original passages and leaves capacity for corrections and document certification. The [staged check](https://github.com/howardhayden/folio/actions/runs/45901490748) reached document certification and returned the original synthetic passage as suitable in 11 groups. Its release assertion still allowed only ten. The corrected assertion checks the minimum calls for all groups and certification against the approved 48-call budget.
 
 The November 25 update fits long prose to the 32-call limit before admission. The Worker allows 15 minutes and the browser waits up to 20 minutes, including setup and delivery. A source that exceeds the planning budget can be split at a paragraph or sentence. A lost connection ends the request and requires an explicit new submission. [The first staged long-input check](https://github.com/howardhayden/folio/actions/runs/45561028682) reported an analysis timeout after 305 seconds. The previous version continued serving. The revised analysis limit is five minutes per call inside the same 15-minute request deadline. [The next check](https://github.com/howardhayden/folio/actions/runs/45563307328) lost its connection during analysis after 245 seconds. The visitor stream now sends one JSON whitespace byte every 15 seconds while writable, so a quiet model phase can keep the connection active. Only provider progress changes the displayed phase.
 
@@ -46,7 +46,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `69c6166ca9e2af2efa5b6304bb23f339222cc60dbc89e279a831217e712f687b`
+**Qualified source-set SHA-256:** `ee6937bcd235257150c77501ea6568d9fd161fc95612495448d8f4d83b7962eb`
 
 **Artifact-set projection SHA-256:** `0fe378b291e78249d0e030d9a36b278229be9c685988855d42bab2a98f0809ae`
 
@@ -80,7 +80,7 @@ These are the register’s current capability values, including the exact reques
 
 The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Separate regression tests cover long-job selection, the 32- and 48-call limits, and clearance-cookie handling in setup and admission. Promotion requires an accepted synthetic long document at zero default candidate traffic, followed by the ordinary production check. Only aggregate results are recorded.
 
-The current fingerprint is `69c6166ca9e2af2efa5b6304bb23f339222cc60dbc89e279a831217e712f687b`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov26-balanced-long-job-source-digests.json) covers all 267 paths. It lists 35 differences and contains file names and hashes.
+The current fingerprint is `ee6937bcd235257150c77501ea6568d9fd161fc95612495448d8f4d83b7962eb`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov26-long-job-qualification-source-digests.json) covers all 267 paths. It lists 35 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 
