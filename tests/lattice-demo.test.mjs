@@ -458,6 +458,14 @@ test("long-job balancing avoids redundant analysis calls and preserves every pas
   assert.ok(balancedCalls < originalCalls);
 });
 
+test("an ordinary final partial group alone adds no analysis, drafting or review calls to a long job", () => {
+  const lengths = [...Array(24).fill(26), ...Array(4).fill(2)];
+  const source = lengths.map((length, index) => opaqueWords(length, `p${index}w`) + ".").join("\n\n");
+  const initial = preflightLatticeInput(source, { providerCallLimit: 32 });
+  assert.deepEqual(initial.batches.map(batch => batch.wordCount), [104, 104, 104, 104, 104, 104, 8]);
+  assert.strictEqual(balanceLongLatticePlan(initial, 48), initial);
+});
+
 test("an already feasible remote request keeps its original passages and batches", () => {
   const source = "Meet at the west entrance. Bring the visitor notebook.\nReturn it to the desk.";
   assert.deepEqual(preflightLatticeInput(source, { providerCallLimit: 32 }), preflightLatticeInput(source));

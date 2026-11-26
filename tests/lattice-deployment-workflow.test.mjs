@@ -2076,7 +2076,7 @@ test("the approved Network map publication builds Pages without starting a servi
 test("long-prose update keeps the active release on build, model or publication failure", async () => {
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
   const context = workflowGuardContext({ event: "push", phase: "qualified", results: { build: "failure" } });
-  context.github.event.before = "114890286e19ee67141e39bdbe04dfb2a0e81f1b";
+  context.github.event.before = "e521306ed7ed4855735a6c94c4afc90ba85771ac";
   context.github.event.head_commit.message = "Fit long prose [lattice-long-prose]";
   for (const outcome of ["success", "failure"]) {
     context.needs["publication-boundary"].result = outcome;

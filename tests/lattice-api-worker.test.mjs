@@ -1930,6 +1930,7 @@ test("688-word narrative fits the production Worker, strict provider adapters an
   const oldPlan = preflightLatticeInput(source);
   const initialPlan = preflightLatticeInput(source, { providerCallLimit: LATTICE_PROVIDER_CALL_LIMIT });
   const plan = balanceLongLatticePlan(initialPlan, latticeProviderCallLimitForPlan(initialPlan));
+  assert.strictEqual(plan, initialPlan);
   assert.equal(plan.wordCount, 688);
   assert.ok(plan.batches.length >= 7);
   assert.ok(oldPlan.batches.length * 3 > LATTICE_PROVIDER_CALL_LIMIT);
