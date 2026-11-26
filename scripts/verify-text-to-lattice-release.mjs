@@ -913,7 +913,7 @@ const sourceCarryCapture = Object.freeze({
   evidenceId: "ttl-browser-20261123T143941Z-a495af12",
   evidenceSha256: "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
   fileDigestsSha256: "a3c557dcec1563f2f0023cfe39d89d470e77777059fb25414ff5714b2e18280f",
-  proofPath: "docs/release-evidence/text-to-lattice/nov26-balanced-long-job-source-digests.json",
+  proofPath: "docs/release-evidence/text-to-lattice/nov26-long-job-qualification-source-digests.json",
 });
 const sourceCarryEditorialPage = Object.freeze({
   path: "app/projects/lattice/text-to-lattice/page.tsx",
@@ -921,12 +921,12 @@ const sourceCarryEditorialPage = Object.freeze({
   afterSha256: "402159cf3350ed98b1f5227a58b42a7520c06c6d9e49cf4e1be7421d714dfbe9",
 });
 const approvedPublicationFiles = Object.freeze({
-  ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "d560063769f595fd3bbe5459ae55e7e9e7dfc18ac934e3e6e3aa37b85694a2f7" },
+  ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "21c357526daa17901bb984260e80c0c637f7af28fb1fece6f0d2262df9d1aef8" },
   "app/content/projectDocuments.js": { before: "261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251", after: "a7e92316b513757b6a19ece0fbc2fd4390e08d3c8766edc146c61184e4d21ca3" },
   "app/projects/[slug]/page.tsx": { before: "d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62", after: "43ab6d037e0c9eb5609ce5c17b0a4bbfdbd6a58689fc478f5b3b64f5464d268a" },
   "app/semantic/portfolio.js": { before: "7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6", after: "8506fd4f7d49f5b6ab672b5ba00265c39774c4e71ff035fee70beaa82462380c" },
   "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "8279fb192f914a8ceaba074a65b75cfe807c710967d9265754ab7f120724efee" },
-  "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "78d4a1381917ea91f7509535faf924ca4d36b337107fb29afb4dabdc192da0a7" },
+  "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "a9618541ca28b7d6870456d12fa9ea04782f6eae37edab8dcabfd22c0df54770" },
   "app/resume/ProjectDescriptionDisclosure.tsx": { before: "5e75a6ab95b261ea2ff77c5012998f618126de1c59456acde2310b663b174e89", after: "cef3f61fa66e2ceeb91cb61f8d236751c9d6f2e4688062bb496741110541d832" },
   "app/resume/ResumeProjects.tsx": { before: "42b88aa9be93601a305f266f2948722f401dc17d712293fee6e6ea78bffa7db4", after: "55cad4a74e9edee07989f7c15d4939570d7c1e4f0a67503f79ce4eafe896958d" },
   "app/globals.css": { before: "c92afb6efeb29bdbb96462810cc458137e9ced07d89aab7023f07f701c55663f", after: "cefefec324c8ad824e125be7d465ce9ebbf3e645bc95e5a8754cb84de742f7b1" },
@@ -939,11 +939,11 @@ const approvedPublicationFiles = Object.freeze({
   "app/resume/latticeDemo.js": { before: "fec23b788e1bb970590a38d7046071ba90d62d268ff1cab4105dadaa84e50639", after: "65d3cf25e4c9aad34f242de4a021c8c6d3a3e29ffd2469f70fdac17eef302998" },
   "scripts/read-text-to-lattice-active-version.mjs": { before: "1063485afc31efd16123f80f585210c1ae0c9c4e7103cbe7c236e019f73a0155", after: "2f43abcca26e8450d96f0beef70f291cd6dd3cfa5024928a6943f1ea12637f08" },
   "scripts/text-to-lattice-production-canary.mjs": { before: "fb5ca18a973ad1a6d1eead16535a0c6c4cea8852b72dbd53764e20f0c2f4efa4", after: "270ba635a44916756a1154bfa498ef6432b489de8392fe1bf3ead9a75677293d" },
-  "scripts/verify-text-to-lattice-api-production.mjs": { before: "3c3d1803cbc4f610f1da6a5f571d165782498a3056aea07fb2ca44a6c69f8b90", after: "ef57f148ccfe5ef69f0e1d0b97848c6781f1aa9b7413392aec780068e3405885" },
+  "scripts/verify-text-to-lattice-api-production.mjs": { before: "3c3d1803cbc4f610f1da6a5f571d165782498a3056aea07fb2ca44a6c69f8b90", after: "096d2c71763810ec0ef6193447582ce84ee723a56a4490fd095de91d704cc092" },
   "tests/lattice-api-worker.test.mjs": { before: "460458b7f94de503c46d150da4712ccaef5ed757578aee2ae7d2dca323c2fb29", after: "adcbf178900554b9469996d0ee09bcd4cdf8ed40881db3214fb13eb078fcbe18" },
   "tests/lattice-demo.test.mjs": { before: "f02129d9939c76903310fae367146b85a5f7b62da55dd421c1a2d4229f5ed201", after: "1dd4109c2b013534835c5b2f6121748f9d6fc415f7dd7842f04726144df97d2e" },
   "tests/lattice-network-capability.test.mjs": { before: "81b667a111103366cad61dae3486a69e3865ceb39b5ab1026319dfe61e39cab6", after: "754125cdf3d408ea9e03b12d72314787cbb63b940d5898ffc07bc1a95c58d82b" },
-  "tests/lattice-production-api-verifier.test.mjs": { before: "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce", after: "4f44178fdfef46e1a4a8a049ab4658b8b6d5d5040e02dba824bd86ddc2296d7f" },
+  "tests/lattice-production-api-verifier.test.mjs": { before: "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce", after: "d4c4d1460b6b8b329d2fffba017c7b698da1f9a55074969708bd83a5fcaa1768" },
   "tests/lattice-service-telemetry-worker.test.mjs": { before: "0d03949ccd4cdda0f5f6bd16ade8c526fd13c599048d91230a556588ecdc1aa4", after: "5aadb894a43bb09644144a295579031fd0c7328cc770f549c58623e744d1e6e7" },
   "workers/package-lock.json": { before: "74684a6c780f38e5ea646ef6c29329be5541d05f23de1f65f64f050ea21ff96a", after: "494d6ea38fd6e7989673cf729c6792d7f4acbc1876bcb76b97c0a8c7c711eb5d" },
   "workers/package.json": { before: "7fa9a406742ff6a67d0565ea51e5a845384f1e11fa590ed46906ed5b186838bc", after: "f52444513091bbd4399396dbf8c3adee027b094c6666923f3acb042522ae9d6f" },

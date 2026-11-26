@@ -3092,7 +3092,7 @@ test("the staged long-prose check retains only a terminal status, identity, coun
   const { verifyLongProseCandidate } = await import("../scripts/verify-text-to-lattice-api-production.mjs");
   const version = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   let contents = 0;
-  const check = (accept) => verifyLongProseCandidate(version, async (_url, init) => {
+  const check = (accept, batchCount = 11) => verifyLongProseCandidate(version, async (_url, init) => {
     assert.equal(init.headers.get("Cloudflare-Workers-Version-Overrides"), 'hahdev-text-to-lattice-api="' + version + '"');
     assert.equal(init.headers.get("origin"), "https://hah.dev");
     if (!init.body) {
@@ -3106,7 +3106,7 @@ test("the staged long-prose check retains only a terminal status, identity, coun
     assert.ok(init.headers.get("cookie"));
     const { text } = JSON.parse(init.body);
     const r = { ...validResult(), text, status: "conformant-for-context", wordCount: 688,
-      passageCount: 25, batchCount: 7, revisedPassageCount: 0, retainedPassageCount: 25 };
+      passageCount: 25, batchCount, revisedPassageCount: 0, retainedPassageCount: 25 };
     assert.equal(init.headers.get("accept"), LATTICE_SERVICE_EVENTS_MIME);
     const frames = [
       { sequence: 1, type: "phase", phase: "atomizing" },
@@ -3120,7 +3120,11 @@ test("the staged long-prose check retains only a terminal status, identity, coun
   assert.deepEqual(Object.keys(receipt).sort(), ["batches", "candidateVersion", "elapsedMs", "inputWords", "status"]);
   assert.equal(receipt.inputWords, 688);
   await assert.rejects(check(false), /ended with unable-to-attempt/u);
-  assert.equal(contents, 2);
+  assert.equal(receipt.batches, 11);
+  assert.equal((await check(true, 15)).batches, 15);
+  await assert.rejects(check(true, 16), /16 groups/u);
+  await assert.rejects(check(true, 6), /6 groups/u);
+  assert.equal(contents, 5);
 });
 
 test("the Node qualification transport allows the entire client deadline and disposes on failure", async (t) => {

@@ -1991,8 +1991,12 @@ export async function verifyLongProseCandidate(versionId, fetchImpl = fetch) {
   }
   const r = result;
   const elapsedMs = elapsedMilliseconds(started, clock, label);
+  // Every completed group needs analysis, drafting and review. This multiline
+  // fixture also needs at least one independent document certification.
+  const minimumProviderCalls = 3 * r.batchCount + 1;
   if (!CERTIFICATION_CANARY_STATUS_SET.has(r.status) || r.findings.length || r.wordCount !== 688
-    || r.batchCount < LATTICE_LONG_JOB_POLICY.minimumBatches || r.batchCount > 10 || r.passageCount >= 48 || r.verificationPasses < 1
+    || r.batchCount < LATTICE_LONG_JOB_POLICY.minimumBatches || minimumProviderCalls > LATTICE_LONG_JOB_POLICY.providerCallLimit
+    || r.passageCount >= 48 || r.verificationPasses < 1
     || r.retainedPassageCount + r.revisedPassageCount !== r.passageCount
     || (r.status === "translated" ? r.revisedPassageCount < 1 || !materiallyDifferent(source, r.text)
       : r.revisedPassageCount !== 0 || source !== r.text)
