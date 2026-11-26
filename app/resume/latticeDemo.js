@@ -361,7 +361,12 @@ export function preflightLatticeInput(value, { providerCallLimit } = {}) {
 export function balanceLongLatticePlan(plan, providerCallLimit) {
   const maximumBatches = Math.floor((providerCallLimit - FLAT_CERTIFICATION_RESERVATION) / 4);
   let smallest = BATCH_WORD_TARGET;
-  let largest = Math.max(...plan.batches.map((batch) => batch.wordCount));
+  const batchWords = plan.batches.map((batch) => batch.wordCount);
+  let largest = Math.max(...batchWords);
+  // A trailing partial group is normal. Add work only when an earlier group
+  // differs from the heaviest by at least one ordinary group of words.
+  const lightestInterior = Math.min(...batchWords.slice(0, -1));
+  if (largest - lightestInterior < BATCH_WORD_TARGET) return plan;
   let batches = plan.batches;
   while (smallest < largest) {
     const target = Math.floor((smallest + largest) / 2);
