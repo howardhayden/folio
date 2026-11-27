@@ -1946,17 +1946,17 @@ test("688-word narrative fits the production Worker, strict provider adapters an
     async fetchImpl(_url, init) {
       const body = JSON.parse(init.body);
       const payload = inertModelPayload(body);
-      if (isAnalysisBody(body)) {
+      if (body.response_format?.json_schema?.name === "lattice_analysis_coverage_v1") {
         counts.analysis += 1;
         const p = payload.passages.map(([, spans, literals]) => {
           const evidence = [...spans, ...literals];
           const atoms = [];
           for (let i = 0; i < evidence.length; i += 3) {
-            atoms.push([atoms.length % 3, 0, 1, evidence.slice(i, i + 3).map((_, offset) => i + offset)]);
+            atoms.push([atoms.length % 3, 0, 1, []]);
           }
           const masks = Array.from({ length: 5 }, (_, i) => evidence.map((_, position) =>
             (i === 4 || position === i % evidence.length ? "1" : "0")).join(""));
-          return [0, 1, atoms, masks];
+          return [0, 1, atoms, masks, evidence.map((_, position) => Math.floor(position / 3))];
         });
         return successfulProviderResponse({ d: 2, p, l: [] });
       }
@@ -5579,6 +5579,67 @@ test("analysis evidence rejection codes bind only to the actual fitted rejecting
   }).analyze(request);
   assert.deepEqual(rejectedResultDiagnostic(malformed), { boundary: "wire-decoder", category: "other", rule: "unknown" });
   assert.equal(malformed[LATTICE_FITTED_ANALYSIS_CONTEXT].decoderFailureCategory, "response-shape");
+});
+
+test("long analysis requires model assignments for every record and preserves overlapping evidence and links", async () => {
+  const base = minimalAnalysisRequest(LATTICE_PRODUCTION_CANARY_TEXT);
+  const request = { ...base, sourceSpans: latticeSourceSpansForBatch(base.batch), analysisAtomLimit: 12 };
+  const count = request.sourceSpans[0].spans.length;
+  assert.equal(count, 3);
+  const masks = Array(5).fill("000");
+  const atoms = (positions) => positions.map((spanIds, index) => [index, 0, 1, spanIds]);
+  const wire = (passage, links = []) => ({ d: 2, p: [passage], l: links });
+  async function analyze(providerCallLimit, value, current = request) {
+    let format;
+    const result = await createHuggingFaceLatticeAdapter({
+      token: "fixture", providerCallLimit,
+      fetchImpl: async (_url, init) => {
+        format = JSON.parse(init.body).response_format.json_schema;
+        return successfulProviderResponse(value);
+      },
+    }).analyze(current);
+    return { result, format };
+  }
+
+  // Exhaust all two-atom graphs on three records, including shared records.
+  const subsets = Array.from({ length: 7 }, (_, mask) => [0, 1, 2].filter(i => (mask + 1) & (1 << i)));
+  for (const left of subsets) {
+    for (const right of subsets) {
+      if (new Set([...left, ...right]).size !== count) continue;
+      const owners = [0, 1, 2].map(i => left.includes(i) ? 0 : 1);
+      const additional = [[], right.filter(i => left.includes(i))];
+      const links = [[0, 0, 1]];
+      const previous = await analyze(32, wire([0, 0, atoms([left, right]), masks], links));
+      const current = await analyze(48, wire([0, 0, atoms(additional), masks, owners], links));
+      assert.equal(current.format.name, "lattice_analysis_coverage_v1");
+      assert.equal(current.format.strict, true);
+      assert.equal(previous.format.name, ANALYSIS_TOOL_NAME);
+      assert.deepEqual(current.result, previous.result);
+      assert.equal(current.result.passages[0].atoms.length, 2);
+    }
+  }
+  const twoAtoms = atoms([[], []]);
+  for (const [passage, rule] of [
+    [[0, 0, twoAtoms, masks, [0, 1]], "A03"],
+    [[0, 0, twoAtoms, masks, [0, 1, 1, 1]], "A03"],
+    [[0, 0, twoAtoms, masks, [0, 2, 0]], "A02R"],
+    [[0, 0, twoAtoms, masks, [0, -1, 0]], "A02R"],
+    [[0, 0, twoAtoms, masks, [0, 0.5, 1]], "A02I"],
+    [[0, 0, twoAtoms, masks, [0, 0, 0]], "A02M"],
+    [[0, 0, atoms([[3], []]), masks, [0, 1, 1]], "A02R"],
+  ]) {
+    const { result } = await analyze(48, wire(passage));
+    assert.equal(rejectedResultDiagnostic(result)?.rule, rule);
+    assert.deepEqual(result, {});
+  }
+  const oldShape = [0, 0, atoms([[0, 1], [2]]), masks];
+  assert.deepEqual((await analyze(48, wire(oldShape))).result, {});
+  assert.deepEqual((await analyze(32, wire([...oldShape, [0, 0, 1]]))).result, {});
+  const originalSpans = request.sourceSpans[0];
+  const fourth = { ...originalSpans.spans[2], id: originalSpans.spans[2].id + "-extra" };
+  const fourRecords = { ...request, sourceSpans: [{ ...originalSpans, spans: [...originalSpans.spans, fourth] }] };
+  const tooMany = wire([0, 0, atoms([[3], []]), Array(5).fill("0000"), [0, 0, 0, 1]]);
+  assert.equal(rejectedResultDiagnostic((await analyze(48, tooMany, fourRecords)).result)?.rule, "A02X");
 });
 
 test("reanalysis evidence diagnostics preserve bounded correction, structural withholding and marked privacy", async (context) => {
