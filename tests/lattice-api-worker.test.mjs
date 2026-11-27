@@ -242,7 +242,7 @@ function apiRequest(body = validPayload, {
   method = "POST",
   origin = LATTICE_API_ORIGIN,
   accept = "application/json",
-  processingNotice = "qwen-parasail-coreweave-v1",
+  processingNotice = "qwen-deepinfra-coreweave-v1",
   contentType = "application/json",
   headers = {},
   visitorCookie = TEST_VISITOR_COOKIE_VALUE,
@@ -3002,7 +3002,7 @@ test("compact repair grounds serialized feedback IDs in host source without chan
       assert.deepEqual(inertModelPayload(body), compact, "the actual hosted repair adapter uses the corrected projection");
       assert.match(body.messages[0].content, /not verbatim output requirements/u);
       assert.equal(body.max_tokens, 800);
-      assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail");
+      assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
       assert.deepEqual(body.response_format, { type: "json_object" });
     }
   }
@@ -3075,7 +3075,7 @@ test("compact rewrite checklist follows serialized passage IDs and ignores suppl
       new Set([base.batch.passages[0].id, base.batch.passages[2].id]));
     assert.match(body.messages[0].content, /complete zero-based checklist of source groups whose current plan requires rewrite/u);
     assert.match(body.messages[0].content, /never add or remove meaning to force a difference/u);
-    assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail");
+    assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
     assert.equal(body.max_tokens, 800);
     assert.deepEqual(body.response_format, { type: "json_object" });
   }
@@ -3636,7 +3636,7 @@ test("the adapter uses strict JSON Schema analysis and certification", async () 
   ]);
   assert.equal(
     LATTICE_REMOTE_MODELS.generator,
-    "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
+    "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
   );
   assert.equal(
     LATTICE_REMOTE_MODELS.verifier,
@@ -5618,6 +5618,12 @@ test("qualifying long analysis anchors source coverage while preserving shared e
   }
   assert.match(long.guide, /fitted evidence anchors/u);
   assert.doesNotMatch(ordinary.guide, /fitted evidence anchors/u);
+  assert.match(long.guide, /semantic-coverage, causal-relational-fidelity, accessible-clarity, no-obscuring-ornament/u);
+  for (const [layer, criterion] of Object.entries(LATTICE_CONFORMANCE_CRITERIA)) {
+    if (layer !== "universal") assert.ok(long.guide.includes(`${layer}=${criterion[0]}`));
+  }
+  assert.match(long.guide, /wording needs work on any criterion or evidence is missing, choose rewrite/u);
+  assert.doesNotMatch(ordinary.guide, /The first four mask positions in order/u);
   assert.equal(ordinary.schema.prefixItems, undefined);
   const tight = await analyze(48, [[0, 1], [2]], 2);
   assert.equal(tight.schema.prefixItems, undefined);
@@ -11783,6 +11789,7 @@ test("register-fit rejection context survives existing protocol correction and s
 test("a disclosed generator is fixed for a whole request, including provider failure", async () => {
   for (const [notice, selected] of [
     [null, "deepinfra"],
+    ["qwen-deepinfra-coreweave-v1", "deepinfra"],
     ["qwen-parasail-coreweave-v1", "parasail"],
     ["unrecognized-notice", null],
   ]) {

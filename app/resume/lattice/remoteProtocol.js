@@ -1,7 +1,8 @@
 export const LATTICE_API_PATH = "/api/lattice";
 export const LATTICE_API_SCHEMA_VERSION = 1;
 export const LATTICE_PROCESSING_NOTICE_HEADER = "X-Lattice-Processing-Notice";
-export const LATTICE_PROCESSING_NOTICE = "qwen-parasail-coreweave-v1";
+export const LATTICE_PROCESSING_NOTICE = "qwen-deepinfra-coreweave-v1";
+export const LATTICE_PARASAIL_PROCESSING_NOTICE = "qwen-parasail-coreweave-v1";
 export const LATTICE_VISITOR_SESSION_ACCEPT =
   "application/vnd.hah.text-to-lattice-visitor-session.v1+json";
 export const LATTICE_REQUEST_MODES = Object.freeze(["auto", "operative", "experiential"]);

@@ -21,6 +21,7 @@ import {
   LATTICE_API_PATH,
   LATTICE_API_REQUEST_TIMEOUT_MS,
   LATTICE_API_SCHEMA_VERSION,
+  LATTICE_PARASAIL_PROCESSING_NOTICE,
   LATTICE_PROCESSING_NOTICE,
   LATTICE_PROCESSING_NOTICE_HEADER,
   LATTICE_VISITOR_SESSION_ACCEPT,
@@ -875,7 +876,8 @@ export function createLatticeApiWorker({
         return errorResponse(403, "invalid_request");
       }
       const processingNotice = request.headers.get(LATTICE_PROCESSING_NOTICE_HEADER);
-      if (processingNotice !== null && processingNotice !== LATTICE_PROCESSING_NOTICE) {
+      if (processingNotice !== null && processingNotice !== LATTICE_PROCESSING_NOTICE
+        && processingNotice !== LATTICE_PARASAIL_PROCESSING_NOTICE) {
         return errorResponse(400, "invalid_request");
       }
       const isVisitorSessionSetup = request.headers.get("accept") === LATTICE_VISITOR_SESSION_ACCEPT;
@@ -1080,8 +1082,8 @@ export function createLatticeApiWorker({
         const transform = async (onProgress) => {
           const adapterOptions = {
             token: env.HF_TOKEN,
-            // A tab opened before the backup disclosure authorized only the standard generator.
-            useStandardGenerator: processingNotice === null,
+            // Keep an already-open tab on the route disclosed when it loaded.
+            useParasailGenerator: processingNotice === LATTICE_PARASAIL_PROCESSING_NOTICE,
             providerCallLimit,
             requestedMode: payload.requested_mode,
             fetchImpl,

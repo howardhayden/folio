@@ -19,13 +19,13 @@ export const LATTICE_QUALIFICATION_USAGE_EVIDENCE_BASENAME = "qualification-usag
 export const LATTICE_QUALIFICATION_CATALOG = Object.freeze({
   source_url: "https://router.huggingface.co/v1/models",
   observed_on: "2026-11-27",
-  source_sha256: "e460c7cb0153269d8c585989bba014f667db013165ac7fe323c41a4645e06f3c",
+  source_sha256: "426251e7a9de6b0c5bc69c779b3d199ee5fc02e5260dd33a7b9350bb391abf06",
   unit: "USD-per-million-tokens",
   unit_documentation_url: "https://huggingface.co/docs/inference-providers/en/hub-api",
   generator: Object.freeze({
-    model: "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
-    input_rate: "0.14",
-    output_rate: "0.80",
+    model: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
+    input_rate: "0.09",
+    output_rate: "0.55",
   }),
   verifier: Object.freeze({
     model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",

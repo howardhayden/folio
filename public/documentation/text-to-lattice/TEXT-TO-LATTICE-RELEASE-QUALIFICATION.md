@@ -4,9 +4,9 @@ Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave
 
 The November 23 production check accepted the original passage in 10.563 seconds. The protected Pages publication delivered that build. [Service check](https://github.com/howardhayden/folio/actions/runs/45255468630) · [Publication receipt](https://github.com/howardhayden/folio/actions/runs/45259201772) · [Evidence by claim](https://hah.dev/documentation/text-to-lattice/evidence.html)
 
-The November 27 production smoke passed on the Parasail backup. In regular Firefox, the full 697-word request reached regeneration and spent all 48 calls before it could return a result. Eleven calls rebuilt analysis after independent review. The previous Worker resumed all traffic. [Production smoke](https://github.com/howardhayden/folio/actions/runs/45995827362) · [Firefox result](https://github.com/howardhayden/folio/pull/265)
+The November 27 long-job planner completed the first independent review of 697 words in regular Firefox in 21 provider calls. The Parasail backup returned HTTP 429 on call 28 during reanalysis, and the previous Worker resumed all traffic. The standard DeepInfra generator is available again. The planner now names the five criteria the generator must substantiate to retain a passage. The full Firefox request decides whether this correction is ready. [Production smoke](https://github.com/howardhayden/folio/actions/runs/46035145010) · [Firefox result](https://github.com/howardhayden/folio/pull/266)
 
-The next planner reuses a source graph when the reviewer accounts for every atom and the remaining defects concern writing register or retention. It gives the new draft its own revision, obtains a fresh independent review and requires whole-document certification. A heavy job keeps its original groups when extra splits would consume the repair budget. The complete passage in regular Firefox decides acceptance.
+An already-open tab with the Parasail disclosure keeps Parasail for its entire request. New tabs use DeepInfra for generation and CoreWeave for independent review and certification.
 
 The November 26 update gives requests of at least 500 words and seven planned batches up to 48 provider calls. Other requests receive 32. The Worker ignores Cloudflare’s clearance cookie and requires the signed application cookie for every admission.
 
@@ -56,9 +56,9 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `a27d384e2f81dd2db2503990b85a952a3bbd3348a535adb95fe47767c42e19ec`
+**Qualified source-set SHA-256:** `cc3b139aff4b109fbc6e3c441c1b6c7f0fad8aea79d7f9cd8321de66d9170ffc`
 
-**Artifact-set projection SHA-256:** `526550f355760796203153b2039d5a56d0e630061a227cf4c35bdd3a65893071`
+**Artifact-set projection SHA-256:** `ad448467dd7e6b73fa0d4da53d2a81871c01483b39db3fb02624b9bc3d067ce1`
 
 | Gate | Status | Marginal value |
 | --- | --- | --- |
@@ -80,17 +80,17 @@ Under the same origin-wide browser Web Lock, a bodyless same-origin `POST /api/l
 These are the register’s current capability values, including the exact request schema, selected model identifiers, server-only `HF_TOKEN` and `VISITOR_COOKIE_SECRET` binding names, `__Secure-hah-lattice-api-visitor` cookie boundary, provider timeouts and output limits. Secret values and cookie values are not evidence fields.
 
 - The qualified service accepts POST requests at `/api/lattice`, with schema version 1 and fields `text`, `requested_mode` and `schema_version`. Available modes are `auto`, `operative` and `experiential`.
-- Both stages use https://router.huggingface.co/v1/chat/completions. The selected generation model is `Qwen/Qwen3-235B-A22B-Instruct-2507:parasail`. Earlier disclosures retain `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`. Review and certification use `meta-llama/Llama-3.3-70B-Instruct:coreweave`. The runtime revision is `provider-managed-not-byte-pinned`.
+- Both stages use https://router.huggingface.co/v1/chat/completions. The generation model is `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`. Review and certification use `meta-llama/Llama-3.3-70B-Instruct:coreweave`. The runtime revision is `provider-managed-not-byte-pinned`.
 - The Worker has 15 minutes per request. The browser allows 20 minutes from submission through receipt of the complete result. Stage deadlines are 300,000 ms for analysis, 180,000 ms for verification and 120,000 ms for drafting, repair and certification.
 - Requested output tokens per call are 2,048 for analysis and verification, 800 for drafting and repair, and 520 for certification. At the long-job ceiling, the maximum requested output is 98,304 tokens per admission, 294,912 per cooperating cookie jar per UTC day and 2,949,120 globally per UTC day.
 - Application handling is recorded as “no application storage, raw-content logs, cache, queue, or analytics for source, prompts, candidates, raw provider bodies, or results”.
-- Hugging Face, OpenRouter, Parasail and CoreWeave process submitted text after confirmation. Parasail keeps serverless inputs and outputs through delivery and may retain masked operational metadata. Its terms exclude using that content to train its models. DeepInfra, the standard generator, describes deletion of ordinary inputs and outputs after inference. Its terms allow temporary in-memory caching, operational metadata, and legal or elected-feature exceptions. With written authorization, DeepInfra may retain data to resolve a support issue. It deletes that data within 30 days after resolving the issue. OpenRouter can retain metadata, categorize prompts and retain content for safety or legal reasons. Its settings for the Hugging Face route are unknown. CoreWeave describes zero retention by default. Tracing settings for this route are unknown.
+- Hugging Face, OpenRouter, DeepInfra and CoreWeave process submitted text after confirmation. DeepInfra describes deletion of ordinary inputs and outputs after inference. Its terms allow temporary in-memory caching, operational metadata, and legal or elected-feature exceptions. With written authorization, DeepInfra may retain data to resolve a support issue. It deletes that data within 30 days after resolving the issue. OpenRouter can retain metadata, categorize prompts and retain content for safety or legal reasons. Its settings for the Hugging Face route are unknown. CoreWeave describes zero retention by default. Tracing settings for this route are unknown.
 
 ### Current-to-captured source comparison
 
 The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Separate regression tests cover long-job selection, the 32- and 48-call limits, and clearance-cookie handling in setup and admission. The workflow stages the candidate at zero percent, then switches traffic to it for the ordinary production check. The full passage in regular Firefox decides long-job acceptance. Consecutive failures trigger restoration of the preceding live Worker. Only aggregate results are recorded.
 
-The current fingerprint is `a27d384e2f81dd2db2503990b85a952a3bbd3348a535adb95fe47767c42e19ec`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov27-reviewed-graph-source-digests.json) covers all 267 paths. It lists 49 differences and contains file names and hashes.
+The current fingerprint is `cc3b139aff4b109fbc6e3c441c1b6c7f0fad8aea79d7f9cd8321de66d9170ffc`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov27-standard-planning-source-digests.json) covers all 267 paths. It lists 42 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 
