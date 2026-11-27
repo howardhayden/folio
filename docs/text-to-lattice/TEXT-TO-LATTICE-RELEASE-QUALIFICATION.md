@@ -4,7 +4,7 @@ Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave
 
 The November 23 production check accepted the original passage in 10.563 seconds. The protected Pages publication delivered that build. [Service check](https://github.com/howardhayden/folio/actions/runs/45255468630) · [Publication receipt](https://github.com/howardhayden/folio/actions/runs/45259201772) · [Evidence by claim](https://hah.dev/documentation/text-to-lattice/evidence.html)
 
-The full Firefox request completed both review rounds in 45 of 48 calls. Three of nine groups passed. Some drafts lacked complete meaning-unit claims, and one group twice returned invalid relationships. The correction gives drafts shorter keys for their claims and bounds a relationship correction to the units the analyzer actually emitted. A visible, independently checked result in regular Firefox decides readiness. [Production smoke](https://github.com/howardhayden/folio/actions/runs/46047918327) · [Firefox result](https://github.com/howardhayden/folio/pull/270)
+The latest full-length Firefox request used 41 of 48 calls. Six of nine groups passed. A changed question and incomplete preservation of meaning kept the result from the visitor. The stable Worker resumed all traffic. The updated planner separates editable attributions from fixed quotations, carries reviewed wording through local repairs and supplies the original evidence for a missing meaning unit. The full passage in regular Firefox decides acceptance. [Production check](https://github.com/howardhayden/folio/actions/runs/46051516878) · [Firefox result](https://github.com/howardhayden/folio/pull/271)
 
 An already-open tab with the Parasail disclosure keeps Parasail for its entire request. New tabs use DeepInfra for generation and CoreWeave for independent review and certification.
 
@@ -56,7 +56,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `5e0294b0dde914d9507da242227eaf65fbfe37c6c0651c8153df8a911a7bece1`
+**Qualified source-set SHA-256:** `3bb6dcf8fa4a143ea047ec6f573f2c655259a79880ebacbfa4ddc067ce73229d`
 
 **Artifact-set projection SHA-256:** `ad448467dd7e6b73fa0d4da53d2a81871c01483b39db3fb02624b9bc3d067ce1`
 
@@ -90,7 +90,7 @@ These are the register’s current capability values, including the exact reques
 
 The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Separate regression tests cover long-job selection, the 32- and 48-call limits, and clearance-cookie handling in setup and admission. The workflow stages the candidate at zero percent, then switches traffic to it for the ordinary production check. The full passage in regular Firefox decides long-job acceptance. Consecutive failures trigger restoration of the preceding live Worker. Only aggregate results are recorded.
 
-The current fingerprint is `5e0294b0dde914d9507da242227eaf65fbfe37c6c0651c8153df8a911a7bece1`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov27-claim-reference-source-digests.json) covers all 267 paths. It lists 43 differences and contains file names and hashes.
+The current fingerprint is `3bb6dcf8fa4a143ea047ec6f573f2c655259a79880ebacbfa4ddc067ce73229d`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov27-dialogue-frame-source-digests.json) covers all 267 paths. It lists 43 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 

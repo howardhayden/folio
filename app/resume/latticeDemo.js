@@ -68,6 +68,7 @@ import {
   LATTICE_STAGE_DIAGNOSTIC_CONTEXT,
   LATTICE_VERIFICATION_DECISIONS,
   LATTICE_VERIFICATION_GATES,
+  shortLatticeDialogueFrame,
   LATTICE_VERIFICATION_ISSUE_CHECKS,
   TEXT_TO_LATTICE_VERSION,
 } from "./lattice/promptContract.js";
@@ -1722,7 +1723,7 @@ async function callNormalizedStage({
         }
       }
       if (draftFindings !== null) {
-        // Change only units with an authentic coverage-claim or materiality failure.
+        // Change only passages implicated by an actual host finding.
         // The replacement keeps the generator's own claims for those units.
         const affected = new Set(draftFindings.map(({ passageId }) => passageId));
         return Object.freeze({ passages: Object.freeze(normalized.passages.map((passage, index) =>
@@ -1731,8 +1732,11 @@ async function callNormalizedStage({
       if (repairLongDraft && attempt === 1 && attempts > 1) {
         const findings = deterministicBatchReview(request.batch, request.analysis, normalized);
         const rules = findings.map(deterministicFindingRule);
-        if (rules.length && rules.every(rule => rule === "D13" || rule === "D14")
-          && (stage !== "generation" || rules.includes("D13"))) {
+        const correctable = rules.length && rules.every(rule => ["D10", "D13", "D14"].includes(rule));
+        const correctFirstDraft = stage !== "generation" || rules.includes("D10") || rules.includes("D13")
+          || findings.some(finding => request.sourceSpans?.some(group =>
+            group.passageId === finding.passageId && shortLatticeDialogueFrame(group)));
+        if (correctable && correctFirstDraft) {
           priorDraft = normalized;
           draftFindings = findings;
           continue;
@@ -3295,6 +3299,25 @@ function registerRepairPlans(entry) {
   return Object.freeze(plans);
 }
 
+// Preserve already checked wording when the same plan survives a local repair.
+// The full assembled group is still reviewed anew before either text can ship.
+function keepReviewedPassages(original, analysis, replacement) {
+  const { verification } = original;
+  if (!verification.available || original.documentFindings.length || verification.issues.some(issue => !issue.passageId)
+    || LATTICE_VERIFICATION_GATES.some(gate => !verification.gates[gate]
+      && (gate !== "registerFit" || !verification.passages.some(passage => !passage.registerFit)))) return replacement;
+  const implicated = new Set([...original.deterministicFindings, ...verification.issues].map(finding => finding.passageId));
+  const localFailure = original.deterministicFindings.length || verification.passages.some(passage => !passage.complete)
+    || verification.issues.length;
+  if (!localFailure || implicated.has("")) return replacement;
+  return Object.freeze({ passages: Object.freeze(replacement.passages.map((passage, index) => {
+    const reviewed = verification.passages[index];
+    return analysis.passages[index] === original.analysis.passages[index]
+      && reviewed.passageId === passage.passageId && reviewed.complete && !implicated.has(passage.passageId)
+      ? original.candidate.passages[index] : passage;
+  })) });
+}
+
 function closedReanalysisFeedback(verification) {
   return Object.freeze({
     decision: verification.decision,
@@ -4172,7 +4195,7 @@ export async function executeLatticePlan(preflight, options) {
       });
       const stage = reanalyzedByBatch.has(original.batch.id) ? "regeneration" : "repair";
       pipelineObservation?.retryPaths.set(original.batch.id, stage);
-      const candidate = await callNormalizedStage({
+      const replacement = await callNormalizedStage({
         stage,
         pipelineObservation,
         request: retryRequest,
@@ -4197,6 +4220,7 @@ export async function executeLatticePlan(preflight, options) {
           message: "The revised coverage or wording did not produce a valid draft. The previous candidate remains withheld.",
         }, error)),
       });
+      const candidate = qualifyingLongJob ? keepReviewedPassages(original, replacementAnalysis, replacement) : replacement;
       const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate, pipelineObservation !== null);
       pipelineObservation?.candidateLineages.set(candidate, stage);
       if (stage === "regeneration" && pipelineObservation !== null) {
