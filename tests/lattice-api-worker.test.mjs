@@ -1951,6 +1951,34 @@ test("long draft keys expand only explicit claims for their own passage", async 
   }
 });
 
+test("long dialogue drafting distinguishes editable frames and grounds missing meaning in the same passage", async () => {
+  const text = "“" + validPayload.text + "” " + "x".repeat(3);
+  const base = minimalVerificationRequest(text);
+  const group = base.sourceSpans[0];
+  const fixed = group.spans.find(span => span.literalType === "protected-dialogue");
+  const editable = group.spans.filter(span => span.kind === "source");
+  assert.ok(fixed && editable.length);
+  const atom = base.analysis.passages[0].atoms[0];
+  const review = { passageId: group.passageId, missingAtomIds: [atom.id], unmodeledSpanIds: [],
+    unsupportedClaims: [], conformanceEvidenceSpanIds: [], layerEvidenceAtomIds: [], layerEvidenceSpanIds: [] };
+  const request = { ...base, verification: { decision: "repair", gates: {}, passages: [review], issues: [] } };
+  const options = { analysisPlanDialect: "compact-wire-v2", draftAtomKeys: [[group.passageId, ["A"]]] };
+  for (const factory of [candidateMessages, repairMessages]) {
+    const payload = inertModelPayload({ messages: factory(request, options) });
+    assert.deepEqual(payload.dialogueFrames, [[group.passageId, group.spans.map(span =>
+      span.kind === "literal" ? ["fixed", span.id] : ["edit", span.text])]]);
+    assert.equal(inertModelPayload({ messages: factory(request) }).dialogueFrames, undefined);
+  }
+  const repair = passage => inertModelPayload({ messages: repairMessages({
+    ...request, verification: { ...request.verification, passages: [passage] },
+  }, options) });
+  assert.deepEqual(repair(review).analysis[1][0][5][0][5], atom.evidenceSpanIds);
+  assert.deepEqual(repair(review).feedbackSourceSpans, [[group.passageId, editable.map(span => [span.id, span.text])]]);
+  const foreign = repair({ ...review, passageId: "unrelated" });
+  assert.deepEqual(foreign.analysis[1][0][5][0][5], []);
+  assert.equal(foreign.feedbackSourceSpans, undefined);
+});
+
 test("a long relation correction binds its positions to the original emitted graph size", async () => {
   for (const changedRevision of [false, true]) {
     const base = { ...minimalAnalysisRequest(makeLongProseFixture(choices => choices[0]).split("\n\n")[0]), analysisRevisionId: "ar0001" };

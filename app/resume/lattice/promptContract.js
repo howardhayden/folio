@@ -1,4 +1,5 @@
 import { BATCH_PASSAGE_LIMIT, graphemeExcerpt, MODEL_SOURCE_SPAN_LIMIT } from "./segments.js";
+import { countLatticeWords } from "./inputPolicy.js";
 import { deterministicFindingRule } from "./rejectionDiagnostics.js";
 import {
   getLatticeRegenerationRetentionPositions, getLatticeRegenerationExactSourceCorrectionPositions,
@@ -381,6 +382,25 @@ Choose register by function, not topic: operative clarifies action, order, recov
 Safety is purpose- and consequence-aware. Fail transformations that materially further prohibited conduct, rights abuse, safeguard evasion, harmful capability, or lack necessary authority, consent, or license. Trust host-confirmed authority and lawful purpose unless source contradicts it. Allow quotation, history, criticism, journalism, fiction, prevention, and defensive discussion unless materially furthering prohibited outcomes. Judge purpose, capability, consequence, and context carefully; never keyword-ban.
 
 Priority: safety, semantic fidelity, accessibility, clarity, domain correctness, register fit, ornament. Designated exact literals and annotations, direction controls, line, paragraph, stanza, isolate nesting are immutable. Attestations and edges prove host preservation only, never meaning; never infer across omitted text. Rewrites require words or syntax, not formatting, case, or punctuation.`;
+
+// A short frame around an immutable quotation can be the only writable text.
+export function shortLatticeDialogueFrame({ spans, literalAnnotations = [], directionFrames = [] }) {
+  if (literalAnnotations.length || directionFrames.length
+    || !spans.some(span => span.kind === "literal" && span.literalType === "protected-dialogue")) return null;
+  const editableWords = spans.reduce((sum, span) => sum + (span.kind === "source" ? countLatticeWords(span.text) : 0), 0);
+  if (editableWords === 0 || editableWords > 12) return null;
+  return spans.map(span => span.kind === "literal" ? ["fixed", span.id] : ["edit", span.text]);
+}
+
+function dialogueFramesForModel(request) {
+  return (request.sourceSpans ?? []).flatMap(group => {
+    if (!request.analysis?.passages.some(plan => plan.passageId === group.passageId && plan.disposition === "rewrite")) return [];
+    const frame = shortLatticeDialogueFrame(group);
+    return frame ? [[group.passageId, frame]] : [];
+  });
+}
+
+const DIALOGUE_FRAME_INSTRUCTION = " dialogueFrames gives the ordered editable words and fixed literal IDs for short quoted passages. Rephrase the editable attribution or framing in place, preserving who spoke, the manner of speaking, and the purpose of the utterance. Keep each fixed quotation verbatim on its original side of its attribution. Preserve each question, its subject and its line. Return the complete passage.";
 
 function candidateRealizationInstruction(keyedClaims) {
   const claims = keyedClaims
@@ -798,7 +818,7 @@ function requiredRewritePositionsForModel(sourceGroups, analysis) {
 
 const REQUIRED_REWRITE_CHECKLIST_INSTRUCTION = " requiredRewritePassagePositions is the complete zero-based checklist of source groups whose current plan requires rewrite. For each listed passage, realize its atoms in new wording or syntactic order serving its selected layer, then compare with its source before returning. Clear source prose can still require rewriting. Keep every commitment, exact literal, and boundary; never add or remove meaning to force a difference. Do not emit this checklist or treat it as a passed check.";
 
-function repairAnalysisForModel(analysis) {
+function repairAnalysisForModel(analysis, missingEvidence) {
   if (!analysis) return null;
   return [
     analysis.documentKind,
@@ -814,7 +834,7 @@ function repairAnalysisForModel(analysis) {
         atom.value,
         atom.priority,
         atom.preservation,
-        atom.preservation === "exact" ? atom.evidenceSpanIds : [],
+        atom.preservation === "exact" || missingEvidence.has(atom.id) ? atom.evidenceSpanIds : [],
         atom.links.map(({ relation, targetAtomId }) => [relation, targetAtomId]),
       ]),
       passage.ambiguityAtomIds,
@@ -1047,7 +1067,9 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
   const regenerationFeedback = regenerationFeedbackForModel(request);
   const sourceGroups = sourcePassagesForModel(request);
   const requiredRewrites = compactPlan ? requiredRewritePositionsForModel(sourceGroups, request.analysis) : [];
+  const dialogueFrames = draftAtomKeys ? dialogueFramesForModel(request) : [];
   const realizationInstruction = candidateRealizationInstruction(draftAtomKeys !== null)
+    + (dialogueFrames.length ? DIALOGUE_FRAME_INSTRUCTION : "")
     + (requiredRewrites.length ? REQUIRED_REWRITE_CHECKLIST_INSTRUCTION : "");
   return messages(
     "Translate every supplied passage according to its plan and atom graph.",
@@ -1056,6 +1078,7 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
       batchId: request.batch.id,
       passages: sourceGroups,
       ...(draftAtomKeys ? { draftAtomKeys } : {}),
+      ...(dialogueFrames.length ? { dialogueFrames } : {}),
       ...(requiredRewrites.length ? { requiredRewritePassagePositions: requiredRewrites } : {}),
       sourceBoundaries: sourceBoundariesForModel(request),
       ...(request.context ? { context: contextForModel(request.context) } : {}),
@@ -1104,7 +1127,7 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     ? " Rebuild retained-source conformance separately from candidate judgment. A planned rewrite cannot certify unchanged retention; use only its schema-fixed c value and keep actual independent source-layer support in x and y. Replace the complete d/g/p/i result without changing a semantic verdict merely to satisfy layout."
     : "";
   const evidencePositionInstruction = wireLayout?.passages?.[0]?.sourcePositionsByAtom
-    ? " For each passage, sourcePositionsByAtom lists the source positions cited by each atom in x order. sourceAtomsByPosition lists the atoms that cite each source position in y order. Both tables use zero-based indices. Choose x and y from the source meaning. For every selected y position, select at least one x atom that cites it. The tables describe the graph and supply no verdict. " + LATTICE_LONG_REGISTER_SELECTION
+    ? " For each passage, sourcePositionsByAtom lists the source positions cited by each atom in x order. sourceAtomsByPosition lists the atoms that cite each source position in y order. Both tables use zero-based indices. Choose x and y from the source meaning. For every selected y position, select at least one x atom that cites it. The tables describe the graph and supply no verdict. For every atom status, identify the source commitment and compare it with the actual candidate. Equivalent wording can preserve a unit. Mark a unit missing when its meaning is absent or changed, including when the candidate claims otherwise. " + LATTICE_LONG_REGISTER_SELECTION
     : "";
   const atomClaimInstruction = request.deterministicFindings?.some((finding) => deterministicFindingRule(finding) === "D13")
     ? " The host separately enforces the candidate-atom-claim finding for the atom ID list. Determine atom coverage, failed checks, issues, and the verdict from the independent source and candidate comparison. Report genuine omissions and unsupported meaning. Do not report a failed check or a negative verdict solely because of the ID list mismatch."
@@ -1217,7 +1240,7 @@ export function documentCertificationMessages(request, { responseDialect = "host
 
 const REPAIR_VERIFICATION_FEEDBACK_LEGEND = " Feedback passage tuples are [passage ID, missing atom IDs, unsupported marker list, unmodeled span IDs, failed check names, conformance evidence span IDs, conformance-failed boolean, independent layer, layer-evidence atom IDs, layer-evidence span IDs, failed criterion checks]. The unsupported marker list is [] or [\"unsupported-meaning\"], never claim prose. Each failed criterion check is [criterion name, evidence span IDs].";
 
-function repairFeedbackSourceSpansForModel(request, feedback) {
+function repairFeedbackSourceSpansForModel(request, feedback, missingEvidence) {
   // Keep the dense repair plan. Only ordinary spans actually referenced in
   // serialized feedback need another ID-to-text binding; literals already
   // have one in sourcePassages. Never take excerpt text from verifier prose.
@@ -1225,6 +1248,9 @@ function repairFeedbackSourceSpansForModel(request, feedback) {
   return (feedback?.[2] ?? []).flatMap((passage) => {
     const ids = new Set([...passage[3], ...passage[5], ...passage[9],
       ...passage[10].flatMap((criterion) => criterion[1])]);
+    for (const atomId of passage[1]) {
+      for (const spanId of missingEvidence.get(atomId) ?? []) ids.add(spanId);
+    }
     const group = groups.get(passage[0]);
     const available = [...(group?.spans ?? []), ...(group?.literalAnnotations ?? [])];
     if ([...ids].some((id) => !available.some((span) => span.id === id))) {
@@ -1248,11 +1274,22 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema", d
       .map(({ passageId }) => passageId)
     : []);
   const copiedPositions = sourceGroups.flatMap(([id], index) => nonmaterialIds.has(id) ? [index] : []);
+  const dialogueFrames = draftAtomKeys ? dialogueFramesForModel(request) : [];
   const realizationInstruction = candidateRealizationInstruction(draftAtomKeys !== null)
+    + (dialogueFrames.length ? DIALOGUE_FRAME_INSTRUCTION : "")
     + (copiedPositions.length ? " For each copiedRewritePosition, compose a fresh expression of the same speech act or assertion. Recast its clause structure or choose an equivalent predicate. Preserve the speaker, referents, facts, certainty, and designated exact literals. Merely changing punctuation, typography, or word case fails. Return the complete candidate." : "")
     + (requiredRewrites.length ? REQUIRED_REWRITE_CHECKLIST_INSTRUCTION : "");
   const verificationFeedback = verificationFeedbackForModel(request.verification);
-  const feedbackSourceSpans = compactPlan ? repairFeedbackSourceSpansForModel(request, verificationFeedback) : [];
+  const missingEvidence = new Map();
+  if (draftAtomKeys && verificationFeedback) {
+    for (const [passageId, missingIds] of verificationFeedback[2]) {
+      const plan = request.analysis?.passages.find(passage => passage.passageId === passageId);
+      for (const atom of plan?.atoms ?? []) {
+        if (missingIds.includes(atom.id)) missingEvidence.set(atom.id, atom.evidenceSpanIds);
+      }
+    }
+  }
+  const feedbackSourceSpans = compactPlan ? repairFeedbackSourceSpansForModel(request, verificationFeedback, missingEvidence) : [];
   const feedbackLegend = verificationFeedback
     && ["repair", "reject"].includes(verificationFeedback[0])
     && verificationFeedback[2].length > 0 ? REPAIR_VERIFICATION_FEEDBACK_LEGEND : "";
@@ -1265,13 +1302,14 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema", d
       sourcePassages: sourceGroups,
       ...(copiedPositions.length ? { copiedRewritePositions: copiedPositions } : {}),
       ...(draftAtomKeys ? { draftAtomKeys } : {}),
+      ...(dialogueFrames.length ? { dialogueFrames } : {}),
       ...(requiredRewrites.length ? { requiredRewritePassagePositions: requiredRewrites } : {}),
       sourceBoundaries: sourceBoundariesForModel(request),
       documentLedger: documentLedgerForModel(request.documentLedger),
       ...(request.documentLedgerCoverage?.availableAtomCount > 0 ? {
         documentLedgerCoverage: documentLedgerCoverageForModel(request.documentLedgerCoverage),
       } : {}),
-      analysis: repairAnalysisForModel(request.analysis),
+      analysis: repairAnalysisForModel(request.analysis, missingEvidence),
       ...(request.repairFromSource === true
         ? {}
         : { rejectedCandidate: rejectedCandidateForRepair(request.candidate) }),
@@ -1285,6 +1323,6 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema", d
           : { protocolFeedback: request.protocolFeedback }
         : {}),
     },
-    `${realizationInstruction} Repair source groups are [passage ID, complete exact source text, ordered exact-literal tuples].${directionFrameInstruction(request)} Literal tuples are [span ID, exact text] already present inside that source text. Source boundaries are passage-order gaps [before first, between each pair, after last], encoded as exact [unit,count] runs or a host-preserved repeat/summary. Analysis is [document kind, passages]. Analysis passages are [ID, discourse function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria, conformance spans, criterion-specific conformance assertions]; atoms are [ID, kind, value, priority, preservation, exact-literal evidence IDs or [], links]. ${request.repairFromSource === true ? "The rejected draft is omitted; produce a fresh candidate that resolves the findings." : "Rejected candidates are [ID, layer, text]."} Feedback: [decision, failed gates, passages, check/passage pairs]; prose excluded.${feedbackLegend}${feedbackSourceSpans.length ? " feedbackSourceSpans groups are [passage ID, [span ID, exact source text] pairs] resolving ordinary span IDs in that feedback. These excerpts ground the findings; they are not verbatim output requirements. Exact literals remain binding in sourcePassages." : ""} ${compactPlan ? `${LATTICE_COMPACT_REALIZATION_PLAN_INSTRUCTION} Resolve the supplied deterministic and verification findings in that concrete realization.` : "Use the discourse function and rationale as the source-specific repair plan."} Preserve every atom, relation, ambiguity, exact literal, and structural boundary; repair every finding, keep every passage and atom ID, and make each planned rewrite change normalized wording or syntax rather than presentation alone.`,
+    `${realizationInstruction} Repair source groups are [passage ID, complete exact source text, ordered exact-literal tuples].${directionFrameInstruction(request)} Literal tuples are [span ID, exact text] already present inside that source text. Source boundaries are passage-order gaps [before first, between each pair, after last], encoded as exact [unit,count] runs or a host-preserved repeat/summary. Analysis is [document kind, passages]. Analysis passages are [ID, discourse function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria, conformance spans, criterion-specific conformance assertions]; atoms are [ID, kind, value, priority, preservation, ${missingEvidence.size ? "exact-literal or missing-unit evidence IDs" : "exact-literal evidence IDs"} or [], links].${missingEvidence.size ? " For each missing meaning unit, read its cited source evidence, find what the rejected wording omitted or changed, and restore that commitment in the new text." : ""} ${request.repairFromSource === true ? "The rejected draft is omitted; produce a fresh candidate that resolves the findings." : "Rejected candidates are [ID, layer, text]."} Feedback: [decision, failed gates, passages, check/passage pairs]; prose excluded.${feedbackLegend}${feedbackSourceSpans.length ? " feedbackSourceSpans groups are [passage ID, [span ID, exact source text] pairs] resolving ordinary span IDs in that feedback. These excerpts ground the findings; they are not verbatim output requirements. Exact literals remain binding in sourcePassages." : ""} ${compactPlan ? `${LATTICE_COMPACT_REALIZATION_PLAN_INSTRUCTION} Resolve the supplied deterministic and verification findings in that concrete realization.` : "Use the discourse function and rationale as the source-specific repair plan."} Preserve every atom, relation, ambiguity, exact literal, and structural boundary; repair every finding, keep every passage and atom ID, and make each planned rewrite change normalized wording or syntax rather than presentation alone.`,
   );
 }

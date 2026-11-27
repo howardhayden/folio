@@ -699,6 +699,85 @@ test("a qualifying draft repairs its own incomplete atom claims before independe
   }
 });
 
+test("an unchanged short dialogue frame gets its existing first-draft correction", async () => {
+  const quote = "“" + opaqueWords(2, "q") + "?”";
+  const frame = " " + opaqueWords(2, "a");
+  const source = [quote + frame, ...Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w"))].join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const target = plan.batches[0];
+  let corrections = 0;
+  const adapter = scriptedAdapter({
+    generate(request) {
+      const candidate = rawCandidate(request);
+      if (request.batch === target) candidate.passages[0].text = request.batch.passages[0].text;
+      return candidate;
+    },
+    repair(request) {
+      const candidate = rawCandidate(request);
+      if (request.batch === target) {
+        corrections++;
+        assert.equal(request.correctCopiedLongDraft, true);
+        assert.ok(request.deterministicFindings.some(finding => deterministicFindingRule(finding) === "D14"));
+        candidate.passages[0].text = quote + frame.replaceAll("a", "b");
+      }
+      return candidate;
+    },
+    verify(request) {
+      if (request.batch === target) assert.equal(request.candidate.passages[0].text, quote + frame.replaceAll("a", "b"));
+      return rawVerification(request);
+    },
+  });
+  const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 48, allowClarification: false });
+  assert.equal(corrections, 1);
+  assert.equal(result.status, "translated");
+});
+
+test("a long draft corrects a changed question before review and preserves a reviewed neighbor during repair", async () => {
+  const source = Array.from({ length: 28 }, (_, index) => opaqueWords(20, `p${index}w`)).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const target = plan.batches[0];
+  for (const repeatedOmission of [false, true]) {
+    let reviews = 0, repairs = 0, certificates = 0;
+    const adapter = scriptedAdapter({
+      generate(request) {
+        const candidate = rawCandidate(request);
+        if (request.batch === target) candidate.passages[0].text += "?";
+        return candidate;
+      },
+      repair(request) {
+        const candidate = rawCandidate(request);
+        if (request.batch !== target) return candidate;
+        repairs++;
+        if (repairs === 1) {
+          assert.ok(request.deterministicFindings.some(finding => deterministicFindingRule(finding) === "D10"));
+          assert.equal(request.repairFromSource, false);
+        }
+        candidate.passages[1].text += " zz";
+        return candidate;
+      },
+      verify(request) {
+        if (request.batch !== target) return;
+        const checked = rawVerification(request);
+        reviews++;
+        assert.ok(!request.candidate.passages[0].text.includes("?"));
+        assert.equal(request.candidate.passages[1].text, rawCandidate(request).passages[1].text);
+        if (reviews === 1 || repeatedOmission) {
+          const passage = checked.passages[0];
+          passage.missingAtomIds = [passage.checkedAtomIds.pop()];
+          checked.decision = "repair";
+        }
+        return checked;
+      },
+      certify() { certificates++; },
+    });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 48, allowClarification: false });
+    assert.equal(repairs, 2);
+    assert.equal(reviews, 2);
+    assert.equal(certificates, repeatedOmission ? 0 : 1);
+    assert.equal(result.status, repeatedOmission ? "unable-to-attempt" : "translated");
+  }
+});
+
 test("linked long groups keep the original register proposal until fresh evidence supports it", async () => {
   const source = Array.from({ length: 28 }, (_, index) => opaqueWords(20, `p${index}w`)).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
