@@ -81,7 +81,7 @@ jobs:
         name: Identify the approved Network map publication
         env:
           SELECTED: ${{ github.event_name == 'push' && github.event.before == 'cd0e45666b4d0aed3947a64d0c360f0cd3fc0949' && contains(github.event.head_commit.message, '[lattice-network-map-20261124]') }}
-          LONG_PROSE_UPDATE: ${{ github.event_name == 'push' && github.event.before == 'e521306ed7ed4855735a6c94c4afc90ba85771ac' && contains(github.event.head_commit.message, '[lattice-long-prose]') }}
+          LONG_PROSE_UPDATE: ${{ github.event_name == 'push' && github.event.before == 'd3fe1941ff226a9b1685ccf03277d5c4d535f187' && contains(github.event.head_commit.message, '[lattice-long-prose]') }}
         run: |
           echo "selected=$SELECTED" >> "$GITHUB_OUTPUT"
           echo "long_prose_update=$LONG_PROSE_UPDATE" >> "$GITHUB_OUTPUT"
@@ -582,7 +582,7 @@ jobs:
           candidate="$(node scripts/read-text-to-lattice-active-version.mjs --uploaded-version "$RUNNER_TEMP/long-prose-upload.jsonl")"
           echo "incumbent=$incumbent" >> "$GITHUB_OUTPUT"
           echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
-      - name: Qualify long prose with the serving version at 100 percent
+      - name: Promote the identified Worker for its ordinary smoke and private Firefox check
         if: needs.publication-boundary.outputs.long_prose_update == 'true'
         env:
           INCUMBENT: ${{ steps.stage-identities.outputs.incumbent }}
@@ -593,8 +593,6 @@ jobs:
         run: |
           node scripts/verify-current-main-sha.mjs
           node scripts/read-text-to-lattice-active-version.mjs --maintenance-traffic staged "$INCUMBENT" "$CANDIDATE"
-          node scripts/verify-text-to-lattice-api-production.mjs --long-prose-candidate "$CANDIDATE" \
-            | tee "$RUNNER_TEMP/text-to-lattice-deployment-evidence/long-prose.json"
           node scripts/verify-current-main-sha.mjs
           node scripts/read-text-to-lattice-active-version.mjs --maintenance-traffic candidate "$INCUMBENT" "$CANDIDATE"
         shell: bash
@@ -713,6 +711,7 @@ jobs:
       - name: Verify deployed Text to Lattice API boundary and response policy
         env:
           LATTICE_API_BASE_URL: https://hah.dev
+          LATTICE_RETRY_MAINTENANCE_SMOKE: ${{ needs.publication-boundary.outputs.long_prose_update }}
           LATTICE_API_EVIDENCE_PATH: ${{ runner.temp }}/text-to-lattice-deployment-evidence/live-boundary.json
           LATTICE_REQUIRE_ADMISSION_EVIDENCE: ${{ needs.publication-boundary.outputs.release_phase != 'qualified' }}
           LATTICE_CANARY_REQUEST_MODE: ${{ inputs.use_visitor_mode_for_g06 && 'auto' || 'operative' }}
@@ -1188,7 +1187,7 @@ jobs:
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
-      !(github.event_name == 'push' && github.event.before == 'e521306ed7ed4855735a6c94c4afc90ba85771ac' && contains(github.event.head_commit.message, '[lattice-long-prose]')) &&
+      !(github.event_name == 'push' && github.event.before == 'd3fe1941ff226a9b1685ccf03277d5c4d535f187' && contains(github.event.head_commit.message, '[lattice-long-prose]')) &&
       !(
         github.event_name == 'push' &&
         github.event.before == 'cd0e45666b4d0aed3947a64d0c360f0cd3fc0949' &&

@@ -1119,7 +1119,7 @@ export function createLatticeApiWorker({
           };
           assertRequestPhaseOpen(deadline, qualificationWindow, now());
           const runOptions = {
-            providerCallLimit: LATTICE_PROVIDER_CALL_LIMIT,
+            providerCallLimit,
             adapter,
             signal: deadline.signal,
             allowClarification: false,

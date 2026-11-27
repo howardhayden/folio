@@ -423,6 +423,49 @@ test("long prose completes analysis, drafting, independent review and certificat
   assert.equal(result.text.split("\n\n").length, 12);
 });
 
+test("long jobs reserve calls for independent review of source-bound retained passages", async () => {
+  const source = Array.from({ length: 28 }, () => opaqueWords(22) + ".").join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  assert.equal(plan.batches.length, 7);
+
+  for (const mode of ["retained", "mixed", "downgraded", "refused", "ordinary"]) {
+    let certificates = 0;
+    const adapter = scriptedAdapter({
+      analyze(request, count) {
+        const analysis = rawAnalysis(request, { disposition: "retain-if-conformant" });
+        if (count === 1 && mode === "mixed") analysis.passages[0] = rawAnalysis(request).passages[0];
+        if (count === 1 && mode === "downgraded") analysis.passages[0].conformanceAssertions = [];
+        return analysis;
+      },
+      verify(request) {
+        return rawVerification(request, mode === "refused"
+          ? { decision: "reject", gates: { languageSupported: false } } : {});
+      },
+      certify() { certificates += 1; },
+    });
+    const result = await executeLatticePlan(plan, {
+      adapter, providerCallLimit: mode === "ordinary" ? 32 : 48, allowClarification: false,
+    });
+    assert.equal(adapter.calls.verify, 7, mode);
+    if (mode === "refused") {
+      assert.equal(result.status, "unable-to-attempt");
+      assert.equal(result.text, null);
+      assert.equal(adapter.calls.generate, 0);
+      assert.equal(certificates, 0);
+    } else if (mode === "mixed" || mode === "downgraded") {
+      assert.equal(result.status, "translated", mode);
+      assert.equal(result.revisedPassageCount, 1, mode);
+      assert.equal(adapter.calls.generate, 1, mode);
+      assert.equal(certificates, 1, mode);
+    } else {
+      assert.equal(result.status, "conformant-for-context", mode);
+      assert.equal(result.text, source, mode);
+      assert.equal(adapter.calls.generate, mode === "ordinary" ? 7 : 0, mode);
+      assert.equal(certificates, 1, mode);
+    }
+  }
+});
+
 test("long-job balancing avoids redundant analysis calls and preserves every passage through certification", async () => {
   const lengths = [...Array(16).fill(32), ...Array(12).fill(3)];
   const source = lengths.map((length, index) => opaqueWords(length, `p${index}w`) + ".").join("\n\n");

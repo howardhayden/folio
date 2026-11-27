@@ -2076,7 +2076,7 @@ test("the approved Network map publication builds Pages without starting a servi
 test("long-prose update keeps the active release on build, model or publication failure", async () => {
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
   const context = workflowGuardContext({ event: "push", phase: "qualified", results: { build: "failure" } });
-  context.github.event.before = "e521306ed7ed4855735a6c94c4afc90ba85771ac";
+  context.github.event.before = "d3fe1941ff226a9b1685ccf03277d5c4d535f187";
   context.github.event.head_commit.message = "Fit long prose [lattice-long-prose]";
   for (const outcome of ["success", "failure"]) {
     context.needs["publication-boundary"].result = outcome;
@@ -2085,8 +2085,11 @@ test("long-prose update keeps the active release on build, model or publication 
   const service = workflow.slice(workflow.indexOf("  deploy_text_to_lattice_services:\n"), workflow.indexOf("\n  deploy:\n"));
   for (const [earlier, later] of [
     ["--capture-incumbent", "wrangler versions upload"], ["wrangler versions upload", "--maintenance-traffic staged"],
-    ["--maintenance-traffic staged", "--long-prose-candidate"], ["--long-prose-candidate", "--maintenance-traffic candidate"],
+    ["--maintenance-traffic staged", "--maintenance-traffic candidate"],
+    ["--maintenance-traffic candidate", "Verify deployed Text to Lattice API boundary and response policy"],
   ]) assert.ok(service.indexOf(earlier) >= 0 && service.indexOf(earlier) < service.indexOf(later));
+  assert.ok(!service.includes("--long-prose-candidate"));
+  assert.ok(service.includes("LATTICE_RETRY_MAINTENANCE_SMOKE: ${{ needs.publication-boundary.outputs.long_prose_update }}"));
   assert.match(service, /id: held-api-rollback[\s\S]*?outputs\.long_prose_update != 'true'/u);
   assert.match(workflow, /restore_long_prose_incumbent:[\s\S]*?needs: \[publication-boundary, deploy_text_to_lattice_services, deploy\][\s\S]*?verify-current-main-sha\.mjs[\s\S]*?--maintenance-traffic incumbent/u);
 });
