@@ -552,19 +552,15 @@ const ANALYSIS_WIRE_SCHEMA = Object.freeze({
   }),
   required: Object.freeze(["d", "p", "l"]),
 });
-function analysisWireGuide(withEvidenceOwners) {
-  const passageLayout = withEvidenceOwners
-    ? "Passage tuple positions 0–4 are [layer index,disposition index,atom tuples,criterion evidence masks,evidence owners]."
-    : "Passage tuple positions 0-3: [layer index,disposition index,atom tuples,criterion evidence masks].";
-  const evidenceField = withEvidenceOwners ? "additional evidence positions" : "evidence positions";
+function analysisWireGuide(positionAnchors) {
   return [
     "Return one minified private analysis instance using only the mandatory d/p/l index layout; never echo the schema.",
     `Root d is the zero-based document-kind index [${ANALYSIS_DOCUMENT_KINDS.join(",")}]. Root p contains one passage tuple per supplied passage in supplied order. Root l contains the document link tuples. Passage and atom IDs are host-generated and must not be emitted.`,
-    `${passageLayout} Layer indices are [${ANALYSIS_LAYERS.join(",")}]; disposition indices are [${ANALYSIS_DISPOSITIONS.join(",")}]. ${LATTICE_COMPACT_ANALYSIS_HOST_DERIVATION_INSTRUCTION}`,
-    `Atom tuple positions 0-3: [kind index,priority index,preservation index,${evidenceField}]. Kind indices are [${ANALYSIS_ATOM_KINDS.join(",")}]; priority indices are [${ANALYSIS_PRIORITIES.join(",")}]; preservation indices are [${ANALYSIS_PRESERVATIONS.join(",")}]. The host derives each atom value from its selected source evidence.`,
+    `Passage tuple positions 0-3: [layer index,disposition index,atom tuples,criterion evidence masks]. Layer indices are [${ANALYSIS_LAYERS.join(",")}]; disposition indices are [${ANALYSIS_DISPOSITIONS.join(",")}]. ${LATTICE_COMPACT_ANALYSIS_HOST_DERIVATION_INSTRUCTION}`,
+    `Atom tuple positions 0-3: [kind index,priority index,preservation index,evidence positions]. Kind indices are [${ANALYSIS_ATOM_KINDS.join(",")}]; priority indices are [${ANALYSIS_PRIORITIES.join(",")}]; preservation indices are [${ANALYSIS_PRESERVATIONS.join(",")}]. The host derives each atom value from its selected source evidence.`,
     `Each l tuple is [source atom position,relation index,target position]. Atom positions use global passage/atom order. Relation indices are [${ANALYSIS_RELATIONS.join(",")}]. Nonnegative targets select emitted atoms; -1 selects the first supplied ledger atom, -2 the second, and so on. Select only existing non-self positions and never repeat a typed link.`,
-    withEvidenceOwners
-      ? "For each passage, list one local atom index for source evidence position in the last array. Positions start at zero and follow the supplied order of the lossless spans and then their nested literal annotations. Each entry names an atom that the corresponding record actually supports. Atom indices restart at zero for each passage. In the fourth field of an atom tuple list only additional evidence it shares with other atoms. Use [] when it needs none. Each atom must have one to three distinct supporting records after both selections are combined. For retention, assess the existing wording against every universal and layer-specific criterion. Choose rewrite when meeting any criterion would require changing the wording. Emit the evidence owners for either disposition. Links continue to use global atom positions."
+    positionAnchors
+      ? "Evidence positions start at zero in supplied order. In a passage with fitted evidence anchors, atom 0 starts with evidence 0, atom 1 with evidence 1, and so on through the fitted prefix. Classify what that source record means. Each atom may also select other evidence supporting the same unit, up to three distinct records total. Put the fixed position first and the others in ascending order. Add further atoms for distinct meanings when needed. Across all atoms, include every source span and nested annotation. For retention, assess the actual wording against all five criteria. Choose rewrite when meeting a criterion requires changing the wording."
       : "Evidence positions are zero-based in exact supplied evidence order. List each atom's one to three unique positions in ascending order, and cover every supplied evidence position across the passage's atoms.",
     "The five criterion masks use this order: the four universal criteria followed by the selected layer criterion. Each mask is a fitted binary string in evidence order. A rewrite uses five all-zero masks. A retain-if-conformant plan gives every criterion a nonempty selection and the five masks jointly cover every evidence position.",
     "Ordinary evidence uses equivalent or implicit preservation; exact is available only when every selectable evidence record is literal. Ambiguity membership is derived from emitted ambiguity or uncertainty kinds.",
@@ -1310,7 +1306,7 @@ function fitAnalysisRequest(request) {
   });
 }
 
-function analysisWireSchemaForFit(fit, withEvidenceOwners = false) {
+function analysisWireSchemaForFit(fit, positionAnchors = false) {
   const {
     request, passages, evidenceIdsByPassage, literalEvidenceIdsByPassage,
     analysisAtomLimit, minimumAtomAllocations, atomAllocations,
@@ -1332,7 +1328,6 @@ function analysisWireSchemaForFit(fit, withEvidenceOwners = false) {
     const atomLimit = atomAllocations[index];
     const evidenceSchema = Object.freeze({
       ...ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[3],
-      ...(withEvidenceOwners ? { minItems: 0 } : {}),
       items: Object.freeze({
         ...ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[3].items,
         maximum: evidenceIds.length - 1,
@@ -1350,21 +1345,26 @@ function analysisWireSchemaForFit(fit, withEvidenceOwners = false) {
       preservationSchema,
       evidenceSchema,
     );
-    const requiredAtomSchemas = atomLimit === 1
-      ? Object.freeze([fixedTuple(
-        ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[0],
-        ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[1],
-        preservationSchema,
-        withEvidenceOwners
-          ? Object.freeze({ ...evidenceSchema, maxItems: 0 })
-          : fixedTuple(...evidenceIds.map((_id, position) => Object.freeze({ const: position }))),
-      )])
-      : Object.freeze([]);
+    // For long jobs, anchor one model-classified atom to each source record
+    // when the fitted allocation permits. The model may cite shared evidence
+    // and add atoms. The decoder and independent reviewer validate the graph.
+    let requiredAtomSchemas = [];
+    if (atomLimit === 1) {
+      requiredAtomSchemas = [fixedTuple(
+        ...atomSchema.prefixItems.slice(0, 3),
+        fixedTuple(...evidenceIds.map((_id, position) => Object.freeze({ const: position }))),
+      )];
+    } else if (positionAnchors && evidenceIds.length <= atomLimit) {
+      requiredAtomSchemas = evidenceIds.map((_id, position) => fixedTuple(
+        ...atomSchema.prefixItems.slice(0, 3),
+        Object.freeze({ ...evidenceSchema, prefixItems: Object.freeze([Object.freeze({ const: position })]) }),
+      ));
+    }
     const atomsSchema = Object.freeze({
       ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[2],
-      minItems: minimumAtomAllocations[index],
+      minItems: Math.max(minimumAtomAllocations[index], requiredAtomSchemas.length),
       maxItems: atomLimit,
-      ...(requiredAtomSchemas.length === 0 ? {} : { prefixItems: requiredAtomSchemas }),
+      ...(requiredAtomSchemas.length === 0 ? {} : { prefixItems: Object.freeze(requiredAtomSchemas) }),
       items: atomSchema,
     });
     const conformanceMaskSchema = analysisWireBitMaskSchema(evidenceIds.length);
@@ -1382,12 +1382,6 @@ function analysisWireSchemaForFit(fit, withEvidenceOwners = false) {
       ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[1],
       atomsSchema,
       conformanceMasksSchema,
-      ...(withEvidenceOwners ? [Object.freeze({
-        type: "array",
-        minItems: evidenceIds.length,
-        maxItems: evidenceIds.length,
-        items: Object.freeze({ type: "integer", minimum: 0, maximum: atomLimit - 1 }),
-      })] : []),
     );
   });
   const singletonLedgerTargets = analysisAtomLimit === 1 && visibleLedgerIds.length > 0
@@ -1828,7 +1822,7 @@ function rejectedAnalysisEvidencePositions(indices, valueCount) {
   return rejectedAnalysisWire("evidence");
 }
 
-function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false, withEvidenceOwners = false) {
+function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false) {
   const ledgerIds = (fit?.request?.documentLedger ?? []).map(({ id }) => id);
   if (!fit || !exactKeys(value, ["d", "p", "l"])
     || !Array.isArray(value.p) || !Array.isArray(value.l)) {
@@ -1848,7 +1842,7 @@ function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false, withE
     const passage = value.p[passageIndex];
     const evidenceIds = fit.evidenceIdsByPassage[passageIndex];
     const evidenceRecords = fit.evidenceRecordsByPassage[passageIndex];
-    if (!Array.isArray(passage) || passage.length !== (withEvidenceOwners ? 5 : 4)
+    if (!Array.isArray(passage) || passage.length !== 4
       || !Array.isArray(passage[2]) || !Array.isArray(passage[3])) {
       return rejectedAnalysisWire("response-shape");
     }
@@ -1872,41 +1866,22 @@ function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false, withE
     if (conformanceSelections.some((selection) => selection === null)) {
       return rejectedAnalysisWire("conformance");
     }
-    // The long form requires a model-selected owner for each source record.
-    // Only explicit selections enter the canonical graph used for review.
-    const ownedPositions = passage[2].map(() => []);
-    if (withEvidenceOwners) {
-      const owners = passage[4];
-      if (!Array.isArray(owners) || owners.length !== evidenceIds.length) {
-        return rejectedAnalysisWire("evidence", "coverage", "A03");
-      }
-      for (const [position, owner] of owners.entries()) {
-        if (!Number.isSafeInteger(owner)) return rejectedAnalysisWire("evidence", "value-domain", "A02I");
-        if (owner < 0 || owner >= ownedPositions.length) return rejectedAnalysisWire("evidence", "reference", "A02R");
-        ownedPositions[owner].push(position);
-      }
-    }
     const atoms = [];
-    for (const [atomIndex, rawAtom] of passage[2].entries()) {
+    for (const rawAtom of passage[2]) {
       if (!Array.isArray(rawAtom) || rawAtom.length !== 4) {
         return rejectedAnalysisWire("response-shape");
       }
       const kind = wireEnumValue(rawAtom[0], ANALYSIS_ATOM_KINDS);
       const priority = wireEnumValue(rawAtom[1], ANALYSIS_PRIORITIES);
       const rawPreservation = wireEnumValue(rawAtom[2], ANALYSIS_PRESERVATIONS);
-      let evidencePositions = wireIndexPositions(rawAtom[3], evidenceIds.length, {
-        minimum: withEvidenceOwners ? 0 : 1,
+      const evidencePositions = wireIndexPositions(rawAtom[3], evidenceIds.length, {
+        minimum: 1,
         maximum: 3,
       });
       if (kind === null || priority === null || rawPreservation === null) {
         return rejectedAnalysisWire("response-shape");
       }
       if (evidencePositions === null) return rejectedAnalysisEvidencePositions(rawAtom[3], evidenceIds.length);
-      if (withEvidenceOwners) {
-        evidencePositions = [...new Set([...ownedPositions[atomIndex], ...evidencePositions])].sort((left, right) => left - right);
-        if (evidencePositions.length === 0) return rejectedAnalysisWire("evidence", "coverage", "A02M");
-        if (evidencePositions.length > 3) return rejectedAnalysisWire("evidence", "collection-bound", "A02X");
-      }
       const evidenceSpanIds = evidencePositions.map((evidenceIndex) => evidenceIds[evidenceIndex]);
       const selectedEvidenceRecords = evidencePositions.map((evidenceIndex) => (
         evidenceRecords[evidenceIndex]
@@ -3087,7 +3062,7 @@ export function createHuggingFaceLatticeAdapter({
     budget.used += 1;
     const callOrdinal = budget.used;
     const stage = STAGES[stageName];
-    const withEvidenceOwners = stageName === "analysis" && providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit;
+    const positionAnchors = stageName === "analysis" && providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit;
     let usageObserved = false;
     const stageContext = request?.[LATTICE_STAGE_DIAGNOSTIC_CONTEXT];
     const analysisContext = stageName === "analysis"
@@ -3105,7 +3080,7 @@ export function createHuggingFaceLatticeAdapter({
       const evidenceFirst = isVerificationAlignmentCorrection(verificationCorrection);
       const fittedRequest = analysisFit?.request ?? request;
       const fittedSchema = analysisFit
-        ? analysisWireSchemaForFit(analysisFit, withEvidenceOwners)
+        ? analysisWireSchemaForFit(analysisFit, positionAnchors)
         : verificationFit
         ? verificationWireSchemaForFit(verificationFit, evidenceFirst)
         : certificationFit
@@ -3120,8 +3095,8 @@ export function createHuggingFaceLatticeAdapter({
         role: stage.role,
         messages: messagesWithMode(messageFactory, fittedRequest, requestedMode),
         schema: fittedSchema,
-        schemaName: withEvidenceOwners ? "lattice_analysis_coverage_v1" : stage.schemaName,
-        responseGuide: withEvidenceOwners ? LONG_ANALYSIS_WIRE_GUIDE
+        schemaName: stage.schemaName,
+        responseGuide: positionAnchors ? LONG_ANALYSIS_WIRE_GUIDE
           : evidenceFirst ? VERIFICATION_ALIGNMENT_GUIDE : stage.responseGuide,
         schemaDescription: stage.schemaDescription,
         responseFormat: stage.responseFormat,
@@ -3170,7 +3145,7 @@ export function createHuggingFaceLatticeAdapter({
       );
     }
     if (stageName === "analysis") {
-      result = decodeAnalysisWire(result, analysisFit, observeQualificationRetentionDowngrade, withEvidenceOwners);
+      result = decodeAnalysisWire(result, analysisFit, observeQualificationRetentionDowngrade);
       const decoderFailureCategory = ANALYSIS_DECODER_FAILURES.get(result);
       Object.defineProperty(result, LATTICE_FITTED_ANALYSIS_CONTEXT, {
         configurable: false,
