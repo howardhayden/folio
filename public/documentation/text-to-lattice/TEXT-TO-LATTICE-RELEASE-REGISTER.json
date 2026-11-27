@@ -377,11 +377,11 @@
           "providerCalls": 45,
           "finalGroupReviews": 9,
           "acceptedGroupReviews": 3,
-          "reportedMissingUnits": 6,
           "finalFirstDeterministicRule": "D13",
           "reanalysisRelationAttemptsRejected": 2,
           "outputVisible": false,
-          "priorWorkerRestored": true
+          "priorWorkerRestored": true,
+          "passageReviewsWithMissingUnits": 6
         },
         "correction": "Long drafts identify their explicitly preserved meaning units with keys assigned per passage. Incomplete claims can receive an existing correction before review. A rejected relationship can be corrected using the number of meaning units the analyzer actually emitted. Independent review and certification decide acceptance."
       }
