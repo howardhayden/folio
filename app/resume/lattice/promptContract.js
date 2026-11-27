@@ -392,6 +392,14 @@ export function shortLatticeDialogueFrame({ spans, literalAnnotations = [], dire
   return spans.map(span => span.kind === "literal" ? ["fixed", span.id] : ["edit", span.text]);
 }
 
+export function editableFrameRepairMessages(frames) {
+  return messages(
+    "Supply two faithful rewrites of just the short editable fragment for each passage. The host will insert one between the original fixed parts.",
+    { frames: frames.map(({ id, before, editable, after, units, layer }) => [id, layer, before, editable, after, units]) },
+    "Each frame is [passage ID, register, fixed before, editable fragment, fixed after, meaning units]. Each unit is [short key, kind, source evidence excerpt]. In each choice return only replacement wording for the editable fragment and the keys you actually preserve in the reconstructed passage. Keep the speaker, action, tone, question, attribution, and all commitments. Try an equivalent predicate and a distinct grammatical construction. Do not repeat the fixed parts, copy the fragment, or add new actions, motives or detail. Keep the fragment's punctuation and capitalization appropriate to its fixed surroundings.",
+  );
+}
+
 function dialogueFramesForModel(request) {
   return (request.sourceSpans ?? []).flatMap(group => {
     if (!request.analysis?.passages.some(plan => plan.passageId === group.passageId && plan.disposition === "rewrite")) return [];
@@ -1095,15 +1103,15 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
 }
 
 export function isVerificationAlignmentCorrection(correction) {
-  return correction === "issue-alignment" || correction === "decision-alignment";
+  return correction === "issue-alignment" || correction === "decision-alignment" || correction === "atom-decision";
 }
 
-export function verificationMessages(request, { responseDialect = "host-schema", wireLayout, wireCorrection = null } = {}) {
+export function verificationMessages(request, { responseDialect = "host-schema", wireLayout, wireCorrection = null, missingPositions = null } = {}) {
   if (!VERIFICATION_RESPONSE_DIALECTS.has(responseDialect)) {
     throw new TypeError("Text to Lattice received an invalid verification response dialect.");
   }
   const compactWire = responseDialect === "compact-wire-v2";
-  if (![null, "mask-width", "field-set", "layer-support", "retained-conformance", "issue-object", "issue-alignment", "decision-alignment"].includes(wireCorrection)) {
+  if (![null, "mask-width", "field-set", "layer-support", "retained-conformance", "issue-object", "issue-alignment", "decision-alignment", "atom-decision"].includes(wireCorrection)) {
     throw new TypeError("Text to Lattice received invalid verification correction guidance.");
   }
   const evidenceFirst = compactWire && (wireLayout?.rootFields?.at(-1) === "d"
@@ -1121,6 +1129,8 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     ? " Rebuild issue entries as complete closed c/p objects, not non-object placeholders; use [] when no issue record is needed. Use issueCheckBindings to resolve each actual failed check's issue index and scope; a passage-check bit position is not its issue index, and a check without a global gate cannot support p=-1. Preserve actual failed conditions and the independent verdict. Replace the complete d/g/p/i result without inventing or erasing a failure to satisfy shape."
     : wireCorrection === "issue-alignment"
     ? " Rebuild issue/check/scope alignment: the prior result included an issue that did not identify a failed check in its reported scope. Independently re-evaluate the source and candidate, preserving every actual failure in g or the corresponding passage record. Resolve each issue's c through wireLayout.issueCheckBindings, never a mask position; p must identify the passage with that failed check, or -1 only for a failed global gate. Use i=[] when the failed conditions are fully represented and no additional issue is needed. Never invent or erase a failure or change the independent verdict merely to make an issue consistent. Complete g and every passage in p from the source and candidate. Reference only supported failures in i. Choose d last from that fresh assessment. Report accept when every condition passes, and preserve each genuine failure when choosing repair or reject."
+    : wireCorrection === "atom-decision"
+    ? " Your prior acceptance conflicted with its missing-unit findings. disputedAtomPositions identifies passage and atom positions in their supplied order, starting at zero. Re-read each cited source commitment and compare with the actual candidate. A missing or changed commitment must keep status 2 and produce repair or reject. Use 1 only for verified equivalent meaning. Use 0 when unaccounted. Re-evaluate the entire result and derive the verdict last."
     : wireCorrection === "decision-alignment"
     ? " Rebuild decision/check alignment: the prior negative decision had no failed condition in its detailed gates or passage records and no issue. Independently re-evaluate the same source and candidate. Reconcile d/g/p/i from that fresh judgment, preserving every real failure in g or the corresponding passage record and aligning any issue with its actual failed condition. Never invent or erase a failure, or promote or change a verdict merely to make the fields consistent. Complete g and every passage in p from the source and candidate. Reference only supported failures in i. Choose d last from that fresh assessment. Report accept when every condition passes, and preserve each genuine failure when choosing repair or reject."
     : wireCorrection === "retained-conformance"
@@ -1138,6 +1148,7 @@ export function verificationMessages(request, { responseDialect = "host-schema",
       version: PUBLIC_REGISTER_VERSION,
       batchId: request.batch.id,
       ...(compactWire && wireLayout ? { wireLayout } : {}),
+      ...(compactWire && wireCorrection === "atom-decision" && missingPositions ? { disputedAtomPositions: missingPositions } : {}),
       sourcePassages: sourcePassagesForModel(request),
       sourceBoundaries: sourceBoundariesForModel(request),
       ...(!request.assembledContext && request.context ? { context: contextForModel(request.context) } : {}),

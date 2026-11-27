@@ -4,6 +4,7 @@ import { withLatticeRegenerationRetentionContext } from "./lattice/regenerationC
 import {
   rememberLatticeVerificationIssueAlignmentError,
   rememberLatticeVerificationLayerSupportError,
+  rememberLatticeVerificationMissingUnitError,
   rememberLatticeVerificationDecisionAlignmentError,
   withLatticeVerificationCorrection,
 } from "./lattice/verificationCorrection.js";
@@ -1128,7 +1129,7 @@ function normalizeVerification(
   deterministicFindings,
   candidate,
   stage,
-  correctLayerSupport = false,
+  correctLongReview = false,
 ) {
   protocol(record(raw) && DECISIONS.has(raw.decision), "The verifier returned an invalid decision.");
   exactKeys(raw, ["decision", "failedGates", "passages", "issues", "questions"], "Verification response");
@@ -1322,7 +1323,7 @@ function normalizeVerification(
   protocol(Array.isArray(raw.questions) && raw.questions.length === 0,
     "Independent verification cannot return visible clarification text.");
   const questions = Object.freeze([]);
-  if (correctLayerSupport && raw.decision === "accept" && !passageChecksPass
+  if (correctLongReview && raw.decision === "accept" && !passageChecksPass
     && allChecksExceptLayerSupportPass && failedGateSet.size === 0
     && issues.length === 0 && deterministicFindings.length === 0) {
     throw rememberLatticeVerificationLayerSupportError(new LatticeProtocolError(
@@ -1330,6 +1331,25 @@ function normalizeVerification(
     ), batch, analysis, candidate, stage);
   }
   const allGatesPass = LATTICE_VERIFICATION_GATES.every((name) => gates[name]);
+  if (correctLongReview && raw.decision === "accept" && allGatesPass && !passageChecksPass
+    && !issues.length && !deterministicFindings.length) {
+    const positions = [];
+    const onlyMissing = analysis.passages.every((plan, index) => {
+      const passage = byId.get(plan.passageId);
+      if (passage.complete) return true;
+      if (!passage.missingAtomIds.length || passage.checkedAtomIds.length + passage.missingAtomIds.length !== plan.atoms.length
+        || passage.unsupportedClaims.length || passage.unmodeledSpanIds.length
+        || (passage.requiresPositiveConformance && !passage.conformanceConfirmed)
+        || LATTICE_PASSAGE_VERIFICATION_CHECKS.some(check => !passage[check])) return false;
+      positions.push(Object.freeze([index, Object.freeze(plan.atoms.flatMap((atom, i) => passage.missingAtomIds.includes(atom.id) ? [i] : []))]));
+      return true;
+    });
+    if (onlyMissing && positions.length) {
+      throw rememberLatticeVerificationMissingUnitError(new LatticeProtocolError(
+        "The verifier accepted while explicitly reporting a missing meaning unit.",
+      ), batch, analysis, candidate, stage, positions);
+    }
+  }
   const reportedChecksPass = allGatesPass && passageChecksPass && issues.length === 0 && questions.length === 0;
   // A model may overlook the contradiction encoded by its own detailed
   // evidence (for example, independently selecting a different layer while

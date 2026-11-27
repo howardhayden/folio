@@ -399,6 +399,23 @@
           "priorWorkerRestored": true
         },
         "correction": "The writer sees fixed quotations and editable frames. A changed question or a copied short dialogue frame can use the existing draft correction. Repairs ground missing units in their source and preserve checked neighbors on an unchanged plan. The complete group receives fresh independent review."
+      },
+      "disputedCoverageAndFrameRepair": {
+        "previousProductionSmoke": "https://github.com/howardhayden/folio/actions/runs/46054454988",
+        "regularFirefox": {
+          "words": 697,
+          "providerCalls": 37,
+          "finalGroupReviews": 9,
+          "acceptedGroupReviews": 6,
+          "affirmativeInitialReviewResponses": 9,
+          "affirmativeRevisedReviewResponses": 4,
+          "affirmativeRevisedResponsesWithExplicitMissingUnits": 2,
+          "copiedShortFramePassages": 2,
+          "passageReviewsWithMissingUnits": 5,
+          "outputVisible": false,
+          "priorWorkerRestored": true
+        },
+        "correction": "A contradictory affirmative review can recheck the disputed units on its existing correction attempt. A writer correcting a copied short frame can propose two replacements for its editable fragment in one call. The host preserves the fixed source and independently reviews the assembled result."
       }
     }
   },
@@ -527,6 +544,11 @@
       "path": "docs/release-evidence/text-to-lattice/nov27-dialogue-frame-source-digests.json",
       "bytes": 22164,
       "sha256": "31b9249e4341bd8db6002abcc384e224e244b8f11bb22c9420b30040baf931f9"
+    },
+    "fragmentComparison": {
+      "path": "docs/release-evidence/text-to-lattice/nov27-fragment-source-digests.json",
+      "bytes": 22164,
+      "sha256": "53f05f9ff35138180cd8607ae432cfeec983fb3f43d16906b67a2da4c7ca894b"
     }
   },
   "qualificationScope": "Safari and Brave supplied the canonical-browser traces for the qualified remote capability. The current production evidence carries those original results through the release owner's one-time source comparison. The last pulled hah.dev deployment and ancestry baseline are recorded in the evidence appendix. The earlier browser-local implementation is historical and inactive.",
@@ -557,7 +579,7 @@
     "decidedOn": "2026-11-26",
     "record": "The owner authorized 48 calls for qualifying long jobs and the Cloudflare clearance-cookie correction, preserving live service throughout rollout. The final visitor check uses regular Firefox. The source and output stay out of release evidence.",
     "note": "The completed one-off reset permits extra ordinary capacity with the 30/3 policy unchanged. Actual usage and rates determine charges. Intermittent upstream refusal and limited output fidelity remain accepted demonstrator risks. Privacy or admission failure requires withdrawal.",
-    "qualifiedSourceSetSha256": "3bb6dcf8fa4a143ea047ec6f573f2c655259a79880ebacbfa4ddc067ce73229d"
+    "qualifiedSourceSetSha256": "df78c35e7334a83a82cc36847999e73c962e95659d8141a11d45c7bcab83b92d"
   },
   "implementationBaselineRevision": "b211964213cd49e8335a73bcbebce3221c3a6bc2",
   "statusVocabulary": [
@@ -572,7 +594,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "0842e14f7e9cccc64d99d20bcc587102acd14a66689c9163226df5b8e653c556",
+    "qualificationDossierSha256": "d1cd9633cccddf1b35b734bd5125fbc6437b370a1ee83425caeef135e3aee52c",
     "browserEvidence": {
       "status": "verified-sanitized-bundle",
       "path": "docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json",
@@ -645,7 +667,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "3bb6dcf8fa4a143ea047ec6f573f2c655259a79880ebacbfa4ddc067ce73229d",
+      "sha256": "df78c35e7334a83a82cc36847999e73c962e95659d8141a11d45c7bcab83b92d",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, controlling Owner terms and baseline record, license-routing map, package metadata, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -656,13 +678,13 @@
       "authorization": "owner-approved-long-job-and-clearance-20261126",
       "capturedCommit": "6166a3f430338331ca3f0336450e500571cbb896",
       "capturedSourceSetSha256": "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
-      "currentSourceSetSha256": "3bb6dcf8fa4a143ea047ec6f573f2c655259a79880ebacbfa4ddc067ce73229d",
+      "currentSourceSetSha256": "df78c35e7334a83a82cc36847999e73c962e95659d8141a11d45c7bcab83b92d",
       "evidenceId": "ttl-browser-20261123T143941Z-a495af12",
       "evidenceSha256": "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
       "proof": {
-        "path": "docs/release-evidence/text-to-lattice/nov27-dialogue-frame-source-digests.json",
+        "path": "docs/release-evidence/text-to-lattice/nov27-fragment-source-digests.json",
         "bytes": 22164,
-        "sha256": "31b9249e4341bd8db6002abcc384e224e244b8f11bb22c9420b30040baf931f9"
+        "sha256": "53f05f9ff35138180cd8607ae432cfeec983fb3f43d16906b67a2da4c7ca894b"
       }
     }
   },

@@ -62,7 +62,7 @@ import { latticeProtectedLiteralMatches } from "../app/resume/lattice/protectedS
 import { rememberRejectedResult, deterministicFindingRule } from "../app/resume/lattice/rejectionDiagnostics.js";
 import { isClosedWithheldTrace, isClosedWithheldPipelineObservation, rememberLatticeAnalysisRetentionDowngrade } from "../app/resume/lattice/qualificationDiagnostics.js";
 import { rememberLatticeAnalysisPassageOrigins } from "../app/resume/lattice/analysisProvenance.js";
-import { getLatticeVerificationCorrection } from "../app/resume/lattice/verificationCorrection.js";
+import { getLatticeVerificationCorrection, getLatticeVerificationMissingPositions } from "../app/resume/lattice/verificationCorrection.js";
 import { getLatticeRegenerationRetentionPositions, getLatticeRegenerationExactSourceCorrectionPositions } from "../app/resume/lattice/regenerationContext.js";
 import { createHuggingFaceLatticeAdapter } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
@@ -696,6 +696,36 @@ test("a qualifying draft repairs its own incomplete atom claims before independe
     assert.equal(result.status, repeated ? "unable-to-attempt" : "translated");
     assert.equal(certificates, repeated ? 0 : 1);
     assert.equal(repairs, repeated ? 3 : 1);
+  }
+});
+
+test("an affirmative long review rechecks an isolated missing unit without clearing a repeated omission", async () => {
+  const source = Array.from({ length: 28 }, (_, index) => opaqueWords(20, "p" + index + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  for (const scenario of ["corrected", "repeated", "explicit-negative"]) {
+    let corrections = 0, reviews = 0, certificates = 0;
+    const adapter = scriptedAdapter({
+      verify(request) {
+        if (request.batch !== plan.batches[0]) return;
+        reviews++;
+        const checked = rawVerification(request);
+        if (getLatticeVerificationCorrection(request) === "atom-decision") {
+          corrections++;
+          assert.deepEqual(getLatticeVerificationMissingPositions(request), [[0, [2]]]);
+          if (scenario === "corrected") return checked;
+        }
+        const row = checked.passages[0];
+        row.missingAtomIds = [row.checkedAtomIds.pop()];
+        if (scenario === "explicit-negative") checked.decision = "repair";
+        return checked;
+      },
+      certify() { certificates++; },
+    });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 48, allowClarification: false });
+    assert.equal(corrections, scenario === "corrected" ? 1 : scenario === "explicit-negative" ? 0 : 2);
+    assert.equal(reviews, scenario === "repeated" ? 4 : 2);
+    assert.equal(certificates, scenario === "corrected" ? 1 : 0);
+    assert.equal(result.status, scenario === "corrected" ? "translated" : "unable-to-attempt");
   }
 });
 

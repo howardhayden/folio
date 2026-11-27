@@ -18,13 +18,13 @@ function matches(request, context) {
     && data(feedback, "attempt") === 2;
 }
 
-function remember(error, batch, analysis, candidate, stage, kind) {
+function remember(error, batch, analysis, candidate, stage, kind, missingPositions = null) {
   if (error !== null && typeof error === "object"
     && ["verification", "reverification"].includes(stage)
     && [batch, analysis, candidate].every((value) => value !== null
       && typeof value === "object" && Object.isFrozen(value))
     && !FAILURES.has(error)) {
-    FAILURES.set(error, Object.freeze({ batch, analysis, candidate, stage, kind }));
+    FAILURES.set(error, Object.freeze({ batch, analysis, candidate, stage, kind, missingPositions }));
   }
   return error;
 }
@@ -40,6 +40,15 @@ export function rememberLatticeVerificationDecisionAlignmentError(error, batch, 
 
 export function rememberLatticeVerificationLayerSupportError(error, batch, analysis, candidate, stage) {
   return remember(error, batch, analysis, candidate, stage, "layer-support");
+}
+
+export function rememberLatticeVerificationMissingUnitError(error, batch, analysis, candidate, stage, positions) {
+  return remember(error, batch, analysis, candidate, stage, "atom-decision", Object.freeze(positions));
+}
+
+export function getLatticeVerificationMissingPositions(request) {
+  const context = REQUESTS.get(request);
+  return context?.kind === "atom-decision" && context.active && matches(request, context) ? context.missingPositions : null;
 }
 
 export async function withLatticeVerificationCorrection(request, error, invoke) {
