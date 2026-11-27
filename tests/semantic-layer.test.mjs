@@ -1003,7 +1003,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
         repair: { maximumOutputTokens: 800 },
       },
     },
-    inferenceSummary: "The server routes Qwen analysis and drafting to Parasail and Llama review to CoreWeave through Hugging Face and OpenRouter. Each stage has an output limit. The server checks returned objects against a closed contract and rejects invalid or incomplete output.",
+    inferenceSummary: "The server routes Qwen analysis and drafting to DeepInfra and Llama review to CoreWeave through Hugging Face and OpenRouter. Each stage has an output limit. The server checks returned objects against a closed contract and rejects invalid or incomplete output.",
   };
   const expectedVerifier = {
     name: "Llama 3.3 70B Instruct server-side verifier",
@@ -1028,7 +1028,7 @@ test("project and Text to Lattice implementation provenance stays source-aligned
     },
   };
   const expectedRuntime = {
-    name: "Hugging Face Inference Providers with OpenRouter, Parasail and CoreWeave",
+    name: "Hugging Face Inference Providers with OpenRouter, DeepInfra and CoreWeave",
     version: "provider-managed remote service",
     packageUrl: "https://huggingface.co/docs/inference-providers/",
     documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",

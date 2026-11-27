@@ -310,7 +310,7 @@ test("the public model contract retains bounded stages without publishing privat
     "the verification null-collection permission stays outside the serialized provider request",
   );
   assert.match(adapter, /const providerUrl = HUGGING_FACE_CHAT_COMPLETIONS_URL;/u);
-  assert.match(adapter, /const providerModel = role === "generator" && useStandardGenerator\s*\? LATTICE_STANDARD_GENERATOR : LATTICE_REMOTE_MODELS\[role\]/u);
+  assert.match(adapter, /const providerModel = role === "generator" && useParasailGenerator\s*\? PARASAIL_GENERATOR : LATTICE_REMOTE_MODELS\[role\]/u);
   assert.match(adapter.slice(providerBodyStart, providerBodyEnd), /model: providerModel/u);
   assert.doesNotMatch(adapter, /CreateMLCEngine|latticeWebllm\.worker/u);
 });

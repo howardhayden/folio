@@ -120,7 +120,7 @@ export const latticeReadingGuide = {
       ],
       technologies: [
         "Two Cloudflare edge Workers handle the résumé’s security headers and API submissions. A SQLite-backed Durable Object coordinates the daily quota across requests.",
-        "Hugging Face routes through OpenRouter to Qwen on Parasail for analysis and drafting, and to Llama on CoreWeave for verification and document certification.",
+        "Hugging Face routes through OpenRouter to Qwen on DeepInfra for analysis and drafting, and to Llama on CoreWeave for verification and document certification.",
         "A single HTTP response carries numbered, content-free phase updates followed by the terminal result or error.",
       ],
       evidence: ["edge-browser-policy", "admission-and-consent", "service-path", "repair-and-outcomes", "server-progress", "edge-release-verification", "browser-results", "production-publication"],

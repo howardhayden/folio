@@ -913,26 +913,26 @@ const sourceCarryCapture = Object.freeze({
   evidenceId: "ttl-browser-20261123T143941Z-a495af12",
   evidenceSha256: "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
   fileDigestsSha256: "a3c557dcec1563f2f0023cfe39d89d470e77777059fb25414ff5714b2e18280f",
-  proofPath: "docs/release-evidence/text-to-lattice/nov27-reviewed-graph-source-digests.json",
+  proofPath: "docs/release-evidence/text-to-lattice/nov27-standard-planning-source-digests.json",
 });
 const sourceCarryEditorialPage = Object.freeze({
   path: "app/projects/lattice/text-to-lattice/page.tsx",
   beforeSha256: "1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8",
-  afterSha256: "e0ccf57fdcf4fab222cd9eeac4c53aa47971d74dc1c0b26c80b94f7f5096283b",
+  afterSha256: "402159cf3350ed98b1f5227a58b42a7520c06c6d9e49cf4e1be7421d714dfbe9",
 });
 const approvedPublicationFiles = Object.freeze({
-  ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "e72eff11e523b6cde61142bafdfb58aa49dc2a63f125c1baaefcd2706f1b9d8d" },
-  "app/content/projectDocuments.js": { before: "261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251", after: "7d78e0ce710dff59087f748feb9fa660fa6d5062bded120ec232f28e3557bd2b" },
+  ".github/workflows/pages.yml": { before: "c23120677b068f817ad2a1261e76db63bc3ac0013d2e7426d46d7cf0b52792fd", after: "968acda75ad09bd7c13503ccdfa4f5319a42933cb2dffb414713a9c6f8c60edb" },
+  "app/content/projectDocuments.js": { before: "261c3150e2b68cc0c6944da91c29dca26544ec73126de52dbff195ed6a9c7251", after: "a7e92316b513757b6a19ece0fbc2fd4390e08d3c8766edc146c61184e4d21ca3" },
   "app/projects/[slug]/page.tsx": { before: "d9c197e75d35c3522104367272ab426f8c9bdec2253b7a619eecd2a47f4abf62", after: "43ab6d037e0c9eb5609ce5c17b0a4bbfdbd6a58689fc478f5b3b64f5464d268a" },
-  "app/semantic/portfolio.js": { before: "7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6", after: "9027b89f2bdd166f076d784fab33d47d6e6933a6e38700f68d7cf8729c1c5fbf" },
-  "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "48b8ce5b5f07f1b504e31c92b8fe5768e791adf25ee0d603b69811c7c215dc2f" },
-  "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "636dbb5753a31cb84c92d55d0f2181183edd9e57be09e52f799afc1f86569c61" },
+  "app/semantic/portfolio.js": { before: "7fcc144c8b57b75973b78ce43c9a407ac85d941d0ed8271c4e94b82c7195ffe6", after: "8506fd4f7d49f5b6ab672b5ba00265c39774c4e71ff035fee70beaa82462380c" },
+  "scripts/docs/build-text-to-lattice-documentation.mjs": { before: "69908da7315c7d07500b18196cfe76912d3c58560510aec7a3b3a1474f810afc", after: "8279fb192f914a8ceaba074a65b75cfe807c710967d9265754ab7f120724efee" },
+  "tests/lattice-deployment-workflow.test.mjs": { before: "3ff5d963b27488cac81ca7689636755ec9a6774dc8510387d688328fec541089", after: "a7909c96dc96754a7f6146c42d68c334f2d3bc068ee0d0f6273eb69139c141f3" },
   "app/resume/ProjectDescriptionDisclosure.tsx": { before: "5e75a6ab95b261ea2ff77c5012998f618126de1c59456acde2310b663b174e89", after: "cef3f61fa66e2ceeb91cb61f8d236751c9d6f2e4688062bb496741110541d832" },
-  "app/resume/ResumeProjects.tsx": { before: "42b88aa9be93601a305f266f2948722f401dc17d712293fee6e6ea78bffa7db4", after: "6c9548e7eb46ca06063c291b94e1bd3d227a253b5c9bed9e40681b0d29c72812" },
+  "app/resume/ResumeProjects.tsx": { before: "42b88aa9be93601a305f266f2948722f401dc17d712293fee6e6ea78bffa7db4", after: "55cad4a74e9edee07989f7c15d4939570d7c1e4f0a67503f79ce4eafe896958d" },
   "app/globals.css": { before: "c92afb6efeb29bdbb96462810cc458137e9ced07d89aab7023f07f701c55663f", after: "cefefec324c8ad824e125be7d465ce9ebbf3e645bc95e5a8754cb84de742f7b1" },
   "tests/lattice-service-view.test.mjs": { before: "5b35bad121018ef1a9e49f11a202d07529197e96336380c1b43c07c9e9785e73", after: "8621bf54a7b309a54ca43c8ab98070c174c44391cf65f459a9694caf9995ce09" },
-  "app/content/textToLatticeContent.js": { before: "32f4c7f164c4e872230e12016fdffa0167565bc5afab742a7870935f26d09a41", after: "886e00087d29f6e8b120b78eca9956167d59234a2006b7141f1a4c62baacf57d" },
-  "app/resume/lattice/remoteProtocol.js": { before: "a7b33f6969f4593fa87a46e30420c3094f91e9e34dfbba5b65f932097aa9868d", after: "6766b5363284e935dfc5fdbb646e14dee10bc7bb3f7caad1df34629ee7c376ef" },
+  "app/content/textToLatticeContent.js": { before: "32f4c7f164c4e872230e12016fdffa0167565bc5afab742a7870935f26d09a41", after: "d3ea08cf52e29dfbf90d7b3f9731c49b84320b57e34a2112b297e3d62d31c4c9" },
+  "app/resume/lattice/remoteProtocol.js": { before: "a7b33f6969f4593fa87a46e30420c3094f91e9e34dfbba5b65f932097aa9868d", after: "71b191b6e7ce377ec2c53e8925a8638a6afb03e04d88038911eb5777fee05fed" },
   "app/resume/lattice/remoteRequest.js": { before: "161a4f068ee7357c4f42cc4c33a3237668ef01196e3fecde2a98694dd0261c92", after: "27ab9f07be6d1ed2a981c9332751563052dae76e4e72062be67599836cce4df6" },
   "app/resume/lattice/segments.js": { before: "6a32fdd7e9145579d86eb60e34994a89270e6b970db75b1f382b7be91aa7e8fd", after: "5c9b13cbc2cb63090c6b5facceb459fd6d6b98e78329da527edf3dab9ff28895" },
   "app/resume/lattice/serviceTelemetry.js": { before: "cc38fda1abb8a29d3fea10426b84e32cfff9f6ad14526b3367ccdbce6c52980a", after: "0ec5b1de48731d5f9db35c7fa936290668107a049768a45b0c18123a389be167" },
@@ -940,32 +940,25 @@ const approvedPublicationFiles = Object.freeze({
   "scripts/read-text-to-lattice-active-version.mjs": { before: "1063485afc31efd16123f80f585210c1ae0c9c4e7103cbe7c236e019f73a0155", after: "2f43abcca26e8450d96f0beef70f291cd6dd3cfa5024928a6943f1ea12637f08" },
   "scripts/text-to-lattice-production-canary.mjs": { before: "fb5ca18a973ad1a6d1eead16535a0c6c4cea8852b72dbd53764e20f0c2f4efa4", after: "270ba635a44916756a1154bfa498ef6432b489de8392fe1bf3ead9a75677293d" },
   "scripts/verify-text-to-lattice-api-production.mjs": { before: "3c3d1803cbc4f610f1da6a5f571d165782498a3056aea07fb2ca44a6c69f8b90", after: "65b9de44b58fa4a9b47a7b298c68d799a6f5148be0564f4c2a86e9c7fb709d85" },
-  "tests/lattice-api-worker.test.mjs": { before: "460458b7f94de503c46d150da4712ccaef5ed757578aee2ae7d2dca323c2fb29", after: "df49b5e8c20c14a9f41d12b4248f50dc4b0d71055151a19b7d3dabfe3c095316" },
-  "tests/lattice-demo.test.mjs": { before: "f02129d9939c76903310fae367146b85a5f7b62da55dd421c1a2d4229f5ed201", after: "fadfcd6649bfcbe5ff64f01d698b0e41586443a19ed31543953f56b5e79a63f2" },
-  "tests/lattice-network-capability.test.mjs": { before: "81b667a111103366cad61dae3486a69e3865ceb39b5ab1026319dfe61e39cab6", after: "41867c9e9ba15e0406355b6fc17267b27237c2c58c7c91439de9eb37af6aaca0" },
-  "tests/lattice-production-api-verifier.test.mjs": { before: "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce", after: "e2d8a2bbc551f6860552bac5fa75f339b9dde6f3546f1971a0a492f40842a28d" },
+  "tests/lattice-api-worker.test.mjs": { before: "460458b7f94de503c46d150da4712ccaef5ed757578aee2ae7d2dca323c2fb29", after: "9848cc81c3064f3dee62699784c71509bf19e68c9110cd8a593382cceb81ce5e" },
+  "tests/lattice-demo.test.mjs": { before: "f02129d9939c76903310fae367146b85a5f7b62da55dd421c1a2d4229f5ed201", after: "8f7dca414592e0ff045b4b9463e6d00db0dc164ee6067e11ffa5abe90831fe33" },
+  "tests/lattice-network-capability.test.mjs": { before: "81b667a111103366cad61dae3486a69e3865ceb39b5ab1026319dfe61e39cab6", after: "ad75c402fbc2d33e13ba24303b35660022014b23bb3d55d771f35e75208af386" },
+  "tests/lattice-production-api-verifier.test.mjs": { before: "b823726fa9b877151f29e48664a5bd7444bc7c205ddff11772e2cd4a55a260ce", after: "6b0b265410ea10f052526bc8e5a8dca6beb272711dde08e4f496a20991f715c5" },
   "tests/lattice-service-telemetry-worker.test.mjs": { before: "0d03949ccd4cdda0f5f6bd16ade8c526fd13c599048d91230a556588ecdc1aa4", after: "5aadb894a43bb09644144a295579031fd0c7328cc770f549c58623e744d1e6e7" },
   "workers/package-lock.json": { before: "74684a6c780f38e5ea646ef6c29329be5541d05f23de1f65f64f050ea21ff96a", after: "494d6ea38fd6e7989673cf729c6792d7f4acbc1876bcb76b97c0a8c7c711eb5d" },
   "workers/package.json": { before: "7fa9a406742ff6a67d0565ea51e5a845384f1e11fa590ed46906ed5b186838bc", after: "f52444513091bbd4399396dbf8c3adee027b094c6666923f3acb042522ae9d6f" },
-  "workers/text-to-lattice-api/huggingFaceAdapter.js": { before: "1306ad3d60560cbc9cdb629d1ea3e1ed6abbeb6db7559cda18ccdabe397012a9", after: "8e4326c1d42ce91b800a4e7c87256c8268b8be65fc36f5caaf4546ce017fa1d1" },
-  "workers/text-to-lattice-api/worker.js": { before: "89f67a96629041cd6f30fc95cba257ad98852be01b1fab144a59d8b3e0b7eac9", after: "4e4a4b9c8713eb1ec13c14406da0a8a46ebae23fae07618d0429fb2ba345fcce" },
+  "workers/text-to-lattice-api/huggingFaceAdapter.js": { before: "1306ad3d60560cbc9cdb629d1ea3e1ed6abbeb6db7559cda18ccdabe397012a9", after: "ac6c99c3d081a193ba30d016783cf42e8fe9c0d8cda38fafac7b45b64c2f7b21" },
+  "workers/text-to-lattice-api/worker.js": { before: "89f67a96629041cd6f30fc95cba257ad98852be01b1fab144a59d8b3e0b7eac9", after: "56438886a6e511fb5f3c2ba962f14ccdb309e74cb8c503c61f32aaef9735583c" },
   "app/privacy/networkCapabilities.js": { before: "c47c98266b3bb00e1df9784554ce580dd4c4afba46104009491a565c980a793b", after: "37dc6457f57796540cdb7c8d86828009f6947a356ef57c8889cf14ac03e5c6ff" },
-  "tests/semantic-layer.test.mjs": { before: "9ed6f496e5bed6665457e825c9352d73029e99da9291101700e7b4e589b60e44", after: "d1a6fda4c6f3b75359c9acbb4ae38bfa2b1c3dc78d62e1dbd24896ee518400e7" },
+  "tests/semantic-layer.test.mjs": { before: "9ed6f496e5bed6665457e825c9352d73029e99da9291101700e7b4e589b60e44", after: "753b5527dbcb37af13d12fc0783a27f32b77216de2312318db7f282a5e577455" },
   "workers/text-to-lattice-api/visitorCookie.js": { before: "5863a6b005939c58c54edcf430b82afaf56efc847ad9f373ce175e4fa17aff5e", after: "50db6f1a6d74cbf039c56510593d9fff2b5b9e7ddf74d3f5b24e5fa7bc97d9a2" },
   "app/resume/lattice/promptContract.js": { before: "3f6d97345b7239ab28ab2a9c88d6063bde1fcf8a9689d786e3c58e0a54577525", after: "929aa6dc5301ed1a96e72335bf79bbf241f04f8f50fae9c55b37aaedfc4dacd9" },
   "app/resume/lattice/regenerationContext.js": { before: "000181ce30f4a44ff44a18cbaeb4f95674a2363241e35054b4a253794cc014fd", after: "02684fc4acd89396ae89d1f6c46d7c5d758ea5291396aa17b0a65d96ffce6a09" },
-  "NOTICE": { before: "77cd1e2b7457a691fb7a4c9bdc5ce0ad72e75c4fd5aa6ce6ae3689238b6169b9", after: "0e8662c9ffd26c9be5c0997892467f1253afd6c87f94c8c778952da4f680edf3" },
-  "THIRD_PARTY_NOTICES.md": { before: "adcf64ae5a593ec15ec9be7c9287eba6d618541f8572e8b503e460838e2a288b", after: "74ad56635375a89f5bcf4c8c62a0ba0eca723c8e5d47563c3055dd51fb5888d3" },
-  "app/resume/projects.js": { before: "67c1dc2c78fa4da256a805737ef857e7696e605f0d99d768539a2dedef2b0554", after: "66c30455b5e6b2e7ca162822ba61ffc98cb5da9de8032b3fc1cb02c6c50ce3a1" },
-  "app/third-party-notices/page.tsx": { before: "980209540a012fd061384f5bae93bdd6ca4707be99a8f56c801291d82b736197", after: "a0a6fd240991ca7e1a5d865f3e741a4ed3e263ad701d13517f147ca7ad3222b5" },
-  "scripts/text-to-lattice-qualification-usage.mjs": { before: "e3f6b991a6d13078d32ef16e7c5dab0277ecd78b412e6e6cfca83933bfcbe18b", after: "0579b6e61b21f20d9b05a2bad1d7d71eba0c12cab4142b2d7899b019984dced1" },
-  "tests/build-output-hygiene.test.mjs": { before: "bf2300a8ce5e340bcd22a6c85a2e1ebcae8cae5fa482a96873d12d897fdea6d2", after: "538efc299c64140ad9226895d6ed58fadf39a147a339ed37bc1a306d849ac7cc" },
-  "tests/distribution-licensing.test.mjs": { before: "bba386c62f77858a2b4ef30a4b83bee6842d82951984a97c6e3938cc0fa922d0", after: "68d1b3cb506a4b2aa586d67050d01fd0a3835473bde3b56ba48bb491f360b466" },
-  "tests/lattice-deployment-evidence.test.mjs": { before: "26fa94d3d7f0933be0a399f161269bcd935efffdb2154afe8720e7ad6c6cb7e9", after: "e87085b6e4f3fc6d9ddb7e3656824c8677361d26d1fd766e87066de8da54564f" },
-  "tests/lattice-modal-accessibility.test.mjs": { before: "952da819c512f59b180764bf8f788eaace57fd34a18e13da549aa546f2476476", after: "6acc1f045ae559230f0f5a6fcdcd1a8966d868426410541af23d18f842956897" },
-  "tests/lattice-qualification-usage-evidence.test.mjs": { before: "3bce30a1156371af248bdc1a959b449f38781b93dddce3b693b88bee64709c27", after: "84849c3b895933f0b465ee9b98d89f58c7ed8f28daa914a6ced48928d5d2d22b" },
-  "tests/lattice-usage-policy.test.mjs": { before: "2a5d0ac6575eb7c89e434087e996e55fc5fb515d707df569e838bbe24793f8ab", after: "b4d0ff4fe65919f810de748ae8328bcc6350e566327899df03b052ac879da618" },
-  "tests/resume-search.test.mjs": { before: "29f4b7f9440e4c9b01ffef8b82a575f505c87a1a0d1ebffd9a1e68ce3d5e717d", after: "653d5816d23573c470cf35992f9e030bdcfbf9505c1ce0caef9f25b8ea7ef9af" },
+  "THIRD_PARTY_NOTICES.md": { before: "adcf64ae5a593ec15ec9be7c9287eba6d618541f8572e8b503e460838e2a288b", after: "41e3de3f20eeceed331ba02f33cf2bf12a5f120b8f02d44fdb09f42adc4d3cf6" },
+  "app/resume/projects.js": { before: "67c1dc2c78fa4da256a805737ef857e7696e605f0d99d768539a2dedef2b0554", after: "bc7eae0311662430449534662738c2f48ec3d31edb080e1561198860f42d3158" },
+  "scripts/text-to-lattice-qualification-usage.mjs": { before: "e3f6b991a6d13078d32ef16e7c5dab0277ecd78b412e6e6cfca83933bfcbe18b", after: "fdb0376c0955ee02e9f070042791805ae61a4ce25d187cd3e72b9f89bbbb9a41" },
+  "tests/build-output-hygiene.test.mjs": { before: "bf2300a8ce5e340bcd22a6c85a2e1ebcae8cae5fa482a96873d12d897fdea6d2", after: "f615b48c100388bce39367f8864d29746d2e55a8d0c62b9fe8547085405d6a63" },
+  "tests/lattice-qualification-usage-evidence.test.mjs": { before: "3bce30a1156371af248bdc1a959b449f38781b93dddce3b693b88bee64709c27", after: "aed68b3f98a8537719f817b733d3c9c964d06c2dce5a17270d53a57e763dcfea" },
 });
 const sourceCarryExceptions = Object.freeze({
   [sourceCarryEditorialPage.path]: sourceCarryEditorialPage.beforeSha256,
@@ -1465,7 +1458,7 @@ async function verifyQualificationDossier(register) {
   ];
   const currentArtifactClaims = historySource === null ? artifactClaims : activeArtifactClaims.map((claim) =>
     claim === artifacts.activeCapability.providerRetentionBoundary
-      ? claim.split(" Previous standard-generator disclosure follows as dated history. ")[0]
+      ? claim.split(" Previous Venice disclosure follows verbatim as dated history. ")[0]
       : claim);
   const gateRows = register.gates.map((gate) => `| ${gate.id} · ${gate.label} | ${machineValueLabel(gate.status)} | ${machineValueLabel(gate.marginalValue)} |`);
   const productionLifecycleGate = register.gates.find(({ id }) => id === "GATE-06");
@@ -1488,12 +1481,8 @@ async function verifyQualificationDossier(register) {
     if (!source.includes(required)) fail(`release qualification dossier omits ${required}.`);
   }
   if (historySource !== null) {
-    for (const claim of artifactClaims) {
-      // The selected backup is documented above. Authenticate the preceding
-      // disclosure, including its older history, against the original appendix.
-      const required = claim === artifacts.activeCapability.providerRetentionBoundary
-        ? claim.split(" Previous standard-generator disclosure follows as dated history. ")[1] : claim;
-      if (typeof required !== "string" || !source.includes(required) && !historySource.includes(required)) {
+    for (const required of artifactClaims) {
+      if (!source.includes(required) && !historySource.includes(required)) {
         fail(`release qualification dossier and pinned history omit ${required}.`);
       }
     }
@@ -2019,9 +2008,11 @@ export function verifyStandardGenerationResumption(register) {
   const provider = register.artifactSet?.activeCapability?.provider;
   const backup = register.veniceGenerationThirdBackupSelection;
   if (selection?.generatorModel !== "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra"
-    || selection.generatorModel !== provider?.earlierDisclosureGenerator
+    || selection.generatorModel !== LATTICE_REMOTE_MODELS.generator
     || register.manualGenerationReselection?.selectedGenerator !== register.parasailGenerationBackupSelection?.selectedGeneratorModel
-    || register.manualGenerationReselection?.selectedGenerator !== LATTICE_REMOTE_MODELS.generator
+    || register.manualGenerationReselection?.selectedGenerator !== provider?.earlierDisclosureGenerator
+    || register.standardGeneratorAfterBackup?.selectedGenerator !== selection.generatorModel
+    || register.standardGeneratorAfterBackup.previousGenerator !== provider.earlierDisclosureGenerator
     || provider.generatorModel !== LATTICE_REMOTE_MODELS.generator
     || register.manualGenerationReselection.standardGenerator !== selection.generatorModel
     || register.manualGenerationReselection.reviewModel !== selection.reviewModel

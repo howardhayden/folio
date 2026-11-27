@@ -385,8 +385,8 @@ function LatticeServiceDiagram({ state }: Readonly<{
   const center = (line: string, width = 31) => line.padStart(line.length + Math.floor((width - line.length) / 2)).padEnd(width);
   const stages: ReadonlyArray<readonly [string, string[]]> = [
     ["prepare", ["Bind source integrity"]],
-    ["analysis", ["Analyze", "Qwen · Parasail"]],
-    ["draft", ["Draft", "Qwen · Parasail"]],
+    ["analysis", ["Analyze", "Qwen · DeepInfra"]],
+    ["draft", ["Draft", "Qwen · DeepInfra"]],
     ["bind", ["Bind candidate integrity"]],
     ["verify", ["Verify", "Llama · CoreWeave"]],
     ["repair", ["Repair / regenerate if needed", "Revisit earlier checks"]],
@@ -404,7 +404,7 @@ function LatticeServiceDiagram({ state }: Readonly<{
   return (
     <TerminalStateDiagram
       caption={<>Server pipeline<small>Current phase: {state.label}</small></>}
-      description={`Current phase: ${state.label}. The browser checks source and consent, then sends a content-free cookie setup and one text request to hah.dev. The server reports its actual phase through that request: source integrity, Parasail analysis and drafting, candidate integrity, CoreWeave verification, bounded repair and certification when needed. The browser receives a checked result or a finite error. Phase names contain no source or generated text.`}
+      description={`Current phase: ${state.label}. The browser checks source and consent, then sends a content-free cookie setup and one text request to hah.dev. The server reports its actual phase through that request: source integrity, DeepInfra analysis and drafting, candidate integrity, CoreWeave verification, bounded repair and certification when needed. The browser receives a checked result or a finite error. Phase names contain no source or generated text.`}
       diagramClassName="lattice-service-diagram"
     >
       <span className={`lattice-service-state teaching-manifest-entry--${tone("input")}`}>
@@ -482,7 +482,7 @@ function LatticeNetworkDiagram() {
       />
       <div id="lattice-map-step-panel" role="tabpanel" aria-labelledby={`lattice-map-step-${step.id}-tab`}>
         <p className="lattice-map-explanation">{step.explanation}</p>
-        <div className="lattice-map-grid" role="img" aria-label="GitHub Pages delivers the page through Cloudflare’s page Worker to your browser. Your browser exchanges text and results only with the API Worker on hah.dev. The API Worker checks a shared counter that holds no passage text. Only admitted requests reach Hugging Face and OpenRouter, which route drafting to Qwen on Parasail and review to Llama on CoreWeave. The result returns through the API Worker to your browser.">
+        <div className="lattice-map-grid" role="img" aria-label="GitHub Pages delivers the page through Cloudflare’s page Worker to your browser. Your browser exchanges text and results only with the API Worker on hah.dev. The API Worker checks a shared counter that holds no passage text. Only admitted requests reach Hugging Face and OpenRouter, which route drafting to Qwen on DeepInfra and review to Llama on CoreWeave. The result returns through the API Worker to your browser.">
           {node("pages", "GitHub Pages", "Serves the résumé")}
           {edge("delivery", "→")}
           {node("policy", "Page Worker", "Cloudflare · sets browser rules")}
@@ -495,7 +495,7 @@ function LatticeNetworkDiagram() {
           {edge("admitted", "↕", "admitted work")}
           {node("router", "Hugging Face → OpenRouter", "Routes the Worker’s model calls")}
           <span className="lattice-map-fork" style={{ gridArea: "fork" }} data-traced={step.route.includes("fork")} />
-          {node("qwen", "Qwen · Parasail", "Analyzes and drafts")}
+          {node("qwen", "Qwen · DeepInfra", "Analyzes and drafts")}
           {node("llama", "Llama · CoreWeave", "Reviews the meaning")}
         </div>
       </div>
@@ -1043,7 +1043,7 @@ export default function ResumeProjects() {
               This text leaves hah.dev for processing by the configured external Hugging Face inference service only when you choose <strong>Process with external service</strong>. hah.dev does not retain your sample or result. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. <a href="/projects/lattice/text-to-lattice/#text-to-lattice-privacy">Privacy details</a>.
             </p>
             <p id="lattice-model-disclosure" className="lattice-local-note">
-              Model-assisted result: Qwen3-235B-A22B-Instruct-2507 drafts and Llama 3.3 70B Instruct checks through the configured external service. Hugging Face routes requests through OpenRouter to Parasail for the draft and CoreWeave for review. OpenRouter records metadata and may categorize prompts or retain content for safety or legal purposes. Hugging Face’s settings for this route are unknown. Parasail keeps serverless inputs and outputs through delivery and may retain masked operational metadata. Its terms exclude using that content to train its models. The standard DeepInfra route deletes ordinary inputs and outputs after inference, with support, legal and temporary caching exceptions. CoreWeave describes zero data retention by default for serverless inference. Optional tracing can record requests. The tracing setting for this route is unknown. External processing policies are separate from hah.dev’s application no-retention rule. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_3_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
+              Model-assisted result: Qwen3-235B-A22B-Instruct-2507 drafts and Llama 3.3 70B Instruct checks through the configured external service. Hugging Face routes requests through OpenRouter to DeepInfra for the draft and CoreWeave for review. OpenRouter records metadata and may categorize prompts or retain content for safety or legal purposes. Hugging Face’s settings for this route are unknown. DeepInfra deletes ordinary inputs and outputs after inference, with support, legal and temporary caching exceptions. CoreWeave describes zero data retention by default for serverless inference. Optional tracing can record requests. The tracing setting for this route is unknown. External processing policies are separate from hah.dev’s application no-retention rule. Known limits: the models and automated checks can alter or omit meaning, introduce bias, or fail to catch unsafe content. Review every result before relying on it. <a href={LLAMA_3_3_PUBLIC_TERMS.licenseUrl}>Built with Llama</a>.
             </p>
             <p className="lattice-usage-note" id="lattice-demonstration-profile">
               Demonstration profile: after explicit confirmation, the browser sends one
@@ -1104,12 +1104,12 @@ export default function ResumeProjects() {
                 }}
               />
               <label className="lattice-use-confirmation-label" htmlFor="lattice-use-confirmation">
-                I confirm that this source is in one of the supported languages, I am authorized to send it through Hugging Face and OpenRouter to the selected Qwen generator (Parasail backup or DeepInfra standard) and to CoreWeave for review, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.3 Acceptable Use Policy or the service terms of Parasail, DeepInfra or CoreWeave.
+                I confirm that this source is in one of the supported languages, I am authorized to send it through Hugging Face and OpenRouter to DeepInfra and CoreWeave, and this conversion has a lawful purpose and will not materially further conduct prohibited by the Llama 3.3 Acceptable Use Policy or the service terms of DeepInfra or CoreWeave.
               </label>
               <details className="lattice-disclosure lattice-use-confirmation-detail">
                 <summary>Supported languages and use policies</summary>
                 <small id="lattice-use-confirmation-detail" className="lattice-disclosure-content">
-                Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_3_PUBLIC_TERMS.acceptableUseUrl}>Llama 3.3 Acceptable Use Policy</a>, <a href="https://www.parasail.io/legal/terms-of-service">Parasail terms of service</a>, <a href="https://deepinfra.com/terms">DeepInfra terms of service</a>, and <a href="https://docs.coreweave.com/policies/terms-of-service">CoreWeave terms of service</a>.
+                Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. See the <a href={LLAMA_3_3_PUBLIC_TERMS.acceptableUseUrl}>Llama 3.3 Acceptable Use Policy</a>, <a href="https://deepinfra.com/terms">DeepInfra terms of service</a>, and <a href="https://docs.coreweave.com/policies/terms-of-service">CoreWeave terms of service</a>.
                 </small>
               </details>
             </div>

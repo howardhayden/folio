@@ -41,9 +41,9 @@ export const HUGGING_FACE_CHAT_COMPLETIONS_URL =
   "https://router.huggingface.co/v1/chat/completions";
 export const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL = HUGGING_FACE_CHAT_COMPLETIONS_URL;
 
-export const LATTICE_STANDARD_GENERATOR = "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra";
+const PARASAIL_GENERATOR = "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail";
 export const LATTICE_REMOTE_MODELS = Object.freeze({
-  generator: "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
+  generator: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
   verifier: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
 });
 
@@ -562,6 +562,11 @@ function analysisWireGuide(positionAnchors) {
     positionAnchors
       ? "Evidence positions start at zero in supplied order. In a passage with fitted evidence anchors, atom 0 starts with evidence 0, atom 1 with evidence 1, and so on through the fitted prefix. Classify what that source record means. Each atom may also select other evidence supporting the same unit, up to three distinct records total. Put the fixed position first and the others in ascending order. Add further atoms for distinct meanings when needed. Across all atoms, include every source span and nested annotation. For retention, assess the actual wording against all five criteria. Choose rewrite when meeting a criterion requires changing the wording."
       : "Evidence positions are zero-based in exact supplied evidence order. List each atom's one to three unique positions in ascending order, and cover every supplied evidence position across the passage's atoms.",
+    ...(positionAnchors ? [
+      `The first four mask positions in order are ${LATTICE_CONFORMANCE_CRITERIA.universal.join(", ")}. Check commitments, relations, clarity, and distracting ornament in the existing wording.`,
+      `The fifth mask depends on the chosen layer: ${ANALYSIS_LAYERS.map((layer) => `${layer}=${LATTICE_CONFORMANCE_CRITERIA[layer][0]}`).join("; ")}. Narrated action alone is not an instruction. Mixed requires inseparable functions.`,
+      "Cite wording that demonstrates each criterion. If the wording needs work on any criterion or evidence is missing, choose rewrite with five zero masks.",
+    ] : []),
     "The five criterion masks use this order: the four universal criteria followed by the selected layer criterion. Each mask is a fitted binary string in evidence order. A rewrite uses five all-zero masks. A retain-if-conformant plan gives every criterion a nonempty selection and the five masks jointly cover every evidence position.",
     "Ordinary evidence uses equivalent or implicit preservation; exact is available only when every selectable evidence record is literal. Ambiguity membership is derived from emitted ambiguity or uncertainty kinds.",
     "Use the smallest complete atom graph allowed by the fitted cap. Carry source meaning through evidence positions. Emit no identifiers, free text, long field names, Markdown, explanations, schema text, or prose outside the object.",
@@ -2711,7 +2716,7 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
 
 export async function requestHuggingFaceJson({
   token,
-  useStandardGenerator = false,
+  useParasailGenerator = false,
   role,
   messages,
   schema,
@@ -2755,7 +2760,7 @@ export async function requestHuggingFaceJson({
   if (typeof token !== "string" || !token.trim()) {
     throw providerError("provider_not_configured", "The Lattice provider is not configured.");
   }
-  if (typeof useStandardGenerator !== "boolean" || !REMOTE_ROLES.has(role) || !Array.isArray(messages) || !record(schema)
+  if (typeof useParasailGenerator !== "boolean" || !REMOTE_ROLES.has(role) || !Array.isArray(messages) || !record(schema)
     || typeof schemaName !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(schemaName)
     || !validPositiveInteger(maxTokens) || !validPositiveInteger(callTimeoutMs)
     || !validPositiveInteger(maximumRequestBytes)
@@ -2828,8 +2833,8 @@ export async function requestHuggingFaceJson({
   // Review stages require their closed single-content strict-schema envelope;
   // legacy helper compatibility never selects an alternate route or model.
   const providerUrl = HUGGING_FACE_CHAT_COMPLETIONS_URL;
-  const providerModel = role === "generator" && useStandardGenerator
-    ? LATTICE_STANDARD_GENERATOR : LATTICE_REMOTE_MODELS[role];
+  const providerModel = role === "generator" && useParasailGenerator
+    ? PARASAIL_GENERATOR : LATTICE_REMOTE_MODELS[role];
   let acceptStoppedReviewMetadata = allowNullStoppedScalewayReviewMetadata
     ? stoppedScalewayNullReviewMessageAllowed : undefined;
   // CoreWeave #473 matched the existing stopped DeepInfra joint-null rule.
@@ -3034,7 +3039,7 @@ function messagesWithMode(factory, request, requestedMode) {
 
 export function createHuggingFaceLatticeAdapter({
   token,
-  useStandardGenerator = false,
+  useParasailGenerator = false,
   providerCallLimit = LATTICE_PROVIDER_CALL_LIMIT,
   requestedMode = "auto",
   fetchImpl = globalThis.fetch,
@@ -3105,7 +3110,7 @@ export function createHuggingFaceLatticeAdapter({
       result = await requestHuggingFaceJson({
         token,
         role: stage.role,
-        useStandardGenerator,
+        useParasailGenerator,
         messages: messagesWithMode(messageFactory, fittedRequest, requestedMode),
         schema: fittedSchema,
         schemaName: stage.schemaName,
