@@ -3685,7 +3685,7 @@ export async function executeLatticePlan(preflight, options) {
     ...entry,
     ...bindRequiredLedgerTargets(entry.analysis, buildDocumentLedger(analyses, entry.batch.id)),
   }));
-  const retainedSourceDrafts = options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
+  const qualifyingLongJob = options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
     && latticeProviderCallLimitForPlan(preflight) === LATTICE_LONG_JOB_POLICY.providerCallLimit;
   const candidates = [];
   for (let index = 0; index < analyses.length; index += 1) {
@@ -3694,7 +3694,7 @@ export async function executeLatticePlan(preflight, options) {
     progress(onProgress, "generating", index, analyses.length, request.batch.id);
     // For a fully evidenced retention plan, only the exact source can pass
     // deterministic review. The independent reviewer still assesses every passage.
-    const useSourceDraft = retainedSourceDrafts && request.analysis.passages.every(
+    const useSourceDraft = qualifyingLongJob && request.analysis.passages.every(
       ({ disposition }) => disposition === "retain-if-conformant",
     );
     let candidate;
@@ -4067,6 +4067,7 @@ export async function executeLatticePlan(preflight, options) {
             () => options.adapter.generate(currentRequest),
             correctionPositions,
             retainedOverrideIdsByBatch.get(original.batch.id),
+            qualifyingLongJob,
           )
           : options.adapter.repair(currentRequest),
         normalize: (raw) => normalizeCandidate(raw, original.batch, replacementAnalysis),

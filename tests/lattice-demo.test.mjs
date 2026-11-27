@@ -466,6 +466,49 @@ test("long jobs reserve calls for independent review of source-bound retained pa
   }
 });
 
+test("replanned long rewrites receive their specific review findings and must pass fresh review", async () => {
+  const source = Array.from({ length: 28 }, (_, index) => opaqueWords(22, `p${index}w`) + ".").join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const target = plan.batches[0];
+  for (const [limit, secondReviewPasses] of [[48, true], [48, false], [32, true]]) {
+    let reviewed = 0;
+    let regenerated = 0;
+    let certified = 0;
+    const adapter = scriptedAdapter({
+      generate(request) {
+        const messages = candidateMessages(request, { analysisPlanDialect: "compact-wire-v2" });
+        const payload = JSON.parse(messages[1].content.slice(12, -13));
+        if (request.regenerationFromReanalysis) {
+          regenerated += 1;
+          assert.equal(request.batch.id, target.id);
+          assert.deepEqual(payload.regenerationFeedback, limit === 48 ? {
+            priorRewriteChecks: [[0, ["materiality"]], [1, ["registerFit"]]],
+          } : undefined);
+        } else {
+          assert.equal(payload.regenerationFeedback, undefined);
+        }
+        return rawCandidate(request);
+      },
+      verify(request) {
+        if (request.batch.id !== target.id) return rawVerification(request);
+        reviewed += 1;
+        if (reviewed === 2 && secondReviewPasses) return rawVerification(request);
+        const feedback = rawVerification(request, { gates: { registerFit: false } });
+        feedback.passages[0].failedChecks = ["materiality"];
+        feedback.passages[1].failedChecks = ["registerFit"];
+        return feedback;
+      },
+      certify() { certified += 1; },
+    });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: limit, allowClarification: false });
+    assert.equal(regenerated, 1);
+    assert.equal(reviewed, 2);
+    assert.equal(certified, secondReviewPasses ? 1 : 0);
+    assert.equal(result.status, secondReviewPasses ? "translated" : "unable-to-attempt");
+    if (!secondReviewPasses) assert.equal(result.text, null);
+  }
+});
+
 test("long-job balancing avoids redundant analysis calls and preserves every passage through certification", async () => {
   const lengths = [...Array(16).fill(32), ...Array(12).fill(3)];
   const source = lengths.map((length, index) => opaqueWords(length, `p${index}w`) + ".").join("\n\n");
