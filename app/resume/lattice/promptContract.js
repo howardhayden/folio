@@ -1095,6 +1095,7 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     : "";
   const evidencePositionInstruction = wireLayout?.passages?.[0]?.sourcePositionsByAtom
     ? " For each passage, sourcePositionsByAtom lists the zero-based source positions cited by each atom in x order. Choose x and y from the actual source meaning. Each selected y position must occur under a selected x atom. The table describes the graph and supplies no verdict. " + LATTICE_LONG_REGISTER_SELECTION
+      + (wireLayout.passages[0].sourceAtomsByPosition ? " For this correction, sourceAtomsByPosition also lists exactly which atom positions cite each source position. Recheck the meaning before selecting either mask." : "")
     : "";
   const atomClaimInstruction = request.deterministicFindings?.some((finding) => deterministicFindingRule(finding) === "D13")
     ? " The host separately enforces the candidate-atom-claim finding for the atom ID list. Determine atom coverage, failed checks, issues, and the verdict from the independent source and candidate comparison. Report genuine omissions and unsupported meaning. Do not report a failed check or a negative verdict solely because of the ID list mismatch."
@@ -1233,7 +1234,13 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema" } 
   const compactPlan = analysisPlanDialect === "compact-wire-v2";
   const sourceGroups = repairSourcePassagesForModel(request);
   const requiredRewrites = compactPlan ? requiredRewritePositionsForModel(sourceGroups, request.analysis) : [];
+  const nonmaterialIds = new Set(request.correctCopiedLongDraft === true && request.repairFromSource === true
+    ? (request.deterministicFindings ?? []).filter((finding) => deterministicFindingRule(finding) === "D14")
+      .map(({ passageId }) => passageId)
+    : []);
+  const copiedPositions = sourceGroups.flatMap(([id], index) => nonmaterialIds.has(id) ? [index] : []);
   const realizationInstruction = CANDIDATE_REALIZATION_INSTRUCTION
+    + (copiedPositions.length ? " For each copiedRewritePosition, compose a fresh expression of the same speech act or assertion. Recast its clause structure or choose an equivalent predicate. Preserve the speaker, referents, facts, certainty, and designated exact literals. Merely changing punctuation, typography, or word case fails. Return the complete candidate." : "")
     + (requiredRewrites.length ? REQUIRED_REWRITE_CHECKLIST_INSTRUCTION : "");
   const verificationFeedback = verificationFeedbackForModel(request.verification);
   const feedbackSourceSpans = compactPlan ? repairFeedbackSourceSpansForModel(request, verificationFeedback) : [];
@@ -1247,6 +1254,7 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema" } 
     {
       version: PUBLIC_REGISTER_VERSION,
       sourcePassages: sourceGroups,
+      ...(copiedPositions.length ? { copiedRewritePositions: copiedPositions } : {}),
       ...(requiredRewrites.length ? { requiredRewritePassagePositions: requiredRewrites } : {}),
       sourceBoundaries: sourceBoundariesForModel(request),
       documentLedger: documentLedgerForModel(request.documentLedger),

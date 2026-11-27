@@ -62,6 +62,7 @@ import { latticeProtectedLiteralMatches } from "../app/resume/lattice/protectedS
 import { rememberRejectedResult, deterministicFindingRule } from "../app/resume/lattice/rejectionDiagnostics.js";
 import { isClosedWithheldTrace, isClosedWithheldPipelineObservation, rememberLatticeAnalysisRetentionDowngrade } from "../app/resume/lattice/qualificationDiagnostics.js";
 import { rememberLatticeAnalysisPassageOrigins } from "../app/resume/lattice/analysisProvenance.js";
+import { getLatticeVerificationCorrection } from "../app/resume/lattice/verificationCorrection.js";
 import { getLatticeRegenerationRetentionPositions, getLatticeRegenerationExactSourceCorrectionPositions } from "../app/resume/lattice/regenerationContext.js";
 import { createHuggingFaceLatticeAdapter } from "../workers/text-to-lattice-api/huggingFaceAdapter.js";
 import {
@@ -558,6 +559,103 @@ test("register-only long repairs keep the checked graph and individually confirm
     assert.equal(certifications, mode === "second-refusal" ? 0 : 1, mode);
     assert.equal(result.status, mode === "second-refusal" ? "unable-to-attempt" : "translated", mode);
     if (mode === "second-refusal") assert.equal(result.text, null);
+  }
+});
+
+test("long repair uses its remaining attempt only on nonmaterial passages and rechecks the actual result", async () => {
+  const source = Array.from({ length: 28 }, (_, index) => opaqueWords(20, `p${index}w`)).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const target = plan.batches[0];
+  for (const scenario of ["material", "still-copied", "ordinary"]) {
+    let repairs = 0;
+    let reviews = 0;
+    let certificates = 0;
+    const copiedFirst = (request) => {
+      const draft = rawCandidate(request);
+      draft.passages[0].text = request.batch.passages[0].text;
+      return draft;
+    };
+    const adapter = scriptedAdapter({
+      generate(request) {
+        if (request.batch.id === target.id) return copiedFirst(request);
+      },
+      repair(request) {
+        if (request.batch.id !== target.id) return;
+        repairs += 1;
+        if (repairs === 1) return copiedFirst(request);
+        assert.equal(request.correctCopiedLongDraft, true);
+        assert.equal(request.verification, null);
+        assert.equal(request.protocolFeedback, undefined);
+        const prompt = repairMessages(request, { analysisPlanDialect: "compact-wire-v2" });
+        assert.deepEqual(inertModelPayload(prompt).copiedRewritePositions, [0]);
+        assert.match(prompt[0].content, /equivalent predicate/u);
+        const replacement = scenario === "still-copied" ? copiedFirst(request) : rawCandidate(request);
+        // This unsolicited change to a neighboring model passage must never reach review.
+        replacement.passages[1].text = request.batch.passages[1].text;
+        return replacement;
+      },
+      verify(request) {
+        if (request.batch.id === target.id) {
+          reviews += 1;
+          assert.equal(request.candidate.passages[1].text, rawCandidate(request).passages[1].text);
+        }
+      },
+      certify() { certificates += 1; },
+    });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: scenario === "ordinary" ? 32 : 48, allowClarification: false });
+    assert.equal(repairs, scenario === "ordinary" ? 1 : 2, scenario);
+    assert.equal(reviews, 2, scenario);
+    assert.equal(certificates, scenario === "material" ? 1 : 0, scenario);
+    assert.equal(result.status, scenario === "material" ? "translated" : "unable-to-attempt", scenario);
+    if (scenario !== "material") assert.equal(result.text, null);
+  }
+});
+
+test("a long verifier can correct a contradictory layer citation without approving repeated or explicit failures", async () => {
+  const source = Array.from({ length: 28 }, (_, index) => opaqueWords(20, `p${index}w`)).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const target = plan.batches[0];
+  for (const scenario of ["corrected", "still-ungrounded", "explicit-refusal"]) {
+    let targetReviews = 0;
+    let correctionCalls = 0;
+    let certificates = 0;
+    const adapter = scriptedAdapter({
+      verify(request) {
+        const checked = rawVerification(request);
+        if (request.batch.id !== target.id) return checked;
+        targetReviews += 1;
+        const correction = getLatticeVerificationCorrection(request);
+        if (correction) {
+          assert.equal(request.protocolFeedback.attempt, 2);
+          assert.equal(correction, "layer-support");
+          correctionCalls += 1;
+          if (scenario === "corrected") return checked;
+        }
+        const passage = checked.passages[0];
+        assert.equal(checked.decision, "accept");
+        passage.layerEvidenceAtomIds = [passage.layerEvidenceAtomIds[0]];
+        assert.ok(passage.layerEvidenceSpanIds.some((id) => !request.analysis.passages[0].atoms[0].evidenceSpanIds.includes(id)));
+        if (scenario === "explicit-refusal") {
+          checked.decision = "reject";
+          checked.failedGates = ["safety"];
+        }
+        return checked;
+      },
+      certify() { certificates += 1; },
+    });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 48, allowClarification: false });
+    if (scenario === "corrected") {
+      assert.equal(result.status, "translated");
+      assert.equal(targetReviews, 2);
+      assert.equal(correctionCalls, 1);
+      assert.equal(result.verificationPasses, 1);
+      assert.equal(certificates, 1);
+    } else {
+      assert.equal(result.status, "unable-to-attempt", scenario);
+      assert.equal(result.text, null, scenario);
+      assert.equal(certificates, 0, scenario);
+      assert.equal(correctionCalls, scenario === "explicit-refusal" ? 0 : 2, scenario);
+    }
   }
 });
 

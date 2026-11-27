@@ -38,6 +38,10 @@ export function rememberLatticeVerificationDecisionAlignmentError(error, batch, 
   return remember(error, batch, analysis, candidate, stage, "decision-alignment");
 }
 
+export function rememberLatticeVerificationLayerSupportError(error, batch, analysis, candidate, stage) {
+  return remember(error, batch, analysis, candidate, stage, "layer-support");
+}
+
 export async function withLatticeVerificationCorrection(request, error, invoke) {
   const origin = FAILURES.get(error);
   let context = null;
