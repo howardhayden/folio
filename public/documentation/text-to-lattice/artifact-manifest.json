@@ -62,13 +62,13 @@
     },
     {
       "filename": "TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-      "bytes": 19967,
-      "sha256": "b4ab28d77042cae881c3391766f301ffbc04dab824af0c5a8130ac9269f1b2ac"
+      "bytes": 20598,
+      "sha256": "0591e944905b7c37d18c0006fc10301de9051a0a20b534fa4afe3720f68be0aa"
     },
     {
       "filename": "TEXT-TO-LATTICE-RELEASE-REGISTER.json",
-      "bytes": 3711848,
-      "sha256": "dc82c0c0aa04266ab2448d5a9afc25ab7be9dee1b5c7670684cb5cc1487be6ce"
+      "bytes": 3712968,
+      "sha256": "ddf56b649d00dae877d179357a0b7b3542162b21276c47e2ec58a619ffddac05"
     }
   ],
   "artifacts": [
@@ -139,13 +139,13 @@
     },
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-      "bytes": 19967,
-      "sha256": "b4ab28d77042cae881c3391766f301ffbc04dab824af0c5a8130ac9269f1b2ac"
+      "bytes": 20598,
+      "sha256": "0591e944905b7c37d18c0006fc10301de9051a0a20b534fa4afe3720f68be0aa"
     },
     {
       "path": "public/documentation/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
-      "bytes": 3711848,
-      "sha256": "dc82c0c0aa04266ab2448d5a9afc25ab7be9dee1b5c7670684cb5cc1487be6ce"
+      "bytes": 3712968,
+      "sha256": "ddf56b649d00dae877d179357a0b7b3542162b21276c47e2ec58a619ffddac05"
     },
     {
       "path": "public/documentation/text-to-lattice/text-to-lattice-security-model.html",

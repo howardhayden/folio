@@ -1950,10 +1950,7 @@ test("688-word narrative fits the production Worker, strict provider adapters an
         counts.analysis += 1;
         const p = payload.passages.map(([, spans, literals]) => {
           const evidence = [...spans, ...literals];
-          const atoms = [];
-          for (let i = 0; i < evidence.length; i += 3) {
-            atoms.push([atoms.length % 3, 0, 1, evidence.slice(i, i + 3).map((_, offset) => i + offset)]);
-          }
+          const atoms = evidence.map((_, position) => [position % 3, 0, 1, [position]]);
           const masks = Array.from({ length: 5 }, (_, i) => evidence.map((_, position) =>
             (i === 4 || position === i % evidence.length ? "1" : "0")).join(""));
           return [0, 1, atoms, masks];
@@ -5579,6 +5576,53 @@ test("analysis evidence rejection codes bind only to the actual fitted rejecting
   }).analyze(request);
   assert.deepEqual(rejectedResultDiagnostic(malformed), { boundary: "wire-decoder", category: "other", rule: "unknown" });
   assert.equal(malformed[LATTICE_FITTED_ANALYSIS_CONTEXT].decoderFailureCategory, "response-shape");
+});
+
+test("qualifying long analysis anchors source coverage while preserving shared evidence and genuine refusal", async () => {
+  const base = minimalAnalysisRequest(LATTICE_PRODUCTION_CANARY_TEXT);
+  const request = { ...base, sourceSpans: latticeSourceSpansForBatch(base.batch), analysisAtomLimit: 12 };
+  const evidenceCount = request.sourceSpans[0].spans.length;
+  assert.equal(evidenceCount, 3);
+  const masks = Array(5).fill("000");
+  async function analyze(providerCallLimit, positions, analysisAtomLimit = 12) {
+    let body;
+    const atoms = positions.map((selections, index) => [index % 3, 0, 1, selections]);
+    const adapter = createHuggingFaceLatticeAdapter({
+      token: "fixture", providerCallLimit,
+      fetchImpl: async (_url, init) => {
+        body = JSON.parse(init.body);
+        return successfulProviderResponse({ d: 2, p: [[0, 0, atoms, masks]], l: atoms.length > 1 ? [[0, 0, 1]] : [] });
+      },
+    });
+    const result = await adapter.analyze({ ...request, analysisAtomLimit });
+    const schema = body.response_format.json_schema.schema.properties.p.prefixItems[0].prefixItems[2];
+    return { result, schema, guide: body.messages[0].content };
+  }
+  const positions = [[0, 2], [1], [2, 1], [0]];
+  const ordinary = await analyze(32, positions);
+  const long = await analyze(48, positions);
+  assert.deepEqual(long.result, ordinary.result);
+  assert.equal(long.result.passages[0].atoms.length, 4);
+  assert.equal(long.schema.minItems, evidenceCount);
+  assert.equal(long.schema.prefixItems.length, evidenceCount);
+  for (const [index, atom] of long.schema.prefixItems.entries()) {
+    const evidence = atom.prefixItems[3];
+    assert.deepEqual(evidence.prefixItems, [{ const: index }]);
+    assert.equal(evidence.maxItems, 3);
+    assert.equal(evidence.items.maximum, evidenceCount - 1);
+  }
+  assert.match(long.guide, /fitted evidence anchors/u);
+  assert.doesNotMatch(ordinary.guide, /fitted evidence anchors/u);
+  assert.equal(ordinary.schema.prefixItems, undefined);
+  const tight = await analyze(48, [[0, 1], [2]], 2);
+  assert.equal(tight.schema.prefixItems, undefined);
+  assert.equal(tight.result.passages[0].atoms.length, 2);
+  const single = await analyze(48, [[0, 1, 2]], 1);
+  assert.deepEqual(single.schema.prefixItems[0].prefixItems[3].prefixItems, [{ const: 0 }, { const: 1 }, { const: 2 }]);
+  assert.equal(single.result.passages[0].atoms.length, 1);
+  assert.equal(rejectedResultDiagnostic((await analyze(48, [[0], [1], [1]])).result)?.rule, "A03");
+  assert.equal(rejectedResultDiagnostic((await analyze(48, [[0], [], [2]])).result)?.rule, "A02M");
+  assert.equal(rejectedResultDiagnostic((await analyze(48, [[0], [1], [3]])).result)?.rule, "A02R");
 });
 
 test("reanalysis evidence diagnostics preserve bounded correction, structural withholding and marked privacy", async (context) => {

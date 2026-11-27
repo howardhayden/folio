@@ -552,17 +552,24 @@ const ANALYSIS_WIRE_SCHEMA = Object.freeze({
   }),
   required: Object.freeze(["d", "p", "l"]),
 });
-const ANALYSIS_WIRE_GUIDE = [
-  "Return one minified private analysis instance using only the mandatory d/p/l index layout; never echo the schema.",
-  `Root d is the zero-based document-kind index [${ANALYSIS_DOCUMENT_KINDS.join(",")}]. Root p contains one passage tuple per supplied passage in supplied order. Root l contains the document link tuples. Passage and atom IDs are host-generated and must not be emitted.`,
-  `Passage tuple positions 0-3: [layer index,disposition index,atom tuples,criterion evidence masks]. Layer indices are [${ANALYSIS_LAYERS.join(",")}]; disposition indices are [${ANALYSIS_DISPOSITIONS.join(",")}]. ${LATTICE_COMPACT_ANALYSIS_HOST_DERIVATION_INSTRUCTION}`,
-  `Atom tuple positions 0-3: [kind index,priority index,preservation index,evidence positions]. Kind indices are [${ANALYSIS_ATOM_KINDS.join(",")}]; priority indices are [${ANALYSIS_PRIORITIES.join(",")}]; preservation indices are [${ANALYSIS_PRESERVATIONS.join(",")}]. The host derives each atom value from its selected source evidence.`,
-  `Each l tuple is [source atom position,relation index,target position]. Atom positions use global passage/atom order. Relation indices are [${ANALYSIS_RELATIONS.join(",")}]. Nonnegative targets select emitted atoms; -1 selects the first supplied ledger atom, -2 the second, and so on. Select only existing non-self positions and never repeat a typed link.`,
-  "Evidence positions are zero-based in exact supplied evidence order. List each atom's one to three unique positions in ascending order, and cover every supplied evidence position across the passage's atoms.",
-  "The five criterion masks use this order: the four universal criteria followed by the selected layer criterion. Each mask is a fitted binary string in evidence order. A rewrite uses five all-zero masks. A retain-if-conformant plan gives every criterion a nonempty selection and the five masks jointly cover every evidence position.",
-  "Ordinary evidence uses equivalent or implicit preservation; exact is available only when every selectable evidence record is literal. Ambiguity membership is derived from emitted ambiguity or uncertainty kinds.",
-  "Use the smallest complete atom graph allowed by the fitted cap. Carry source meaning through evidence positions. Emit no identifiers, free text, long field names, Markdown, explanations, schema text, or prose outside the object.",
-].join("\n");
+function analysisWireGuide(positionAnchors) {
+  return [
+    "Return one minified private analysis instance using only the mandatory d/p/l index layout; never echo the schema.",
+    `Root d is the zero-based document-kind index [${ANALYSIS_DOCUMENT_KINDS.join(",")}]. Root p contains one passage tuple per supplied passage in supplied order. Root l contains the document link tuples. Passage and atom IDs are host-generated and must not be emitted.`,
+    `Passage tuple positions 0-3: [layer index,disposition index,atom tuples,criterion evidence masks]. Layer indices are [${ANALYSIS_LAYERS.join(",")}]; disposition indices are [${ANALYSIS_DISPOSITIONS.join(",")}]. ${LATTICE_COMPACT_ANALYSIS_HOST_DERIVATION_INSTRUCTION}`,
+    `Atom tuple positions 0-3: [kind index,priority index,preservation index,evidence positions]. Kind indices are [${ANALYSIS_ATOM_KINDS.join(",")}]; priority indices are [${ANALYSIS_PRIORITIES.join(",")}]; preservation indices are [${ANALYSIS_PRESERVATIONS.join(",")}]. The host derives each atom value from its selected source evidence.`,
+    `Each l tuple is [source atom position,relation index,target position]. Atom positions use global passage/atom order. Relation indices are [${ANALYSIS_RELATIONS.join(",")}]. Nonnegative targets select emitted atoms; -1 selects the first supplied ledger atom, -2 the second, and so on. Select only existing non-self positions and never repeat a typed link.`,
+    positionAnchors
+      ? "Evidence positions start at zero in supplied order. In a passage with fitted evidence anchors, atom 0 starts with evidence 0, atom 1 with evidence 1, and so on through the fitted prefix. Classify what that source record means. Each atom may also select other evidence supporting the same unit, up to three distinct records total. Put the fixed position first and the others in ascending order. Add further atoms for distinct meanings when needed. Across all atoms, include every source span and nested annotation. For retention, assess the actual wording against all five criteria. Choose rewrite when meeting a criterion requires changing the wording."
+      : "Evidence positions are zero-based in exact supplied evidence order. List each atom's one to three unique positions in ascending order, and cover every supplied evidence position across the passage's atoms.",
+    "The five criterion masks use this order: the four universal criteria followed by the selected layer criterion. Each mask is a fitted binary string in evidence order. A rewrite uses five all-zero masks. A retain-if-conformant plan gives every criterion a nonempty selection and the five masks jointly cover every evidence position.",
+    "Ordinary evidence uses equivalent or implicit preservation; exact is available only when every selectable evidence record is literal. Ambiguity membership is derived from emitted ambiguity or uncertainty kinds.",
+    "Use the smallest complete atom graph allowed by the fitted cap. Carry source meaning through evidence positions. Emit no identifiers, free text, long field names, Markdown, explanations, schema text, or prose outside the object.",
+  ].join("\n");
+}
+
+const ANALYSIS_WIRE_GUIDE = analysisWireGuide(false);
+const LONG_ANALYSIS_WIRE_GUIDE = analysisWireGuide(true);
 
 function analysisWireMessages(request) {
   return analysisMessages(request, { responseDialect: "compact-wire-v2" });
@@ -1299,7 +1306,7 @@ function fitAnalysisRequest(request) {
   });
 }
 
-function analysisWireSchemaForFit(fit) {
+function analysisWireSchemaForFit(fit, positionAnchors = false) {
   const {
     request, passages, evidenceIdsByPassage, literalEvidenceIdsByPassage,
     analysisAtomLimit, minimumAtomAllocations, atomAllocations,
@@ -1338,19 +1345,26 @@ function analysisWireSchemaForFit(fit) {
       preservationSchema,
       evidenceSchema,
     );
-    const requiredAtomSchemas = atomLimit === 1
-      ? Object.freeze([fixedTuple(
-        ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[0],
-        ANALYSIS_WIRE_ATOM_SCHEMA.prefixItems[1],
-        preservationSchema,
+    // For long jobs, anchor one model-classified atom to each source record
+    // when the fitted allocation permits. The model may cite shared evidence
+    // and add atoms. The decoder and independent reviewer validate the graph.
+    let requiredAtomSchemas = [];
+    if (atomLimit === 1) {
+      requiredAtomSchemas = [fixedTuple(
+        ...atomSchema.prefixItems.slice(0, 3),
         fixedTuple(...evidenceIds.map((_id, position) => Object.freeze({ const: position }))),
-      )])
-      : Object.freeze([]);
+      )];
+    } else if (positionAnchors && evidenceIds.length <= atomLimit) {
+      requiredAtomSchemas = evidenceIds.map((_id, position) => fixedTuple(
+        ...atomSchema.prefixItems.slice(0, 3),
+        Object.freeze({ ...evidenceSchema, prefixItems: Object.freeze([Object.freeze({ const: position })]) }),
+      ));
+    }
     const atomsSchema = Object.freeze({
       ...ANALYSIS_WIRE_PASSAGE_SCHEMA.prefixItems[2],
-      minItems: minimumAtomAllocations[index],
+      minItems: Math.max(minimumAtomAllocations[index], requiredAtomSchemas.length),
       maxItems: atomLimit,
-      ...(requiredAtomSchemas.length === 0 ? {} : { prefixItems: requiredAtomSchemas }),
+      ...(requiredAtomSchemas.length === 0 ? {} : { prefixItems: Object.freeze(requiredAtomSchemas) }),
       items: atomSchema,
     });
     const conformanceMaskSchema = analysisWireBitMaskSchema(evidenceIds.length);
@@ -3048,6 +3062,7 @@ export function createHuggingFaceLatticeAdapter({
     budget.used += 1;
     const callOrdinal = budget.used;
     const stage = STAGES[stageName];
+    const positionAnchors = stageName === "analysis" && providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit;
     let usageObserved = false;
     const stageContext = request?.[LATTICE_STAGE_DIAGNOSTIC_CONTEXT];
     const analysisContext = stageName === "analysis"
@@ -3065,7 +3080,7 @@ export function createHuggingFaceLatticeAdapter({
       const evidenceFirst = isVerificationAlignmentCorrection(verificationCorrection);
       const fittedRequest = analysisFit?.request ?? request;
       const fittedSchema = analysisFit
-        ? analysisWireSchemaForFit(analysisFit)
+        ? analysisWireSchemaForFit(analysisFit, positionAnchors)
         : verificationFit
         ? verificationWireSchemaForFit(verificationFit, evidenceFirst)
         : certificationFit
@@ -3081,7 +3096,8 @@ export function createHuggingFaceLatticeAdapter({
         messages: messagesWithMode(messageFactory, fittedRequest, requestedMode),
         schema: fittedSchema,
         schemaName: stage.schemaName,
-        responseGuide: evidenceFirst ? VERIFICATION_ALIGNMENT_GUIDE : stage.responseGuide,
+        responseGuide: positionAnchors ? LONG_ANALYSIS_WIRE_GUIDE
+          : evidenceFirst ? VERIFICATION_ALIGNMENT_GUIDE : stage.responseGuide,
         schemaDescription: stage.schemaDescription,
         responseFormat: stage.responseFormat,
         toolName: stage.toolName,
