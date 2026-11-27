@@ -1090,11 +1090,14 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     : wireCorrection === "retained-conformance"
     ? " Rebuild retained-source conformance separately from candidate judgment. A planned rewrite cannot certify unchanged retention; use only its schema-fixed c value and keep actual independent source-layer support in x and y. Replace the complete d/g/p/i result without changing a semantic verdict merely to satisfy layout."
     : "";
+  const evidencePositionInstruction = wireLayout?.passages?.[0]?.sourcePositionsByAtom
+    ? " For each passage, sourcePositionsByAtom lists the zero-based source positions cited by each atom in x order. Choose x and y from the actual source meaning. Each selected y position must occur under a selected x atom. The table describes the graph and supplies no verdict."
+    : "";
   const atomClaimInstruction = request.deterministicFindings?.some((finding) => deterministicFindingRule(finding) === "D13")
     ? " The host separately enforces the candidate-atom-claim finding for the atom ID list. Determine atom coverage, failed checks, issues, and the verdict from the independent source and candidate comparison. Report genuine omissions and unsupported meaning. Do not report a failed check or a negative verdict solely because of the ID list mismatch."
     : "";
   return messages(
-    `Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.${atomClaimInstruction}`,
+    `Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.${atomClaimInstruction}${evidencePositionInstruction}`,
     {
       version: PUBLIC_REGISTER_VERSION,
       batchId: request.batch.id,

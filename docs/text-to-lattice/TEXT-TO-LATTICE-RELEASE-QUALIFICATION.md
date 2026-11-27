@@ -4,7 +4,9 @@ Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave
 
 The November 23 production check accepted the original passage in 10.563 seconds. The protected Pages publication delivered that build. [Service check](https://github.com/howardhayden/folio/actions/runs/45255468630) · [Publication receipt](https://github.com/howardhayden/folio/actions/runs/45259201772) · [Evidence by claim](https://hah.dev/documentation/text-to-lattice/evidence.html)
 
-On November 27 the full Firefox request stopped before planning. The standard Qwen generator returned HTTP 400, and Hugging Face had removed its route from the catalog. The manually selected Parasail backup returned a valid structured response. The production smoke and the complete passage in regular Firefox decide long-job readiness.
+The November 27 production smoke passed on the Parasail backup. In regular Firefox, the full 697-word request reached regeneration and spent all 48 calls before it could return a result. Eleven calls rebuilt analysis after independent review. The previous Worker resumed all traffic. [Production smoke](https://github.com/howardhayden/folio/actions/runs/45995827362) · [Firefox result](https://github.com/howardhayden/folio/pull/265)
+
+The next planner reuses a source graph when the reviewer accounts for every atom and the remaining defects concern writing register or retention. It gives the new draft its own revision, obtains a fresh independent review and requires whole-document certification. A heavy job keeps its original groups when extra splits would consume the repair budget. The complete passage in regular Firefox decides acceptance.
 
 The November 26 update gives requests of at least 500 words and seven planned batches up to 48 provider calls. Other requests receive 32. The Worker ignores Cloudflare’s clearance cookie and requires the signed application cookie for every admission.
 
@@ -54,7 +56,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `1fb05d100bab628463aaf4d0030574d506b34f81d6b45c1e22fc22dbc8f3962c`
+**Qualified source-set SHA-256:** `a27d384e2f81dd2db2503990b85a952a3bbd3348a535adb95fe47767c42e19ec`
 
 **Artifact-set projection SHA-256:** `526550f355760796203153b2039d5a56d0e630061a227cf4c35bdd3a65893071`
 
@@ -88,7 +90,7 @@ These are the register’s current capability values, including the exact reques
 
 The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Separate regression tests cover long-job selection, the 32- and 48-call limits, and clearance-cookie handling in setup and admission. The workflow stages the candidate at zero percent, then switches traffic to it for the ordinary production check. The full passage in regular Firefox decides long-job acceptance. Consecutive failures trigger restoration of the preceding live Worker. Only aggregate results are recorded.
 
-The current fingerprint is `1fb05d100bab628463aaf4d0030574d506b34f81d6b45c1e22fc22dbc8f3962c`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov27-generation-route-source-digests.json) covers all 267 paths. It lists 49 differences and contains file names and hashes.
+The current fingerprint is `a27d384e2f81dd2db2503990b85a952a3bbd3348a535adb95fe47767c42e19ec`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov27-reviewed-graph-source-digests.json) covers all 267 paths. It lists 49 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 

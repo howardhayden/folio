@@ -1580,7 +1580,7 @@ function verificationWireSchemaForFit(fit, evidenceFirst) {
   return closedWireObject(evidenceFirst ? { g, p, i, d } : { d, g, p, i });
 }
 
-function verificationWireLayoutForSchema(schema) {
+function verificationWireLayoutForSchema(schema, fit, analysis) {
   const passages = schema.properties.p;
   return Object.freeze({
     rootFields: Object.freeze([...schema.required]),
@@ -1599,8 +1599,14 @@ function verificationWireLayoutForSchema(schema) {
         && /^0+$/u.test(spans.enum[0]) && spans.enum[0].length === spans.minLength
         && spans.minLength === spans.maxLength && criteria.minItems === 0 && criteria.maxItems === 0
         ? Object.freeze({ v: confirmed.enum[0], s: spans.enum[0], k: Object.freeze([]) }) : null;
+      // The verifier chooses both masks. These indices only translate each
+      // supplied atom's existing evidence IDs into the fitted y-mask order.
+      const evidenceOrder = fit.evidenceByPassage[position].ids;
+      const sourcePositionsByAtom = analysis?.passages[position].atoms.map(({ evidenceSpanIds }) =>
+        Object.freeze(evidenceSpanIds.map((id) => evidenceOrder.indexOf(id))));
       return [position, Object.freeze({
         fields: Object.freeze([...passage.required]),
+        ...(sourcePositionsByAtom ? { sourcePositionsByAtom: Object.freeze(sourcePositionsByAtom) } : {}),
         widths: Object.freeze(Object.fromEntries(["a", "s", "f", "x", "y"].map((key) => (
           [key, passage.properties[key].minLength]
         )))),
@@ -3089,7 +3095,10 @@ export function createHuggingFaceLatticeAdapter({
         : certificationFit
         ? certificationWireSchemaForFit(certificationFit)
         : stage.schema;
-      const verificationLayout = verificationFit ? verificationWireLayoutForSchema(fittedSchema) : null;
+      const verificationLayout = verificationFit ? verificationWireLayoutForSchema(
+        fittedSchema, verificationFit,
+        providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit ? request.analysis : null,
+      ) : null;
       const messageFactory = verificationFit
         ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection)
         : stage.messages;

@@ -509,6 +509,98 @@ test("replanned long rewrites receive their specific review findings and must pa
   }
 });
 
+test("register-only long repairs keep the checked graph and individually confirmed retentions", async () => {
+  const source = Array.from({ length: 28 }, (_, index) => opaqueWords(22, `p${index}w`)).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  for (const mode of ["grounded", "second-refusal", "ungrounded", "missing-atom", "source-gap", "global-only", "ordinary"]) {
+    let initial;
+    let reanalyses = 0;
+    let targetReviews = 0;
+    let certifications = 0;
+    const reuse = mode === "grounded" || mode === "second-refusal";
+    const adapter = scriptedAdapter({
+      analyze(request) {
+        if (request.reanalysisFeedback) reanalyses += 1;
+        return rawAnalysis(request, { disposition: request.reanalysisFeedback ? "rewrite" : "retain-if-conformant" });
+      },
+      verify(request) {
+        if (request.batch !== plan.batches[0]) return rawVerification(request);
+        targetReviews += 1;
+        if (targetReviews === 2) {
+          if (reuse) {
+            assert.notEqual(request.analysis.revisionId, initial.revisionId);
+            assert.strictEqual(request.analysis.passages[0].atoms, initial.passages[0].atoms);
+            assert.equal(request.analysis.passages[0].layer, "experiential");
+            assert.equal(request.analysis.passages[0].disposition, "rewrite");
+            assert.deepEqual(request.analysis.passages[0].conformanceAssertions, []);
+            assert.strictEqual(request.analysis.passages[1], initial.passages[1]);
+            assert.equal(request.candidate.passages[1].text, request.batch.passages[1].text);
+          }
+          return rawVerification(request, mode === "second-refusal" ? { gates: { safety: false } } : {});
+        }
+        initial = request.analysis;
+        const failure = rawVerification(request, { gates: { registerFit: false } });
+        const passage = failure.passages[0];
+        if (mode !== "global-only") {
+          passage.independentLayer = "experiential";
+          passage.conformanceConfirmed = false;
+        }
+        if (mode === "ungrounded") passage.layerEvidenceAtomIds = [passage.checkedAtomIds[0]];
+        if (mode === "missing-atom") passage.missingAtomIds = [passage.checkedAtomIds.pop()];
+        if (mode === "source-gap") passage.unmodeledSpanIds = [passage.layerEvidenceSpanIds[0]];
+        return failure;
+      },
+      certify() { certifications += 1; },
+    });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: mode === "ordinary" ? 32 : 48, allowClarification: false });
+    assert.equal(reanalyses, reuse ? 0 : 1, mode);
+    assert.equal(targetReviews, 2, mode);
+    assert.equal(certifications, mode === "second-refusal" ? 0 : 1, mode);
+    assert.equal(result.status, mode === "second-refusal" ? "unable-to-attempt" : "translated", mode);
+    if (mode === "second-refusal") assert.equal(result.text, null);
+  }
+});
+
+test("nine required groups avoid speculative splits and can finish grounded repairs within 48 calls", async () => {
+  const lengths = [...Array(18).fill(32), ...Array(18).fill(4)];
+  const source = lengths.map((length, index) => opaqueWords(length, `p${index}w`)).join("\n\n");
+  const initial = preflightLatticeInput(source, { providerCallLimit: 32 });
+  assert.equal(initial.batches.length, 9);
+  assert.strictEqual(balanceLongLatticePlan(initial, 48), initial);
+
+  const reviewed = new Set();
+  let certificates = 0;
+  const adapter = scriptedAdapter({
+    analyze(request) {
+      assert.equal(request.reanalysisFeedback, undefined);
+      const allRetained = initial.batches.indexOf(request.batch) % 3 === 0;
+      const analysis = rawAnalysis(request, { disposition: allRetained ? "retain-if-conformant" : "rewrite" });
+      if (request.documentLedger.length) {
+        analysis.passages[0].atoms[0].links = [{ relation: "related-to", targetAtomId: request.documentLedger[0].id }];
+      }
+      return analysis;
+    },
+    verify(request) {
+      if (reviewed.has(request.batch.id)) return rawVerification(request);
+      reviewed.add(request.batch.id);
+      const result = rawVerification(request, { gates: { registerFit: false } });
+      result.passages[0].independentLayer = "experiential";
+      return result;
+    },
+    certify() { certificates += 1; },
+  });
+  adapter.completionCapacity = () => {
+    const used = certificates + Object.values(adapter.calls).reduce((sum, count) => sum + count, 0);
+    return { used, remaining: 48 - used, limit: 48 };
+  };
+  const result = await executeLatticePlan(initial, { adapter, providerCallLimit: 48, allowClarification: false });
+  assert.equal(result.status, "translated");
+  assert.equal(result.verificationPasses, 2);
+  assert.equal(certificates, 1);
+  assert.deepEqual(adapter.calls, { analyze: 9, generate: 15, verify: 18, repair: 0 });
+  assert.equal(adapter.completionCapacity().used, 43);
+});
+
 test("long-job balancing avoids redundant analysis calls and preserves every passage through certification", async () => {
   const lengths = [...Array(16).fill(32), ...Array(12).fill(3)];
   const source = lengths.map((length, index) => opaqueWords(length, `p${index}w`) + ".").join("\n\n");

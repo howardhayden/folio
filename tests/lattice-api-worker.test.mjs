@@ -1969,7 +1969,10 @@ test("688-word narrative fits the production Worker, strict provider adapters an
         counts.verification += 1;
         const p = Object.fromEntries(payload.analysisClaims[1].map((plan, i) => {
           const group = payload.sourcePassages[i];
-          const count = group[1].length + group[2].length;
+          const evidenceIds = [...group[1], ...group[2]].map(([id]) => id);
+          const count = evidenceIds.length;
+          assert.deepEqual(payload.wireLayout.passages[i].sourcePositionsByAtom,
+            plan[5].map((atom) => atom[5].map((id) => evidenceIds.indexOf(id))));
           const atoms = "1".repeat(plan[5].length);
           const evidence = "1".repeat(count);
           return [String(i), { a: atoms, u: false, s: "0".repeat(count), f: "000000000", l: 0,

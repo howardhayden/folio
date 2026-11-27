@@ -361,6 +361,13 @@ export function preflightLatticeInput(value, { providerCallLimit } = {}) {
 // batch and four calls for document proof before subdividing expensive groups.
 export function balanceLongLatticePlan(plan, providerCallLimit) {
   const maximumBatches = Math.floor((providerCallLimit - FLAT_CERTIFICATION_RESERVATION) / 4);
+  // When the original groups already need the entire tier for a draft,
+  // repair, fresh review and certification, speculative groups consume the
+  // very calls needed to finish. Genuine output/context failures can still split.
+  const recoveredGroupCalls = 3 + 2;
+  if (plan.batches.length * recoveredGroupCalls + FLAT_CERTIFICATION_RESERVATION >= providerCallLimit) {
+    return plan;
+  }
   let smallest = BATCH_WORD_TARGET;
   const batchWords = plan.batches.map((batch) => batch.wordCount);
   let largest = Math.max(...batchWords);
@@ -3202,6 +3209,53 @@ function verificationSemanticallySafe(entry) {
   });
 }
 
+// A grounded independent review can correct the writing plan while preserving
+// a complete source graph. This is a proposal for a fresh draft and review.
+function registerRepairPlans(entry) {
+  const { analysis, verification } = entry;
+  if (!verification.available || verification.questions.length || entry.documentFindings.length
+    || (entry.deterministicFindings.length && !hasOnlyBoundNonmaterialFindings(entry))
+    || LATTICE_VERIFICATION_GATES.some((gate) => gate !== "registerFit" && !verification.gates[gate])
+    || verification.issues.some(({ check }) => check !== "registerFit" && check !== "materiality")) return null;
+
+  let failedRegister = false;
+  let failedRetention = false;
+  const plans = [];
+  for (const [index, plan] of analysis.passages.entries()) {
+    const review = verification.passages[index];
+    if (review.passageId !== plan.passageId || !review.layerEvidenceGrounded
+      || review.missingAtomIds.length || review.unsupportedClaims.length || review.unmodeledSpanIds.length
+      || review.checkedAtomIds.length !== plan.atoms.length
+      || !plan.atoms.every(({ id }) => review.checkedAtomIds.includes(id))
+      || LATTICE_PASSAGE_VERIFICATION_CHECKS.some((check) =>
+        check !== "registerFit" && check !== "materiality" && !review[check])) return null;
+
+    const rejectedRetention = review.requiresPositiveConformance && !review.conformanceConfirmed;
+    failedRegister ||= !review.registerFit;
+    failedRetention ||= rejectedRetention;
+    if (review.registerFit && !rejectedRetention) {
+      plans.push(plan);
+      continue;
+    }
+    const layer = review.independentLayer;
+    plans.push(Object.freeze({
+      ...plan,
+      ...(layer === plan.layer ? {} : {
+        layer,
+        discourseFunction: `Preserve the passage's evidence-grounded ${layer} function.`,
+        rationale: `Use the ${layer} layer supported by the independently checked source atoms and spans.`,
+      }),
+      disposition: "rewrite",
+      conformanceCriteria: Object.freeze([]),
+      conformanceEvidenceSpanIds: Object.freeze([]),
+      conformanceEvidence: Object.freeze([]),
+      conformanceAssertions: Object.freeze([]),
+    }));
+  }
+  if (!failedRegister && (!verification.gates.registerFit || !failedRetention)) return null;
+  return Object.freeze(plans);
+}
+
 function closedReanalysisFeedback(verification) {
   return Object.freeze({
     decision: verification.decision,
@@ -3955,6 +4009,19 @@ export async function executeLatticePlan(preflight, options) {
     });
     try {
       pipelineObservation?.retryPaths.set(entry.batch.id, "reanalysis-only");
+      const reviewedPlans = qualifyingLongJob && requestedMode === "auto" ? registerRepairPlans(entry) : null;
+      if (reviewedPlans) {
+        // Atom IDs continue to identify their original graph, including
+        // cross-batch links. The revised writing plan gets its own revision.
+        const analysis = Object.freeze({ ...entry.analysis, revisionId: analysisRevisionId, passages: reviewedPlans });
+        const overridden = reviewedPlans.filter((plan, position) => plan.disposition === "rewrite"
+          && entry.analysis.passages[position].disposition === "retain-if-conformant").map((plan) => plan.passageId);
+        retainedOverrideIdsByBatch.set(entry.batch.id, Object.freeze(overridden));
+        pipelineObservation?.reanalysisOverrides.set(analysis, overridden.length > 0);
+        reanalyzedByBatch.set(entry.batch.id, Object.freeze({ ...request, analysis }));
+        progress(onProgress, "reatomizing", index + 1, structurallyFailed.length, entry.batch.id);
+        continue;
+      }
       const normalizedAnalysis = await callNormalizedStage({
         stage: "re-atomization",
         pipelineObservation,
