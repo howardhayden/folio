@@ -1978,12 +1978,8 @@ test("688-word narrative fits the production Worker, strict provider adapters an
           assert.deepEqual(payload.wireLayout.passages[i].sourcePositionsByAtom,
             plan[5].map((atom) => atom[5].map((id) => evidenceIds.indexOf(id))));
           const inverse = payload.wireLayout.passages[i].sourceAtomsByPosition;
-          if (counts.verification === 2) {
-            assert.deepEqual(inverse, evidenceIds.map((id) => plan[5].flatMap((atom, j) => atom[5].includes(id) ? [j] : [])));
-            assert.match(body.messages[0].content, /sourceAtomsByPosition/u);
-          } else {
-            assert.equal(inverse, undefined);
-          }
+          assert.deepEqual(inverse, evidenceIds.map((id) => plan[5].flatMap((atom, j) => atom[5].includes(id) ? [j] : [])));
+          assert.match(body.messages[0].content, /sourceAtomsByPosition/u);
           const atoms = "1".repeat(plan[5].length);
           const evidence = "1".repeat(count);
           return [String(i), { a: atoms, u: false, s: "0".repeat(count), f: "000000000", l: 0,

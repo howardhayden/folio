@@ -1585,7 +1585,7 @@ function verificationWireSchemaForFit(fit, evidenceFirst) {
   return closedWireObject(evidenceFirst ? { g, p, i, d } : { d, g, p, i });
 }
 
-function verificationWireLayoutForSchema(schema, fit, analysis, correctLayerSupport = false) {
+function verificationWireLayoutForSchema(schema, fit, analysis) {
   const passages = schema.properties.p;
   return Object.freeze({
     rootFields: Object.freeze([...schema.required]),
@@ -1611,8 +1611,8 @@ function verificationWireLayoutForSchema(schema, fit, analysis, correctLayerSupp
         Object.freeze(evidenceSpanIds.map((id) => evidenceOrder.indexOf(id))));
       return [position, Object.freeze({
         fields: Object.freeze([...passage.required]),
-        ...(sourcePositionsByAtom ? { sourcePositionsByAtom: Object.freeze(sourcePositionsByAtom) } : {}),
-        ...(sourcePositionsByAtom && correctLayerSupport ? {
+        ...(sourcePositionsByAtom ? {
+          sourcePositionsByAtom: Object.freeze(sourcePositionsByAtom),
           sourceAtomsByPosition: Object.freeze(evidenceOrder.map((_, index) => Object.freeze(
             sourcePositionsByAtom.flatMap((positions, atom) => positions.includes(index) ? [atom] : []),
           ))),
@@ -3111,7 +3111,6 @@ export function createHuggingFaceLatticeAdapter({
       const verificationLayout = verificationFit ? verificationWireLayoutForSchema(
         fittedSchema, verificationFit,
         providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit ? request.analysis : null,
-        verificationCorrection === "layer-support",
       ) : null;
       const messageFactory = verificationFit
         ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection)

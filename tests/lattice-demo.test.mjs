@@ -659,6 +659,66 @@ test("a long verifier can correct a contradictory layer citation without approvi
   }
 });
 
+test("linked long groups keep the original register proposal until fresh evidence supports it", async () => {
+  const source = Array.from({ length: 28 }, (_, index) => opaqueWords(20, `p${index}w`)).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const [upstream, dependent] = plan.batches;
+  for (const scenario of ["corrected", "unsupported-again", "different-layer", "changed-meaning"]) {
+    const requiresNewGraph = scenario === "different-layer" || scenario === "changed-meaning";
+    const reviewed = new Set();
+    let certificates = 0;
+    let analysesRepeated = 0;
+    let revisedLinks = 0;
+    let upstreamAtom;
+    const adapter = scriptedAdapter({
+      analyze(request) {
+        const analysis = rawAnalysis(request);
+        if (request.reanalysisFeedback) analysesRepeated++;
+        if (request.batch.id === dependent.id && !request.reanalysisFeedback) {
+          const target = request.documentLedger.find(atom => atom.passageId === upstream.passages[0].id);
+          upstreamAtom = target.id;
+          analysis.passages[0].atoms[0].links = [{ relation: "related-to", targetAtomId: upstreamAtom }];
+        }
+        return analysis;
+      },
+      generate(request) {
+        return rawCandidate(request, { identity: request.batch.id === dependent.id && !request.regenerationFromReanalysis });
+      },
+      verify(request) {
+        const checked = rawVerification(request);
+        if (request.batch.id !== upstream.id) return checked;
+        const first = !reviewed.has(request.batch.id);
+        reviewed.add(request.batch.id);
+        if (first && scenario === "changed-meaning") return rawVerification(request, { gates: { sourceCoverage: false } });
+        if (first || scenario === "unsupported-again") {
+          // A selected span has no citation from the selected atom.
+          checked.decision = "repair";
+          checked.passages[0].failedChecks = ["registerFit"];
+          checked.passages[0].layerEvidenceAtomIds = [request.analysis.passages[0].atoms[0].id];
+          if (scenario === "different-layer") checked.passages[0].independentLayer =
+            request.analysis.passages[0].layer === "operative" ? "experiential" : "operative";
+        }
+        return checked;
+      },
+      repair(request) {
+        if (request.batch.id === dependent.id) {
+          assert.ok(request.requiredDocumentLedgerAtomIds.includes(upstreamAtom));
+          assert.ok(request.documentLedger.some(atom => atom.id === upstreamAtom));
+          revisedLinks++;
+        }
+        return rawCandidate(request);
+      },
+      certify() { certificates++; },
+    });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 48, allowClarification: false });
+    assert.equal(result.status, scenario === "corrected" ? "translated" : "unable-to-attempt", scenario);
+    assert.equal(analysesRepeated, requiresNewGraph ? 1 : 0, scenario);
+    assert.equal(revisedLinks, requiresNewGraph ? 0 : 1, scenario);
+    if (scenario === "corrected") assert.ok(certificates > 0);
+    else { assert.equal(result.text, null); assert.equal(certificates, 0); }
+  }
+});
+
 test("nine required groups avoid speculative splits and can finish grounded repairs within 48 calls", async () => {
   const lengths = [...Array(18).fill(32), ...Array(18).fill(4)];
   const source = lengths.map((length, index) => opaqueWords(length, `p${index}w`)).join("\n\n");
