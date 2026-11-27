@@ -576,8 +576,8 @@ function analysisWireGuide(positionAnchors) {
 const ANALYSIS_WIRE_GUIDE = analysisWireGuide(false);
 const LONG_ANALYSIS_WIRE_GUIDE = analysisWireGuide(true);
 
-function analysisWireMessages(request, longRegisterSelection = false) {
-  return analysisMessages(request, { responseDialect: "compact-wire-v2", longRegisterSelection });
+function analysisWireMessages(request, longRegisterSelection = false, relationAtomCount = null) {
+  return analysisMessages(request, { responseDialect: "compact-wire-v2", longRegisterSelection, relationAtomCount });
 }
 
 const INTERNAL_VERIFICATION_PASSAGE_SCHEMA = VERIFICATION_SCHEMA.properties.passages.items;
@@ -778,6 +778,28 @@ const CERTIFICATION_WIRE_GUIDE = [
   `Check array order: [${CERTIFICATION_CHECK_NAMES.join(",")}].`,
   "Root i contains no duplicate index, and every listed index points to false in k. Keep i empty on acceptance. Emit no long-form host field names, explanations, issue prose, schema text, or whitespace after the closing brace.",
 ].join("\n");
+
+// Keep model-written claims attached to the exact passage and graph revision.
+// A missing, foreign or duplicate claim must still reach the ordinary host check.
+function longDraftClaims(analysis) {
+  let position = 0;
+  const idsByPassage = new Map();
+  const keys = analysis.passages.map(({ passageId, atoms }) => {
+    const ids = new Map(atoms.map(atom => [String.fromCharCode(65 + position++), atom.id]));
+    idsByPassage.set(passageId, ids);
+    return [passageId, [...ids.keys()]];
+  });
+  return { keys, idsByPassage };
+}
+
+function expandLongDraftClaims(candidate, claims) {
+  if (!record(candidate) || !Array.isArray(candidate.passages)) return candidate;
+  return { ...candidate, passages: candidate.passages.map(passage => {
+    const ids = claims.idsByPassage.get(passage?.passageId);
+    if (!ids || !Array.isArray(passage.preservedAtomIds)) return passage;
+    return { ...passage, preservedAtomIds: passage.preservedAtomIds.map(key => ids.get(key) ?? key) };
+  }) };
+}
 
 function candidateWirePlanMessages(request) {
   return candidateMessages(request, { analysisPlanDialect: "compact-wire-v2" });
@@ -1389,7 +1411,8 @@ function analysisWireSchemaForFit(fit, positionAnchors = false) {
       conformanceMasksSchema,
     );
   });
-  const singletonLedgerTargets = analysisAtomLimit === 1 && visibleLedgerIds.length > 0
+  const linkEndpointCount = fit.relationAtomCount ?? analysisAtomLimit;
+  const singletonLedgerTargets = linkEndpointCount === 1 && visibleLedgerIds.length > 0
     ? Object.freeze({
       type: "integer",
       enum: Object.freeze(visibleLedgerIds.map((_id, index) => -index - 1)),
@@ -1398,13 +1421,13 @@ function analysisWireSchemaForFit(fit, positionAnchors = false) {
   const linkSchema = fixedTuple(
     Object.freeze({
       ...ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[0],
-      maximum: analysisAtomLimit - 1,
+      maximum: linkEndpointCount - 1,
     }),
     ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[1],
     singletonLedgerTargets ?? Object.freeze({
       ...ANALYSIS_WIRE_LINK_SCHEMA.prefixItems[2],
       minimum: visibleLedgerIds.length > 0 ? -visibleLedgerIds.length : 0,
-      maximum: analysisAtomLimit - 1,
+      maximum: linkEndpointCount - 1,
     }),
   );
   return Object.freeze({
@@ -1419,13 +1442,23 @@ function analysisWireSchemaForFit(fit, positionAnchors = false) {
       }),
       l: Object.freeze({
         ...ANALYSIS_WIRE_SCHEMA.properties.l,
-        maxItems: analysisAtomLimit === 1 && visibleLedgerIds.length === 0
+        maxItems: linkEndpointCount === 1 && visibleLedgerIds.length === 0
           ? 0
           : Math.min(ANALYSIS_LINK_ITEM_LIMIT, analysisAtomLimit),
         items: linkSchema,
       }),
     }),
   });
+}
+
+// A rejected link does not invalidate the counts of an otherwise fitted node
+// list. Constrain the existing correction to addresses the model can emit.
+function fitPriorRelationCounts(fit, counts) {
+  if (!Array.isArray(counts) || counts.length !== fit.passages.length
+    || counts.some((count, index) => !Number.isSafeInteger(count)
+      || count < fit.minimumAtomAllocations[index] || count > fit.atomAllocations[index])) return fit;
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  return { ...fit, atomAllocations: counts, minimumAtomAllocations: counts, relationAtomCount: total };
 }
 
 function verificationPlansForRequest(request, passages, evidenceByPassage) {
@@ -1838,7 +1871,7 @@ function rejectedAnalysisEvidencePositions(indices, valueCount) {
   return rejectedAnalysisWire("evidence");
 }
 
-function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false) {
+function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false, onInvalidLinks = null) {
   const ledgerIds = (fit?.request?.documentLedger ?? []).map(({ id }) => id);
   if (!fit || !exactKeys(value, ["d", "p", "l"])
     || !Array.isArray(value.p) || !Array.isArray(value.l)) {
@@ -1930,11 +1963,15 @@ function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false) {
     });
   }
   if (flatAtoms.length > fit.analysisAtomLimit) return rejectedAnalysisWire("capacity");
+  const invalidLinks = () => {
+    onInvalidLinks?.(rawPassages.map(passage => passage.atoms.length));
+    return rejectedAnalysisWire("relation");
+  };
   const linkKeys = new Set();
   for (const rawLink of value.l) {
     if (!Array.isArray(rawLink) || rawLink.length !== 3
       || !Number.isSafeInteger(rawLink[0]) || !Number.isSafeInteger(rawLink[2])) {
-      return rejectedAnalysisWire("relation");
+      return invalidLinks();
     }
     const sourceAtom = flatAtoms[rawLink[0]];
     const relation = wireEnumValue(rawLink[1], ANALYSIS_RELATIONS);
@@ -1943,11 +1980,11 @@ function decodeAnalysisWire(value, fit, observeRetentionDowngrade = false) {
       : ledgerIds[-rawLink[2] - 1];
     const key = `${rawLink[0]}\u241f${relation}\u241f${targetAtomId}`;
     if (relation === null || !sourceAtom || typeof targetAtomId !== "string") {
-      return rejectedAnalysisWire("relation");
+      return invalidLinks();
     }
     if (targetAtomId === sourceAtom.id || linkKeys.has(key)) continue;
     if (sourceAtom.links.length >= INTERNAL_ANALYSIS_ATOM_SCHEMA.properties.links.maxItems) {
-      return rejectedAnalysisWire("relation");
+      return invalidLinks();
     }
     linkKeys.add(key);
     sourceAtom.links.push({ relation, targetAtomId });
@@ -3070,6 +3107,7 @@ export function createHuggingFaceLatticeAdapter({
     throw new TypeError("The Lattice provider received an invalid call limit.");
   }
   const budget = { used: 0 };
+  const failedRelationLayouts = new WeakMap();
   const usage = observeQualificationUsage ? { budget, reportedCalls: 0,
     generator: { calls: 0, promptTokens: 0, completionTokens: 0 },
     verifier: { calls: 0, promptTokens: 0, completionTokens: 0 } } : null;
@@ -3090,9 +3128,21 @@ export function createHuggingFaceLatticeAdapter({
     let analysisFit = null;
     let verificationFit = null;
     let certificationFit = null;
+    let draftClaims = null;
     let result;
     try {
       analysisFit = stageName === "analysis" ? fitAnalysisRequest(request) : null;
+      if (positionAnchors) {
+        const prior = failedRelationLayouts.get(request.batch);
+        failedRelationLayouts.delete(request.batch);
+        if (prior && request.protocolFeedback?.attempt === 2 && request.protocolFeedback.category === "relation"
+          && request.analysisRevisionId === prior.revision && request.documentLedger === prior.ledger
+          && request.reanalysisPriorAnalysis === prior.parent) {
+          analysisFit = fitPriorRelationCounts(analysisFit, prior.counts);
+        }
+      }
+      if (providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
+        && (stageName === "candidate" || stageName === "repair")) draftClaims = longDraftClaims(request.analysis);
       verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
       certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
       const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
@@ -3114,7 +3164,10 @@ export function createHuggingFaceLatticeAdapter({
       ) : null;
       const messageFactory = verificationFit
         ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection)
-        : positionAnchors ? (current) => analysisWireMessages(current, true) : stage.messages;
+        : draftClaims ? (current) => (stageName === "candidate" ? candidateMessages : repairMessages)(
+          current, { analysisPlanDialect: "compact-wire-v2", draftAtomKeys: draftClaims.keys },
+        )
+        : positionAnchors ? (current) => analysisWireMessages(current, true, analysisFit.relationAtomCount) : stage.messages;
       result = await requestHuggingFaceJson({
         token,
         role: stage.role,
@@ -3171,7 +3224,11 @@ export function createHuggingFaceLatticeAdapter({
       );
     }
     if (stageName === "analysis") {
-      result = decodeAnalysisWire(result, analysisFit, observeQualificationRetentionDowngrade);
+      const rememberLinkCounts = positionAnchors && !request.protocolFeedback && typeof request.analysisRevisionId === "string"
+        ? counts => failedRelationLayouts.set(request.batch, {
+          counts, revision: request.analysisRevisionId, ledger: request.documentLedger, parent: request.reanalysisPriorAnalysis,
+        }) : null;
+      result = decodeAnalysisWire(result, analysisFit, observeQualificationRetentionDowngrade, rememberLinkCounts);
       const decoderFailureCategory = ANALYSIS_DECODER_FAILURES.get(result);
       Object.defineProperty(result, LATTICE_FITTED_ANALYSIS_CONTEXT, {
         configurable: false,
@@ -3187,6 +3244,8 @@ export function createHuggingFaceLatticeAdapter({
       result = decodeVerificationWire(result, verificationFit);
     } else if (stageName === "certification") {
       result = decodeCertificationWire(result, certificationFit);
+    } else if (draftClaims) {
+      result = expandLongDraftClaims(result, draftClaims);
     }
     return result;
   };

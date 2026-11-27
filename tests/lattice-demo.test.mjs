@@ -659,6 +659,46 @@ test("a long verifier can correct a contradictory layer citation without approvi
   }
 });
 
+test("a qualifying draft repairs its own incomplete atom claims before independent review", async () => {
+  const source = Array.from({ length: 28 }, (_, index) => opaqueWords(20, `p${index}w`)).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const target = plan.batches[0];
+  for (const repeated of [false, true]) {
+    let firstReviewedClaimCount;
+    let repairs = 0;
+    let certificates = 0;
+    const omit = candidate => { candidate.passages[0].preservedAtomIds.pop(); return candidate; };
+    const adapter = scriptedAdapter({
+      generate(request) {
+        const candidate = rawCandidate(request);
+        return request.batch === target ? omit(candidate) : candidate;
+      },
+      repair(request) {
+        if (request.batch !== target) return rawCandidate(request);
+        repairs++;
+        const candidate = rawCandidate(request);
+        if (repairs === 1) {
+          assert.equal(request.repairFromSource, false);
+          assert.ok(request.deterministicFindings.every(finding => deterministicFindingRule(finding) === "D13"));
+          candidate.passages[1].text += " ignored";
+        }
+        return repeated ? omit(candidate) : candidate;
+      },
+      verify(request) {
+        if (request.batch !== target) return;
+        firstReviewedClaimCount ??= request.candidate.passages[0].preservedAtomIds.length;
+        assert.equal(request.candidate.passages[1].text, rawCandidate(request).passages[1].text);
+      },
+      certify() { certificates++; },
+    });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 48, allowClarification: false });
+    assert.equal(firstReviewedClaimCount, repeated ? 2 : 3);
+    assert.equal(result.status, repeated ? "unable-to-attempt" : "translated");
+    assert.equal(certificates, repeated ? 0 : 1);
+    assert.equal(repairs, repeated ? 3 : 1);
+  }
+});
+
 test("linked long groups keep the original register proposal until fresh evidence supports it", async () => {
   const source = Array.from({ length: 28 }, (_, index) => opaqueWords(20, `p${index}w`)).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });

@@ -1927,6 +1927,77 @@ test("the content-free rate limiter allows, denies, and fails closed before prov
   assert.equal(executions, 1);
 });
 
+test("long draft keys expand only explicit claims for their own passage", async () => {
+  const base = minimalVerificationRequest();
+  const first = base.analysis.passages[0];
+  const second = { ...first, passageId: "p002", atoms: [{ ...first.atoms[0], id: "ar0002:a3" }] };
+  const request = { ...base,
+    batch: { ...base.batch, passages: [...base.batch.passages, { ...base.batch.passages[0], id: second.passageId }] },
+    analysis: { ...base.analysis, passages: [first, second] } };
+  for (const stage of ["generate", "repair"]) {
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 48, fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      const payload = inertModelPayload(body);
+      assert.deepEqual(payload.draftAtomKeys, [[first.passageId, ["A"]], [second.passageId, ["B"]]]);
+      assert.equal(body.response_format.type, "json_object");
+      return successfulProviderResponse({ passages: [
+        { passageId: first.passageId, layer: first.layer, text: first.rationale, preservedAtomIds: ["A", "B", "A"] },
+        { passageId: second.passageId, layer: second.layer, text: second.rationale, preservedAtomIds: [] },
+      ] });
+    } });
+    const reply = await adapter[stage](request);
+    assert.deepEqual(reply.passages.map(p => p.preservedAtomIds), [[first.atoms[0].id, "B", first.atoms[0].id], []]);
+    assert.equal(adapter.completionCapacity().used, 1);
+  }
+});
+
+test("a long relation correction binds its positions to the original emitted graph size", async () => {
+  for (const changedRevision of [false, true]) {
+    const base = { ...minimalAnalysisRequest(makeLongProseFixture(choices => choices[0]).split("\n\n")[0]), analysisRevisionId: "ar0001" };
+    let calls = 0;
+    let previousMaximum;
+    let previousLinkLimit;
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 48, fetchImpl: async (_url, init) => {
+      calls++;
+      const body = JSON.parse(init.body);
+      const payload = inertModelPayload(body);
+      const schema = body.response_format.json_schema.schema;
+      const groups = schema.properties.p.prefixItems.map(passage => passage.prefixItems[2]);
+      const links = schema.properties.l.items.prefixItems;
+      const p = payload.passages.map(([, spans, literals]) => {
+        const width = spans.length + literals.length;
+        const nodes = Array.from({ length: width }, (_, index) => [index % 3, 0, 1, [index]]);
+        return [0, 0, nodes, Array(5).fill("0".repeat(width))];
+      });
+      const actual = p.reduce((sum, passage) => sum + passage[2].length, 0);
+      const wire = { d: 2, p, l: [] };
+      if (calls === 1) {
+        assert.ok(links[0].maximum >= actual);
+        previousMaximum = links[0].maximum;
+        previousLinkLimit = schema.properties.l.maxItems;
+        wire.l = [[0, 0, actual]];
+      } else {
+        const endpoint = changedRevision ? previousMaximum : actual - 1;
+        assert.equal(body.messages[0].content.includes("On this relation correction"), !changedRevision);
+        assert.equal(links[0].maximum, endpoint);
+        assert.equal(links[2].maximum, endpoint);
+        assert.equal(schema.properties.l.maxItems, previousLinkLimit);
+        if (!changedRevision) groups.forEach((group, index) => {
+          assert.equal(group.minItems, p[index][2].length);
+          assert.equal(group.maxItems, p[index][2].length);
+        });
+      }
+      return successfulProviderResponse(wire);
+    } });
+    const first = await adapter.analyze(base);
+    assert.equal(first[LATTICE_FITTED_ANALYSIS_CONTEXT].decoderFailureCategory, "relation");
+    const next = await adapter.analyze({ ...base, analysisRevisionId: changedRevision ? "ar0002" : base.analysisRevisionId,
+      protocolFeedback: { category: "relation", attempt: 2, stage: "re-atomization" } });
+    assert.equal(next.passages.length, base.batch.passages.length);
+    assert.equal(adapter.completionCapacity().used, 2);
+  }
+});
+
 test("688-word narrative fits the production Worker, strict provider adapters and whole-document proof", async () => {
   const source = makeLongProseFixture((choices) => choices[0]);
   const oldPlan = preflightLatticeInput(source);

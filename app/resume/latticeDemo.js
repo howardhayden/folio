@@ -1663,15 +1663,15 @@ async function callNormalizedStage({
   attempts = 2,
   analysisDiagnosticOrigin = null,
   pipelineObservation = null,
-  onRegenerationCorrectionFailure = null,
-  repairNonmaterialDraft = null,
+  onDraftCorrectionFailure = null,
+  repairLongDraft = null,
   regenerationRetainOverrideIds = Object.freeze([]),
   allowExactSourceRegenerationCorrection = false,
 }) {
   let lastError = null;
   let firstError = null;
-  let copiedRegeneration = null;
-  let nonmaterialFindings = null;
+  let priorDraft = null;
+  let draftFindings = null;
   let exactSourceCorrectionPositions = Object.freeze([]);
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     throwIfAborted(signal);
@@ -1681,13 +1681,13 @@ async function callNormalizedStage({
       attempt,
       lastError,
       analysisDiagnosticOrigin,
-      copiedRegeneration !== null,
+      priorDraft !== null,
     );
     let normalizationFailed = false;
     try {
       let raw;
-      if (nonmaterialFindings !== null) {
-        raw = await repairNonmaterialDraft(currentRequest, copiedRegeneration, nonmaterialFindings);
+      if (draftFindings !== null) {
+        raw = await repairLongDraft(currentRequest, priorDraft, draftFindings);
       } else if (attempt === 2 && ["verification", "reverification"].includes(stage)) {
         raw = await withLatticeVerificationCorrection(currentRequest, lastError, () => invoke(currentRequest));
       } else {
@@ -1711,34 +1711,36 @@ async function callNormalizedStage({
         }
         throw error;
       }
-      if (!repairNonmaterialDraft && allowExactSourceRegenerationCorrection === true
+      if (!repairLongDraft && allowExactSourceRegenerationCorrection === true
         && stage === "regeneration" && attempt === 1 && attempts > 1) {
         exactSourceCorrectionPositions = exactSourceRegenerationCorrectionPositions(
           request, normalized, regenerationRetainOverrideIds,
         );
         if (exactSourceCorrectionPositions.length > 0) {
-          copiedRegeneration = normalized;
+          priorDraft = normalized;
           continue;
         }
       }
-      if (nonmaterialFindings !== null) {
-        // Only text units with an authentic materiality failure may change.
+      if (draftFindings !== null) {
+        // Change only units with an authentic coverage-claim or materiality failure.
         // The replacement keeps the generator's own claims for those units.
-        const affected = new Set(nonmaterialFindings.map(({ passageId }) => passageId));
+        const affected = new Set(draftFindings.map(({ passageId }) => passageId));
         return Object.freeze({ passages: Object.freeze(normalized.passages.map((passage, index) =>
-          affected.has(passage.passageId) ? passage : copiedRegeneration.passages[index])) });
+          affected.has(passage.passageId) ? passage : priorDraft.passages[index])) });
       }
-      if (repairNonmaterialDraft && attempt === 1 && attempts > 1) {
+      if (repairLongDraft && attempt === 1 && attempts > 1) {
         const findings = deterministicBatchReview(request.batch, request.analysis, normalized);
-        if (findings.length && findings.every((finding) => deterministicFindingRule(finding) === "D14")) {
-          copiedRegeneration = normalized;
-          nonmaterialFindings = findings;
+        const rules = findings.map(deterministicFindingRule);
+        if (rules.length && rules.every(rule => rule === "D13" || rule === "D14")
+          && (stage !== "generation" || rules.includes("D13"))) {
+          priorDraft = normalized;
+          draftFindings = findings;
           continue;
         }
       }
       // Protocol recovery is independent of semantic acceptance and final
       // candidate lineage. Semantic correction does not establish protocol repair.
-      if (attempt === 2 && copiedRegeneration === null) pipelineObservation?.successfulCorrectionStages.add(stage);
+      if (attempt === 2 && priorDraft === null) pipelineObservation?.successfulCorrectionStages.add(stage);
       return normalized;
     } catch (error) {
       throwIfAborted(signal);
@@ -1774,11 +1776,11 @@ async function callNormalizedStage({
         rememberStageFailureDiagnostic(error, stage, attempt, firstError);
         throw error;
       }
-      if (copiedRegeneration !== null) {
+      if (priorDraft !== null) {
         rememberStageFailureDiagnostic(error, stage, attempt, null);
         if (normalizationFailed && error?.code !== "lattice-output-length") {
-          onRegenerationCorrectionFailure?.(error);
-          return copiedRegeneration;
+          onDraftCorrectionFailure?.(error);
+          return priorDraft;
         }
         throw error;
       }
@@ -3779,6 +3781,13 @@ export async function executeLatticePlan(preflight, options) {
   const qualifyingLongJob = options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
     && latticeProviderCallLimitForPlan(preflight) === LATTICE_LONG_JOB_POLICY.providerCallLimit;
   const candidates = [];
+  const repairLongDraft = qualifyingLongJob ? (currentRequest, previousDraft, findings) => {
+    const copied = findings.some(finding => deterministicFindingRule(finding) === "D14");
+    return options.adapter.repair(Object.freeze({
+      ...currentRequest, candidate: previousDraft, deterministicFindings: findings,
+      correctCopiedLongDraft: copied, repairFromSource: copied, verification: null,
+    }));
+  } : null;
   for (let index = 0; index < analyses.length; index += 1) {
     const request = analyses[index];
     throwIfAborted(signal);
@@ -3794,6 +3803,7 @@ export async function executeLatticePlan(preflight, options) {
         stage: "generation",
         pipelineObservation,
         request,
+        repairLongDraft: useSourceDraft ? null : repairLongDraft,
         invoke: useSourceDraft ? exactSourceCandidate : (currentRequest) => options.adapter.generate(currentRequest),
         normalize: (raw) => normalizeCandidate(raw, request.batch, request.analysis),
         signal,
@@ -4177,22 +4187,14 @@ export async function executeLatticePlan(preflight, options) {
           : options.adapter.repair(currentRequest),
         normalize: (raw) => normalizeCandidate(raw, original.batch, replacementAnalysis),
         signal,
-        repairNonmaterialDraft: qualifyingLongJob ? (currentRequest, previousDraft, findings) =>
-          options.adapter.repair(Object.freeze({
-            ...currentRequest,
-            candidate: previousDraft,
-            correctCopiedLongDraft: true,
-            deterministicFindings: findings,
-            repairFromSource: true,
-            verification: null,
-          })) : null,
+        repairLongDraft,
         regenerationRetainOverrideIds: retainedOverrideIdsByBatch.get(original.batch.id),
         allowExactSourceRegenerationCorrection: options.allowExactSourceRegenerationCorrection === true,
-        onRegenerationCorrectionFailure: (error) => retryNotes.push(stageFailureFinding({
+        onDraftCorrectionFailure: (error) => retryNotes.push(stageFailureFinding({
           id: stage === "repair" ? "repair-correction-unavailable" : "regeneration-correction-unavailable",
           passageId: original.batch.passages[0]?.id ?? "",
           atomIds: Object.freeze([]),
-          message: "The source-copy correction did not produce a valid draft. The previous wording remains withheld.",
+          message: "The revised coverage or wording did not produce a valid draft. The previous candidate remains withheld.",
         }, error)),
       });
       const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate, pipelineObservation !== null);
