@@ -1977,11 +1977,22 @@ test("688-word narrative fits the production Worker, strict provider adapters an
           const count = evidenceIds.length;
           assert.deepEqual(payload.wireLayout.passages[i].sourcePositionsByAtom,
             plan[5].map((atom) => atom[5].map((id) => evidenceIds.indexOf(id))));
+          const inverse = payload.wireLayout.passages[i].sourceAtomsByPosition;
+          if (counts.verification === 2) {
+            assert.deepEqual(inverse, evidenceIds.map((id) => plan[5].flatMap((atom, j) => atom[5].includes(id) ? [j] : [])));
+            assert.match(body.messages[0].content, /sourceAtomsByPosition/u);
+          } else {
+            assert.equal(inverse, undefined);
+          }
           const atoms = "1".repeat(plan[5].length);
           const evidence = "1".repeat(count);
           return [String(i), { a: atoms, u: false, s: "0".repeat(count), f: "000000000", l: 0,
             x: atoms, y: evidence, c: { v: true, s: evidence, k: plan[7].map(() => ({ v: true, s: evidence })) } }];
         }));
+        if (counts.verification === 1) {
+          assert.ok(p["0"].x.length > 1 && p["0"].y.length > 1);
+          p["0"].x = "1" + "0".repeat(p["0"].x.length - 1);
+        }
         return successfulProviderResponse({ d: 0, g: "00000000000", p, i: [] });
       }
       assert.equal(body.response_format.json_schema.name, CERTIFICATION_TOOL_NAME);
@@ -1997,7 +2008,7 @@ test("688-word narrative fits the production Worker, strict provider adapters an
   assert.ok(envelope.result.text === source, "the retained result must match the fixture");
   assert.equal(envelope.result.batchCount, plan.batches.length);
   assert.equal(admissions, 1);
-  assert.deepEqual(counts, { analysis: plan.batches.length, draft: 0, verification: plan.batches.length, certification: 1 });
+  assert.deepEqual(counts, { analysis: plan.batches.length, draft: 0, verification: plan.batches.length + 1, certification: 1 });
   assert.ok(Object.values(counts).reduce((used, count) => used + count, 0) <= latticeProviderCallLimitForPlan(initialPlan));
 });
 

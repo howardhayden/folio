@@ -3,6 +3,7 @@ import { getLatticeAnalysisPassageRetentionDowngrade } from "./lattice/analysisP
 import { withLatticeRegenerationRetentionContext } from "./lattice/regenerationContext.js";
 import {
   rememberLatticeVerificationIssueAlignmentError,
+  rememberLatticeVerificationLayerSupportError,
   rememberLatticeVerificationDecisionAlignmentError,
   withLatticeVerificationCorrection,
 } from "./lattice/verificationCorrection.js";
@@ -1126,6 +1127,7 @@ function normalizeVerification(
   deterministicFindings,
   candidate,
   stage,
+  correctLayerSupport = false,
 ) {
   protocol(record(raw) && DECISIONS.has(raw.decision), "The verifier returned an invalid decision.");
   exactKeys(raw, ["decision", "failedGates", "passages", "issues", "questions"], "Verification response");
@@ -1141,6 +1143,7 @@ function normalizeVerification(
   const planById = new Map(analysis.passages.map((passage) => [passage.passageId, passage]));
   const byId = new Map();
   let passageChecksPass = true;
+  let allChecksExceptLayerSupportPass = true;
   for (const rawPassage of raw.passages) {
     protocol(record(rawPassage), "The verifier returned an invalid passage result.");
     exactKeys(rawPassage, [
@@ -1257,11 +1260,13 @@ function normalizeVerification(
         && criterionChecks.length === 0,
       `Verifier rewrite result ${source.id} must not claim unchanged-text conformance.`);
     }
-    const passes = checkedComplete && missingAtomIds.length === 0 && unsupportedClaims.length === 0
+    const otherChecksPass = checkedComplete && missingAtomIds.length === 0 && unsupportedClaims.length === 0
       && unmodeledEvidence.length === 0 && booleans.semanticFidelity && booleans.safety
       && booleans.accessibility && booleans.clarity && booleans.domainCorrectness
-      && booleans.registerFit && booleans.planFit && booleans.boundaryFidelity
-      && materialityPasses && positiveConformance;
+      && booleans.planFit && booleans.boundaryFidelity && materialityPasses && positiveConformance;
+    const passes = otherChecksPass && booleans.registerFit;
+    allChecksExceptLayerSupportPass &&= otherChecksPass && !failedCheckSet.has("registerFit")
+      && rawPassage.independentLayer === plan.layer;
     passageChecksPass &&= passes;
     if (!booleans.registerFit) gates.registerFit = false;
     byId.set(source.id, Object.freeze({
@@ -1316,6 +1321,13 @@ function normalizeVerification(
   protocol(Array.isArray(raw.questions) && raw.questions.length === 0,
     "Independent verification cannot return visible clarification text.");
   const questions = Object.freeze([]);
+  if (correctLayerSupport && raw.decision === "accept" && !passageChecksPass
+    && allChecksExceptLayerSupportPass && failedGateSet.size === 0
+    && issues.length === 0 && deterministicFindings.length === 0) {
+    throw rememberLatticeVerificationLayerSupportError(new LatticeProtocolError(
+      "The selected layer evidence contains a span that none of the selected atoms cite.",
+    ), batch, analysis, candidate, stage);
+  }
   const allGatesPass = LATTICE_VERIFICATION_GATES.every((name) => gates[name]);
   const reportedChecksPass = allGatesPass && passageChecksPass && issues.length === 0 && questions.length === 0;
   // A model may overlook the contradiction encoded by its own detailed
@@ -1652,12 +1664,14 @@ async function callNormalizedStage({
   analysisDiagnosticOrigin = null,
   pipelineObservation = null,
   onRegenerationCorrectionFailure = null,
+  repairNonmaterialDraft = null,
   regenerationRetainOverrideIds = Object.freeze([]),
   allowExactSourceRegenerationCorrection = false,
 }) {
   let lastError = null;
   let firstError = null;
   let copiedRegeneration = null;
+  let nonmaterialFindings = null;
   let exactSourceCorrectionPositions = Object.freeze([]);
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     throwIfAborted(signal);
@@ -1671,9 +1685,14 @@ async function callNormalizedStage({
     );
     let normalizationFailed = false;
     try {
-      const raw = attempt === 2 && ["verification", "reverification"].includes(stage)
-        ? await withLatticeVerificationCorrection(currentRequest, lastError, () => invoke(currentRequest))
-        : await invoke(currentRequest, exactSourceCorrectionPositions);
+      let raw;
+      if (nonmaterialFindings !== null) {
+        raw = await repairNonmaterialDraft(currentRequest, copiedRegeneration, nonmaterialFindings);
+      } else if (attempt === 2 && ["verification", "reverification"].includes(stage)) {
+        raw = await withLatticeVerificationCorrection(currentRequest, lastError, () => invoke(currentRequest));
+      } else {
+        raw = await invoke(currentRequest, exactSourceCorrectionPositions);
+      }
       let normalized;
       try {
         normalized = await normalize(raw, currentRequest);
@@ -1692,13 +1711,28 @@ async function callNormalizedStage({
         }
         throw error;
       }
-      if (allowExactSourceRegenerationCorrection === true
+      if (!repairNonmaterialDraft && allowExactSourceRegenerationCorrection === true
         && stage === "regeneration" && attempt === 1 && attempts > 1) {
         exactSourceCorrectionPositions = exactSourceRegenerationCorrectionPositions(
           request, normalized, regenerationRetainOverrideIds,
         );
         if (exactSourceCorrectionPositions.length > 0) {
           copiedRegeneration = normalized;
+          continue;
+        }
+      }
+      if (nonmaterialFindings !== null) {
+        // Only text units with an authentic materiality failure may change.
+        // The replacement keeps the generator's own claims for those units.
+        const affected = new Set(nonmaterialFindings.map(({ passageId }) => passageId));
+        return Object.freeze({ passages: Object.freeze(normalized.passages.map((passage, index) =>
+          affected.has(passage.passageId) ? passage : copiedRegeneration.passages[index])) });
+      }
+      if (repairNonmaterialDraft && attempt === 1 && attempts > 1) {
+        const findings = deterministicBatchReview(request.batch, request.analysis, normalized);
+        if (findings.length && findings.every((finding) => deterministicFindingRule(finding) === "D14")) {
+          copiedRegeneration = normalized;
+          nonmaterialFindings = findings;
           continue;
         }
       }
@@ -3879,13 +3913,14 @@ export async function executeLatticePlan(preflight, options) {
         pipelineObservation,
         request: verificationRequest,
         invoke: (currentRequest) => options.adapter.verify(currentRequest),
-        normalize: (raw) => normalizeVerification(
+        normalize: (raw, currentRequest) => normalizeVerification(
           raw,
           request.batch,
           request.analysis,
           request.deterministicFindings,
           request.candidate,
           "verification",
+          qualifyingLongJob && !currentRequest.protocolFeedback,
         ),
         signal,
       });
@@ -4139,12 +4174,22 @@ export async function executeLatticePlan(preflight, options) {
           : options.adapter.repair(currentRequest),
         normalize: (raw) => normalizeCandidate(raw, original.batch, replacementAnalysis),
         signal,
+        repairNonmaterialDraft: qualifyingLongJob ? (currentRequest, previousDraft, findings) =>
+          options.adapter.repair(Object.freeze({
+            ...currentRequest,
+            candidate: previousDraft,
+            correctCopiedLongDraft: true,
+            deterministicFindings: findings,
+            repairFromSource: true,
+            verification: null,
+          })) : null,
         regenerationRetainOverrideIds: retainedOverrideIdsByBatch.get(original.batch.id),
         allowExactSourceRegenerationCorrection: options.allowExactSourceRegenerationCorrection === true,
         onRegenerationCorrectionFailure: (error) => retryNotes.push(stageFailureFinding({
-          id: "regeneration-correction-unavailable", passageId: original.batch.passages[0]?.id ?? "",
+          id: stage === "repair" ? "repair-correction-unavailable" : "regeneration-correction-unavailable",
+          passageId: original.batch.passages[0]?.id ?? "",
           atomIds: Object.freeze([]),
-          message: "The bounded source-copy correction did not produce a valid draft; the copied regeneration remains withheld.",
+          message: "The source-copy correction did not produce a valid draft. The previous wording remains withheld.",
         }, error)),
       });
       const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate, pipelineObservation !== null);
@@ -4192,13 +4237,14 @@ export async function executeLatticePlan(preflight, options) {
         pipelineObservation,
         request: verificationRequest,
         invoke: (currentRequest) => options.adapter.verify(currentRequest),
-        normalize: (raw) => normalizeVerification(
+        normalize: (raw, currentRequest) => normalizeVerification(
           raw,
           request.batch,
           request.analysis,
           request.deterministicFindings,
           request.candidate,
           "reverification",
+          qualifyingLongJob && !currentRequest.protocolFeedback,
         ),
         signal,
       });
