@@ -180,7 +180,7 @@
         "incumbentRestored": true
       },
       "streamKeepaliveSeconds": 15,
-      "rollout": "A complete accepted long document precedes promotion. The ordinary production check precedes Pages publication. Failed updates retain or restore the existing active Worker.",
+      "rollout": "The workflow stages the candidate at zero percent, then switches traffic to it for the ordinary production check. The full passage in regular Firefox decides long-job acceptance. Consecutive failures trigger restoration of the preceding live Worker.",
       "evidenceScope": "The carried browser traces cover their original submission, privacy and result-clearing behavior. Synthetic request text and output are excluded from the new evidence."
     },
     "longJobUpdate": {
@@ -443,7 +443,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "6845f687480414b9e5e65127b6e5a1210eb331e6ae4ee51a5b3bcb54bde73b83",
+    "qualificationDossierSha256": "241d23b4821b61217593d4516c34de539932f9565ac87da9736fc1dd06298c1d",
     "browserEvidence": {
       "status": "verified-sanitized-bundle",
       "path": "docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json",
