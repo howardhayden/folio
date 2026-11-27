@@ -30,8 +30,8 @@ function matches(request, context) {
 
 // Called only at the host's existing regeneration invocation, with the owned
 // normalized prior review and committed replacement graph, never raw replies.
-export async function withLatticeRegenerationRetentionContext(request, batch, verification, analysis, invoke, correctionPositions = EMPTY, retainedOverrideIds = EMPTY) {
-  const context = { active: true, batch, verification, analysis, positions: EMPTY, correctionPositions: EMPTY, registerFitRejectedPositions: EMPTY };
+export async function withLatticeRegenerationRetentionContext(request, batch, verification, analysis, invoke, correctionPositions = EMPTY, retainedOverrideIds = EMPTY, includeRewriteChecks = false) {
+  const context = { active: true, batch, verification, analysis, positions: EMPTY, correctionPositions: EMPTY, registerFitRejectedPositions: EMPTY, rewriteChecks: EMPTY };
   if (matches(request, context) && !RETENTION_CONTEXTS.has(request)
     && data(verification, "available") === true
     && data(data(verification, "gates"), "languageSupported") === true) {
@@ -39,16 +39,26 @@ export async function withLatticeRegenerationRetentionContext(request, batch, ve
     const reviews = passages(verification);
     const plans = passages(analysis);
     if (sources && reviews && plans) {
-      context.positions = Object.freeze(sources.flatMap((source, position) => {
+      const unconfirmed = [];
+      const rewriteChecks = [];
+      for (const [position, source] of sources.entries()) {
         const id = data(source, "id");
         const matchingReviews = reviews.filter((review) => data(review, "passageId") === id);
         const matchingPlans = plans.filter((plan) => data(plan, "passageId") === id);
-        return typeof id === "string" && sources.filter((item) => data(item, "id") === id).length === 1
-          && matchingReviews.length === 1 && matchingPlans.length === 1
-          && data(matchingReviews[0], "requiresPositiveConformance") === true
-          && data(matchingReviews[0], "conformanceConfirmed") === false
-          && data(matchingPlans[0], "disposition") === "rewrite" ? [position] : [];
-      }));
+        if (typeof id !== "string" || sources.filter((item) => data(item, "id") === id).length !== 1
+          || matchingReviews.length !== 1 || matchingPlans.length !== 1
+          || data(matchingPlans[0], "disposition") !== "rewrite") continue;
+        const review = matchingReviews[0];
+        if (data(review, "requiresPositiveConformance") === true && data(review, "conformanceConfirmed") === false) {
+          unconfirmed.push(position);
+        }
+        if (includeRewriteChecks === true) {
+          const failed = ["materiality", "registerFit"].filter((check) => data(review, check) === false);
+          if (failed.length) rewriteChecks.push(Object.freeze([position, Object.freeze(failed)]));
+        }
+      }
+      context.positions = Object.freeze(unconfirmed);
+      context.rewriteChecks = Object.freeze(rewriteChecks);
       // The host records only dispositions it actually changed to rewrite.
       // A positive conformance check does not clear a separate register failure.
       const overridden = new Set();
@@ -74,7 +84,7 @@ export async function withLatticeRegenerationRetentionContext(request, batch, ve
             || data(matchingReviews[0], "registerFit") === false)
           && data(matchingPlans[0], "disposition") === "rewrite" ? [position] : [];
       }));
-      if (context.positions.length > 0 || context.registerFitRejectedPositions.length > 0) {
+      if (context.positions.length > 0 || context.registerFitRejectedPositions.length > 0 || context.rewriteChecks.length > 0) {
         if (Array.isArray(correctionPositions) && Object.isFrozen(correctionPositions)
           && correctionPositions.length > 0
           && new Set(correctionPositions).size === correctionPositions.length
@@ -116,4 +126,9 @@ export function getLatticeRegenerationExactSourceCorrectionPositions(request) {
 export function getLatticeRegenerationRegisterFitRejectedPositions(request) {
   const context = RETENTION_CONTEXTS.get(request);
   return context && matches(request, context) ? context.registerFitRejectedPositions : EMPTY;
+}
+
+export function getLatticeRegenerationRewriteChecks(request) {
+  const context = RETENTION_CONTEXTS.get(request);
+  return context && matches(request, context) ? context.rewriteChecks : EMPTY;
 }

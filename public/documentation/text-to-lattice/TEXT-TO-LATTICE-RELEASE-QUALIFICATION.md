@@ -8,6 +8,8 @@ The November 26 update gives requests of at least 500 words and seven planned ba
 
 The [November 26 production rollout](https://github.com/howardhayden/folio/actions/runs/45897490003) translated the synthetic long document in 350 seconds. A subsequent regular Firefox submission passed cookie setup and reached verification, where it exhausted the 48-call budget. The planner keeps an even workload intact. When an earlier group differs from the heaviest by at least 72 words, it redistributes whole passages before the first model call. This reserves capacity for corrections and certification. [Two later staged checks](https://github.com/howardhayden/folio/actions/runs/45903597957) withheld their candidates after the earlier planner subdivided an even workload. The incumbent continued serving. The [staged check](https://github.com/howardhayden/folio/actions/runs/45901490748) reached document certification and returned the original synthetic passage as suitable in 11 groups. Its release assertion still allowed only ten. The corrected assertion checks the minimum calls for all groups and certification against the approved 48-call budget.
 
+The preceding planner completed its production smoke. In regular Firefox, a 697-word request used 45 of 48 calls and reached independent re-verification. The service withheld the draft before document certification. The preceding stable API resumed all traffic. On the corrected planner, a long job that needs a fresh draft receives the passage-specific review findings on the substance of the rewrite and its fit to the selected register. Acceptance requires a fresh review, document certification and a visible result on the full Firefox check.
+
 For jobs eligible for 48 calls, the planner reserves one evidence position per meaning unit when the group has enough slots for every source record. The model classifies each unit and can cite shared evidence or add further units. Tighter groups keep the existing fitted format. The independent reviewer checks those assignments and the final document must pass certification. An instrumented long job on the preceding release found seven incomplete coverage maps and expanded eleven planned groups to fifteen reviews. Its result and the ordinary production smoke are separate from the full-length Firefox acceptance check.
 
 Two ordinary Firefox attempts on the previous planner reached the 48-call ceiling, one during verification and one during drafting. The prior Worker was restored. A qualifying long job now uses the original text as a draft when the analyzer supplies complete conformance evidence for every passage in a group. Independent review must still approve every passage, and the whole document must earn its certificate. Groups that need any rewrite still use the generator. The deciding live test uses regular Firefox and records only its outcome and counts.
@@ -50,7 +52,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `e3264aa85b6fe2e271464f36e5840aadd35946e083edd458f49c0f584b1aa7f9`
+**Qualified source-set SHA-256:** `af6c21d4104bb337b2578744c1d9bb68ddbe0c5d52d18a27be01f9f8b5204844`
 
 **Artifact-set projection SHA-256:** `0fe378b291e78249d0e030d9a36b278229be9c685988855d42bab2a98f0809ae`
 
@@ -84,7 +86,7 @@ These are the register’s current capability values, including the exact reques
 
 The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Separate regression tests cover long-job selection, the 32- and 48-call limits, and clearance-cookie handling in setup and admission. Promotion requires an accepted synthetic long document at zero default candidate traffic, followed by the ordinary production check. Only aggregate results are recorded.
 
-The current fingerprint is `e3264aa85b6fe2e271464f36e5840aadd35946e083edd458f49c0f584b1aa7f9`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov26-evidence-coverage-source-digests.json) covers all 267 paths. It lists 35 differences and contains file names and hashes.
+The current fingerprint is `af6c21d4104bb337b2578744c1d9bb68ddbe0c5d52d18a27be01f9f8b5204844`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov26-regeneration-feedback-source-digests.json) covers all 267 paths. It lists 37 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 
