@@ -1,6 +1,8 @@
+import { deterministicPassageReview } from "../../app/resume/lattice/validators.js";
+import { countLatticeWords } from "../../app/resume/lattice/inputPolicy.js";
 import { beginLatticeAdmissionProviderFetch, endLatticeAdmissionProviderFetch } from "./admissionObservation.js";
 import { carryLatticeRegenerationRetentionContext } from "../../app/resume/lattice/regenerationContext.js";
-import { getLatticeVerificationCorrection } from "../../app/resume/lattice/verificationCorrection.js";
+import { getLatticeVerificationCorrection, getLatticeVerificationMissingPositions } from "../../app/resume/lattice/verificationCorrection.js";
 import {
   ANALYSIS_SCHEMA,
   CANDIDATE_SCHEMA,
@@ -20,6 +22,7 @@ import {
   analysisMessages,
   candidateMessages,
   documentCertificationMessages,
+  editableFrameRepairMessages,
   repairMessages,
   verificationMessages,
   isVerificationAlignmentCorrection,
@@ -33,7 +36,7 @@ import {
 import { LATTICE_LONG_JOB_POLICY, LATTICE_PROVIDER_CALL_LIMIT } from "../../app/resume/lattice/remoteProtocol.js";
 import { rememberLatticeAnalysisRetentionDowngrade } from "../../app/resume/lattice/qualificationDiagnostics.js";
 import { rememberLatticeAnalysisPassageOrigins } from "../../app/resume/lattice/analysisProvenance.js";
-import { rememberRejectedResult, stageCorrectionRequestDiagnostic } from "../../app/resume/lattice/rejectionDiagnostics.js";
+import { deterministicFindingRule, rememberRejectedResult, stageCorrectionRequestDiagnostic } from "../../app/resume/lattice/rejectionDiagnostics.js";
 
 export { LATTICE_PROVIDER_CALL_LIMIT };
 
@@ -725,8 +728,8 @@ function verificationWireGuide(fields) {
 const VERIFICATION_WIRE_GUIDE = verificationWireGuide("d, g, p, and i");
 const VERIFICATION_ALIGNMENT_GUIDE = verificationWireGuide("g, p, i, and d");
 
-function verificationWireMessages(request, wireLayout, wireCorrection) {
-  return verificationMessages(request, { responseDialect: "compact-wire-v2", wireLayout, wireCorrection });
+function verificationWireMessages(request, wireLayout, wireCorrection, missingPositions) {
+  return verificationMessages(request, { responseDialect: "compact-wire-v2", wireLayout, wireCorrection, missingPositions });
 }
 
 function verificationWireCorrectionForRequest(request) {
@@ -799,6 +802,81 @@ function expandLongDraftClaims(candidate, claims) {
     if (!ids || !Array.isArray(passage.preservedAtomIds)) return passage;
     return { ...passage, preservedAtomIds: passage.preservedAtomIds.map(key => ids.get(key) ?? key) };
   }) };
+}
+
+// A copied short frame can be repaired without asking the model to reproduce
+// the long immutable literal that dominated its previous response.
+function fitEditableFrameRepair(request, claims) {
+  const findings = request.deterministicFindings;
+  if (request.correctCopiedLongDraft !== true || request.verification || !request.candidate?.passages || !findings?.length
+    || findings.some(finding => deterministicFindingRule(finding) !== "D14")) return null;
+  const frames = [];
+  for (const id of new Set(findings.map(finding => finding.passageId))) {
+    const group = request.sourceSpans?.find(group => group.passageId === id);
+    const source = request.batch.passages.find(passage => passage.id === id);
+    const plan = request.analysis.passages.find(passage => passage.passageId === id);
+    if (!group || !source || plan?.disposition !== "rewrite" || group.directionFrames?.length || group.literalAnnotations?.length
+      || !group.spans.some(span => span.kind === "literal") || group.spans.map(span => span.text).join("") !== source.text) return null;
+    let start = 0, editableWords = 0;
+    const runs = [];
+    for (const span of group.spans) {
+      if (span.kind === "source") {
+        const last = runs.at(-1);
+        if (last?.end === start) last.end += span.text.length;
+        else runs.push({ start, end: start + span.text.length });
+        editableWords += countLatticeWords(span.text);
+      }
+      start += span.text.length;
+    }
+    if (editableWords < 1 || editableWords > 12) return null;
+    const slots = runs.map(run => {
+      const raw = source.text.slice(run.start, run.end);
+      const editable = raw.trim();
+      return { start: run.start + raw.length - raw.trimStart().length, editable, words: countLatticeWords(editable) };
+    }).filter(slot => slot.words && !/[\r\n\u2028\u2029]/u.test(slot.editable));
+    const slot = slots.sort((left, right) => right.words - left.words)[0];
+    if (!slot) return null;
+    const units = [...claims.idsByPassage.get(id).keys()].map((key, index) => [key, plan.atoms[index].kind, plan.atoms[index].value]);
+    frames.push({ id, source, plan, layer: plan.layer, units, editable: slot.editable,
+      before: source.text.slice(0, slot.start), after: source.text.slice(slot.start + slot.editable.length) });
+  }
+  return frames;
+}
+
+function frameRepairSchema(frames) {
+  const choice = closedWireObject({
+    wording: { type: "string", minLength: 1, maxLength: 240 },
+    preservedAtomIds: { type: "array", minItems: 1, maxItems: 24, items: { type: "string" } },
+  });
+  return closedWireObject(Object.fromEntries(frames.map(({ id }) => [id, {
+    type: "array", minItems: 2, maxItems: 2, items: choice,
+  }])));
+}
+
+function expandFrameRepair(result, frames, previous, claims) {
+  if (!exactKeys(result, frames.map(frame => frame.id))) return {};
+  const replacements = new Map();
+  for (const frame of frames) {
+    const choices = result[frame.id];
+    const ids = claims.idsByPassage.get(frame.id);
+    if (!Array.isArray(choices) || choices.length !== 2 || choices.some(choice =>
+      !exactKeys(choice, ["wording", "preservedAtomIds"]) || typeof choice.wording !== "string"
+      || !choice.wording.trim() || choice.wording.length > 240 || /[\r\n\u2028\u2029]/u.test(choice.wording)
+      || !Array.isArray(choice.preservedAtomIds) || choice.preservedAtomIds.length < 1
+      || choice.preservedAtomIds.length > 24 || choice.preservedAtomIds.some(key => typeof key !== "string"))) return {};
+    for (const choice of choices) {
+      if (choice.preservedAtomIds.length !== ids.size || new Set(choice.preservedAtomIds).size !== ids.size
+        || choice.preservedAtomIds.some(key => !ids.has(key))) continue;
+      const candidate = { passageId: frame.id, layer: frame.layer, text: frame.before + choice.wording.trim() + frame.after,
+        preservedAtomIds: choice.preservedAtomIds.map(key => ids.get(key)) };
+      if (deterministicPassageReview(frame.source, frame.plan, candidate).length === 0) {
+        replacements.set(frame.id, candidate);
+        break;
+      }
+    }
+  }
+  // Leaving a copied draft in place preserves its binding D14 finding.
+  return { passages: previous.passages.map(passage => replacements.get(passage.passageId) ?? passage) };
 }
 
 function candidateWirePlanMessages(request) {
@@ -3129,6 +3207,7 @@ export function createHuggingFaceLatticeAdapter({
     let verificationFit = null;
     let certificationFit = null;
     let draftClaims = null;
+    let repairFrames = null;
     let result;
     try {
       analysisFit = stageName === "analysis" ? fitAnalysisRequest(request) : null;
@@ -3143,9 +3222,11 @@ export function createHuggingFaceLatticeAdapter({
       }
       if (providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
         && (stageName === "candidate" || stageName === "repair")) draftClaims = longDraftClaims(request.analysis);
+      if (stageName === "repair" && draftClaims) repairFrames = fitEditableFrameRepair(request, draftClaims);
       verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
       certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
       const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
+      const missingPositions = verificationCorrection === "atom-decision" ? getLatticeVerificationMissingPositions(request) : null;
       const evidenceFirst = verificationFit !== null && (
         providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
         || isVerificationAlignmentCorrection(verificationCorrection)
@@ -3157,13 +3238,14 @@ export function createHuggingFaceLatticeAdapter({
         ? verificationWireSchemaForFit(verificationFit, evidenceFirst)
         : certificationFit
         ? certificationWireSchemaForFit(certificationFit)
-        : stage.schema;
+        : repairFrames ? frameRepairSchema(repairFrames) : stage.schema;
       const verificationLayout = verificationFit ? verificationWireLayoutForSchema(
         fittedSchema, verificationFit,
         providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit ? request.analysis : null,
       ) : null;
       const messageFactory = verificationFit
-        ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection)
+        ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection, missingPositions)
+        : repairFrames ? () => editableFrameRepairMessages(repairFrames)
         : draftClaims ? (current) => (stageName === "candidate" ? candidateMessages : repairMessages)(
           current, { analysisPlanDialect: "compact-wire-v2", draftAtomKeys: draftClaims.keys },
         )
@@ -3244,6 +3326,8 @@ export function createHuggingFaceLatticeAdapter({
       result = decodeVerificationWire(result, verificationFit);
     } else if (stageName === "certification") {
       result = decodeCertificationWire(result, certificationFit);
+    } else if (repairFrames) {
+      result = expandFrameRepair(result, repairFrames, request.candidate, draftClaims);
     } else if (draftClaims) {
       result = expandLongDraftClaims(result, draftClaims);
     }

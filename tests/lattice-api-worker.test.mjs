@@ -28,6 +28,7 @@ import {
 import { isClosedPriorVerificationRejection, getLatticeAnalysisRetentionDowngrade } from "../app/resume/lattice/qualificationDiagnostics.js";
 import { getLatticeAnalysisPassageRetentionDowngrade } from "../app/resume/lattice/analysisProvenance.js";
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
+import { rememberLatticeVerificationMissingUnitError, withLatticeVerificationCorrection } from "../app/resume/lattice/verificationCorrection.js";
 import { deterministicBatchReview } from "../app/resume/lattice/validators.js";
 import {
   LATTICE_REJECTION_CATEGORIES,
@@ -1947,6 +1948,53 @@ test("long draft keys expand only explicit claims for their own passage", async 
     } });
     const reply = await adapter[stage](request);
     assert.deepEqual(reply.passages.map(p => p.preservedAtomIds), [[first.atoms[0].id, "B", first.atoms[0].id], []]);
+    assert.equal(adapter.completionCapacity().used, 1);
+  }
+});
+
+test("the reviewer receives disputed atom positions only for its bound correction", async () => {
+  const base = minimalVerificationRequest();
+  const stage = "verification";
+  const request = Object.freeze({ ...base, protocolFeedback: Object.freeze({ stage, attempt: 2 }) });
+  const error = rememberLatticeVerificationMissingUnitError(new Error(), request.batch, request.analysis, request.candidate, stage,
+    [Object.freeze([0, Object.freeze([0])])]);
+  const bodies = [];
+  const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 48, fetchImpl: async (_url, init) => {
+    bodies.push(JSON.parse(init.body)); return successfulProviderResponse(acceptingVerificationWire(base));
+  } });
+  await withLatticeVerificationCorrection(request, error, () => adapter.verify(request));
+  await adapter.verify({ ...request, disputedAtomPositions: [[999]], missingPositions: [[999]] });
+  assert.deepEqual(inertModelPayload(bodies[0]).disputedAtomPositions, [[0, [0]]]);
+  assert.match(bodies[0].messages[0].content, /missing or changed commitment must keep status 2/u);
+  assert.equal(inertModelPayload(bodies[1]).disputedAtomPositions, undefined);
+  assert.deepEqual(bodies[0].response_format, bodies[1].response_format);
+});
+
+test("a copied short frame can select only an explicit valid local replacement around the fixed source", async () => {
+  const quote = "“" + validPayload.text + "”";
+  const editable = "xxx";
+  const base = minimalVerificationRequest(quote + " " + editable);
+  const previous = { passages: [{ ...base.candidate.passages[0], text: base.batch.passages[0].text }] };
+  const findings = deterministicBatchReview(base.batch, base.analysis, previous);
+  assert.equal(findings.length, 1);
+  const id = previous.passages[0].passageId;
+  for (const scenario of ["second-valid", "both-copy", "foreign-claim", "wrong-passage"]) {
+    const request = { ...base, candidate: previous, deterministicFindings: findings, correctCopiedLongDraft: true, verification: null };
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 48, fetchImpl: async (_url, init) => {
+      const payload = inertModelPayload(JSON.parse(init.body));
+      assert.deepEqual(payload.frames[0].slice(0, 5), [id, base.analysis.passages[0].layer, quote + " ", editable, ""]);
+      return successfulProviderResponse({ [scenario === "wrong-passage" ? "unrelated" : id]: [
+        { wording: editable, preservedAtomIds: ["A"] },
+        { wording: scenario === "both-copy" ? editable.toUpperCase() : "yyy", preservedAtomIds: [scenario === "foreign-claim" ? "Z" : "A"] },
+      ] });
+    } });
+    const result = await adapter.repair(request);
+    if (scenario === "wrong-passage") assert.deepEqual(result, {});
+    else {
+      assert.equal(result.passages[0].text, scenario === "second-valid" ? quote + " yyy" : previous.passages[0].text);
+      assert.deepEqual(result.passages[0].preservedAtomIds, previous.passages[0].preservedAtomIds);
+      assert.equal(deterministicBatchReview(base.batch, base.analysis, result).length, scenario === "second-valid" ? 0 : 1);
+    }
     assert.equal(adapter.completionCapacity().used, 1);
   }
 });
