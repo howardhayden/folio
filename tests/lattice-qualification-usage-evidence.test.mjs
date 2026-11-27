@@ -145,9 +145,9 @@ test("usage sidecar binds the exact live v3 bytes and computes the dated catalog
   const evidence = createLatticeQualificationUsageEvidence(liveBytes, observed);
   assert.equal(evidence.live_boundary.sha256, createHash("sha256").update(liveBytes).digest("hex"));
   assert.deepEqual(evidence.deployment, liveReceipt().deployment);
-  assert.equal(evidence.catalog.source_sha256, "bbd2e5ce00d9b4da19c6d1ccc6626976553f7e8445572a37a8f3d43dce6b3e7a");
-  assert.equal(evidence.catalog.observed_on, "2026-11-23");
-  assert.equal(evidence.catalog.generator.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
+  assert.equal(evidence.catalog.source_sha256, "e460c7cb0153269d8c585989bba014f667db013165ac7fe323c41a4645e06f3c");
+  assert.equal(evidence.catalog.observed_on, "2026-11-27");
+  assert.equal(evidence.catalog.generator.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail");
   assert.equal(evidence.cost.generator_usd, "0.000300000");
   assert.equal(evidence.cost.verifier_usd, "0.001491000");
   assert.equal(evidence.cost.total_usd, "0.001791000");
@@ -167,9 +167,9 @@ test("dated reviewer rates preserve individual nano-USD units and reported zero 
     generator: { calls: 1, prompt_tokens: 1, completion_tokens: 1 },
     verifier: { calls: 1, prompt_tokens: 1, completion_tokens: 1 },
   });
-  assert.equal(oneEach.cost.generator_usd, "0.000000960");
+  assert.equal(oneEach.cost.generator_usd, "0.000000940");
   assert.equal(oneEach.cost.verifier_usd, "0.000001420");
-  assert.equal(oneEach.cost.total_usd, "0.000002380");
+  assert.equal(oneEach.cost.total_usd, "0.000002360");
   const singleInput = createLatticeQualificationUsageEvidence(bytes(), {
     status: "complete",
     generator: { calls: 1, prompt_tokens: 0, completion_tokens: 0 },
@@ -230,7 +230,7 @@ test("only a current-model successful live v3 receipt can carry a usage sidecar"
     ["prior Next80B generator", (v) => { v.declared_provider_contract.generator_model = "Qwen/Qwen3-Next-80B-A3B-Instruct:deepinfra"; }],
     ["old generator", (v) => { v.declared_provider_contract.generator_model = "Qwen/Qwen3-4B-Instruct-2507:nscale"; }],
     ["old provider", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.1-8B-Instruct:deepinfra"; }],
-    ["previous Parasail generator", (v) => { v.declared_provider_contract.generator_model = "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail"; }],
+    ["previous standard generator", (v) => { v.declared_provider_contract.generator_model = "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra"; }],
     ["prior Nscale reviewer", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.1-8B-Instruct:nscale"; }],
     ["historical OVHcloud reviewer", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.3-70B-Instruct:ovhcloud"; }],
     ["historical Scaleway reviewer", (v) => { v.declared_provider_contract.verifier_model = "meta-llama/Llama-3.3-70B-Instruct:scaleway"; }],

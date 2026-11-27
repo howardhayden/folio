@@ -508,7 +508,7 @@ test("the release register enforces its exact current phase and preserves histor
     "responseCachePolicy", "phaseEvents",
   ].sort(), "the public capability cannot carry undeclared private wire fields");
   assert.deepEqual(Object.keys(capability.provider).sort(), [
-    "endpoint", "verificationEndpoint", "verificationRequestModel", "generatorModel", "verifierModel", "stageCallTimeoutsMs",
+    "endpoint", "verificationEndpoint", "verificationRequestModel", "generatorModel", "earlierDisclosureGenerator", "verifierModel", "stageCallTimeoutsMs",
     "certificationEndpoint", "certificationRequestModel", "verificationResponseFormat",
     "verificationSchemaStrict", "certificationResponseFormat", "certificationSchemaStrict",
     "maximumCallTimeoutMs", "callLimit", "defaultCallLimit", "longJobPolicy", "stageMaximumOutputTokens",
@@ -557,6 +557,7 @@ test("the release register enforces its exact current phase and preserves histor
         contactsProvider: false,
       },
       contentRequest: {
+        processingNotice: {header: "X-Lattice-Processing-Notice", value: "qwen-parasail-coreweave-v1", absent: "standard generator only", unknown: "reject before admission"},
         route: "/api/lattice",
         method: "POST",
         accept: "application/json",
@@ -614,7 +615,8 @@ test("the release register enforces its exact current phase and preserves histor
   assert.equal(capability.provider.endpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.verificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.verificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
-  assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
+  assert.equal(capability.provider.generatorModel, "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail");
+  assert.equal(capability.provider.earlierDisclosureGenerator, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
   assert.equal(capability.provider.verifierModel, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
   assert.equal(capability.provider.certificationEndpoint, "https://router.huggingface.co/v1/chat/completions");
   assert.equal(capability.provider.certificationRequestModel, "meta-llama/Llama-3.3-70B-Instruct:coreweave");
@@ -1081,7 +1083,7 @@ test("one-release source carry independently binds the unchanged original proof 
 test("one-release source carry pins the approved editorial page even when changed bytes are repinned", async () => {
   const pagePath = "app/projects/lattice/text-to-lattice/page.tsx";
   const beforeSha256 = "1c64e9eb0fad6de81fecd8702d4adc2a6167fbd68a98246d9b385f58002518c8";
-  const afterSha256 = "402159cf3350ed98b1f5227a58b42a7520c06c6d9e49cf4e1be7421d714dfbe9";
+  const afterSha256 = "e0ccf57fdcf4fab222cd9eeac4c53aa47971d74dc1c0b26c80b94f7f5096283b";
   const accepted = await sourceCarryFixture();
   const acceptedProof = JSON.parse(accepted.proofBytes);
   const pageException = acceptedProof.exceptions.find(({ path }) => path === pagePath);

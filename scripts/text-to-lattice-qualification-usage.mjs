@@ -18,14 +18,14 @@ export const LATTICE_QUALIFICATION_USAGE_EVIDENCE_BASENAME = "qualification-usag
 // The retained full catalog's bytes were independently hashed before extraction.
 export const LATTICE_QUALIFICATION_CATALOG = Object.freeze({
   source_url: "https://router.huggingface.co/v1/models",
-  observed_on: "2026-11-23",
-  source_sha256: "bbd2e5ce00d9b4da19c6d1ccc6626976553f7e8445572a37a8f3d43dce6b3e7a",
+  observed_on: "2026-11-27",
+  source_sha256: "e460c7cb0153269d8c585989bba014f667db013165ac7fe323c41a4645e06f3c",
   unit: "USD-per-million-tokens",
   unit_documentation_url: "https://huggingface.co/docs/inference-providers/en/hub-api",
   generator: Object.freeze({
-    model: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
-    input_rate: "0.135",
-    output_rate: "0.825",
+    model: "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
+    input_rate: "0.14",
+    output_rate: "0.80",
   }),
   verifier: Object.freeze({
     model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",

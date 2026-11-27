@@ -21,6 +21,8 @@ import {
   LATTICE_API_PATH,
   LATTICE_API_REQUEST_TIMEOUT_MS,
   LATTICE_API_SCHEMA_VERSION,
+  LATTICE_PROCESSING_NOTICE,
+  LATTICE_PROCESSING_NOTICE_HEADER,
   LATTICE_VISITOR_SESSION_ACCEPT,
   isLatticeApiRequest,
   isLatticeApiResult,
@@ -872,6 +874,10 @@ export function createLatticeApiWorker({
       if (request.headers.get("origin") !== LATTICE_API_ORIGIN) {
         return errorResponse(403, "invalid_request");
       }
+      const processingNotice = request.headers.get(LATTICE_PROCESSING_NOTICE_HEADER);
+      if (processingNotice !== null && processingNotice !== LATTICE_PROCESSING_NOTICE) {
+        return errorResponse(400, "invalid_request");
+      }
       const isVisitorSessionSetup = request.headers.get("accept") === LATTICE_VISITOR_SESSION_ACCEPT;
       const wantsServiceEvents = request.headers.get("accept") === LATTICE_SERVICE_EVENTS_MIME;
       if (isVisitorSessionSetup && request.headers.has("content-type")) {
@@ -1074,6 +1080,8 @@ export function createLatticeApiWorker({
         const transform = async (onProgress) => {
           const adapterOptions = {
             token: env.HF_TOKEN,
+            // A tab opened before the backup disclosure authorized only the standard generator.
+            useStandardGenerator: processingNotice === null,
             providerCallLimit,
             requestedMode: payload.requested_mode,
             fetchImpl,

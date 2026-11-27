@@ -13,7 +13,7 @@ import { LATTICE_USAGE_POLICY as HISTORICAL_LATTICE_USAGE_POLICY } from "../resu
 import { TEXT_TO_LATTICE_CONTENT_UPDATED } from "../resume/projects.js";
 
 const HUGGING_FACE_CHAT_COMPLETIONS_URL = "https://router.huggingface.co/v1/chat/completions";
-const REMOTE_GENERATOR_ID = "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra";
+const REMOTE_GENERATOR_ID = "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail";
 const REMOTE_VERIFIER_ID = "meta-llama/Llama-3.3-70B-Instruct:coreweave";
 const REMOTE_GENERATOR_REVIEWED_REVISION = "ac9c66cc9b46af7306746a9250f23d47083d689e";
 const REMOTE_VERIFIER_REVIEWED_REVISION = "6f6073b423013f6a7d4d9f39144961bfbfbc386b";
@@ -56,7 +56,7 @@ export const textToLatticeContract = Object.freeze({
     "After explicit confirmation, send one content-free cookie setup POST with no body or Content-Type to the same-origin /api/lattice capability; after its 204 response, send exactly one content-bearing POST with text, requested_mode, and schema_version 1.",
     "On the server, atomize actors, events, states, relationships, causality, chronology, modality, polarity, uncertainty, quantities, knowledge, instructions, institutional conditions, and ethical stakes.",
     "Select operative, experiential, interpretive, mixed, or accessibility treatment passage by passage under the Relational Systems Register; an operative or experiential request remains a preference subordinate to evidence, semantic fidelity, and safety.",
-    "Use the fixed DeepInfra-served Qwen generator to draft and the fixed CoreWeave-served Llama 3.3 verifier to check source coverage, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament through Hugging Face and OpenRouter.",
+    "Use the fixed Parasail-served Qwen generator to draft and the fixed CoreWeave-served Llama 3.3 verifier to check source coverage, semantic fidelity, accessibility, clarity, domain correctness, register fit, and ornament through Hugging Face and OpenRouter.",
     "Re-atomize incomplete passages or repair a rejected draft within bounded passes against the same fixed models; do not switch providers or models.",
     "Certify required multi-batch candidates against the complete source for distant identity, attribution, chronology, causality, modality, polarity, ambiguity, and document consistency.",
     "Return one bounded result or an explicit terminal error; the browser performs no automatic retry or fallback.",
@@ -81,7 +81,7 @@ export const textToLatticeContract = Object.freeze({
           repair: Object.freeze({ maximumOutputTokens: 800 }),
         }),
       }),
-      inferenceSummary: "The server routes Qwen analysis and drafting to DeepInfra and Llama review to CoreWeave through Hugging Face and OpenRouter. Each stage has an output limit. The server checks returned objects against a closed contract and rejects invalid or incomplete output.",
+      inferenceSummary: "The server routes Qwen analysis and drafting to Parasail and Llama review to CoreWeave through Hugging Face and OpenRouter. Each stage has an output limit. The server checks returned objects against a closed contract and rejects invalid or incomplete output.",
     }),
     verifier: Object.freeze({
       name: "Llama 3.3 70B Instruct server-side verifier",
@@ -106,7 +106,7 @@ export const textToLatticeContract = Object.freeze({
       }),
     }),
     runtime: Object.freeze({
-      name: "Hugging Face Inference Providers with OpenRouter, DeepInfra and CoreWeave",
+      name: "Hugging Face Inference Providers with OpenRouter, Parasail and CoreWeave",
       version: "provider-managed remote service",
       packageUrl: "https://huggingface.co/docs/inference-providers/",
       documentationUrl: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion",
@@ -155,7 +155,7 @@ export const textToLatticeContract = Object.freeze({
       ]),
     }),
     huggingFace: Object.freeze({
-      summary: "After explicit confirmation, hah.dev sends prompts containing the submitted text to Hugging Face. DeepInfra serves the fixed Qwen3-235B-A22B-Instruct-2507 generator. CoreWeave serves the Llama 3.3 70B Instruct verifier and certifier. Hugging Face routes both models through OpenRouter.",
+      summary: "After explicit confirmation, hah.dev sends prompts containing the submitted text to Hugging Face. Parasail serves the fixed Qwen3-235B-A22B-Instruct-2507 generator as the manually selected backup. Tabs with the earlier disclosure use DeepInfra. CoreWeave serves the Llama 3.3 70B Instruct verifier and certifier. Hugging Face routes both models through OpenRouter.",
       protections: Object.freeze([
         `The server uses only ${HUGGING_FACE_CHAT_COMPLETIONS_URL} for all stages, including verification, its bounded correction or reverification, and certification. User text cannot select a URL, provider, model, header, or credential.`,
         `The generator is fixed to ${REMOTE_GENERATOR_ID}; verification and certification are fixed to ${REMOTE_VERIFIER_ID} with strict JSON-schema content and mandatory closed host decoding. There is no automatic provider or model fallback.`,
@@ -163,7 +163,7 @@ export const textToLatticeContract = Object.freeze({
         "hah.dev provider fetches request no storage cache and reject redirects; this does not establish or control any external provider cache. Request, response, token, and time limits remain bounded. hah.dev deterministically validates every returned object against its closed contract, and invalid, incomplete, or unknown data fails closed. A schema-correction pass may call the same fixed model again within the pipeline budget and never switches providers.",
         "The hah.dev application does not persist source text, prompts, candidates, results, or raw provider bodies and does not write them to application logs or analytics. Responses use Cache-Control: no-store.",
       ]),
-      residualDisclosure: "This text leaves hah.dev for external processing. Hugging Face, OpenRouter, DeepInfra and CoreWeave process submitted text and ordinary connection metadata under their own policies. Hugging Face says it does not store routed prompts or responses and can keep non-content troubleshooting logs for up to 30 days. OpenRouter records request metadata and describes anonymous prompt categorization. Its safety screening and applicable endpoint policies can retain content for abuse prevention or legal reporting, including unflagged requests on Safety Retention endpoints. The settings Hugging Face uses on this route are unknown. DeepInfra describes deletion of ordinary inputs and outputs after inference. Its terms allow temporary in-memory caching, operational metadata, and legal or elected-feature exceptions. With written authorization, DeepInfra may retain data to resolve a support issue. It deletes that data within 30 days after resolving the issue. CoreWeave describes zero data retention by default for serverless inference. Optional tracing can record requests. The tracing setting for this route is unknown. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Browser extensions, security products, DNS providers, and networks selected by the visitor remain outside hah.dev's control.",
+      residualDisclosure: "This text leaves hah.dev for external processing. Hugging Face, OpenRouter, Parasail and CoreWeave process submitted text and ordinary connection metadata under their own policies. Hugging Face says it does not store routed prompts or responses and can keep non-content troubleshooting logs for up to 30 days. OpenRouter records request metadata and describes anonymous prompt categorization. Its safety screening and applicable endpoint policies can retain content for abuse prevention or legal reporting, including unflagged requests on Safety Retention endpoints. The settings Hugging Face uses on this route are unknown. Parasail keeps serverless inputs and outputs through delivery and may retain masked operational metadata. Its terms exclude using that content to train its models. DeepInfra, the standard generator, describes deletion of ordinary inputs and outputs after inference. Its terms allow temporary in-memory caching, operational metadata, and legal or elected-feature exceptions. With written authorization, DeepInfra may retain data to resolve a support issue. It deletes that data within 30 days after resolving the issue. CoreWeave describes zero data retention by default for serverless inference. Optional tracing can record requests. The tracing setting for this route is unknown. External-provider retention, deletion and processing behavior are not guaranteed by hah.dev. Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information. Browser extensions, security products, DNS providers, and networks selected by the visitor remain outside hah.dev's control.",
       sources: Object.freeze([
         Object.freeze({ label: "Hugging Face Inference Providers chat completion", url: "https://huggingface.co/docs/inference-providers/en/tasks/chat-completion" }),
         Object.freeze({ label: "Hugging Face structured outputs", url: "https://huggingface.co/docs/inference-providers/en/guides/structured-output" }),
@@ -171,6 +171,7 @@ export const textToLatticeContract = Object.freeze({
         Object.freeze({ label: "Hugging Face language-model routing", url: "https://huggingface.co/docs/inference-providers/en/providers" }),
         Object.freeze({ label: "OpenRouter data collection", url: "https://openrouter.ai/docs/guides/privacy/data-collection" }),
         Object.freeze({ label: "OpenRouter Privacy Policy", url: "https://openrouter.ai/privacy" }),
+        Object.freeze({ label: "Parasail serverless terms", url: "https://www.parasail.io/legal/terms-of-service" }),
         Object.freeze({ label: "Hugging Face DeepInfra provider documentation", url: "https://huggingface.co/docs/inference-providers/en/providers/deepinfra" }),
         Object.freeze({ label: "DeepInfra data privacy", url: "https://docs.deepinfra.com/account/data-privacy" }),
         Object.freeze({ label: "DeepInfra Privacy Policy", url: "https://deepinfra.com/privacy" }),
@@ -216,7 +217,7 @@ export const textToLatticeContract = Object.freeze({
     "After the user explicitly chooses Process with external service, the browser sends one content-free cookie setup POST and then exactly one content-bearing POST to the same-origin /api/lattice path. Only the second contains this text or can initiate external-provider processing, and its body is exactly {text, requested_mode, schema_version: 1}.",
     "Do not submit classified, controlled, privileged, export-controlled, operationally sensitive, or otherwise restricted information.",
     "hah.dev application code does not retain source text, prompts, candidates, results, or raw provider responses in storage, logs, caches, queues, or analytics. The bounded Worker and browser keep only transient in-memory state needed for the request and display.",
-    "Hugging Face, OpenRouter, DeepInfra, CoreWeave, and their infrastructure process the submitted content under their own policies; hah.dev does not claim that its application-level no-retention rule governs those external systems.",
+    "Hugging Face, OpenRouter, Parasail, CoreWeave, and their infrastructure process the submitted content under their own policies; hah.dev does not claim that its application-level no-retention rule governs those external systems.",
     "Provider endpoints, stage routing, the generator, and the verifier are fixed server-side. There is no automatic provider or model fallback, and a terminal failure requires another deliberate submission.",
     "In standard operation the service admits at most 30 transformations globally per UTC day and 3 from one ordinary persistent cookie jar per UTC day. Both daily limits are lifted during the operator-ended browser qualification. Its API-scoped opaque HttpOnly cookie contains no submitted content and expires at the next UTC-day boundary; no IP or browser fingerprint is used as a second quota identity.",
     "The active remote runtime may differ in weights, tokenizer behavior, kernels, numerical behavior, and serving configuration from the historical pinned MLC/WebGPU artifacts; byte-for-byte equivalence is not claimed.",
