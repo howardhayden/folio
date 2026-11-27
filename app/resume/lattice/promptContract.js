@@ -382,7 +382,12 @@ Safety is purpose- and consequence-aware. Fail transformations that materially f
 
 Priority: safety, semantic fidelity, accessibility, clarity, domain correctness, register fit, ornament. Designated exact literals and annotations, direction controls, line, paragraph, stanza, isolate nesting are immutable. Attestations and edges prove host preservation only, never meaning; never infer across omitted text. Rewrites require words or syntax, not formatting, case, or punctuation.`;
 
-const CANDIDATE_REALIZATION_INSTRUCTION = `Supply one complete candidate-result instance through the required response channel; never return a schema definition. Follow each supplied passage's validated disposition. In each passage's preservedAtomIds, list exactly that passage's planned atom IDs, each once. Keep distinct IDs even when their atoms share a source excerpt. For rewrite, realize the same source-grounded commitments in different wording or syntactic order that serves its selected layer and plan. Supplied ordinary source prose is evidence rather than a verbatim output requirement; designated exact literals and annotations remain verbatim. Copying the source or changing only formatting, case, or punctuation does not fulfill rewrite. Before returning, compare each realized passage with its source: preserve its speech act, actors, objects, actions, relations, order, modality, polarity, ambiguity, attribution, literals, and boundaries; do not add or remove meaning merely to force a difference. For retain-if-conformant, reproduce the complete source passage exactly; never silently replace a rewrite disposition with retention.`;
+function candidateRealizationInstruction(keyedClaims) {
+  const claims = keyedClaims
+    ? "In preservedAtomIds, identify the meaning units you actually preserved using this passage's short keys in draftAtomKeys. The keys follow the atom order in analysis. Check each unit against the text you wrote. Revise missing meaning before claiming it. Only a complete list can clear host review."
+    : "In each passage's preservedAtomIds, list exactly that passage's planned atom IDs, each once.";
+  return `Supply one complete candidate-result instance through the required response channel; never return a schema definition. Follow each supplied passage's validated disposition. ${claims} Keep distinct IDs even when their atoms share a source excerpt. For rewrite, realize the same source-grounded commitments in different wording or syntactic order that serves its selected layer and plan. Supplied ordinary source prose is evidence rather than a verbatim output requirement; designated exact literals and annotations remain verbatim. Copying the source or changing only formatting, case, or punctuation does not fulfill rewrite. Before returning, compare each realized passage with its source: preserve its speech act, actors, objects, actions, relations, order, modality, polarity, ambiguity, attribution, literals, and boundaries; do not add or remove meaning merely to force a difference. For retain-if-conformant, reproduce the complete source passage exactly; never silently replace a rewrite disposition with retention.`;
+}
 
 export function serializeInertModelData(value) {
   return JSON.stringify(value)
@@ -945,7 +950,7 @@ function requestedModeInstruction(request, compactWire = false) {
   return "";
 }
 
-export function analysisMessages(request, { responseDialect = "host-schema", longRegisterSelection = false } = {}) {
+export function analysisMessages(request, { responseDialect = "host-schema", longRegisterSelection = false, relationAtomCount = null } = {}) {
   if (!ANALYSIS_RESPONSE_DIALECTS.has(responseDialect)) {
     throw new TypeError("Text to Lattice received an invalid analysis response dialect.");
   }
@@ -966,11 +971,15 @@ export function analysisMessages(request, { responseDialect = "host-schema", lon
   const retryCategory = LATTICE_ANALYSIS_VALIDATION_CATEGORIES.includes(
     request.protocolFeedback?.category,
   ) ? request.protocolFeedback.category : "other";
+  const relationCorrection = compactWire && longRegisterSelection && Number.isSafeInteger(relationAtomCount)
+    && relationAtomCount > 0 && relationAtomCount <= 24
+    ? ` On this relation correction the fitted local atom positions are 0 through ${relationAtomCount - 1}, counting across all passage rows. A negative target selects an entry in the supplied document ledger. Check every relationship against the source and the nodes you actually emit.`
+    : "";
   const compactRetryInstruction = compactWire && request.protocolFeedback
     ? ` ${COMPACT_ANALYSIS_RETRY_INSTRUCTION} Closed correction category: ${retryCategory}. ${COMPACT_ANALYSIS_RETRY_RULES[retryCategory] ?? "Recheck every fitted enum, identifier, evidence reference, and empty-placeholder constraint."}`
     : "";
   return messages(
-    `Atomize every supplied passage and plan its appropriate public Lattice layer.${longRegisterSelection ? " " + LATTICE_LONG_REGISTER_SELECTION : ""}`,
+    `Atomize every supplied passage and plan its appropriate public Lattice layer.${longRegisterSelection ? " " + LATTICE_LONG_REGISTER_SELECTION : ""}${relationCorrection}`,
     {
       version: PUBLIC_REGISTER_VERSION,
       ...(request.certificateId ? {
@@ -1030,7 +1039,7 @@ function regenerationFeedbackForModel(request) {
   } : null;
 }
 
-export function candidateMessages(request, { analysisPlanDialect = "host-schema" } = {}) {
+export function candidateMessages(request, { analysisPlanDialect = "host-schema", draftAtomKeys = null } = {}) {
   if (!ANALYSIS_RESPONSE_DIALECTS.has(analysisPlanDialect)) {
     throw new TypeError("Text to Lattice received an invalid analysis plan dialect.");
   }
@@ -1038,7 +1047,7 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
   const regenerationFeedback = regenerationFeedbackForModel(request);
   const sourceGroups = sourcePassagesForModel(request);
   const requiredRewrites = compactPlan ? requiredRewritePositionsForModel(sourceGroups, request.analysis) : [];
-  const realizationInstruction = CANDIDATE_REALIZATION_INSTRUCTION
+  const realizationInstruction = candidateRealizationInstruction(draftAtomKeys !== null)
     + (requiredRewrites.length ? REQUIRED_REWRITE_CHECKLIST_INSTRUCTION : "");
   return messages(
     "Translate every supplied passage according to its plan and atom graph.",
@@ -1046,6 +1055,7 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
       version: PUBLIC_REGISTER_VERSION,
       batchId: request.batch.id,
       passages: sourceGroups,
+      ...(draftAtomKeys ? { draftAtomKeys } : {}),
       ...(requiredRewrites.length ? { requiredRewritePassagePositions: requiredRewrites } : {}),
       sourceBoundaries: sourceBoundariesForModel(request),
       ...(request.context ? { context: contextForModel(request.context) } : {}),
@@ -1226,7 +1236,7 @@ function repairFeedbackSourceSpansForModel(request, feedback) {
   });
 }
 
-export function repairMessages(request, { analysisPlanDialect = "host-schema" } = {}) {
+export function repairMessages(request, { analysisPlanDialect = "host-schema", draftAtomKeys = null } = {}) {
   if (!ANALYSIS_RESPONSE_DIALECTS.has(analysisPlanDialect)) {
     throw new TypeError("Text to Lattice received an invalid analysis plan dialect.");
   }
@@ -1238,7 +1248,7 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema" } 
       .map(({ passageId }) => passageId)
     : []);
   const copiedPositions = sourceGroups.flatMap(([id], index) => nonmaterialIds.has(id) ? [index] : []);
-  const realizationInstruction = CANDIDATE_REALIZATION_INSTRUCTION
+  const realizationInstruction = candidateRealizationInstruction(draftAtomKeys !== null)
     + (copiedPositions.length ? " For each copiedRewritePosition, compose a fresh expression of the same speech act or assertion. Recast its clause structure or choose an equivalent predicate. Preserve the speaker, referents, facts, certainty, and designated exact literals. Merely changing punctuation, typography, or word case fails. Return the complete candidate." : "")
     + (requiredRewrites.length ? REQUIRED_REWRITE_CHECKLIST_INSTRUCTION : "");
   const verificationFeedback = verificationFeedbackForModel(request.verification);
@@ -1254,6 +1264,7 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema" } 
       version: PUBLIC_REGISTER_VERSION,
       sourcePassages: sourceGroups,
       ...(copiedPositions.length ? { copiedRewritePositions: copiedPositions } : {}),
+      ...(draftAtomKeys ? { draftAtomKeys } : {}),
       ...(requiredRewrites.length ? { requiredRewritePassagePositions: requiredRewrites } : {}),
       sourceBoundaries: sourceBoundariesForModel(request),
       documentLedger: documentLedgerForModel(request.documentLedger),
