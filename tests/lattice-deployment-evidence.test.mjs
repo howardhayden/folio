@@ -61,7 +61,7 @@ const liveProviderContract = Object.freeze({
   certification_request_model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
   certification_response_format: "json_schema",
   certification_schema_strict: true,
-  generator_model: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
+  generator_model: "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
   verifier_model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
   automatic_retry: false,
   alternate_provider_or_model_fallback: false,

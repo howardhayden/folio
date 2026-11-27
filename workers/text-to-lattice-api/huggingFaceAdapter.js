@@ -41,8 +41,9 @@ export const HUGGING_FACE_CHAT_COMPLETIONS_URL =
   "https://router.huggingface.co/v1/chat/completions";
 export const HUGGING_FACE_VERIFICATION_CHAT_COMPLETIONS_URL = HUGGING_FACE_CHAT_COMPLETIONS_URL;
 
+export const LATTICE_STANDARD_GENERATOR = "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra";
 export const LATTICE_REMOTE_MODELS = Object.freeze({
-  generator: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
+  generator: "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
   verifier: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
 });
 
@@ -310,7 +311,7 @@ function qualificationStrictMessageShape(message) {
   return qualificationMessageShape(message, LATTICE_PROVIDER_STRICT_MESSAGE_SHAPE_FIELDS, STRICT_MESSAGE_SHAPE_ALLOWED_KEYS);
 }
 
-function qualificationHttpHeaders(response, role) {
+function qualificationHttpHeaders(response, role, selector) {
   const observe = (name, classify) => {
     try {
       const raw = response.headers.get(name);
@@ -322,7 +323,6 @@ function qualificationHttpHeaders(response, role) {
       return "unavailable";
     }
   };
-  const selector = LATTICE_REMOTE_MODELS[role];
   // Derive only the trusted configured literal; never normalize an observed ID.
   const separator = selector.lastIndexOf(":");
   const expectedModel = selector.slice(0, separator);
@@ -2705,6 +2705,7 @@ function parsedProviderContent(body, responseSize, toolName, allowStoppedToolCon
 
 export async function requestHuggingFaceJson({
   token,
+  useStandardGenerator = false,
   role,
   messages,
   schema,
@@ -2748,7 +2749,7 @@ export async function requestHuggingFaceJson({
   if (typeof token !== "string" || !token.trim()) {
     throw providerError("provider_not_configured", "The Lattice provider is not configured.");
   }
-  if (!REMOTE_ROLES.has(role) || !Array.isArray(messages) || !record(schema)
+  if (typeof useStandardGenerator !== "boolean" || !REMOTE_ROLES.has(role) || !Array.isArray(messages) || !record(schema)
     || typeof schemaName !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(schemaName)
     || !validPositiveInteger(maxTokens) || !validPositiveInteger(callTimeoutMs)
     || !validPositiveInteger(maximumRequestBytes)
@@ -2821,7 +2822,8 @@ export async function requestHuggingFaceJson({
   // Review stages require their closed single-content strict-schema envelope;
   // legacy helper compatibility never selects an alternate route or model.
   const providerUrl = HUGGING_FACE_CHAT_COMPLETIONS_URL;
-  const providerModel = LATTICE_REMOTE_MODELS[role];
+  const providerModel = role === "generator" && useStandardGenerator
+    ? LATTICE_STANDARD_GENERATOR : LATTICE_REMOTE_MODELS[role];
   let acceptStoppedReviewMetadata = allowNullStoppedScalewayReviewMetadata
     ? stoppedScalewayNullReviewMessageAllowed : undefined;
   // CoreWeave #473 matched the existing stopped DeepInfra joint-null rule.
@@ -2945,7 +2947,7 @@ export async function requestHuggingFaceJson({
       }
       if (!response.ok) {
         const httpHeaders = observeQualificationHttpHeaders
-          ? qualificationHttpHeaders(response, role)
+          ? qualificationHttpHeaders(response, role, providerModel)
           : null;
         discardResponseBody(response);
         throw withProviderDiagnostic(providerError("provider_http_error", "The Lattice provider rejected the request.", {
@@ -3026,6 +3028,7 @@ function messagesWithMode(factory, request, requestedMode) {
 
 export function createHuggingFaceLatticeAdapter({
   token,
+  useStandardGenerator = false,
   providerCallLimit = LATTICE_PROVIDER_CALL_LIMIT,
   requestedMode = "auto",
   fetchImpl = globalThis.fetch,
@@ -3093,6 +3096,7 @@ export function createHuggingFaceLatticeAdapter({
       result = await requestHuggingFaceJson({
         token,
         role: stage.role,
+        useStandardGenerator,
         messages: messagesWithMode(messageFactory, fittedRequest, requestedMode),
         schema: fittedSchema,
         schemaName: stage.schemaName,

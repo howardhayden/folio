@@ -242,12 +242,14 @@ function apiRequest(body = validPayload, {
   method = "POST",
   origin = LATTICE_API_ORIGIN,
   accept = "application/json",
+  processingNotice = "qwen-parasail-coreweave-v1",
   contentType = "application/json",
   headers = {},
   visitorCookie = TEST_VISITOR_COOKIE_VALUE,
   raw = false,
 } = {}) {
   const requestHeaders = new Headers(headers);
+  if (processingNotice !== null) requestHeaders.set("X-Lattice-Processing-Notice", processingNotice);
   if (visitorCookie !== null && !requestHeaders.has("Cookie")) {
     requestHeaders.set("Cookie", `${LATTICE_API_VISITOR_COOKIE_NAME}=${visitorCookie}`);
   }
@@ -2997,7 +2999,7 @@ test("compact repair grounds serialized feedback IDs in host source without chan
       assert.deepEqual(inertModelPayload(body), compact, "the actual hosted repair adapter uses the corrected projection");
       assert.match(body.messages[0].content, /not verbatim output requirements/u);
       assert.equal(body.max_tokens, 800);
-      assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
+      assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail");
       assert.deepEqual(body.response_format, { type: "json_object" });
     }
   }
@@ -3070,7 +3072,7 @@ test("compact rewrite checklist follows serialized passage IDs and ignores suppl
       new Set([base.batch.passages[0].id, base.batch.passages[2].id]));
     assert.match(body.messages[0].content, /complete zero-based checklist of source groups whose current plan requires rewrite/u);
     assert.match(body.messages[0].content, /never add or remove meaning to force a difference/u);
-    assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra");
+    assert.equal(body.model, "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail");
     assert.equal(body.max_tokens, 800);
     assert.deepEqual(body.response_format, { type: "json_object" });
   }
@@ -3631,7 +3633,7 @@ test("the adapter uses strict JSON Schema analysis and certification", async () 
   ]);
   assert.equal(
     LATTICE_REMOTE_MODELS.generator,
-    "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
+    "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
   );
   assert.equal(
     LATTICE_REMOTE_MODELS.verifier,
@@ -11772,4 +11774,27 @@ test("register-fit rejection context survives existing protocol correction and s
     }
     assert.deepEqual(runs[0], runs[1]);
   });
+});
+
+
+test("a disclosed generator is fixed for a whole request, including provider failure", async () => {
+  for (const [notice, selected] of [
+    [null, "deepinfra"],
+    ["qwen-parasail-coreweave-v1", "parasail"],
+    ["unrecognized-notice", null],
+  ]) {
+    const models = [];
+    let admissions = 0;
+    const worker = createLatticeApiWorker({
+      admitTransformation: async (...args) => { admissions += 1; return allowTransformation(...args); },
+      fetchImpl: async (_url, init) => {
+        models.push(JSON.parse(init.body).model);
+        return new Response(null, { status: 503 });
+      },
+    });
+    const response = await worker.fetch(apiRequest(validPayload, { processingNotice: notice }), { HF_TOKEN: "test-token", VISITOR_COOKIE_SECRET: "test-secret" });
+    assert.equal(response.status, selected ? 502 : 400);
+    assert.equal(admissions, selected ? 1 : 0);
+    assert.deepEqual(models, selected ? ["Qwen/Qwen3-235B-A22B-Instruct-2507:" + selected] : []);
+  }
 });

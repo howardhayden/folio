@@ -433,7 +433,7 @@ test("the production verifier preserves one setup and one canary before separate
     certification_request_model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
     certification_response_format: "json_schema",
     certification_schema_strict: true,
-    generator_model: "Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra",
+    generator_model: "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail",
     verifier_model: "meta-llama/Llama-3.3-70B-Instruct:coreweave",
     automatic_retry: false,
     alternate_provider_or_model_fallback: false,
@@ -618,6 +618,7 @@ test("the production verifier preserves one setup and one canary before separate
   assert.equal(canaryCall.url, "https://hah.dev/api/lattice");
   assert.equal(canaryCall.init.method, "POST");
   assert.deepEqual(canaryCall.init.headers, {
+    "X-Lattice-Processing-Notice": "qwen-parasail-coreweave-v1",
     Accept: "application/json",
     "Content-Type": "application/json",
     Origin: "https://hah.dev",

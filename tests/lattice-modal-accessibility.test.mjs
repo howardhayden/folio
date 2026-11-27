@@ -45,7 +45,7 @@ test("the modal discloses the external boundary before the user can submit", () 
   );
   assert.match(resumeProjectsSource, /<button className="lattice-run-button" type="submit"[^>]*>[\s\S]*?Process with external service[\s\S]*?<\/button>/u);
   assert.match(resumeProjectsSource, /id="lattice-use-confirmation"[\s\S]*?type="checkbox"[\s\S]*?required/u);
-  assert.match(resumeProjectsSource, /authorized to send it through Hugging Face and OpenRouter to DeepInfra and CoreWeave/u);
+  assert.match(resumeProjectsSource, /authorized to send it through Hugging Face and OpenRouter to the selected Qwen generator \(Parasail backup or DeepInfra standard\) and to CoreWeave for review/u);
   assert.match(resumeProjectsSource, /if \(!latticeUseConfirmed\)[\s\S]*?return;/u);
   assert.match(resumeProjectsSource, /const updateLatticeInput = \(value: string\) => \{\s*setLatticeUseConfirmed\(false\)/u);
 });
