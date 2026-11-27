@@ -1094,8 +1094,7 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     ? " Rebuild retained-source conformance separately from candidate judgment. A planned rewrite cannot certify unchanged retention; use only its schema-fixed c value and keep actual independent source-layer support in x and y. Replace the complete d/g/p/i result without changing a semantic verdict merely to satisfy layout."
     : "";
   const evidencePositionInstruction = wireLayout?.passages?.[0]?.sourcePositionsByAtom
-    ? " For each passage, sourcePositionsByAtom lists the zero-based source positions cited by each atom in x order. Choose x and y from the actual source meaning. Each selected y position must occur under a selected x atom. The table describes the graph and supplies no verdict. " + LATTICE_LONG_REGISTER_SELECTION
-      + (wireLayout.passages[0].sourceAtomsByPosition ? " For this correction, sourceAtomsByPosition also lists exactly which atom positions cite each source position. Recheck the meaning before selecting either mask." : "")
+    ? " For each passage, sourcePositionsByAtom lists the source positions cited by each atom in x order. sourceAtomsByPosition lists the atoms that cite each source position in y order. Both tables use zero-based indices. Choose x and y from the source meaning. For every selected y position, select at least one x atom that cites it. The tables describe the graph and supply no verdict. " + LATTICE_LONG_REGISTER_SELECTION
     : "";
   const atomClaimInstruction = request.deterministicFindings?.some((finding) => deterministicFindingRule(finding) === "D13")
     ? " The host separately enforces the candidate-atom-claim finding for the atom ID list. Determine atom coverage, failed checks, issues, and the verdict from the independent source and candidate comparison. Report genuine omissions and unsupported meaning. Do not report a failed check or a negative verdict solely because of the ID list mismatch."

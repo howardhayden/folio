@@ -3257,7 +3257,10 @@ function registerRepairPlans(entry) {
   const plans = [];
   for (const [index, plan] of analysis.passages.entries()) {
     const review = verification.passages[index];
-    if (review.passageId !== plan.passageId || !review.layerEvidenceGrounded
+    // A bad citation cannot select a new layer. If both proposals already
+    // name the same layer, keep it provisional and require fresh grounded review.
+    if (review.passageId !== plan.passageId
+      || (!review.layerEvidenceGrounded && review.independentLayer !== plan.layer)
       || review.missingAtomIds.length || review.unsupportedClaims.length || review.unmodeledSpanIds.length
       || review.checkedAtomIds.length !== plan.atoms.length
       || !plan.atoms.every(({ id }) => review.checkedAtomIds.includes(id))
@@ -4138,25 +4141,25 @@ export async function executeLatticePlan(preflight, options) {
     progress(onProgress, structuralIds.has(original.batch.id) ? "regenerating" : "repairing", index, actionableFailures.length, original.batch.id);
     const replacementEntry = reanalyzedByBatch.get(original.batch.id);
     const replacementAnalysis = replacementEntry?.analysis ?? original.analysis;
-    const retryRequest = Object.freeze({
-      ...original,
-      ...(reanalyzedByBatch.has(original.batch.id) ? { regenerationFromReanalysis: true } : {}),
-      ...(!reanalyzedByBatch.has(original.batch.id) && hasOnlyBoundNonmaterialFindings(original)
-        ? { repairFromSource: true } : {}),
-      // Repair only the host-proved defect; the unavailable review contains
-      // placeholders, not independent semantic findings. Fresh verification
-      // below must still establish every required condition for the new draft.
-      ...(unverifiedMaterialityRepairs.has(original.batch.id) ? { verification: null } : {}),
-      analysisRevisionId: replacementEntry?.analysisRevisionId ?? original.analysisRevisionId,
-      clarificationDocumentProvenance: replacementEntry?.clarificationDocumentProvenance
-        ?? original.clarificationDocumentProvenance,
-      analysis: replacementAnalysis,
-      ...bindRequiredLedgerTargets(
-        replacementAnalysis,
-        buildDocumentLedger(provisionalAnalyses, original.batch.id),
-      ),
-    });
     try {
+      const retryRequest = Object.freeze({
+        ...original,
+        ...(reanalyzedByBatch.has(original.batch.id) ? { regenerationFromReanalysis: true } : {}),
+        ...(!reanalyzedByBatch.has(original.batch.id) && hasOnlyBoundNonmaterialFindings(original)
+          ? { repairFromSource: true } : {}),
+        // Repair only the host-proved defect; the unavailable review contains
+        // placeholders, not independent semantic findings. Fresh verification
+        // below must still establish every required condition for the new draft.
+        ...(unverifiedMaterialityRepairs.has(original.batch.id) ? { verification: null } : {}),
+        analysisRevisionId: replacementEntry?.analysisRevisionId ?? original.analysisRevisionId,
+        clarificationDocumentProvenance: replacementEntry?.clarificationDocumentProvenance
+          ?? original.clarificationDocumentProvenance,
+        analysis: replacementAnalysis,
+        ...bindRequiredLedgerTargets(
+          replacementAnalysis,
+          buildDocumentLedger(provisionalAnalyses, original.batch.id),
+        ),
+      });
       const stage = reanalyzedByBatch.has(original.batch.id) ? "regeneration" : "repair";
       pipelineObservation?.retryPaths.set(original.batch.id, stage);
       const candidate = await callNormalizedStage({
