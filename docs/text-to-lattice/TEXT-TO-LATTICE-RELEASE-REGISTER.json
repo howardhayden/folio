@@ -325,6 +325,19 @@
         "visibleOutput": false,
         "stableWorkerRestored": true,
         "productionSmoke": "https://github.com/howardhayden/folio/actions/runs/46035145010"
+      },
+      "reverification": {
+        "previousProductionSmoke": "https://github.com/howardhayden/folio/actions/runs/46038288161",
+        "regularFirefox": {
+          "words": 697,
+          "providerCalls": 48,
+          "verificationProtocolCorrections": 4,
+          "terminalPhase": "reverification",
+          "outputVisible": false,
+          "priorWorkerRestored": true,
+          "splitAnalysisCalls": 2
+        },
+        "correction": "Rebalance uneven long jobs without adding a group when the budget is tight. Give the planner and reviewer the same register criteria. On long jobs, collect independent findings before the verdict."
       }
     }
   },
@@ -428,6 +441,11 @@
       "path": "docs/release-evidence/text-to-lattice/nov27-standard-planning-source-digests.json",
       "bytes": 21911,
       "sha256": "d41b8aa2eb74c2b66c68d361ff43f2cd3065da1d2f26089575e6ea99772682de"
+    },
+    "fitReviewComparison": {
+      "path": "docs/release-evidence/text-to-lattice/nov27-fit-review-source-digests.json",
+      "bytes": 21911,
+      "sha256": "523c2960b8e8d1c8dcb9c029f088446e437cdc0fe2caae3de47a0be1513fe8c3"
     }
   },
   "qualificationScope": "Safari and Brave supplied the canonical-browser traces for the qualified remote capability. The current production evidence carries those original results through the release owner's one-time source comparison. The last pulled hah.dev deployment and ancestry baseline are recorded in the evidence appendix. The earlier browser-local implementation is historical and inactive.",
@@ -458,7 +476,7 @@
     "decidedOn": "2026-11-26",
     "record": "The owner authorized 48 calls for qualifying long jobs and the Cloudflare clearance-cookie correction, preserving live service throughout rollout. The final visitor check uses regular Firefox. The source and output stay out of release evidence.",
     "note": "The completed one-off reset permits extra ordinary capacity with the 30/3 policy unchanged. Actual usage and rates determine charges. Intermittent upstream refusal and limited output fidelity remain accepted demonstrator risks. Privacy or admission failure requires withdrawal.",
-    "qualifiedSourceSetSha256": "cc3b139aff4b109fbc6e3c441c1b6c7f0fad8aea79d7f9cd8321de66d9170ffc"
+    "qualifiedSourceSetSha256": "8cc8b577934646ddff0c32c97df0f8ead6bad47fa9a7bf4a756a5aca4296f7f6"
   },
   "implementationBaselineRevision": "b211964213cd49e8335a73bcbebce3221c3a6bc2",
   "statusVocabulary": [
@@ -473,7 +491,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "b86e6c065d04814c4752d08f6892a9ff83d32b8708b432c28bca249b474c2922",
+    "qualificationDossierSha256": "5e9767b55845af57d0b5763a7c27be5662c8fc588bac64828ed8ad1fe01279d2",
     "browserEvidence": {
       "status": "verified-sanitized-bundle",
       "path": "docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json",
@@ -546,7 +564,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "cc3b139aff4b109fbc6e3c441c1b6c7f0fad8aea79d7f9cd8321de66d9170ffc",
+      "sha256": "8cc8b577934646ddff0c32c97df0f8ead6bad47fa9a7bf4a756a5aca4296f7f6",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, controlling Owner terms and baseline record, license-routing map, package metadata, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -557,13 +575,13 @@
       "authorization": "owner-approved-long-job-and-clearance-20261126",
       "capturedCommit": "6166a3f430338331ca3f0336450e500571cbb896",
       "capturedSourceSetSha256": "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
-      "currentSourceSetSha256": "cc3b139aff4b109fbc6e3c441c1b6c7f0fad8aea79d7f9cd8321de66d9170ffc",
+      "currentSourceSetSha256": "8cc8b577934646ddff0c32c97df0f8ead6bad47fa9a7bf4a756a5aca4296f7f6",
       "evidenceId": "ttl-browser-20261123T143941Z-a495af12",
       "evidenceSha256": "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
       "proof": {
-        "path": "docs/release-evidence/text-to-lattice/nov27-standard-planning-source-digests.json",
+        "path": "docs/release-evidence/text-to-lattice/nov27-fit-review-source-digests.json",
         "bytes": 21911,
-        "sha256": "d41b8aa2eb74c2b66c68d361ff43f2cd3065da1d2f26089575e6ea99772682de"
+        "sha256": "523c2960b8e8d1c8dcb9c029f088446e437cdc0fe2caae3de47a0be1513fe8c3"
       }
     }
   },

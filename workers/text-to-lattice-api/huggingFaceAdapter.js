@@ -564,7 +564,7 @@ function analysisWireGuide(positionAnchors) {
       : "Evidence positions are zero-based in exact supplied evidence order. List each atom's one to three unique positions in ascending order, and cover every supplied evidence position across the passage's atoms.",
     ...(positionAnchors ? [
       `The first four mask positions in order are ${LATTICE_CONFORMANCE_CRITERIA.universal.join(", ")}. Check commitments, relations, clarity, and distracting ornament in the existing wording.`,
-      `The fifth mask depends on the chosen layer: ${ANALYSIS_LAYERS.map((layer) => `${layer}=${LATTICE_CONFORMANCE_CRITERIA[layer][0]}`).join("; ")}. Narrated action alone is not an instruction. Mixed requires inseparable functions.`,
+      `The fifth mask depends on the chosen layer: ${ANALYSIS_LAYERS.map((layer) => `${layer}=${LATTICE_CONFORMANCE_CRITERIA[layer][0]}`).join("; ")}.`,
       "Cite wording that demonstrates each criterion. If the wording needs work on any criterion or evidence is missing, choose rewrite with five zero masks.",
     ] : []),
     "The five criterion masks use this order: the four universal criteria followed by the selected layer criterion. Each mask is a fitted binary string in evidence order. A rewrite uses five all-zero masks. A retain-if-conformant plan gives every criterion a nonempty selection and the five masks jointly cover every evidence position.",
@@ -576,8 +576,8 @@ function analysisWireGuide(positionAnchors) {
 const ANALYSIS_WIRE_GUIDE = analysisWireGuide(false);
 const LONG_ANALYSIS_WIRE_GUIDE = analysisWireGuide(true);
 
-function analysisWireMessages(request) {
-  return analysisMessages(request, { responseDialect: "compact-wire-v2" });
+function analysisWireMessages(request, longRegisterSelection = false) {
+  return analysisMessages(request, { responseDialect: "compact-wire-v2", longRegisterSelection });
 }
 
 const INTERNAL_VERIFICATION_PASSAGE_SCHEMA = VERIFICATION_SCHEMA.properties.passages.items;
@@ -3091,7 +3091,10 @@ export function createHuggingFaceLatticeAdapter({
       verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
       certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
       const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
-      const evidenceFirst = isVerificationAlignmentCorrection(verificationCorrection);
+      const evidenceFirst = verificationFit !== null && (
+        providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
+        || isVerificationAlignmentCorrection(verificationCorrection)
+      );
       const fittedRequest = analysisFit?.request ?? request;
       const fittedSchema = analysisFit
         ? analysisWireSchemaForFit(analysisFit, positionAnchors)
@@ -3106,7 +3109,7 @@ export function createHuggingFaceLatticeAdapter({
       ) : null;
       const messageFactory = verificationFit
         ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection)
-        : stage.messages;
+        : positionAnchors ? (current) => analysisWireMessages(current, true) : stage.messages;
       result = await requestHuggingFaceJson({
         token,
         role: stage.role,

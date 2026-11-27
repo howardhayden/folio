@@ -360,14 +360,12 @@ export function preflightLatticeInput(value, { providerCallLimit } = {}) {
 // new batch needs analysis, drafting and review. Reserve one correction per
 // batch and four calls for document proof before subdividing expensive groups.
 export function balanceLongLatticePlan(plan, providerCallLimit) {
-  const maximumBatches = Math.floor((providerCallLimit - FLAT_CERTIFICATION_RESERVATION) / 4);
-  // When the original groups already need the entire tier for a draft,
-  // repair, fresh review and certification, speculative groups consume the
-  // very calls needed to finish. Genuine output/context failures can still split.
-  const recoveredGroupCalls = 3 + 2;
-  if (plan.batches.length * recoveredGroupCalls + FLAT_CERTIFICATION_RESERVATION >= providerCallLimit) {
-    return plan;
-  }
+  // On a tight plan, shift whole passages to reduce the heaviest group
+  // without adding an analysis, draft, or review group.
+  const recoveryCalls = plan.batches.length * 5 + FLAT_CERTIFICATION_RESERVATION;
+  const maximumBatches = recoveryCalls >= providerCallLimit
+    ? plan.batches.length
+    : Math.floor((providerCallLimit - FLAT_CERTIFICATION_RESERVATION) / 4);
   let smallest = BATCH_WORD_TARGET;
   const batchWords = plan.batches.map((batch) => batch.wordCount);
   let largest = Math.max(...batchWords);
@@ -386,7 +384,9 @@ export function balanceLongLatticePlan(plan, providerCallLimit) {
       smallest = target + 1;
     }
   }
-  return batches === plan.batches ? plan : Object.freeze({ ...plan, batches });
+  if (batches === plan.batches || (batches.length === plan.batches.length
+    && Math.max(...batches.map((batch) => batch.wordCount)) >= Math.max(...batchWords))) return plan;
+  return Object.freeze({ ...plan, batches });
 }
 
 function protocol(condition, message) {

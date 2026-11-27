@@ -1967,6 +1967,10 @@ test("688-word narrative fits the production Worker, strict provider adapters an
       }
       if (isVerificationBody(body)) {
         counts.verification += 1;
+        assert.deepEqual(body.response_format.json_schema.schema.required, ["g", "p", "i", "d"]);
+        assert.deepEqual(payload.wireLayout.rootFields, ["g", "p", "i", "d"]);
+        assert.match(body.messages[0].content, /record any issues, then derive the verdict/u);
+        assert.match(body.messages[0].content, /narrated action alone is not an instruction/u);
         const p = Object.fromEntries(payload.analysisClaims[1].map((plan, i) => {
           const group = payload.sourcePassages[i];
           const evidenceIds = [...group[1], ...group[2]].map(([id]) => id);
@@ -5618,6 +5622,7 @@ test("qualifying long analysis anchors source coverage while preserving shared e
   }
   assert.match(long.guide, /fitted evidence anchors/u);
   assert.doesNotMatch(ordinary.guide, /fitted evidence anchors/u);
+  assert.match(long.guide, /narrated action alone is not an instruction/u);
   assert.match(long.guide, /semantic-coverage, causal-relational-fidelity, accessible-clarity, no-obscuring-ornament/u);
   for (const [layer, criterion] of Object.entries(LATTICE_CONFORMANCE_CRITERIA)) {
     if (layer !== "universal") assert.ok(long.guide.includes(`${layer}=${criterion[0]}`));
