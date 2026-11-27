@@ -1,3 +1,4 @@
+import { LATTICE_LONG_JOB_POLICY, latticeProviderCallLimitForPlan } from "./lattice/remoteProtocol.js";
 import { getLatticeAnalysisPassageRetentionDowngrade } from "./lattice/analysisProvenance.js";
 import { withLatticeRegenerationRetentionContext } from "./lattice/regenerationContext.js";
 import {
@@ -320,7 +321,7 @@ const FLAT_CERTIFICATION_RESERVATION = 4;
 
 export class LatticePlanCapacityError extends RangeError {}
 
-// Every model batch needs an analysis, a draft, and an independent review.
+// Before analysis, reserve a draft for every batch as well as analysis and independent review.
 function initialProviderCalls(source, passages, batches) {
   const certify = requiresDocumentCertification(source, batches.length, passages.some((passage) => passage.protected));
   return 3 * batches.length + (certify ? FLAT_CERTIFICATION_RESERVATION : 0);
@@ -1073,6 +1074,20 @@ function assembledCandidateProvenance(entries, assembledText) {
     ])
   )).sort(canonicalQuestionTupleOrder);
   return Object.freeze({ assembledText, passages });
+}
+
+function exactSourceCandidate(request) {
+  return Object.freeze({
+    passages: Object.freeze(request.batch.passages.map((passage) => {
+      const plan = request.analysis.passages.find(({ passageId }) => passageId === passage.id);
+      return Object.freeze({
+        passageId: passage.id,
+        layer: plan.layer,
+        text: passage.text,
+        preservedAtomIds: Object.freeze(plan.atoms.map(({ id }) => id)),
+      });
+    })),
+  });
 }
 
 function normalizeCandidate(raw, batch, analysis) {
@@ -3670,18 +3685,25 @@ export async function executeLatticePlan(preflight, options) {
     ...entry,
     ...bindRequiredLedgerTargets(entry.analysis, buildDocumentLedger(analyses, entry.batch.id)),
   }));
+  const retainedSourceDrafts = options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
+    && latticeProviderCallLimitForPlan(preflight) === LATTICE_LONG_JOB_POLICY.providerCallLimit;
   const candidates = [];
   for (let index = 0; index < analyses.length; index += 1) {
     const request = analyses[index];
     throwIfAborted(signal);
     progress(onProgress, "generating", index, analyses.length, request.batch.id);
+    // For a fully evidenced retention plan, only the exact source can pass
+    // deterministic review. The independent reviewer still assesses every passage.
+    const useSourceDraft = retainedSourceDrafts && request.analysis.passages.every(
+      ({ disposition }) => disposition === "retain-if-conformant",
+    );
     let candidate;
     try {
       candidate = await callNormalizedStage({
         stage: "generation",
         pipelineObservation,
         request,
-        invoke: (currentRequest) => options.adapter.generate(currentRequest),
+        invoke: useSourceDraft ? exactSourceCandidate : (currentRequest) => options.adapter.generate(currentRequest),
         normalize: (raw) => normalizeCandidate(raw, request.batch, request.analysis),
         signal,
       });
@@ -3705,20 +3727,9 @@ export async function executeLatticePlan(preflight, options) {
           }, generationError)],
         });
       }
-      const identityCandidate = Object.freeze({
-        passages: Object.freeze(request.batch.passages.map((passage) => {
-          const plan = request.analysis.passages.find(({ passageId }) => passageId === passage.id);
-          return Object.freeze({
-            passageId: passage.id,
-            layer: plan.layer,
-            text: passage.text,
-            preservedAtomIds: Object.freeze(plan.atoms.map(({ id }) => id)),
-          });
-        })),
-      });
       const recoveryRequest = Object.freeze({
         ...request,
-        candidate: identityCandidate,
+        candidate: exactSourceCandidate(request),
         deterministicFindings: Object.freeze([Object.freeze({
           id: "generation-protocol",
           passageId: request.batch.passages[0]?.id ?? "",

@@ -2715,6 +2715,35 @@ function stripAdmissionFixture(fetchImpl) {
   };
 }
 
+test("ordinary maintenance retries only the smoke check, once, using the same visitor cookie", async () => {
+  for (const failures of [0, 1, 2]) {
+    const fixture = successfulFixture();
+    const ordinaryFetch = stripAdmissionFixture(fixture.fetchImpl);
+    const sessions = [];
+    const smoke = verifyTextToLatticeApiProduction({
+      context, now: fixedNow, wait: noWait, requireAdmissionEvidence: false, retryMaintenanceSmoke: true,
+      fetchImpl: async (url, init) => {
+        if (init.body === JSON.stringify(LATTICE_PRODUCTION_CANARY_REQUEST)
+          && init.headers[LATTICE_QUALIFICATION_DIAGNOSTIC_REQUEST_HEADER]) {
+          sessions.push(init.headers.Cookie);
+          if (sessions.length <= failures) return apiJson({ error: "upstream_timeout" }, 504);
+        }
+        return ordinaryFetch(url, init);
+      },
+    });
+    if (failures === 2) await assert.rejects(smoke, /synthetic transformation canary/u);
+    else assert.equal((await smoke).transformation_canary.http_status, 200);
+    assert.equal(sessions.length, failures === 0 ? 1 : 2);
+    assert.ok(sessions[0]);
+    assert.equal(new Set(sessions).size, 1);
+  }
+  const fixture = successfulFixture();
+  await assert.rejects(verifyTextToLatticeApiProduction({
+    context, fetchImpl: fixture.fetchImpl, retryMaintenanceSmoke: true,
+  }), /ordinary maintenance/u);
+  assert.equal(fixture.calls.length, 0);
+});
+
 test("already-qualified absence is explicitly not-observed while qualification requires all actual observations", async () => {
   const fixture = successfulFixture();
   const evidence = await verifyTextToLatticeApiProduction({
@@ -3121,8 +3150,8 @@ test("the staged long-prose check retains only a terminal status, identity, coun
   assert.equal(receipt.inputWords, 688);
   await assert.rejects(check(false), /ended with unable-to-attempt/u);
   assert.equal(receipt.batches, 11);
-  assert.equal((await check(true, 15)).batches, 15);
-  await assert.rejects(check(true, 16), /16 groups/u);
+  assert.equal((await check(true, 23)).batches, 23);
+  await assert.rejects(check(true, 24), /24 groups/u);
   await assert.rejects(check(true, 6), /6 groups/u);
   assert.equal(contents, 5);
 });

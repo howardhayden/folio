@@ -1991,7 +1991,7 @@ test("688-word narrative fits the production Worker, strict provider adapters an
   assert.ok(envelope.result.text === source, "the retained result must match the fixture");
   assert.equal(envelope.result.batchCount, plan.batches.length);
   assert.equal(admissions, 1);
-  assert.deepEqual(counts, { analysis: plan.batches.length, draft: plan.batches.length, verification: plan.batches.length, certification: 1 });
+  assert.deepEqual(counts, { analysis: plan.batches.length, draft: 0, verification: plan.batches.length, certification: 1 });
   assert.ok(Object.values(counts).reduce((used, count) => used + count, 0) <= latticeProviderCallLimitForPlan(initialPlan));
 });
 

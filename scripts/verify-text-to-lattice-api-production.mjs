@@ -49,6 +49,7 @@ import {
 } from "../app/resume/lattice/promptContract.js";
 import { requestRemoteLattice, LatticeRemoteError } from "../app/resume/lattice/remoteRequest.js";
 import { LATTICE_SERVICE_EVENTS_MIME } from "../app/resume/lattice/serviceTelemetry.js";
+import { BATCH_PASSAGE_LIMIT } from "../app/resume/lattice/segments.js";
 import { countLatticeWords } from "../app/resume/lattice/inputPolicy.js";
 import {
   deterministicDocumentReview,
@@ -1753,12 +1754,16 @@ export async function verifyTextToLatticeApiProduction({
   onPreflightEvidence,
   onUsageEvidence,
   requireAdmissionEvidence = true,
+  retryMaintenanceSmoke = false,
   canaryRequestedMode = LATTICE_PRODUCTION_CANARY_REQUEST.requested_mode,
   context,
 } = {}) {
   if (!["operative", "auto"].includes(canaryRequestedMode)
     || (canaryRequestedMode === "auto" && requireAdmissionEvidence !== true)) {
     throw new TypeError("The live API verifier received an invalid qualification canary mode.");
+  }
+  if (typeof retryMaintenanceSmoke !== "boolean" || (retryMaintenanceSmoke && requireAdmissionEvidence)) {
+    throw new TypeError("One smoke retry is available only for an ordinary maintenance deployment.");
   }
   if (typeof requireAdmissionEvidence !== "boolean" || typeof fetchImpl !== "function" || typeof now !== "function"
     || typeof monotonicNow !== "function" || typeof wait !== "function"
@@ -1884,7 +1889,7 @@ export async function verifyTextToLatticeApiProduction({
     await onPreflightEvidence(preflightEvidence);
   }
 
-  const { canary: transformationCanary, usageObservation, admissionObservation } = await verifyTransformationCanary(
+  const runSmoke = () => verifyTransformationCanary(
     exactOrigin,
     fetchImpl,
     monotonicNow,
@@ -1892,6 +1897,15 @@ export async function verifyTextToLatticeApiProduction({
     requireAdmissionEvidence,
     canaryRequestedMode,
   );
+  let smoke;
+  try {
+    smoke = await runSmoke();
+  } catch (firstFailure) {
+    if (!retryMaintenanceSmoke) throw firstFailure;
+    console.warn("The first maintenance smoke failed. Retrying once on the same version and visitor session.");
+    smoke = await runSmoke();
+  }
+  const { canary: transformationCanary, usageObservation, admissionObservation } = smoke;
   const visitorSessionPostflight = await verifyVisitorSessionPostflight(
     exactOrigin, fetchImpl, monotonicNow, now, visitorSession, requireAdmissionEvidence,
   );
@@ -1991,12 +2005,12 @@ export async function verifyLongProseCandidate(versionId, fetchImpl = fetch) {
   }
   const r = result;
   const elapsedMs = elapsedMilliseconds(started, clock, label);
-  // Every completed group needs analysis, drafting and review. This multiline
-  // fixture also needs at least one independent document certification.
-  const minimumProviderCalls = 3 * r.batchCount + 1;
+  // Each group needs analysis and independent review. Every changed passage
+  // also needed a draft, and the multiline result needs a document certificate.
+  const minimumProviderCalls = 2 * r.batchCount + Math.ceil(r.revisedPassageCount / BATCH_PASSAGE_LIMIT) + 1;
   if (!CERTIFICATION_CANARY_STATUS_SET.has(r.status) || r.findings.length || r.wordCount !== 688
     || r.batchCount < LATTICE_LONG_JOB_POLICY.minimumBatches || minimumProviderCalls > LATTICE_LONG_JOB_POLICY.providerCallLimit
-    || r.passageCount >= 48 || r.verificationPasses < 1
+    || r.passageCount >= 48 || r.batchCount > r.passageCount || r.verificationPasses < 1
     || r.retainedPassageCount + r.revisedPassageCount !== r.passageCount
     || (r.status === "translated" ? r.revisedPassageCount < 1 || !materiallyDifferent(source, r.text)
       : r.revisedPassageCount !== 0 || source !== r.text)
@@ -2036,6 +2050,7 @@ async function main(fetchImpl) {
     fetchImpl,
     origin: process.env.LATTICE_API_BASE_URL,
     canaryRequestedMode: process.env.LATTICE_CANARY_REQUEST_MODE,
+    retryMaintenanceSmoke: process.env.LATTICE_RETRY_MAINTENANCE_SMOKE === "true",
     requireAdmissionEvidence: parseLatticeRequireAdmissionEvidence(process.env.LATTICE_REQUIRE_ADMISSION_EVIDENCE),
     onUsageEvidence(value) { usageEvidence = value; },
     onPreflightEvidence: async (preflightEvidence) => {
