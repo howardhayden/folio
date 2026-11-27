@@ -636,6 +636,30 @@ test("long-job balancing avoids redundant analysis calls and preserves every pas
   assert.ok(balancedCalls < originalCalls);
 });
 
+test("a tight long-job plan reduces peak analysis size inside the same group budget", async () => {
+  const lengths = [...Array(11).fill(17), ...Array(10).fill(3), ...Array(12).fill(25)];
+  const source = lengths.map((length, index) => opaqueWords(length, `p${index}w`)).join("\n\n");
+  const original = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const balanced = balanceLongLatticePlan(original, 48);
+  assert.equal(original.batches.length, 9);
+  assert.equal(balanced.batches.length, 9);
+  assert.equal(Math.max(...original.batches.map(({ wordCount }) => wordCount)), 100);
+  assert.equal(Math.max(...balanced.batches.map(({ wordCount }) => wordCount)), 78);
+  assert.deepEqual(balanced.batches.flatMap(({ passages }) => passages), original.passages);
+  let certificates = 0;
+  const adapter = scriptedAdapter({
+    analyze({ batch }) {
+      if (batch.wordCount > 80) throw Object.assign(new Error("Analysis output limit"), { code: "provider_output_limit" });
+    },
+    certify() { certificates += 1; },
+  });
+  const result = await executeLatticePlan(balanced, { adapter, providerCallLimit: 48, allowClarification: false });
+  assert.equal(result.status, "translated");
+  assert.equal(adapter.calls.analyze, 9);
+  assert.equal(adapter.calls.verify, 9);
+  assert.equal(certificates, 1);
+});
+
 test("an ordinary final partial group alone adds no analysis, drafting or review calls to a long job", () => {
   const lengths = [...Array(24).fill(26), ...Array(4).fill(2)];
   const source = lengths.map((length, index) => opaqueWords(length, `p${index}w`) + ".").join("\n\n");

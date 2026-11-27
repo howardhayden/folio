@@ -106,6 +106,8 @@ export const LATTICE_DOCUMENT_CERTIFICATION_CHECKS = Object.freeze([
   "boundaryFidelity",
   "documentConsistency",
 ]);
+// Use the same source-grounded distinction for both sides of a long-job review.
+export const LATTICE_LONG_REGISTER_SELECTION = "Select the register by what this passage communicates in its source context. A narrated action alone is not an instruction. Use experiential when the wording carries supported physical, environmental, or relational pressure. Use mixed only when the functions cannot be separated.";
 export const LATTICE_CONFORMANCE_CRITERIA = Object.freeze({
   universal: Object.freeze([
     "semantic-coverage",
@@ -943,7 +945,7 @@ function requestedModeInstruction(request, compactWire = false) {
   return "";
 }
 
-export function analysisMessages(request, { responseDialect = "host-schema" } = {}) {
+export function analysisMessages(request, { responseDialect = "host-schema", longRegisterSelection = false } = {}) {
   if (!ANALYSIS_RESPONSE_DIALECTS.has(responseDialect)) {
     throw new TypeError("Text to Lattice received an invalid analysis response dialect.");
   }
@@ -968,7 +970,7 @@ export function analysisMessages(request, { responseDialect = "host-schema" } = 
     ? ` ${COMPACT_ANALYSIS_RETRY_INSTRUCTION} Closed correction category: ${retryCategory}. ${COMPACT_ANALYSIS_RETRY_RULES[retryCategory] ?? "Recheck every fitted enum, identifier, evidence reference, and empty-placeholder constraint."}`
     : "";
   return messages(
-    "Atomize every supplied passage and plan its appropriate public Lattice layer.",
+    `Atomize every supplied passage and plan its appropriate public Lattice layer.${longRegisterSelection ? " " + LATTICE_LONG_REGISTER_SELECTION : ""}`,
     {
       version: PUBLIC_REGISTER_VERSION,
       ...(request.certificateId ? {
@@ -1071,7 +1073,8 @@ export function verificationMessages(request, { responseDialect = "host-schema",
   if (![null, "mask-width", "field-set", "layer-support", "retained-conformance", "issue-object", "issue-alignment", "decision-alignment"].includes(wireCorrection)) {
     throw new TypeError("Text to Lattice received invalid verification correction guidance.");
   }
-  const evidenceFirst = compactWire && request.protocolFeedback && isVerificationAlignmentCorrection(wireCorrection);
+  const evidenceFirst = compactWire && (wireLayout?.rootFields?.at(-1) === "d"
+    || (request.protocolFeedback && isVerificationAlignmentCorrection(wireCorrection)));
   const fields = evidenceFirst ? "g, p, i, and d" : "d, g, p, and i";
   const fieldOrder = evidenceFirst ? "g/p/i/d" : "d/g/p/i";
   const correctionInstruction = !compactWire || !request.protocolFeedback ? ""
@@ -1091,13 +1094,13 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     ? " Rebuild retained-source conformance separately from candidate judgment. A planned rewrite cannot certify unchanged retention; use only its schema-fixed c value and keep actual independent source-layer support in x and y. Replace the complete d/g/p/i result without changing a semantic verdict merely to satisfy layout."
     : "";
   const evidencePositionInstruction = wireLayout?.passages?.[0]?.sourcePositionsByAtom
-    ? " For each passage, sourcePositionsByAtom lists the zero-based source positions cited by each atom in x order. Choose x and y from the actual source meaning. Each selected y position must occur under a selected x atom. The table describes the graph and supplies no verdict."
+    ? " For each passage, sourcePositionsByAtom lists the zero-based source positions cited by each atom in x order. Choose x and y from the actual source meaning. Each selected y position must occur under a selected x atom. The table describes the graph and supplies no verdict. " + LATTICE_LONG_REGISTER_SELECTION
     : "";
   const atomClaimInstruction = request.deterministicFindings?.some((finding) => deterministicFindingRule(finding) === "D13")
     ? " The host separately enforces the candidate-atom-claim finding for the atom ID list. Determine atom coverage, failed checks, issues, and the verdict from the independent source and candidate comparison. Report genuine omissions and unsupported meaning. Do not report a failed check or a negative verdict solely because of the ID list mismatch."
     : "";
   return messages(
-    `Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.${atomClaimInstruction}${evidencePositionInstruction}`,
+    `Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.${atomClaimInstruction}${evidencePositionInstruction}${evidenceFirst ? " Evaluate each passage and gate on its evidence, record any issues, then derive the verdict from those findings." : ""}`,
     {
       version: PUBLIC_REGISTER_VERSION,
       batchId: request.batch.id,
