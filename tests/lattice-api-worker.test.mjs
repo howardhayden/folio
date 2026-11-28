@@ -2058,6 +2058,67 @@ test("one copied ordinary passage can choose a complete explicitly covered alter
   }
 });
 
+test("a truncated long draft recovers whole passages with explicit coverage and no partial result", async () => {
+  const base = minimalVerificationRequest();
+  const passages = [1, 2].map(i => ({ ...base.batch.passages[0], id: "p00" + i }));
+  const batch = { ...base.batch, passages };
+  const analysis = { ...base.analysis, passages: passages.map(p => ({ ...base.analysis.passages[0], passageId: p.id })) };
+  const previous = { passages: passages.map(p => ({ ...base.candidate.passages[0], passageId: p.id })) };
+  for (const scenario of ["generate", "repair", "second-truncated", "bad-mask", "unclaimed", "ordinary", "foreign-error"]) {
+    const targeted = [];
+    let calls = 0;
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: scenario === "ordinary" ? 32 : 48,
+      fetchImpl: async (_url, init) => {
+        calls++;
+        const body = JSON.parse(init.body);
+        assert.equal(body.max_tokens, 800);
+        if (scenario === "foreign-error") return new Response(null, { status: 429 });
+        if (calls === 1 || scenario === "second-truncated" && calls === 3) {
+          return providerChoiceResponse({ finish_reason: "length", message: { role: "assistant", content: "{" } });
+        }
+        const payload = inertModelPayload(body);
+        assert.equal(body.response_format.json_schema.name, "lattice_single_passage_draft_v1");
+        assert.deepEqual(payload.groupSources.map(p => p[0]), passages.map(p => p.id));
+        targeted.push(payload.targetPassage);
+        return successfulProviderResponse({ wording: base.candidate.passages[0].text,
+          coverage: scenario === "bad-mask" ? "11" : scenario === "unclaimed" ? "0" : "1" });
+      } });
+    const request = { ...base, batch, sourceSpans: latticeSourceSpansForBatch(batch), analysis,
+      candidate: scenario === "repair" ? previous : undefined };
+    const run = () => adapter[scenario === "repair" ? "repair" : "generate"](request);
+    if (["ordinary", "second-truncated", "foreign-error"].includes(scenario)) {
+      await assert.rejects(run, error => error.code === (scenario === "foreign-error" ? "provider_http_error" : "provider_output_limit"));
+      assert.equal(calls, scenario === "second-truncated" ? 3 : 1);
+    } else if (scenario === "bad-mask") {
+      assert.deepEqual(await run(), {});
+      assert.equal(calls, 2);
+    } else {
+      const result = await run();
+      assert.deepEqual(targeted, passages.map(p => p.id));
+      assert.deepEqual(result.passages.map(p => p.passageId), targeted);
+      assert.ok(result.passages.every(p => p.text === base.candidate.passages[0].text));
+      assert.deepEqual(result.passages.map(p => p.preservedAtomIds), scenario === "unclaimed" ? [[], []] : [["a1"], ["a1"]]);
+    }
+    assert.equal(adapter.completionCapacity().used, calls);
+  }
+});
+
+test("a long draft starts its recovery only when every requested passage can be funded", async () => {
+  const base = minimalVerificationRequest();
+  const passages = [1, 2].map(i => ({ ...base.batch.passages[0], id: "p00" + i }));
+  const batch = { ...base.batch, passages };
+  const analysis = { ...base.analysis, passages: passages.map(p => ({ ...base.analysis.passages[0], passageId: p.id })) };
+  let calls = 0;
+  const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 48, fetchImpl: async () => {
+    if (++calls === 47) return providerChoiceResponse({ finish_reason: "length", message: { role: "assistant", content: "{" } });
+    return successfulProviderResponse({ passages: [] });
+  } });
+  const request = { ...base, batch, analysis, sourceSpans: latticeSourceSpansForBatch(batch), candidate: undefined };
+  for (let i = 0; i < 46; i++) await adapter.generate(request);
+  await assert.rejects(() => adapter.generate(request), error => error.code === "provider_output_limit");
+  assert.deepEqual(adapter.completionCapacity(), { used: 47, remaining: 1, limit: 48 });
+});
+
 test("document repair selects a locally valid alternative that removes the misplaced word", async () => {
   const base = minimalVerificationRequest();
   const id = base.batch.passages[0].id;
