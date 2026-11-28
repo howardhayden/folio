@@ -64,7 +64,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `7ca6ff3fd0712c5ef839fce4f212d6c44f3aff66542d02dcd405bf640517cf49`
+**Qualified source-set SHA-256:** `a695f1b4e12390528cbaeda176068890604f9c4ee8ad809d9ea24da4f5d4c0b2`
 
 **Artifact-set projection SHA-256:** `bd6576979b9dcf3cbf2bd3bcac9a70678ac847b878dcf58bc159b20b0635f7f6`
 
@@ -98,7 +98,7 @@ These are the register’s current capability values, including the exact reques
 
 The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Separate regression tests cover long-job selection, the 32-, 48- and 64-call limits, and clearance-cookie handling in setup and admission. The workflow stages the candidate at zero percent, then switches traffic to it for the ordinary production check. The full passage in regular Firefox decides long-job acceptance. Consecutive failures trigger restoration of the preceding live Worker. Only aggregate results are recorded.
 
-The current fingerprint is `7ca6ff3fd0712c5ef839fce4f212d6c44f3aff66542d02dcd405bf640517cf49`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov28-local-boundary-review-source-digests.json) covers all 267 paths. It lists 44 differences and contains file names and hashes.
+The current fingerprint is `a695f1b4e12390528cbaeda176068890604f9c4ee8ad809d9ea24da4f5d4c0b2`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov28-local-boundary-review-source-digests.json) covers all 267 paths. It lists 44 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 

@@ -278,7 +278,7 @@
     {
       "path": "scripts/verify-text-to-lattice-release.mjs",
       "beforeSha256": "e171b7997594b9330bd2bf75a4b282b5bdd3512ba226bdf2da5cc722783d848a",
-      "afterSha256": "d5da0211e441fc4bbd0f4d0d473a54bc7fd0dc642eb46c9247f9099a6e3586e6"
+      "afterSha256": "cb3b015620b388ac1e35de67209dc7d3fd3e66e29b1d5255edf7d2bc8d6d0447"
     },
     {
       "path": "tests/lattice-documentation.test.mjs",
@@ -388,7 +388,7 @@
     {
       "path": "tests/lattice-api-worker.test.mjs",
       "beforeSha256": "460458b7f94de503c46d150da4712ccaef5ed757578aee2ae7d2dca323c2fb29",
-      "afterSha256": "175f2e69185b1b695f850a71afb46dbc7d50c1f968340f52dca75dd3e4ce5cb9"
+      "afterSha256": "1f12258c1daa44669aefdf9d5bc93056a78c27121ce97d4fcc2eb657102f76fa"
     },
     {
       "path": "tests/lattice-demo.test.mjs",
@@ -423,7 +423,7 @@
     {
       "path": "workers/text-to-lattice-api/huggingFaceAdapter.js",
       "beforeSha256": "1306ad3d60560cbc9cdb629d1ea3e1ed6abbeb6db7559cda18ccdabe397012a9",
-      "afterSha256": "3dcd6369172c242b5cca979f96176ad93ea5c4a62a9cdc9ac72e13540d049f0d"
+      "afterSha256": "0e6d576ab9039e8d1d78a12e0bb482f2fe2449a54dabeafcab4400dcb8623ac3"
     },
     {
       "path": "workers/text-to-lattice-api/worker.js",

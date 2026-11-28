@@ -3555,7 +3555,11 @@ export function createHuggingFaceLatticeAdapter({
     }
     try { return await complete(stageName, request); }
     catch (error) {
-      if (request.finalGroupDraft || !isLatticeLongJobCallLimit(providerCallLimit)
+      // The boundary pass reserves one call for a localized correction. A
+      // truncated reply cannot spend its review reserve on whole-passage drafts.
+      const boundedBoundaryRepair = providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
+        && request.documentBoundaryRepairPassageIds?.length;
+      if (request.finalGroupDraft || boundedBoundaryRepair || !isLatticeLongJobCallLimit(providerCallLimit)
         || !(error instanceof LatticeProviderError) || error.code !== "provider_output_limit") throw error;
       const frames = fitDraftFrames(request, stageName, providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit);
       const ids = frames?.map(frame => frame.id) ?? request.batch.passages.map(p => p.id);

@@ -2454,7 +2454,7 @@ test("a boundary repair edits only the marked occurrences in the actual draft", 
   const wording = base.candidate.passages[0].text;
   const text = marked.toUpperCase() + " " + wording + " " + other;
   const previous = { passages: [{ ...base.candidate.passages[0], text }] };
-  for (const scenario of ["valid", "still-moved", "missing", "bad-width", "wrong-size"]) {
+  for (const scenario of ["valid", "still-moved", "missing", "bad-width", "wrong-size", "truncated"]) {
     const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 64, fetchImpl: async (_url, init) => {
       const body = JSON.parse(init.body);
       assert.deepEqual(inertModelPayload(body).boundaryDrafts, [[id, text, [marked.toUpperCase(), other]]]);
@@ -2463,11 +2463,18 @@ test("a boundary repair edits only the marked occurrences in the actual draft", 
       assert.match(body.messages[0].content, /one natural replacement word or short phrase/u);
       assert.doesNotMatch(body.messages[0].content, /two natural alternatives/u);
       assert.deepEqual(body.response_format.json_schema.schema.properties[id].required, ["replacements", "coverage"]);
+      if (scenario === "truncated") return providerChoiceResponse({ finish_reason: "length", message: { role: "assistant", content: "{" } });
       return successfulProviderResponse({ [id]: { replacements: scenario === "wrong-size" ? [first]
         : [scenario === "still-moved" ? other : first, last], coverage: scenario === "missing" ? "0" : scenario === "bad-width" ? "11" : "1" } });
     } });
-    const result = await adapter.repair({ ...base, candidate: previous, documentBoundaryRepairPassageIds: [id],
-      documentBoundaryMoves: [[other, "p009", id], [marked, "p008", id]] });
+    const request = { ...base, candidate: previous, documentBoundaryRepairPassageIds: [id],
+      documentBoundaryMoves: [[other, "p009", id], [marked, "p008", id]] };
+    if (scenario === "truncated") {
+      await assert.rejects(adapter.repair(request), error => error.code === "provider_output_limit");
+      assert.equal(adapter.completionCapacity().used, 1);
+      continue;
+    }
+    const result = await adapter.repair(request);
     if (["bad-width", "wrong-size"].includes(scenario)) assert.deepEqual(result, {});
     else assert.equal(result.passages[0].text, scenario === "valid" ? first + " " + wording + " " + last : text);
     assert.equal(adapter.completionCapacity().used, 1);
