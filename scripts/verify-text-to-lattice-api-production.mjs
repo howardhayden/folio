@@ -5,7 +5,7 @@ import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
-  LATTICE_CLIENT_TIMEOUT_MS,
+  LATTICE_CLIENT_TIMEOUT_MS, LATTICE_LONG_CLIENT_TIMEOUT_MS,
   LATTICE_API_ERROR_CODES,
   LATTICE_API_PATH,
   LATTICE_API_SCHEMA_VERSION,
@@ -2018,7 +2018,7 @@ export async function verifyLongProseCandidate(versionId, fetchImpl = fetch) {
     || r.retainedPassageCount + r.revisedPassageCount !== r.passageCount
     || (r.status === "translated" ? r.revisedPassageCount < 1 || !materiallyDifferent(source, r.text)
       : r.revisedPassageCount !== 0 || source !== r.text)
-    || deterministicDocumentReview(source, r.text).length || elapsedMs >= LATTICE_CLIENT_TIMEOUT_MS) {
+    || deterministicDocumentReview(source, r.text).length || elapsedMs >= LATTICE_LONG_CLIENT_TIMEOUT_MS) {
     const finding = r.findings.find(({ id }) => UNABLE_CANARY_CLASSES.has(id))?.id ?? "none";
     fail(`long prose ended with ${r.status} at ${lastPhase} (${finding}), ${r.batchCount} groups and ${r.verificationPasses} review passes after ${elapsedMs} ms`);
   }
@@ -2030,7 +2030,7 @@ export async function verifyLongProseCandidate(versionId, fetchImpl = fetch) {
 export async function withCanaryTransport(operation, Agent = createRequire(
   new URL("../workers/package.json", import.meta.url),
 )("undici").Agent) {
-  const dispatcher = new Agent({ headersTimeout: CANARY_TIMEOUT_MS, bodyTimeout: CANARY_TIMEOUT_MS });
+  const dispatcher = new Agent({ headersTimeout: LATTICE_LONG_CLIENT_TIMEOUT_MS, bodyTimeout: LATTICE_LONG_CLIENT_TIMEOUT_MS });
   try {
     return await operation((url, init) => fetch(url, { ...init, dispatcher }));
   } finally {

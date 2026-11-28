@@ -2040,6 +2040,30 @@ test("quoted drafting fits each editable clause and repairs other copied passage
   }
 });
 
+test("a qualifying first prose draft can select a complete rewrite in a single generator call", async () => {
+  const base = minimalVerificationRequest();
+  const source = base.batch.passages[0];
+  const plan = base.analysis.passages[0];
+  const request = { ...base, candidate: undefined };
+  for (const complete of [true, false]) {
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 64, fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      const payload = inertModelPayload(body);
+      assert.deepEqual(payload.wholePassages, [source.id]);
+      assert.equal(body.max_tokens, 800);
+      assert.equal(payload.frames[0].at(-1), 2);
+      return successfulProviderResponse({ [source.id]: [
+        { wording: source.text, coverage: "1".repeat(plan.atoms.length) },
+        { wording: base.candidate.passages[0].text, coverage: (complete ? "1" : "0").repeat(plan.atoms.length) },
+      ] });
+    } });
+    const draft = await adapter.generate(request);
+    assert.equal(adapter.completionCapacity().used, 1);
+    assert.equal(draft.passages[0].text, complete ? base.candidate.passages[0].text : source.text);
+    assert.equal(deterministicBatchReview(base.batch, base.analysis, draft).length === 0, complete);
+  }
+});
+
 test("one copied ordinary passage can choose a complete explicitly covered alternative", async () => {
   const base = minimalVerificationRequest();
   const id = base.batch.passages[0].id;
@@ -2236,6 +2260,34 @@ test("long review capacity negotiates independently of the processing notice", a
       { HF_TOKEN: "fixture" });
     assert.equal(response.status, 200);
     assert.equal(selected, limit);
+  }
+});
+
+test("only negotiated long jobs extend their absolute deadline, within any qualification expiry", async () => {
+  const long = makeLongProseFixture(choices => choices[0]);
+  const start = Date.UTC(2026, 10, 28);
+  for (const [text, prefer, elapsed, expiry, scheduled, status] of [
+    [long, true, 60_000, null, [900_000, 1_740_000], 200],
+    [long, false, 60_000, null, [900_000], 200],
+    [validPayload.text, true, 60_000, null, [900_000], 200],
+    [long, true, 60_000, 1_080_000, [900_000, 1_020_000], 200],
+    [long, true, 900_000, null, [900_000], 504],
+  ]) {
+    let time = start;
+    const timers = [];
+    const worker = createLatticeApiWorker({
+      now: () => time,
+      scheduleTimeout(fn, milliseconds) { const timer = { fn, milliseconds, canceled: false }; timers.push(timer); return timer; },
+      cancelTimeout(timer) { timer.canceled = true; },
+      preflightLatticeInputImpl(value, options) { time += elapsed; return preflightLatticeInput(value, options); },
+      createAdapter: () => ({}), runTextToLatticeImpl: async () => validLatticeResult(),
+    });
+    const env = { HF_TOKEN: "fixture" };
+    if (expiry) env[LATTICE_QUALIFICATION_EXPIRES_AT_BINDING] = new Date(start + expiry).toISOString();
+    const reply = await worker.fetch(apiRequest({ ...validPayload, text }, { headers: prefer ? { Prefer: "wait=1800" } : {} }), env);
+    assert.equal(reply.status, status);
+    assert.deepEqual(timers.map(t => t.milliseconds), scheduled);
+    assert.ok(timers.every(t => t.canceled));
   }
 });
 

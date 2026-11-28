@@ -20,6 +20,9 @@ import {
 import {
   LATTICE_API_PATH,
   LATTICE_API_REQUEST_TIMEOUT_MS,
+  LATTICE_LONG_API_REQUEST_TIMEOUT_MS,
+  LATTICE_LONG_JOB_POLICY,
+  LATTICE_LONG_WAIT_PREFERENCE,
   LATTICE_API_SCHEMA_VERSION,
   LATTICE_PARASAIL_PROCESSING_NOTICE,
   LATTICE_PROCESSING_NOTICE,
@@ -354,27 +357,29 @@ function requestDeadline(
   cancelTimeout,
 ) {
   const controller = new AbortController();
-  const qualificationMilliseconds = qualificationWindow.expiresAt === null
-    ? null
-    : qualificationWindow.expiresAt - qualificationWindow.requestStartedAt;
-  const endsAtQualificationExpiry = qualificationMilliseconds !== null
-    && qualificationMilliseconds <= milliseconds;
-  const deadlineMilliseconds = endsAtQualificationExpiry
-    ? qualificationMilliseconds
-    : milliseconds;
+  const { requestStartedAt, expiresAt } = qualificationWindow;
+  let endAt = Math.min(requestStartedAt + milliseconds, expiresAt ?? Infinity);
   let deadlineCause = null;
   const abortFromClient = () => controller.abort(request.signal.reason ?? abortError());
   if (request.signal.aborted) abortFromClient();
   else request.signal.addEventListener("abort", abortFromClient, { once: true });
-  const timeout = scheduleTimeout(() => {
-    deadlineCause = endsAtQualificationExpiry ? "qualification-expiry" : "request-timeout";
-    const message = endsAtQualificationExpiry
-      ? "The Lattice qualification window expired."
-      : "The Lattice request timed out.";
-    controller.abort(abortError(message));
-  }, deadlineMilliseconds);
+  const expire = () => {
+    deadlineCause = endAt === expiresAt ? "qualification-expiry" : "request-timeout";
+    controller.abort(abortError(endAt === expiresAt
+      ? "The Lattice qualification window expired." : "The Lattice request timed out."));
+  };
+  let timeout = scheduleTimeout(expire, endAt - requestStartedAt);
   return Object.freeze({
     signal: controller.signal,
+    allowLongJob(currentTime) {
+      if (controller.signal.aborted || milliseconds !== LATTICE_API_REQUEST_TIMEOUT_MS) return;
+      if (currentTime >= endAt) { expire(); return; }
+      const extended = Math.min(requestStartedAt + LATTICE_LONG_API_REQUEST_TIMEOUT_MS, expiresAt ?? Infinity);
+      if (extended <= endAt || currentTime < requestStartedAt) return;
+      cancelTimeout(timeout);
+      endAt = extended;
+      timeout = scheduleTimeout(expire, endAt - currentTime);
+    },
     didQualificationExpire: () => deadlineCause === "qualification-expiry",
     didTimeOut: () => deadlineCause === "request-timeout",
     abort: (reason) => controller.abort(reason ?? abortError()),
@@ -1028,6 +1033,10 @@ export function createLatticeApiWorker({
           const extendedReview = processingNotice === LATTICE_PROCESSING_NOTICE
             && request.headers.get(LATTICE_REVIEW_PASSES_HEADER) === "3";
           providerCallLimit = latticeProviderCallLimitForPlan(initialPlan, extendedReview);
+          if (providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
+            && request.headers.get("Prefer") === LATTICE_LONG_WAIT_PREFERENCE) {
+            deadline.allowLongJob(now());
+          }
           const plan = providerCallLimit > LATTICE_PROVIDER_CALL_LIMIT
             ? balanceLongLatticePlan(initialPlan, LATTICE_LEGACY_LONG_JOB_CALL_LIMIT)
             : initialPlan;

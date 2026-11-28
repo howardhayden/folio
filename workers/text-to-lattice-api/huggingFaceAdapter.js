@@ -833,7 +833,7 @@ function writableQuoteSlot(source, group) {
   return { before: source.text.slice(0, slot.start), editable: slot.text, after: source.text.slice(slot.start + slot.text.length) };
 }
 
-function fitQuotedDraft(request, stageName) {
+function fitDraftFrames(request, stageName, includeWholeDrafts) {
   const initial = stageName === "candidate" && !request.candidate;
   const boundaryIds = stageName === "repair" ? request.documentBoundaryRepairPassageIds : null;
   if (!initial && !boundaryIds?.length && (stageName !== "repair" || request.correctCopiedLongDraft !== true
@@ -848,15 +848,18 @@ function fitQuotedDraft(request, stageName) {
     if (!source || plan?.disposition !== "rewrite") return null;
     const group = request.sourceSpans?.find(group => group.passageId === id);
     const slot = writableQuoteSlot(source, group);
-    if (initial && !slot) return null;
+    if (initial && !slot && !includeWholeDrafts) return null;
     const foreignWords = (request.documentBoundaryMoves ?? []).flatMap(([word, from, to]) =>
       from !== id && to === id ? [word] : []);
     frames.push({ id, source, plan, slot, foreignWords });
   }
-  // A copied ordinary passage also needs an actual new draft. When isolated,
-  // two bounded complete alternatives fit the existing response budget.
+  // A compact first draft can afford two renderings in the same call. Reserve
+  // the larger response for the prose itself when the group exceeds that fit.
+  const compactFirstDraft = initial && includeWholeDrafts
+    && frames.reduce((sum, frame) => sum + frame.source.text.length, 0) <= 600
+    && frames.reduce((sum, frame) => sum + countLatticeWords(frame.source.text), 0) <= 100;
   for (const frame of frames) {
-    frame.choiceCount = frame.slot || (frames.length === 1 && frame.source.text.length <= 600
+    frame.choiceCount = frame.slot || compactFirstDraft || (frames.length === 1 && frame.source.text.length <= 600
       && countLatticeWords(frame.source.text) <= 100) ? 2 : 1;
   }
   return frames.length ? frames : null;
@@ -3242,7 +3245,7 @@ export function createHuggingFaceLatticeAdapter({
       }
       if (isLatticeLongJobCallLimit(providerCallLimit)
         && (stageName === "candidate" || stageName === "repair")) draftClaims = longDraftClaims(request.analysis);
-      if (draftClaims && !outputPassage) repairFrames = fitQuotedDraft(request, stageName);
+      if (draftClaims && !outputPassage) repairFrames = fitDraftFrames(request, stageName, providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit);
       verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
       certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
       const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
@@ -3388,7 +3391,7 @@ export function createHuggingFaceLatticeAdapter({
     catch (error) {
       if (!isLatticeLongJobCallLimit(providerCallLimit)
         || !(error instanceof LatticeProviderError) || error.code !== "provider_output_limit") throw error;
-      const frames = fitQuotedDraft(request, stageName);
+      const frames = fitDraftFrames(request, stageName, providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit);
       const ids = frames?.map(frame => frame.id) ?? request.batch.passages.map(p => p.id);
       if (budget.used + ids.length > providerCallLimit) throw error;
       return draftPassagesIndividually(stageName, request, ids);

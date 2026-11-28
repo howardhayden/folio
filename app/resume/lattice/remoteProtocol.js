@@ -27,8 +27,12 @@ export function latticeProviderCallLimitForPlan({ wordCount, batches }, extended
     : LATTICE_PROVIDER_CALL_LIMIT;
 }
 export const LATTICE_API_REQUEST_TIMEOUT_MS = 15 * 60_000;
+export const LATTICE_LONG_API_REQUEST_TIMEOUT_MS = 30 * 60_000;
+export const LATTICE_LONG_WAIT_PREFERENCE = "wait=" + LATTICE_LONG_API_REQUEST_TIMEOUT_MS / 1000;
 // Leave time for session setup and transfer over a slow connection.
-export const LATTICE_CLIENT_TIMEOUT_MS = LATTICE_API_REQUEST_TIMEOUT_MS + 5 * 60_000;
+const transferAllowanceMs = 5 * 60_000;
+export const LATTICE_CLIENT_TIMEOUT_MS = LATTICE_API_REQUEST_TIMEOUT_MS + transferAllowanceMs;
+export const LATTICE_LONG_CLIENT_TIMEOUT_MS = LATTICE_LONG_API_REQUEST_TIMEOUT_MS + transferAllowanceMs;
 export const LATTICE_API_ERROR_CODES = Object.freeze([
   "invalid_request",
   "visitor_session_required",

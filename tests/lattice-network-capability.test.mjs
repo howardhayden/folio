@@ -73,6 +73,23 @@ async function withBrowserWindow(windowValue, operation) {
   }
 }
 
+test("long browsers advertise the extended wait only on the content submission", async () => {
+  const receipt = await requestRemoteLattice(words(500), {
+    baseOrigin: ORIGIN, timeoutMs: 2_100_000,
+    fetchImpl: async (_url, init) => {
+      if (!init.body) { assert.equal(init.headers.Prefer, undefined); return visitorSessionResponse(); }
+      assert.equal(init.headers.Prefer, "wait=1800");
+      return jsonResponse({ schema_version: 1, result });
+    },
+  });
+  assert.equal(receipt.status, "translated");
+  for (const [text, timeoutMs] of [[words(499), 1_200_001], [words(500), 2_100_001]]) {
+    await assert.rejects(requestRemoteLattice(text, { baseOrigin: ORIGIN, timeoutMs,
+      fetchImpl: () => assert.fail("An excessive wait must stop before the network") }),
+      error => error.code === "invalid_request");
+  }
+});
+
 test("fixed cors mode sends setup and content only to the canonical browser route under one lock", async () => {
   let held = false;
   let lockCalls = 0;

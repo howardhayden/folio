@@ -1,5 +1,5 @@
 import { NetworkPolicyError, capabilityFetch } from "../../privacy/networkCapabilities.js";
-import { latticeUtf8Length, validateLatticeInput } from "./inputPolicy.js";
+import { countLatticeWords, latticeUtf8Length, validateLatticeInput } from "./inputPolicy.js";
 import {
   LATTICE_SERVICE_EVENTS_MIME,
   LATTICE_SERVICE_PHASE_LIMIT,
@@ -8,6 +8,8 @@ import {
 import {
   LATTICE_API_PATH,
   LATTICE_CLIENT_TIMEOUT_MS,
+  LATTICE_LONG_CLIENT_TIMEOUT_MS,
+  LATTICE_LONG_JOB_POLICY,
   LATTICE_API_SCHEMA_VERSION,
   LATTICE_REQUEST_MODES,
   LATTICE_VISITOR_SESSION_ACCEPT,
@@ -546,14 +548,17 @@ export async function requestRemoteLattice(text, options = {}) {
     onServicePhase,
     fetchImpl,
     baseOrigin,
-    timeoutMs = LATTICE_CLIENT_TIMEOUT_MS,
+    timeoutMs: requestedTimeoutMs,
   } = options;
   if (onServicePhase !== undefined && typeof onServicePhase !== "function") {
     throw new LatticeRemoteError("invalid_request");
   }
   onState?.("validating");
   const payload = makeLatticeRequest(text, requestedMode);
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > LATTICE_CLIENT_TIMEOUT_MS) {
+  const maximumTimeout = countLatticeWords(payload.text) >= LATTICE_LONG_JOB_POLICY.minimumWords
+    ? LATTICE_LONG_CLIENT_TIMEOUT_MS : LATTICE_CLIENT_TIMEOUT_MS;
+  const timeoutMs = requestedTimeoutMs === undefined ? maximumTimeout : requestedTimeoutMs;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > maximumTimeout) {
     throw new LatticeRemoteError("invalid_request");
   }
   if (signal?.aborted) throw abortReason(signal);
