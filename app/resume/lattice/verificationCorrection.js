@@ -72,7 +72,7 @@ export async function withLatticeVerificationCorrection(request, error, invoke) 
   }
 }
 
-// A recheck first marked an atom missing while accepting, then rejected an
+// A recheck first accepted with missing or unaccounted units, then rejected an
 // all-positive set of findings. Neither reply decides the candidate. Allow
 // one independent adjudication of that exact pair, against the same draft.
 export async function adjudicateLatticeReverification(request, firstError, lastError, invoke) {

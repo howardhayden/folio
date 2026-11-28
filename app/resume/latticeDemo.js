@@ -77,6 +77,8 @@ import {
 import {
   deterministicBatchReview,
   deterministicPassageReview,
+  containsLatticeBoundaryWord,
+  relocatedLatticeBoundaryWords,
   deterministicDocumentReview,
   foldLatticePresentationLetters,
   getLatticeBatchD14Comparison,
@@ -1339,16 +1341,16 @@ function normalizeVerification(
     const onlyMissing = analysis.passages.every((plan, index) => {
       const passage = byId.get(plan.passageId);
       if (passage.complete) return true;
-      if (!passage.missingAtomIds.length || passage.checkedAtomIds.length + passage.missingAtomIds.length !== plan.atoms.length
-        || passage.unsupportedClaims.length || passage.unmodeledSpanIds.length
+      const checked = new Set(passage.checkedAtomIds);
+      if (checked.size === plan.atoms.length || passage.unsupportedClaims.length || passage.unmodeledSpanIds.length
         || (passage.requiresPositiveConformance && !passage.conformanceConfirmed)
         || LATTICE_PASSAGE_VERIFICATION_CHECKS.some(check => !passage[check])) return false;
-      positions.push(Object.freeze([index, Object.freeze(plan.atoms.flatMap((atom, i) => passage.missingAtomIds.includes(atom.id) ? [i] : []))]));
+      positions.push(Object.freeze([index, Object.freeze(plan.atoms.flatMap((atom, i) => checked.has(atom.id) ? [] : [i]))]));
       return true;
     });
     if (onlyMissing && positions.length) {
       throw rememberLatticeVerificationMissingUnitError(new LatticeProtocolError(
-        "The verifier accepted while explicitly reporting a missing meaning unit.",
+        "The verifier accepted while leaving a meaning unit missing or unaccounted for.",
       ), batch, analysis, candidate, stage, positions);
     }
   }
@@ -3370,6 +3372,31 @@ function registerRepairPlans(entry) {
   return Object.freeze(plans);
 }
 
+function documentBoundaryRepairTargets(source, passages, assembly) {
+  const moves = assembly.documentFindings.some(f => deterministicFindingRule(f) === "D27")
+    ? relocatedLatticeBoundaryWords(source, assembly.text) : [];
+  if (!moves.length) return new Map();
+  let delta = 0;
+  const ranges = passages.map(p => {
+    const text = assembly.candidateById.get(p.id)?.text ?? p.text;
+    const start = p.startUtf16 + delta;
+    delta += text.length - p.text.length;
+    return { source: p, start, end: start + text.length };
+  });
+  const targets = new Map();
+  for (const move of moves) {
+    const from = ranges.find(({ source: p }) => p.startUtf16 <= move.sourceOffset && move.sourceOffset < p.endUtf16);
+    const to = ranges.find(r => r.start <= move.candidateOffset && move.candidateOffset < r.end);
+    if (!from || !to) continue;
+    const binding = [move.word, from.source.id, to.source.id];
+    for (const id of new Set([from.source.id, to.source.id])) {
+      if (!targets.has(id)) targets.set(id, []);
+      targets.get(id).push(binding);
+    }
+  }
+  return targets;
+}
+
 // Use remaining long-job capacity only on passages still failing a genuine
 // copy check, before submitting the final group for independent review.
 async function repairResidualCopies(entry, adapter, reserve, signal) {
@@ -4081,7 +4108,9 @@ export async function executeLatticePlan(preflight, options) {
     return "review-required";
   };
 
-  let failures = reviews.filter((entry) => !entry.verification.accepted);
+  const boundaryTargets = qualifyingLongJob ? documentBoundaryRepairTargets(source, passages, assembly) : new Map();
+  let failures = reviews.filter(entry => !entry.verification.accepted
+    || entry.batch.passages.some(p => boundaryTargets.has(p.id)));
   if (assembly.documentFindings.length > 0 && failures.length === 0) failures = [...reviews];
   if (failures.length === 0) {
     const certification = await certifyWholeDocument({
@@ -4265,8 +4294,10 @@ export async function executeLatticePlan(preflight, options) {
     const replacementEntry = reanalyzedByBatch.get(original.batch.id);
     const replacementAnalysis = replacementEntry?.analysis ?? original.analysis;
     try {
+      const boundaryMoves = original.batch.passages.flatMap(p => boundaryTargets.get(p.id) ?? []);
       const retryRequest = Object.freeze({
         ...original,
+        ...(boundaryMoves.length ? { documentBoundaryMoves: [...new Set(boundaryMoves)] } : {}),
         ...(reanalyzedByBatch.has(original.batch.id) ? { regenerationFromReanalysis: true } : {}),
         ...(!reanalyzedByBatch.has(original.batch.id) && hasOnlyBoundNonmaterialFindings(original)
           ? { repairFromSource: true,
@@ -4343,6 +4374,45 @@ export async function executeLatticePlan(preflight, options) {
   const retryCandidateByBatch = new Map(retriedCandidates.map((entry) => [entry.batch.id, entry]));
   let tentativeCandidates = candidates.map((entry) => retryCandidateByBatch.get(entry.batch.id) ?? entry);
   assembly = assemble(tentativeCandidates);
+  if (qualifyingLongJob && assembly.documentFindings.some(f => deterministicFindingRule(f) === "D27")) {
+    // A locally accepted group can introduce a source word from a different
+    // line. Repair its actual destination before the second independent sweep.
+    for (const [index, entry] of tentativeCandidates.entries()) {
+      const targets = documentBoundaryRepairTargets(source, passages, assembly);
+      if (!targets.size) break;
+      const ids = entry.analysis.passages.filter(p => p.disposition === "rewrite"
+        && targets.get(p.passageId)?.some(([, , to]) => to === p.passageId)).map(p => p.passageId);
+      if (!ids.length) continue;
+      const remaining = options.adapter.completionCapacity?.()?.remaining;
+      const reviewCount = retryCandidateByBatch.size + (retryCandidateByBatch.has(entry.batch.id) ? 0 : 1);
+      if (!Number.isSafeInteger(remaining) || remaining <= 2 * reviewCount + FLAT_CERTIFICATION_RESERVATION) continue;
+      const moves = [...new Set(ids.flatMap(id => targets.get(id)))];
+      const request = Object.freeze({ ...entry, verification: null, documentFindings: assembly.documentFindings,
+        documentBoundaryRepairPassageIds: ids, documentBoundaryMoves: moves });
+      throwIfAborted(signal);
+      let proposed;
+      try { proposed = normalizeCandidate(await options.adapter.repair(request), entry.batch, entry.analysis); }
+      catch (error) { throwIfAborted(signal); if (!retryableStageFailure(error)) throw error; continue; }
+      const candidate = Object.freeze({ passages: Object.freeze(entry.candidate.passages.map((p, i) =>
+        ids.includes(p.passageId) ? proposed.passages[i] : p)) });
+      const deterministicFindings = deterministicBatchReview(entry.batch, entry.analysis, candidate, pipelineObservation !== null);
+      if (deterministicFindings.length || moves.some(([word, from, to]) => from !== to && ids.includes(to)
+        && containsLatticeBoundaryWord(candidate.passages.find(p => p.passageId === to).text, word))) continue;
+      const changed = Object.freeze({ ...entry, candidate, deterministicFindings });
+      const trial = tentativeCandidates.with(index, changed);
+      const next = assemble(trial);
+      const nextTargets = documentBoundaryRepairTargets(source, passages, next);
+      const words = map => new Set([...map.values()].flat().map(([word]) => word));
+      const before = words(targets), after = words(nextTargets);
+      if (after.size >= before.size || [...after].some(word => !before.has(word))
+        || next.documentFindings.some(f => deterministicFindingRule(f) !== "D27")) continue;
+      const pos = retriedCandidates.findIndex(e => e.batch.id === entry.batch.id);
+      if (pos < 0) retriedCandidates.push(changed); else retriedCandidates[pos] = changed;
+      retryCandidateByBatch.set(entry.batch.id, changed);
+      tentativeCandidates = trial;
+      assembly = next;
+    }
+  }
   provenanceProgress(onProgress, "binding-result-integrity", "Binding revised result integrity");
   candidateFingerprint = await provenanceFingerprint(
     "cf",

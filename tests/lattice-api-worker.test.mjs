@@ -2058,6 +2058,28 @@ test("one copied ordinary passage can choose a complete explicitly covered alter
   }
 });
 
+test("document repair selects a locally valid alternative that removes the misplaced word", async () => {
+  const base = minimalVerificationRequest();
+  const id = base.batch.passages[0].id;
+  const word = "x".repeat(7);
+  const wording = base.candidate.passages[0].text;
+  const previous = { passages: [{ ...base.candidate.passages[0], text: wording + " " + word }] };
+  for (const includesCorrection of [false, true]) {
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 48, fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.deepEqual(inertModelPayload(body).documentBoundaryMoves, [[word, "p999", id]]);
+      return successfulProviderResponse({ [id]: [
+        { wording: wording + " " + word.toUpperCase(), coverage: "1" },
+        { wording: includesCorrection ? wording : wording + " " + word + " " + word, coverage: "1" },
+      ] });
+    } });
+    const result = await adapter.repair({ ...base, candidate: previous, deterministicFindings: [],
+      documentBoundaryRepairPassageIds: [id], documentBoundaryMoves: [[word, "p999", id]] });
+    assert.equal(result.passages[0].text, includesCorrection ? wording : previous.passages[0].text);
+    assert.equal(adapter.completionCapacity().used, 1);
+  }
+});
+
 test("long dialogue drafting distinguishes editable frames and grounds missing meaning in the same passage", async () => {
   const text = "“" + validPayload.text + "” " + "x".repeat(3);
   const base = minimalVerificationRequest(text);

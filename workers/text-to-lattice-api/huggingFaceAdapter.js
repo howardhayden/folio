@@ -1,4 +1,4 @@
-import { deterministicPassageReview } from "../../app/resume/lattice/validators.js";
+import { containsLatticeBoundaryWord, deterministicPassageReview } from "../../app/resume/lattice/validators.js";
 import { countLatticeWords } from "../../app/resume/lattice/inputPolicy.js";
 import { beginLatticeAdmissionProviderFetch, endLatticeAdmissionProviderFetch } from "./admissionObservation.js";
 import { carryLatticeRegenerationRetentionContext } from "../../app/resume/lattice/regenerationContext.js";
@@ -834,11 +834,12 @@ function writableQuoteSlot(source, group) {
 
 function fitQuotedDraft(request, stageName) {
   const initial = stageName === "candidate" && !request.candidate;
-  if (!initial && (stageName !== "repair" || request.correctCopiedLongDraft !== true
+  const boundaryIds = stageName === "repair" ? request.documentBoundaryRepairPassageIds : null;
+  if (!initial && !boundaryIds?.length && (stageName !== "repair" || request.correctCopiedLongDraft !== true
     || !request.candidate?.passages || !request.deterministicFindings?.length
     || request.deterministicFindings.some(finding => deterministicFindingRule(finding) !== "D14"))) return null;
   const ids = initial ? request.batch.passages.map(passage => passage.id)
-    : [...new Set(request.deterministicFindings.map(finding => finding.passageId))];
+    : boundaryIds ?? [...new Set(request.deterministicFindings.map(finding => finding.passageId))];
   const frames = [];
   for (const id of ids) {
     const source = request.batch.passages.find(passage => passage.id === id);
@@ -847,7 +848,9 @@ function fitQuotedDraft(request, stageName) {
     const group = request.sourceSpans?.find(group => group.passageId === id);
     const slot = writableQuoteSlot(source, group);
     if (initial && !slot) return null;
-    frames.push({ id, source, plan, slot });
+    const foreignWords = (request.documentBoundaryMoves ?? []).flatMap(([word, from, to]) =>
+      from !== id && to === id ? [word] : []);
+    frames.push({ id, source, plan, slot, foreignWords });
   }
   // A copied ordinary passage also needs an actual new draft. When isolated,
   // two bounded complete alternatives fit the existing response budget.
@@ -871,7 +874,7 @@ function frameRepairSchema(frames) {
 function expandFrameRepair(result, frames, previous) {
   if (!exactKeys(result, frames.map(frame => frame.id))) return {};
   const replacements = new Map();
-  for (const { id, source, plan, slot, choiceCount } of frames) {
+  for (const { id, source, plan, slot, choiceCount, foreignWords } of frames) {
     const choices = result[id];
     if (!Array.isArray(choices) || choices.length !== choiceCount) return {};
     let first;
@@ -885,7 +888,8 @@ function expandFrameRepair(result, frames, previous) {
         text: slot ? slot.before + choice.wording.trim() + slot.after : choice.wording,
         preservedAtomIds: plan.atoms.filter((_, i) => choice.coverage[i] === "1").map(atom => atom.id) };
       first ??= candidate;
-      if (!replacements.has(id) && deterministicPassageReview(source, plan, candidate).length === 0) replacements.set(id, candidate);
+      if (!replacements.has(id) && deterministicPassageReview(source, plan, candidate).length === 0
+        && !foreignWords.some(word => containsLatticeBoundaryWord(candidate.text, word))) replacements.set(id, candidate);
     }
     // During initial drafting, surface the writer's actual failed proposal
     // for bounded correction. A correction with no valid choice keeps its D14.

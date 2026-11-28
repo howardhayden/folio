@@ -621,6 +621,46 @@ test("long repair uses its remaining attempt only on nonmaterial passages and re
   }
 });
 
+test("whole-document repair reaches a misplaced word even when a different group fails review", async () => {
+  const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "u" + i + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const origin = plan.batches[0].passages[0], dest = plan.batches[2].passages[0];
+  const word = origin.text.split(" ")[0];
+  for (const persist of [false, true]) {
+    let localized = 0, independent = 0, certified = 0;
+    const adapter = scriptedAdapter({
+      generate(r) {
+        const draft = rawCandidate(r);
+        if (r.batch === plan.batches[2]) draft.passages[0].text += " " + word;
+        return draft;
+      },
+      repair(r) {
+        const draft = rawCandidate(r);
+        if (r.batch === plan.batches[2]) {
+          assert.ok(r.documentBoundaryMoves.some(([w, from, to]) => w === word && from === origin.id && to === dest.id));
+          if (r.documentBoundaryRepairPassageIds) {
+            localized++;
+            assert.deepEqual(r.documentBoundaryRepairPassageIds, [dest.id]);
+            if (!persist) return draft;
+          }
+          draft.passages[0].text += " " + word;
+        }
+        return draft;
+      },
+      verify(r) {
+        if (r.batch === plan.batches[2] && r.verification) independent++;
+        if (r.batch === plan.batches[1] && !r.verification) return rawVerification(r, {gates:{clarity:false}});
+      },
+      certify() { certified++; },
+    });
+    adapter.completionCapacity = () => ({ remaining:28 });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit:48, allowClarification:false });
+    assert.equal(localized, 1); assert.equal(independent, 1);
+    assert.equal(certified, persist ? 0 : 1);
+    assert.equal(result.status, persist ? "unable-to-attempt" : "translated");
+  }
+});
+
 test("residual copied passages get individual work only above the final review reserve", async () => {
   const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
@@ -789,7 +829,7 @@ test("a qualifying draft repairs its own incomplete atom claims before independe
 test("an affirmative long review rechecks an isolated missing unit without clearing a repeated omission", async () => {
   const source = Array.from({ length: 28 }, (_, index) => opaqueWords(20, "p" + index + "w")).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
-  for (const scenario of ["corrected", "repeated", "explicit-negative"]) {
+  for (const scenario of ["corrected", "unaccounted", "repeated", "explicit-negative"]) {
     let corrections = 0, reviews = 0, certificates = 0;
     const adapter = scriptedAdapter({
       verify(request) {
@@ -799,20 +839,21 @@ test("an affirmative long review rechecks an isolated missing unit without clear
         if (getLatticeVerificationCorrection(request) === "atom-decision") {
           corrections++;
           assert.deepEqual(getLatticeVerificationMissingPositions(request), [[0, [2]]]);
-          if (scenario === "corrected") return checked;
+          if (["corrected", "unaccounted"].includes(scenario)) return checked;
         }
         const row = checked.passages[0];
-        row.missingAtomIds = [row.checkedAtomIds.pop()];
+        const unchecked = row.checkedAtomIds.pop();
+        row.missingAtomIds = scenario === "unaccounted" ? [] : [unchecked];
         if (scenario === "explicit-negative") checked.decision = "repair";
         return checked;
       },
       certify() { certificates++; },
     });
     const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 48, allowClarification: false });
-    assert.equal(corrections, scenario === "corrected" ? 1 : scenario === "explicit-negative" ? 0 : 2);
+    assert.equal(corrections, ["corrected", "unaccounted"].includes(scenario) ? 1 : scenario === "explicit-negative" ? 0 : 2);
     assert.equal(reviews, scenario === "repeated" ? 4 : 2);
-    assert.equal(certificates, scenario === "corrected" ? 1 : 0);
-    assert.equal(result.status, scenario === "corrected" ? "translated" : "unable-to-attempt");
+    assert.equal(certificates, ["corrected", "unaccounted"].includes(scenario) ? 1 : 0);
+    assert.equal(result.status, ["corrected", "unaccounted"].includes(scenario) ? "translated" : "unable-to-attempt");
   }
 });
 
