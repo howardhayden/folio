@@ -1134,6 +1134,7 @@ function normalizeVerification(
   candidate,
   stage,
   correctLongReview = false,
+  repairExplicitOmissions = false,
 ) {
   protocol(record(raw) && DECISIONS.has(raw.decision), "The verifier returned an invalid decision.");
   exactKeys(raw, ["decision", "failedGates", "passages", "issues", "questions"], "Verification response");
@@ -1348,7 +1349,12 @@ function normalizeVerification(
       positions.push(Object.freeze([index, Object.freeze(plan.atoms.flatMap((atom, i) => checked.has(atom.id) ? [] : [i]))]));
       return true;
     });
-    if (onlyMissing && positions.length) {
+    // A complete negative accounting is actionable even when the reviewer's
+    // headline contradicts it. The ordinary normalization below binds those
+    // omissions to a repair. An unaccounted unit still needs clarification.
+    const explicitOmissions = repairExplicitOmissions && positions.every(([index, unresolved]) =>
+      byId.get(analysis.passages[index].passageId).missingAtomIds.length === unresolved.length);
+    if (onlyMissing && positions.length && !explicitOmissions) {
       throw rememberLatticeVerificationMissingUnitError(new LatticeProtocolError(
         "The verifier accepted while leaving a meaning unit missing or unaccounted for.",
       ), batch, analysis, candidate, stage, positions);
@@ -4130,6 +4136,7 @@ export async function executeLatticePlan(preflight, options) {
           request.candidate,
           "verification",
           qualifyingLongJob && !currentRequest.protocolFeedback,
+          extended,
         ),
         signal,
       });
@@ -4235,17 +4242,21 @@ export async function executeLatticePlan(preflight, options) {
       || unverifiedMaterialityRepairs.has(entry.batch.id)
     ));
     const finalWork = new Map();
+    let finalGroupDraft = false;
     if (round === 3) {
       let required = FLAT_CERTIFICATION_RESERVATION;
+      let groupMinimum = FLAT_CERTIFICATION_RESERVATION;
       for (const entry of failures) {
         const structural = structuralIds.has(entry.batch.id);
         const targets = finalDraftTargets(entry, structural ? null : entry.analysis, boundaryTargets);
         finalWork.set(entry.batch.id, targets);
         const newAnalysisCall = structural && !(requestedMode === "auto" && registerRepairPlans(entry));
         required += targets.length + 1 + Number(newAnalysisCall);
+        groupMinimum += 2 + Number(newAnalysisCall);
       }
       const remaining = options.adapter.completionCapacity?.()?.remaining;
-      if (!Number.isSafeInteger(remaining) || remaining < required) break;
+      if (!Number.isSafeInteger(remaining) || remaining < groupMinimum) break;
+      finalGroupDraft = remaining < required;
     }
     retryNotes = [];
     const reanalyzedByBatch = new Map();
@@ -4290,6 +4301,7 @@ export async function executeLatticePlan(preflight, options) {
         }
         const normalizedAnalysis = await callNormalizedStage({
           stage: "re-atomization",
+          attempts: finalGroupDraft ? 1 : 2,
           pipelineObservation,
           analysisDiagnosticOrigin: "reanalysis",
           request,
@@ -4374,7 +4386,7 @@ export async function executeLatticePlan(preflight, options) {
         const retryRequest = Object.freeze({
           ...original,
           ...(round === 3 ? {
-            finalDraftPassageIds: finalWork.get(original.batch.id),
+            ...(finalGroupDraft ? { finalGroupDraft: true } : { finalDraftPassageIds: finalWork.get(original.batch.id) }),
             priorReviewedDraft: replacementEntry || !original.verification.available ? undefined
               : { candidate: original.candidate, verification: original.verification },
           } : {}),
@@ -4400,6 +4412,7 @@ export async function executeLatticePlan(preflight, options) {
         pipelineObservation?.retryPaths.set(original.batch.id, stage);
         const replacement = await callNormalizedStage({
           stage,
+          attempts: finalGroupDraft ? 1 : 2,
           pipelineObservation,
           request: retryRequest,
           invoke: (currentRequest, correctionPositions) => reanalyzedByBatch.has(original.batch.id)
@@ -4428,7 +4441,7 @@ export async function executeLatticePlan(preflight, options) {
           // Reserve a correction for every pending draft and review, plus the
           // whole-document proof. This work never adds another semantic pass.
           const pendingDrafts = actionableFailures.slice(index + 1).reduce((count, entry) =>
-            count + (finalWork.get(entry.batch.id)?.length ?? 2), 0);
+            count + (finalGroupDraft ? 1 : finalWork.get(entry.batch.id)?.length ?? 2), 0);
           const reserve = pendingDrafts + 2 * actionableFailures.length + FLAT_CERTIFICATION_RESERVATION;
           candidate = await repairResidualCopies({ ...retryRequest, candidate,
             ...(!retryRequest.regenerationFromReanalysis && original.verification.available
@@ -4505,7 +4518,9 @@ export async function executeLatticePlan(preflight, options) {
     throwIfAborted(signal);
     const secondReviews = [];
     const revisedRequests = assembledReviewRequests(retriedCandidates, passages, assembly, candidateFingerprint);
-    const verifyRevised = originalGroupAttempts(revisedRequests, options.adapter, "verify", extended);
+    // A truncated pair can cost a third call when the two individual reviews
+    // follow. This budget reserved one original review per group.
+    const verifyRevised = originalGroupAttempts(revisedRequests, options.adapter, "verify", extended && !finalGroupDraft);
     for (let index = 0; index < retriedCandidates.length; index += 1) {
       const request = retriedCandidates[index];
       throwIfAborted(signal);
@@ -4514,8 +4529,9 @@ export async function executeLatticePlan(preflight, options) {
       try {
         const verification = await callNormalizedStage({
           stage: "reverification",
+          attempts: finalGroupDraft ? 1 : 2,
           pipelineObservation,
-          canAdjudicateRecheck: qualifyingLongJob ? () => {
+          canAdjudicateRecheck: qualifyingLongJob && !finalGroupDraft ? () => {
             const remaining = options.adapter.completionCapacity?.()?.remaining;
             return Number.isSafeInteger(remaining)
               && remaining > 2 * (retriedCandidates.length - index - 1) + FLAT_CERTIFICATION_RESERVATION;
@@ -4530,6 +4546,7 @@ export async function executeLatticePlan(preflight, options) {
             request.candidate,
             "reverification",
             qualifyingLongJob && !currentRequest.protocolFeedback,
+            extended,
           ),
           signal,
         });

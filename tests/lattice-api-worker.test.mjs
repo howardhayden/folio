@@ -2034,6 +2034,58 @@ test("quoted clauses can rewrite one selected phrase or use an exact complete fr
   }
 });
 
+test("reviewed groups draft against the current graph and keep explicit coverage for exact retention", async () => {
+  const [word, replacement] = [1, 2].map(i => "u" + String(i).padStart(4, "0"));
+  const quote = "“" + validPayload.text + "” ";
+  const base = minimalVerificationRequest(quote + word + ".");
+  const first = base.batch.passages[0];
+  const second = { ...first, id: "p002", text: validPayload.text };
+  const batch = { ...base.batch, passages: [first, second] };
+  const original = base.analysis.passages[0];
+  const plans = [first, second].map((p, i) => ({ ...original, passageId: p.id,
+    disposition: i ? "retain-if-conformant" : "rewrite", atoms: [{ ...original.atoms[0], id: "new" + i }] }));
+  const candidate = { passages: [first, second].map((p, i) => ({ ...base.candidate.passages[0],
+    passageId: p.id, text: word, preservedAtomIds: ["superseded" + i] })) };
+  const verification = { available: true, decision: "repair", gates: { registerFit: false }, passages: [], issues: [] };
+  for (const stage of ["generate", "repair"]) {
+    for (const scenario of ["valid", "unchanged", "incomplete", "invalid-mask", "foreign", "final-targets", "group-truncated"]) {
+      const request = { ...base, batch, sourceSpans: latticeSourceSpansForBatch(batch), candidate, verification,
+        analysis: { ...base.analysis, passages: plans }, regenerationFromReanalysis: stage === "generate",
+        ...(scenario === "final-targets" ? { finalDraftPassageIds: [first.id, second.id] } : {}),
+        ...(scenario === "group-truncated" ? { finalGroupDraft: true } : {}) };
+      const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 64, fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body);
+        const prompt = inertModelPayload(body);
+        assert.deepEqual(prompt.clauseEdits, [first.id]);
+        assert.deepEqual(prompt.retainedPassages, [second.id]);
+        assert.equal(Boolean(prompt.previouslyReviewed), stage === "repair");
+        assert.deepEqual(body.response_format.json_schema.schema.properties[second.id].required, ["coverage"]);
+        if (scenario === "group-truncated") return providerChoiceResponse({ finish_reason: "length", message: { role: "assistant", content: "{" } });
+        const choice = { edit: { from: word, to: scenario === "unchanged" ? word : replacement, coverage: "1" },
+          clause: { wording: word + ".", coverage: "1" } };
+        return successfulProviderResponse({ [first.id]: choice, [second.id]: {
+          coverage: scenario === "incomplete" ? "0" : scenario === "invalid-mask" ? "11" : "1",
+          ...(scenario === "foreign" ? { wording: replacement } : {}),
+        } });
+      } });
+      if (scenario === "group-truncated") {
+        await assert.rejects(adapter[stage](request), error => error.code === "provider_output_limit");
+        assert.equal(adapter.completionCapacity().used, 1);
+        continue;
+      }
+      const result = await adapter[stage](request);
+      assert.equal(adapter.completionCapacity().used, 1);
+      if (["foreign", "invalid-mask"].includes(scenario)) { assert.deepEqual(result, {}); continue; }
+      assert.deepEqual(result.passages.map(p => p.preservedAtomIds), [["new0"], scenario === "incomplete" ? [] : ["new1"]]);
+      assert.equal(result.passages[0].text, quote + (scenario === "unchanged" ? word : replacement) + ".");
+      assert.equal(result.passages[1].text, second.text);
+      const findings = deterministicBatchReview(batch, request.analysis, result);
+      assert.deepEqual(findings.map(f => f.id), scenario === "unchanged" ? ["candidate-not-material"]
+        : scenario === "incomplete" ? ["candidate-atom-claim"] : []);
+    }
+  }
+});
+
 test("short-dialogue conformance is proposed only by the selected long planner and still needs genuine evidence", async () => {
   const base = minimalVerificationRequest("“" + validPayload.text + "” " + "x".repeat(3) + ".");
   for (const limit of [48, 64]) {
@@ -2045,6 +2097,23 @@ test("short-dialogue conformance is proposed only by the selected long planner a
     } });
     const response = await adapter.analyze(base);
     assert.equal(response.passages?.some(p => p.disposition === "retain-if-conformant") ?? false, false);
+  }
+});
+
+test("automatic long-job analysis and review distinguish quoted speech from its narrative context", async () => {
+  const base = minimalVerificationRequest("“" + validPayload.text + "” " + "u".repeat(3) + ".");
+  const cue = "Distinguish the speaker's act inside the quotation";
+  for (const [providerCallLimit, requestedMode] of [[64, "auto"], [48, "auto"], [64, "operative"]]) {
+    const selected = providerCallLimit === 64 && requestedMode === "auto";
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit, requestedMode,
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body);
+        assert.equal(body.messages[0].content.includes(cue), selected);
+        return successfulProviderResponse({});
+      } });
+    await adapter.analyze(base);
+    await adapter.verify(base);
+    assert.equal(adapter.completionCapacity().used, 2);
   }
 });
 
