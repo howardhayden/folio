@@ -2447,6 +2447,33 @@ test("document repair selects a locally valid alternative that removes the mispl
   }
 });
 
+test("a boundary repair edits only the marked occurrences in the actual draft", async () => {
+  const base = minimalVerificationRequest();
+  const { id } = base.batch.passages[0];
+  const [marked, other, first, last] = [1, 2, 3, 4].map(i => "z" + i.toString().repeat(4));
+  const wording = base.candidate.passages[0].text;
+  const text = marked.toUpperCase() + " " + wording + " " + other;
+  const previous = { passages: [{ ...base.candidate.passages[0], text }] };
+  for (const scenario of ["valid", "still-moved", "missing", "bad-width", "wrong-size"]) {
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 64, fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.deepEqual(inertModelPayload(body).boundaryDrafts, [[id, text, [marked.toUpperCase(), other]]]);
+      assert.deepEqual(inertModelPayload(body).wholePassages, []);
+      assert.equal(inertModelPayload(body).wholePassageSources[0][0], id);
+      assert.match(body.messages[0].content, /one natural replacement word or short phrase/u);
+      assert.doesNotMatch(body.messages[0].content, /two natural alternatives/u);
+      assert.deepEqual(body.response_format.json_schema.schema.properties[id].required, ["replacements", "coverage"]);
+      return successfulProviderResponse({ [id]: { replacements: scenario === "wrong-size" ? [first]
+        : [scenario === "still-moved" ? other : first, last], coverage: scenario === "missing" ? "0" : scenario === "bad-width" ? "11" : "1" } });
+    } });
+    const result = await adapter.repair({ ...base, candidate: previous, documentBoundaryRepairPassageIds: [id],
+      documentBoundaryMoves: [[other, "p009", id], [marked, "p008", id]] });
+    if (["bad-width", "wrong-size"].includes(scenario)) assert.deepEqual(result, {});
+    else assert.equal(result.passages[0].text, scenario === "valid" ? first + " " + wording + " " + last : text);
+    assert.equal(adapter.completionCapacity().used, 1);
+  }
+});
+
 test("long dialogue drafting distinguishes editable frames and grounds missing meaning in the same passage", async () => {
   const text = "“" + validPayload.text + "” " + "x".repeat(3);
   const base = minimalVerificationRequest(text);

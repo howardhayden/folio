@@ -1841,7 +1841,7 @@ async function callNormalizedStage({
       lastError = error;
     }
   }
-  if (stage === "reverification" && canAdjudicateRecheck?.()) {
+  if (canAdjudicateRecheck?.()) {
     const completed = await adjudicateLatticeReverification(request, firstError, lastError, async current => {
       throwIfAborted(signal);
       try { return await normalize(await invoke(current), current); }
@@ -1852,7 +1852,7 @@ async function callNormalizedStage({
         if (error instanceof Error) STAGE_FAILURE_DIAGNOSTICS.set(error, aggregateStageFailure("multiple"));
         throw error;
       }
-    });
+    }, stage);
     if (completed !== null) {
       pipelineObservation?.successfulCorrectionStages.add(stage);
       return completed;
@@ -3751,12 +3751,15 @@ function originalGroupAttempts(entries, adapter, method, extended) {
   };
 }
 
-function assembledReviewRequests(entries, passages, assembly, candidateFingerprint) {
+function assembledReviewRequests(entries, passages, assembly, candidateFingerprint, boundaryTargets) {
   return entries.map(entry => Object.freeze({
     ...entry,
     candidateFingerprint,
     assembledContext: assembledContextFor(passages, entry.batch, assembly.candidateById),
     documentFindings: assembly.documentFindings,
+    groupBoundaryMoves: boundaryTargets?.size ? [...new Set(
+      entry.batch.passages.flatMap(p => boundaryTargets.get(p.id) ?? []),
+    )].slice(0, 12) : undefined,
   }));
 }
 
@@ -4114,7 +4117,54 @@ export async function executeLatticePlan(preflight, options) {
     });
   };
 
+  // Correct the assembled draft before its next independent inspection. Only
+  // a strict reduction in authenticated moves can replace an existing group.
+  const repairBoundaries = async (entries, assembly, reserveFor, onChange, beforeFirstReview = false) => {
+    let updated = entries;
+    let attempts = 0;
+    const attemptLimit = beforeFirstReview ? 2 : entries.length;
+    for (const [index, entry] of entries.entries()) {
+      if (attempts >= attemptLimit) break;
+      const targets = documentBoundaryRepairTargets(source, passages, assembly);
+      if (!targets.size) break;
+      const ids = entry.analysis.passages.filter(p => p.disposition === "rewrite"
+        && targets.get(p.passageId)?.some(([, , to]) => to === p.passageId)).map(p => p.passageId);
+      if (!ids.length || (beforeFirstReview && entry.deterministicFindings.length)) continue;
+      const remaining = options.adapter.completionCapacity?.()?.remaining;
+      if (!Number.isSafeInteger(remaining) || remaining <= reserveFor(entry)) continue;
+      const moves = [...new Set(ids.flatMap(id => targets.get(id)))];
+      const request = Object.freeze({ ...entry, verification: null, documentFindings: assembly.documentFindings,
+        documentBoundaryRepairPassageIds: ids, documentBoundaryMoves: moves });
+      throwIfAborted(signal);
+      attempts += 1;
+      let proposed;
+      try { proposed = normalizeCandidate(await options.adapter.repair(request), entry.batch, entry.analysis); }
+      catch (error) { throwIfAborted(signal); if (!retryableStageFailure(error)) throw error; continue; }
+      const candidate = Object.freeze({ passages: Object.freeze(entry.candidate.passages.map((p, i) =>
+        ids.includes(p.passageId) ? proposed.passages[i] : p)) });
+      const deterministicFindings = deterministicBatchReview(entry.batch, entry.analysis, candidate, pipelineObservation !== null);
+      if (deterministicFindings.length || moves.some(([word, from, to]) => from !== to && ids.includes(to)
+        && containsLatticeBoundaryWord(candidate.passages.find(p => p.passageId === to).text, word))) continue;
+      const changed = Object.freeze({ ...entry, candidate, deterministicFindings });
+      const trial = updated.with(index, changed);
+      const next = assemble(trial);
+      const nextTargets = documentBoundaryRepairTargets(source, passages, next);
+      const words = map => new Set([...map.values()].flat().map(([word]) => word));
+      const before = words(targets), after = words(nextTargets);
+      if (after.size >= before.size || [...after].some(word => !before.has(word))
+        || next.documentFindings.some(f => deterministicFindingRule(f) !== "D27")) continue;
+      onChange?.(changed);
+      updated = trial;
+      assembly = next;
+    }
+    return { entries: updated, assembly };
+  };
+
   let assembly = assemble(candidates);
+  if (extended && assembly.documentFindings.length && assembly.documentFindings.every(f => deterministicFindingRule(f) === "D27")) {
+    const reviewReserve = 2 * candidates.length + FLAT_CERTIFICATION_RESERVATION;
+    ({ entries: candidates, assembly } = await repairBoundaries(candidates, assembly, () => reviewReserve, null, true));
+  }
   provenanceProgress(onProgress, "binding-result-integrity", "Binding result integrity");
   let candidateFingerprint = await provenanceFingerprint(
     "cf",
@@ -4123,7 +4173,8 @@ export async function executeLatticePlan(preflight, options) {
   );
   throwIfAborted(signal);
   let reviews = [];
-  const initialReviewRequests = assembledReviewRequests(candidates, passages, assembly, candidateFingerprint);
+  const initialReviewRequests = assembledReviewRequests(candidates, passages, assembly, candidateFingerprint,
+    extended ? documentBoundaryRepairTargets(source, passages, assembly) : null);
   const verifyInitial = originalGroupAttempts(initialReviewRequests, options.adapter, "verify", extended);
   for (let index = 0; index < candidates.length; index += 1) {
     const request = candidates[index];
@@ -4135,6 +4186,10 @@ export async function executeLatticePlan(preflight, options) {
       verification = await callNormalizedStage({
         stage: "verification",
         pipelineObservation,
+        canAdjudicateRecheck: extended ? () => {
+          const remaining = options.adapter.completionCapacity?.()?.remaining;
+          return Number.isSafeInteger(remaining) && remaining > 2 * (candidates.length - index - 1) + FLAT_CERTIFICATION_RESERVATION;
+        } : null,
         request: verificationRequest,
         invoke: (currentRequest) => verifyInitial(currentRequest, index),
         normalize: (raw, currentRequest) => normalizeVerification(
@@ -4484,43 +4539,13 @@ export async function executeLatticePlan(preflight, options) {
     let tentativeCandidates = candidates.map((entry) => retryCandidateByBatch.get(entry.batch.id) ?? entry);
     assembly = assemble(tentativeCandidates);
     if (qualifyingLongJob && assembly.documentFindings.some(f => deterministicFindingRule(f) === "D27")) {
-      // A locally accepted group can introduce a source word from a different
-      // line. Repair its actual destination before the second independent sweep.
-      for (const [index, entry] of tentativeCandidates.entries()) {
-        const targets = documentBoundaryRepairTargets(source, passages, assembly);
-        if (!targets.size) break;
-        const ids = entry.analysis.passages.filter(p => p.disposition === "rewrite"
-          && targets.get(p.passageId)?.some(([, , to]) => to === p.passageId)).map(p => p.passageId);
-        if (!ids.length) continue;
-        const remaining = options.adapter.completionCapacity?.()?.remaining;
-        const reviewCount = retryCandidateByBatch.size + (retryCandidateByBatch.has(entry.batch.id) ? 0 : 1);
-        if (!Number.isSafeInteger(remaining) || remaining <= 2 * reviewCount + FLAT_CERTIFICATION_RESERVATION) continue;
-        const moves = [...new Set(ids.flatMap(id => targets.get(id)))];
-        const request = Object.freeze({ ...entry, verification: null, documentFindings: assembly.documentFindings,
-          documentBoundaryRepairPassageIds: ids, documentBoundaryMoves: moves });
-        throwIfAborted(signal);
-        let proposed;
-        try { proposed = normalizeCandidate(await options.adapter.repair(request), entry.batch, entry.analysis); }
-        catch (error) { throwIfAborted(signal); if (!retryableStageFailure(error)) throw error; continue; }
-        const candidate = Object.freeze({ passages: Object.freeze(entry.candidate.passages.map((p, i) =>
-          ids.includes(p.passageId) ? proposed.passages[i] : p)) });
-        const deterministicFindings = deterministicBatchReview(entry.batch, entry.analysis, candidate, pipelineObservation !== null);
-        if (deterministicFindings.length || moves.some(([word, from, to]) => from !== to && ids.includes(to)
-          && containsLatticeBoundaryWord(candidate.passages.find(p => p.passageId === to).text, word))) continue;
-        const changed = Object.freeze({ ...entry, candidate, deterministicFindings });
-        const trial = tentativeCandidates.with(index, changed);
-        const next = assemble(trial);
-        const nextTargets = documentBoundaryRepairTargets(source, passages, next);
-        const words = map => new Set([...map.values()].flat().map(([word]) => word));
-        const before = words(targets), after = words(nextTargets);
-        if (after.size >= before.size || [...after].some(word => !before.has(word))
-          || next.documentFindings.some(f => deterministicFindingRule(f) !== "D27")) continue;
-        const pos = retriedCandidates.findIndex(e => e.batch.id === entry.batch.id);
+      const reserveFor = entry => 2 * (retryCandidateByBatch.size + Number(!retryCandidateByBatch.has(entry.batch.id)))
+        + FLAT_CERTIFICATION_RESERVATION;
+      ({ entries: tentativeCandidates, assembly } = await repairBoundaries(tentativeCandidates, assembly, reserveFor, changed => {
+        const pos = retriedCandidates.findIndex(e => e.batch.id === changed.batch.id);
         if (pos < 0) retriedCandidates.push(changed); else retriedCandidates[pos] = changed;
-        retryCandidateByBatch.set(entry.batch.id, changed);
-        tentativeCandidates = trial;
-        assembly = next;
-      }
+        retryCandidateByBatch.set(changed.batch.id, changed);
+      }));
     }
     provenanceProgress(onProgress, "binding-result-integrity", "Binding revised result integrity");
     candidateFingerprint = await provenanceFingerprint(
@@ -4530,7 +4555,8 @@ export async function executeLatticePlan(preflight, options) {
     );
     throwIfAborted(signal);
     const secondReviews = [];
-    const revisedRequests = assembledReviewRequests(retriedCandidates, passages, assembly, candidateFingerprint);
+    const revisedRequests = assembledReviewRequests(retriedCandidates, passages, assembly, candidateFingerprint,
+      extended ? documentBoundaryRepairTargets(source, passages, assembly) : null);
     // A truncated pair can cost a third call when the two individual reviews
     // follow. This budget reserved one original review per group.
     const verifyRevised = originalGroupAttempts(revisedRequests, options.adapter, "verify", extended && !finalGroupDraft);

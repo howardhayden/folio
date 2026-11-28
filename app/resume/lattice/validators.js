@@ -417,6 +417,19 @@ export function containsLatticeBoundaryWord(text, word) {
   return false;
 }
 
+// Positions belong to the exact assembled draft and use the document check's
+// Unicode normalization. A non-unique match cannot authorize a local edit.
+export function latticeBoundaryWordRanges(text, words) {
+  if (!words.length || words.length > 12) return null;
+  const requested = new Set(words);
+  const ranges = [];
+  for (const match of text.matchAll(BOUNDARY_ANCHOR_WORD)) {
+    const word = normalizedMaterialRepresentation(match[0]);
+    if (requested.has(word)) ranges.push({ word, text: match[0], start: match.index, end: match.index + match[0].length });
+  }
+  return ranges.length === requested.size && new Set(ranges.map(r => r.word)).size === requested.size ? ranges : null;
+}
+
 function hasRelocatedUniqueBoundaryAnchor(source, candidate) {
   return relocatedLatticeBoundaryWords(source, candidate, 1).length > 0;
 }

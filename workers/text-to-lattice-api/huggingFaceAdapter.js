@@ -1,4 +1,4 @@
-import { containsLatticeBoundaryWord, deterministicPassageReview } from "../../app/resume/lattice/validators.js";
+import { containsLatticeBoundaryWord, deterministicPassageReview, latticeBoundaryWordRanges } from "../../app/resume/lattice/validators.js";
 import { containsUnpairedSurrogate, countLatticeWords } from "../../app/resume/lattice/inputPolicy.js";
 import { beginLatticeAdmissionProviderFetch, endLatticeAdmissionProviderFetch } from "./admissionObservation.js";
 import { carryLatticeRegenerationRetentionContext } from "../../app/resume/lattice/regenerationContext.js";
@@ -858,6 +858,16 @@ function fitDraftFrames(request, stageName, includeWholeDrafts) {
     if (initial && !slot && !includeWholeDrafts) return null;
     const foreignWords = (request.documentBoundaryMoves ?? []).flatMap(([word, from, to]) =>
       from !== id && to === id ? [word] : []);
+    const draft = boundaryIds && includeWholeDrafts ? request.candidate?.passages.find(p => p.passageId === id)?.text : null;
+    const misplaced = draft ? (request.documentBoundaryMoves ?? []).filter(([, , to]) => to === id).map(([word]) => word) : [];
+    const literals = [...(group?.spans ?? []).filter(s => s.kind === "literal"), ...(group?.literalAnnotations ?? [])];
+    const ranges = draft && group && !group.directionFrames?.length && misplaced.length
+      && !misplaced.some(word => literals.some(span => containsLatticeBoundaryWord(span.text, word)))
+      ? latticeBoundaryWordRanges(draft, misplaced) : null;
+    if (ranges) {
+      frames.push({ id, source, plan, slot: null, foreignWords: misplaced, boundaryDraft: { text: draft, ranges } });
+      continue;
+    }
     frames.push({ id, source, plan, slot, foreignWords, boundaryChoiceCost: includeWholeDrafts ? request.boundaryChoiceCost : null,
       clauseEdit: Boolean(includeWholeDrafts && slot),
       reviewed: Boolean(reviewed), retained: Boolean(retained) });
@@ -871,15 +881,20 @@ function fitDraftFrames(request, stageName, includeWholeDrafts) {
   for (const frame of frames) {
     const alternatives = frame.slot || compactAlternatives || (frames.length === 1 && frame.source.text.length <= 600
       && countLatticeWords(frame.source.text) <= 100);
-    frame.choiceCount = !frame.retained && alternatives ? 2 : 1;
+    frame.choiceCount = !frame.retained && !frame.boundaryDraft && alternatives ? 2 : 1;
   }
   return frames.length ? frames : null;
 }
 
 function frameRepairSchema(frames) {
-  return closedWireObject(Object.fromEntries(frames.map(({ id, slot, plan, choiceCount, clauseEdit, retained }) => {
+  return closedWireObject(Object.fromEntries(frames.map(({ id, slot, plan, choiceCount, clauseEdit, retained, boundaryDraft }) => {
     const text = { type: "string", minLength: 1, maxLength: slot ? 240 : 2800 };
     const coverage = analysisWireBitMaskSchema(plan.atoms.length);
+    if (boundaryDraft) return [id, closedWireObject({
+      replacements: { type: "array", minItems: boundaryDraft.ranges.length, maxItems: boundaryDraft.ranges.length,
+        items: { type: "string", minLength: 1, maxLength: 100 } },
+      coverage,
+    })];
     if (retained) return [id, closedWireObject({ coverage })];
     const clause = closedWireObject({ wording: text, coverage });
     if (clauseEdit) return [id, closedWireObject({
@@ -939,8 +954,25 @@ function fitDraftPair(first, second) {
 function expandFrameRepair(result, frames, previous) {
   if (!exactKeys(result, frames.map(frame => frame.id))) return {};
   const replacements = new Map();
-  for (const { id, source, plan, slot, choiceCount, foreignWords, boundaryChoiceCost, clauseEdit, retained } of frames) {
+  for (const { id, source, plan, slot, choiceCount, foreignWords, boundaryChoiceCost, clauseEdit, retained, boundaryDraft } of frames) {
     const value = result[id];
+    if (boundaryDraft) {
+      const { ranges } = boundaryDraft;
+      if (!exactKeys(value, ["replacements", "coverage"]) || !Array.isArray(value.replacements)
+        || value.replacements.length !== ranges.length || !value.replacements.every(word =>
+          typeof word === "string" && word.trim() === word && word.length > 0 && word.length <= 100
+          && !containsUnpairedSurrogate(word) && !/[\r\n\u2028\u2029]/u.test(word))) return {};
+      const claims = wireMaskSelections(value.coverage, plan.atoms);
+      if (claims === null) return {};
+      let text = boundaryDraft.text;
+      for (let i = ranges.length - 1; i >= 0; i--) {
+        text = text.slice(0, ranges[i].start) + value.replacements[i] + text.slice(ranges[i].end);
+      }
+      const edited = { passageId: id, layer: plan.layer, text, preservedAtomIds: claims.map(atom => atom.id) };
+      if (!foreignWords.some(word => containsLatticeBoundaryWord(text, word))
+        && !deterministicPassageReview(source, plan, edited).length) replacements.set(id, edited);
+      continue;
+    }
     if (retained) {
       if (!exactKeys(value, ["coverage"])) return {};
       const claims = wireMaskSelections(value.coverage, plan.atoms);
