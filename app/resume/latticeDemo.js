@@ -7,6 +7,7 @@ import {
   rememberLatticeVerificationMissingUnitError,
   rememberLatticeVerificationDecisionAlignmentError,
   withLatticeVerificationCorrection,
+  adjudicateLatticeReverification,
 } from "./lattice/verificationCorrection.js";
 import {
   LATTICE_CLARIFICATION_SAFETY_LIMIT,
@@ -75,6 +76,7 @@ import {
 } from "./lattice/promptContract.js";
 import {
   deterministicBatchReview,
+  deterministicPassageReview,
   deterministicDocumentReview,
   foldLatticePresentationLetters,
   getLatticeBatchD14Comparison,
@@ -1546,6 +1548,22 @@ function stageValidationCategory(error) {
   return "other";
 }
 
+function aggregateStageFailure(value) {
+  return Object.freeze({
+    failureCause: value,
+    stage: value,
+    attempt: value,
+    validationCategory: value,
+    priorValidationCategory: value,
+    rejectionBoundary: value,
+    rejectionCategory: value,
+    rejectionRule: value,
+    priorRejectionBoundary: value,
+    priorRejectionCategory: value,
+    priorRejectionRule: value,
+  });
+}
+
 function rememberStageFailureDiagnostic(error, stage, attempt, firstError) {
   try {
     if ((typeof error !== "object" && typeof error !== "function") || error === null) return;
@@ -1682,6 +1700,7 @@ async function callNormalizedStage({
   normalize,
   signal,
   attempts = 2,
+  canAdjudicateRecheck = null,
   analysisDiagnosticOrigin = null,
   pipelineObservation = null,
   onDraftCorrectionFailure = null,
@@ -1810,6 +1829,23 @@ async function callNormalizedStage({
       }
       if (firstError === null) firstError = error;
       lastError = error;
+    }
+  }
+  if (stage === "reverification" && canAdjudicateRecheck?.()) {
+    const completed = await adjudicateLatticeReverification(request, firstError, lastError, async current => {
+      throwIfAborted(signal);
+      try { return await normalize(await invoke(current), current); }
+      catch (error) {
+        throwIfAborted(signal);
+        // Three distinct failed replies exceed the historical two-attempt
+        // trace vocabulary. Record the aggregate without mislabeling the last.
+        if (error instanceof Error) STAGE_FAILURE_DIAGNOSTICS.set(error, aggregateStageFailure("multiple"));
+        throw error;
+      }
+    });
+    if (completed !== null) {
+      pipelineObservation?.successfulCorrectionStages.add(stage);
+      return completed;
     }
   }
   if (lastError !== null) rememberStageFailureDiagnostic(lastError, stage, attempts, firstError);
@@ -3334,6 +3370,35 @@ function registerRepairPlans(entry) {
   return Object.freeze(plans);
 }
 
+// Use remaining long-job capacity only on passages still failing a genuine
+// copy check, before submitting the final group for independent review.
+async function repairResidualCopies(entry, adapter, reserve, signal) {
+  const { analysis, batch } = entry;
+  let candidate = entry.candidate;
+  const findings = deterministicBatchReview(batch, analysis, candidate);
+  if (!findings.length || findings.some(f => deterministicFindingRule(f) !== "D14")) return candidate;
+  for (const finding of findings) {
+    const remaining = adapter.completionCapacity?.()?.remaining;
+    if (!Number.isSafeInteger(remaining) || remaining <= reserve) break;
+    throwIfAborted(signal);
+    const { passageId } = finding;
+    const repair = Object.freeze({ ...entry, candidate, deterministicFindings: Object.freeze([finding]),
+      verification: null, repairFromSource: true, correctCopiedLongDraft: true });
+    let proposed;
+    try { proposed = normalizeCandidate(await adapter.repair(repair), batch, analysis); }
+    catch (error) {
+      throwIfAborted(signal);
+      if (!retryableStageFailure(error)) throw error;
+      continue;
+    }
+    const index = batch.passages.findIndex(p => p.id === passageId);
+    const replacement = proposed.passages[index];
+    if (deterministicPassageReview(batch.passages[index], analysis.passages[index], replacement).length) continue;
+    candidate = Object.freeze({ passages: Object.freeze(candidate.passages.map((p, i) => i === index ? replacement : p)) });
+  }
+  return candidate;
+}
+
 // Preserve already checked wording when the same plan survives a local repair.
 // The full assembled group is still reviewed anew before either text can ship.
 function keepReviewedPassages(original, analysis, replacement) {
@@ -3514,19 +3579,7 @@ function resultFromState({
       ].filter(Boolean);
       const distinctFailures = [...new Map(failures.map((failure) => [JSON.stringify(failure), failure])).values()];
       const absentFailure = distinctFailures.length > 1 ? "multiple" : "none";
-      const failure = distinctFailures.length === 1 ? distinctFailures[0] : Object.freeze({
-        failureCause: absentFailure,
-        stage: absentFailure,
-        attempt: absentFailure,
-        validationCategory: absentFailure,
-        priorValidationCategory: absentFailure,
-        rejectionBoundary: absentFailure,
-        rejectionCategory: absentFailure,
-        rejectionRule: absentFailure,
-        priorRejectionBoundary: absentFailure,
-        priorRejectionCategory: absentFailure,
-        priorRejectionRule: absentFailure,
-      });
+      const failure = distinctFailures.length === 1 ? distinctFailures[0] : aggregateStageFailure(absentFailure);
       const verificationStates = new Set(finalReviews.map((entry) => (
         entry.verification.available === false ? "unavailable"
           : !verificationSemanticallySafe(entry) ? "semantic-rejection"
@@ -4258,7 +4311,16 @@ export async function executeLatticePlan(preflight, options) {
           message: "The revised coverage or wording did not produce a valid draft. The previous candidate remains withheld.",
         }, error)),
       });
-      const candidate = qualifyingLongJob ? keepReviewedPassages(original, replacementAnalysis, replacement) : replacement;
+      let candidate = qualifyingLongJob ? keepReviewedPassages(original, replacementAnalysis, replacement) : replacement;
+      if (qualifyingLongJob) {
+        // Reserve a correction for every pending draft and review, plus the
+        // whole-document proof. This work never adds another semantic pass.
+        const reserve = 2 * (actionableFailures.length - index - 1 + actionableFailures.length) + FLAT_CERTIFICATION_RESERVATION;
+        candidate = await repairResidualCopies({ ...retryRequest, candidate,
+          ...(!retryRequest.regenerationFromReanalysis && original.verification.available
+            ? { priorReviewedDraft: { candidate: original.candidate, verification: original.verification } } : {}) },
+        options.adapter, reserve, signal);
+      }
       const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate, pipelineObservation !== null);
       pipelineObservation?.candidateLineages.set(candidate, stage);
       if (stage === "regeneration" && pipelineObservation !== null) {
@@ -4302,6 +4364,11 @@ export async function executeLatticePlan(preflight, options) {
       const verification = await callNormalizedStage({
         stage: "reverification",
         pipelineObservation,
+        canAdjudicateRecheck: qualifyingLongJob ? () => {
+          const remaining = options.adapter.completionCapacity?.()?.remaining;
+          return Number.isSafeInteger(remaining)
+            && remaining > 2 * (retriedCandidates.length - index - 1) + FLAT_CERTIFICATION_RESERVATION;
+        } : null,
         request: verificationRequest,
         invoke: (currentRequest) => options.adapter.verify(currentRequest),
         normalize: (raw, currentRequest) => normalizeVerification(

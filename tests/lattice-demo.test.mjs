@@ -621,6 +621,83 @@ test("long repair uses its remaining attempt only on nonmaterial passages and re
   }
 });
 
+test("residual copied passages get individual work only above the final review reserve", async () => {
+  const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  for (const scenario of ["fixed", "still-copied", "reserve"]) {
+    let calls = 0, reviews = 0, certificates = 0;
+    const copies = r => {
+      const draft = rawCandidate(r);
+      for (const i of [0, 1]) draft.passages[i].text = r.batch.passages[i].text;
+      return draft;
+    };
+    const adapter = scriptedAdapter({
+      generate(r) { if (r.batch === plan.batches[0]) return copies(r); },
+      repair(r) {
+        if (r.batch !== plan.batches[0]) return;
+        calls++;
+        if (calls <= 2 || scenario === "still-copied") return copies(r);
+        assert.equal(r.deterministicFindings.length, 1);
+        const selected = r.deterministicFindings[0].passageId;
+        const proposed = rawCandidate(r);
+        // An unsolicited change to another passage must not enter review.
+        for (const p of proposed.passages) if (p.passageId !== selected) p.text = r.batch.passages.find(q => q.id === p.passageId).text;
+        return proposed;
+      },
+      verify(r) { if (r.batch === plan.batches[0]) reviews++; },
+      certify() { certificates++; },
+    });
+    adapter.completionCapacity = () => ({ remaining: scenario === "reserve" ? 6 : 20 });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 48, allowClarification: false });
+    assert.equal(calls, scenario === "reserve" ? 2 : 4);
+    assert.equal(reviews, 2);
+    assert.equal(certificates, scenario === "fixed" ? 1 : 0);
+    assert.equal(result.status, scenario === "fixed" ? "translated" : "unable-to-attempt");
+  }
+});
+
+test("a final recheck adjudicates two conflicting replies on the same candidate only with capacity", async () => {
+  const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  for (const scenario of ["accept", "reject", "invalid-third", "consistent-refusal", "reserve"]) {
+    let rounds = 0, certificates = 0, revised, trace;
+    const adapter = scriptedAdapter({
+      generate(r) {
+        if (r.batch !== plan.batches[0]) return;
+        const draft = rawCandidate(r); draft.passages[0].text = r.batch.passages[0].text; return draft;
+      },
+      verify(r) {
+        if (r.batch !== plan.batches[0] || !r.verification) return;
+        rounds++;
+        const checked = rawVerification(r);
+        revised ??= r.candidate;
+        assert.equal(r.candidate, revised);
+        if (rounds === 1) checked.passages[0].missingAtomIds.push(checked.passages[0].checkedAtomIds.pop());
+        if (rounds === 2) {
+          checked.decision = "reject";
+          if (scenario === "consistent-refusal") checked.failedGates = ["safety"];
+        }
+        if (rounds === 3) {
+          assert.equal(getLatticeVerificationCorrection(r), "atom-verdict");
+          assert.deepEqual(getLatticeVerificationMissingPositions(r), [[0, [r.analysis.passages[0].atoms.length - 1]]]);
+          if (scenario === "invalid-third") checked.decision = "reject";
+          if (scenario === "reject") { checked.decision = "reject"; checked.failedGates = ["safety"]; }
+        }
+        return checked;
+      },
+      certify() { certificates++; },
+    });
+    adapter.completionCapacity = () => ({ remaining: scenario === "reserve" ? 4 : 20 });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 48, allowClarification: false,
+      onCandidateWithheldDiagnostic: value => { trace = value; } });
+    assert.equal(rounds, ["accept", "reject", "invalid-third"].includes(scenario) ? 3 : 2);
+    if (scenario === "invalid-third") assert.equal(trace.attempt, "multiple");
+    assert.equal(result.verificationPasses, scenario === "accept" ? 2 : 0);
+    assert.equal(certificates, scenario === "accept" ? 1 : 0);
+    assert.equal(result.status, scenario === "accept" ? "translated" : "unable-to-attempt");
+  }
+});
+
 test("a long verifier can correct a contradictory layer citation without approving repeated or explicit failures", async () => {
   const source = Array.from({ length: 28 }, (_, index) => opaqueWords(20, `p${index}w`)).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });

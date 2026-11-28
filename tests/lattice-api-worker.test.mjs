@@ -2038,6 +2038,26 @@ test("quoted drafting fits each editable clause and repairs other copied passage
   }
 });
 
+test("one copied ordinary passage can choose a complete explicitly covered alternative", async () => {
+  const base = minimalVerificationRequest();
+  const id = base.batch.passages[0].id;
+  const source = base.batch.passages[0].text;
+  const previous = { passages: [{ ...base.candidate.passages[0], text: source }] };
+  const findings = deterministicBatchReview(base.batch, base.analysis, previous);
+  for (const coverage of ["0", "1"]) {
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 48, fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.equal(body.response_format.json_schema.schema.properties[id].maxItems, 2);
+      assert.deepEqual(inertModelPayload(body).wholePassages, [id]);
+      return successfulProviderResponse({ [id]: [
+        { wording: source, coverage: "1" }, { wording: base.candidate.passages[0].text, coverage },
+      ] });
+    } });
+    const result = await adapter.repair({ ...base, correctCopiedLongDraft: true, candidate: previous, deterministicFindings: findings });
+    assert.equal(result.passages[0].text, coverage === "1" ? base.candidate.passages[0].text : source);
+  }
+});
+
 test("long dialogue drafting distinguishes editable frames and grounds missing meaning in the same passage", async () => {
   const text = "“" + validPayload.text + "” " + "x".repeat(3);
   const base = minimalVerificationRequest(text);
