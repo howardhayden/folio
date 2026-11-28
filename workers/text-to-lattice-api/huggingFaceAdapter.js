@@ -728,6 +728,7 @@ function verificationWireGuide(fields) {
 
 const VERIFICATION_WIRE_GUIDE = verificationWireGuide("d, g, p, and i");
 const VERIFICATION_ALIGNMENT_GUIDE = verificationWireGuide("g, p, i, and d");
+const PAIRED_VERIFICATION_GUIDE = "Key the two results by batchId. Apply these rules separately inside each result.\n" + VERIFICATION_ALIGNMENT_GUIDE;
 
 function verificationWireMessages(request, wireLayout, wireCorrection, missingPositions) {
   return verificationMessages(request, { responseDialect: "compact-wire-v2", wireLayout, wireCorrection, missingPositions });
@@ -933,6 +934,7 @@ function certificationWireMessages(request) {
 }
 
 const VERIFICATION_TOOL_NAME = "lattice_verification_wire_v2";
+const PAIRED_VERIFICATION_SCHEMA_NAME = "lattice_paired_verification_v2";
 const CERTIFICATION_TOOL_NAME = "lattice_certification_wire_v2";
 const SCALEWAY_NULL_REVIEW_METADATA_MODEL = "meta-llama/Llama-3.3-70B-Instruct:scaleway";
 const DEEPINFRA_NULL_REVIEW_PAIR_MODEL = "meta-llama/Llama-3.3-70B-Instruct:deepinfra";
@@ -1787,6 +1789,28 @@ function verificationWireLayoutForSchema(schema, fit, analysis) {
     issueFields: Object.freeze([...schema.properties.i.items.required]),
     issueCheckBindings: VERIFICATION_ISSUE_CHECK_BINDINGS,
   });
+}
+
+// Each group keeps the exact single-review schema, evidence indices and verdict.
+// The enclosing keys identify the two original groups within one assembly.
+function fitReviewPair(first, second) {
+  if (!first.sourceFingerprint || first.sourceFingerprint !== second.sourceFingerprint
+    || !first.candidateFingerprint || first.candidateFingerprint !== second.candidateFingerprint
+    || first.signal !== second.signal || first.batch.id === second.batch.id
+    || first.protocolFeedback || second.protocolFeedback
+    || Object.hasOwn(first, "verification") !== Object.hasOwn(second, "verification")) return null;
+  const ids = new Set(first.batch.passages.map(p => p.id));
+  if (second.batch.passages.some(p => ids.has(p.id))) return null;
+  const groups = [first, second].map(request => {
+    const fit = fitVerificationRequest(request);
+    const schema = verificationWireSchemaForFit(fit, true);
+    return { request, fit, schema, layout: verificationWireLayoutForSchema(schema, fit, request.analysis) };
+  });
+  // Both minified group results use the same 2,048-token response allowance.
+  // Long retained-source criterion arrays can take up that room individually.
+  const criteria = groups.flatMap(group => group.fit.plans).reduce((n, plan) => n + plan.conformanceCriteria.length, 0);
+  if (criteria > 20) return null;
+  return { groups, schema: closedWireObject(Object.fromEntries(groups.map(g => [g.request.batch.id, g.schema]))) };
 }
 
 function fitCertificationRequest(request) {
@@ -2968,6 +2992,9 @@ export async function requestHuggingFaceJson({
     || (requireMinimalVerificationContent
       && (role !== "verifier"
         || !(schemaName === VERIFICATION_TOOL_NAME
+          || (stage === STAGES.verification && schemaName === PAIRED_VERIFICATION_SCHEMA_NAME
+            && resolvedResponseFormat === "json_schema" && !allowNullStoppedVerificationMetadata
+            && !allowNullJsonObjectVerificationToolCalls && !allowNullStoppedScalewayReviewMetadata)
           || (schemaName === CERTIFICATION_TOOL_NAME && resolvedResponseFormat === "json_schema"
             && !allowNullStoppedVerificationMetadata
             && !allowNullJsonObjectVerificationToolCalls))
@@ -3242,6 +3269,7 @@ export function createHuggingFaceLatticeAdapter({
     budget.used += 1;
     const callOrdinal = budget.used;
     const stage = STAGES[stageName];
+    const reviewPair = stageName === "verification" ? pair : null;
     const positionAnchors = stageName === "analysis" && isLatticeLongJobCallLimit(providerCallLimit);
     let usageObserved = false;
     const stageContext = request?.[LATTICE_STAGE_DIAGNOSTIC_CONTEXT];
@@ -3269,7 +3297,7 @@ export function createHuggingFaceLatticeAdapter({
         && (stageName === "candidate" || stageName === "repair")) draftClaims = longDraftClaims(request.analysis);
       if (draftClaims && !outputPassage) repairFrames = pair?.frames
         ?? fitDraftFrames(request, stageName, providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit);
-      verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
+      verificationFit = stageName === "verification" ? reviewPair?.groups[0].fit ?? fitVerificationRequest(request) : null;
       certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
       const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
       const missingPositions = ["atom-decision", "atom-verdict"].includes(verificationCorrection) ? getLatticeVerificationMissingPositions(request) : null;
@@ -3284,16 +3312,19 @@ export function createHuggingFaceLatticeAdapter({
         : analysisFit
         ? analysisWireSchemaForFit(analysisFit, positionAnchors)
         : verificationFit
-        ? verificationWireSchemaForFit(verificationFit, evidenceFirst)
+        ? reviewPair?.schema ?? verificationWireSchemaForFit(verificationFit, evidenceFirst)
         : certificationFit
         ? certificationWireSchemaForFit(certificationFit)
         : repairFrames ? frameRepairSchema(repairFrames) : stage.schema;
-      const verificationLayout = verificationFit ? verificationWireLayoutForSchema(
+      const verificationLayout = verificationFit ? reviewPair?.groups[0].layout ?? verificationWireLayoutForSchema(
         fittedSchema, verificationFit,
         isLatticeLongJobCallLimit(providerCallLimit) ? request.analysis : null,
       ) : null;
       const messageFactory = outputPassage
         ? current => singlePassageDraftMessages(current, outputPassage)
+        : reviewPair
+        ? current => verificationMessages(current, { responseDialect: "compact-wire-v2", wireLayout: verificationLayout,
+          secondGroup: reviewPair.groups[1] })
         : verificationFit
         ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection, missingPositions)
         : pair ? (current) => editableFrameRepairMessages(pair.left, current, { frames: pair.right, request: pair.second })
@@ -3308,8 +3339,9 @@ export function createHuggingFaceLatticeAdapter({
         useParasailGenerator,
         messages: messagesWithMode(messageFactory, fittedRequest, requestedMode),
         schema: fittedSchema,
-        schemaName: outputPassage ? "lattice_single_passage_draft_v1" : repairFrames ? "lattice_quoted_draft_v1" : stage.schemaName,
-        responseGuide: positionAnchors ? LONG_ANALYSIS_WIRE_GUIDE
+        schemaName: reviewPair ? PAIRED_VERIFICATION_SCHEMA_NAME
+          : outputPassage ? "lattice_single_passage_draft_v1" : repairFrames ? "lattice_quoted_draft_v1" : stage.schemaName,
+        responseGuide: reviewPair ? PAIRED_VERIFICATION_GUIDE : positionAnchors ? LONG_ANALYSIS_WIRE_GUIDE
           : evidenceFirst ? VERIFICATION_ALIGNMENT_GUIDE : stage.responseGuide,
         schemaDescription: stage.schemaDescription,
         responseFormat: outputPassage || repairFrames ? "json_schema" : stage.responseFormat,
@@ -3375,6 +3407,10 @@ export function createHuggingFaceLatticeAdapter({
         }),
       });
     } else if (stageName === "verification") {
+      if (reviewPair) {
+        if (!exactKeys(result, reviewPair.groups.map(group => group.request.batch.id))) return [{}, {}];
+        return reviewPair.groups.map(({ request: group, fit }) => decodeVerificationWire(result[group.batch.id], fit));
+      }
       result = decodeVerificationWire(result, verificationFit);
     } else if (stageName === "certification") {
       result = decodeCertificationWire(result, certificationFit);
@@ -3427,6 +3463,18 @@ export function createHuggingFaceLatticeAdapter({
     }
   };
 
+  const completePair = async (stage, fit, first, second) => {
+    if (providerCallLimit !== LATTICE_LONG_JOB_POLICY.providerCallLimit) return null;
+    const pair = fit(first, second);
+    if (!pair) return null;
+    try { return await complete(stage, first, null, pair); }
+    catch (error) {
+      if (error instanceof LatticeProviderError
+        && (error.code === "provider_output_limit" || error.code === "provider_request_too_large")) return null;
+      throw error;
+    }
+  };
+
   const adapter = Object.freeze({
     completionCapacity() {
       return Object.freeze({
@@ -3437,18 +3485,9 @@ export function createHuggingFaceLatticeAdapter({
     },
     analyze: (request) => complete("analysis", request),
     generate: (request) => draft("candidate", request),
-    async generatePair(first, second) {
-      if (providerCallLimit !== LATTICE_LONG_JOB_POLICY.providerCallLimit) return null;
-      const pair = fitDraftPair(first, second);
-      if (!pair) return null;
-      try { return await complete("candidate", first, null, pair); }
-      catch (error) {
-        if (error instanceof LatticeProviderError
-          && (error.code === "provider_output_limit" || error.code === "provider_request_too_large")) return null;
-        throw error;
-      }
-    },
+    generatePair: (first, second) => completePair("candidate", fitDraftPair, first, second),
     verify: (request) => complete("verification", request),
+    verifyPair: (first, second) => completePair("verification", fitReviewPair, first, second),
     certify: (request) => complete("certification", request),
     repair: (request) => draft("repair", request),
   });
