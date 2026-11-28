@@ -23,6 +23,7 @@ import {
   candidateMessages,
   documentCertificationMessages,
   editableFrameRepairMessages,
+  singlePassageDraftMessages,
   repairMessages,
   verificationMessages,
   isVerificationAlignmentCorrection,
@@ -3209,7 +3210,7 @@ export function createHuggingFaceLatticeAdapter({
     generator: { calls: 0, promptTokens: 0, completionTokens: 0 },
     verifier: { calls: 0, promptTokens: 0, completionTokens: 0 } } : null;
 
-  const complete = async (stageName, request) => {
+  const complete = async (stageName, request, outputPassage = null) => {
     if (budget.used >= providerCallLimit) {
       throw providerError("provider_call_limit", "The Lattice provider call budget was exhausted.");
     }
@@ -3241,7 +3242,7 @@ export function createHuggingFaceLatticeAdapter({
       }
       if (providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
         && (stageName === "candidate" || stageName === "repair")) draftClaims = longDraftClaims(request.analysis);
-      if (draftClaims) repairFrames = fitQuotedDraft(request, stageName);
+      if (draftClaims && !outputPassage) repairFrames = fitQuotedDraft(request, stageName);
       verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
       certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
       const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
@@ -3251,7 +3252,10 @@ export function createHuggingFaceLatticeAdapter({
         || isVerificationAlignmentCorrection(verificationCorrection)
       );
       const fittedRequest = analysisFit?.request ?? request;
-      const fittedSchema = analysisFit
+      const fittedSchema = outputPassage
+        ? closedWireObject({ wording: { type: "string", minLength: 1, maxLength: 2_800 },
+          coverage: analysisWireBitMaskSchema(outputPassage.atoms.length) })
+        : analysisFit
         ? analysisWireSchemaForFit(analysisFit, positionAnchors)
         : verificationFit
         ? verificationWireSchemaForFit(verificationFit, evidenceFirst)
@@ -3262,7 +3266,9 @@ export function createHuggingFaceLatticeAdapter({
         fittedSchema, verificationFit,
         providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit ? request.analysis : null,
       ) : null;
-      const messageFactory = verificationFit
+      const messageFactory = outputPassage
+        ? current => singlePassageDraftMessages(current, outputPassage)
+        : verificationFit
         ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection, missingPositions)
         : repairFrames ? (current) => editableFrameRepairMessages(repairFrames, current)
         : draftClaims ? (current) => (stageName === "candidate" ? candidateMessages : repairMessages)(
@@ -3275,11 +3281,11 @@ export function createHuggingFaceLatticeAdapter({
         useParasailGenerator,
         messages: messagesWithMode(messageFactory, fittedRequest, requestedMode),
         schema: fittedSchema,
-        schemaName: repairFrames ? "lattice_quoted_draft_v1" : stage.schemaName,
+        schemaName: outputPassage ? "lattice_single_passage_draft_v1" : repairFrames ? "lattice_quoted_draft_v1" : stage.schemaName,
         responseGuide: positionAnchors ? LONG_ANALYSIS_WIRE_GUIDE
           : evidenceFirst ? VERIFICATION_ALIGNMENT_GUIDE : stage.responseGuide,
         schemaDescription: stage.schemaDescription,
-        responseFormat: repairFrames ? "json_schema" : stage.responseFormat,
+        responseFormat: outputPassage || repairFrames ? "json_schema" : stage.responseFormat,
         toolName: stage.toolName,
         toolChoice: stage.toolChoice,
         allowStoppedToolContent: stage.allowStoppedToolContent,
@@ -3345,12 +3351,41 @@ export function createHuggingFaceLatticeAdapter({
       result = decodeVerificationWire(result, verificationFit);
     } else if (stageName === "certification") {
       result = decodeCertificationWire(result, certificationFit);
+    } else if (outputPassage) {
+      if (!exactKeys(result, ["wording", "coverage"]) || typeof result.wording !== "string"
+        || !result.wording.trim() || result.wording.length > 2_800) return null;
+      const units = wireMaskSelections(result.coverage, outputPassage.atoms);
+      if (units === null) return null;
+      return { passageId: outputPassage.passageId, layer: outputPassage.layer, text: result.wording,
+        preservedAtomIds: units.map(atom => atom.id) };
     } else if (repairFrames) {
       result = expandFrameRepair(result, repairFrames, request.candidate);
     } else if (draftClaims) {
       result = expandLongDraftClaims(result, draftClaims);
     }
     return result;
+  };
+
+  // A length finish carries no usable draft. Reuse the committed graph and
+  // the same per-call allowance, asking for one complete passage at a time.
+  const draft = async (stageName, request) => {
+    try { return await complete(stageName, request); }
+    catch (error) {
+      if (providerCallLimit !== LATTICE_LONG_JOB_POLICY.providerCallLimit
+        || !(error instanceof LatticeProviderError) || error.code !== "provider_output_limit") throw error;
+      const frames = fitQuotedDraft(request, stageName);
+      const ids = frames?.map(frame => frame.id) ?? request.batch.passages.map(passage => passage.id);
+      if (budget.used + ids.length > providerCallLimit) throw error;
+      const recovered = new Map(request.candidate?.passages.map(passage => [passage.passageId, passage]));
+      for (const id of ids) {
+        if (request.signal?.aborted) throw request.signal.reason ?? abortError();
+        const plan = request.analysis.passages.find(passage => passage.passageId === id);
+        const passage = await complete(stageName, request, plan);
+        if (!passage) return {};
+        recovered.set(id, passage);
+      }
+      return { passages: request.batch.passages.map(source => recovered.get(source.id)) };
+    }
   };
 
   const adapter = Object.freeze({
@@ -3362,10 +3397,10 @@ export function createHuggingFaceLatticeAdapter({
       });
     },
     analyze: (request) => complete("analysis", request),
-    generate: (request) => complete("candidate", request),
+    generate: (request) => draft("candidate", request),
     verify: (request) => complete("verification", request),
     certify: (request) => complete("certification", request),
-    repair: (request) => complete("repair", request),
+    repair: (request) => draft("repair", request),
   });
   if (usage !== null) QUALIFICATION_USAGE.set(adapter, usage);
   return adapter;

@@ -421,6 +421,32 @@ export function editableFrameRepairMessages(frames, request) {
   );
 }
 
+// The original group stays visible for relations and attribution. Only the
+// selected passage occupies the bounded completion after a truncated draft.
+export function singlePassageDraftMessages(request, target) {
+  const prior = priorDraftFeedbackForModel(request);
+  return messages(
+    "Write one complete passage for targetPassage using its assigned plan.",
+    {
+      targetPassage: target.passageId,
+      disposition: target.disposition,
+      register: target.layer,
+      meaningUnits: target.atoms.map(atom => [atom.kind, atom.value, atom.preservation]),
+      groupSources: repairSourcePassagesForModel(request),
+      groupAnalysis: analysisForModel(request.analysis),
+      sourceBoundaries: sourceBoundariesForModel(request),
+      documentLedger: documentLedgerForModel(request.documentLedger),
+      ...(request.context ? { context: contextForModel(request.context) } : {}),
+      ...(request.candidate && !request.repairFromSource ? { previousCandidate: rejectedCandidateForRepair(request.candidate) } : {}),
+      ...(request.verification ? { review: verificationFeedbackForModel(request.verification) } : {}),
+      ...(request.deterministicFindings?.length ? { deterministicFindings: request.deterministicFindings } : {}),
+      ...(request.documentBoundaryMoves?.length ? { documentBoundaryMoves: request.documentBoundaryMoves.slice(0, 12) } : {}),
+      ...(prior ? { previouslyReviewed: prior } : {}),
+    },
+    "Return one compact JSON object with wording and coverage. Only write targetPassage. groupSources entries contain the passage ID, exact source and protected literals. Use the remaining passages as context for who did what and when. For rewrite, express the target in its assigned register with a different predicate or clause structure while preserving every commitment, quotation, name, boundary and speech act. For retain-if-conformant, return its exact source. Give one coverage bit per listed meaning unit in order. Use 1 only for meaning actually present in the complete wording and 0 for omitted or uncertain meaning. End immediately after the object." + (request.documentBoundaryMoves?.length ? DOCUMENT_BOUNDARY_REPAIR_GUIDE : ""),
+  );
+}
+
 function dialogueFramesForModel(request) {
   return (request.sourceSpans ?? []).flatMap(group => {
     if (!request.analysis?.passages.some(plan => plan.passageId === group.passageId && plan.disposition === "rewrite")) return [];
