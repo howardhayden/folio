@@ -1165,7 +1165,33 @@ export function isVerificationAlignmentCorrection(correction) {
   return correction === "issue-alignment" || correction === "decision-alignment" || correction === "atom-decision" || correction === "atom-verdict";
 }
 
-export function verificationMessages(request, { responseDialect = "host-schema", wireLayout, wireCorrection = null, missingPositions = null } = {}) {
+function verificationPayload(request, compactWire, wireLayout, wireCorrection, missingPositions) {
+  return {
+    version: PUBLIC_REGISTER_VERSION,
+    batchId: request.batch.id,
+    ...(compactWire && wireLayout ? { wireLayout } : {}),
+    ...(compactWire && ["atom-decision", "atom-verdict"].includes(wireCorrection) && missingPositions ? { disputedAtomPositions: missingPositions } : {}),
+    sourcePassages: sourcePassagesForModel(request),
+    sourceBoundaries: sourceBoundariesForModel(request),
+    ...(!request.assembledContext && request.context ? { context: contextForModel(request.context) } : {}),
+    documentLedger: documentLedgerForModel(request.documentLedger),
+    ...(request.documentLedgerCoverage?.availableAtomCount > 0 ? {
+      documentLedgerCoverage: documentLedgerCoverageForModel(request.documentLedgerCoverage),
+    } : {}),
+    ...(request.assembledContext ? { assembledContext: contextForModel(request.assembledContext) } : {}),
+    analysisClaims: analysisForModel(request.analysis),
+    candidate: candidateForModel(request.candidate),
+    ...(request.deterministicFindings?.length ? { deterministicFindings: request.deterministicFindings } : {}),
+    ...(request.documentFindings?.length ? { documentFindings: request.documentFindings } : {}),
+    ...(request.protocolFeedback
+      ? compactWire
+        ? { retry: COMPACT_VERIFICATION_RETRY_CODE }
+        : { protocolFeedback: request.protocolFeedback }
+      : {}),
+  };
+}
+
+export function verificationMessages(request, { responseDialect = "host-schema", wireLayout, wireCorrection = null, missingPositions = null, secondGroup = null } = {}) {
   if (!VERIFICATION_RESPONSE_DIALECTS.has(responseDialect)) {
     throw new TypeError("Text to Lattice received an invalid verification response dialect.");
   }
@@ -1200,37 +1226,19 @@ export function verificationMessages(request, { responseDialect = "host-schema",
   const evidencePositionInstruction = wireLayout?.passages?.[0]?.sourcePositionsByAtom
     ? " For each passage, sourcePositionsByAtom lists the source positions cited by each atom in x order. sourceAtomsByPosition lists the atoms that cite each source position in y order. Both tables use zero-based indices. Choose x and y from the source meaning. For every selected y position, select at least one x atom that cites it. The tables describe the graph and supply no verdict. For every atom status, identify the source commitment and compare it with the actual candidate. Equivalent wording can preserve a unit. Mark a unit missing when its meaning is absent or changed, including when the candidate claims otherwise. " + LATTICE_LONG_REGISTER_SELECTION
     : "";
-  const atomClaimInstruction = request.deterministicFindings?.some((finding) => deterministicFindingRule(finding) === "D13")
+  const hasClaimFinding = value => value?.deterministicFindings?.some(finding => deterministicFindingRule(finding) === "D13");
+  const atomClaimInstruction = hasClaimFinding(request) || hasClaimFinding(secondGroup?.request)
     ? " The host separately enforces the candidate-atom-claim finding for the atom ID list. Determine atom coverage, failed checks, issues, and the verdict from the independent source and candidate comparison. Report genuine omissions and unsupported meaning. Do not report a failed check or a negative verdict solely because of the ID list mismatch."
     : "";
   return messages(
-    `Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.${atomClaimInstruction}${evidencePositionInstruction}${evidenceFirst ? " Evaluate each passage and gate on its evidence, record any issues, then derive the verdict from those findings." : ""}`,
-    {
-      version: PUBLIC_REGISTER_VERSION,
-      batchId: request.batch.id,
-      ...(compactWire && wireLayout ? { wireLayout } : {}),
-      ...(compactWire && ["atom-decision", "atom-verdict"].includes(wireCorrection) && missingPositions ? { disputedAtomPositions: missingPositions } : {}),
-      sourcePassages: sourcePassagesForModel(request),
-      sourceBoundaries: sourceBoundariesForModel(request),
-      ...(!request.assembledContext && request.context ? { context: contextForModel(request.context) } : {}),
-      documentLedger: documentLedgerForModel(request.documentLedger),
-      ...(request.documentLedgerCoverage?.availableAtomCount > 0 ? {
-        documentLedgerCoverage: documentLedgerCoverageForModel(request.documentLedgerCoverage),
-      } : {}),
-      ...(request.assembledContext ? { assembledContext: contextForModel(request.assembledContext) } : {}),
-      analysisClaims: analysisForModel(request.analysis),
-      candidate: candidateForModel(request.candidate),
-      ...(request.deterministicFindings?.length ? { deterministicFindings: request.deterministicFindings } : {}),
-      ...(request.documentFindings?.length ? { documentFindings: request.documentFindings } : {}),
-      ...(request.protocolFeedback
-        ? compactWire
-          ? { retry: COMPACT_VERIFICATION_RETRY_CODE }
-          : { protocolFeedback: request.protocolFeedback }
-        : {}),
-    },
+    `${secondGroup ? "Review the two identified groups separately. The top-level result must have exactly their two batchId keys. Inside each key write a complete check for that group, using only its data and fitted positions. Do not copy a verdict, mask or citation across groups. All instructions about result fields below apply inside each group. " : ""}Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.${atomClaimInstruction}${evidencePositionInstruction}${evidenceFirst ? " Evaluate each passage and gate on its evidence, record any issues, then derive the verdict from those findings." : ""}`,
+    secondGroup ? {
+      [request.batch.id]: verificationPayload(request, compactWire, wireLayout, wireCorrection, missingPositions),
+      [secondGroup.request.batch.id]: verificationPayload(secondGroup.request, true, secondGroup.layout, null, null),
+    } : verificationPayload(request, compactWire, wireLayout, wireCorrection, missingPositions),
     `${compactWire
       ? `Supply one verification-result instance using only the private fitted ${fieldOrder} index-and-mask wire layout through the required response channel. Include exactly the four root fields ${fields}; keep i as [] when no additional issue is needed, never omit it. Return every fitted passage record completely for every decision, including repair and reject. Set d to accept only when every reported gate and passage condition passes. Repair or reject requires at least one actual failed condition represented by g or a passage record; never invent a failure to justify a negative decision. Never return or copy a schema definition, source identifiers, long-form host field names, or explanatory prose. Use the smallest complete result. ${LATTICE_VERIFICATION_ISSUE_WIRE_INSTRUCTION}${wireCorrection === "atom-verdict" ? " Supply a fresh complete adjudication on the unchanged candidate." : request.protocolFeedback ? " This is the one bounded correction attempt; replace the entire invalid wire result and follow every fitted width, index, mask, object, array, and enum constraint." : ""}`
-      : "Return the verification schema;"}${correctionInstruction} ${compactWire ? "Select supplied spans only through their fitted bit positions; never emit their IDs." : "Cite only supplied span IDs."} Source groups are [passage ID, lossless spans, nested literal annotations].${directionFrameInstruction(request)} Source boundaries are passage-order gaps [before first, between pairs, after last], encoded as exact [unit,count] runs or host-preserved repeat/summary; check line, paragraph, and stanza assignment. Analysis claims are [document kind, passage tuples]. Passage tuples contain [ID, function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria/spans/assertions]; atoms contain [ID, kind, value, priority, preservation, evidence IDs, links]. Candidates contain [ID, layer, text, preserved atom IDs]. assembledContext separates source/candidate excerpts. Bounded protectedExact is full text; oversized adjacent text is hostAttestedExact [UTF-16 length, scalar count, fingerprint] with inert edges; distant text is attestation only. Attestations prove preservation, never meaning; do not infer omitted text. Independently re-derive meaning and layer before consulting claims. ${compactWire ? `${LATTICE_VERIFICATION_MASK_LAYOUT_INSTRUCTION} ${wireLayout ? "wireLayout records the exact required fields and widths for this call, issue collection/item types, plus any schema-fixed rewrite-conformance value; copy that value only to its c slot. Other layout metadata is never an answer or a schema to return. " : ""}` : ""}For each passage return the selected layer and ${compactWire ? "select source-grounded layer-support masks x and y, each containing at least one 1, even when a gate or check fails or the decision is repair or reject; x selects supplied atoms supporting the independent layer and y selects source spans grounded by those atoms. Never select unsupported evidence merely to make a mask nonempty" : "nonempty supporting atom/span IDs; cited atoms must ground the spans"}. Check identity, roles, coreference, attribution, order, cause, relationship, modality, polarity, ambiguity, exact annotations, and context. Include boundaryFidelity ${compactWire ? "in the fitted failed-check mask" : "in failedChecks"} when meaning or an unchanged item crosses a corresponding line, paragraph, or stanza boundary despite equal separator types/counts. A rewrite must materially serve its discourse function. ${compactWire ? "Each i object uses c for a failed gate/check index and p for a passage position, or -1 for document-wide" : "Each issue names its failed gate/check"}. Report unmodeled spans/annotations, missing atoms, unsupported meaning, layer mismatch, and deterministic findings ${compactWire ? "through their fitted digits, booleans, masks, and indices" : ""}. For unchanged retained text, separately verify every required universal/layer criterion and ${compactWire ? "select all supporting spans/annotations through the fitted conformance object" : "cite all spans/annotations across criterionChecks and conformanceEvidenceSpanIds"}. ${compactWire ? LATTICE_REWRITE_CONFORMANCE_WIRE_INSTRUCTION : "Rewrites leave those fields empty and conformanceConfirmed false."} ${compactWire ? "Unresolved ambiguity is rejection, never clarification" : "Return questions: []; unresolved ambiguity is rejection, never clarification"}. Accept only when every gate, check, atom, material rewrite, and boundary passes with no omission/addition.`,
+      : "Return the verification schema;"}${correctionInstruction} ${compactWire ? "Select supplied spans only through their fitted bit positions; never emit their IDs." : "Cite only supplied span IDs."} Source groups are [passage ID, lossless spans, nested literal annotations].${directionFrameInstruction(request) || (secondGroup ? directionFrameInstruction(secondGroup.request) : "")} Source boundaries are passage-order gaps [before first, between pairs, after last], encoded as exact [unit,count] runs or host-preserved repeat/summary; check line, paragraph, and stanza assignment. Analysis claims are [document kind, passage tuples]. Passage tuples contain [ID, function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria/spans/assertions]; atoms contain [ID, kind, value, priority, preservation, evidence IDs, links]. Candidates contain [ID, layer, text, preserved atom IDs]. assembledContext separates source/candidate excerpts. Bounded protectedExact is full text; oversized adjacent text is hostAttestedExact [UTF-16 length, scalar count, fingerprint] with inert edges; distant text is attestation only. Attestations prove preservation, never meaning; do not infer omitted text. Independently re-derive meaning and layer before consulting claims. ${compactWire ? `${LATTICE_VERIFICATION_MASK_LAYOUT_INSTRUCTION} ${wireLayout ? "wireLayout records the exact required fields and widths for this call, issue collection/item types, plus any schema-fixed rewrite-conformance value; copy that value only to its c slot. Other layout metadata is never an answer or a schema to return. " : ""}` : ""}For each passage return the selected layer and ${compactWire ? "select source-grounded layer-support masks x and y, each containing at least one 1, even when a gate or check fails or the decision is repair or reject; x selects supplied atoms supporting the independent layer and y selects source spans grounded by those atoms. Never select unsupported evidence merely to make a mask nonempty" : "nonempty supporting atom/span IDs; cited atoms must ground the spans"}. Check identity, roles, coreference, attribution, order, cause, relationship, modality, polarity, ambiguity, exact annotations, and context. Include boundaryFidelity ${compactWire ? "in the fitted failed-check mask" : "in failedChecks"} when meaning or an unchanged item crosses a corresponding line, paragraph, or stanza boundary despite equal separator types/counts. A rewrite must materially serve its discourse function. ${compactWire ? "Each i object uses c for a failed gate/check index and p for a passage position, or -1 for document-wide" : "Each issue names its failed gate/check"}. Report unmodeled spans/annotations, missing atoms, unsupported meaning, layer mismatch, and deterministic findings ${compactWire ? "through their fitted digits, booleans, masks, and indices" : ""}. For unchanged retained text, separately verify every required universal/layer criterion and ${compactWire ? "select all supporting spans/annotations through the fitted conformance object" : "cite all spans/annotations across criterionChecks and conformanceEvidenceSpanIds"}. ${compactWire ? LATTICE_REWRITE_CONFORMANCE_WIRE_INSTRUCTION : "Rewrites leave those fields empty and conformanceConfirmed false."} ${compactWire ? "Unresolved ambiguity is rejection, never clarification" : "Return questions: []; unresolved ambiguity is rejection, never clarification"}. Accept only when every gate, check, atom, material rewrite, and boundary passes with no omission/addition.`,
   );
 }
 

@@ -835,6 +835,56 @@ test("a residual long-job correction groups two copied passages and adopts only 
   }
 });
 
+test("joint reviewer transport keeps every group decision and rechecks revised groups on their own assembly", async () => {
+  const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "v" + i + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  for (const mode of ["legacy", "accepted", "malformed", "corrected", "withheld", "abort"]) {
+    const controller = new AbortController();
+    const coverage = new Set();
+    const firstAssembly = new Set(), revisedAssemblies = new Set();
+    let paired = 0, single = 0, certificates = 0;
+    const reply = r => {
+      const revised = Object.hasOwn(r, "verification");
+      (revised ? revisedAssemblies : firstAssembly).add(r.candidateFingerprint);
+      coverage.add(r.batch.id);
+      if (["corrected", "withheld"].includes(mode) && [plan.batches[0], plan.batches[1]].includes(r.batch)
+        && (!revised || mode === "withheld")) return rawVerification(r, {
+          gates: mode === "withheld" ? { semanticFidelity: false } : { clarity: false },
+        });
+      return rawVerification(r);
+    };
+    const adapter = scriptedAdapter({
+      verify(r) { single++; return reply(r); },
+      certify() { certificates++; },
+    });
+    adapter.verifyPair = async (first, second) => {
+      paired++;
+      assert.equal(first.candidateFingerprint, second.candidateFingerprint);
+      assert.equal(first.sourceFingerprint, second.sourceFingerprint);
+      assert.equal(first.signal, second.signal);
+      assert.notEqual(first.batch.id, second.batch.id);
+      if (mode === "abort") controller.abort();
+      return [reply(first), mode === "malformed" && paired === 1 ? {} : reply(second)];
+    };
+    const job = executeLatticePlan(plan, { adapter, providerCallLimit: mode === "legacy" ? 48 : 64,
+      allowClarification: false, signal: controller.signal });
+    if (mode === "abort") {
+      await assert.rejects(job, error => error.name === "AbortError");
+      assert.equal(certificates, 0);
+      continue;
+    }
+    const result = await job;
+    assert.equal(result.status, mode === "withheld" ? "unable-to-attempt" : "translated");
+    assert.equal(certificates, mode === "withheld" ? 0 : 1);
+    assert.equal(firstAssembly.size, 1);
+    assert.deepEqual(coverage, new Set(plan.batches.map(batch => batch.id)));
+    const corrected = ["corrected", "withheld"].includes(mode);
+    assert.equal(paired, mode === "legacy" ? 0 : Math.floor(plan.batches.length / 2) + Number(corrected));
+    assert.equal(single, mode === "legacy" ? plan.batches.length : plan.batches.length % 2 + Number(mode === "malformed"));
+    assert.equal(revisedAssemblies.size, Number(corrected));
+  }
+});
+
 test("a final recheck adjudicates two conflicting replies on the same candidate only with capacity", async () => {
   const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });

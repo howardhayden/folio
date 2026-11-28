@@ -3711,6 +3711,42 @@ function adapterContract(adapter) {
     "The model adapter has an invalid certification-context preflight.");
 }
 
+// Cache one genuine sibling result inside this phase only. Corrections always
+// use the original single-group path with their own feedback and evidence.
+function originalGroupAttempts(entries, adapter, method, extended) {
+  const paired = method === "generate" ? adapter.generatePair : adapter.verifyPair;
+  if (!extended || typeof paired !== "function") return request => adapter[method](request);
+  let pending = null;
+  let lastIndex = -1;
+  return async (request, index) => {
+    const firstAttempt = index !== lastIndex && !request.protocolFeedback;
+    lastIndex = index;
+    if (firstAttempt && pending?.entry === entries[index]) {
+      const { result } = pending;
+      pending = null;
+      return result;
+    }
+    const following = entries[index + 1];
+    if (firstAttempt && following) {
+      const results = await paired.call(adapter, request, following);
+      if (results) {
+        pending = { entry: following, result: results[1] };
+        return results[0];
+      }
+    }
+    return adapter[method](request);
+  };
+}
+
+function assembledReviewRequests(entries, passages, assembly, candidateFingerprint) {
+  return entries.map(entry => Object.freeze({
+    ...entry,
+    candidateFingerprint,
+    assembledContext: assembledContextFor(passages, entry.batch, assembly.candidateById),
+    documentFindings: assembly.documentFindings,
+  }));
+}
+
 export function prepareLatticeTransformation(value, planningOptions) {
   const preflight = preflightLatticeInput(value, planningOptions);
   return (options) => executeLatticePlan(preflight, options);
@@ -3937,25 +3973,8 @@ export async function executeLatticePlan(preflight, options) {
   }));
   const qualifyingLongJob = isLatticeLongJobCallLimit(options.providerCallLimit)
     && latticeProviderCallLimitForPlan(preflight) === LATTICE_LONG_JOB_POLICY.providerCallLimit;
-  const pairDrafts = qualifyingLongJob && options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
-    && typeof options.adapter.generatePair === "function";
-  let nextDraft = null;
-  const generateInitial = async (request, index) => {
-    if (!request.protocolFeedback && nextDraft?.entry === analyses[index]) {
-      const { draft } = nextDraft;
-      nextDraft = null;
-      return draft;
-    }
-    const following = analyses[index + 1];
-    if (pairDrafts && !request.protocolFeedback && following) {
-      const pair = await options.adapter.generatePair(request, following);
-      if (pair) {
-        nextDraft = { entry: following, draft: pair[1] };
-        return pair[0];
-      }
-    }
-    return options.adapter.generate(request);
-  };
+  const extended = qualifyingLongJob && options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit;
+  const generateInitial = originalGroupAttempts(analyses, options.adapter, "generate", extended);
   let candidates = [];
   const repairLongDraft = qualifyingLongJob ? (currentRequest, previousDraft, findings) => {
     const copied = findings.some(finding => deterministicFindingRule(finding) === "D14");
@@ -4089,22 +4108,20 @@ export async function executeLatticePlan(preflight, options) {
   );
   throwIfAborted(signal);
   let reviews = [];
+  const initialReviewRequests = assembledReviewRequests(candidates, passages, assembly, candidateFingerprint);
+  const verifyInitial = originalGroupAttempts(initialReviewRequests, options.adapter, "verify", extended);
   for (let index = 0; index < candidates.length; index += 1) {
     const request = candidates[index];
     throwIfAborted(signal);
     progress(onProgress, "verifying", index, candidates.length, request.batch.id);
-    const verificationRequest = Object.freeze({
-      ...request,
-      assembledContext: assembledContextFor(passages, request.batch, assembly.candidateById),
-      documentFindings: assembly.documentFindings,
-    });
+    const verificationRequest = initialReviewRequests[index];
     let verification;
     try {
       verification = await callNormalizedStage({
         stage: "verification",
         pipelineObservation,
         request: verificationRequest,
-        invoke: (currentRequest) => options.adapter.verify(currentRequest),
+        invoke: (currentRequest) => verifyInitial(currentRequest, index),
         normalize: (raw, currentRequest) => normalizeVerification(
           raw,
           request.batch,
@@ -4487,15 +4504,13 @@ export async function executeLatticePlan(preflight, options) {
     );
     throwIfAborted(signal);
     const secondReviews = [];
+    const revisedRequests = assembledReviewRequests(retriedCandidates, passages, assembly, candidateFingerprint);
+    const verifyRevised = originalGroupAttempts(revisedRequests, options.adapter, "verify", extended);
     for (let index = 0; index < retriedCandidates.length; index += 1) {
       const request = retriedCandidates[index];
       throwIfAborted(signal);
       progress(onProgress, "reverifying", index, retriedCandidates.length, request.batch.id);
-      const verificationRequest = Object.freeze({
-        ...request,
-        assembledContext: assembledContextFor(passages, request.batch, assembly.candidateById),
-        documentFindings: assembly.documentFindings,
-      });
+      const verificationRequest = revisedRequests[index];
       try {
         const verification = await callNormalizedStage({
           stage: "reverification",
@@ -4506,7 +4521,7 @@ export async function executeLatticePlan(preflight, options) {
               && remaining > 2 * (retriedCandidates.length - index - 1) + FLAT_CERTIFICATION_RESERVATION;
           } : null,
           request: verificationRequest,
-          invoke: (currentRequest) => options.adapter.verify(currentRequest),
+          invoke: (currentRequest) => verifyRevised(currentRequest, index),
           normalize: (raw, currentRequest) => normalizeVerification(
             raw,
             request.batch,

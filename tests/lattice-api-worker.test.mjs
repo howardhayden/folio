@@ -2150,6 +2150,62 @@ test("paired initial drafts share one fetch and preserve each original group's e
   assert.equal(truncated.completionCapacity().used, calls);
 });
 
+test("paired reviewer replies bind each verdict and evidence to its own group and assembly", async () => {
+  const base = minimalVerificationRequest();
+  const first = { ...base, sourceFingerprint: "one-source", candidateFingerprint: "one-assembly" };
+  const passage = { ...base.batch.passages[0], id: "p002" };
+  const batch = { ...base.batch, id: "b002", passages: [passage] };
+  const spans = latticeSourceSpansForBatch(batch);
+  const second = { ...first, batch, sourceSpans: spans,
+    analysis: { ...base.analysis, passages: [{ ...base.analysis.passages[0], passageId: passage.id,
+      atoms: [{ ...base.analysis.passages[0].atoms[0], id: "second", evidenceSpanIds: [spans[0].spans[0].id] }] }] },
+    candidate: { passages: [{ ...base.candidate.passages[0], passageId: passage.id, preservedAtomIds: ["second"] }] } };
+  for (const scenario of ["accepted", "refused", "foreign", "invalid-second", "truncated", "upstream"]) {
+    let calls = 0;
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 64, fetchImpl: async (_url, init) => {
+      calls++;
+      const body = JSON.parse(init.body);
+      assert.equal(body.max_tokens, 2048);
+      assert.equal(body.response_format.json_schema.name, "lattice_paired_verification_v2");
+      const payload = inertModelPayload(body);
+      assert.deepEqual(Object.keys(payload), [first.batch.id, second.batch.id]);
+      assert.equal(payload[second.batch.id].batchId, second.batch.id);
+      assert.deepEqual(payload[second.batch.id].wireLayout.rootFields, ["g", "p", "i", "d"]);
+      assert.equal(payload[second.batch.id].candidate[0][0], passage.id);
+      if (scenario === "truncated") return providerChoiceResponse({ finish_reason: "length", message: { role: "assistant", content: "{" } });
+      if (scenario === "upstream") return new Response(null, { status: 429 });
+      const result = { [first.batch.id]: acceptingVerificationWire(first), [second.batch.id]: acceptingVerificationWire(second) };
+      if (scenario === "foreign") result.another = {};
+      if (scenario === "invalid-second") result[second.batch.id] = {};
+      if (scenario === "refused") result[second.batch.id] = { ...result[second.batch.id], d: 2, g: "1" + "0".repeat(10) };
+      return successfulProviderResponse(result);
+    } });
+    assert.equal(await adapter.verifyPair(first, { ...second, candidateFingerprint: "old" }), null);
+    assert.equal(await adapter.verifyPair(first, { ...second, signal: new AbortController().signal }), null);
+    assert.equal(await adapter.verifyPair(first, { ...second, verification: {} }), null);
+    assert.equal(await adapter.verifyPair(first, { ...second, protocolFeedback: { attempt: 2 } }), null);
+    assert.equal(calls, 0);
+    if (scenario === "upstream") {
+      await assert.rejects(adapter.verifyPair(first, second), err => err.code === "provider_http_error");
+    } else {
+      const replies = await adapter.verifyPair(first, second);
+      if (scenario === "truncated") assert.equal(replies, null);
+      else if (scenario === "foreign") assert.deepEqual(replies, [{}, {}]);
+      else {
+        assert.equal(replies[0].decision, "accept");
+        assert.deepEqual(replies[0].passages[0].checkedAtomIds, ["a1"]);
+        if (scenario === "invalid-second") assert.notEqual(replies[1].decision, "accept");
+        else {
+          assert.equal(replies[1].decision, scenario === "refused" ? "reject" : "accept");
+          assert.deepEqual(replies[1].passages[0].checkedAtomIds, ["second"]);
+        }
+      }
+    }
+    assert.equal(calls, 1);
+    assert.equal(adapter.completionCapacity().used, 1);
+  }
+});
+
 test("a truncated long draft recovers whole passages with explicit coverage and no partial result", async () => {
   const base = minimalVerificationRequest();
   const passages = [1, 2].map(i => ({ ...base.batch.passages[0], id: "p00" + i }));
