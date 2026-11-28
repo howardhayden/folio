@@ -4,7 +4,7 @@ Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave
 
 The November 23 production check accepted the original passage in 10.563 seconds. The protected Pages publication delivered that build. [Service check](https://github.com/howardhayden/folio/actions/runs/45255468630) · [Publication receipt](https://github.com/howardhayden/folio/actions/runs/45259201772) · [Evidence by claim](https://hah.dev/documentation/text-to-lattice/evidence.html)
 
-A 697-word submission in regular Firefox passed admission and stopped during drafting after 20 of 48 provider calls. The generator ran out of room for its reply. The protected production smoke had passed in 12.922 seconds. The previous Worker resumed all traffic. The corrected long-job path can request each affected passage separately within the same call and token limits. It sends the reassembled group through review and requires document certification before displaying output. [Production smoke](https://github.com/howardhayden/folio/actions/runs/46122493713) · [Firefox outcome](https://github.com/howardhayden/folio/pull/276)
+The full regular Firefox submission reached its second independent review. Six of nine groups passed after 43 of 48 calls. Four passages still lacked meaning coverage, and the host found four copies in the final assembly. A second submission used all 48 calls while rechecking the revised groups. The stable Worker resumed all traffic after each run. The extended client reserves up to 64 calls for qualifying long jobs and can revise and independently review the remaining groups a third time before certification. Older open clients retain their two-pass limit. [Production smoke](https://github.com/howardhayden/folio/actions/runs/46123881852) · [Firefox outcome](https://github.com/howardhayden/folio/pull/277)
 
 An already-open tab with the Parasail disclosure keeps Parasail for its entire request. New tabs use DeepInfra for generation and CoreWeave for independent review and certification.
 
@@ -42,7 +42,7 @@ The site owner accepted the original browser evidence after a file-by-file compa
 
 **The site owner accepts intermittent refusals and imperfect wording for this demonstrator.** Use a short passage you are entitled to share, then compare the result with your original before relying on it. Typing stays local until you confirm external processing. Hugging Face routes the passage through OpenRouter to DeepInfra for drafting and CoreWeave for review. hah.dev keeps no copy of your passage or result. The external services apply their own processing and retention terms.
 
-**The owner limits the work a visitor can initiate.** Ordinary production admits 30 transformations globally per UTC day and 3 per cooperating browser cookie jar per UTC day. The maximum is 32 provider calls for a standard request and 48 for a qualifying long request. If all 30 admissions qualify, they can use up to 1,440 calls. The one-off reset above permits additional work that day. A later service check took 8.49 seconds and five calls, with an estimated token cost of about $0.0062 for that passage. The budget limits work, and the bill depends on actual tokens and rates.
+**The owner limits the work a visitor can initiate.** Ordinary production admits 30 transformations globally per UTC day and 3 per cooperating browser cookie jar per UTC day. The maximum is 32 provider calls for a standard request and 64 for a qualifying long request. If all 30 admissions qualify, they can use up to 1,920 calls. The one-off reset above permits additional work that day. A later service check took 8.49 seconds and five calls, with an estimated token cost of about $0.0062 for that passage. The budget limits work, and the bill depends on actual tokens and rates.
 
 **The maintainer withdraws the converter if consent, privacy, admission or result clearing fails.** A routine upstream refusal ends the individual request. The maintainer verifies both the API and public page when restoring held service and reassesses the affected behavior before publication resumes.
 
@@ -56,9 +56,9 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `586c7d68e5b19eef0c8fe93ee90db81c8b89b41b681431208959b14cfde79236`
+**Qualified source-set SHA-256:** `ef4bb01a033343c8af983d072626d4fa3b75f37e3cd4fa2896032e3803e37d3a`
 
-**Artifact-set projection SHA-256:** `ad448467dd7e6b73fa0d4da53d2a81871c01483b39db3fb02624b9bc3d067ce1`
+**Artifact-set projection SHA-256:** `d10f9734f42a237220afb9a546a80b90d00055db93ddff0f2b75899e7e17b471`
 
 | Gate | Status | Marginal value |
 | --- | --- | --- |
@@ -82,15 +82,15 @@ These are the register’s current capability values, including the exact reques
 - The qualified service accepts POST requests at `/api/lattice`, with schema version 1 and fields `text`, `requested_mode` and `schema_version`. Available modes are `auto`, `operative` and `experiential`.
 - Both stages use https://router.huggingface.co/v1/chat/completions. The generation model is `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`. Review and certification use `meta-llama/Llama-3.3-70B-Instruct:coreweave`. The runtime revision is `provider-managed-not-byte-pinned`.
 - The Worker has 15 minutes per request. The browser allows 20 minutes from submission through receipt of the complete result. Stage deadlines are 300,000 ms for analysis, 180,000 ms for verification and 120,000 ms for drafting, repair and certification.
-- Requested output tokens per call are 2,048 for analysis and verification, 800 for drafting and repair, and 520 for certification. At the long-job ceiling, the maximum requested output is 98,304 tokens per admission, 294,912 per cooperating cookie jar per UTC day and 2,949,120 globally per UTC day.
+- Requested output tokens per call are 2,048 for analysis and verification, 800 for drafting and repair, and 520 for certification. At the long-job ceiling, the maximum requested output is 131,072 tokens per admission, 393,216 per cooperating cookie jar per UTC day and 3,932,160 globally per UTC day.
 - Application handling is recorded as “no application storage, raw-content logs, cache, queue, or analytics for source, prompts, candidates, raw provider bodies, or results”.
 - Hugging Face, OpenRouter, DeepInfra and CoreWeave process submitted text after confirmation. DeepInfra describes deletion of ordinary inputs and outputs after inference. Its terms allow temporary in-memory caching, operational metadata, and legal or elected-feature exceptions. With written authorization, DeepInfra may retain data to resolve a support issue. It deletes that data within 30 days after resolving the issue. OpenRouter can retain metadata, categorize prompts and retain content for safety or legal reasons. Its settings for the Hugging Face route are unknown. CoreWeave describes zero retention by default. Tracing settings for this route are unknown.
 
 ### Current-to-captured source comparison
 
-The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Separate regression tests cover long-job selection, the 32- and 48-call limits, and clearance-cookie handling in setup and admission. The workflow stages the candidate at zero percent, then switches traffic to it for the ordinary production check. The full passage in regular Firefox decides long-job acceptance. Consecutive failures trigger restoration of the preceding live Worker. Only aggregate results are recorded.
+The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Separate regression tests cover long-job selection, the 32-, 48- and 64-call limits, and clearance-cookie handling in setup and admission. The workflow stages the candidate at zero percent, then switches traffic to it for the ordinary production check. The full passage in regular Firefox decides long-job acceptance. Consecutive failures trigger restoration of the preceding live Worker. Only aggregate results are recorded.
 
-The current fingerprint is `586c7d68e5b19eef0c8fe93ee90db81c8b89b41b681431208959b14cfde79236`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov28-passage-source-digests.json) covers all 267 paths. It lists 44 differences and contains file names and hashes.
+The current fingerprint is `ef4bb01a033343c8af983d072626d4fa3b75f37e3cd4fa2896032e3803e37d3a`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov28-final-groups-source-digests.json) covers all 267 paths. It lists 44 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 

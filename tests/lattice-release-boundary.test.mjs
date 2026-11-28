@@ -605,8 +605,8 @@ test("the release register enforces its exact current phase and preserves histor
         usesIpAddress: false,
         usesBrowserFingerprint: false,
         storesSubmittedContentOrResult: false,
-        maximumProviderCallsPerAdmittedRequest: 48,
-        maximumProviderCallsFromAdmittedRequestsPerUtcDay: 1440,
+        maximumProviderCallsPerAdmittedRequest: 64,
+        maximumProviderCallsFromAdmittedRequestsPerUtcDay: 1920,
       },
       retry: false,
       fallback: false,
@@ -633,8 +633,8 @@ test("the release register enforces its exact current phase and preserves histor
   });
   assert.equal(capability.provider.maximumCallTimeoutMs, 300_000);
   assert.equal(capability.provider.defaultCallLimit, 32);
-  assert.equal(capability.provider.callLimit, 48);
-  assert.deepEqual(capability.provider.longJobPolicy, { minimumWords: 500, minimumBatches: 7, providerCallLimit: 48 });
+  assert.equal(capability.provider.callLimit, 64);
+  assert.deepEqual(capability.provider.longJobPolicy, { minimumWords: 500, minimumBatches: 7, providerCallLimit: 64 });
   assert.deepEqual(capability.provider.stageMaximumOutputTokens, {
     analysis: 2_048,
     candidate: 800,
@@ -643,14 +643,14 @@ test("the release register enforces its exact current phase and preserves histor
     repair: 800,
   });
   assert.equal(capability.provider.maximumRequestedOutputTokensPerCall, 2_048);
-  assert.equal(capability.provider.maximumRequestedOutputTokensPerAdmittedRequest, 98_304);
+  assert.equal(capability.provider.maximumRequestedOutputTokensPerAdmittedRequest, 131_072);
   assert.equal(
     capability.provider.maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay,
-    2_949_120,
+    3_932_160,
   );
   assert.equal(
     capability.provider.maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay,
-    294_912,
+    393_216,
   );
   assert.equal(capability.provider.historicalByteEquivalenceEstablished, false);
   assert.equal(register.artifactSet.historicalBrowserLocalArtifacts.status, "historical-inactive");

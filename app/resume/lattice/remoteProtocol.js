@@ -2,6 +2,7 @@ export const LATTICE_API_PATH = "/api/lattice";
 export const LATTICE_API_SCHEMA_VERSION = 1;
 export const LATTICE_PROCESSING_NOTICE_HEADER = "X-Lattice-Processing-Notice";
 export const LATTICE_PROCESSING_NOTICE = "qwen-deepinfra-coreweave-v1";
+export const LATTICE_REVIEW_PASSES_HEADER = "X-Lattice-Review-Passes";
 export const LATTICE_PARASAIL_PROCESSING_NOTICE = "qwen-parasail-coreweave-v1";
 export const LATTICE_VISITOR_SESSION_ACCEPT =
   "application/vnd.hah.text-to-lattice-visitor-session.v1+json";
@@ -9,15 +10,20 @@ export const LATTICE_REQUEST_MODES = Object.freeze(["auto", "operative", "experi
 export const LATTICE_REQUEST_FIELDS = Object.freeze(["text", "requested_mode", "schema_version"]);
 export const LATTICE_RESULT_VERSION = "text-to-lattice.v7";
 export const LATTICE_PROVIDER_CALL_LIMIT = 32;
+export const LATTICE_LEGACY_LONG_JOB_CALL_LIMIT = 48;
 export const LATTICE_LONG_JOB_POLICY = Object.freeze({
   minimumWords: 500,
   minimumBatches: 7,
-  providerCallLimit: 48,
+  providerCallLimit: 64,
 });
 
-export function latticeProviderCallLimitForPlan({ wordCount, batches }) {
+export function isLatticeLongJobCallLimit(limit) {
+  return limit === LATTICE_LEGACY_LONG_JOB_CALL_LIMIT || limit === LATTICE_LONG_JOB_POLICY.providerCallLimit;
+}
+
+export function latticeProviderCallLimitForPlan({ wordCount, batches }, extended = true) {
   return wordCount >= LATTICE_LONG_JOB_POLICY.minimumWords && batches.length >= LATTICE_LONG_JOB_POLICY.minimumBatches
-    ? LATTICE_LONG_JOB_POLICY.providerCallLimit
+    ? (extended ? LATTICE_LONG_JOB_POLICY.providerCallLimit : LATTICE_LEGACY_LONG_JOB_CALL_LIMIT)
     : LATTICE_PROVIDER_CALL_LIMIT;
 }
 export const LATTICE_API_REQUEST_TIMEOUT_MS = 15 * 60_000;
@@ -133,7 +139,7 @@ export function isLatticeApiResult(value) {
     || value.retainedPassageCount > value.passageCount
     || value.revisedPassageCount + value.retainedPassageCount > value.passageCount
     || value.batchCount > 64
-    || value.verificationPasses > 2) {
+    || value.verificationPasses > (value.wordCount >= LATTICE_LONG_JOB_POLICY.minimumWords && value.batchCount >= LATTICE_LONG_JOB_POLICY.minimumBatches ? 3 : 2)) {
     return false;
   }
 

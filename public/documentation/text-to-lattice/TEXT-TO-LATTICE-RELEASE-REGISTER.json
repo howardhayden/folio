@@ -31,15 +31,15 @@
     "operatingEnvelope": {
       "admissionsGlobalPerUtcDay": 30,
       "admissionsPerCooperatingCookieJarPerUtcDay": 3,
-      "providerCallsPerAdmission": 48,
-      "maximumProviderCallsFromDailyAdmissions": 1440,
+      "providerCallsPerAdmission": 64,
+      "maximumProviderCallsFromDailyAdmissions": 1920,
       "costDecision": "Limit admitted work and stop after a failed request. Run 736 used five provider calls at an estimated USD 0.0062 for that passage. Actual charges depend on tokens and current rates.",
       "oneOffResetCapacity": "The one application usage reset allows up to 30 further global admissions before the next UTC-day reset, with the ordinary three-per-cooperating-cookie-jar limit in that reset ledger. Earlier usage and any provider charges remain separate from the reset.",
       "defaultProviderCallsPerAdmission": 32,
       "longJobPolicy": {
         "minimumWords": 500,
         "minimumBatches": 7,
-        "providerCallLimit": 48
+        "providerCallLimit": 64
       }
     },
     "response": "A provider refusal ends the request without exposing a rejected draft. If consent, privacy, admission or result clearing fails, the maintainer withdraws the converter, verifies the held API and public page, and requalifies the affected behavior.",
@@ -481,6 +481,40 @@
           "priorWorkerRestored": true
         },
         "correction": "Request one complete passage per call when the generator truncates a qualifying long draft. Keep the complete group in context and obtain explicit meaning claims, independent review and document certification."
+      },
+      "extendedReview": {
+        "date": "2026-11-28",
+        "policy": {
+          "minimumWords": 500,
+          "minimumBatches": 7,
+          "providerCallLimit": 64
+        },
+        "legacyLongJobCallLimit": 48,
+        "currentMaximumReviewPasses": 3,
+        "legacyMaximumReviewPasses": 2,
+        "ordinaryRequestCallLimit": 32,
+        "previousProductionSmoke": "https://github.com/howardhayden/folio/actions/runs/46123881852",
+        "regularFirefox": {
+          "words": 697,
+          "calls": 43,
+          "previousLimit": 48,
+          "finalGroups": 9,
+          "acceptedGroups": 6,
+          "copiedPassages": 4,
+          "passagesWithMissingUnits": 4,
+          "outputVisible": false,
+          "priorWorkerRestored": true
+        },
+        "secondRegularFirefox": {
+          "words": 697,
+          "calls": 48,
+          "previousLimit": 48,
+          "phase": "reverifying",
+          "failure": "provider_call_limit",
+          "outputVisible": false,
+          "priorWorkerRestored": true
+        },
+        "clientNegotiation": "The current same-origin client advertises three review passes. The incumbent ignores the capability header and supports two passes. Both use the existing provider notice."
       }
     }
   },
@@ -634,6 +668,11 @@
       "path": "docs/release-evidence/text-to-lattice/nov28-passage-source-digests.json",
       "bytes": 22405,
       "sha256": "d87de70d78572ed7f89bb124668017f30549ff1520257026bcb508610b531990"
+    },
+    "finalGroupReviewComparison": {
+      "path": "docs/release-evidence/text-to-lattice/nov28-final-groups-source-digests.json",
+      "bytes": 22405,
+      "sha256": "3a8ac3e443777c4113745e55eab6c92ae10a5da1718a30218cff7484aec71029"
     }
   },
   "qualificationScope": "Safari and Brave supplied the canonical-browser traces for the qualified remote capability. The current production evidence carries those original results through the release owner's one-time source comparison. The last pulled hah.dev deployment and ancestry baseline are recorded in the evidence appendix. The earlier browser-local implementation is historical and inactive.",
@@ -661,10 +700,10 @@
   "ownerDisposition": {
     "status": "release-directed",
     "owner": "site owner",
-    "decidedOn": "2026-11-26",
-    "record": "The owner authorized 48 calls for qualifying long jobs and the Cloudflare clearance-cookie correction, preserving live service throughout rollout. The final visitor check uses regular Firefox. The source and output stay out of release evidence.",
+    "decidedOn": "2026-11-28",
+    "record": "The site owner authorized a ceiling of 64 provider calls for requests of at least 500 words and seven initial groups, plus targeted jobs for the deciding check in the same regular Firefox session. Ordinary visitor admission remains three per browser and 30 globally each UTC day. The release decision requires a visible accepted result. Only counts and outcomes enter release evidence.",
     "note": "The completed one-off reset permits extra ordinary capacity with the 30/3 policy unchanged. Actual usage and rates determine charges. Intermittent upstream refusal and limited output fidelity remain accepted demonstrator risks. Privacy or admission failure requires withdrawal.",
-    "qualifiedSourceSetSha256": "586c7d68e5b19eef0c8fe93ee90db81c8b89b41b681431208959b14cfde79236"
+    "qualifiedSourceSetSha256": "ef4bb01a033343c8af983d072626d4fa3b75f37e3cd4fa2896032e3803e37d3a"
   },
   "implementationBaselineRevision": "b211964213cd49e8335a73bcbebce3221c3a6bc2",
   "statusVocabulary": [
@@ -679,7 +718,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "cb246a3460d051ec2275ede76905480c763303abb8a05cfda0dacf9b6ecd13f3",
+    "qualificationDossierSha256": "f8bfed56d6e1eb369041884a426206f5db00c82d9463746c3b498ad5a032ccda",
     "browserEvidence": {
       "status": "verified-sanitized-bundle",
       "path": "docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json",
@@ -752,7 +791,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "586c7d68e5b19eef0c8fe93ee90db81c8b89b41b681431208959b14cfde79236",
+      "sha256": "ef4bb01a033343c8af983d072626d4fa3b75f37e3cd4fa2896032e3803e37d3a",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, controlling Owner terms and baseline record, license-routing map, package metadata, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -763,13 +802,13 @@
       "authorization": "owner-approved-long-job-and-clearance-20261126",
       "capturedCommit": "6166a3f430338331ca3f0336450e500571cbb896",
       "capturedSourceSetSha256": "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
-      "currentSourceSetSha256": "586c7d68e5b19eef0c8fe93ee90db81c8b89b41b681431208959b14cfde79236",
+      "currentSourceSetSha256": "ef4bb01a033343c8af983d072626d4fa3b75f37e3cd4fa2896032e3803e37d3a",
       "evidenceId": "ttl-browser-20261123T143941Z-a495af12",
       "evidenceSha256": "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
       "proof": {
-        "path": "docs/release-evidence/text-to-lattice/nov28-passage-source-digests.json",
+        "path": "docs/release-evidence/text-to-lattice/nov28-final-groups-source-digests.json",
         "bytes": 22405,
-        "sha256": "d87de70d78572ed7f89bb124668017f30549ff1520257026bcb508610b531990"
+        "sha256": "3a8ac3e443777c4113745e55eab6c92ae10a5da1718a30218cff7484aec71029"
       }
     }
   },
@@ -861,7 +900,7 @@
       "label": "Remote provider capacity and cost boundary",
       "status": "satisfied-in-production",
       "marginalValue": "high",
-      "requirement": "The standard limit is 32 provider calls. A plan with at least 500 words and seven batches permits 48 provider calls. The daily maximum is 1,440 calls. Maximum requested-output exposure is 2,048 per provider call, 98,304 per admitted request, 294,912 per cooperating browser cookie jar per UTC day, and 2,949,120 globally per UTC day. The Worker discards cf_clearance and requires its signed visitor cookie. Analysis calls have a 300-second ceiling. Verification allows 180 seconds. Drafting, certification and repair allow 120 seconds. The Worker enforces a 900-second whole-request deadline. The browser allows 20 minutes for setup, submission and result delivery. The following operating record predates the long-input update. The fixed Hugging Face router sends requests through OpenRouter to the DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets. This release selects Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra and meta-llama/Llama-3.3-70B-Instruct:coreweave. Parasail and Venice remain manual backup choices. Each request uses one selected route with no automatic retry and no alternate provider or model fallback. Backend run 501 remains dated standard DeepInfra-generation evidence and Firefox run 479 remains dated input-behavior evidence. G06 remains open pending the visitor-mode service check and complete Safari and Brave traces on one deployment. The operator restores the held API before held Pages at the end of qualification. Production admissions remain 30 globally and 3 per browser cookie jar each UTC day. Previous Venice requirement follows verbatim as dated history. The manually selected Venice third backup for the same Qwen generator and CoreWeave-qualified Llama verifier/certifier targets uses the fixed Hugging Face router through OpenRouter. DeepInfra remains the standard generator service. Parasail remains the previous manually selected backup. The selected generator is Qwen/Qwen3-235B-A22B-Instruct-2507:venice. Review and certification remain meta-llama/Llama-3.3-70B-Instruct:coreweave. The selection is made in reviewed source. Each request uses only that route with no automatic retry and no alternate provider or model fallback. Backend run 501 remains dated standard DeepInfra-generation evidence and Firefox run 479 remains dated input-behavior evidence. Neither establishes Venice generation success. G06 remains pending. The actual backup service check must pass before interactive qualification, then both actual native browser traces must pass with successful output, privacy and reload evidence in the same deployment. The operator-ended qualification retains the existing per-request and edge limits, lifts both daily admission caps and has no service expiry. The operator restores the held API before held Pages. Ordinary deployment retains 30 global and 3 per browser-cookie-jar daily admissions. Previous Parasail requirement follows verbatim as dated history. The manually selected Parasail backup for the same Qwen generator and CoreWeave-qualified Llama verifier/certifier targets uses the fixed Hugging Face router through OpenRouter. DeepInfra remains the standard generator service. The selected generator is Qwen/Qwen3-235B-A22B-Instruct-2507:parasail; review and certification remain meta-llama/Llama-3.3-70B-Instruct:coreweave. The selection is made in reviewed source. Each request uses only that route with no automatic retry and no alternate provider or model fallback. Backend run 501 remains dated standard DeepInfra-generation evidence and Firefox run 479 remains dated input-behavior evidence. Neither establishes Parasail generation success. G06 remains pending: the actual backup service check must pass before interactive qualification, followed by one successful output, privacy and reload trace from each native Safari and Brave browser in the same deployment. The operator-ended qualification retains the existing per-request and edge limits, lifts both daily admission caps and has no service expiry. The operator restores the held API before held Pages. Ordinary deployment retains 30 global and 3 per browser-cookie-jar daily admissions. Previous standard-generation requirement follows verbatim as dated history. The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets through OpenRouter. Both CoreWeave review stages retain strict json_schema and the existing stopped single-assistant nonempty string-content channel. Only the actual fixed verification and certification adapter stages additionally admit reasoning:null and refusal:null together as one matched pair. tool_calls must be absent or the already permitted empty array. A single null field, substantive metadata, any other auxiliary or unknown key and a nonempty competing call remain rejected. The private frozen stage and exact fixed router/model checks select this rule. Public helper options cannot enable it. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, deadlines, calls, quotas, privacy, no automatic retry and no alternate provider or model fallback remain unchanged. The separate historical Scaleway optional-null rule remains unchanged. Certification support is prospective. Previous strict CoreWeave requirement follows verbatim as dated history. The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets through OpenRouter. Both CoreWeave review stages require strict json_schema and the existing stopped single-assistant nonempty string-content channel, with tool_calls absent or the already permitted empty array. Auxiliary metadata, including reasoning:null and refusal:null, is rejected by this baseline. The historical DeepInfra joint-null exception and separate Scaleway optional-null rule remain scoped to their original providers and are not enabled for CoreWeave. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, deadlines, calls, quotas, privacy, no automatic retry and no alternate provider or model fallback remain unchanged. Previous DeepInfra requirement follows verbatim as dated history. The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and DeepInfra-qualified Llama verifier/certifier targets through OpenRouter. The reviewed outer-envelope rule applies only to the actual fixed DeepInfra Llama verification and certification adapter stages with strict json_schema, one stopped assistant response and one nonempty string content channel. It additionally admits reasoning:null and refusal:null only as a matched pair. tool_calls must be absent or the already permitted empty array. A single null field, substantive metadata, another auxiliary key, an unknown key or any nonempty competing call remains rejected. The separate Scaleway exception remains unchanged. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, caps, deadlines and no-fallback policy remain unchanged. Certification support is prospective. The complete preceding requirement follows verbatim as dated history where superseded. Owner-approved DeepInfra review-role change, 2026-11-20: the fixed Hugging Face router uses DeepInfra-qualified Qwen generator and DeepInfra-qualified Llama verifier/certifier targets through OpenRouter. Both review stages retain strict json_schema, the existing stopped single assistant nonempty string-content profile with optional empty tool_calls, and disabled Scaleway-only optional-null flags. Unknown, substantive, competing or null metadata fields remain rejected. The provider suffix does not authorize fallback. Prompts, fitted schemas, wire/host/semantic checks, output and byte ceilings, deadlines, calls, quotas, no automatic retry and no alternate provider or model fallback remain unchanged. Authenticated routing, full fitted-schema support, managed tokenization/input fit, billing and behavior are unproved until bounded production evidence exists. The bodyless visitor-session setup must make no quota claim and no provider call. A content request with no cookie must fail 428 visitor_session_required, while one with an invalid, tampered, or undeclared cookie must fail 403 invalid_request, before Durable Object admission or provider work in either case. After exact content-request validation and before provider work, the deployed API must make exactly one atomic admission claim and accept at most 30 transformations globally per UTC day and 3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day. Intentional cookie clearing and uncooperative callers remain outside the per-browser identity claim; the global 30-per-day counter remains exact and authoritative. An admitted attempt counts even if its caller disconnects or provider work later fails; it is never refunded and encounters no second shared quota claim within its pipeline. Quota identity and state use no IP address, browser fingerprint, submitted content, or result. Each admitted request permits at most 32 provider calls, so admitted requests expose at most 960 provider calls per UTC day. The path-scoped Worker rate limiter remains a 30-per-60-second edge shaper. Analysis, candidate, certification, and repair calls must each be bounded to 120 seconds, verification to 180 seconds, and the authoritative whole request to 240 seconds so it may end any stage sooner; response size remains bounded, with no paid or generic proxy path and no promise of provider rate, retention, availability, or cost behavior. Preserve the 2,048-token verifier and 520-token certifier. Analysis, candidate, certification, and repair calls have 120-second ceilings; verification has a 180-second ceiling. Requested-output exposure is at most 2,048 requested output tokens per provider call. Requested-output exposure is at most 65,536 requested output tokens per admitted request. Requested-output exposure is at most 196,608 requested output tokens per cooperating ordinary persistent browser cookie jar per UTC day. Requested-output exposure is at most 1,966,080 requested output tokens globally per UTC day. The unchanged 240-second whole-request deadline bounds the complete admitted pipeline.",
+      "requirement": "The standard limit is 32 provider calls. A plan with at least 500 words and seven batches permits 64 provider calls. The daily maximum is 1,920 calls. Maximum requested-output exposure is 2,048 per provider call, 131,072 per admitted request, 393,216 per cooperating browser cookie jar per UTC day, and 3,932,160 globally per UTC day. The Worker discards cf_clearance and requires its signed visitor cookie. Analysis calls have a 300-second ceiling. Verification allows 180 seconds. Drafting, certification and repair allow 120 seconds. The Worker enforces a 900-second whole-request deadline. The browser allows 20 minutes for setup, submission and result delivery. The following operating record predates the long-input update. The fixed Hugging Face router sends requests through OpenRouter to the DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets. This release selects Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra and meta-llama/Llama-3.3-70B-Instruct:coreweave. Parasail and Venice remain manual backup choices. Each request uses one selected route with no automatic retry and no alternate provider or model fallback. Backend run 501 remains dated standard DeepInfra-generation evidence and Firefox run 479 remains dated input-behavior evidence. G06 remains open pending the visitor-mode service check and complete Safari and Brave traces on one deployment. The operator restores the held API before held Pages at the end of qualification. Production admissions remain 30 globally and 3 per browser cookie jar each UTC day. Previous Venice requirement follows verbatim as dated history. The manually selected Venice third backup for the same Qwen generator and CoreWeave-qualified Llama verifier/certifier targets uses the fixed Hugging Face router through OpenRouter. DeepInfra remains the standard generator service. Parasail remains the previous manually selected backup. The selected generator is Qwen/Qwen3-235B-A22B-Instruct-2507:venice. Review and certification remain meta-llama/Llama-3.3-70B-Instruct:coreweave. The selection is made in reviewed source. Each request uses only that route with no automatic retry and no alternate provider or model fallback. Backend run 501 remains dated standard DeepInfra-generation evidence and Firefox run 479 remains dated input-behavior evidence. Neither establishes Venice generation success. G06 remains pending. The actual backup service check must pass before interactive qualification, then both actual native browser traces must pass with successful output, privacy and reload evidence in the same deployment. The operator-ended qualification retains the existing per-request and edge limits, lifts both daily admission caps and has no service expiry. The operator restores the held API before held Pages. Ordinary deployment retains 30 global and 3 per browser-cookie-jar daily admissions. Previous Parasail requirement follows verbatim as dated history. The manually selected Parasail backup for the same Qwen generator and CoreWeave-qualified Llama verifier/certifier targets uses the fixed Hugging Face router through OpenRouter. DeepInfra remains the standard generator service. The selected generator is Qwen/Qwen3-235B-A22B-Instruct-2507:parasail; review and certification remain meta-llama/Llama-3.3-70B-Instruct:coreweave. The selection is made in reviewed source. Each request uses only that route with no automatic retry and no alternate provider or model fallback. Backend run 501 remains dated standard DeepInfra-generation evidence and Firefox run 479 remains dated input-behavior evidence. Neither establishes Parasail generation success. G06 remains pending: the actual backup service check must pass before interactive qualification, followed by one successful output, privacy and reload trace from each native Safari and Brave browser in the same deployment. The operator-ended qualification retains the existing per-request and edge limits, lifts both daily admission caps and has no service expiry. The operator restores the held API before held Pages. Ordinary deployment retains 30 global and 3 per browser-cookie-jar daily admissions. Previous standard-generation requirement follows verbatim as dated history. The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets through OpenRouter. Both CoreWeave review stages retain strict json_schema and the existing stopped single-assistant nonempty string-content channel. Only the actual fixed verification and certification adapter stages additionally admit reasoning:null and refusal:null together as one matched pair. tool_calls must be absent or the already permitted empty array. A single null field, substantive metadata, any other auxiliary or unknown key and a nonempty competing call remain rejected. The private frozen stage and exact fixed router/model checks select this rule. Public helper options cannot enable it. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, deadlines, calls, quotas, privacy, no automatic retry and no alternate provider or model fallback remain unchanged. The separate historical Scaleway optional-null rule remains unchanged. Certification support is prospective. Previous strict CoreWeave requirement follows verbatim as dated history. The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and CoreWeave-qualified Llama verifier/certifier targets through OpenRouter. Both CoreWeave review stages require strict json_schema and the existing stopped single-assistant nonempty string-content channel, with tool_calls absent or the already permitted empty array. Auxiliary metadata, including reasoning:null and refusal:null, is rejected by this baseline. The historical DeepInfra joint-null exception and separate Scaleway optional-null rule remain scoped to their original providers and are not enabled for CoreWeave. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, deadlines, calls, quotas, privacy, no automatic retry and no alternate provider or model fallback remain unchanged. Previous DeepInfra requirement follows verbatim as dated history. The fixed Hugging Face router uses DeepInfra-qualified Qwen generator and DeepInfra-qualified Llama verifier/certifier targets through OpenRouter. The reviewed outer-envelope rule applies only to the actual fixed DeepInfra Llama verification and certification adapter stages with strict json_schema, one stopped assistant response and one nonempty string content channel. It additionally admits reasoning:null and refusal:null only as a matched pair. tool_calls must be absent or the already permitted empty array. A single null field, substantive metadata, another auxiliary key, an unknown key or any nonempty competing call remains rejected. The separate Scaleway exception remains unchanged. Content bytes, fitted schemas, wire decoding, deterministic host checks, independent semantic judgment, caps, deadlines and no-fallback policy remain unchanged. Certification support is prospective. The complete preceding requirement follows verbatim as dated history where superseded. Owner-approved DeepInfra review-role change, 2026-11-20: the fixed Hugging Face router uses DeepInfra-qualified Qwen generator and DeepInfra-qualified Llama verifier/certifier targets through OpenRouter. Both review stages retain strict json_schema, the existing stopped single assistant nonempty string-content profile with optional empty tool_calls, and disabled Scaleway-only optional-null flags. Unknown, substantive, competing or null metadata fields remain rejected. The provider suffix does not authorize fallback. Prompts, fitted schemas, wire/host/semantic checks, output and byte ceilings, deadlines, calls, quotas, no automatic retry and no alternate provider or model fallback remain unchanged. Authenticated routing, full fitted-schema support, managed tokenization/input fit, billing and behavior are unproved until bounded production evidence exists. The bodyless visitor-session setup must make no quota claim and no provider call. A content request with no cookie must fail 428 visitor_session_required, while one with an invalid, tampered, or undeclared cookie must fail 403 invalid_request, before Durable Object admission or provider work in either case. After exact content-request validation and before provider work, the deployed API must make exactly one atomic admission claim and accept at most 30 transformations globally per UTC day and 3 per cooperating canonical client with an ordinary persistent browser cookie jar per UTC day. Intentional cookie clearing and uncooperative callers remain outside the per-browser identity claim; the global 30-per-day counter remains exact and authoritative. An admitted attempt counts even if its caller disconnects or provider work later fails; it is never refunded and encounters no second shared quota claim within its pipeline. Quota identity and state use no IP address, browser fingerprint, submitted content, or result. Each admitted request permits at most 32 provider calls, so admitted requests expose at most 960 provider calls per UTC day. The path-scoped Worker rate limiter remains a 30-per-60-second edge shaper. Analysis, candidate, certification, and repair calls must each be bounded to 120 seconds, verification to 180 seconds, and the authoritative whole request to 240 seconds so it may end any stage sooner; response size remains bounded, with no paid or generic proxy path and no promise of provider rate, retention, availability, or cost behavior. Preserve the 2,048-token verifier and 520-token certifier. Analysis, candidate, certification, and repair calls have 120-second ceilings; verification has a 180-second ceiling. Requested-output exposure is at most 2,048 requested output tokens per provider call. Requested-output exposure is at most 65,536 requested output tokens per admitted request. Requested-output exposure is at most 196,608 requested output tokens per cooperating ordinary persistent browser cookie jar per UTC day. Requested-output exposure is at most 1,966,080 requested output tokens globally per UTC day. The unchanged 240-second whole-request deadline bounds the complete admitted pipeline.",
       "currentEvidence": "Deterministic source contracts bound per-visitor and global admission, lease lifetime, retry behavior, row lifecycle, and fail-closed provider errors. Under the public reusable testing token, however, one client can use the permitted 16-request acquisition sequence to fill all eight slots and renew them; the 48-per-10-second per-IP rule does not stop that sequence. The controls bound cost, state, and privacy consequence, not tool availability, and source cannot establish live provider capacity.",
       "historicalInactiveRecord": {
         "status": "historical-inactive",
@@ -1172,8 +1211,8 @@
         "usesIpAddress": false,
         "usesBrowserFingerprint": false,
         "storesSubmittedContentOrResult": false,
-        "maximumProviderCallsPerAdmittedRequest": 48,
-        "maximumProviderCallsFromAdmittedRequestsPerUtcDay": 1440
+        "maximumProviderCallsPerAdmittedRequest": 64,
+        "maximumProviderCallsFromAdmittedRequestsPerUtcDay": 1920
       },
       "provider": {
         "endpoint": "https://router.huggingface.co/v1/chat/completions",
@@ -1187,7 +1226,7 @@
           "repair": 120000
         },
         "maximumCallTimeoutMs": 300000,
-        "callLimit": 48,
+        "callLimit": 64,
         "stageMaximumOutputTokens": {
           "analysis": 2048,
           "candidate": 800,
@@ -1196,9 +1235,9 @@
           "repair": 800
         },
         "maximumRequestedOutputTokensPerCall": 2048,
-        "maximumRequestedOutputTokensPerAdmittedRequest": 98304,
-        "maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay": 2949120,
-        "maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay": 294912,
+        "maximumRequestedOutputTokensPerAdmittedRequest": 131072,
+        "maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay": 3932160,
+        "maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay": 393216,
         "responseByteLimit": 262144,
         "contentCharacterLimit": 128000,
         "revisionStatus": "provider-managed-not-byte-pinned",
@@ -1215,7 +1254,7 @@
         "longJobPolicy": {
           "minimumWords": 500,
           "minimumBatches": 7,
-          "providerCallLimit": 48
+          "providerCallLimit": 64
         },
         "earlierDisclosureGenerator": "Qwen/Qwen3-235B-A22B-Instruct-2507:parasail"
       },

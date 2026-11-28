@@ -187,12 +187,12 @@ function validateLifecycleGateContract(productionBoundaryGate, providerCapacityG
     /analysis calls have a 300-second ceiling/iu,
     /900-second (?:whole-|outer )?request/iu,
     /32 provider calls/iu,
-    /48 provider calls/iu,
-    /1,440/iu,
+    /64 provider calls/iu,
+    /1,920/iu,
     /(?:2,048-token verifier|verifier (?:stage )?maximum[^.]*2,048 tokens|verification[^.]*2,048-token)/iu,
     /520-token certifier/iu,
-    /requested-output exposure[^.]*98,304(?: requested output tokens)? per admitted request/iu,
-    /requested-output exposure[^.]*2,949,120(?: requested output tokens)? (?:global(?:ly)?|across[^.]*global)[^.]*UTC day/iu,
+    /requested-output exposure[^.]*131,072(?: requested output tokens)? per admitted request/iu,
+    /requested-output exposure[^.]*3,932,160(?: requested output tokens)? (?:global(?:ly)?|across[^.]*global)[^.]*UTC day/iu,
     /path-scoped (?:Worker )?rate limiter/iu,
     /response (?:bytes|size)/iu,
     /provider (?:quota|rate|retention|availability|cost)/iu,
@@ -633,8 +633,8 @@ function validateReleaseGateProjection(data, releaseRegister) {
     || activeCapability?.admission?.usesIpAddress !== false
     || activeCapability?.admission?.usesBrowserFingerprint !== false
     || activeCapability?.admission?.storesSubmittedContentOrResult !== false
-    || activeCapability?.admission?.maximumProviderCallsPerAdmittedRequest !== 48
-    || activeCapability?.admission?.maximumProviderCallsFromAdmittedRequestsPerUtcDay !== 1_440
+    || activeCapability?.admission?.maximumProviderCallsPerAdmittedRequest !== 64
+    || activeCapability?.admission?.maximumProviderCallsFromAdmittedRequestsPerUtcDay !== 1_920
     || activeProvider?.endpoint !== "https://router.huggingface.co/v1/chat/completions"
     || activeProvider?.verificationEndpoint !== "https://router.huggingface.co/v1/chat/completions"
     || activeProvider?.verificationRequestModel !== "meta-llama/Llama-3.3-70B-Instruct:coreweave"
@@ -662,10 +662,10 @@ function validateReleaseGateProjection(data, releaseRegister) {
       repair: 800,
     })
     || activeProvider?.maximumRequestedOutputTokensPerCall !== 2_048
-    || activeProvider?.maximumRequestedOutputTokensPerAdmittedRequest !== 98_304
-    || activeProvider?.maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay !== 2_949_120
+    || activeProvider?.maximumRequestedOutputTokensPerAdmittedRequest !== 131_072
+    || activeProvider?.maximumRequestedOutputTokensFromAdmittedRequestsPerUtcDay !== 3_932_160
     || activeProvider?.maximumRequestedOutputTokensFromOneCooperatingBrowserCookieJarPerUtcDay
-      !== 294_912
+      !== 393_216
     || activeProvider?.revisionStatus !== "provider-managed-not-byte-pinned"
     || activeProvider?.historicalByteEquivalenceEstablished !== false
     || activeCapability?.automaticRetry !== false

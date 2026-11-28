@@ -1,4 +1,4 @@
-import { LATTICE_PROCESSING_NOTICE, LATTICE_PROCESSING_NOTICE_HEADER, LATTICE_VISITOR_SESSION_ACCEPT } from "../resume/lattice/remoteProtocol.js";
+import { LATTICE_PROCESSING_NOTICE, LATTICE_PROCESSING_NOTICE_HEADER, LATTICE_REVIEW_PASSES_HEADER, LATTICE_VISITOR_SESSION_ACCEPT } from "../resume/lattice/remoteProtocol.js";
 import { LATTICE_SERVICE_EVENTS_MIME } from "../resume/lattice/serviceTelemetry.js";
 
 const TEXT_TO_LATTICE_CAPABILITY = Object.freeze({
@@ -221,6 +221,7 @@ export async function capabilityFetch(
           Accept: new Headers(headers).get("accept").toLowerCase(),
           "Content-Type": "application/json",
           [LATTICE_PROCESSING_NOTICE_HEADER]: LATTICE_PROCESSING_NOTICE,
+          [LATTICE_REVIEW_PASSES_HEADER]: "3",
         }),
     ...(operation === "content" ? { body } : {}),
     signal,
