@@ -766,6 +766,75 @@ test("residual copied passages get individual work only above the final review r
   }
 });
 
+test("paired long-job drafts still require a separate independent review for every group", async () => {
+  const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "u" + i + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  for (const mode of ["old-client", "complete", "one-invalid"]) {
+    const reviews = [];
+    let pairs = 0, singles = 0, certificates = 0;
+    const adapter = scriptedAdapter({
+      generate() { singles++; },
+      verify(r) { reviews.push(r.batch.id); },
+      certify() { certificates++; },
+    });
+    adapter.generatePair = async (first, second) => {
+      pairs++;
+      return [rawCandidate(first), mode === "one-invalid" && pairs === 1 ? {} : rawCandidate(second)];
+    };
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: mode === "old-client" ? 48 : 64, allowClarification: false });
+    assert.equal(result.status, "translated");
+    assert.deepEqual(reviews, plan.batches.map(batch => batch.id));
+    assert.equal(certificates, 1);
+    assert.equal(pairs, mode === "old-client" ? 0 : Math.floor(plan.batches.length / 2));
+    assert.equal(singles, mode === "old-client" ? plan.batches.length : plan.batches.length % 2 + Number(mode === "one-invalid"));
+  }
+  const controller = new AbortController();
+  const canceled = scriptedAdapter();
+  canceled.generatePair = async (first, second) => {
+    controller.abort();
+    return [rawCandidate(first), rawCandidate(second)];
+  };
+  await assert.rejects(executeLatticePlan(plan, { adapter: canceled, providerCallLimit: 64, signal: controller.signal }),
+    error => error.name === "AbortError");
+  assert.equal(canceled.calls.verify, 0);
+  assert.equal(canceled.calls.generate, 0);
+});
+
+test("a residual long-job correction groups two copied passages and adopts only checked replacements", async () => {
+  const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  for (const fixed of [true, false]) {
+    let repairs = 0, reviews = 0, grouped = 0, certificates = 0;
+    const adapter = scriptedAdapter({
+      repair(r) {
+        if (r.batch !== plan.batches[0]) return;
+        const draft = rawCandidate(r);
+        if (++repairs <= 2) {
+          for (const i of [0, 1]) draft.passages[i].text = r.batch.passages[i].text;
+        } else {
+          grouped++;
+          assert.deepEqual(r.deterministicFindings.map(f => f.passageId), r.batch.passages.slice(0, 2).map(p => p.id));
+          if (!fixed) draft.passages[1].text = r.batch.passages[1].text;
+          draft.passages[2].text = r.batch.passages[2].text;
+        }
+        return draft;
+      },
+      verify(r) {
+        if (r.batch !== plan.batches[0]) return;
+        if (++reviews === 1) return rawVerification(r, { gates: { clarity: false } });
+        assert.notEqual(r.candidate.passages[2].text, r.batch.passages[2].text);
+      },
+      certify() { certificates++; },
+    });
+    adapter.completionCapacity = () => ({ remaining: grouped ? 5 : 10 });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 64, allowClarification: false });
+    assert.equal(grouped, 1);
+    assert.equal(reviews, 2);
+    assert.equal(certificates, fixed ? 1 : 0);
+    assert.equal(result.status, fixed ? "translated" : "unable-to-attempt");
+  }
+});
+
 test("a final recheck adjudicates two conflicting replies on the same candidate only with capacity", async () => {
   const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });

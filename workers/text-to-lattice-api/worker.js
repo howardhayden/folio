@@ -83,6 +83,8 @@ import {
 export const LATTICE_API_ORIGIN = "https://hah.dev";
 export { LATTICE_API_PATH, LATTICE_API_SCHEMA_VERSION };
 export { LATTICE_API_REQUEST_TIMEOUT_MS };
+// This deployment can make 50 external fetches per incoming Worker request.
+export const LATTICE_EDGE_EXTERNAL_CALL_LIMIT = 50;
 export const LATTICE_API_REQUEST_BYTE_LIMIT = 65_536;
 export const LATTICE_API_RESPONSE_BYTE_LIMIT = 262_144;
 export const LATTICE_API_RATE_LIMIT_KEY = "text-to-lattice:transform";
@@ -1098,6 +1100,7 @@ export function createLatticeApiWorker({
             // Keep an already-open tab on the route disclosed when it loaded.
             useParasailGenerator: processingNotice === LATTICE_PARASAIL_PROCESSING_NOTICE,
             providerCallLimit,
+            outboundCallLimit: Math.min(providerCallLimit, LATTICE_EDGE_EXTERNAL_CALL_LIMIT),
             requestedMode: payload.requested_mode,
             fetchImpl,
             observeQualificationHttpHeaders: qualificationDiagnosticRequested,

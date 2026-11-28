@@ -3400,17 +3400,20 @@ function documentBoundaryRepairTargets(source, passages, assembly) {
 
 // Use remaining long-job capacity only on passages still failing a genuine
 // copy check, before submitting the final group for independent review.
-async function repairResidualCopies(entry, adapter, reserve, signal) {
+async function repairResidualCopies(entry, adapter, reserve, signal, groupTargets) {
   const { analysis, batch } = entry;
   let candidate = entry.candidate;
   const findings = deterministicBatchReview(batch, analysis, candidate);
   if (!findings.length || findings.some(f => deterministicFindingRule(f) !== "D14")) return candidate;
-  for (const finding of findings) {
+  // One group request can correct several known copies. Each replacement
+  // still has to pass its own checks, and neighbors keep their existing draft.
+  const groups = groupTargets ? [findings] : findings.map(finding => [finding]);
+  for (const targets of groups) {
     const remaining = adapter.completionCapacity?.()?.remaining;
     if (!Number.isSafeInteger(remaining) || remaining <= reserve) break;
     throwIfAborted(signal);
-    const { passageId } = finding;
-    const repair = Object.freeze({ ...entry, candidate, deterministicFindings: Object.freeze([finding]),
+    const affected = new Set(targets.map(finding => finding.passageId));
+    const repair = Object.freeze({ ...entry, candidate, deterministicFindings: Object.freeze(targets),
       verification: null, repairFromSource: true, correctCopiedLongDraft: true });
     let proposed;
     try { proposed = normalizeCandidate(await adapter.repair(repair), batch, analysis); }
@@ -3419,10 +3422,11 @@ async function repairResidualCopies(entry, adapter, reserve, signal) {
       if (!retryableStageFailure(error)) throw error;
       continue;
     }
-    const index = batch.passages.findIndex(p => p.id === passageId);
-    const replacement = proposed.passages[index];
-    if (deterministicPassageReview(batch.passages[index], analysis.passages[index], replacement).length) continue;
-    candidate = Object.freeze({ passages: Object.freeze(candidate.passages.map((p, i) => i === index ? replacement : p)) });
+    candidate = Object.freeze({ passages: Object.freeze(candidate.passages.map((passage, i) => {
+      if (!affected.has(passage.passageId)) return passage;
+      const replacement = proposed.passages[i];
+      return deterministicPassageReview(batch.passages[i], analysis.passages[i], replacement).length ? passage : replacement;
+    })) });
   }
   return candidate;
 }
@@ -3933,6 +3937,25 @@ export async function executeLatticePlan(preflight, options) {
   }));
   const qualifyingLongJob = isLatticeLongJobCallLimit(options.providerCallLimit)
     && latticeProviderCallLimitForPlan(preflight) === LATTICE_LONG_JOB_POLICY.providerCallLimit;
+  const pairDrafts = qualifyingLongJob && options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
+    && typeof options.adapter.generatePair === "function";
+  let nextDraft = null;
+  const generateInitial = async (request, index) => {
+    if (!request.protocolFeedback && nextDraft?.entry === analyses[index]) {
+      const { draft } = nextDraft;
+      nextDraft = null;
+      return draft;
+    }
+    const following = analyses[index + 1];
+    if (pairDrafts && !request.protocolFeedback && following) {
+      const pair = await options.adapter.generatePair(request, following);
+      if (pair) {
+        nextDraft = { entry: following, draft: pair[1] };
+        return pair[0];
+      }
+    }
+    return options.adapter.generate(request);
+  };
   let candidates = [];
   const repairLongDraft = qualifyingLongJob ? (currentRequest, previousDraft, findings) => {
     const copied = findings.some(finding => deterministicFindingRule(finding) === "D14");
@@ -3960,7 +3983,7 @@ export async function executeLatticePlan(preflight, options) {
         request,
         repairLongDraft: useSourceDraft ? null : repairLongDraft,
         repairInitialCopies: options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit,
-        invoke: useSourceDraft ? exactSourceCandidate : (currentRequest) => options.adapter.generate(currentRequest),
+        invoke: useSourceDraft ? exactSourceCandidate : (currentRequest) => generateInitial(currentRequest, index),
         normalize: (raw) => normalizeCandidate(raw, request.batch, request.analysis),
         signal,
       });
@@ -4393,7 +4416,7 @@ export async function executeLatticePlan(preflight, options) {
           candidate = await repairResidualCopies({ ...retryRequest, candidate,
             ...(!retryRequest.regenerationFromReanalysis && original.verification.available
               ? { priorReviewedDraft: { candidate: original.candidate, verification: original.verification } } : {}) },
-          options.adapter, reserve, signal);
+          options.adapter, reserve, signal, options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit);
         }
         const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate, pipelineObservation !== null);
         pipelineObservation?.candidateLineages.set(candidate, stage);

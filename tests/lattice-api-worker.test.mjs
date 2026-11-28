@@ -2084,6 +2084,72 @@ test("one copied ordinary passage can choose a complete explicitly covered alter
   }
 });
 
+test("paired initial drafts share one fetch and preserve each original group's evidence and claims", async () => {
+  const base = minimalVerificationRequest();
+  const first = { ...base, candidate: undefined, sourceFingerprint: "same-document" };
+  const source = { ...base.batch.passages[0], id: "p002" };
+  const batch = { ...base.batch, passages: [source] };
+  const second = { ...first, batch, sourceSpans: latticeSourceSpansForBatch(batch),
+    analysis: { ...base.analysis, passages: [{ ...base.analysis.passages[0], passageId: source.id,
+      atoms: [{ ...base.analysis.passages[0].atoms[0], id: "second-group-atom" }] }] } };
+  const firstId = first.batch.passages[0].id;
+  for (const scenario of ["valid", "missing-coverage", "foreign-key", "wrong-layout"]) {
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 64, fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      const { groups } = inertModelPayload(body);
+      assert.deepEqual(groups.map(group => group.wholePassages), [[firstId], [source.id]]);
+      assert.equal(body.max_tokens, 800);
+      const wording = base.candidate.passages[0].text;
+      const result = {
+        [firstId]: [{ wording, coverage: scenario === "missing-coverage" ? "0" : "1" }, { wording: source.text, coverage: "1" }],
+        [source.id]: [{ wording, coverage: "1" }, { wording: source.text, coverage: "1" }],
+      };
+      if (scenario === "foreign-key") result.unknown = [];
+      if (scenario === "wrong-layout") result[firstId] = [];
+      return successfulProviderResponse(result);
+    } });
+    assert.equal(await adapter.generatePair(first, { ...second, sourceFingerprint: "other-document" }), null);
+    assert.equal(await adapter.generatePair(first, first), null);
+    assert.equal(await adapter.generatePair(first, { ...second, signal: new AbortController().signal }), null);
+    assert.equal(adapter.completionCapacity().used, 0);
+    const [left, right] = await adapter.generatePair(first, second);
+    assert.equal(adapter.completionCapacity().used, 1);
+    if (scenario === "foreign-key") { assert.deepEqual([left, right], [{}, {}]); continue; }
+    assert.deepEqual(right.passages[0].preservedAtomIds, ["second-group-atom"]);
+    assert.equal(deterministicBatchReview(second.batch, second.analysis, right).length, 0);
+    if (scenario === "wrong-layout") assert.deepEqual(left, {});
+    else assert.equal(deterministicBatchReview(first.batch, first.analysis, left).length === 0, scenario === "valid");
+  }
+  const measured = [];
+  const admission = { token: "fixture", providerCallLimit: 64, fetchImpl: async (_url, init) => {
+    measured.push(Buffer.byteLength(init.body));
+    return successfulProviderResponse({});
+  } };
+  const measuring = createHuggingFaceLatticeAdapter(admission);
+  await measuring.generate(first);
+  await measuring.generate(second);
+  await measuring.generatePair(first, second);
+  const maximumRequestBytes = Math.max(measured[0], measured[1]);
+  assert.ok(maximumRequestBytes < measured[2]);
+  measured.length = 0;
+  const bounded = createHuggingFaceLatticeAdapter({ ...admission, maximumRequestBytes });
+  assert.equal(await bounded.generatePair(first, second), null);
+  assert.equal(measured.length, 0);
+  await bounded.generate(first);
+  await bounded.generate(second);
+  assert.equal(measured.length, 2);
+  let calls = 0;
+  const truncated = createHuggingFaceLatticeAdapter({ ...admission, fetchImpl: async () => {
+    if (++calls === 1) return providerChoiceResponse({ finish_reason: "length", message: { role: "assistant", content: "{" } });
+    return successfulProviderResponse({});
+  } });
+  assert.equal(await truncated.generatePair(first, second), null);
+  await truncated.generate(first);
+  await truncated.generate(second);
+  assert.equal(calls, 3);
+  assert.equal(truncated.completionCapacity().used, calls);
+});
+
 test("a truncated long draft recovers whole passages with explicit coverage and no partial result", async () => {
   const base = minimalVerificationRequest();
   const passages = [1, 2].map(i => ({ ...base.batch.passages[0], id: "p00" + i }));
@@ -2253,13 +2319,13 @@ test("long review capacity negotiates independently of the processing notice", a
   ]) {
     let selected;
     const worker = createLatticeApiWorker({
-      createAdapter(options) { selected = options.providerCallLimit; return {}; },
+      createAdapter(options) { selected = [options.providerCallLimit, options.outboundCallLimit]; return {}; },
       async runTextToLatticeImpl() { return validLatticeResult(); },
     });
     const response = await worker.fetch(apiRequest({ ...validPayload, text }, { processingNotice, reviewPasses }),
       { HF_TOKEN: "fixture" });
     assert.equal(response.status, 200);
-    assert.equal(selected, limit);
+    assert.deepEqual(selected, [limit, Math.min(limit, 50)]);
   }
 });
 
@@ -7910,12 +7976,13 @@ test("long-job capacity requires both word count and planned batch thresholds", 
   }
 });
 
-for (const limit of [32, 48, 64]) {
+for (const limit of [32, 48, 50, 64]) {
   test("adapter stops before the first fetch over its " + limit + "-call budget", async () => {
     let fetches = 0;
     const adapter = createHuggingFaceLatticeAdapter({
       token: "server-token",
-      ...(limit === 32 ? {} : { providerCallLimit: limit }),
+      ...(limit === 50 ? { providerCallLimit: 64, outboundCallLimit: 50 }
+        : limit === 32 ? {} : { providerCallLimit: limit }),
       fetchImpl: async () => {
         fetches += 1;
         return successfulProviderResponse({ d: "instruction", p: [], q: [] });

@@ -399,26 +399,33 @@ function priorDraftFeedbackForModel(request) {
   return prior ? { candidate: rejectedCandidateForRepair(prior.candidate), feedback: verificationFeedbackForModel(prior.verification) } : null;
 }
 
-export function editableFrameRepairMessages(frames, request) {
+function frameDraftPayload(frames, request) {
   const wholeIds = new Set(frames.filter(frame => !frame.slot).map(frame => frame.id));
   const prior = priorDraftFeedbackForModel(request);
+  return {
+    frames: frames.map(({ id, source, plan, slot, choiceCount }) => [
+      id, plan.layer, slot?.before ?? "", slot?.editable ?? source.text, slot?.after ?? "",
+      plan.atoms.map(atom => [atom.kind, atom.value]), plan.discourseFunction, plan.rationale, choiceCount,
+    ]),
+    wholePassages: [...wholeIds],
+    ...(!request.candidate && frames.some(frame => !frame.slot && frame.choiceCount === 2)
+      ? { wholePassageAlternatives: "Write the same meaning in two distinct ways. First change the main verb or its grammatical framing. Then change the clause structure. Keep the exact names, quoted speech, viewpoint, chronology and commitments in both." } : {}),
+    ...(request.documentBoundaryMoves?.length ? { documentBoundaryMoves: request.documentBoundaryMoves.slice(0, 12) } : {}),
+    ...(wholeIds.size ? { wholePassageSources: repairSourcePassagesForModel(request).filter(([id]) => wholeIds.has(id)) } : {}),
+    ...(prior ? { previouslyReviewed: prior } : {}),
+    sourceBoundaries: sourceBoundariesForModel(request),
+    documentLedger: documentLedgerForModel(request.documentLedger),
+    ...(request.context ? { context: contextForModel(request.context) } : {}),
+  };
+}
+
+export function editableFrameRepairMessages(frames, request, secondGroup = null) {
+  const first = frameDraftPayload(frames, request);
+  const payload = secondGroup ? { groups: [first, frameDraftPayload(secondGroup.frames, secondGroup.request)] } : first;
   return messages(
     "Write the editable language of each passage in its assigned register. The host keeps the fixed surrounding text.",
-    {
-      frames: frames.map(({ id, source, plan, slot, choiceCount }) => [
-        id, plan.layer, slot?.before ?? "", slot?.editable ?? source.text, slot?.after ?? "",
-        plan.atoms.map(atom => [atom.kind, atom.value]), plan.discourseFunction, plan.rationale, choiceCount,
-      ]),
-      wholePassages: [...wholeIds],
-      ...(!request.candidate && frames.some(frame => !frame.slot && frame.choiceCount === 2)
-        ? { wholePassageAlternatives: "Write the same meaning in two distinct ways. First change the main verb or its grammatical framing. Then change the clause structure. Keep the exact names, quoted speech, viewpoint, chronology and commitments in both." } : {}),
-      ...(request.documentBoundaryMoves?.length ? { documentBoundaryMoves: request.documentBoundaryMoves.slice(0, 12) } : {}),
-      ...(wholeIds.size ? { wholePassageSources: repairSourcePassagesForModel(request).filter(([id]) => wholeIds.has(id)) } : {}),
-      ...(prior ? { previouslyReviewed: prior } : {}),
-      sourceBoundaries: sourceBoundariesForModel(request),
-      documentLedger: documentLedgerForModel(request.documentLedger),
-      ...(request.context ? { context: contextForModel(request.context) } : {}),
-    },
+    payload,
+    (secondGroup ? "The two groups belong to one document. Use each group's own source, meaning units, context and ledger. Return one object keyed by passage ID across both groups. Never move content between passages. " : "") +
     "Each frame is [ID, register, fixed before, editable wording, fixed after, ordered meaning units, discourse function, plan, number of alternatives]. For a quoted frame, read the whole sentence. Return two natural alternatives for the editable wording only. In the first, replace the reporting verb or other principal predicate with an equivalent expression; in the second, recast the clause structure. Keep its speaker, addressee, intensity, manner, time, question and line. Keep the quotation on the same side. Neither alternative should simply copy the editable words or add detail. For a wholePassages ID, write complete prose from its ordered meaning units. Recast the clause structure in its selected register. Preserve each substantive detail, designated literal in wholePassageSources, and boundary. Return exactly the requested number of alternatives; when two are requested, give genuinely different constructions. PreviouslyReviewed, when present, reports findings on the paired earlier candidate only. Address its grounded omissions or errors in the fresh wording. In every alternative, coverage is one bit per listed meaning unit in order. Set a bit to 1 only if that unit is genuinely preserved by the reconstructed passage, including its fixed text. Mark any missing or uncertain unit 0." + (request.documentBoundaryMoves?.length ? DOCUMENT_BOUNDARY_REPAIR_GUIDE : ""),
   );
 }

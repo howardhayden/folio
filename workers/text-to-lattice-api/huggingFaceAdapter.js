@@ -853,13 +853,13 @@ function fitDraftFrames(request, stageName, includeWholeDrafts) {
       from !== id && to === id ? [word] : []);
     frames.push({ id, source, plan, slot, foreignWords });
   }
-  // A compact first draft can afford two renderings in the same call. Reserve
-  // the larger response for the prose itself when the group exceeds that fit.
-  const compactFirstDraft = initial && includeWholeDrafts
+  // Compact initial drafts and targeted copy repairs can afford two complete
+  // renderings per passage in the same response.
+  const compactAlternatives = (initial || request.correctCopiedLongDraft === true) && includeWholeDrafts
     && frames.reduce((sum, frame) => sum + frame.source.text.length, 0) <= 600
     && frames.reduce((sum, frame) => sum + countLatticeWords(frame.source.text), 0) <= 100;
   for (const frame of frames) {
-    frame.choiceCount = frame.slot || compactFirstDraft || (frames.length === 1 && frame.source.text.length <= 600
+    frame.choiceCount = frame.slot || compactAlternatives || (frames.length === 1 && frame.source.text.length <= 600
       && countLatticeWords(frame.source.text) <= 100) ? 2 : 1;
   }
   return frames.length ? frames : null;
@@ -873,6 +873,24 @@ function frameRepairSchema(frames) {
       coverage: analysisWireBitMaskSchema(plan.atoms.length),
     }),
   }])));
+}
+
+// Share one generation response only when both complete drafts fit the ordinary
+// 800-token writing budget. Verification still receives each original group.
+function fitDraftPair(first, second) {
+  if (!first.sourceFingerprint || first.sourceFingerprint !== second.sourceFingerprint
+    || first.signal !== second.signal || first.batch === second.batch
+    || first.protocolFeedback || second.protocolFeedback || first.candidate || second.candidate) return null;
+  const left = fitDraftFrames(first, "candidate", true);
+  const right = fitDraftFrames(second, "candidate", true);
+  if (!left || !right) return null;
+  const frames = [...left, ...right];
+  if (new Set(frames.map(f => f.id)).size !== frames.length) return null;
+  const estimatedWords = frames.reduce((count, f) =>
+    count + f.choiceCount * (countLatticeWords(f.slot?.editable ?? f.source.text) + 6), 0);
+  const estimatedBytes = frames.reduce((count, f) =>
+    count + f.choiceCount * (new TextEncoder().encode(f.slot?.editable ?? f.source.text).byteLength + 32), 0);
+  return estimatedWords <= 380 && estimatedBytes <= 2300 ? { left, right, frames, second } : null;
 }
 
 function expandFrameRepair(result, frames, previous) {
@@ -3184,6 +3202,7 @@ export function createHuggingFaceLatticeAdapter({
   token,
   useParasailGenerator = false,
   providerCallLimit = LATTICE_PROVIDER_CALL_LIMIT,
+  outboundCallLimit = providerCallLimit,
   requestedMode = "auto",
   fetchImpl = globalThis.fetch,
   callTimeoutMs,
@@ -3207,14 +3226,17 @@ export function createHuggingFaceLatticeAdapter({
   if (providerCallLimit !== LATTICE_PROVIDER_CALL_LIMIT && !isLatticeLongJobCallLimit(providerCallLimit)) {
     throw new TypeError("The Lattice provider received an invalid call limit.");
   }
+  if (!Number.isSafeInteger(outboundCallLimit) || outboundCallLimit < 1 || outboundCallLimit > providerCallLimit) {
+    throw new TypeError("The Lattice provider received an invalid outbound call limit.");
+  }
   const budget = { used: 0 };
   const failedRelationLayouts = new WeakMap();
   const usage = observeQualificationUsage ? { budget, reportedCalls: 0,
     generator: { calls: 0, promptTokens: 0, completionTokens: 0 },
     verifier: { calls: 0, promptTokens: 0, completionTokens: 0 } } : null;
 
-  const complete = async (stageName, request, outputPassage = null) => {
-    if (budget.used >= providerCallLimit) {
+  const complete = async (stageName, request, outputPassage = null, pair = null) => {
+    if (budget.used >= outboundCallLimit) {
       throw providerError("provider_call_limit", "The Lattice provider call budget was exhausted.");
     }
     budget.used += 1;
@@ -3245,7 +3267,8 @@ export function createHuggingFaceLatticeAdapter({
       }
       if (isLatticeLongJobCallLimit(providerCallLimit)
         && (stageName === "candidate" || stageName === "repair")) draftClaims = longDraftClaims(request.analysis);
-      if (draftClaims && !outputPassage) repairFrames = fitDraftFrames(request, stageName, providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit);
+      if (draftClaims && !outputPassage) repairFrames = pair?.frames
+        ?? fitDraftFrames(request, stageName, providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit);
       verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
       certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
       const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
@@ -3273,6 +3296,7 @@ export function createHuggingFaceLatticeAdapter({
         ? current => singlePassageDraftMessages(current, outputPassage)
         : verificationFit
         ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection, missingPositions)
+        : pair ? (current) => editableFrameRepairMessages(pair.left, current, { frames: pair.right, request: pair.second })
         : repairFrames ? (current) => editableFrameRepairMessages(repairFrames, current)
         : draftClaims ? (current) => (stageName === "candidate" ? candidateMessages : repairMessages)(
           current, { analysisPlanDialect: "compact-wire-v2", draftAtomKeys: draftClaims.keys },
@@ -3361,6 +3385,11 @@ export function createHuggingFaceLatticeAdapter({
       if (units === null) return null;
       return { passageId: outputPassage.passageId, layer: outputPassage.layer, text: result.wording,
         preservedAtomIds: units.map(atom => atom.id) };
+    } else if (pair) {
+      if (!exactKeys(result, pair.frames.map(frame => frame.id))) return [{}, {}];
+      return [pair.left, pair.right].map(group => expandFrameRepair(
+        Object.fromEntries(group.map(({ id }) => [id, result[id]])), group,
+      ));
     } else if (repairFrames) {
       result = expandFrameRepair(result, repairFrames, request.candidate);
     } else if (draftClaims) {
@@ -3384,7 +3413,7 @@ export function createHuggingFaceLatticeAdapter({
   const draft = async (stageName, request) => {
     if (providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit && request.finalDraftPassageIds?.length
       && !request.correctCopiedLongDraft && !request.documentBoundaryRepairPassageIds?.length
-      && budget.used + request.finalDraftPassageIds.length <= providerCallLimit) {
+      && budget.used + request.finalDraftPassageIds.length <= outboundCallLimit) {
       return draftPassagesIndividually(stageName, request, request.finalDraftPassageIds);
     }
     try { return await complete(stageName, request); }
@@ -3393,7 +3422,7 @@ export function createHuggingFaceLatticeAdapter({
         || !(error instanceof LatticeProviderError) || error.code !== "provider_output_limit") throw error;
       const frames = fitDraftFrames(request, stageName, providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit);
       const ids = frames?.map(frame => frame.id) ?? request.batch.passages.map(p => p.id);
-      if (budget.used + ids.length > providerCallLimit) throw error;
+      if (budget.used + ids.length > outboundCallLimit) throw error;
       return draftPassagesIndividually(stageName, request, ids);
     }
   };
@@ -3402,12 +3431,23 @@ export function createHuggingFaceLatticeAdapter({
     completionCapacity() {
       return Object.freeze({
         used: budget.used,
-        limit: providerCallLimit,
-        remaining: providerCallLimit - budget.used,
+        limit: outboundCallLimit,
+        remaining: outboundCallLimit - budget.used,
       });
     },
     analyze: (request) => complete("analysis", request),
     generate: (request) => draft("candidate", request),
+    async generatePair(first, second) {
+      if (providerCallLimit !== LATTICE_LONG_JOB_POLICY.providerCallLimit) return null;
+      const pair = fitDraftPair(first, second);
+      if (!pair) return null;
+      try { return await complete("candidate", first, null, pair); }
+      catch (error) {
+        if (error instanceof LatticeProviderError
+          && (error.code === "provider_output_limit" || error.code === "provider_request_too_large")) return null;
+        throw error;
+      }
+    },
     verify: (request) => complete("verification", request),
     certify: (request) => complete("certification", request),
     repair: (request) => draft("repair", request),
