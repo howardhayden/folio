@@ -3161,7 +3161,7 @@ test("the Node qualification transport allows the entire client deadline and dis
   let disposed = false;
   class Agent {
     constructor(options) {
-      assert.deepEqual(options, { headersTimeout: 1_200_000, bodyTimeout: 1_200_000 });
+      assert.deepEqual(options, { headersTimeout: 2_100_000, bodyTimeout: 2_100_000 });
     }
     async destroy() { disposed = true; }
   }

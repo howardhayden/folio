@@ -1707,6 +1707,7 @@ async function callNormalizedStage({
   pipelineObservation = null,
   onDraftCorrectionFailure = null,
   repairLongDraft = null,
+  repairInitialCopies = false,
   regenerationRetainOverrideIds = Object.freeze([]),
   allowExactSourceRegenerationCorrection = false,
 }) {
@@ -1774,7 +1775,7 @@ async function callNormalizedStage({
         const findings = deterministicBatchReview(request.batch, request.analysis, normalized);
         const rules = findings.map(deterministicFindingRule);
         const correctable = rules.length && rules.every(rule => ["D10", "D13", "D14"].includes(rule));
-        const correctFirstDraft = stage !== "generation" || rules.includes("D10") || rules.includes("D13")
+        const correctFirstDraft = stage !== "generation" || repairInitialCopies || rules.includes("D10") || rules.includes("D13")
           || findings.some(finding => request.sourceSpans?.some(group =>
             group.passageId === finding.passageId && shortLatticeDialogueFrame(group)));
         if (correctable && correctFirstDraft) {
@@ -3958,6 +3959,7 @@ export async function executeLatticePlan(preflight, options) {
         pipelineObservation,
         request,
         repairLongDraft: useSourceDraft ? null : repairLongDraft,
+        repairInitialCopies: options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit,
         invoke: useSourceDraft ? exactSourceCandidate : (currentRequest) => options.adapter.generate(currentRequest),
         normalize: (raw) => normalizeCandidate(raw, request.batch, request.analysis),
         signal,

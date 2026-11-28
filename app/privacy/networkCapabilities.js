@@ -1,4 +1,5 @@
-import { LATTICE_PROCESSING_NOTICE, LATTICE_PROCESSING_NOTICE_HEADER, LATTICE_REVIEW_PASSES_HEADER, LATTICE_VISITOR_SESSION_ACCEPT } from "../resume/lattice/remoteProtocol.js";
+import { countLatticeWords } from "../resume/lattice/inputPolicy.js";
+import { LATTICE_LONG_JOB_POLICY, LATTICE_LONG_WAIT_PREFERENCE, LATTICE_PROCESSING_NOTICE, LATTICE_PROCESSING_NOTICE_HEADER, LATTICE_REVIEW_PASSES_HEADER, LATTICE_VISITOR_SESSION_ACCEPT } from "../resume/lattice/remoteProtocol.js";
 import { LATTICE_SERVICE_EVENTS_MIME } from "../resume/lattice/serviceTelemetry.js";
 
 const TEXT_TO_LATTICE_CAPABILITY = Object.freeze({
@@ -128,7 +129,7 @@ function validateTextToLatticeRequest(policy, headerInit, body) {
     || payload.schema_version !== 1) {
     throw new NetworkPolicyError("undeclared payload");
   }
-  return "content";
+  return countLatticeWords(payload.text) >= LATTICE_LONG_JOB_POLICY.minimumWords ? "long-content" : "content";
 }
 
 export async function capabilityFetch(
@@ -222,8 +223,9 @@ export async function capabilityFetch(
           "Content-Type": "application/json",
           [LATTICE_PROCESSING_NOTICE_HEADER]: LATTICE_PROCESSING_NOTICE,
           [LATTICE_REVIEW_PASSES_HEADER]: "3",
+          ...(operation === "long-content" ? { Prefer: LATTICE_LONG_WAIT_PREFERENCE } : {}),
         }),
-    ...(operation === "content" ? { body } : {}),
+    ...(operation === "visitor-session-setup" ? {} : { body }),
     signal,
     // The Worker discards the edge's cf_clearance cookie. Only the signed,
     // path-scoped application cookie establishes the daily-limit identity.

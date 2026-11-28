@@ -410,6 +410,8 @@ export function editableFrameRepairMessages(frames, request) {
         plan.atoms.map(atom => [atom.kind, atom.value]), plan.discourseFunction, plan.rationale, choiceCount,
       ]),
       wholePassages: [...wholeIds],
+      ...(!request.candidate && frames.some(frame => !frame.slot && frame.choiceCount === 2)
+        ? { wholePassageAlternatives: "Write the same meaning in two distinct ways. First change the main verb or its grammatical framing. Then change the clause structure. Keep the exact names, quoted speech, viewpoint, chronology and commitments in both." } : {}),
       ...(request.documentBoundaryMoves?.length ? { documentBoundaryMoves: request.documentBoundaryMoves.slice(0, 12) } : {}),
       ...(wholeIds.size ? { wholePassageSources: repairSourcePassagesForModel(request).filter(([id]) => wholeIds.has(id)) } : {}),
       ...(prior ? { previouslyReviewed: prior } : {}),

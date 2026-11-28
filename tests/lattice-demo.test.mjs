@@ -621,6 +621,36 @@ test("long repair uses its remaining attempt only on nonmaterial passages and re
   }
 });
 
+test("a copied extended first draft is corrected before paying for its independent group review", async () => {
+  const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const group = plan.batches[0];
+  const stages = [];
+  const adapter = scriptedAdapter({
+    generate(request) {
+      if (request.batch !== group) return;
+      const draft = rawCandidate(request);
+      draft.passages[0].text = group.passages[0].text;
+      return draft;
+    },
+    repair(request) {
+      if (request.batch !== group) return;
+      stages.push("repair");
+      assert.equal(request.verification, null);
+      return rawCandidate(request);
+    },
+    verify(request) {
+      if (request.batch !== group) return;
+      stages.push("review");
+      assert.notEqual(request.candidate.passages[0].text, group.passages[0].text);
+    },
+    certify() { stages.push("certify"); },
+  });
+  const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 64, allowClarification: false });
+  assert.equal(result.status, "translated");
+  assert.deepEqual(stages, ["repair", "review", "certify"]);
+});
+
 test("extended long jobs can resolve an isolated second-review failure and certify the fresh assembly", async () => {
   const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });

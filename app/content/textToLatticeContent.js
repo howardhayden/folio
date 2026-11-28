@@ -142,7 +142,7 @@ export const textToLatticeContract = Object.freeze({
         `${LATTICE_GRAPHEME_CODE_POINT_LIMIT} Unicode code points in any grapheme, ${LATTICE_TOKEN_CODE_POINT_LIMIT} in any word-like token, and ${LATTICE_FORMAT_CONTROL_LIMIT} format controls in an entry`,
         `${LATTICE_PROVIDER_CALL_LIMIT} provider calls per request, or ${LATTICE_LONG_JOB_POLICY.providerCallLimit} when the server plans at least ${LATTICE_LONG_JOB_POLICY.minimumBatches} work groups for ${LATTICE_LONG_JOB_POLICY.minimumWords} or more words`,
         "2,048 requested output tokens per provider call. A standard request can reserve up to 65,536 tokens and a qualifying long request up to 131,072. The daily ceilings are 393,216 per cooperating browser cookie jar and 3,932,160 globally",
-        "65,536 request bytes; five minutes for analysis, three minutes for verification and two minutes for drafting, certification and repair; 15 minutes for the complete API request and 20 minutes overall in the browser; 262,144 provider-response bytes; and a bounded client response envelope",
+        "65,536 request bytes; five minutes for analysis, three minutes for verification and two minutes for drafting, certification and repair; 15 minutes for a standard API request and 20 minutes overall in the browser, or 30 and 35 minutes for qualifying long requests; 262,144 provider-response bytes; and a bounded client response envelope",
         "Standard service limits are 30 accepted transformation requests globally per UTC day and 3 from one ordinary persistent browser cookie jar per UTC day. Both daily limits are lifted during the operator-ended browser qualification.",
       ]),
       isolation: Object.freeze([
