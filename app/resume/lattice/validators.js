@@ -421,6 +421,25 @@ function hasRelocatedUniqueBoundaryAnchor(source, candidate) {
   return relocatedLatticeBoundaryWords(source, candidate, 1).length > 0;
 }
 
+// Prefer a locally valid alternative that keeps distinctive words on their
+// source lines. Only the exact assembled-document check decides a violation.
+export function latticeBoundaryChoiceCost(source, passages) {
+  const sourceLines = lineBreakOrdinalTable(source);
+  const home = uniqueStructuralAnchors(source, index => sourceLines[index]);
+  const starts = new Map(passages.map(p => [p.id, sourceLines[p.startUtf16]]));
+  return (id, wording) => {
+    const firstLine = starts.get(id);
+    if (firstLine === undefined) return 0;
+    const lines = lineBreakOrdinalTable(wording);
+    let cost = 0;
+    for (const match of wording.matchAll(BOUNDARY_ANCHOR_WORD)) {
+      const original = home.get(normalizedMaterialRepresentation(match[0]));
+      if (original != null && original !== firstLine + lines[match.index]) cost++;
+    }
+    return cost;
+  };
+}
+
 function questionScopeTable(value) {
   const scopes = new Uint8Array(value.length + 1);
   if (QUESTION_SENTENCE_SEGMENTER) {
