@@ -109,6 +109,7 @@ export const LATTICE_DOCUMENT_CERTIFICATION_CHECKS = Object.freeze([
 ]);
 // Use the same source-grounded distinction for both sides of a long-job review.
 export const LATTICE_LONG_REGISTER_SELECTION = "Select the register by what this passage communicates in its source context. A narrated action alone is not an instruction. Use experiential when the wording carries supported physical, environmental, or relational pressure. Use mixed only when the functions cannot be separated.";
+const QUOTED_REGISTER_SELECTION = "Read the quotation and its attribution together in their original context. Distinguish the speaker's act inside the quotation from the function of the surrounding narrative. Ground the passage's register in the whole passage. A question, command, or reporting verb in isolation cannot determine the register.";
 export const LATTICE_CONFORMANCE_CRITERIA = Object.freeze({
   universal: Object.freeze([
     "semantic-coverage",
@@ -402,9 +403,12 @@ function priorDraftFeedbackForModel(request) {
 }
 
 function frameDraftPayload(frames, request) {
-  const wholeIds = new Set(frames.filter(frame => !frame.slot).map(frame => frame.id));
+  const wholeIds = new Set(frames.filter(frame => !frame.slot && !frame.retained).map(frame => frame.id));
   const clauseEdits = frames.filter(frame => frame.clauseEdit).map(frame => frame.id);
+  const retained = frames.filter(frame => frame.retained).map(frame => frame.id);
   const prior = priorDraftFeedbackForModel(request);
+  const reviewed = frames.some(frame => frame.reviewed);
+  const regeneration = reviewed ? regenerationFeedbackForModel(request) : null;
   return {
     frames: frames.map(({ id, source, plan, slot, choiceCount }) => [
       id, plan.layer, slot?.before ?? "", slot?.editable ?? source.text, slot?.after ?? "",
@@ -412,6 +416,11 @@ function frameDraftPayload(frames, request) {
     ]),
     wholePassages: [...wholeIds],
     ...(clauseEdits.length ? { clauseEdits } : {}),
+    ...(retained.length ? { retainedPassages: retained } : {}),
+    ...(regeneration ? { regenerationFeedback: regeneration } : {}),
+    ...(reviewed && !request.regenerationFromReanalysis && !prior ? { previouslyReviewed: {
+      candidate: rejectedCandidateForRepair(request.candidate), feedback: verificationFeedbackForModel(request.verification),
+    } } : {}),
     ...(!request.candidate && frames.some(frame => !frame.slot && frame.choiceCount === 2)
       ? { wholePassageAlternatives: "Write the same meaning in two distinct ways. First change the main verb or its grammatical framing. Then change the clause structure. Keep the exact names, quoted speech, viewpoint, chronology and commitments in both." } : {}),
     ...(request.documentBoundaryMoves?.length ? { documentBoundaryMoves: request.documentBoundaryMoves.slice(0, 12) } : {}),
@@ -426,7 +435,10 @@ function frameDraftPayload(frames, request) {
 export function editableFrameRepairMessages(frames, request, secondGroup = null) {
   const first = frameDraftPayload(frames, request);
   const payload = secondGroup ? { groups: [first, frameDraftPayload(secondGroup.frames, secondGroup.request)] } : first;
-  const clauseGuide = frames.some(f => f.clauseEdit) || secondGroup?.frames.some(f => f.clauseEdit) ? CLAUSE_EDIT_GUIDE : "";
+  let clauseGuide = frames.some(f => f.clauseEdit) || secondGroup?.frames.some(f => f.clauseEdit) ? CLAUSE_EDIT_GUIDE : "";
+  if (frames.some(frame => frame.reviewed)) {
+    clauseGuide += " This is a fresh draft of the complete group against the current writing plan. For a changed plan, regenerationFeedback locates earlier problems by source position. Reassess every current meaning unit. Give the editable attribution the assigned register while preserving the speaker and what happened. For retainedPassages, the host keeps the exact source. Return only your coverage mask for the meaning actually present. Independent review will assess the wording and retention.";
+  }
   return messages(
     "Write the editable language of each passage in its assigned register. The host keeps the fixed surrounding text.",
     payload,
@@ -1073,7 +1085,7 @@ export function analysisMessages(request, { responseDialect = "host-schema", lon
     ? ` ${COMPACT_ANALYSIS_RETRY_INSTRUCTION} Closed correction category: ${retryCategory}. ${COMPACT_ANALYSIS_RETRY_RULES[retryCategory] ?? "Recheck every fitted enum, identifier, evidence reference, and empty-placeholder constraint."}`
     : "";
   return messages(
-    `Atomize every supplied passage and plan its appropriate public Lattice layer.${longRegisterSelection ? " " + LATTICE_LONG_REGISTER_SELECTION : ""}${dialogueGuide}${relationCorrection}`,
+    `Atomize every supplied passage and plan its appropriate public Lattice layer.${longRegisterSelection ? " " + LATTICE_LONG_REGISTER_SELECTION : ""}${assessDialogue && request.requestedMode === "auto" && hasQuotedSource(request) ? " " + QUOTED_REGISTER_SELECTION : ""}${dialogueGuide}${relationCorrection}`,
     {
       version: PUBLIC_REGISTER_VERSION,
       ...(request.certificateId ? {
@@ -1201,7 +1213,11 @@ function verificationPayload(request, compactWire, wireLayout, wireCorrection, m
   };
 }
 
-export function verificationMessages(request, { responseDialect = "host-schema", wireLayout, wireCorrection = null, missingPositions = null, secondGroup = null } = {}) {
+function hasQuotedSource(request) {
+  return request?.sourceSpans?.some(group => group.spans.some(span => span.literalType === "protected-dialogue"));
+}
+
+export function verificationMessages(request, { responseDialect = "host-schema", wireLayout, wireCorrection = null, missingPositions = null, secondGroup = null, assessDialogue = false } = {}) {
   if (!VERIFICATION_RESPONSE_DIALECTS.has(responseDialect)) {
     throw new TypeError("Text to Lattice received an invalid verification response dialect.");
   }
@@ -1233,6 +1249,8 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     : wireCorrection === "retained-conformance"
     ? " Rebuild retained-source conformance separately from candidate judgment. A planned rewrite cannot certify unchanged retention; use only its schema-fixed c value and keep actual independent source-layer support in x and y. Replace the complete d/g/p/i result without changing a semantic verdict merely to satisfy layout."
     : "";
+  const assessQuotedRegister = assessDialogue && request.requestedMode === "auto"
+    && (hasQuotedSource(request) || hasQuotedSource(secondGroup?.request));
   const evidencePositionInstruction = wireLayout?.passages?.[0]?.sourcePositionsByAtom
     ? " For each passage, sourcePositionsByAtom lists the source positions cited by each atom in x order. sourceAtomsByPosition lists the atoms that cite each source position in y order. Both tables use zero-based indices. Choose x and y from the source meaning. For every selected y position, select at least one x atom that cites it. The tables describe the graph and supply no verdict. For every atom status, identify the source commitment and compare it with the actual candidate. Equivalent wording can preserve a unit. Mark a unit missing when its meaning is absent or changed, including when the candidate claims otherwise. " + LATTICE_LONG_REGISTER_SELECTION
     : "";
@@ -1241,7 +1259,7 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     ? " The host separately enforces the candidate-atom-claim finding for the atom ID list. Determine atom coverage, failed checks, issues, and the verdict from the independent source and candidate comparison. Report genuine omissions and unsupported meaning. Do not report a failed check or a negative verdict solely because of the ID list mismatch."
     : "";
   return messages(
-    `${secondGroup ? "Review the two identified groups separately. The top-level result must have exactly their two batchId keys. Inside each key write a complete check for that group, using only its data and fitted positions. Do not copy a verdict, mask or citation across groups. All instructions about result fields below apply inside each group. " : ""}Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.${atomClaimInstruction}${evidencePositionInstruction}${evidenceFirst ? " Evaluate each passage and gate on its evidence, record any issues, then derive the verdict from those findings." : ""}`,
+    `${secondGroup ? "Review the two identified groups separately. The top-level result must have exactly their two batchId keys. Inside each key write a complete check for that group, using only its data and fitted positions. Do not copy a verdict, mask or citation across groups. All instructions about result fields below apply inside each group. " : ""}Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.${atomClaimInstruction}${evidencePositionInstruction}${assessQuotedRegister ? " " + QUOTED_REGISTER_SELECTION : ""}${evidenceFirst ? " Evaluate each passage and gate on its evidence, record any issues, then derive the verdict from those findings." : ""}`,
     secondGroup ? {
       [request.batch.id]: verificationPayload(request, compactWire, wireLayout, wireCorrection, missingPositions),
       [secondGroup.request.batch.id]: verificationPayload(secondGroup.request, true, secondGroup.layout, null, null),

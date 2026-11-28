@@ -668,17 +668,19 @@ test("extended long jobs can resolve an isolated second-review failure and certi
   const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
   const group = plan.batches[0];
-  for (const mode of ["fixed", "rejected", "legacy", "reserve", "multi-passage-reserve"]) {
-    let checks = 0, finalRepairs = 0, certificates = 0;
+  for (const mode of ["fixed", "rejected", "legacy", "reserve", "group-fixed", "group-rejected", "group-underfunded"]) {
+    let checks = 0, finalRepairs = 0, groupDrafts = 0, certificates = 0;
+    const grouped = mode.startsWith("group-");
+    const succeeds = ["fixed", "group-fixed"].includes(mode);
     const adapter = scriptedAdapter({
       verify(r) {
         if (r.batch !== group) return;
         checks++;
         const v = rawVerification(r);
-        if (mode === "fixed" && checks === 3) return v;
+        if (succeeds && checks === 3) return v;
         const row = v.passages[0];
         row.missingAtomIds = [row.checkedAtomIds.pop()];
-        if (mode === "multi-passage-reserve") {
+        if (grouped) {
           const neighbor = v.passages[1];
           neighbor.missingAtomIds = [neighbor.checkedAtomIds.pop()];
         }
@@ -686,6 +688,11 @@ test("extended long jobs can resolve an isolated second-review failure and certi
         return v;
       },
       repair(r) {
+        if (r.finalGroupDraft) {
+          groupDrafts++;
+          assert.equal(r.finalDraftPassageIds, undefined);
+          assert.equal(r.priorReviewedDraft.verification.passages.filter(p => p.missingAtomIds.length).length, 2);
+        }
         if (r.finalDraftPassageIds) {
           finalRepairs++;
           assert.deepEqual(r.finalDraftPassageIds, [group.passages[0].id]);
@@ -694,14 +701,39 @@ test("extended long jobs can resolve an isolated second-review failure and certi
       },
       certify() { certificates++; },
     });
-    adapter.completionCapacity = () => ({ remaining: mode === "reserve" ? 4 : mode === "multi-passage-reserve" ? 6 : 20 });
+    adapter.completionCapacity = () => ({ remaining: mode === "reserve" ? 4 : mode === "group-underfunded" ? 5 : grouped ? 6 : 20 });
     const result = await executeLatticePlan(plan, { adapter, providerCallLimit: mode === "legacy" ? 48 : 64, allowClarification: false });
-    assert.equal(checks, ["fixed","rejected"].includes(mode) ? 3 : 2);
+    assert.equal(checks, ["fixed","rejected","group-fixed","group-rejected"].includes(mode) ? 3 : 2);
     assert.equal(finalRepairs, ["fixed","rejected"].includes(mode) ? 1 : 0);
-    assert.equal(certificates, mode === "fixed" ? 1 : 0);
-    assert.equal(result.status, mode === "fixed" ? "translated" : "unable-to-attempt");
-    assert.equal(result.verificationPasses, mode === "fixed" ? 3 : 0);
+    assert.equal(groupDrafts, ["group-fixed", "group-rejected"].includes(mode) ? 1 : 0);
+    assert.equal(certificates, succeeds ? 1 : 0);
+    assert.equal(result.status, succeeds ? "translated" : "unable-to-attempt");
+    assert.equal(result.verificationPasses, succeeds ? 3 : 0);
   }
+});
+
+test("a final group round at its exact minimum reserves separate reviews even when a pair would truncate", async () => {
+  const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "u" + i + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const affected = new Set(plan.batches.slice(0, 2));
+  let finalDrafts = 0, finalReviews = 0, finalPairAttempts = 0, certificates = 0;
+  const adapter = scriptedAdapter({
+    verify(r) {
+      if (!affected.has(r.batch)) return;
+      const v = rawVerification(r);
+      if (r.finalGroupDraft) { finalReviews++; return v; }
+      for (const row of v.passages.slice(0, 2)) row.missingAtomIds.push(row.checkedAtomIds.pop());
+      v.decision = "repair";
+      return v;
+    },
+    repair(r) { if (r.finalGroupDraft) finalDrafts++; },
+    certify() { certificates++; },
+  });
+  adapter.verifyPair = async first => { if (first.finalGroupDraft) finalPairAttempts++; return null; };
+  adapter.completionCapacity = () => ({ remaining: 8 - finalDrafts - finalReviews - finalPairAttempts });
+  const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 64 });
+  assert.equal(result.status, "translated");
+  assert.deepEqual([finalDrafts, finalReviews, finalPairAttempts, certificates], [2, 2, 0, 1]);
 });
 
 test("whole-document repair reaches a misplaced word even when a different group fails review", async () => {
@@ -1056,6 +1088,40 @@ test("an affirmative long review rechecks an isolated missing unit without clear
     assert.equal(reviews, scenario === "repeated" ? 4 : 2);
     assert.equal(certificates, ["corrected", "unaccounted"].includes(scenario) ? 1 : 0);
     assert.equal(result.status, ["corrected", "unaccounted"].includes(scenario) ? "translated" : "unable-to-attempt");
+  }
+});
+
+test("the extended planner repairs an explicit missing unit and still rechecks incomplete accounting", async () => {
+  const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "u" + i + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  for (const scenario of ["fixed", "repeated", "mixed", "unaccounted"]) {
+    let corrections = 0, repairs = 0, certificates = 0;
+    const adapter = scriptedAdapter({
+      verify(request) {
+        if (request.batch !== plan.batches[0]) return;
+        const checked = rawVerification(request);
+        if (getLatticeVerificationCorrection(request) === "atom-decision") { corrections++; return checked; }
+        if (scenario === "fixed" && repairs) return checked;
+        const row = checked.passages[0];
+        const unchecked = row.checkedAtomIds.pop();
+        if (scenario !== "unaccounted") row.missingAtomIds = [unchecked];
+        if (scenario === "mixed") row.checkedAtomIds.pop();
+        return checked;
+      },
+      repair(request) {
+        if (request.batch !== plan.batches[0]) return;
+        repairs++;
+        assert.equal(request.verification.accepted, false);
+        assert.deepEqual(request.verification.passages[0].missingAtomIds, [request.analysis.passages[0].atoms.at(-1).id]);
+      },
+      certify() { certificates++; },
+    });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 64 });
+    const needsAccounting = ["mixed", "unaccounted"].includes(scenario);
+    assert.equal(corrections, Number(needsAccounting), scenario);
+    assert.equal(repairs, Number(!needsAccounting), scenario);
+    assert.equal(certificates, Number(scenario !== "repeated"));
+    assert.equal(result.status, scenario === "repeated" ? "unable-to-attempt" : "translated", scenario);
   }
 });
 

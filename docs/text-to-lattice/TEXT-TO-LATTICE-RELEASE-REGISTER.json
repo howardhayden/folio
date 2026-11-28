@@ -770,6 +770,28 @@
       "path": "docs/release-evidence/text-to-lattice/nov28-quoted-clause-source-digests.json",
       "bytes": 22405,
       "sha256": "65567a172b819b4a0531950557710914d60cc4130d3108126a32134617fac6d4"
+    },
+    "regularFirefoxReviewedFrames20261128": {
+      "productionCheck": "https://github.com/howardhayden/folio/actions/runs/46139058089",
+      "source": "https://github.com/howardhayden/folio/pull/282",
+      "inputWords": 697,
+      "seconds": 568.625,
+      "providerAttempts": 46,
+      "groupsReviewed": 10,
+      "groupsAccepted": 5,
+      "copiedShortAttributions": 3,
+      "unconfirmedRetentions": 3,
+      "passagesWithMissingUnits": 0,
+      "passagesWithUnsupportedClaims": 0,
+      "passagesWithUnmodeledSpans": 0,
+      "outcome": "withheld",
+      "stableTrafficPercentAfterCheck": 100,
+      "nextDecision": "Promote only after the full regular Firefox request completes with visible output."
+    },
+    "reviewedFrameComparison": {
+      "path": "docs/release-evidence/text-to-lattice/nov28-reviewed-frames-source-digests.json",
+      "bytes": 22405,
+      "sha256": "949da588422ebf51c04c6a22ac6e845fb682fa7c94a6bf9561cf668a469a8e14"
     }
   },
   "qualificationScope": "Safari and Brave supplied the canonical-browser traces for the qualified remote capability. The current production evidence carries those original results through the release owner's one-time source comparison. The last pulled hah.dev deployment and ancestry baseline are recorded in the evidence appendix. The earlier browser-local implementation is historical and inactive.",
@@ -800,7 +822,7 @@
     "decidedOn": "2026-11-28",
     "record": "The site owner authorized a ceiling of 64 provider calls for requests of at least 500 words and seven initial groups, plus targeted jobs for the deciding check in the same regular Firefox session. Ordinary visitor admission remains three per browser and 30 globally each UTC day. The release decision requires a visible accepted result. Only counts and outcomes enter release evidence.",
     "note": "The completed one-off reset permits extra ordinary capacity with the 30/3 policy unchanged. Actual usage and rates determine charges. Intermittent upstream refusal and limited output fidelity remain accepted demonstrator risks. Privacy or admission failure requires withdrawal.",
-    "qualifiedSourceSetSha256": "81ebd09357fa819b98ed5ac7d0e042ba11f530176597c240c6f78d38aba5dd4b"
+    "qualifiedSourceSetSha256": "d528fe3f530219b2b327c53c0b37f1ff2b3bd7fa3fee1c497e5326c4f9326bf2"
   },
   "implementationBaselineRevision": "b211964213cd49e8335a73bcbebce3221c3a6bc2",
   "statusVocabulary": [
@@ -815,7 +837,7 @@
   "authority": {
     "canonicalSource": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-REGISTER.json",
     "qualificationDossier": "docs/text-to-lattice/TEXT-TO-LATTICE-RELEASE-QUALIFICATION.md",
-    "qualificationDossierSha256": "7863a11218058b5464e22185e24e677c7f986411cc0e1452ef1c19dcf50087ed",
+    "qualificationDossierSha256": "927accd8b84fc961aa0f6248f1acdbc1f61a98ef8bd4e88dd09110c1568d4be9",
     "browserEvidence": {
       "status": "verified-sanitized-bundle",
       "path": "docs/text-to-lattice/browser-evidence/ttl-browser-20261123T143941Z-a495af12/TEXT-TO-LATTICE-BROWSER-EVIDENCE.json",
@@ -888,7 +910,7 @@
         "workers/text-to-lattice-lease",
         "workers/text-to-lattice-response-policy"
       ],
-      "sha256": "81ebd09357fa819b98ed5ac7d0e042ba11f530176597c240c6f78d38aba5dd4b",
+      "sha256": "d528fe3f530219b2b327c53c0b37f1ff2b3bd7fa3fee1c497e5326c4f9326bf2",
       "claim": "This digest binds the named source paths only, including the current remote contract, complete application and test trees, API and response-policy Workers, historical inactive Worker sources, controlling Owner terms and baseline record, license-routing map, package metadata, and shipped legal-notice set. It excludes this register, the qualification dossier, the atlas, and generated output so the qualification record is not self-referential. A matching source digest is not deployment evidence."
     },
     "decisionRule": "The public client is enabled if and only if no gate is an open-release-blocker. Other statuses carry explicit evidence, safeguards, residual-risk rationale, follow-up, and post-deployment rollback conditions where applicable.",
@@ -899,13 +921,13 @@
       "authorization": "owner-approved-long-job-and-clearance-20261126",
       "capturedCommit": "6166a3f430338331ca3f0336450e500571cbb896",
       "capturedSourceSetSha256": "0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa",
-      "currentSourceSetSha256": "81ebd09357fa819b98ed5ac7d0e042ba11f530176597c240c6f78d38aba5dd4b",
+      "currentSourceSetSha256": "d528fe3f530219b2b327c53c0b37f1ff2b3bd7fa3fee1c497e5326c4f9326bf2",
       "evidenceId": "ttl-browser-20261123T143941Z-a495af12",
       "evidenceSha256": "b4ebf4345afe1bd90fdc566140fb0f83c11abf3426fbb597e2610e5d45ce9595",
       "proof": {
-        "path": "docs/release-evidence/text-to-lattice/nov28-quoted-clause-source-digests.json",
+        "path": "docs/release-evidence/text-to-lattice/nov28-reviewed-frames-source-digests.json",
         "bytes": 22405,
-        "sha256": "65567a172b819b4a0531950557710914d60cc4130d3108126a32134617fac6d4"
+        "sha256": "949da588422ebf51c04c6a22ac6e845fb682fa7c94a6bf9561cf668a469a8e14"
       }
     }
   },

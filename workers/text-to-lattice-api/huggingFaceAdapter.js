@@ -731,8 +731,8 @@ const VERIFICATION_WIRE_GUIDE = verificationWireGuide("d, g, p, and i");
 const VERIFICATION_ALIGNMENT_GUIDE = verificationWireGuide("g, p, i, and d");
 const PAIRED_VERIFICATION_GUIDE = "Key the two results by batchId. Apply these rules separately inside each result.\n" + VERIFICATION_ALIGNMENT_GUIDE;
 
-function verificationWireMessages(request, wireLayout, wireCorrection, missingPositions) {
-  return verificationMessages(request, { responseDialect: "compact-wire-v2", wireLayout, wireCorrection, missingPositions });
+function verificationWireMessages(request, wireLayout, wireCorrection, missingPositions, assessDialogue = false) {
+  return verificationMessages(request, { responseDialect: "compact-wire-v2", wireLayout, wireCorrection, missingPositions, assessDialogue });
 }
 
 function verificationWireCorrectionForRequest(request) {
@@ -838,39 +838,47 @@ function writableQuoteSlot(source, group) {
 function fitDraftFrames(request, stageName, includeWholeDrafts) {
   const initial = stageName === "candidate" && !request.candidate;
   const boundaryIds = stageName === "repair" ? request.documentBoundaryRepairPassageIds : null;
-  if (!initial && !boundaryIds?.length && (stageName !== "repair" || request.correctCopiedLongDraft !== true
-    || !request.candidate?.passages || !request.deterministicFindings?.length
-    || request.deterministicFindings.some(finding => deterministicFindingRule(finding) !== "D14"))) return null;
-  const ids = initial ? request.batch.passages.map(passage => passage.id)
+  const copyRepair = stageName === "repair" && request.correctCopiedLongDraft === true && request.candidate?.passages
+    && request.deterministicFindings?.length && request.deterministicFindings.every(finding => deterministicFindingRule(finding) === "D14");
+  const reviewed = includeWholeDrafts && request.verification?.available === true && request.candidate?.passages
+    && !boundaryIds?.length && !request.correctCopiedLongDraft
+    && (stageName === "repair" || (stageName === "candidate" && request.regenerationFromReanalysis === true));
+  if (!initial && !reviewed && !boundaryIds?.length && !copyRepair) return null;
+  const ids = initial || reviewed ? request.batch.passages.map(passage => passage.id)
     : boundaryIds ?? [...new Set(request.deterministicFindings.map(finding => finding.passageId))];
   const frames = [];
   for (const id of ids) {
     const source = request.batch.passages.find(passage => passage.id === id);
     const plan = request.analysis.passages.find(passage => passage.passageId === id);
-    if (!source || plan?.disposition !== "rewrite") return null;
+    const retained = reviewed && plan?.disposition === "retain-if-conformant";
+    if (!source || (!retained && plan?.disposition !== "rewrite")) return null;
     const group = request.sourceSpans?.find(group => group.passageId === id);
-    const slot = writableQuoteSlot(source, group);
+    const slot = !retained && writableQuoteSlot(source, group);
     if (initial && !slot && !includeWholeDrafts) return null;
     const foreignWords = (request.documentBoundaryMoves ?? []).flatMap(([word, from, to]) =>
       from !== id && to === id ? [word] : []);
-    frames.push({ id, source, plan, slot, foreignWords, clauseEdit: Boolean(includeWholeDrafts && slot) });
+    frames.push({ id, source, plan, slot, foreignWords, clauseEdit: Boolean(includeWholeDrafts && slot),
+      reviewed: Boolean(reviewed), retained: Boolean(retained) });
   }
+  if (reviewed && !frames.some(frame => frame.slot)) return null;
   // Compact initial drafts and targeted copy repairs can afford two complete
   // renderings per passage in the same response.
-  const compactAlternatives = (initial || request.correctCopiedLongDraft === true) && includeWholeDrafts
+  const compactAlternatives = (initial || reviewed || request.correctCopiedLongDraft === true) && includeWholeDrafts
     && frames.reduce((sum, frame) => sum + frame.source.text.length, 0) <= 600
     && frames.reduce((sum, frame) => sum + countLatticeWords(frame.source.text), 0) <= 100;
   for (const frame of frames) {
-    frame.choiceCount = frame.slot || compactAlternatives || (frames.length === 1 && frame.source.text.length <= 600
-      && countLatticeWords(frame.source.text) <= 100) ? 2 : 1;
+    const alternatives = frame.slot || compactAlternatives || (frames.length === 1 && frame.source.text.length <= 600
+      && countLatticeWords(frame.source.text) <= 100);
+    frame.choiceCount = !frame.retained && alternatives ? 2 : 1;
   }
   return frames.length ? frames : null;
 }
 
 function frameRepairSchema(frames) {
-  return closedWireObject(Object.fromEntries(frames.map(({ id, slot, plan, choiceCount, clauseEdit }) => {
+  return closedWireObject(Object.fromEntries(frames.map(({ id, slot, plan, choiceCount, clauseEdit, retained }) => {
     const text = { type: "string", minLength: 1, maxLength: slot ? 240 : 2800 };
     const coverage = analysisWireBitMaskSchema(plan.atoms.length);
+    if (retained) return [id, closedWireObject({ coverage })];
     const clause = closedWireObject({ wording: text, coverage });
     if (clauseEdit) return [id, closedWireObject({
       edit: closedWireObject({ from: text, to: text, coverage }), clause,
@@ -929,8 +937,15 @@ function fitDraftPair(first, second) {
 function expandFrameRepair(result, frames, previous) {
   if (!exactKeys(result, frames.map(frame => frame.id))) return {};
   const replacements = new Map();
-  for (const { id, source, plan, slot, choiceCount, foreignWords, clauseEdit } of frames) {
+  for (const { id, source, plan, slot, choiceCount, foreignWords, clauseEdit, retained } of frames) {
     const value = result[id];
+    if (retained) {
+      if (!exactKeys(value, ["coverage"])) return {};
+      const claims = wireMaskSelections(value.coverage, plan.atoms);
+      if (claims === null) return {};
+      replacements.set(id, { passageId: id, layer: plan.layer, text: source.text, preservedAtomIds: claims.map(atom => atom.id) });
+      continue;
+    }
     const choices = clauseEdit ? editableClauseChoices(value, slot, plan.atoms.length) : value;
     if (!Array.isArray(choices) || (!clauseEdit && choices.length !== choiceCount)) return {};
     let first;
@@ -3357,9 +3372,10 @@ export function createHuggingFaceLatticeAdapter({
         ? current => singlePassageDraftMessages(current, outputPassage)
         : reviewPair
         ? current => verificationMessages(current, { responseDialect: "compact-wire-v2", wireLayout: verificationLayout,
-          secondGroup: reviewPair.groups[1] })
+          secondGroup: reviewPair.groups[1], assessDialogue: true })
         : verificationFit
-        ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection, missingPositions)
+        ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection, missingPositions,
+          providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit)
         : pair ? (current) => editableFrameRepairMessages(pair.left, current, { frames: pair.right, request: pair.second })
         : repairFrames ? (current) => editableFrameRepairMessages(repairFrames, current)
         : draftClaims ? (current) => (stageName === "candidate" ? candidateMessages : repairMessages)(
@@ -3461,7 +3477,9 @@ export function createHuggingFaceLatticeAdapter({
         Object.fromEntries(group.map(({ id }) => [id, result[id]])), group,
       ));
     } else if (repairFrames) {
-      result = expandFrameRepair(result, repairFrames, request.candidate);
+      // A fresh revision must carry its current graph and writer's claims on
+      // every passage. Only a targeted patch can reuse its original candidate.
+      result = expandFrameRepair(result, repairFrames, repairFrames[0].reviewed ? undefined : request.candidate);
     } else if (draftClaims) {
       result = expandLongDraftClaims(result, draftClaims);
     }
@@ -3483,12 +3501,13 @@ export function createHuggingFaceLatticeAdapter({
   const draft = async (stageName, request) => {
     if (providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit && request.finalDraftPassageIds?.length
       && !request.correctCopiedLongDraft && !request.documentBoundaryRepairPassageIds?.length
+      && !fitDraftFrames(request, stageName, true)?.[0].reviewed
       && budget.used + request.finalDraftPassageIds.length <= outboundCallLimit) {
       return draftPassagesIndividually(stageName, request, request.finalDraftPassageIds);
     }
     try { return await complete(stageName, request); }
     catch (error) {
-      if (!isLatticeLongJobCallLimit(providerCallLimit)
+      if (request.finalGroupDraft || !isLatticeLongJobCallLimit(providerCallLimit)
         || !(error instanceof LatticeProviderError) || error.code !== "provider_output_limit") throw error;
       const frames = fitDraftFrames(request, stageName, providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit);
       const ids = frames?.map(frame => frame.id) ?? request.batch.passages.map(p => p.id);
