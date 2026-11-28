@@ -394,6 +394,8 @@ export function shortLatticeDialogueFrame({ spans, literalAnnotations = [], dire
 
 const DOCUMENT_BOUNDARY_REPAIR_GUIDE = " documentBoundaryMoves lists [normalized source word, original passage ID, passage ID in the previous draft]. Ground each passage in its own source. Restore any misplaced commitment to its original line and remove any unsupported import from the other line. Where two different expressions coincided lexically, choose faithful local wording. Never duplicate a word merely to clear a comparison. Preserve exact quotations and line breaks.";
 
+const CLAUSE_EDIT_GUIDE = " For IDs listed in clauseEdits, return an object with edit and clause. In edit.from quote a unique whole word or phrase from the editable wording, and in edit.to give an equivalent expression that preserves the speaker, action, manner, intensity and register. The host applies that single substitution and keeps all other words. In clause.wording give a second natural phrasing of the entire editable clause. Omit the fixed quotation and surrounding characters from both answers. Each answer has its own coverage mask for the complete reconstructed passage. Report missing meaning honestly.";
+
 function priorDraftFeedbackForModel(request) {
   const prior = request.priorReviewedDraft;
   return prior ? { candidate: rejectedCandidateForRepair(prior.candidate), feedback: verificationFeedbackForModel(prior.verification) } : null;
@@ -401,6 +403,7 @@ function priorDraftFeedbackForModel(request) {
 
 function frameDraftPayload(frames, request) {
   const wholeIds = new Set(frames.filter(frame => !frame.slot).map(frame => frame.id));
+  const clauseEdits = frames.filter(frame => frame.clauseEdit).map(frame => frame.id);
   const prior = priorDraftFeedbackForModel(request);
   return {
     frames: frames.map(({ id, source, plan, slot, choiceCount }) => [
@@ -408,6 +411,7 @@ function frameDraftPayload(frames, request) {
       plan.atoms.map(atom => [atom.kind, atom.value]), plan.discourseFunction, plan.rationale, choiceCount,
     ]),
     wholePassages: [...wholeIds],
+    ...(clauseEdits.length ? { clauseEdits } : {}),
     ...(!request.candidate && frames.some(frame => !frame.slot && frame.choiceCount === 2)
       ? { wholePassageAlternatives: "Write the same meaning in two distinct ways. First change the main verb or its grammatical framing. Then change the clause structure. Keep the exact names, quoted speech, viewpoint, chronology and commitments in both." } : {}),
     ...(request.documentBoundaryMoves?.length ? { documentBoundaryMoves: request.documentBoundaryMoves.slice(0, 12) } : {}),
@@ -422,11 +426,12 @@ function frameDraftPayload(frames, request) {
 export function editableFrameRepairMessages(frames, request, secondGroup = null) {
   const first = frameDraftPayload(frames, request);
   const payload = secondGroup ? { groups: [first, frameDraftPayload(secondGroup.frames, secondGroup.request)] } : first;
+  const clauseGuide = frames.some(f => f.clauseEdit) || secondGroup?.frames.some(f => f.clauseEdit) ? CLAUSE_EDIT_GUIDE : "";
   return messages(
     "Write the editable language of each passage in its assigned register. The host keeps the fixed surrounding text.",
     payload,
     (secondGroup ? "The two groups belong to one document. Use each group's own source, meaning units, context and ledger. Return one object keyed by passage ID across both groups. Never move content between passages. " : "") +
-    "Each frame is [ID, register, fixed before, editable wording, fixed after, ordered meaning units, discourse function, plan, number of alternatives]. For a quoted frame, read the whole sentence. Return two natural alternatives for the editable wording only. In the first, replace the reporting verb or other principal predicate with an equivalent expression; in the second, recast the clause structure. Keep its speaker, addressee, intensity, manner, time, question and line. Keep the quotation on the same side. Neither alternative should simply copy the editable words or add detail. For a wholePassages ID, write complete prose from its ordered meaning units. Recast the clause structure in its selected register. Preserve each substantive detail, designated literal in wholePassageSources, and boundary. Return exactly the requested number of alternatives; when two are requested, give genuinely different constructions. PreviouslyReviewed, when present, reports findings on the paired earlier candidate only. Address its grounded omissions or errors in the fresh wording. In every alternative, coverage is one bit per listed meaning unit in order. Set a bit to 1 only if that unit is genuinely preserved by the reconstructed passage, including its fixed text. Mark any missing or uncertain unit 0." + (request.documentBoundaryMoves?.length ? DOCUMENT_BOUNDARY_REPAIR_GUIDE : ""),
+    "Each frame is [ID, register, fixed before, editable wording, fixed after, ordered meaning units, discourse function, plan, number of alternatives]. For a quoted frame, read the whole sentence. Return two natural alternatives for the editable wording only. In the first, replace the reporting verb or other principal predicate with an equivalent expression; in the second, recast the clause structure. Keep its speaker, addressee, intensity, manner, time, question and line. Keep the quotation on the same side. Neither alternative should simply copy the editable words or add detail. For a wholePassages ID, write complete prose from its ordered meaning units. Recast the clause structure in its selected register. Preserve each substantive detail, designated literal in wholePassageSources, and boundary. Return exactly the requested number of alternatives; when two are requested, give genuinely different constructions. PreviouslyReviewed, when present, reports findings on the paired earlier candidate only. Address its grounded omissions or errors in the fresh wording. In every alternative, coverage is one bit per listed meaning unit in order. Set a bit to 1 only if that unit is genuinely preserved by the reconstructed passage, including its fixed text. Mark any missing or uncertain unit 0." + clauseGuide + (request.documentBoundaryMoves?.length ? DOCUMENT_BOUNDARY_REPAIR_GUIDE : ""),
   );
 }
 
@@ -1035,12 +1040,16 @@ function requestedModeInstruction(request, compactWire = false) {
   return "";
 }
 
-export function analysisMessages(request, { responseDialect = "host-schema", longRegisterSelection = false, relationAtomCount = null } = {}) {
+export function analysisMessages(request, { responseDialect = "host-schema", longRegisterSelection = false, relationAtomCount = null, assessDialogue = false } = {}) {
   if (!ANALYSIS_RESPONSE_DIALECTS.has(responseDialect)) {
     throw new TypeError("Text to Lattice received an invalid analysis response dialect.");
   }
   const compactWire = responseDialect === "compact-wire-v2";
   const sourceGroups = sourcePassagesForModel(request);
+  const shortDialogue = assessDialogue && !request.reanalysisFeedback
+    ? (request.sourceSpans ?? []).filter(group => shortLatticeDialogueFrame(group)).map(group => group.passageId) : [];
+  const dialogueGuide = shortDialogue.length
+    ? " For shortDialogue IDs, assess whether the existing words around the fixed quotation already serve the supported register. Retain unchanged wording only when the five conformance criteria have positive source evidence covering the entire passage, including its attribution. If any criterion is unproved, plan a rewrite. A short quotation alone proves no criterion." : "";
   const reanalysisFeedback = request.reanalysisFeedback ? verificationFeedbackForModel(request.reanalysisFeedback) : null;
   const reanalysisAtomEvidence = compactWire ? reanalysisAtomEvidenceForModel(request, reanalysisFeedback, sourceGroups) : [];
   const clarificationInstruction = compactWire
@@ -1064,7 +1073,7 @@ export function analysisMessages(request, { responseDialect = "host-schema", lon
     ? ` ${COMPACT_ANALYSIS_RETRY_INSTRUCTION} Closed correction category: ${retryCategory}. ${COMPACT_ANALYSIS_RETRY_RULES[retryCategory] ?? "Recheck every fitted enum, identifier, evidence reference, and empty-placeholder constraint."}`
     : "";
   return messages(
-    `Atomize every supplied passage and plan its appropriate public Lattice layer.${longRegisterSelection ? " " + LATTICE_LONG_REGISTER_SELECTION : ""}${relationCorrection}`,
+    `Atomize every supplied passage and plan its appropriate public Lattice layer.${longRegisterSelection ? " " + LATTICE_LONG_REGISTER_SELECTION : ""}${dialogueGuide}${relationCorrection}`,
     {
       version: PUBLIC_REGISTER_VERSION,
       ...(request.certificateId ? {
@@ -1073,6 +1082,7 @@ export function analysisMessages(request, { responseDialect = "host-schema", lon
       } : {}),
       batchId: request.batch.id,
       passages: sourceGroups,
+      ...(shortDialogue.length ? { shortDialogue } : {}),
       sourceBoundaries: sourceBoundariesForModel(request),
       ...(request.context ? { context: contextForModel(request.context) } : {}),
       documentLedger: documentLedgerForModel(request.documentLedger),

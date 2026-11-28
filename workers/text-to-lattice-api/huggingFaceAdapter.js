@@ -1,5 +1,5 @@
 import { containsLatticeBoundaryWord, deterministicPassageReview } from "../../app/resume/lattice/validators.js";
-import { countLatticeWords } from "../../app/resume/lattice/inputPolicy.js";
+import { containsUnpairedSurrogate, countLatticeWords } from "../../app/resume/lattice/inputPolicy.js";
 import { beginLatticeAdmissionProviderFetch, endLatticeAdmissionProviderFetch } from "./admissionObservation.js";
 import { carryLatticeRegenerationRetentionContext } from "../../app/resume/lattice/regenerationContext.js";
 import { getLatticeVerificationCorrection, getLatticeVerificationMissingPositions } from "../../app/resume/lattice/verificationCorrection.js";
@@ -29,6 +29,7 @@ import {
   isVerificationAlignmentCorrection,
 } from "../../app/resume/lattice/promptContract.js";
 import {
+  isLatticeWholePhraseRange,
   LITERAL_BATCH_SPAN_LIMIT,
   MODEL_SOURCE_SPAN_LIMIT,
   SOURCE_SPAN_LIMIT,
@@ -580,8 +581,8 @@ function analysisWireGuide(positionAnchors) {
 const ANALYSIS_WIRE_GUIDE = analysisWireGuide(false);
 const LONG_ANALYSIS_WIRE_GUIDE = analysisWireGuide(true);
 
-function analysisWireMessages(request, longRegisterSelection = false, relationAtomCount = null) {
-  return analysisMessages(request, { responseDialect: "compact-wire-v2", longRegisterSelection, relationAtomCount });
+function analysisWireMessages(request, longRegisterSelection = false, relationAtomCount = null, assessDialogue = false) {
+  return analysisMessages(request, { responseDialect: "compact-wire-v2", longRegisterSelection, relationAtomCount, assessDialogue });
 }
 
 const INTERNAL_VERIFICATION_PASSAGE_SCHEMA = VERIFICATION_SCHEMA.properties.passages.items;
@@ -852,7 +853,7 @@ function fitDraftFrames(request, stageName, includeWholeDrafts) {
     if (initial && !slot && !includeWholeDrafts) return null;
     const foreignWords = (request.documentBoundaryMoves ?? []).flatMap(([word, from, to]) =>
       from !== id && to === id ? [word] : []);
-    frames.push({ id, source, plan, slot, foreignWords });
+    frames.push({ id, source, plan, slot, foreignWords, clauseEdit: Boolean(includeWholeDrafts && slot) });
   }
   // Compact initial drafts and targeted copy repairs can afford two complete
   // renderings per passage in the same response.
@@ -867,13 +868,44 @@ function fitDraftFrames(request, stageName, includeWholeDrafts) {
 }
 
 function frameRepairSchema(frames) {
-  return closedWireObject(Object.fromEntries(frames.map(({ id, slot, plan, choiceCount }) => [id, {
-    type: "array", minItems: choiceCount, maxItems: choiceCount,
-    items: closedWireObject({
-      wording: { type: "string", minLength: 1, maxLength: slot ? 240 : 2800 },
-      coverage: analysisWireBitMaskSchema(plan.atoms.length),
-    }),
-  }])));
+  return closedWireObject(Object.fromEntries(frames.map(({ id, slot, plan, choiceCount, clauseEdit }) => {
+    const text = { type: "string", minLength: 1, maxLength: slot ? 240 : 2800 };
+    const coverage = analysisWireBitMaskSchema(plan.atoms.length);
+    const clause = closedWireObject({ wording: text, coverage });
+    if (clauseEdit) return [id, closedWireObject({
+      edit: closedWireObject({ from: text, to: text, coverage }), clause,
+    })];
+    return [id, { type: "array", minItems: choiceCount, maxItems: choiceCount, items: clause }];
+  })));
+}
+
+function editableClauseChoices(value, slot, width) {
+  if (!exactKeys(value, ["edit", "clause"]) || !exactKeys(value.edit, ["from", "to", "coverage"])) return null;
+  const { from, to, coverage } = value.edit;
+  if ([from, to].some(s => typeof s !== "string" || !s.trim() || s.length > 240
+    || containsUnpairedSurrogate(s) || /[\r\n\u2028\u2029]/u.test(s))) return null;
+  if (typeof coverage !== "string" || coverage.length !== width || /[^01]/u.test(coverage)) return null;
+  const at = slot.editable.indexOf(from);
+  if (at < 0 || slot.editable.indexOf(from, at + 1) >= 0) return [value.clause];
+  const end = at + from.length;
+  const choices = [];
+  if (isLatticeWholePhraseRange(slot.editable, at, end)) {
+    const wording = slot.editable.slice(0, at) + to + slot.editable.slice(end);
+    if (wording.length <= 240 && isLatticeWholePhraseRange(wording, at, at + to.length)) choices.push({ wording, coverage });
+  }
+  choices.push(value.clause);
+  return choices;
+}
+
+// Some writers return the entire sentence in the clause field. Extract the
+// editable part only when every fixed surrounding character already matches.
+function realizeClause(slot, value, acceptComplete) {
+  const text = value.trim();
+  const before = slot.before.trimStart(), after = slot.after.trimEnd();
+  const complete = acceptComplete && (before || after) && text.startsWith(before) && text.endsWith(after)
+    && text.length > before.length + after.length;
+  const edit = complete ? text.slice(before.length, text.length - after.length).trim() : text;
+  return slot.before + (edit || text) + slot.after;
 }
 
 // Share one generation response only when both complete drafts fit the ordinary
@@ -897,9 +929,10 @@ function fitDraftPair(first, second) {
 function expandFrameRepair(result, frames, previous) {
   if (!exactKeys(result, frames.map(frame => frame.id))) return {};
   const replacements = new Map();
-  for (const { id, source, plan, slot, choiceCount, foreignWords } of frames) {
-    const choices = result[id];
-    if (!Array.isArray(choices) || choices.length !== choiceCount) return {};
+  for (const { id, source, plan, slot, choiceCount, foreignWords, clauseEdit } of frames) {
+    const value = result[id];
+    const choices = clauseEdit ? editableClauseChoices(value, slot, plan.atoms.length) : value;
+    if (!Array.isArray(choices) || (!clauseEdit && choices.length !== choiceCount)) return {};
     let first;
     for (const choice of choices) {
       if (!exactKeys(choice, ["wording", "coverage"]) || typeof choice.wording !== "string"
@@ -908,7 +941,7 @@ function expandFrameRepair(result, frames, previous) {
         || typeof choice.coverage !== "string" || choice.coverage.length !== plan.atoms.length
         || /[^01]/u.test(choice.coverage)) return {};
       const candidate = { passageId: id, layer: plan.layer,
-        text: slot ? slot.before + choice.wording.trim() + slot.after : choice.wording,
+        text: slot ? realizeClause(slot, choice.wording, clauseEdit) : choice.wording,
         preservedAtomIds: plan.atoms.filter((_, i) => choice.coverage[i] === "1").map(atom => atom.id) };
       first ??= candidate;
       if (!replacements.has(id) && deterministicPassageReview(source, plan, candidate).length === 0
@@ -3332,7 +3365,8 @@ export function createHuggingFaceLatticeAdapter({
         : draftClaims ? (current) => (stageName === "candidate" ? candidateMessages : repairMessages)(
           current, { analysisPlanDialect: "compact-wire-v2", draftAtomKeys: draftClaims.keys },
         )
-        : positionAnchors ? (current) => analysisWireMessages(current, true, analysisFit.relationAtomCount) : stage.messages;
+        : positionAnchors ? (current) => analysisWireMessages(current, true, analysisFit.relationAtomCount,
+          providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit) : stage.messages;
       result = await requestHuggingFaceJson({
         token,
         role: stage.role,

@@ -101,6 +101,18 @@ function safeGraphemeBoundary(value, offset) {
   return part?.index ?? safeOffset;
 }
 
+// A writer may replace complete source words or phrases, including in scripts
+// without spaces. Keep punctuation inside a word and composed characters whole.
+export function isLatticeWholePhraseRange(value, start, end) {
+  if (start < 0 || end <= start || end > value.length) return false;
+  if (start === 0 && end === value.length) return true;
+  if (!GRAPHEME_SEGMENTER || !WORD_SEGMENTER
+    || safeGraphemeBoundary(value, start) !== start || safeGraphemeBoundary(value, end) !== end) return false;
+  const words = WORD_SEGMENTER.segment(value);
+  const first = words.containing(start), last = words.containing(end - 1);
+  return first?.index === start && last?.index + last?.segment.length === end;
+}
+
 function nextGraphemeBoundary(value, offset) {
   if (offset < 0) return 0;
   if (offset >= value.length) return value.length;

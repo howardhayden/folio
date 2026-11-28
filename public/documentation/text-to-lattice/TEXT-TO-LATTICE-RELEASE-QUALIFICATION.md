@@ -4,7 +4,9 @@ Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave
 
 The November 23 production check accepted the original passage in 10.563 seconds. The protected Pages publication delivered that build. [Service check](https://github.com/howardhayden/folio/actions/runs/45255468630) · [Publication receipt](https://github.com/howardhayden/folio/actions/runs/45259201772) · [Evidence by claim](https://hah.dev/documentation/text-to-lattice/evidence.html)
 
-The latest regular Firefox run on the 50-call deployment consumed its last call during reverification. The reviewer returned four revised group acceptances before the next review stopped, and the stable Worker resumed all traffic. The corrected transport can carry two separately keyed group reviews in one request to the independent reviewer. Each group retains its complete evidence, verdict and correction path. Final certification still covers the assembled document. [Production check](https://github.com/howardhayden/folio/actions/runs/46132849054) · [Full Firefox outcome](https://github.com/howardhayden/folio/pull/280)
+On the paired-review release, the full Firefox request ended in 7 minutes 48 seconds after 40 attempts. Five of nine groups cleared review. Six passages retained copied wording around protected dialogue, and meaning checks also failed. The service withheld the result and the stable Worker resumed all traffic. For a quotation with one editable clause, the revised writer can propose a single source-anchored substitution and a separate clause. Each choice needs complete coverage, a material change and independent review. [Production check](https://github.com/howardhayden/folio/actions/runs/46135383048) · [Full Firefox outcome](https://github.com/howardhayden/folio/pull/281)
+
+A preceding regular Firefox run on the 50-call deployment consumed its last call during reverification. The reviewer returned four revised group acceptances before the next review stopped, and the stable Worker resumed all traffic. The corrected transport can carry two separately keyed group reviews in one request to the independent reviewer. Each group retains its complete evidence, verdict and correction path. Final certification still covers the assembled document. [Production check](https://github.com/howardhayden/folio/actions/runs/46132849054) · [Full Firefox outcome](https://github.com/howardhayden/folio/pull/280)
 
 The November 28 production check passed in 13.246 seconds. The full 697-word Firefox submission reached reverification in 6 minutes 50 seconds, when Cloudflare refused outbound call 51. The stable Worker resumed all traffic. The revised planner budgets for 50 outbound calls and can draft two groups in one response. Each group still needs its own independent review and the assembled result still needs certification. The next decision depends on the full result in the original Firefox tab. [Production check](https://github.com/howardhayden/folio/actions/runs/46130052119) · [Firefox outcome](https://github.com/howardhayden/folio/pull/279)
 
@@ -62,7 +64,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `b876f0973fac5bc4df3d77d0b3e776bced37ff0583ca77c9f0a5c136af1c7906`
+**Qualified source-set SHA-256:** `81ebd09357fa819b98ed5ac7d0e042ba11f530176597c240c6f78d38aba5dd4b`
 
 **Artifact-set projection SHA-256:** `bd6576979b9dcf3cbf2bd3bcac9a70678ac847b878dcf58bc159b20b0635f7f6`
 
@@ -96,7 +98,7 @@ These are the register’s current capability values, including the exact reques
 
 The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Separate regression tests cover long-job selection, the 32-, 48- and 64-call limits, and clearance-cookie handling in setup and admission. The workflow stages the candidate at zero percent, then switches traffic to it for the ordinary production check. The full passage in regular Firefox decides long-job acceptance. Consecutive failures trigger restoration of the preceding live Worker. Only aggregate results are recorded.
 
-The current fingerprint is `b876f0973fac5bc4df3d77d0b3e776bced37ff0583ca77c9f0a5c136af1c7906`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov28-paired-review-source-digests.json) covers all 267 paths. It lists 44 differences and contains file names and hashes.
+The current fingerprint is `81ebd09357fa819b98ed5ac7d0e042ba11f530176597c240c6f78d38aba5dd4b`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov28-quoted-clause-source-digests.json) covers all 267 paths. It lists 44 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 
