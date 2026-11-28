@@ -2,6 +2,7 @@
 // No qualification observation, raw reply or error prose selects this cue.
 const FAILURES = new WeakMap();
 const REQUESTS = new WeakMap();
+const DISPUTED_RECHECKS = new WeakMap();
 
 function data(value, key) {
   if (!value || typeof value !== "object" || !Object.isFrozen(value)) return undefined;
@@ -15,7 +16,7 @@ function matches(request, context) {
     && data(request, "analysis") === context.analysis
     && data(request, "candidate") === context.candidate
     && data(feedback, "stage") === context.stage
-    && data(feedback, "attempt") === 2;
+    && data(feedback, "attempt") === (context.kind === "atom-verdict" ? 3 : 2);
 }
 
 function remember(error, batch, analysis, candidate, stage, kind, missingPositions = null) {
@@ -48,7 +49,7 @@ export function rememberLatticeVerificationMissingUnitError(error, batch, analys
 
 export function getLatticeVerificationMissingPositions(request) {
   const context = REQUESTS.get(request);
-  return context?.kind === "atom-decision" && context.active && matches(request, context) ? context.missingPositions : null;
+  return ["atom-decision", "atom-verdict"].includes(context?.kind) && context.active && matches(request, context) ? context.missingPositions : null;
 }
 
 export async function withLatticeVerificationCorrection(request, error, invoke) {
@@ -57,6 +58,7 @@ export async function withLatticeVerificationCorrection(request, error, invoke) 
   if (origin && matches(request, origin) && !REQUESTS.has(request)) {
     context = { ...origin, active: true };
     // Consume before invocation and prevent either producer from remarking it.
+    if (origin.kind === "atom-decision" && origin.stage === "reverification") DISPUTED_RECHECKS.set(error, origin);
     FAILURES.set(error, null);
     REQUESTS.set(request, context);
   }
@@ -68,6 +70,24 @@ export async function withLatticeVerificationCorrection(request, error, invoke) 
       if (REQUESTS.get(request) === context) REQUESTS.delete(request);
     }
   }
+}
+
+// A recheck first marked an atom missing while accepting, then rejected an
+// all-positive set of findings. Neither reply decides the candidate. Allow
+// one independent adjudication of that exact pair, against the same draft.
+export async function adjudicateLatticeReverification(request, firstError, lastError, invoke) {
+  const disputed = DISPUTED_RECHECKS.get(firstError);
+  const verdict = FAILURES.get(lastError);
+  if (!disputed || verdict?.kind !== "decision-alignment" || verdict.stage !== "reverification"
+    || ![disputed, verdict].every(origin => ["analysis", "candidate", "batch"].every(
+      key => data(request, key) === origin[key]))) return null;
+  DISPUTED_RECHECKS.delete(firstError);
+  FAILURES.set(lastError, null);
+  const current = Object.freeze({ ...request, protocolFeedback: Object.freeze({ stage: "reverification", attempt: 3 }) });
+  const context = { ...disputed, kind: "atom-verdict", active: true };
+  REQUESTS.set(current, context);
+  try { return await invoke(current); }
+  finally { context.active = false; REQUESTS.delete(current); }
 }
 
 // The adapter selects this before its mode-only copy; no alias is authorized.

@@ -849,12 +849,18 @@ function fitQuotedDraft(request, stageName) {
     if (initial && !slot) return null;
     frames.push({ id, source, plan, slot });
   }
-  return frames.some(frame => frame.slot) ? frames : null;
+  // A copied ordinary passage also needs an actual new draft. When isolated,
+  // two bounded complete alternatives fit the existing response budget.
+  for (const frame of frames) {
+    frame.choiceCount = frame.slot || (frames.length === 1 && frame.source.text.length <= 600
+      && countLatticeWords(frame.source.text) <= 100) ? 2 : 1;
+  }
+  return frames.length ? frames : null;
 }
 
 function frameRepairSchema(frames) {
-  return closedWireObject(Object.fromEntries(frames.map(({ id, slot, plan }) => [id, {
-    type: "array", minItems: slot ? 2 : 1, maxItems: slot ? 2 : 1,
+  return closedWireObject(Object.fromEntries(frames.map(({ id, slot, plan, choiceCount }) => [id, {
+    type: "array", minItems: choiceCount, maxItems: choiceCount,
     items: closedWireObject({
       wording: { type: "string", minLength: 1, maxLength: slot ? 240 : 2800 },
       coverage: analysisWireBitMaskSchema(plan.atoms.length),
@@ -865,9 +871,9 @@ function frameRepairSchema(frames) {
 function expandFrameRepair(result, frames, previous) {
   if (!exactKeys(result, frames.map(frame => frame.id))) return {};
   const replacements = new Map();
-  for (const { id, source, plan, slot } of frames) {
+  for (const { id, source, plan, slot, choiceCount } of frames) {
     const choices = result[id];
-    if (!Array.isArray(choices) || choices.length !== (slot ? 2 : 1)) return {};
+    if (!Array.isArray(choices) || choices.length !== choiceCount) return {};
     let first;
     for (const choice of choices) {
       if (!exactKeys(choice, ["wording", "coverage"]) || typeof choice.wording !== "string"
@@ -3235,7 +3241,7 @@ export function createHuggingFaceLatticeAdapter({
       verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
       certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
       const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
-      const missingPositions = verificationCorrection === "atom-decision" ? getLatticeVerificationMissingPositions(request) : null;
+      const missingPositions = ["atom-decision", "atom-verdict"].includes(verificationCorrection) ? getLatticeVerificationMissingPositions(request) : null;
       const evidenceFirst = verificationFit !== null && (
         providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
         || isVerificationAlignmentCorrection(verificationCorrection)
