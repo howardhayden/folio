@@ -621,6 +621,46 @@ test("long repair uses its remaining attempt only on nonmaterial passages and re
   }
 });
 
+test("extended long jobs can resolve an isolated second-review failure and certify the fresh assembly", async () => {
+  const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  const group = plan.batches[0];
+  for (const mode of ["fixed", "rejected", "legacy", "reserve", "multi-passage-reserve"]) {
+    let checks = 0, finalRepairs = 0, certificates = 0;
+    const adapter = scriptedAdapter({
+      verify(r) {
+        if (r.batch !== group) return;
+        checks++;
+        const v = rawVerification(r);
+        if (mode === "fixed" && checks === 3) return v;
+        const row = v.passages[0];
+        row.missingAtomIds = [row.checkedAtomIds.pop()];
+        if (mode === "multi-passage-reserve") {
+          const neighbor = v.passages[1];
+          neighbor.missingAtomIds = [neighbor.checkedAtomIds.pop()];
+        }
+        v.decision = "repair";
+        return v;
+      },
+      repair(r) {
+        if (r.finalDraftPassageIds) {
+          finalRepairs++;
+          assert.deepEqual(r.finalDraftPassageIds, [group.passages[0].id]);
+          assert.ok(r.priorReviewedDraft.verification.passages[0].missingAtomIds.length);
+        }
+      },
+      certify() { certificates++; },
+    });
+    adapter.completionCapacity = () => ({ remaining: mode === "reserve" ? 4 : mode === "multi-passage-reserve" ? 6 : 20 });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: mode === "legacy" ? 48 : 64, allowClarification: false });
+    assert.equal(checks, ["fixed","rejected"].includes(mode) ? 3 : 2);
+    assert.equal(finalRepairs, ["fixed","rejected"].includes(mode) ? 1 : 0);
+    assert.equal(certificates, mode === "fixed" ? 1 : 0);
+    assert.equal(result.status, mode === "fixed" ? "translated" : "unable-to-attempt");
+    assert.equal(result.verificationPasses, mode === "fixed" ? 3 : 0);
+  }
+});
+
 test("whole-document repair reaches a misplaced word even when a different group fails review", async () => {
   const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "u" + i + "w")).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });

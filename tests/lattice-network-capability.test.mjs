@@ -109,7 +109,7 @@ test("fixed cors mode sends setup and content only to the canonical browser rout
           return streamedVisitorSessionResponse(new ReadableStream({ start(controller) { controller.close(); } }));
         }
         assert.equal(init.signal, calls[0].signal);
-        assert.deepEqual(init.headers, { Accept: "application/json", "Content-Type": "application/json", "X-Lattice-Processing-Notice": "qwen-deepinfra-coreweave-v1" });
+        assert.deepEqual(init.headers, { Accept: "application/json", "Content-Type": "application/json", "X-Lattice-Processing-Notice": "qwen-deepinfra-coreweave-v1", "X-Lattice-Review-Passes": "3" });
         assert.deepEqual(JSON.parse(init.body), makeLatticeRequest("Source"));
         return jsonResponse({ result, schema_version: 1 });
       },
@@ -265,7 +265,7 @@ test("capabilityFetch fixes an exact browser-owned origin and allows only its sa
   assert.equal(observed.init.referrer, "");
   assert.equal(observed.init.referrerPolicy, "same-origin");
   assert.deepEqual(observed.init.headers, {
-    "X-Lattice-Processing-Notice": "qwen-deepinfra-coreweave-v1",
+    "X-Lattice-Processing-Notice": "qwen-deepinfra-coreweave-v1", "X-Lattice-Review-Passes": "3",
     Accept: "application/json",
     "Content-Type": "application/json",
   });

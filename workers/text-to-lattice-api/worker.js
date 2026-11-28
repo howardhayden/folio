@@ -24,6 +24,8 @@ import {
   LATTICE_PARASAIL_PROCESSING_NOTICE,
   LATTICE_PROCESSING_NOTICE,
   LATTICE_PROCESSING_NOTICE_HEADER,
+  LATTICE_REVIEW_PASSES_HEADER,
+  LATTICE_LEGACY_LONG_JOB_CALL_LIMIT,
   LATTICE_VISITOR_SESSION_ACCEPT,
   isLatticeApiRequest,
   isLatticeApiResult,
@@ -1023,9 +1025,11 @@ export function createLatticeApiWorker({
         try {
           observeLatticeAdmissionTrustedStep(admissionObservation, preflightLatticeInputImpl === preflightLatticeInput);
           const initialPlan = preflightLatticeInputImpl(payload.text, planningOptions);
-          providerCallLimit = latticeProviderCallLimitForPlan(initialPlan);
+          const extendedReview = processingNotice === LATTICE_PROCESSING_NOTICE
+            && request.headers.get(LATTICE_REVIEW_PASSES_HEADER) === "3";
+          providerCallLimit = latticeProviderCallLimitForPlan(initialPlan, extendedReview);
           const plan = providerCallLimit > LATTICE_PROVIDER_CALL_LIMIT
-            ? balanceLongLatticePlan(initialPlan, providerCallLimit)
+            ? balanceLongLatticePlan(initialPlan, LATTICE_LEGACY_LONG_JOB_CALL_LIMIT)
             : initialPlan;
           runPrepared = runTextToLatticeImpl === runTextToLattice
             ? (options) => executeLatticePlan(plan, options)
@@ -1143,7 +1147,7 @@ export function createLatticeApiWorker({
           }
           if (onProgress !== undefined) runOptions.onProgress = onProgress;
           const result = await raceAbort(runPrepared(runOptions), deadline.signal);
-          if (!isLatticeApiResult(result)) {
+          if (!isLatticeApiResult(result) || (providerCallLimit <= LATTICE_LEGACY_LONG_JOB_CALL_LIMIT && result.verificationPasses > 2)) {
             throw apiError(502, "malformed_upstream_response");
           }
           terminalBody = {

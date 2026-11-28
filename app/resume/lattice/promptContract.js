@@ -431,19 +431,20 @@ export function singlePassageDraftMessages(request, target) {
       targetPassage: target.passageId,
       disposition: target.disposition,
       register: target.layer,
-      meaningUnits: target.atoms.map(atom => [atom.kind, atom.value, atom.preservation]),
+      meaningUnits: target.atoms.map(atom => [atom.id, atom.kind, atom.value, atom.preservation]),
+      ...(request.finalDraftPassageIds ? { sourceEvidence: sourcePassagesForModel(request).filter(([id]) => id === target.passageId) } : {}),
       groupSources: repairSourcePassagesForModel(request),
       groupAnalysis: analysisForModel(request.analysis),
       sourceBoundaries: sourceBoundariesForModel(request),
       documentLedger: documentLedgerForModel(request.documentLedger),
       ...(request.context ? { context: contextForModel(request.context) } : {}),
       ...(request.candidate && !request.repairFromSource ? { previousCandidate: rejectedCandidateForRepair(request.candidate) } : {}),
-      ...(request.verification ? { review: verificationFeedbackForModel(request.verification) } : {}),
+      ...(!request.regenerationFromReanalysis && request.verification ? { review: verificationFeedbackForModel(request.verification) } : {}),
       ...(request.deterministicFindings?.length ? { deterministicFindings: request.deterministicFindings } : {}),
       ...(request.documentBoundaryMoves?.length ? { documentBoundaryMoves: request.documentBoundaryMoves.slice(0, 12) } : {}),
       ...(prior ? { previouslyReviewed: prior } : {}),
     },
-    "Return one compact JSON object with wording and coverage. Only write targetPassage. groupSources entries contain the passage ID, exact source and protected literals. Use the remaining passages as context for who did what and when. For rewrite, express the target in its assigned register with a different predicate or clause structure while preserving every commitment, quotation, name, boundary and speech act. For retain-if-conformant, return its exact source. Give one coverage bit per listed meaning unit in order. Use 1 only for meaning actually present in the complete wording and 0 for omitted or uncertain meaning. End immediately after the object." + (request.documentBoundaryMoves?.length ? DOCUMENT_BOUNDARY_REPAIR_GUIDE : ""),
+    "Return one compact JSON object with wording and coverage. Only write targetPassage. groupSources entries contain the passage ID, exact source and protected literals. Use the remaining passages as context for who did what and when. For rewrite, express the target in its assigned register with a different predicate or clause structure while preserving every commitment, quotation, name, boundary and speech act. For retain-if-conformant, return its exact source. Compare the prior draft with the source and the review. Restore the actual source commitment behind each missing meaning unit, and use fresh wording for a copied rewrite. Keep checked neighboring details. Give one coverage bit per listed meaning unit in order. Use 1 only for meaning actually present in the complete wording and 0 for omitted or uncertain meaning. End immediately after the object." + (request.documentBoundaryMoves?.length ? DOCUMENT_BOUNDARY_REPAIR_GUIDE : ""),
   );
 }
 

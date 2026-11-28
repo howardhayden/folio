@@ -244,12 +244,14 @@ function apiRequest(body = validPayload, {
   origin = LATTICE_API_ORIGIN,
   accept = "application/json",
   processingNotice = "qwen-deepinfra-coreweave-v1",
+  reviewPasses = "3",
   contentType = "application/json",
   headers = {},
   visitorCookie = TEST_VISITOR_COOKIE_VALUE,
   raw = false,
 } = {}) {
   const requestHeaders = new Headers(headers);
+  if (reviewPasses !== null) requestHeaders.set("X-Lattice-Review-Passes", reviewPasses);
   if (processingNotice !== null) requestHeaders.set("X-Lattice-Processing-Notice", processingNotice);
   if (visitorCookie !== null && !requestHeaders.has("Cookie")) {
     requestHeaders.set("Cookie", `${LATTICE_API_VISITOR_COOKIE_NAME}=${visitorCookie}`);
@@ -2216,6 +2218,27 @@ test("a long relation correction binds its positions to the original emitted gra
   }
 });
 
+test("long review capacity negotiates independently of the processing notice", async () => {
+  const text = makeLongProseFixture(choices => choices[0]);
+  for (const [processingNotice, reviewPasses, limit] of [
+    ["qwen-deepinfra-coreweave-v1", "3", 64],
+    ["qwen-deepinfra-coreweave-v1", null, 48],
+    ["qwen-deepinfra-coreweave-v1", "unrecognized", 48],
+    ["qwen-parasail-coreweave-v1", "3", 48],
+    [null, "3", 48],
+  ]) {
+    let selected;
+    const worker = createLatticeApiWorker({
+      createAdapter(options) { selected = options.providerCallLimit; return {}; },
+      async runTextToLatticeImpl() { return validLatticeResult(); },
+    });
+    const response = await worker.fetch(apiRequest({ ...validPayload, text }, { processingNotice, reviewPasses }),
+      { HF_TOKEN: "fixture" });
+    assert.equal(response.status, 200);
+    assert.equal(selected, limit);
+  }
+});
+
 test("688-word narrative fits the production Worker, strict provider adapters and whole-document proof", async () => {
   const source = makeLongProseFixture((choices) => choices[0]);
   const oldPlan = preflightLatticeInput(source);
@@ -2231,7 +2254,7 @@ test("688-word narrative fits the production Worker, strict provider adapters an
   const worker = createLatticeApiWorker({
     async admitTransformation(...args) { admissions += 1; return allowTransformation(...args); },
     createAdapter(options) {
-      assert.equal(options.providerCallLimit, 48);
+      assert.equal(options.providerCallLimit, 64);
       return createHuggingFaceLatticeAdapter(options);
     },
     async fetchImpl(_url, init) {
@@ -7818,16 +7841,16 @@ test("provider output-token exposure stays explicit and bounded by admission", (
   assert.equal(Object.isFrozen(LATTICE_PROVIDER_OUTPUT_TOKEN_LIMITS), true);
   assert.equal(LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_CALL, 2_048);
   assert.equal(LATTICE_CERTIFICATION_WIRE_CHARACTER_LIMIT, 440);
-  assert.equal(LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST, 98_304);
+  assert.equal(LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST, 131_072);
   assert.equal(
     LATTICE_TRANSFORMATIONS_PER_UTC_DAY
       * LATTICE_PROVIDER_MAX_OUTPUT_TOKENS_PER_ADMITTED_REQUEST,
-    2_949_120,
+    3_932_160,
   );
 });
 
 test("long-job capacity requires both word count and planned batch thresholds", () => {
-  for (const [words, groups, limit] of [[499, 7, 32], [500, 6, 32], [500, 7, 48], [700, 9, 48]]) {
+  for (const [words, groups, limit] of [[499, 7, 32], [500, 6, 32], [500, 7, 64], [700, 9, 64]]) {
     assert.equal(latticeProviderCallLimitForPlan({ wordCount: words, batches: Array(groups) }), limit);
   }
   for (const limit of [31, 33, 47, 49, Infinity, "48"]) {
@@ -7835,7 +7858,7 @@ test("long-job capacity requires both word count and planned batch thresholds", 
   }
 });
 
-for (const limit of [32, 48]) {
+for (const limit of [32, 48, 64]) {
   test("adapter stops before the first fetch over its " + limit + "-call budget", async () => {
     let fetches = 0;
     const adapter = createHuggingFaceLatticeAdapter({

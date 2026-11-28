@@ -1,4 +1,4 @@
-import { LATTICE_LONG_JOB_POLICY, latticeProviderCallLimitForPlan } from "./lattice/remoteProtocol.js";
+import { isLatticeLongJobCallLimit, LATTICE_LONG_JOB_POLICY, latticeProviderCallLimitForPlan } from "./lattice/remoteProtocol.js";
 import { getLatticeAnalysisPassageRetentionDowngrade } from "./lattice/analysisProvenance.js";
 import { withLatticeRegenerationRetentionContext } from "./lattice/regenerationContext.js";
 import {
@@ -3426,8 +3426,22 @@ async function repairResidualCopies(entry, adapter, reserve, signal) {
   return candidate;
 }
 
-// Preserve already checked wording when the same plan survives a local repair.
-// The full assembled group is still reviewed anew before either text can ship.
+function finalDraftTargets(entry, nextAnalysis, boundaryTargets) {
+  const all = entry.batch.passages.map(passage => passage.id);
+  if (nextAnalysis !== entry.analysis || !entry.verification.available
+    || entry.verification.issues.some(issue => !issue.passageId)
+    || LATTICE_VERIFICATION_GATES.some(gate => !entry.verification.gates[gate])) return all;
+  const affected = new Set([
+    ...all.filter(id => boundaryTargets.has(id)),
+    ...entry.deterministicFindings.map(finding => finding.passageId),
+    ...entry.verification.issues.map(issue => issue.passageId),
+    ...entry.verification.passages.filter(passage => !passage.complete).map(passage => passage.passageId),
+  ]);
+  const ids = all.filter(id => affected.has(id));
+  return ids.length ? ids : all;
+}
+
+// Keep checked wording on an unchanged plan. Review the assembled group anew.
 function keepReviewedPassages(original, analysis, replacement) {
   const { verification } = original;
   if (!verification.available || original.documentFindings.length || verification.issues.some(issue => !issue.passageId)
@@ -3916,9 +3930,9 @@ export async function executeLatticePlan(preflight, options) {
     ...entry,
     ...bindRequiredLedgerTargets(entry.analysis, buildDocumentLedger(analyses, entry.batch.id)),
   }));
-  const qualifyingLongJob = options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
+  const qualifyingLongJob = isLatticeLongJobCallLimit(options.providerCallLimit)
     && latticeProviderCallLimitForPlan(preflight) === LATTICE_LONG_JOB_POLICY.providerCallLimit;
-  const candidates = [];
+  let candidates = [];
   const repairLongDraft = qualifyingLongJob ? (currentRequest, previousDraft, findings) => {
     const copied = findings.some(finding => deterministicFindingRule(finding) === "D14");
     return options.adapter.repair(Object.freeze({
@@ -4049,7 +4063,7 @@ export async function executeLatticePlan(preflight, options) {
     signal,
   );
   throwIfAborted(signal);
-  const reviews = [];
+  let reviews = [];
   for (let index = 0; index < candidates.length; index += 1) {
     const request = candidates[index];
     throwIfAborted(signal);
@@ -4108,10 +4122,13 @@ export async function executeLatticePlan(preflight, options) {
     return "review-required";
   };
 
-  const boundaryTargets = qualifyingLongJob ? documentBoundaryRepairTargets(source, passages, assembly) : new Map();
-  let failures = reviews.filter(entry => !entry.verification.accepted
-    || entry.batch.passages.some(p => boundaryTargets.has(p.id)));
-  if (assembly.documentFindings.length > 0 && failures.length === 0) failures = [...reviews];
+  const failedGroups = () => {
+    const targets = qualifyingLongJob ? documentBoundaryRepairTargets(source, passages, assembly) : new Map();
+    let failed = reviews.filter(entry => !entry.verification.accepted || entry.batch.passages.some(p => targets.has(p.id)));
+    if (assembly.documentFindings.length && !failed.length) failed = [...reviews];
+    return { targets, failed };
+  };
+  let { targets: boundaryTargets, failed: failures } = failedGroups();
   if (failures.length === 0) {
     const certification = await certifyWholeDocument({
       pipelineObservation,
@@ -4141,346 +4158,379 @@ export async function executeLatticePlan(preflight, options) {
     });
   }
 
-  // Observe only the first true predicate actually reached by this existing
-  // short-circuit selection. The reason never becomes a routing input.
-  const observedStructuralMatch = (matches, reason) => {
-    if (matches) pipelineObservation?.structuralReasons.add(reason);
-    return matches;
-  };
-  if (pipelineObservation !== null) pipelineObservation.structuralSelectionReached = true;
-  const structurallyFailed = failures.filter((entry) => entry.verification.available !== false && entry.verification.gates.languageSupported && (
-    observedStructuralMatch(hasOnlyBoundDowngradedRetentionFindings(entry), "downgraded-retention")
-    || observedStructuralMatch(!entry.verification.gates.sourceCoverage, "source-coverage")
-    || observedStructuralMatch(!entry.verification.gates.atomCoverage, "atom-coverage")
-    || observedStructuralMatch(!entry.verification.gates.registerFit, "register-fit")
-    || entry.verification.passages.some((passage) => (
-      observedStructuralMatch(passage.unmodeledEvidence.length > 0, "unmodeled-evidence")
-      || observedStructuralMatch(!passage.planFit, "plan-fit")
-      || observedStructuralMatch(!passage.layerEvidenceGrounded, "layer-grounding")
-      || observedStructuralMatch(passage.independentLayer !== entry.analysis.passages.find(({ passageId }) => (
-        passageId === passage.passageId
-      ))?.layer, "layer-mismatch")
-      || observedStructuralMatch(passage.requiresPositiveConformance && !passage.conformanceConfirmed, "retained-conformance")
-    ))
-  ));
-  const structuralIds = new Set(structurallyFailed.map((entry) => entry.batch.id));
-  const unverifiedMaterialityRepairs = new Set(failures
-    .filter(canRepairAfterEmptyLayerSupport)
-    .map((entry) => entry.batch.id));
-  const retryableFailures = failures.filter((entry) => (
-    entry.verification.available !== false && entry.verification.gates.languageSupported
-    || unverifiedMaterialityRepairs.has(entry.batch.id)
-  ));
-  const retryNotes = [];
-  const reanalyzedByBatch = new Map();
-  const retainedOverrideIdsByBatch = new Map();
-
-  for (let index = 0; index < structurallyFailed.length; index += 1) {
-    const entry = structurallyFailed[index];
-    throwIfAborted(signal);
-    progress(onProgress, "reatomizing", index, structurallyFailed.length, entry.batch.id);
-    const reanalysisLedger = buildDocumentLedger(analyses, entry.batch.id);
-    const clarificationDocumentProvenance = committedClarificationProvenance(analyses, entry.batch.id);
-    const analysisRevisionId = nextAnalysisRevisionId();
-    const request = Object.freeze({
-      batch: entry.batch,
-      sourceSpans: entry.sourceSpans,
-      context: entry.context,
-      sourceFingerprint,
-      analysisRevisionId,
-      analysisAtomLimit: entry.analysisAtomLimit,
-      documentLedger: reanalysisLedger,
-      clarificationDocumentProvenance,
-      reanalysisFeedback: closedReanalysisFeedback(entry.verification),
-      reanalysisPriorAnalysis: entry.analysis,
-      requestedMode,
-      allowClarification: false,
-      signal,
-    });
-    try {
-      pipelineObservation?.retryPaths.set(entry.batch.id, "reanalysis-only");
-      const reviewedPlans = qualifyingLongJob && requestedMode === "auto" ? registerRepairPlans(entry) : null;
-      if (reviewedPlans) {
-        // Atom IDs continue to identify their original graph, including
-        // cross-batch links. The revised writing plan gets its own revision.
-        const analysis = Object.freeze({ ...entry.analysis, revisionId: analysisRevisionId, passages: reviewedPlans });
-        const overridden = reviewedPlans.filter((plan, position) => plan.disposition === "rewrite"
-          && entry.analysis.passages[position].disposition === "retain-if-conformant").map((plan) => plan.passageId);
-        retainedOverrideIdsByBatch.set(entry.batch.id, Object.freeze(overridden));
-        pipelineObservation?.reanalysisOverrides.set(analysis, overridden.length > 0);
-        reanalyzedByBatch.set(entry.batch.id, Object.freeze({ ...request, analysis }));
-        progress(onProgress, "reatomizing", index + 1, structurallyFailed.length, entry.batch.id);
-        continue;
+  let retryNotes = [];
+  let verificationPasses = 1;
+  const maximumPasses = qualifyingLongJob && options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit ? 3 : 2;
+  for (let round = 2; round <= maximumPasses; round++) {
+    // Observe only the first true predicate actually reached by this existing
+    // short-circuit selection. The reason never becomes a routing input.
+    const observedStructuralMatch = (matches, reason) => {
+      if (matches) pipelineObservation?.structuralReasons.add(reason);
+      return matches;
+    };
+    if (pipelineObservation !== null) pipelineObservation.structuralSelectionReached = true;
+    const structurallyFailed = failures.filter((entry) => entry.verification.available !== false && entry.verification.gates.languageSupported && (
+      observedStructuralMatch(hasOnlyBoundDowngradedRetentionFindings(entry), "downgraded-retention")
+      || observedStructuralMatch(!entry.verification.gates.sourceCoverage, "source-coverage")
+      || observedStructuralMatch(!entry.verification.gates.atomCoverage, "atom-coverage")
+      || observedStructuralMatch(!entry.verification.gates.registerFit, "register-fit")
+      || entry.verification.passages.some((passage) => (
+        observedStructuralMatch(passage.unmodeledEvidence.length > 0, "unmodeled-evidence")
+        || observedStructuralMatch(!passage.planFit, "plan-fit")
+        || observedStructuralMatch(!passage.layerEvidenceGrounded, "layer-grounding")
+        || observedStructuralMatch(passage.independentLayer !== entry.analysis.passages.find(({ passageId }) => (
+          passageId === passage.passageId
+        ))?.layer, "layer-mismatch")
+        || observedStructuralMatch(passage.requiresPositiveConformance && !passage.conformanceConfirmed, "retained-conformance")
+      ))
+    ));
+    const structuralIds = new Set(structurallyFailed.map((entry) => entry.batch.id));
+    const unverifiedMaterialityRepairs = new Set(failures
+      .filter(canRepairAfterEmptyLayerSupport)
+      .map((entry) => entry.batch.id));
+    const retryableFailures = failures.filter((entry) => (
+      entry.verification.available !== false && entry.verification.gates.languageSupported
+      || unverifiedMaterialityRepairs.has(entry.batch.id)
+    ));
+    const finalWork = new Map();
+    if (round === 3) {
+      let required = FLAT_CERTIFICATION_RESERVATION;
+      for (const entry of failures) {
+        const structural = structuralIds.has(entry.batch.id);
+        const targets = finalDraftTargets(entry, structural ? null : entry.analysis, boundaryTargets);
+        finalWork.set(entry.batch.id, targets);
+        const newAnalysisCall = structural && !(requestedMode === "auto" && registerRepairPlans(entry));
+        required += targets.length + 1 + Number(newAnalysisCall);
       }
-      const normalizedAnalysis = await callNormalizedStage({
-        stage: "re-atomization",
-        pipelineObservation,
-        analysisDiagnosticOrigin: "reanalysis",
-        request,
-        invoke: (currentRequest) => options.adapter.analyze(currentRequest),
-        normalize: (raw) => normalizeAnalysis(
-          raw,
-          entry.batch,
-          reanalysisLedger,
-          analysisRevisionId,
-          sourceFingerprint,
-          clarificationDocumentProvenance,
-          { allowClarification: false, analysisAtomLimit: entry.analysisAtomLimit, signal },
-        ),
-        signal,
-      });
-      const rejectedRetains = new Set(entry.verification.passages
-        .filter((passage) => passage.requiresPositiveConformance && (
-          !passage.conformanceConfirmed
-          || !entry.verification.gates.registerFit
-          || !passage.registerFit
-          || !passage.layerEvidenceGrounded
-          || passage.independentLayer !== entry.analysis.passages.find(({ passageId }) => (
-            passageId === passage.passageId
-          ))?.layer
-        ))
-        .map((passage) => passage.passageId));
-      let retainOverridden = false;
-      const retainedOverrideIds = [];
-      const retainOverride = (passage) => {
-        retainOverridden = true;
-        retainedOverrideIds.push(passage.passageId);
-        return Object.freeze({
-          ...passage,
-          disposition: "rewrite",
-          conformanceCriteria: Object.freeze([]),
-          conformanceEvidenceSpanIds: Object.freeze([]),
-          conformanceEvidence: Object.freeze([]),
-          conformanceAssertions: Object.freeze([]),
-        });
-      };
-      const analysis = rejectedRetains.size === 0
-        ? normalizedAnalysis
-        : Object.freeze({
-          ...normalizedAnalysis,
-          passages: Object.freeze(normalizedAnalysis.passages.map((passage) => (
-            rejectedRetains.has(passage.passageId) && passage.disposition === "retain-if-conformant"
-              ? retainOverride(passage)
-              : passage
-          ))),
-        });
-      pipelineObservation?.reanalysisOverrides.set(analysis, retainOverridden);
-      retainedOverrideIdsByBatch.set(entry.batch.id, Object.freeze(retainedOverrideIds));
-      reanalyzedByBatch.set(entry.batch.id, Object.freeze({ ...request, analysis }));
-    } catch (error) {
-      throwIfAborted(signal);
-      if (!retryableAnalysisFailure(error)) throw error;
-      retryNotes.push(stageFailureFinding({ id: "reanalysis-unavailable", passageId: entry.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The bounded re-atomization pass did not produce a valid replacement graph." }, error));
-    }
-    progress(onProgress, "reatomizing", index + 1, structurallyFailed.length, entry.batch.id);
-  }
-
-  const provisionalAnalyses = analyses.map((entry) => reanalyzedByBatch.get(entry.batch.id) ?? entry);
-  const reanalysisQuestions = [...reanalyzedByBatch.values()].flatMap(({ analysis }) => analysis.questions);
-  if (reanalysisQuestions.length > 0) {
-    return terminalResult({
-      source, wordCount, passages, analyses: provisionalAnalyses, finalCandidates: candidates, finalReviews: reviews,
-      status: "needs-clarification", questions: reanalysisQuestions.slice(0, 1), verificationPasses: 1,
-      documentFindings: [...assembly.documentFindings, ...retryNotes],
-    });
-  }
-
-  const actionableFailures = retryableFailures.filter((entry) => !structuralIds.has(entry.batch.id) || reanalyzedByBatch.has(entry.batch.id));
-  const retriedCandidates = [];
-  for (let index = 0; index < actionableFailures.length; index += 1) {
-    const original = actionableFailures[index];
-    throwIfAborted(signal);
-    progress(onProgress, structuralIds.has(original.batch.id) ? "regenerating" : "repairing", index, actionableFailures.length, original.batch.id);
-    const replacementEntry = reanalyzedByBatch.get(original.batch.id);
-    const replacementAnalysis = replacementEntry?.analysis ?? original.analysis;
-    try {
-      const boundaryMoves = original.batch.passages.flatMap(p => boundaryTargets.get(p.id) ?? []);
-      const retryRequest = Object.freeze({
-        ...original,
-        ...(boundaryMoves.length ? { documentBoundaryMoves: [...new Set(boundaryMoves)] } : {}),
-        ...(reanalyzedByBatch.has(original.batch.id) ? { regenerationFromReanalysis: true } : {}),
-        ...(!reanalyzedByBatch.has(original.batch.id) && hasOnlyBoundNonmaterialFindings(original)
-          ? { repairFromSource: true,
-            ...(qualifyingLongJob && onlyCopiedWordingNeedsRepair(original) ? { correctCopiedLongDraft: true } : {}) } : {}),
-        // Repair only the host-proved defect; the unavailable review contains
-        // placeholders, not independent semantic findings. Fresh verification
-        // below must still establish every required condition for the new draft.
-        ...(unverifiedMaterialityRepairs.has(original.batch.id) ? { verification: null } : {}),
-        analysisRevisionId: replacementEntry?.analysisRevisionId ?? original.analysisRevisionId,
-        clarificationDocumentProvenance: replacementEntry?.clarificationDocumentProvenance
-          ?? original.clarificationDocumentProvenance,
-        analysis: replacementAnalysis,
-        ...bindRequiredLedgerTargets(
-          replacementAnalysis,
-          buildDocumentLedger(provisionalAnalyses, original.batch.id),
-        ),
-      });
-      const stage = reanalyzedByBatch.has(original.batch.id) ? "regeneration" : "repair";
-      pipelineObservation?.retryPaths.set(original.batch.id, stage);
-      const replacement = await callNormalizedStage({
-        stage,
-        pipelineObservation,
-        request: retryRequest,
-        invoke: (currentRequest, correctionPositions) => reanalyzedByBatch.has(original.batch.id)
-          ? withLatticeRegenerationRetentionContext(
-            currentRequest, original.batch, original.verification, replacementAnalysis,
-            () => options.adapter.generate(currentRequest),
-            correctionPositions,
-            retainedOverrideIdsByBatch.get(original.batch.id),
-            qualifyingLongJob,
-          )
-          : options.adapter.repair(currentRequest),
-        normalize: (raw) => normalizeCandidate(raw, original.batch, replacementAnalysis),
-        signal,
-        repairLongDraft,
-        regenerationRetainOverrideIds: retainedOverrideIdsByBatch.get(original.batch.id),
-        allowExactSourceRegenerationCorrection: options.allowExactSourceRegenerationCorrection === true,
-        onDraftCorrectionFailure: (error) => retryNotes.push(stageFailureFinding({
-          id: stage === "repair" ? "repair-correction-unavailable" : "regeneration-correction-unavailable",
-          passageId: original.batch.passages[0]?.id ?? "",
-          atomIds: Object.freeze([]),
-          message: "The revised coverage or wording did not produce a valid draft. The previous candidate remains withheld.",
-        }, error)),
-      });
-      let candidate = qualifyingLongJob ? keepReviewedPassages(original, replacementAnalysis, replacement) : replacement;
-      if (qualifyingLongJob) {
-        // Reserve a correction for every pending draft and review, plus the
-        // whole-document proof. This work never adds another semantic pass.
-        const reserve = 2 * (actionableFailures.length - index - 1 + actionableFailures.length) + FLAT_CERTIFICATION_RESERVATION;
-        candidate = await repairResidualCopies({ ...retryRequest, candidate,
-          ...(!retryRequest.regenerationFromReanalysis && original.verification.available
-            ? { priorReviewedDraft: { candidate: original.candidate, verification: original.verification } } : {}) },
-        options.adapter, reserve, signal);
-      }
-      const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate, pipelineObservation !== null);
-      pipelineObservation?.candidateLineages.set(candidate, stage);
-      if (stage === "regeneration" && pipelineObservation !== null) {
-        const overridden = pipelineObservation.reanalysisOverrides.get(replacementAnalysis);
-        if (typeof overridden === "boolean") {
-          pipelineObservation.regenerationOverrides.set(candidate, Object.freeze({
-            analysis: replacementAnalysis, batch: original.batch, overridden,
-          }));
-        }
-      }
-      retriedCandidates.push(Object.freeze({ ...retryRequest, candidate, deterministicFindings }));
-    } catch (error) {
-      throwIfAborted(signal);
-      if (!retryableStageFailure(error)) throw error;
-      retryNotes.push(stageFailureFinding({ id: "candidate-retry-unavailable", passageId: original.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The bounded candidate retry did not produce a valid draft." }, error));
-    }
-    progress(onProgress, structuralIds.has(original.batch.id) ? "regenerating" : "repairing", index + 1, actionableFailures.length, original.batch.id);
-  }
-
-  const retryCandidateByBatch = new Map(retriedCandidates.map((entry) => [entry.batch.id, entry]));
-  let tentativeCandidates = candidates.map((entry) => retryCandidateByBatch.get(entry.batch.id) ?? entry);
-  assembly = assemble(tentativeCandidates);
-  if (qualifyingLongJob && assembly.documentFindings.some(f => deterministicFindingRule(f) === "D27")) {
-    // A locally accepted group can introduce a source word from a different
-    // line. Repair its actual destination before the second independent sweep.
-    for (const [index, entry] of tentativeCandidates.entries()) {
-      const targets = documentBoundaryRepairTargets(source, passages, assembly);
-      if (!targets.size) break;
-      const ids = entry.analysis.passages.filter(p => p.disposition === "rewrite"
-        && targets.get(p.passageId)?.some(([, , to]) => to === p.passageId)).map(p => p.passageId);
-      if (!ids.length) continue;
       const remaining = options.adapter.completionCapacity?.()?.remaining;
-      const reviewCount = retryCandidateByBatch.size + (retryCandidateByBatch.has(entry.batch.id) ? 0 : 1);
-      if (!Number.isSafeInteger(remaining) || remaining <= 2 * reviewCount + FLAT_CERTIFICATION_RESERVATION) continue;
-      const moves = [...new Set(ids.flatMap(id => targets.get(id)))];
-      const request = Object.freeze({ ...entry, verification: null, documentFindings: assembly.documentFindings,
-        documentBoundaryRepairPassageIds: ids, documentBoundaryMoves: moves });
-      throwIfAborted(signal);
-      let proposed;
-      try { proposed = normalizeCandidate(await options.adapter.repair(request), entry.batch, entry.analysis); }
-      catch (error) { throwIfAborted(signal); if (!retryableStageFailure(error)) throw error; continue; }
-      const candidate = Object.freeze({ passages: Object.freeze(entry.candidate.passages.map((p, i) =>
-        ids.includes(p.passageId) ? proposed.passages[i] : p)) });
-      const deterministicFindings = deterministicBatchReview(entry.batch, entry.analysis, candidate, pipelineObservation !== null);
-      if (deterministicFindings.length || moves.some(([word, from, to]) => from !== to && ids.includes(to)
-        && containsLatticeBoundaryWord(candidate.passages.find(p => p.passageId === to).text, word))) continue;
-      const changed = Object.freeze({ ...entry, candidate, deterministicFindings });
-      const trial = tentativeCandidates.with(index, changed);
-      const next = assemble(trial);
-      const nextTargets = documentBoundaryRepairTargets(source, passages, next);
-      const words = map => new Set([...map.values()].flat().map(([word]) => word));
-      const before = words(targets), after = words(nextTargets);
-      if (after.size >= before.size || [...after].some(word => !before.has(word))
-        || next.documentFindings.some(f => deterministicFindingRule(f) !== "D27")) continue;
-      const pos = retriedCandidates.findIndex(e => e.batch.id === entry.batch.id);
-      if (pos < 0) retriedCandidates.push(changed); else retriedCandidates[pos] = changed;
-      retryCandidateByBatch.set(entry.batch.id, changed);
-      tentativeCandidates = trial;
-      assembly = next;
+      if (!Number.isSafeInteger(remaining) || remaining < required) break;
     }
-  }
-  provenanceProgress(onProgress, "binding-result-integrity", "Binding revised result integrity");
-  candidateFingerprint = await provenanceFingerprint(
-    "cf",
-    assembledCandidateProvenance(tentativeCandidates, assembly.text),
-    signal,
-  );
-  throwIfAborted(signal);
-  const secondReviews = [];
-  for (let index = 0; index < retriedCandidates.length; index += 1) {
-    const request = retriedCandidates[index];
-    throwIfAborted(signal);
-    progress(onProgress, "reverifying", index, retriedCandidates.length, request.batch.id);
-    const verificationRequest = Object.freeze({
-      ...request,
-      assembledContext: assembledContextFor(passages, request.batch, assembly.candidateById),
-      documentFindings: assembly.documentFindings,
-    });
-    try {
-      const verification = await callNormalizedStage({
-        stage: "reverification",
-        pipelineObservation,
-        canAdjudicateRecheck: qualifyingLongJob ? () => {
-          const remaining = options.adapter.completionCapacity?.()?.remaining;
-          return Number.isSafeInteger(remaining)
-            && remaining > 2 * (retriedCandidates.length - index - 1) + FLAT_CERTIFICATION_RESERVATION;
-        } : null,
-        request: verificationRequest,
-        invoke: (currentRequest) => options.adapter.verify(currentRequest),
-        normalize: (raw, currentRequest) => normalizeVerification(
-          raw,
-          request.batch,
-          request.analysis,
-          request.deterministicFindings,
-          request.candidate,
-          "reverification",
-          qualifyingLongJob && !currentRequest.protocolFeedback,
-        ),
+    retryNotes = [];
+    const reanalyzedByBatch = new Map();
+    const retainedOverrideIdsByBatch = new Map();
+
+    for (let index = 0; index < structurallyFailed.length; index += 1) {
+      const entry = structurallyFailed[index];
+      throwIfAborted(signal);
+      progress(onProgress, "reatomizing", index, structurallyFailed.length, entry.batch.id);
+      const reanalysisLedger = buildDocumentLedger(analyses, entry.batch.id);
+      const clarificationDocumentProvenance = committedClarificationProvenance(analyses, entry.batch.id);
+      const analysisRevisionId = nextAnalysisRevisionId();
+      const request = Object.freeze({
+        batch: entry.batch,
+        sourceSpans: entry.sourceSpans,
+        context: entry.context,
+        sourceFingerprint,
+        analysisRevisionId,
+        analysisAtomLimit: entry.analysisAtomLimit,
+        documentLedger: reanalysisLedger,
+        clarificationDocumentProvenance,
+        reanalysisFeedback: closedReanalysisFeedback(entry.verification),
+        reanalysisPriorAnalysis: entry.analysis,
+        requestedMode,
+        allowClarification: false,
         signal,
       });
-      secondReviews.push(Object.freeze({ ...verificationRequest, verification }));
-    } catch (error) {
-      throwIfAborted(signal);
-      if (!retryableStageFailure(error)) throw error;
-      retryCandidateByBatch.delete(request.batch.id);
-      retryNotes.push(stageFailureFinding({ id: "reverification-unavailable", passageId: request.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The independent recheck did not complete with a valid result." }, error));
+      try {
+        pipelineObservation?.retryPaths.set(entry.batch.id, "reanalysis-only");
+        const reviewedPlans = qualifyingLongJob && requestedMode === "auto" ? registerRepairPlans(entry) : null;
+        if (reviewedPlans) {
+          // Atom IDs continue to identify their original graph, including
+          // cross-batch links. The revised writing plan gets its own revision.
+          const analysis = Object.freeze({ ...entry.analysis, revisionId: analysisRevisionId, passages: reviewedPlans });
+          const overridden = reviewedPlans.filter((plan, position) => plan.disposition === "rewrite"
+            && entry.analysis.passages[position].disposition === "retain-if-conformant").map((plan) => plan.passageId);
+          retainedOverrideIdsByBatch.set(entry.batch.id, Object.freeze(overridden));
+          pipelineObservation?.reanalysisOverrides.set(analysis, overridden.length > 0);
+          reanalyzedByBatch.set(entry.batch.id, Object.freeze({ ...request, analysis }));
+          progress(onProgress, "reatomizing", index + 1, structurallyFailed.length, entry.batch.id);
+          continue;
+        }
+        const normalizedAnalysis = await callNormalizedStage({
+          stage: "re-atomization",
+          pipelineObservation,
+          analysisDiagnosticOrigin: "reanalysis",
+          request,
+          invoke: (currentRequest) => options.adapter.analyze(currentRequest),
+          normalize: (raw) => normalizeAnalysis(
+            raw,
+            entry.batch,
+            reanalysisLedger,
+            analysisRevisionId,
+            sourceFingerprint,
+            clarificationDocumentProvenance,
+            { allowClarification: false, analysisAtomLimit: entry.analysisAtomLimit, signal },
+          ),
+          signal,
+        });
+        const rejectedRetains = new Set(entry.verification.passages
+          .filter((passage) => passage.requiresPositiveConformance && (
+            !passage.conformanceConfirmed
+            || !entry.verification.gates.registerFit
+            || !passage.registerFit
+            || !passage.layerEvidenceGrounded
+            || passage.independentLayer !== entry.analysis.passages.find(({ passageId }) => (
+              passageId === passage.passageId
+            ))?.layer
+          ))
+          .map((passage) => passage.passageId));
+        let retainOverridden = false;
+        const retainedOverrideIds = [];
+        const retainOverride = (passage) => {
+          retainOverridden = true;
+          retainedOverrideIds.push(passage.passageId);
+          return Object.freeze({
+            ...passage,
+            disposition: "rewrite",
+            conformanceCriteria: Object.freeze([]),
+            conformanceEvidenceSpanIds: Object.freeze([]),
+            conformanceEvidence: Object.freeze([]),
+            conformanceAssertions: Object.freeze([]),
+          });
+        };
+        const analysis = rejectedRetains.size === 0
+          ? normalizedAnalysis
+          : Object.freeze({
+            ...normalizedAnalysis,
+            passages: Object.freeze(normalizedAnalysis.passages.map((passage) => (
+              rejectedRetains.has(passage.passageId) && passage.disposition === "retain-if-conformant"
+                ? retainOverride(passage)
+                : passage
+            ))),
+          });
+        pipelineObservation?.reanalysisOverrides.set(analysis, retainOverridden);
+        retainedOverrideIdsByBatch.set(entry.batch.id, Object.freeze(retainedOverrideIds));
+        reanalyzedByBatch.set(entry.batch.id, Object.freeze({ ...request, analysis }));
+      } catch (error) {
+        throwIfAborted(signal);
+        if (!retryableAnalysisFailure(error)) throw error;
+        retryNotes.push(stageFailureFinding({ id: "reanalysis-unavailable", passageId: entry.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The bounded re-atomization pass did not produce a valid replacement graph." }, error));
+      }
+      progress(onProgress, "reatomizing", index + 1, structurallyFailed.length, entry.batch.id);
     }
-    progress(onProgress, "reverifying", index + 1, retriedCandidates.length, request.batch.id);
-  }
 
-  tentativeCandidates = candidates.map((entry) => retryCandidateByBatch.get(entry.batch.id) ?? entry);
-  const secondByBatch = new Map(secondReviews.map((entry) => [entry.batch.id, entry]));
-  const finalReviews = reviews.map((entry) => secondByBatch.get(entry.batch.id) ?? entry);
-  const committedReanalysisIds = new Set(secondReviews
-    .filter((entry) => reanalyzedByBatch.has(entry.batch.id) && retryCandidateByBatch.has(entry.batch.id))
-    .map((entry) => entry.batch.id));
-  analyses = analyses.map((entry) => (
-    committedReanalysisIds.has(entry.batch.id) ? reanalyzedByBatch.get(entry.batch.id) : entry
-  ));
-  assembly = assemble(tentativeCandidates);
-  const secondQuestions = secondReviews.flatMap((entry) => entry.verification.questions);
-  if (secondQuestions.length > 0) {
-    return terminalResult({
-      source, wordCount, passages, analyses, finalCandidates: tentativeCandidates, finalReviews,
-      status: "needs-clarification", questions: secondQuestions.slice(0, 1), verificationPasses: 2,
-      documentFindings: [...assembly.documentFindings, ...retryNotes],
-    });
-  }
+    const provisionalAnalyses = analyses.map((entry) => reanalyzedByBatch.get(entry.batch.id) ?? entry);
+    const reanalysisQuestions = [...reanalyzedByBatch.values()].flatMap(({ analysis }) => analysis.questions);
+    if (reanalysisQuestions.length > 0) {
+      return terminalResult({
+        source, wordCount, passages, analyses: provisionalAnalyses, finalCandidates: candidates, finalReviews: reviews,
+        status: "needs-clarification", questions: reanalysisQuestions.slice(0, 1), verificationPasses,
+        documentFindings: [...assembly.documentFindings, ...retryNotes],
+      });
+    }
 
+    const actionableFailures = retryableFailures.filter((entry) => !structuralIds.has(entry.batch.id) || reanalyzedByBatch.has(entry.batch.id));
+    const retriedCandidates = [];
+    for (let index = 0; index < actionableFailures.length; index += 1) {
+      const original = actionableFailures[index];
+      throwIfAborted(signal);
+      progress(onProgress, structuralIds.has(original.batch.id) ? "regenerating" : "repairing", index, actionableFailures.length, original.batch.id);
+      const replacementEntry = reanalyzedByBatch.get(original.batch.id);
+      const replacementAnalysis = replacementEntry?.analysis ?? original.analysis;
+      try {
+        const boundaryMoves = original.batch.passages.flatMap(p => boundaryTargets.get(p.id) ?? []);
+        const retryRequest = Object.freeze({
+          ...original,
+          ...(round === 3 ? {
+            finalDraftPassageIds: finalWork.get(original.batch.id),
+            priorReviewedDraft: replacementEntry || !original.verification.available ? undefined
+              : { candidate: original.candidate, verification: original.verification },
+          } : {}),
+          ...(boundaryMoves.length ? { documentBoundaryMoves: [...new Set(boundaryMoves)] } : {}),
+          ...(reanalyzedByBatch.has(original.batch.id) ? { regenerationFromReanalysis: true } : {}),
+          ...(!reanalyzedByBatch.has(original.batch.id) && hasOnlyBoundNonmaterialFindings(original)
+            ? { repairFromSource: true,
+              ...(qualifyingLongJob && onlyCopiedWordingNeedsRepair(original) ? { correctCopiedLongDraft: true } : {}) } : {}),
+          // Repair only the host-proved defect; the unavailable review contains
+          // placeholders, not independent semantic findings. Fresh verification
+          // below must still establish every required condition for the new draft.
+          ...(unverifiedMaterialityRepairs.has(original.batch.id) ? { verification: null } : {}),
+          analysisRevisionId: replacementEntry?.analysisRevisionId ?? original.analysisRevisionId,
+          clarificationDocumentProvenance: replacementEntry?.clarificationDocumentProvenance
+            ?? original.clarificationDocumentProvenance,
+          analysis: replacementAnalysis,
+          ...bindRequiredLedgerTargets(
+            replacementAnalysis,
+            buildDocumentLedger(provisionalAnalyses, original.batch.id),
+          ),
+        });
+        const stage = reanalyzedByBatch.has(original.batch.id) ? "regeneration" : "repair";
+        pipelineObservation?.retryPaths.set(original.batch.id, stage);
+        const replacement = await callNormalizedStage({
+          stage,
+          pipelineObservation,
+          request: retryRequest,
+          invoke: (currentRequest, correctionPositions) => reanalyzedByBatch.has(original.batch.id)
+            ? withLatticeRegenerationRetentionContext(
+              currentRequest, original.batch, original.verification, replacementAnalysis,
+              () => options.adapter.generate(currentRequest),
+              correctionPositions,
+              retainedOverrideIdsByBatch.get(original.batch.id),
+              qualifyingLongJob,
+            )
+            : options.adapter.repair(currentRequest),
+          normalize: (raw) => normalizeCandidate(raw, original.batch, replacementAnalysis),
+          signal,
+          repairLongDraft,
+          regenerationRetainOverrideIds: retainedOverrideIdsByBatch.get(original.batch.id),
+          allowExactSourceRegenerationCorrection: options.allowExactSourceRegenerationCorrection === true,
+          onDraftCorrectionFailure: (error) => retryNotes.push(stageFailureFinding({
+            id: stage === "repair" ? "repair-correction-unavailable" : "regeneration-correction-unavailable",
+            passageId: original.batch.passages[0]?.id ?? "",
+            atomIds: Object.freeze([]),
+            message: "The revised coverage or wording did not produce a valid draft. The previous candidate remains withheld.",
+          }, error)),
+        });
+        let candidate = qualifyingLongJob ? keepReviewedPassages(original, replacementAnalysis, replacement) : replacement;
+        if (qualifyingLongJob) {
+          // Reserve a correction for every pending draft and review, plus the
+          // whole-document proof. This work never adds another semantic pass.
+          const pendingDrafts = actionableFailures.slice(index + 1).reduce((count, entry) =>
+            count + (finalWork.get(entry.batch.id)?.length ?? 2), 0);
+          const reserve = pendingDrafts + 2 * actionableFailures.length + FLAT_CERTIFICATION_RESERVATION;
+          candidate = await repairResidualCopies({ ...retryRequest, candidate,
+            ...(!retryRequest.regenerationFromReanalysis && original.verification.available
+              ? { priorReviewedDraft: { candidate: original.candidate, verification: original.verification } } : {}) },
+          options.adapter, reserve, signal);
+        }
+        const deterministicFindings = deterministicBatchReview(original.batch, replacementAnalysis, candidate, pipelineObservation !== null);
+        pipelineObservation?.candidateLineages.set(candidate, stage);
+        if (stage === "regeneration" && pipelineObservation !== null) {
+          const overridden = pipelineObservation.reanalysisOverrides.get(replacementAnalysis);
+          if (typeof overridden === "boolean") {
+            pipelineObservation.regenerationOverrides.set(candidate, Object.freeze({
+              analysis: replacementAnalysis, batch: original.batch, overridden,
+            }));
+          }
+        }
+        retriedCandidates.push(Object.freeze({ ...retryRequest, candidate, deterministicFindings }));
+      } catch (error) {
+        throwIfAborted(signal);
+        if (!retryableStageFailure(error)) throw error;
+        retryNotes.push(stageFailureFinding({ id: "candidate-retry-unavailable", passageId: original.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The bounded candidate retry did not produce a valid draft." }, error));
+      }
+      progress(onProgress, structuralIds.has(original.batch.id) ? "regenerating" : "repairing", index + 1, actionableFailures.length, original.batch.id);
+    }
+
+    const retryCandidateByBatch = new Map(retriedCandidates.map((entry) => [entry.batch.id, entry]));
+    let tentativeCandidates = candidates.map((entry) => retryCandidateByBatch.get(entry.batch.id) ?? entry);
+    assembly = assemble(tentativeCandidates);
+    if (qualifyingLongJob && assembly.documentFindings.some(f => deterministicFindingRule(f) === "D27")) {
+      // A locally accepted group can introduce a source word from a different
+      // line. Repair its actual destination before the second independent sweep.
+      for (const [index, entry] of tentativeCandidates.entries()) {
+        const targets = documentBoundaryRepairTargets(source, passages, assembly);
+        if (!targets.size) break;
+        const ids = entry.analysis.passages.filter(p => p.disposition === "rewrite"
+          && targets.get(p.passageId)?.some(([, , to]) => to === p.passageId)).map(p => p.passageId);
+        if (!ids.length) continue;
+        const remaining = options.adapter.completionCapacity?.()?.remaining;
+        const reviewCount = retryCandidateByBatch.size + (retryCandidateByBatch.has(entry.batch.id) ? 0 : 1);
+        if (!Number.isSafeInteger(remaining) || remaining <= 2 * reviewCount + FLAT_CERTIFICATION_RESERVATION) continue;
+        const moves = [...new Set(ids.flatMap(id => targets.get(id)))];
+        const request = Object.freeze({ ...entry, verification: null, documentFindings: assembly.documentFindings,
+          documentBoundaryRepairPassageIds: ids, documentBoundaryMoves: moves });
+        throwIfAborted(signal);
+        let proposed;
+        try { proposed = normalizeCandidate(await options.adapter.repair(request), entry.batch, entry.analysis); }
+        catch (error) { throwIfAborted(signal); if (!retryableStageFailure(error)) throw error; continue; }
+        const candidate = Object.freeze({ passages: Object.freeze(entry.candidate.passages.map((p, i) =>
+          ids.includes(p.passageId) ? proposed.passages[i] : p)) });
+        const deterministicFindings = deterministicBatchReview(entry.batch, entry.analysis, candidate, pipelineObservation !== null);
+        if (deterministicFindings.length || moves.some(([word, from, to]) => from !== to && ids.includes(to)
+          && containsLatticeBoundaryWord(candidate.passages.find(p => p.passageId === to).text, word))) continue;
+        const changed = Object.freeze({ ...entry, candidate, deterministicFindings });
+        const trial = tentativeCandidates.with(index, changed);
+        const next = assemble(trial);
+        const nextTargets = documentBoundaryRepairTargets(source, passages, next);
+        const words = map => new Set([...map.values()].flat().map(([word]) => word));
+        const before = words(targets), after = words(nextTargets);
+        if (after.size >= before.size || [...after].some(word => !before.has(word))
+          || next.documentFindings.some(f => deterministicFindingRule(f) !== "D27")) continue;
+        const pos = retriedCandidates.findIndex(e => e.batch.id === entry.batch.id);
+        if (pos < 0) retriedCandidates.push(changed); else retriedCandidates[pos] = changed;
+        retryCandidateByBatch.set(entry.batch.id, changed);
+        tentativeCandidates = trial;
+        assembly = next;
+      }
+    }
+    provenanceProgress(onProgress, "binding-result-integrity", "Binding revised result integrity");
+    candidateFingerprint = await provenanceFingerprint(
+      "cf",
+      assembledCandidateProvenance(tentativeCandidates, assembly.text),
+      signal,
+    );
+    throwIfAborted(signal);
+    const secondReviews = [];
+    for (let index = 0; index < retriedCandidates.length; index += 1) {
+      const request = retriedCandidates[index];
+      throwIfAborted(signal);
+      progress(onProgress, "reverifying", index, retriedCandidates.length, request.batch.id);
+      const verificationRequest = Object.freeze({
+        ...request,
+        assembledContext: assembledContextFor(passages, request.batch, assembly.candidateById),
+        documentFindings: assembly.documentFindings,
+      });
+      try {
+        const verification = await callNormalizedStage({
+          stage: "reverification",
+          pipelineObservation,
+          canAdjudicateRecheck: qualifyingLongJob ? () => {
+            const remaining = options.adapter.completionCapacity?.()?.remaining;
+            return Number.isSafeInteger(remaining)
+              && remaining > 2 * (retriedCandidates.length - index - 1) + FLAT_CERTIFICATION_RESERVATION;
+          } : null,
+          request: verificationRequest,
+          invoke: (currentRequest) => options.adapter.verify(currentRequest),
+          normalize: (raw, currentRequest) => normalizeVerification(
+            raw,
+            request.batch,
+            request.analysis,
+            request.deterministicFindings,
+            request.candidate,
+            "reverification",
+            qualifyingLongJob && !currentRequest.protocolFeedback,
+          ),
+          signal,
+        });
+        secondReviews.push(Object.freeze({ ...verificationRequest, verification }));
+      } catch (error) {
+        throwIfAborted(signal);
+        if (!retryableStageFailure(error)) throw error;
+        retryCandidateByBatch.delete(request.batch.id);
+        retryNotes.push(stageFailureFinding({ id: "reverification-unavailable", passageId: request.batch.passages[0]?.id ?? "", atomIds: Object.freeze([]), message: "The independent recheck did not complete with a valid result." }, error));
+      }
+      progress(onProgress, "reverifying", index + 1, retriedCandidates.length, request.batch.id);
+    }
+
+    tentativeCandidates = candidates.map((entry) => retryCandidateByBatch.get(entry.batch.id) ?? entry);
+    const secondByBatch = new Map(secondReviews.map((entry) => [entry.batch.id, entry]));
+    const finalReviews = reviews.map((entry) => secondByBatch.get(entry.batch.id) ?? entry);
+    const committedReanalysisIds = new Set(secondReviews
+      .filter((entry) => reanalyzedByBatch.has(entry.batch.id) && retryCandidateByBatch.has(entry.batch.id))
+      .map((entry) => entry.batch.id));
+    analyses = analyses.map((entry) => (
+      committedReanalysisIds.has(entry.batch.id) ? reanalyzedByBatch.get(entry.batch.id) : entry
+    ));
+    assembly = assemble(tentativeCandidates);
+    const secondQuestions = secondReviews.flatMap((entry) => entry.verification.questions);
+    if (secondQuestions.length > 0) {
+      return terminalResult({
+        source, wordCount, passages, analyses, finalCandidates: tentativeCandidates, finalReviews,
+        status: "needs-clarification", questions: secondQuestions.slice(0, 1), verificationPasses: round,
+        documentFindings: [...assembly.documentFindings, ...retryNotes],
+      });
+    }
+
+    candidates = tentativeCandidates;
+    reviews = finalReviews;
+    if (retriedCandidates.length) verificationPasses = round;
+    if (round === maximumPasses) break;
+    ({ targets: boundaryTargets, failed: failures } = failedGroups());
+    if (!failures.length || failures.some(entry => !entry.verification.available || !entry.verification.gates.languageSupported)) break;
+  }
+  const tentativeCandidates = candidates;
+  const finalReviews = reviews;
   let accepted = assembly.documentFindings.length === 0 && finalReviews.every((entry) => entry.verification.accepted);
   let certificationFindings = Object.freeze([]);
   let wholeDocumentCertification = null;
@@ -4514,7 +4564,7 @@ export async function executeLatticePlan(preflight, options) {
     : acceptedStatus(accepted, assembly.text, analyses);
   return terminalResult({
     source, wordCount, passages, analyses, finalCandidates: tentativeCandidates, finalReviews,
-    status: finalStatus, verificationPasses: retriedCandidates.length ? 2 : 1,
+    status: finalStatus, verificationPasses,
     documentFindings: [...assembly.documentFindings, ...retryNotes, ...certificationFindings],
     wholeDocumentCertification,
   });

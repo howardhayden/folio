@@ -34,7 +34,7 @@ import {
   SOURCE_SPAN_LIMIT,
   graphemeExcerpt,
 } from "../../app/resume/lattice/segments.js";
-import { LATTICE_LONG_JOB_POLICY, LATTICE_PROVIDER_CALL_LIMIT } from "../../app/resume/lattice/remoteProtocol.js";
+import { isLatticeLongJobCallLimit, LATTICE_LONG_JOB_POLICY, LATTICE_PROVIDER_CALL_LIMIT } from "../../app/resume/lattice/remoteProtocol.js";
 import { rememberLatticeAnalysisRetentionDowngrade } from "../../app/resume/lattice/qualificationDiagnostics.js";
 import { rememberLatticeAnalysisPassageOrigins } from "../../app/resume/lattice/analysisProvenance.js";
 import { deterministicFindingRule, rememberRejectedResult, stageCorrectionRequestDiagnostic } from "../../app/resume/lattice/rejectionDiagnostics.js";
@@ -3201,7 +3201,7 @@ export function createHuggingFaceLatticeAdapter({
     throw new TypeError("The Lattice provider received an invalid requested mode.");
   }
 
-  if (providerCallLimit !== LATTICE_PROVIDER_CALL_LIMIT && providerCallLimit !== LATTICE_LONG_JOB_POLICY.providerCallLimit) {
+  if (providerCallLimit !== LATTICE_PROVIDER_CALL_LIMIT && !isLatticeLongJobCallLimit(providerCallLimit)) {
     throw new TypeError("The Lattice provider received an invalid call limit.");
   }
   const budget = { used: 0 };
@@ -3217,7 +3217,7 @@ export function createHuggingFaceLatticeAdapter({
     budget.used += 1;
     const callOrdinal = budget.used;
     const stage = STAGES[stageName];
-    const positionAnchors = stageName === "analysis" && providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit;
+    const positionAnchors = stageName === "analysis" && isLatticeLongJobCallLimit(providerCallLimit);
     let usageObserved = false;
     const stageContext = request?.[LATTICE_STAGE_DIAGNOSTIC_CONTEXT];
     const analysisContext = stageName === "analysis"
@@ -3240,7 +3240,7 @@ export function createHuggingFaceLatticeAdapter({
           analysisFit = fitPriorRelationCounts(analysisFit, prior.counts);
         }
       }
-      if (providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
+      if (isLatticeLongJobCallLimit(providerCallLimit)
         && (stageName === "candidate" || stageName === "repair")) draftClaims = longDraftClaims(request.analysis);
       if (draftClaims && !outputPassage) repairFrames = fitQuotedDraft(request, stageName);
       verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
@@ -3248,7 +3248,7 @@ export function createHuggingFaceLatticeAdapter({
       const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
       const missingPositions = ["atom-decision", "atom-verdict"].includes(verificationCorrection) ? getLatticeVerificationMissingPositions(request) : null;
       const evidenceFirst = verificationFit !== null && (
-        providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
+        isLatticeLongJobCallLimit(providerCallLimit)
         || isVerificationAlignmentCorrection(verificationCorrection)
       );
       const fittedRequest = analysisFit?.request ?? request;
@@ -3264,7 +3264,7 @@ export function createHuggingFaceLatticeAdapter({
         : repairFrames ? frameRepairSchema(repairFrames) : stage.schema;
       const verificationLayout = verificationFit ? verificationWireLayoutForSchema(
         fittedSchema, verificationFit,
-        providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit ? request.analysis : null,
+        isLatticeLongJobCallLimit(providerCallLimit) ? request.analysis : null,
       ) : null;
       const messageFactory = outputPassage
         ? current => singlePassageDraftMessages(current, outputPassage)
@@ -3366,25 +3366,32 @@ export function createHuggingFaceLatticeAdapter({
     return result;
   };
 
-  // A length finish carries no usable draft. Reuse the committed graph and
-  // the same per-call allowance, asking for one complete passage at a time.
+  const draftPassagesIndividually = async (stageName, request, ids) => {
+    const recovered = new Map(request.candidate?.passages.map(p => [p.passageId, p]));
+    for (const id of ids) {
+      if (request.signal?.aborted) throw request.signal.reason ?? abortError();
+      const plan = request.analysis.passages.find(p => p.passageId === id);
+      const passage = await complete(stageName, request, plan);
+      if (!passage) return {};
+      recovered.set(id, passage);
+    }
+    return { passages: request.batch.passages.map(source => recovered.get(source.id)) };
+  };
+
   const draft = async (stageName, request) => {
+    if (providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit && request.finalDraftPassageIds?.length
+      && !request.correctCopiedLongDraft && !request.documentBoundaryRepairPassageIds?.length
+      && budget.used + request.finalDraftPassageIds.length <= providerCallLimit) {
+      return draftPassagesIndividually(stageName, request, request.finalDraftPassageIds);
+    }
     try { return await complete(stageName, request); }
     catch (error) {
-      if (providerCallLimit !== LATTICE_LONG_JOB_POLICY.providerCallLimit
+      if (!isLatticeLongJobCallLimit(providerCallLimit)
         || !(error instanceof LatticeProviderError) || error.code !== "provider_output_limit") throw error;
       const frames = fitQuotedDraft(request, stageName);
-      const ids = frames?.map(frame => frame.id) ?? request.batch.passages.map(passage => passage.id);
+      const ids = frames?.map(frame => frame.id) ?? request.batch.passages.map(p => p.id);
       if (budget.used + ids.length > providerCallLimit) throw error;
-      const recovered = new Map(request.candidate?.passages.map(passage => [passage.passageId, passage]));
-      for (const id of ids) {
-        if (request.signal?.aborted) throw request.signal.reason ?? abortError();
-        const plan = request.analysis.passages.find(passage => passage.passageId === id);
-        const passage = await complete(stageName, request, plan);
-        if (!passage) return {};
-        recovered.set(id, passage);
-      }
-      return { passages: request.batch.passages.map(source => recovered.get(source.id)) };
+      return draftPassagesIndividually(stageName, request, ids);
     }
   };
 

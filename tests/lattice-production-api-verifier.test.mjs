@@ -558,7 +558,7 @@ test("the production verifier preserves one setup and one canary before separate
     maximum_provider_call_timeout_ms: 300_000,
     provider_request_bytes: 1_048_576,
     provider_response_bytes: 262_144,
-    provider_calls_per_request: 48,
+    provider_calls_per_request: 64,
     default_provider_calls_per_request: 32,
     long_job_minimum_words: 500,
     long_job_minimum_batches: 7,
@@ -570,13 +570,13 @@ test("the production verifier preserves one setup and one canary before separate
       repair: 800,
     },
     maximum_requested_output_tokens_per_provider_call: 2_048,
-    maximum_requested_output_tokens_per_admitted_request: 98_304,
+    maximum_requested_output_tokens_per_admitted_request: 131_072,
     accepted_transformations_per_utc_day: 30,
     accepted_transformations_per_cooperating_ordinary_persistent_browser_cookie_jar_utc_day: 3,
-    maximum_provider_calls_from_accepted_transformations_per_utc_day: 1440,
-    maximum_requested_output_tokens_from_accepted_transformations_per_utc_day: 2_949_120,
+    maximum_provider_calls_from_accepted_transformations_per_utc_day: 1920,
+    maximum_requested_output_tokens_from_accepted_transformations_per_utc_day: 3_932_160,
     maximum_requested_output_tokens_from_one_cooperating_ordinary_persistent_browser_cookie_jar_per_utc_day:
-      294_912,
+      393_216,
   });
   assert.equal(
     fixture.calls.length,
@@ -618,7 +618,7 @@ test("the production verifier preserves one setup and one canary before separate
   assert.equal(canaryCall.url, "https://hah.dev/api/lattice");
   assert.equal(canaryCall.init.method, "POST");
   assert.deepEqual(canaryCall.init.headers, {
-    "X-Lattice-Processing-Notice": "qwen-deepinfra-coreweave-v1",
+    "X-Lattice-Processing-Notice": "qwen-deepinfra-coreweave-v1", "X-Lattice-Review-Passes": "3",
     Accept: "application/json",
     "Content-Type": "application/json",
     Origin: "https://hah.dev",
@@ -3136,7 +3136,7 @@ test("the staged long-prose check retains only a terminal status, identity, coun
     assert.ok(init.headers.get("cookie"));
     const { text } = JSON.parse(init.body);
     const r = { ...validResult(), text, status: "conformant-for-context", wordCount: 688,
-      passageCount: 25, batchCount, revisedPassageCount: 0, retainedPassageCount: 25 };
+      passageCount: 35, batchCount, revisedPassageCount: 0, retainedPassageCount: 35 };
     assert.equal(init.headers.get("accept"), LATTICE_SERVICE_EVENTS_MIME);
     const frames = [
       { sequence: 1, type: "phase", phase: "atomizing" },
@@ -3151,8 +3151,8 @@ test("the staged long-prose check retains only a terminal status, identity, coun
   assert.equal(receipt.inputWords, 688);
   await assert.rejects(check(false), /ended with unable-to-attempt/u);
   assert.equal(receipt.batches, 11);
-  assert.equal((await check(true, 23)).batches, 23);
-  await assert.rejects(check(true, 24), /24 groups/u);
+  assert.equal((await check(true, 31)).batches, 31);
+  await assert.rejects(check(true, 32), /32 groups/u);
   await assert.rejects(check(true, 6), /6 groups/u);
   assert.equal(contents, 5);
 });
