@@ -782,6 +782,45 @@ test("whole-document repair reaches a misplaced word even when a different group
   }
 });
 
+test("the extended planner repairs an assembled boundary before review only with room for every review", async () => {
+  const plan = preflightLatticeInput(Array.from({ length: 28 }, (_, i) => opaqueWords(20, "u" + i + "w")).join("\n\n"), { providerCallLimit: 32 });
+  const [home, , destination] = plan.batches;
+  const word = home.passages[0].text.split(" ")[0];
+  for (const mode of ["fixed", "persistent", "reserved"]) {
+    let reviews = 0, early = 0, certificates = 0;
+    const withMove = r => {
+      const draft = rawCandidate(r);
+      if (r.batch === destination) draft.passages[0].text += " " + word;
+      return draft;
+    };
+    const adapter = scriptedAdapter({
+      generate: withMove,
+      repair(r) {
+        if (r.documentBoundaryRepairPassageIds && !reviews) early++;
+        return mode === "fixed" ? rawCandidate(r) : withMove(r);
+      },
+      verify(r) {
+        reviews++;
+        if (r.verification) return;
+        if (mode === "fixed") {
+          assert.deepEqual(r.documentFindings, []);
+          assert.equal(r.groupBoundaryMoves, undefined);
+        } else {
+          assert.ok(r.documentFindings.some(f => f.id === "document-boundary-anchor"));
+          assert.deepEqual(r.groupBoundaryMoves, [home, destination].includes(r.batch)
+            ? [[word, home.passages[0].id, destination.passages[0].id]] : []);
+        }
+      },
+      certify() { certificates++; },
+    });
+    adapter.completionCapacity = () => ({ remaining: mode === "reserved" ? 4 : 49 });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: 64, allowClarification: false });
+    assert.equal(early, mode === "reserved" ? 0 : 1, mode);
+    assert.equal(certificates, mode === "fixed" ? 1 : 0, mode);
+    assert.equal(result.status === "translated", mode === "fixed", mode);
+  }
+});
+
 test("residual copied passages get individual work only above the final review reserve", async () => {
   const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
@@ -975,6 +1014,43 @@ test("a final recheck adjudicates two conflicting replies on the same candidate 
     assert.equal(result.verificationPasses, scenario === "accept" ? 2 : 0);
     assert.equal(certificates, scenario === "accept" ? 1 : 0);
     assert.equal(result.status, scenario === "accept" ? "translated" : "unable-to-attempt");
+  }
+});
+
+test("the original extended review can resolve only a bound contradictory atom verdict within reserve", async () => {
+  const source = Array.from({ length: 28 }, (_, i) => opaqueWords(20, "p" + i + "w")).join("\n\n");
+  const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
+  for (const mode of ["resolved", "negative", "invalid", "consistent", "no-reserve", "legacy"]) {
+    let originals = 0, certificates = 0, firstCandidate;
+    const adapter = scriptedAdapter({
+      verify(request) {
+        if (request.batch !== plan.batches[0]) return;
+        const result = rawVerification(request);
+        if (request.verification) return rawVerification(request, { gates: { safety: false } });
+        originals++;
+        firstCandidate ??= request.candidate;
+        assert.strictEqual(request.candidate, firstCandidate);
+        if (originals === 1) result.passages[0].checkedAtomIds.pop();
+        if (originals === 2) {
+          result.decision = "reject";
+          if (mode === "consistent") result.failedGates = ["safety"];
+        }
+        if (originals === 3) {
+          assert.equal(request.protocolFeedback.stage, "verification");
+          assert.equal(getLatticeVerificationCorrection(request), "atom-verdict");
+          assert.deepEqual(getLatticeVerificationMissingPositions(request), [[0, [request.analysis.passages[0].atoms.length - 1]]]);
+          if (mode === "invalid" || mode === "negative") result.decision = "reject";
+          if (mode === "negative") result.failedGates = ["safety"];
+        }
+        return result;
+      },
+      certify() { certificates++; },
+    });
+    adapter.completionCapacity = () => ({ remaining: mode === "no-reserve" ? 4 : 49 });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: mode === "legacy" ? 48 : 64, allowClarification: false });
+    assert.equal(originals, ["resolved", "negative", "invalid"].includes(mode) ? 3 : 2, mode);
+    assert.equal(result.status === "translated", mode === "resolved", mode);
+    assert.equal(certificates, mode === "resolved" ? 1 : 0, mode);
   }
 });
 

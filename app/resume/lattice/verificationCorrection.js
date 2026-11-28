@@ -58,7 +58,7 @@ export async function withLatticeVerificationCorrection(request, error, invoke) 
   if (origin && matches(request, origin) && !REQUESTS.has(request)) {
     context = { ...origin, active: true };
     // Consume before invocation and prevent either producer from remarking it.
-    if (origin.kind === "atom-decision" && origin.stage === "reverification") DISPUTED_RECHECKS.set(error, origin);
+    if (origin.kind === "atom-decision") DISPUTED_RECHECKS.set(error, origin);
     FAILURES.set(error, null);
     REQUESTS.set(request, context);
   }
@@ -72,18 +72,18 @@ export async function withLatticeVerificationCorrection(request, error, invoke) 
   }
 }
 
-// A recheck first accepted with missing or unaccounted units, then rejected an
+// A review first accepted with missing or unaccounted units, then rejected an
 // all-positive set of findings. Neither reply decides the candidate. Allow
 // one independent adjudication of that exact pair, against the same draft.
-export async function adjudicateLatticeReverification(request, firstError, lastError, invoke) {
+export async function adjudicateLatticeReverification(request, firstError, lastError, invoke, stage = "reverification") {
   const disputed = DISPUTED_RECHECKS.get(firstError);
   const verdict = FAILURES.get(lastError);
-  if (!disputed || verdict?.kind !== "decision-alignment" || verdict.stage !== "reverification"
+  if (!disputed || verdict?.kind !== "decision-alignment" || disputed.stage !== stage || verdict.stage !== stage
     || ![disputed, verdict].every(origin => ["analysis", "candidate", "batch"].every(
       key => data(request, key) === origin[key]))) return null;
   DISPUTED_RECHECKS.delete(firstError);
   FAILURES.set(lastError, null);
-  const current = Object.freeze({ ...request, protocolFeedback: Object.freeze({ stage: "reverification", attempt: 3 }) });
+  const current = Object.freeze({ ...request, protocolFeedback: Object.freeze({ stage, attempt: 3 }) });
   const context = { ...disputed, kind: "atom-verdict", active: true };
   REQUESTS.set(current, context);
   try { return await invoke(current); }

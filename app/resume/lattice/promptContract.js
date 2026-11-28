@@ -403,9 +403,12 @@ function priorDraftFeedbackForModel(request) {
 }
 
 function frameDraftPayload(frames, request) {
-  const wholeIds = new Set(frames.filter(frame => !frame.slot && !frame.retained).map(frame => frame.id));
+  const wholeIds = new Set(frames.filter(frame => !frame.slot && !frame.retained && !frame.boundaryDraft).map(frame => frame.id));
   const clauseEdits = frames.filter(frame => frame.clauseEdit).map(frame => frame.id);
   const retained = frames.filter(frame => frame.retained).map(frame => frame.id);
+  const boundaryDrafts = frames.filter(frame => frame.boundaryDraft).map(({ id, boundaryDraft }) =>
+    [id, boundaryDraft.text, boundaryDraft.ranges.map(range => range.text)]);
+  const sourceIds = new Set([...wholeIds, ...boundaryDrafts.map(([id]) => id)]);
   const prior = priorDraftFeedbackForModel(request);
   const reviewed = frames.some(frame => frame.reviewed);
   const regeneration = reviewed ? regenerationFeedbackForModel(request) : null;
@@ -426,6 +429,7 @@ function frameDraftPayload(frames, request) {
     wholePassages: [...wholeIds],
     ...(clauseEdits.length ? { clauseEdits } : {}),
     ...(retained.length ? { retainedPassages: retained } : {}),
+    ...(boundaryDrafts.length ? { boundaryDrafts } : {}),
     ...(missingMeaningUnits.length ? { missingMeaningUnits } : {}),
     ...(regeneration ? { regenerationFeedback: regeneration } : {}),
     ...(reviewed && !request.regenerationFromReanalysis && !prior ? { previouslyReviewed: {
@@ -434,7 +438,7 @@ function frameDraftPayload(frames, request) {
     ...(!request.candidate && frames.some(frame => !frame.slot && frame.choiceCount === 2)
       ? { wholePassageAlternatives: "Write the same meaning in two distinct ways. First change the main verb or its grammatical framing. Then change the clause structure. Keep the exact names, quoted speech, viewpoint, chronology and commitments in both." } : {}),
     ...(request.documentBoundaryMoves?.length ? { documentBoundaryMoves: request.documentBoundaryMoves.slice(0, 12) } : {}),
-    ...(wholeIds.size ? { wholePassageSources: repairSourcePassagesForModel(request).filter(([id]) => wholeIds.has(id)) } : {}),
+    ...(sourceIds.size ? { wholePassageSources: repairSourcePassagesForModel(request).filter(([id]) => sourceIds.has(id)) } : {}),
     ...(prior ? { previouslyReviewed: prior } : {}),
     sourceBoundaries: sourceBoundariesForModel(request),
     documentLedger: documentLedgerForModel(request.documentLedger),
@@ -446,6 +450,12 @@ export function editableFrameRepairMessages(frames, request, secondGroup = null)
   const first = frameDraftPayload(frames, request);
   const payload = secondGroup ? { groups: [first, frameDraftPayload(secondGroup.frames, secondGroup.request)] } : first;
   let clauseGuide = frames.some(f => f.clauseEdit) || secondGroup?.frames.some(f => f.clauseEdit) ? CLAUSE_EDIT_GUIDE : "";
+  if (frames.some(f => f.boundaryDraft)) {
+    const wordGuide = "For each boundaryDrafts entry [ID, current draft, misplaced words], compare the draft with the same ID in wholePassageSources. Supply one natural replacement word or short phrase per marked occurrence in the supplied order. Keep the grammar, register and meaning of this passage. The host preserves every character outside those words. Return one object with replacements and coverage for that ID. Coverage is one bit per ordered meaning unit in its frame, counting only units genuinely present in the complete resulting passage.";
+    if (frames.every(f => f.boundaryDraft)) return messages("Edit only the marked words in the existing draft.", payload,
+      wordGuide + " Frames contain [ID, register, fixed before, original source, fixed after, ordered meaning units, function, plan, count].");
+    clauseGuide += " For IDs in boundaryDrafts the replacements contract overrides all alternative and complete-prose instructions. " + wordGuide;
+  }
   if (frames.some(frame => frame.reviewed)) {
     clauseGuide += " This is a fresh draft of the complete group against the current writing plan. For a changed plan, regenerationFeedback locates earlier problems by source position. missingMeaningUnits lists a passage ID and the zero-based positions of commitments missing from its earlier draft. Restore those commitments from the source and reassess every current meaning unit. Give the editable attribution the assigned register while preserving the speaker and what happened. For retainedPassages, the host keeps the exact source. Return only your coverage mask for the meaning actually present. Independent review will assess the wording and retention.";
   }
@@ -1218,6 +1228,7 @@ function verificationPayload(request, compactWire, wireLayout, wireCorrection, m
     candidate: candidateForModel(request.candidate),
     ...(request.deterministicFindings?.length ? { deterministicFindings: request.deterministicFindings } : {}),
     ...(request.documentFindings?.length ? { documentFindings: request.documentFindings } : {}),
+    ...(request.groupBoundaryMoves ? { groupBoundaryMoves: request.groupBoundaryMoves } : {}),
     ...(request.protocolFeedback
       ? compactWire
         ? { retry: COMPACT_VERIFICATION_RETRY_CODE }
@@ -1242,6 +1253,8 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     || (request.protocolFeedback && isVerificationAlignmentCorrection(wireCorrection)));
   const fields = evidenceFirst ? "g, p, i, and d" : "d, g, p, and i";
   const fieldOrder = evidenceFirst ? "g/p/i/d" : "d/g/p/i";
+  const boundaryScope = request.groupBoundaryMoves || secondGroup?.request.groupBoundaryMoves
+    ? " The host checks documentFindings on the full assembly. groupBoundaryMoves lists the detected word and its original and current passage IDs when this group is involved. Judge this group's own evidence. Record a local boundary failure when the group's meaning crosses a line. An assembly finding elsewhere cannot by itself justify a negative group verdict. The document check remains mandatory." : "";
   const correctionInstruction = !compactWire || !request.protocolFeedback ? ""
     : wireCorrection === "mask-width"
     ? " Rebuild every bit or digit string by enumerating all supplied ordered positions before selecting them. Emit one character for each position, retaining zeros for unselected positions; the number of selected items never determines a mask's width."
@@ -1272,7 +1285,7 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     ? " The host separately enforces the candidate-atom-claim finding for the atom ID list. Determine atom coverage, failed checks, issues, and the verdict from the independent source and candidate comparison. Report genuine omissions and unsupported meaning. Do not report a failed check or a negative verdict solely because of the ID list mismatch."
     : "";
   return messages(
-    `${secondGroup ? "Review the two identified groups separately. The top-level result must have exactly their two batchId keys. Inside each key write a complete check for that group, using only its data and fitted positions. Do not copy a verdict, mask or citation across groups. All instructions about result fields below apply inside each group. " : ""}Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.${atomClaimInstruction}${evidencePositionInstruction}${assessQuotedRegister ? " " + QUOTED_REGISTER_SELECTION : ""}${evidenceFirst ? " Evaluate each passage and gate on its evidence, record any issues, then derive the verdict from those findings." : ""}`,
+    `${secondGroup ? "Review the two identified groups separately. The top-level result must have exactly their two batchId keys. Inside each key write a complete check for that group, using only its data and fitted positions. Do not copy a verdict, mask or citation across groups. All instructions about result fields below apply inside each group. " : ""}Independently compare each source passage with its candidate. Do not trust generator assertions or preserved-atom lists.${atomClaimInstruction}${evidencePositionInstruction}${boundaryScope}${assessQuotedRegister ? " " + QUOTED_REGISTER_SELECTION : ""}${evidenceFirst ? " Evaluate each passage and gate on its evidence, record any issues, then derive the verdict from those findings." : ""}`,
     secondGroup ? {
       [request.batch.id]: verificationPayload(request, compactWire, wireLayout, wireCorrection, missingPositions),
       [secondGroup.request.batch.id]: verificationPayload(secondGroup.request, true, secondGroup.layout, null, null),

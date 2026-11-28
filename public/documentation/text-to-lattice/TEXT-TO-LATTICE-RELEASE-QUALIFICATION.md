@@ -4,7 +4,7 @@ Text to Lattice is qualified for short, non-sensitive passages. Safari and Brave
 
 The November 23 production check accepted the original passage in 10.563 seconds. The protected Pages publication delivered that build. [Service check](https://github.com/howardhayden/folio/actions/runs/45255468630) · [Publication receipt](https://github.com/howardhayden/folio/actions/runs/45259201772) · [Evidence by claim](https://hah.dev/documentation/text-to-lattice/evidence.html)
 
-The latest full Firefox job cleared the copy check and completed in 9 minutes 29 seconds using 42 provider calls. Six of nine groups passed. A word crossed a paragraph boundary, and the remaining group findings concerned meaning, register and retention. The stable release resumed all traffic. The new candidate prefers valid wording that keeps distinctive words on their source lines and asks the reviewer to name its independent register. The original Firefox passage decides promotion. [Production check](https://github.com/howardhayden/folio/actions/runs/46141494162) · [Firefox findings](https://github.com/howardhayden/folio/pull/283)
+The 697-word Firefox job finished in 8 minutes 36 seconds using 39 provider calls. Seven of nine groups passed. Register and retention cleared. The service withheld the result because a word crossed a paragraph boundary and one group lacked a consistent independent review. The stable Worker resumed all traffic. The new candidate can correct the exact misplaced word before review and resolve two contradictory replies within the existing call budget. The full Firefox result decides promotion. [Production check](https://github.com/howardhayden/folio/actions/runs/46144248676) · [Firefox findings](https://github.com/howardhayden/folio/pull/284)
 
 A preceding regular Firefox run on the 50-call deployment consumed its last call during reverification. The reviewer returned four revised group acceptances before the next review stopped, and the stable Worker resumed all traffic. The corrected transport can carry two separately keyed group reviews in one request to the independent reviewer. Each group retains its complete evidence, verdict and correction path. Final certification still covers the assembled document. [Production check](https://github.com/howardhayden/folio/actions/runs/46132849054) · [Full Firefox outcome](https://github.com/howardhayden/folio/pull/280)
 
@@ -64,7 +64,7 @@ The machine register binds the release candidate and the original browser deploy
 
 **Machine authority:** [`TEXT-TO-LATTICE-RELEASE-REGISTER.json`](TEXT-TO-LATTICE-RELEASE-REGISTER.json)
 
-**Qualified source-set SHA-256:** `31ae9b9269bd0c8e9233bd9fcd426bcbe15b71f91ba3b53156061e3b07b6e45d`
+**Qualified source-set SHA-256:** `a695f1b4e12390528cbaeda176068890604f9c4ee8ad809d9ea24da4f5d4c0b2`
 
 **Artifact-set projection SHA-256:** `bd6576979b9dcf3cbf2bd3bcac9a70678ac847b878dcf58bc159b20b0635f7f6`
 
@@ -98,7 +98,7 @@ These are the register’s current capability values, including the exact reques
 
 The owner carried forward the original Safari and Brave observations for submission, privacy and result clearing. Separate regression tests cover long-job selection, the 32-, 48- and 64-call limits, and clearance-cookie handling in setup and admission. The workflow stages the candidate at zero percent, then switches traffic to it for the ordinary production check. The full passage in regular Firefox decides long-job acceptance. Consecutive failures trigger restoration of the preceding live Worker. Only aggregate results are recorded.
 
-The current fingerprint is `31ae9b9269bd0c8e9233bd9fcd426bcbe15b71f91ba3b53156061e3b07b6e45d`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov28-boundary-choices-source-digests.json) covers all 267 paths. It lists 44 differences and contains file names and hashes.
+The current fingerprint is `a695f1b4e12390528cbaeda176068890604f9c4ee8ad809d9ea24da4f5d4c0b2`. The captured fingerprint is `0b3cd95947daa3a53ef731745c95dbaa3d0514799333087462d657e356f4faaa`. The [digest comparison](https://github.com/howardhayden/folio/blob/main/docs/release-evidence/text-to-lattice/nov28-local-boundary-review-source-digests.json) covers all 267 paths. It lists 44 differences and contains file names and hashes.
 
 ### Captured identity and five immutable files
 
