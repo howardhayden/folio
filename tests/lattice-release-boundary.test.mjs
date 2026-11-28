@@ -607,6 +607,8 @@ test("the release register enforces its exact current phase and preserves histor
         storesSubmittedContentOrResult: false,
         maximumProviderCallsPerAdmittedRequest: 64,
         maximumProviderCallsFromAdmittedRequestsPerUtcDay: 1920,
+        deployedEdgeExternalCallsPerRequest: 50,
+        maximumExternalCallsFromThirtyOrdinaryAdmissions: 1500,
       },
       retry: false,
       fallback: false,
