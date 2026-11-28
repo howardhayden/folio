@@ -1978,23 +1978,62 @@ test("a copied short frame can select only an explicit valid local replacement a
   const findings = deterministicBatchReview(base.batch, base.analysis, previous);
   assert.equal(findings.length, 1);
   const id = previous.passages[0].passageId;
-  for (const scenario of ["second-valid", "both-copy", "foreign-claim", "wrong-passage"]) {
+  for (const scenario of ["second-valid", "both-copy", "unclaimed", "wrong-width", "wrong-passage"]) {
     const request = { ...base, candidate: previous, deterministicFindings: findings, correctCopiedLongDraft: true, verification: null };
     const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 48, fetchImpl: async (_url, init) => {
-      const payload = inertModelPayload(JSON.parse(init.body));
+      const body = JSON.parse(init.body);
+      assert.equal(body.response_format.json_schema.name, "lattice_quoted_draft_v1");
+      const payload = inertModelPayload(body);
       assert.deepEqual(payload.frames[0].slice(0, 5), [id, base.analysis.passages[0].layer, quote + " ", editable, ""]);
       return successfulProviderResponse({ [scenario === "wrong-passage" ? "unrelated" : id]: [
-        { wording: editable, preservedAtomIds: ["A"] },
-        { wording: scenario === "both-copy" ? editable.toUpperCase() : "yyy", preservedAtomIds: [scenario === "foreign-claim" ? "Z" : "A"] },
+        { wording: editable, coverage: "1" },
+        { wording: scenario === "both-copy" ? editable.toUpperCase() : "yyy", coverage: scenario === "unclaimed" ? "0" : scenario === "wrong-width" ? "11" : "1" },
       ] });
     } });
     const result = await adapter.repair(request);
-    if (scenario === "wrong-passage") assert.deepEqual(result, {});
+    if (scenario === "wrong-passage" || scenario === "wrong-width") assert.deepEqual(result, {});
     else {
       assert.equal(result.passages[0].text, scenario === "second-valid" ? quote + " yyy" : previous.passages[0].text);
       assert.deepEqual(result.passages[0].preservedAtomIds, previous.passages[0].preservedAtomIds);
       assert.equal(deterministicBatchReview(base.batch, base.analysis, result).length, scenario === "second-valid" ? 0 : 1);
     }
+    assert.equal(adapter.completionCapacity().used, 1);
+  }
+});
+
+test("quoted drafting fits each editable clause and repairs other copied passages in the same call", async () => {
+  const quote = "“" + validPayload.text + "” ";
+  for (const stage of ["generate", "repair"]) {
+    const texts = [quote + "x", quote + Array(16).fill("x").join(" ")];
+    if (stage === "repair") texts.push(validPayload.text);
+    const base = minimalVerificationRequest(texts[0]);
+    const passages = texts.map((text, i) => ({
+      ...base.batch.passages[0], text, id: "p00" + (i + 1), separatorBefore: "", separatorAfter: "",
+    }));
+    const batch = { ...base.batch, passages };
+    const plans = passages.map(p => ({ ...base.analysis.passages[0], passageId: p.id }));
+    const analysis = { ...base.analysis, passages: plans };
+    const previous = { passages: passages.map(p => ({ ...base.candidate.passages[0], passageId: p.id, text: p.text })) };
+    const findings = deterministicBatchReview(batch, analysis, previous);
+    assert.equal(findings.length, passages.length);
+    const request = { ...base, batch, analysis, sourceSpans: latticeSourceSpansForBatch(batch),
+      candidate: stage === "repair" ? previous : undefined, correctCopiedLongDraft: stage === "repair",
+      deterministicFindings: findings };
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 48, fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      const payload = inertModelPayload(body);
+      assert.deepEqual(payload.wholePassages, stage === "repair" ? ["p003"] : []);
+      assert.equal(payload.frames[1][3], texts[1].slice(quote.length));
+      const choices = Object.fromEntries(passages.map((p, i) => [p.id, i === 2
+        ? [{ wording: base.candidate.passages[0].text, coverage: "1" }]
+        : [{ wording: "y", coverage: "0" }, { wording: "z", coverage: "1" }]]));
+      return successfulProviderResponse(choices);
+    } });
+    const result = await adapter[stage](request);
+    assert.equal(result.passages[0].text, quote + "z");
+    assert.equal(result.passages[1].text, quote + "z");
+    if (stage === "repair") assert.equal(result.passages[2].text, base.candidate.passages[0].text);
+    assert.deepEqual(deterministicBatchReview(batch, analysis, result), []);
     assert.equal(adapter.completionCapacity().used, 1);
   }
 });

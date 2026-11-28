@@ -567,6 +567,8 @@ test("long repair uses its remaining attempt only on nonmaterial passages and re
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
   const target = plan.batches[0];
   for (const scenario of ["material", "still-copied", "ordinary"]) {
+    let reviewedDraft;
+    let firstReview;
     let repairs = 0;
     let reviews = 0;
     let certificates = 0;
@@ -582,7 +584,15 @@ test("long repair uses its remaining attempt only on nonmaterial passages and re
       repair(request) {
         if (request.batch.id !== target.id) return;
         repairs += 1;
-        if (repairs === 1) return copiedFirst(request);
+        if (repairs === 1) {
+          assert.equal(request.correctCopiedLongDraft, scenario === "ordinary" ? undefined : true);
+          reviewedDraft = request.candidate;
+          firstReview = request.verification;
+          return copiedFirst(request);
+        }
+        assert.equal(request.priorReviewedDraft.candidate, reviewedDraft);
+        assert.equal(request.priorReviewedDraft.verification, firstReview);
+        assert.notEqual(request.candidate, reviewedDraft);
         assert.equal(request.correctCopiedLongDraft, true);
         assert.equal(request.verification, null);
         assert.equal(request.protocolFeedback, undefined);

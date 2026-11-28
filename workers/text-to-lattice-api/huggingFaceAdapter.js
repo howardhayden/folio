@@ -804,79 +804,88 @@ function expandLongDraftClaims(candidate, claims) {
   }) };
 }
 
-// A copied short frame can be repaired without asking the model to reproduce
-// the long immutable literal that dominated its previous response.
-function fitEditableFrameRepair(request, claims) {
-  const findings = request.deterministicFindings;
-  if (request.correctCopiedLongDraft !== true || request.verification || !request.candidate?.passages || !findings?.length
-    || findings.some(finding => deterministicFindingRule(finding) !== "D14")) return null;
+// Leave every fixed character in host custody when a quoted passage has a
+// bounded editable clause. A different passage can still need a full rewrite.
+function writableQuoteSlot(source, group) {
+  if (!group || group.directionFrames?.length || group.literalAnnotations?.length
+    || !group.spans.some(span => span.kind === "literal" && span.literalType === "protected-dialogue")
+    || group.spans.map(span => span.text).join("") !== source.text) return null;
+  const runs = [];
+  let offset = 0;
+  for (const span of group.spans) {
+    if (span.kind === "source") {
+      if (runs.at(-1)?.end === offset) runs.at(-1).end += span.text.length;
+      else runs.push({ start: offset, end: offset + span.text.length });
+    }
+    offset += span.text.length;
+  }
+  const slots = runs.map(({ start, end }) => {
+    const raw = source.text.slice(start, end);
+    const text = raw.trim();
+    return { start: start + raw.length - raw.trimStart().length, text, words: countLatticeWords(text) };
+  }).filter(slot => slot.words > 0);
+  // Edit a single clause. Multiple writable regions or structural boundaries
+  // use the complete-passage contract, which can express all required changes.
+  if (slots.length !== 1) return null;
+  const slot = slots[0];
+  if (slot.words > 32 || slot.text.length > 240 || /[\r\n\u2028\u2029]/u.test(slot.text)) return null;
+  return { before: source.text.slice(0, slot.start), editable: slot.text, after: source.text.slice(slot.start + slot.text.length) };
+}
+
+function fitQuotedDraft(request, stageName) {
+  const initial = stageName === "candidate" && !request.candidate;
+  if (!initial && (stageName !== "repair" || request.correctCopiedLongDraft !== true
+    || !request.candidate?.passages || !request.deterministicFindings?.length
+    || request.deterministicFindings.some(finding => deterministicFindingRule(finding) !== "D14"))) return null;
+  const ids = initial ? request.batch.passages.map(passage => passage.id)
+    : [...new Set(request.deterministicFindings.map(finding => finding.passageId))];
   const frames = [];
-  for (const id of new Set(findings.map(finding => finding.passageId))) {
-    const group = request.sourceSpans?.find(group => group.passageId === id);
+  for (const id of ids) {
     const source = request.batch.passages.find(passage => passage.id === id);
     const plan = request.analysis.passages.find(passage => passage.passageId === id);
-    if (!group || !source || plan?.disposition !== "rewrite" || group.directionFrames?.length || group.literalAnnotations?.length
-      || !group.spans.some(span => span.kind === "literal") || group.spans.map(span => span.text).join("") !== source.text) return null;
-    let start = 0, editableWords = 0;
-    const runs = [];
-    for (const span of group.spans) {
-      if (span.kind === "source") {
-        const last = runs.at(-1);
-        if (last?.end === start) last.end += span.text.length;
-        else runs.push({ start, end: start + span.text.length });
-        editableWords += countLatticeWords(span.text);
-      }
-      start += span.text.length;
-    }
-    if (editableWords < 1 || editableWords > 12) return null;
-    const slots = runs.map(run => {
-      const raw = source.text.slice(run.start, run.end);
-      const editable = raw.trim();
-      return { start: run.start + raw.length - raw.trimStart().length, editable, words: countLatticeWords(editable) };
-    }).filter(slot => slot.words && !/[\r\n\u2028\u2029]/u.test(slot.editable));
-    const slot = slots.sort((left, right) => right.words - left.words)[0];
-    if (!slot) return null;
-    const units = [...claims.idsByPassage.get(id).keys()].map((key, index) => [key, plan.atoms[index].kind, plan.atoms[index].value]);
-    frames.push({ id, source, plan, layer: plan.layer, units, editable: slot.editable,
-      before: source.text.slice(0, slot.start), after: source.text.slice(slot.start + slot.editable.length) });
+    if (!source || plan?.disposition !== "rewrite") return null;
+    const group = request.sourceSpans?.find(group => group.passageId === id);
+    const slot = writableQuoteSlot(source, group);
+    if (initial && !slot) return null;
+    frames.push({ id, source, plan, slot });
   }
-  return frames;
+  return frames.some(frame => frame.slot) ? frames : null;
 }
 
 function frameRepairSchema(frames) {
-  const choice = closedWireObject({
-    wording: { type: "string", minLength: 1, maxLength: 240 },
-    preservedAtomIds: { type: "array", minItems: 1, maxItems: 24, items: { type: "string" } },
-  });
-  return closedWireObject(Object.fromEntries(frames.map(({ id }) => [id, {
-    type: "array", minItems: 2, maxItems: 2, items: choice,
+  return closedWireObject(Object.fromEntries(frames.map(({ id, slot, plan }) => [id, {
+    type: "array", minItems: slot ? 2 : 1, maxItems: slot ? 2 : 1,
+    items: closedWireObject({
+      wording: { type: "string", minLength: 1, maxLength: slot ? 240 : 2800 },
+      coverage: analysisWireBitMaskSchema(plan.atoms.length),
+    }),
   }])));
 }
 
-function expandFrameRepair(result, frames, previous, claims) {
+function expandFrameRepair(result, frames, previous) {
   if (!exactKeys(result, frames.map(frame => frame.id))) return {};
   const replacements = new Map();
-  for (const frame of frames) {
-    const choices = result[frame.id];
-    const ids = claims.idsByPassage.get(frame.id);
-    if (!Array.isArray(choices) || choices.length !== 2 || choices.some(choice =>
-      !exactKeys(choice, ["wording", "preservedAtomIds"]) || typeof choice.wording !== "string"
-      || !choice.wording.trim() || choice.wording.length > 240 || /[\r\n\u2028\u2029]/u.test(choice.wording)
-      || !Array.isArray(choice.preservedAtomIds) || choice.preservedAtomIds.length < 1
-      || choice.preservedAtomIds.length > 24 || choice.preservedAtomIds.some(key => typeof key !== "string"))) return {};
+  for (const { id, source, plan, slot } of frames) {
+    const choices = result[id];
+    if (!Array.isArray(choices) || choices.length !== (slot ? 2 : 1)) return {};
+    let first;
     for (const choice of choices) {
-      if (choice.preservedAtomIds.length !== ids.size || new Set(choice.preservedAtomIds).size !== ids.size
-        || choice.preservedAtomIds.some(key => !ids.has(key))) continue;
-      const candidate = { passageId: frame.id, layer: frame.layer, text: frame.before + choice.wording.trim() + frame.after,
-        preservedAtomIds: choice.preservedAtomIds.map(key => ids.get(key)) };
-      if (deterministicPassageReview(frame.source, frame.plan, candidate).length === 0) {
-        replacements.set(frame.id, candidate);
-        break;
-      }
+      if (!exactKeys(choice, ["wording", "coverage"]) || typeof choice.wording !== "string"
+        || !choice.wording.trim() || choice.wording.length > (slot ? 240 : 2800)
+        || (slot && /[\r\n\u2028\u2029]/u.test(choice.wording))
+        || typeof choice.coverage !== "string" || choice.coverage.length !== plan.atoms.length
+        || /[^01]/u.test(choice.coverage)) return {};
+      const candidate = { passageId: id, layer: plan.layer,
+        text: slot ? slot.before + choice.wording.trim() + slot.after : choice.wording,
+        preservedAtomIds: plan.atoms.filter((_, i) => choice.coverage[i] === "1").map(atom => atom.id) };
+      first ??= candidate;
+      if (!replacements.has(id) && deterministicPassageReview(source, plan, candidate).length === 0) replacements.set(id, candidate);
     }
+    // During initial drafting, surface the writer's actual failed proposal
+    // for bounded correction. A correction with no valid choice keeps its D14.
+    if (!previous && !replacements.has(id)) replacements.set(id, first);
   }
-  // Leaving a copied draft in place preserves its binding D14 finding.
-  return { passages: previous.passages.map(passage => replacements.get(passage.passageId) ?? passage) };
+  return { passages: previous ? previous.passages.map(p => replacements.get(p.passageId) ?? p) : [...replacements.values()] };
 }
 
 function candidateWirePlanMessages(request) {
@@ -3222,7 +3231,7 @@ export function createHuggingFaceLatticeAdapter({
       }
       if (providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit
         && (stageName === "candidate" || stageName === "repair")) draftClaims = longDraftClaims(request.analysis);
-      if (stageName === "repair" && draftClaims) repairFrames = fitEditableFrameRepair(request, draftClaims);
+      if (draftClaims) repairFrames = fitQuotedDraft(request, stageName);
       verificationFit = stageName === "verification" ? fitVerificationRequest(request) : null;
       certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
       const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
@@ -3245,7 +3254,7 @@ export function createHuggingFaceLatticeAdapter({
       ) : null;
       const messageFactory = verificationFit
         ? (current) => verificationWireMessages(current, verificationLayout, verificationCorrection, missingPositions)
-        : repairFrames ? () => editableFrameRepairMessages(repairFrames)
+        : repairFrames ? (current) => editableFrameRepairMessages(repairFrames, current)
         : draftClaims ? (current) => (stageName === "candidate" ? candidateMessages : repairMessages)(
           current, { analysisPlanDialect: "compact-wire-v2", draftAtomKeys: draftClaims.keys },
         )
@@ -3256,11 +3265,11 @@ export function createHuggingFaceLatticeAdapter({
         useParasailGenerator,
         messages: messagesWithMode(messageFactory, fittedRequest, requestedMode),
         schema: fittedSchema,
-        schemaName: stage.schemaName,
+        schemaName: repairFrames ? "lattice_quoted_draft_v1" : stage.schemaName,
         responseGuide: positionAnchors ? LONG_ANALYSIS_WIRE_GUIDE
           : evidenceFirst ? VERIFICATION_ALIGNMENT_GUIDE : stage.responseGuide,
         schemaDescription: stage.schemaDescription,
-        responseFormat: stage.responseFormat,
+        responseFormat: repairFrames ? "json_schema" : stage.responseFormat,
         toolName: stage.toolName,
         toolChoice: stage.toolChoice,
         allowStoppedToolContent: stage.allowStoppedToolContent,
@@ -3327,7 +3336,7 @@ export function createHuggingFaceLatticeAdapter({
     } else if (stageName === "certification") {
       result = decodeCertificationWire(result, certificationFit);
     } else if (repairFrames) {
-      result = expandFrameRepair(result, repairFrames, request.candidate, draftClaims);
+      result = expandFrameRepair(result, repairFrames, request.candidate);
     } else if (draftClaims) {
       result = expandLongDraftClaims(result, draftClaims);
     }
