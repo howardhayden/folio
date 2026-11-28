@@ -49,6 +49,7 @@ import {
   batchLatticePassages,
   contextPassagesForBatch,
   graphemeExcerpt,
+  isLatticeWholePhraseRange,
   latticeLiteralSpansForPassage,
   latticeLiteralSpanScanForPassage,
   latticeSourceSpansForBatch,
@@ -397,6 +398,18 @@ function scriptedAdapter(behavior = {}) {
     },
   };
 }
+
+test("editable phrase boundaries protect graphemes, contractions and whole words", () => {
+  const phrase = "A e\u0301 isn't 👩‍💻 B";
+  for (const part of ["A", "e\u0301", "isn't", "👩‍💻", "e\u0301 isn't", "B"]) {
+    const position = phrase.indexOf(part);
+    assert.equal(isLatticeWholePhraseRange(phrase, position, position + part.length), true);
+  }
+  for (const part of ["e", "\u0301", "isn", "t", "👩", "💻", "\u200d"]) {
+    const position = phrase.indexOf(part);
+    assert.equal(isLatticeWholePhraseRange(phrase, position, position + part.length), false);
+  }
+});
 
 test("long prose completes analysis, drafting, independent review and certification within the remote budget", async () => {
   // Original synthetic fixture with 688 words, short sentences and twelve paragraphs.

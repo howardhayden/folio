@@ -2003,6 +2003,51 @@ test("a copied short frame can select only an explicit valid local replacement a
   }
 });
 
+test("quoted clauses can rewrite one selected phrase or use an exact complete frame without duplicating dialogue", async () => {
+  const fixed = "“" + validPayload.text + "”";
+  const [actor, verb, manner, replacement] = Array.from({ length: 4 }, (_, i) => "u" + String(i).padStart(4, "0"));
+  for (const scenario of ["edit", "complete-prefix", "complete-suffix", "ambiguous", "partial-word", "missing", "foreign", "bad-mask"]) {
+    const after = scenario === "complete-suffix";
+    const punctuation = after ? "," : ".";
+    const words = [actor, verb, scenario === "ambiguous" ? verb : manner].join(" ") + punctuation;
+    const revised = [actor, replacement, manner].join(" ") + punctuation;
+    const sentence = text => after ? text + " " + fixed : fixed + " " + text;
+    const base = minimalVerificationRequest(sentence(words));
+    const id = base.batch.passages[0].id;
+    const previous = { passages: [{ ...base.candidate.passages[0], text: sentence(words) }] };
+    const findings = deterministicBatchReview(base.batch, base.analysis, previous);
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 64, fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.deepEqual(inertModelPayload(body).clauseEdits, [id], scenario);
+      assert.deepEqual(body.response_format.json_schema.schema.properties[id].required, ["edit", "clause"]);
+      const edit = { from: scenario === "partial-word" ? verb.slice(1) : scenario.startsWith("complete") ? fixed : verb,
+        to: replacement, coverage: scenario === "missing" ? "0" : scenario === "bad-mask" ? "11" : "1" };
+      const clause = { wording: scenario.startsWith("complete") ? sentence(revised) : words, coverage: "1" };
+      return successfulProviderResponse({ [id]: { edit, clause, ...(scenario === "foreign" ? { extra: true } : {}) } });
+    } });
+    const result = await adapter.repair({ ...base, candidate: previous, correctCopiedLongDraft: true, deterministicFindings: findings });
+    assert.equal(adapter.completionCapacity().used, 1);
+    if (["foreign", "bad-mask"].includes(scenario)) { assert.deepEqual(result, {}); continue; }
+    const valid = scenario === "edit" || scenario.startsWith("complete");
+    assert.equal(result.passages[0].text, valid ? sentence(revised) : previous.passages[0].text);
+    assert.equal(deterministicBatchReview(base.batch, base.analysis, result).length === 0, valid);
+  }
+});
+
+test("short-dialogue conformance is proposed only by the selected long planner and still needs genuine evidence", async () => {
+  const base = minimalVerificationRequest("“" + validPayload.text + "” " + "x".repeat(3) + ".");
+  for (const limit of [48, 64]) {
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: limit, fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.deepEqual(inertModelPayload(body).shortDialogue, limit === 64 ? [base.batch.passages[0].id] : undefined);
+      assert.equal(body.messages[0].content.includes("five conformance criteria have positive source evidence"), limit === 64);
+      return successfulProviderResponse({});
+    } });
+    const response = await adapter.analyze(base);
+    assert.equal(response.passages?.some(p => p.disposition === "retain-if-conformant") ?? false, false);
+  }
+});
+
 test("quoted drafting fits each editable clause and repairs other copied passages in the same call", async () => {
   const quote = "“" + validPayload.text + "” ";
   for (const stage of ["generate", "repair"]) {
