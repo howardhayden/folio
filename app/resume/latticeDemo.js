@@ -3108,6 +3108,21 @@ export function hasOnlyBoundNonmaterialFindings(entry) {
   ));
 }
 
+// The original review and its candidate stay paired. Fragment-only repair is
+// appropriate when the sole unresolved obligation is a host-proved copy.
+function onlyCopiedWordingNeedsRepair(entry) {
+  const review = entry.verification;
+  if (!review.available || !hasOnlyBoundNonmaterialFindings(entry) || entry.documentFindings.length
+    || review.questions.length || LATTICE_VERIFICATION_GATES.some(gate => !review.gates[gate])) return false;
+  const copied = new Set(entry.deterministicFindings.map(finding => finding.passageId));
+  if (review.issues.some(issue => issue.check !== "materiality" || !copied.has(issue.passageId))) return false;
+  return review.passages.every((p, i) => p.complete || (copied.has(p.passageId)
+    && p.passageId === entry.analysis.passages[i].passageId
+    && p.checkedAtomIds.length === entry.analysis.passages[i].atoms.length && !p.missingAtomIds.length
+    && !p.unsupportedClaims.length && !p.unmodeledSpanIds.length && !p.requiresPositiveConformance
+    && LATTICE_PASSAGE_VERIFICATION_CHECKS.every(check => check === "materiality" || p[check])));
+}
+
 export function hasOnlyBoundDowngradedRetentionFindings(entry) {
   const initial = INITIAL_CANDIDATE_ANALYSES.get(entry.candidate);
   if (!initial || initial.analysis !== entry.analysis || initial.batch !== entry.batch
@@ -3829,6 +3844,8 @@ export async function executeLatticePlan(preflight, options) {
     return options.adapter.repair(Object.freeze({
       ...currentRequest, candidate: previousDraft, deterministicFindings: findings,
       correctCopiedLongDraft: copied, repairFromSource: copied, verification: null,
+      ...(currentRequest.verification?.available && !currentRequest.regenerationFromReanalysis
+        ? { priorReviewedDraft: { candidate: currentRequest.candidate, verification: currentRequest.verification } } : {}),
     }));
   } : null;
   for (let index = 0; index < analyses.length; index += 1) {
@@ -4199,7 +4216,8 @@ export async function executeLatticePlan(preflight, options) {
         ...original,
         ...(reanalyzedByBatch.has(original.batch.id) ? { regenerationFromReanalysis: true } : {}),
         ...(!reanalyzedByBatch.has(original.batch.id) && hasOnlyBoundNonmaterialFindings(original)
-          ? { repairFromSource: true } : {}),
+          ? { repairFromSource: true,
+            ...(qualifyingLongJob && onlyCopiedWordingNeedsRepair(original) ? { correctCopiedLongDraft: true } : {}) } : {}),
         // Repair only the host-proved defect; the unavailable review contains
         // placeholders, not independent semantic findings. Fresh verification
         // below must still establish every required condition for the new draft.

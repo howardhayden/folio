@@ -392,11 +392,29 @@ export function shortLatticeDialogueFrame({ spans, literalAnnotations = [], dire
   return spans.map(span => span.kind === "literal" ? ["fixed", span.id] : ["edit", span.text]);
 }
 
-export function editableFrameRepairMessages(frames) {
+function priorDraftFeedbackForModel(request) {
+  const prior = request.priorReviewedDraft;
+  return prior ? { candidate: rejectedCandidateForRepair(prior.candidate), feedback: verificationFeedbackForModel(prior.verification) } : null;
+}
+
+export function editableFrameRepairMessages(frames, request) {
+  const wholeIds = new Set(frames.filter(frame => !frame.slot).map(frame => frame.id));
+  const prior = priorDraftFeedbackForModel(request);
   return messages(
-    "Supply two faithful rewrites of just the short editable fragment for each passage. The host will insert one between the original fixed parts.",
-    { frames: frames.map(({ id, before, editable, after, units, layer }) => [id, layer, before, editable, after, units]) },
-    "Each frame is [passage ID, register, fixed before, editable fragment, fixed after, meaning units]. Each unit is [short key, kind, source evidence excerpt]. In each choice return only replacement wording for the editable fragment and the keys you actually preserve in the reconstructed passage. Keep the speaker, action, tone, question, attribution, and all commitments. Try an equivalent predicate and a distinct grammatical construction. Do not repeat the fixed parts, copy the fragment, or add new actions, motives or detail. Keep the fragment's punctuation and capitalization appropriate to its fixed surroundings.",
+    "Write the editable language of each passage in its assigned register. The host keeps the fixed surrounding text.",
+    {
+      frames: frames.map(({ id, source, plan, slot }) => [
+        id, plan.layer, slot?.before ?? "", slot?.editable ?? source.text, slot?.after ?? "",
+        plan.atoms.map(atom => [atom.kind, atom.value]), plan.discourseFunction, plan.rationale,
+      ]),
+      wholePassages: [...wholeIds],
+      ...(wholeIds.size ? { wholePassageSources: repairSourcePassagesForModel(request).filter(([id]) => wholeIds.has(id)) } : {}),
+      ...(prior ? { previouslyReviewed: prior } : {}),
+      sourceBoundaries: sourceBoundariesForModel(request),
+      documentLedger: documentLedgerForModel(request.documentLedger),
+      ...(request.context ? { context: contextForModel(request.context) } : {}),
+    },
+    "Each frame is [ID, register, fixed before, editable wording, fixed after, ordered meaning units, discourse function, plan]. For a quoted frame, read the whole sentence. Return two natural alternatives for the editable wording only. In the first, replace the reporting verb or other principal predicate with an equivalent expression; in the second, recast the clause structure. Keep its speaker, addressee, intensity, manner, time, question and line. Keep the quotation on the same side. Neither alternative should simply copy the editable words or add detail. For a wholePassages ID, return one complete rewrite, preserving every designated literal in wholePassageSources and every boundary. PreviouslyReviewed, when present, reports findings on the paired earlier candidate only. Address its grounded omissions or errors in the fresh wording. In every alternative, coverage is one bit per listed meaning unit in order. Set a bit to 1 only if that unit is genuinely preserved by the reconstructed passage, including its fixed text. Mark any missing or uncertain unit 0.",
   );
 }
 
@@ -1277,6 +1295,7 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema", d
   if (!ANALYSIS_RESPONSE_DIALECTS.has(analysisPlanDialect)) {
     throw new TypeError("Text to Lattice received an invalid analysis plan dialect.");
   }
+  const prior = priorDraftFeedbackForModel(request);
   const compactPlan = analysisPlanDialect === "compact-wire-v2";
   const sourceGroups = repairSourcePassagesForModel(request);
   const requiredRewrites = compactPlan ? requiredRewritePositionsForModel(sourceGroups, request.analysis) : [];
@@ -1326,6 +1345,7 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema", d
         : { rejectedCandidate: rejectedCandidateForRepair(request.candidate) }),
       ...(request.deterministicFindings?.length ? { deterministicFindings: request.deterministicFindings } : {}),
       verification: verificationFeedback,
+      ...(prior ? { previouslyReviewed: prior } : {}),
       ...(feedbackSourceSpans.length ? { feedbackSourceSpans } : {}),
       ...(request.documentFindings?.length ? { documentFindings: request.documentFindings } : {}),
       ...(request.protocolFeedback
@@ -1334,6 +1354,6 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema", d
           : { protocolFeedback: request.protocolFeedback }
         : {}),
     },
-    `${realizationInstruction} Repair source groups are [passage ID, complete exact source text, ordered exact-literal tuples].${directionFrameInstruction(request)} Literal tuples are [span ID, exact text] already present inside that source text. Source boundaries are passage-order gaps [before first, between each pair, after last], encoded as exact [unit,count] runs or a host-preserved repeat/summary. Analysis is [document kind, passages]. Analysis passages are [ID, discourse function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria, conformance spans, criterion-specific conformance assertions]; atoms are [ID, kind, value, priority, preservation, ${missingEvidence.size ? "exact-literal or missing-unit evidence IDs" : "exact-literal evidence IDs"} or [], links].${missingEvidence.size ? " For each missing meaning unit, read its cited source evidence, find what the rejected wording omitted or changed, and restore that commitment in the new text." : ""} ${request.repairFromSource === true ? "The rejected draft is omitted; produce a fresh candidate that resolves the findings." : "Rejected candidates are [ID, layer, text]."} Feedback: [decision, failed gates, passages, check/passage pairs]; prose excluded.${feedbackLegend}${feedbackSourceSpans.length ? " feedbackSourceSpans groups are [passage ID, [span ID, exact source text] pairs] resolving ordinary span IDs in that feedback. These excerpts ground the findings; they are not verbatim output requirements. Exact literals remain binding in sourcePassages." : ""} ${compactPlan ? `${LATTICE_COMPACT_REALIZATION_PLAN_INSTRUCTION} Resolve the supplied deterministic and verification findings in that concrete realization.` : "Use the discourse function and rationale as the source-specific repair plan."} Preserve every atom, relation, ambiguity, exact literal, and structural boundary; repair every finding, keep every passage and atom ID, and make each planned rewrite change normalized wording or syntax rather than presentation alone.`,
+    `${realizationInstruction} ${prior ? "PreviouslyReviewed pairs an earlier draft with its own review; account for grounded issues when composing the new wording. " : ""}Repair source groups are [passage ID, complete exact source text, ordered exact-literal tuples].${directionFrameInstruction(request)} Literal tuples are [span ID, exact text] already present inside that source text. Source boundaries are passage-order gaps [before first, between each pair, after last], encoded as exact [unit,count] runs or a host-preserved repeat/summary. Analysis is [document kind, passages]. Analysis passages are [ID, discourse function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria, conformance spans, criterion-specific conformance assertions]; atoms are [ID, kind, value, priority, preservation, ${missingEvidence.size ? "exact-literal or missing-unit evidence IDs" : "exact-literal evidence IDs"} or [], links].${missingEvidence.size ? " For each missing meaning unit, read its cited source evidence, find what the rejected wording omitted or changed, and restore that commitment in the new text." : ""} ${request.repairFromSource === true ? "The rejected draft is omitted; produce a fresh candidate that resolves the findings." : "Rejected candidates are [ID, layer, text]."} Feedback: [decision, failed gates, passages, check/passage pairs]; prose excluded.${feedbackLegend}${feedbackSourceSpans.length ? " feedbackSourceSpans groups are [passage ID, [span ID, exact source text] pairs] resolving ordinary span IDs in that feedback. These excerpts ground the findings; they are not verbatim output requirements. Exact literals remain binding in sourcePassages." : ""} ${compactPlan ? `${LATTICE_COMPACT_REALIZATION_PLAN_INSTRUCTION} Resolve the supplied deterministic and verification findings in that concrete realization.` : "Use the discourse function and rationale as the source-specific repair plan."} Preserve every atom, relation, ambiguity, exact literal, and structural boundary; repair every finding, keep every passage and atom ID, and make each planned rewrite change normalized wording or syntax rather than presentation alone.`,
   );
 }
