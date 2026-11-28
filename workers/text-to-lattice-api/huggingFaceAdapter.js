@@ -712,14 +712,14 @@ const VERIFICATION_WIRE_SCHEMA = Object.freeze({
   }),
   required: Object.freeze(["d", "g", "p", "i"]),
 });
-function verificationWireGuide(fields) {
+function verificationWireGuide(fields, namedLayer = false) {
   return [
     LATTICE_VERIFICATION_MASK_LAYOUT_INSTRUCTION,
     `Return one minified private verification instance with exactly the four root fields ${fields}; never echo the schema. Keep i as [] when no additional issue is needed, never omit it. Return every fitted passage record completely for every decision, including repair and reject.`,
     `Root d is the zero-based decision index [${VERIFICATION_DECISIONS.join(",")}]. Root g is the ${VERIFICATION_GATES.length}-character failed-gate bit string in this order: [${VERIFICATION_GATES.join(",")}].`,
     "Set d to accept only when every reported gate and passage condition passes. Repair or reject requires at least one actual failed condition represented by g or a passage record; never invent a failure to justify a negative decision.",
-    "Root p is the fitted object whose numeric keys are supplied passage positions. Each passage is {a,u,s,f,l,x,y,c}: atom-status digits, unsupported-meaning boolean, unmodeled-span bit string, failed-check bit string, independent-layer index, layer-evidence atom bit string, layer-evidence span bit string, and conformance object.",
-    `Atom-status digits use supplied atom order: 1 checked, 2 missing, 0 unaccounted. Failed-check mask order: [${VERIFICATION_PASSAGE_CHECKS.join(",")}]. Layer indices are zero-based in this order: [${VERIFICATION_LAYERS.join(",")}].`,
+    `Root p is the fitted object whose numeric keys are supplied passage positions. Each passage is {a,u,s,f,l,x,y,c}: atom-status digits, unsupported-meaning boolean, unmodeled-span bit string, failed-check bit string, independent-layer ${namedLayer ? "name" : "index"}, layer-evidence atom bit string, layer-evidence span bit string, and conformance object.`,
+    `Atom-status digits use supplied atom order: 1 checked, 2 missing, 0 unaccounted. Failed-check mask order: [${VERIFICATION_PASSAGE_CHECKS.join(",")}]. ${namedLayer ? "Write the independent register in l as one exact name" : "Layer indices are zero-based in this order"}: [${VERIFICATION_LAYERS.join(",")}].`,
     "Every bit string uses supplied order and exact fitted width; 1 selects an item. Layer-support masks x and y each contain at least one 1, even for repair or reject. x selects supplied atoms supporting the independent layer; y selects source spans grounded by those atoms. Never select unsupported evidence merely to make a mask nonempty. Conformance c is {v,s,k}: unchanged-source retention confirmed, conformance-span bit string, and criterion checks in fitted order. It is not candidate quality or layer support. Each criterion check is {v,s}: passed and evidence-span bit string. Rewrites use {v:false,s:all-zero,k:[]}, matching wireLayout conformance.fixedProtocolValue; this emptiness applies only to c, never to x or y.",
     "The unmodeled-span mask selects at most 12 positions. Every passed criterion selects at least one evidence bit.",
     LATTICE_VERIFICATION_ISSUE_WIRE_INSTRUCTION,
@@ -729,7 +729,8 @@ function verificationWireGuide(fields) {
 
 const VERIFICATION_WIRE_GUIDE = verificationWireGuide("d, g, p, and i");
 const VERIFICATION_ALIGNMENT_GUIDE = verificationWireGuide("g, p, i, and d");
-const PAIRED_VERIFICATION_GUIDE = "Key the two results by batchId. Apply these rules separately inside each result.\n" + VERIFICATION_ALIGNMENT_GUIDE;
+const NAMED_REGISTER_GUIDE = verificationWireGuide("g, p, i, and d", true);
+const PAIRED_VERIFICATION_GUIDE = "Key the two results by batchId. Apply these rules separately inside each result.\n" + NAMED_REGISTER_GUIDE;
 
 function verificationWireMessages(request, wireLayout, wireCorrection, missingPositions, assessDialogue = false) {
   return verificationMessages(request, { responseDialect: "compact-wire-v2", wireLayout, wireCorrection, missingPositions, assessDialogue });
@@ -857,13 +858,14 @@ function fitDraftFrames(request, stageName, includeWholeDrafts) {
     if (initial && !slot && !includeWholeDrafts) return null;
     const foreignWords = (request.documentBoundaryMoves ?? []).flatMap(([word, from, to]) =>
       from !== id && to === id ? [word] : []);
-    frames.push({ id, source, plan, slot, foreignWords, clauseEdit: Boolean(includeWholeDrafts && slot),
+    frames.push({ id, source, plan, slot, foreignWords, boundaryChoiceCost: includeWholeDrafts ? request.boundaryChoiceCost : null,
+      clauseEdit: Boolean(includeWholeDrafts && slot),
       reviewed: Boolean(reviewed), retained: Boolean(retained) });
   }
   if (reviewed && !frames.some(frame => frame.slot)) return null;
   // Compact initial drafts and targeted copy repairs can afford two complete
   // renderings per passage in the same response.
-  const compactAlternatives = (initial || reviewed || request.correctCopiedLongDraft === true) && includeWholeDrafts
+  const compactAlternatives = (initial || reviewed || boundaryIds?.length || request.correctCopiedLongDraft === true) && includeWholeDrafts
     && frames.reduce((sum, frame) => sum + frame.source.text.length, 0) <= 600
     && frames.reduce((sum, frame) => sum + countLatticeWords(frame.source.text), 0) <= 100;
   for (const frame of frames) {
@@ -937,7 +939,7 @@ function fitDraftPair(first, second) {
 function expandFrameRepair(result, frames, previous) {
   if (!exactKeys(result, frames.map(frame => frame.id))) return {};
   const replacements = new Map();
-  for (const { id, source, plan, slot, choiceCount, foreignWords, clauseEdit, retained } of frames) {
+  for (const { id, source, plan, slot, choiceCount, foreignWords, boundaryChoiceCost, clauseEdit, retained } of frames) {
     const value = result[id];
     if (retained) {
       if (!exactKeys(value, ["coverage"])) return {};
@@ -949,6 +951,7 @@ function expandFrameRepair(result, frames, previous) {
     const choices = clauseEdit ? editableClauseChoices(value, slot, plan.atoms.length) : value;
     if (!Array.isArray(choices) || (!clauseEdit && choices.length !== choiceCount)) return {};
     let first;
+    let bestCost = Infinity;
     for (const choice of choices) {
       if (!exactKeys(choice, ["wording", "coverage"]) || typeof choice.wording !== "string"
         || !choice.wording.trim() || choice.wording.length > (slot ? 240 : 2800)
@@ -959,8 +962,11 @@ function expandFrameRepair(result, frames, previous) {
         text: slot ? realizeClause(slot, choice.wording, clauseEdit) : choice.wording,
         preservedAtomIds: plan.atoms.filter((_, i) => choice.coverage[i] === "1").map(atom => atom.id) };
       first ??= candidate;
-      if (!replacements.has(id) && deterministicPassageReview(source, plan, candidate).length === 0
-        && !foreignWords.some(word => containsLatticeBoundaryWord(candidate.text, word))) replacements.set(id, candidate);
+      if (bestCost > 0 && deterministicPassageReview(source, plan, candidate).length === 0
+        && !foreignWords.some(word => containsLatticeBoundaryWord(candidate.text, word))) {
+        const cost = boundaryChoiceCost?.(id, candidate.text) ?? 0;
+        if (cost < bestCost) { replacements.set(id, candidate); bestCost = cost; }
+      }
     }
     // During initial drafting, surface the writer's actual failed proposal
     // for bounded correction. A correction with no valid choice keeps its D14.
@@ -982,7 +988,8 @@ function certificationWireMessages(request) {
 }
 
 const VERIFICATION_TOOL_NAME = "lattice_verification_wire_v2";
-const PAIRED_VERIFICATION_SCHEMA_NAME = "lattice_paired_verification_v2";
+const NAMED_REGISTER_SCHEMA_NAME = "lattice_named_register_verification_v1";
+const PAIRED_VERIFICATION_SCHEMA_NAME = "lattice_paired_named_register_v1";
 const CERTIFICATION_TOOL_NAME = "lattice_certification_wire_v2";
 const SCALEWAY_NULL_REVIEW_METADATA_MODEL = "meta-llama/Llama-3.3-70B-Instruct:scaleway";
 const DEEPINFRA_NULL_REVIEW_PAIR_MODEL = "meta-llama/Llama-3.3-70B-Instruct:deepinfra";
@@ -1679,7 +1686,7 @@ function verificationPlansForRequest(request, passages, evidenceByPassage) {
   return fitted;
 }
 
-function fitVerificationRequest(request) {
+function fitVerificationRequest(request, namedLayer = false) {
   const passages = analysisPassagesForRequest(request);
   const evidenceByPassage = analysisEvidenceIdsForRequest(request, passages);
   const maximumEvidence = (SOURCE_SPAN_LIMIT * passages.length) + (2 * LITERAL_BATCH_SPAN_LIMIT);
@@ -1688,7 +1695,7 @@ function fitVerificationRequest(request) {
     throw new TypeError("The Lattice provider received oversized verification evidence.");
   }
   const plans = verificationPlansForRequest(request, passages, evidenceByPassage);
-  return Object.freeze({ passages, evidenceByPassage, plans });
+  return Object.freeze({ passages, evidenceByPassage, plans, namedLayer });
 }
 
 function verificationWireSchemaForFit(fit, evidenceFirst) {
@@ -1743,7 +1750,7 @@ function verificationWireSchemaForFit(fit, evidenceFirst) {
       u: VERIFICATION_WIRE_PASSAGE_SCHEMA.properties.u,
       s: evidenceMask,
       f: VERIFICATION_WIRE_PASSAGE_SCHEMA.properties.f,
-      l: VERIFICATION_WIRE_PASSAGE_SCHEMA.properties.l,
+      l: fit.namedLayer ? { type: "string", enum: VERIFICATION_LAYERS } : VERIFICATION_WIRE_PASSAGE_SCHEMA.properties.l,
       x: wireBitMaskSchema(atomCount, { requireSelection: true }),
       y: wireBitMaskSchema(evidenceCount, { requireSelection: true }),
       c: conformanceSchema,
@@ -1791,6 +1798,7 @@ function verificationWireLayoutForSchema(schema, fit, analysis) {
   const passages = schema.properties.p;
   return Object.freeze({
     rootFields: Object.freeze([...schema.required]),
+    ...(fit.namedLayer ? { independentRegisterNames: VERIFICATION_LAYERS } : {}),
     gateWidth: schema.properties.g.minLength,
     passagePositions: Object.freeze([...passages.required]),
     passages: Object.freeze(Object.fromEntries(passages.required.map((position) => {
@@ -1850,7 +1858,7 @@ function fitReviewPair(first, second) {
   const ids = new Set(first.batch.passages.map(p => p.id));
   if (second.batch.passages.some(p => ids.has(p.id))) return null;
   const groups = [first, second].map(request => {
-    const fit = fitVerificationRequest(request);
+    const fit = fitVerificationRequest(request, true);
     const schema = verificationWireSchemaForFit(fit, true);
     return { request, fit, schema, layout: verificationWireLayoutForSchema(schema, fit, request.analysis) };
   });
@@ -2341,14 +2349,19 @@ function decodeVerificationWire(value, fit) {
     const atomStatuses = wireAtomStatuses(passage.a, plan.atomIds);
     const unmodeledSpanIds = wireMaskSelections(passage.s, evidenceIds, { maximum: 12 });
     const failedChecks = wireMaskSelections(passage.f, VERIFICATION_PASSAGE_CHECKS);
-    const independentLayer = wireEnumValue(passage.l, VERIFICATION_LAYERS);
+    const independentLayer = fit.namedLayer
+      ? (VERIFICATION_LAYERS.includes(passage.l) ? passage.l : null)
+      : wireEnumValue(passage.l, VERIFICATION_LAYERS);
     const layerEvidenceAtomIds = wireMaskSelections(passage.x, plan.atomIds, { minimum: 1 });
     const layerEvidenceSpanIds = wireMaskSelections(passage.y, evidenceIds, { minimum: 1 });
     const conformanceEvidenceSpanIds = wireMaskSelections(passage.c.s, evidenceIds);
     if (atomStatuses === null) return rejectedPrivateWire(typeof passage.a === "string" ? "value-domain" : "value-type", rejectedStringRule(passage.a, plan.atomIds, "V12", { alphabet: /^[012]+$/u }));
     if (unmodeledSpanIds === null) return rejectedPrivateWire(rejectedMaskCategory(passage.s, evidenceIds, { maximum: 12 }), rejectedStringRule(passage.s, evidenceIds, "V13", { maximum: 12 }));
     if (failedChecks === null) return rejectedPrivateWire(rejectedMaskCategory(passage.f, VERIFICATION_PASSAGE_CHECKS), rejectedStringRule(passage.f, VERIFICATION_PASSAGE_CHECKS, "V14"));
-    if (independentLayer === null) return rejectedPrivateWire(rejectedEnumCategory(passage.l), rejectedEnumRule(passage.l, "V15"));
+    if (independentLayer === null) {
+      if (fit.namedLayer) return typeof passage.l === "string" ? rejectedPrivateWire("value-domain", "V15R") : rejectedPrivateWire("value-type", "V15T");
+      return rejectedPrivateWire(rejectedEnumCategory(passage.l), rejectedEnumRule(passage.l, "V15"));
+    }
     if (layerEvidenceAtomIds === null) return rejectedPrivateWire(rejectedMaskCategory(passage.x, plan.atomIds, { minimum: 1 }), rejectedStringRule(passage.x, plan.atomIds, "V16", { minimum: 1 }));
     if (layerEvidenceSpanIds === null) return rejectedPrivateWire(rejectedMaskCategory(passage.y, evidenceIds, { minimum: 1 }), rejectedStringRule(passage.y, evidenceIds, "V17", { minimum: 1 }));
     if (conformanceEvidenceSpanIds === null) return rejectedPrivateWire(rejectedMaskCategory(passage.c.s, evidenceIds), rejectedStringRule(passage.c.s, evidenceIds, "V18"));
@@ -3040,7 +3053,7 @@ export async function requestHuggingFaceJson({
     || (requireMinimalVerificationContent
       && (role !== "verifier"
         || !(schemaName === VERIFICATION_TOOL_NAME
-          || (stage === STAGES.verification && schemaName === PAIRED_VERIFICATION_SCHEMA_NAME
+          || (stage === STAGES.verification && [PAIRED_VERIFICATION_SCHEMA_NAME, NAMED_REGISTER_SCHEMA_NAME].includes(schemaName)
             && resolvedResponseFormat === "json_schema" && !allowNullStoppedVerificationMetadata
             && !allowNullJsonObjectVerificationToolCalls && !allowNullStoppedScalewayReviewMetadata)
           || (schemaName === CERTIFICATION_TOOL_NAME && resolvedResponseFormat === "json_schema"
@@ -3345,7 +3358,8 @@ export function createHuggingFaceLatticeAdapter({
         && (stageName === "candidate" || stageName === "repair")) draftClaims = longDraftClaims(request.analysis);
       if (draftClaims && !outputPassage) repairFrames = pair?.frames
         ?? fitDraftFrames(request, stageName, providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit);
-      verificationFit = stageName === "verification" ? reviewPair?.groups[0].fit ?? fitVerificationRequest(request) : null;
+      verificationFit = stageName === "verification" ? reviewPair?.groups[0].fit
+        ?? fitVerificationRequest(request, providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit) : null;
       certificationFit = stageName === "certification" ? fitCertificationRequest(request) : null;
       const verificationCorrection = verificationFit ? verificationWireCorrectionForRequest(request) : null;
       const missingPositions = ["atom-decision", "atom-verdict"].includes(verificationCorrection) ? getLatticeVerificationMissingPositions(request) : null;
@@ -3390,8 +3404,10 @@ export function createHuggingFaceLatticeAdapter({
         messages: messagesWithMode(messageFactory, fittedRequest, requestedMode),
         schema: fittedSchema,
         schemaName: reviewPair ? PAIRED_VERIFICATION_SCHEMA_NAME
+          : verificationFit?.namedLayer ? NAMED_REGISTER_SCHEMA_NAME
           : outputPassage ? "lattice_single_passage_draft_v1" : repairFrames ? "lattice_quoted_draft_v1" : stage.schemaName,
         responseGuide: reviewPair ? PAIRED_VERIFICATION_GUIDE : positionAnchors ? LONG_ANALYSIS_WIRE_GUIDE
+          : verificationFit?.namedLayer ? NAMED_REGISTER_GUIDE
           : evidenceFirst ? VERIFICATION_ALIGNMENT_GUIDE : stage.responseGuide,
         schemaDescription: stage.schemaDescription,
         responseFormat: outputPassage || repairFrames ? "json_schema" : stage.responseFormat,

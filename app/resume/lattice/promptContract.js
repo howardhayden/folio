@@ -409,6 +409,15 @@ function frameDraftPayload(frames, request) {
   const prior = priorDraftFeedbackForModel(request);
   const reviewed = frames.some(frame => frame.reviewed);
   const regeneration = reviewed ? regenerationFeedbackForModel(request) : null;
+  // Frame meaning units are positional. Translate genuine negative findings
+  // only when their atom IDs belong to this current passage graph.
+  const review = request.priorReviewedDraft?.verification ?? (!request.regenerationFromReanalysis && reviewed ? request.verification : null);
+  const missingMeaningUnits = frames.flatMap(({ id, plan }) => {
+    const missing = review?.passages?.find(p => p.passageId === id)?.missingAtomIds;
+    if (!missing?.length) return [];
+    const positions = plan.atoms.flatMap((atom, i) => missing.includes(atom.id) ? [i] : []);
+    return positions.length ? [[id, positions]] : [];
+  });
   return {
     frames: frames.map(({ id, source, plan, slot, choiceCount }) => [
       id, plan.layer, slot?.before ?? "", slot?.editable ?? source.text, slot?.after ?? "",
@@ -417,6 +426,7 @@ function frameDraftPayload(frames, request) {
     wholePassages: [...wholeIds],
     ...(clauseEdits.length ? { clauseEdits } : {}),
     ...(retained.length ? { retainedPassages: retained } : {}),
+    ...(missingMeaningUnits.length ? { missingMeaningUnits } : {}),
     ...(regeneration ? { regenerationFeedback: regeneration } : {}),
     ...(reviewed && !request.regenerationFromReanalysis && !prior ? { previouslyReviewed: {
       candidate: rejectedCandidateForRepair(request.candidate), feedback: verificationFeedbackForModel(request.verification),
@@ -437,7 +447,7 @@ export function editableFrameRepairMessages(frames, request, secondGroup = null)
   const payload = secondGroup ? { groups: [first, frameDraftPayload(secondGroup.frames, secondGroup.request)] } : first;
   let clauseGuide = frames.some(f => f.clauseEdit) || secondGroup?.frames.some(f => f.clauseEdit) ? CLAUSE_EDIT_GUIDE : "";
   if (frames.some(frame => frame.reviewed)) {
-    clauseGuide += " This is a fresh draft of the complete group against the current writing plan. For a changed plan, regenerationFeedback locates earlier problems by source position. Reassess every current meaning unit. Give the editable attribution the assigned register while preserving the speaker and what happened. For retainedPassages, the host keeps the exact source. Return only your coverage mask for the meaning actually present. Independent review will assess the wording and retention.";
+    clauseGuide += " This is a fresh draft of the complete group against the current writing plan. For a changed plan, regenerationFeedback locates earlier problems by source position. missingMeaningUnits lists a passage ID and the zero-based positions of commitments missing from its earlier draft. Restore those commitments from the source and reassess every current meaning unit. Give the editable attribution the assigned register while preserving the speaker and what happened. For retainedPassages, the host keeps the exact source. Return only your coverage mask for the meaning actually present. Independent review will assess the wording and retention.";
   }
   return messages(
     "Write the editable language of each passage in its assigned register. The host keeps the fixed surrounding text.",
@@ -1152,10 +1162,12 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
   }
   const compactPlan = analysisPlanDialect === "compact-wire-v2";
   const regenerationFeedback = regenerationFeedbackForModel(request);
+  const prior = request.regenerationFromReanalysis ? priorDraftFeedbackForModel(request) : null;
   const sourceGroups = sourcePassagesForModel(request);
   const requiredRewrites = compactPlan ? requiredRewritePositionsForModel(sourceGroups, request.analysis) : [];
   const dialogueFrames = draftAtomKeys ? dialogueFramesForModel(request) : [];
   const realizationInstruction = candidateRealizationInstruction(draftAtomKeys !== null)
+    + (prior ? " The prior review concerns the same source graph and an earlier draft. Restore every identified missing commitment using its source evidence, and realize the current writing plan. The old draft has no standing as an accepted result." : "")
     + (request.documentBoundaryMoves?.length ? DOCUMENT_BOUNDARY_REPAIR_GUIDE : "")
     + (dialogueFrames.length ? DIALOGUE_FRAME_INSTRUCTION : "")
     + (requiredRewrites.length ? REQUIRED_REWRITE_CHECKLIST_INSTRUCTION : "");
@@ -1177,6 +1189,7 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
       } : {}),
       analysis: analysisForModel(request.analysis),
       ...(regenerationFeedback ? { regenerationFeedback } : {}),
+      ...(prior ? { previouslyReviewed: prior } : {}),
       ...(request.protocolFeedback ? { protocolFeedback: request.protocolFeedback } : {}),
     },
     `${realizationInstruction} Analysis is [document kind, passages]. Analysis passages are [ID, discourse function, layer, disposition, rationale, atoms, ambiguity IDs, conformance criteria, conformance spans, criterion-specific conformance assertions]; atoms are [ID, kind, value, priority, preservation, evidence IDs, relation-target pairs]. Source groups are [passage ID, ordered lossless spans, nested literal annotations].${directionFrameInstruction(request)} Source boundaries are passage-order gaps [before first, between each pair, after last], encoded as exact [unit,count] runs or a host-preserved repeat/summary. ${compactPlan ? LATTICE_COMPACT_REALIZATION_PLAN_INSTRUCTION : "Use each source-specific discourse function and rationale as the realization plan."} ${regenerationFeedback?.priorRewriteChecks ? "regenerationFeedback.priorRewriteChecks lists [zero-based source passage position, checks that failed during review of the previous draft]. For materiality, recast the wording or syntax so the selected layer changes how the passage communicates its meaning. For registerFit, use the layer specified by the current plan. Preserve the speaker, meaning, exact literals and boundaries. " : ""}${regenerationFeedback?.nonmaterialPassagePositions ? "regenerationFeedback.nonmaterialPassagePositions gives zero-based source passage positions whose previous draft failed the host normalized-word check and whose revised plan still requires rewrite. Resolve that prior defect in this fresh realization; it does not establish any other check or prescribe replacement wording. " : ""}${regenerationFeedback?.retentionNotConfirmedPassagePositions ? "regenerationFeedback.retentionNotConfirmedPassagePositions gives zero-based source passage positions whose previous unchanged retention did not obtain required positive conformance and whose current plan requires rewrite. Produce a fresh material rewrite under that plan while preserving every source-grounded commitment, designated exact literal, and structural boundary. This context does not by itself establish a prior normalized-word failure or any passed check, and prescribes no replacement wording. " : ""}${regenerationFeedback?.retentionRegisterFitRejectedPassagePositions ? "regenerationFeedback.retentionRegisterFitRejectedPassagePositions gives zero-based source passage positions whose retained disposition the host changed to rewrite because the prior batch or passage register-fit check failed. Realize the committed rewrite materially while preserving every source-grounded commitment, exact literal, and boundary. This does not imply a failed positive-conformance check, an earlier normalized-word failure, or any passed check. " : ""}${regenerationFeedback?.exactSourceCopyPassagePositions ? "regenerationFeedback.exactSourceCopyPassagePositions gives zero-based source passage positions whose first regeneration copied the exact source despite a committed rewrite after unconfirmed retention. Correct this materiality defect now using the same plan and complete source. Preserve every commitment, designated exact literal and boundary; do not force a difference by adding or removing meaning. This is not a passed check. " : ""}Cover every passage and atom. Rewrites must change at least one normalized word or its syntactic order in service of that plan; formatting, case, and punctuation alone do not count. Preserve exact literals and annotations, linked meaning, ambiguity, attribution, and structural boundaries. Do not move a source atom or unchanged source item to the other side of a line, paragraph, or stanza boundary; retained conformant text stays exact.`,

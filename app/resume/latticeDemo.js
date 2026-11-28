@@ -78,6 +78,7 @@ import {
   deterministicBatchReview,
   deterministicPassageReview,
   containsLatticeBoundaryWord,
+  latticeBoundaryChoiceCost,
   relocatedLatticeBoundaryWords,
   deterministicDocumentReview,
   foldLatticePresentationLetters,
@@ -3331,9 +3332,10 @@ function verificationSemanticallySafe(entry) {
 
 // A grounded independent review can correct the writing plan while preserving
 // a complete source graph. This is a proposal for a fresh draft and review.
-function registerRepairPlans(entry) {
+function registerRepairPlans(entry, extended) {
   const { analysis, verification } = entry;
-  if (!verification.available || verification.questions.length || entry.documentFindings.length
+  const separateBoundaryRepair = extended && entry.documentFindings.every(f => deterministicFindingRule(f) === "D27");
+  if (!verification.available || verification.questions.length || (entry.documentFindings.length && !separateBoundaryRepair)
     || (entry.deterministicFindings.length && !hasOnlyBoundNonmaterialFindings(entry))
     || LATTICE_VERIFICATION_GATES.some((gate) => gate !== "registerFit" && !verification.gates[gate])
     || verification.issues.some(({ check }) => check !== "registerFit" && check !== "materiality")) return null;
@@ -3343,13 +3345,17 @@ function registerRepairPlans(entry) {
   const plans = [];
   for (const [index, plan] of analysis.passages.entries()) {
     const review = verification.passages[index];
+    const accounted = new Set(extended ? [...review.checkedAtomIds, ...review.missingAtomIds] : review.checkedAtomIds);
+    const changedLayerHasCheckedEvidence = review.independentLayer === plan.layer || !review.missingAtomIds.length
+      || plan.atoms.some(atom => review.checkedAtomIds.includes(atom.id) && review.layerEvidenceAtomIds.includes(atom.id)
+        && atom.evidenceSpanIds.some(id => review.layerEvidenceSpanIds.includes(id)));
     // A bad citation cannot select a new layer. If both proposals already
     // name the same layer, keep it provisional and require fresh grounded review.
     if (review.passageId !== plan.passageId
       || (!review.layerEvidenceGrounded && review.independentLayer !== plan.layer)
-      || review.missingAtomIds.length || review.unsupportedClaims.length || review.unmodeledSpanIds.length
-      || review.checkedAtomIds.length !== plan.atoms.length
-      || !plan.atoms.every(({ id }) => review.checkedAtomIds.includes(id))
+      || review.unsupportedClaims.length || review.unmodeledSpanIds.length
+      || accounted.size !== plan.atoms.length || !plan.atoms.every(({ id }) => accounted.has(id))
+      || (review.missingAtomIds.length && (!extended || !changedLayerHasCheckedEvidence))
       || LATTICE_PASSAGE_VERIFICATION_CHECKS.some((check) =>
         check !== "registerFit" && check !== "materiality" && !review[check])) return null;
 
@@ -3453,19 +3459,20 @@ function finalDraftTargets(entry, nextAnalysis, boundaryTargets) {
 }
 
 // Keep checked wording on an unchanged plan. Review the assembled group anew.
-function keepReviewedPassages(original, analysis, replacement) {
+function keepReviewedPassages(original, analysis, replacement, boundaryTargets) {
   const { verification } = original;
-  if (!verification.available || original.documentFindings.length || verification.issues.some(issue => !issue.passageId)
+  const mappedBoundaryOnly = boundaryTargets?.size && original.documentFindings.every(f => deterministicFindingRule(f) === "D27");
+  if (!verification.available || (original.documentFindings.length && !mappedBoundaryOnly) || verification.issues.some(issue => !issue.passageId)
     || LATTICE_VERIFICATION_GATES.some(gate => !verification.gates[gate]
       && (gate !== "registerFit" || !verification.passages.some(passage => !passage.registerFit)))) return replacement;
   const implicated = new Set([...original.deterministicFindings, ...verification.issues].map(finding => finding.passageId));
   const localFailure = original.deterministicFindings.length || verification.passages.some(passage => !passage.complete)
-    || verification.issues.length;
+    || verification.issues.length || original.batch.passages.some(p => boundaryTargets?.has(p.id));
   if (!localFailure || implicated.has("")) return replacement;
   return Object.freeze({ passages: Object.freeze(replacement.passages.map((passage, index) => {
     const reviewed = verification.passages[index];
     return analysis.passages[index] === original.analysis.passages[index]
-      && reviewed.passageId === passage.passageId && reviewed.complete && !implicated.has(passage.passageId)
+      && reviewed.passageId === passage.passageId && reviewed.complete && !implicated.has(passage.passageId) && !boundaryTargets?.has(passage.passageId)
       ? original.candidate.passages[index] : passage;
   })) });
 }
@@ -3973,13 +3980,15 @@ export async function executeLatticePlan(preflight, options) {
     });
   }
 
-  analyses = analyses.map((entry) => Object.freeze({
-    ...entry,
-    ...bindRequiredLedgerTargets(entry.analysis, buildDocumentLedger(analyses, entry.batch.id)),
-  }));
   const qualifyingLongJob = isLatticeLongJobCallLimit(options.providerCallLimit)
     && latticeProviderCallLimitForPlan(preflight) === LATTICE_LONG_JOB_POLICY.providerCallLimit;
   const extended = qualifyingLongJob && options.providerCallLimit === LATTICE_LONG_JOB_POLICY.providerCallLimit;
+  const boundaryChoiceCost = extended && /[\r\n\u2028\u2029]/u.test(source) ? latticeBoundaryChoiceCost(source, passages) : null;
+  analyses = analyses.map((entry) => Object.freeze({
+    ...entry,
+    ...(boundaryChoiceCost ? { boundaryChoiceCost } : {}),
+    ...bindRequiredLedgerTargets(entry.analysis, buildDocumentLedger(analyses, entry.batch.id)),
+  }));
   const generateInitial = originalGroupAttempts(analyses, options.adapter, "generate", extended);
   let candidates = [];
   const repairLongDraft = qualifyingLongJob ? (currentRequest, previousDraft, findings) => {
@@ -4250,7 +4259,7 @@ export async function executeLatticePlan(preflight, options) {
         const structural = structuralIds.has(entry.batch.id);
         const targets = finalDraftTargets(entry, structural ? null : entry.analysis, boundaryTargets);
         finalWork.set(entry.batch.id, targets);
-        const newAnalysisCall = structural && !(requestedMode === "auto" && registerRepairPlans(entry));
+        const newAnalysisCall = structural && !(requestedMode === "auto" && registerRepairPlans(entry, extended));
         required += targets.length + 1 + Number(newAnalysisCall);
         groupMinimum += 2 + Number(newAnalysisCall);
       }
@@ -4286,7 +4295,7 @@ export async function executeLatticePlan(preflight, options) {
       });
       try {
         pipelineObservation?.retryPaths.set(entry.batch.id, "reanalysis-only");
-        const reviewedPlans = qualifyingLongJob && requestedMode === "auto" ? registerRepairPlans(entry) : null;
+        const reviewedPlans = qualifyingLongJob && requestedMode === "auto" ? registerRepairPlans(entry, extended) : null;
         if (reviewedPlans) {
           // Atom IDs continue to identify their original graph, including
           // cross-batch links. The revised writing plan gets its own revision.
@@ -4383,6 +4392,8 @@ export async function executeLatticePlan(preflight, options) {
       const replacementAnalysis = replacementEntry?.analysis ?? original.analysis;
       try {
         const boundaryMoves = original.batch.passages.flatMap(p => boundaryTargets.get(p.id) ?? []);
+        const sameSourceGraph = extended && replacementEntry && original.verification.available
+          && replacementAnalysis.passages.every((p, i) => p.atoms === original.analysis.passages[i].atoms);
         const retryRequest = Object.freeze({
           ...original,
           ...(round === 3 ? {
@@ -4390,6 +4401,7 @@ export async function executeLatticePlan(preflight, options) {
             priorReviewedDraft: replacementEntry || !original.verification.available ? undefined
               : { candidate: original.candidate, verification: original.verification },
           } : {}),
+          ...(sameSourceGraph ? { priorReviewedDraft: { candidate: original.candidate, verification: original.verification } } : {}),
           ...(boundaryMoves.length ? { documentBoundaryMoves: [...new Set(boundaryMoves)] } : {}),
           ...(reanalyzedByBatch.has(original.batch.id) ? { regenerationFromReanalysis: true } : {}),
           ...(!reanalyzedByBatch.has(original.batch.id) && hasOnlyBoundNonmaterialFindings(original)
@@ -4436,7 +4448,8 @@ export async function executeLatticePlan(preflight, options) {
             message: "The revised coverage or wording did not produce a valid draft. The previous candidate remains withheld.",
           }, error)),
         });
-        let candidate = qualifyingLongJob ? keepReviewedPassages(original, replacementAnalysis, replacement) : replacement;
+        let candidate = qualifyingLongJob ? keepReviewedPassages(original, replacementAnalysis, replacement,
+          extended ? boundaryTargets : null) : replacement;
         if (qualifyingLongJob) {
           // Reserve a correction for every pending draft and review, plus the
           // whole-document proof. This work never adds another semantic pass.

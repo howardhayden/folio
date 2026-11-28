@@ -29,7 +29,7 @@ import { isClosedPriorVerificationRejection, getLatticeAnalysisRetentionDowngrad
 import { getLatticeAnalysisPassageRetentionDowngrade } from "../app/resume/lattice/analysisProvenance.js";
 import { hasInvalidLatticeBidiIsolates } from "../app/resume/lattice/inputPolicy.js";
 import { rememberLatticeVerificationMissingUnitError, withLatticeVerificationCorrection } from "../app/resume/lattice/verificationCorrection.js";
-import { deterministicBatchReview } from "../app/resume/lattice/validators.js";
+import { deterministicBatchReview, latticeBoundaryChoiceCost } from "../app/resume/lattice/validators.js";
 import {
   LATTICE_REJECTION_CATEGORIES,
   rejectedErrorDiagnostic,
@@ -2046,11 +2046,17 @@ test("reviewed groups draft against the current graph and keep explicit coverage
     disposition: i ? "retain-if-conformant" : "rewrite", atoms: [{ ...original.atoms[0], id: "new" + i }] }));
   const candidate = { passages: [first, second].map((p, i) => ({ ...base.candidate.passages[0],
     passageId: p.id, text: word, preservedAtomIds: ["superseded" + i] })) };
-  const verification = { available: true, decision: "repair", gates: { registerFit: false }, passages: [], issues: [] };
+  const verification = { available: true, decision: "repair", gates: { registerFit: false }, issues: [], passages: [
+    { passageId: first.id, missingAtomIds: ["new0", "superseded0"], unsupportedClaims: [], unmodeledSpanIds: [],
+      conformanceEvidenceSpanIds: [], independentLayer: plans[0].layer, layerEvidenceAtomIds: [], layerEvidenceSpanIds: [] },
+    { passageId: second.id, missingAtomIds: ["superseded1"], unsupportedClaims: [], unmodeledSpanIds: [],
+      conformanceEvidenceSpanIds: [], independentLayer: plans[1].layer, layerEvidenceAtomIds: [], layerEvidenceSpanIds: [] },
+  ] };
   for (const stage of ["generate", "repair"]) {
-    for (const scenario of ["valid", "unchanged", "incomplete", "invalid-mask", "foreign", "final-targets", "group-truncated"]) {
+    for (const scenario of ["valid", "prior-current", "unchanged", "incomplete", "invalid-mask", "foreign", "final-targets", "group-truncated"]) {
       const request = { ...base, batch, sourceSpans: latticeSourceSpansForBatch(batch), candidate, verification,
         analysis: { ...base.analysis, passages: plans }, regenerationFromReanalysis: stage === "generate",
+        ...(scenario === "prior-current" ? { priorReviewedDraft: { candidate, verification } } : {}),
         ...(scenario === "final-targets" ? { finalDraftPassageIds: [first.id, second.id] } : {}),
         ...(scenario === "group-truncated" ? { finalGroupDraft: true } : {}) };
       const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 64, fetchImpl: async (_url, init) => {
@@ -2058,7 +2064,9 @@ test("reviewed groups draft against the current graph and keep explicit coverage
         const prompt = inertModelPayload(body);
         assert.deepEqual(prompt.clauseEdits, [first.id]);
         assert.deepEqual(prompt.retainedPassages, [second.id]);
-        assert.equal(Boolean(prompt.previouslyReviewed), stage === "repair");
+        const hasCurrentReview = stage === "repair" || scenario === "prior-current";
+        assert.equal(Boolean(prompt.previouslyReviewed), hasCurrentReview);
+        assert.deepEqual(prompt.missingMeaningUnits, hasCurrentReview ? [[first.id, [0]]] : undefined);
         assert.deepEqual(body.response_format.json_schema.schema.properties[second.id].required, ["coverage"]);
         if (scenario === "group-truncated") return providerChoiceResponse({ finish_reason: "length", message: { role: "assistant", content: "{" } });
         const choice = { edit: { from: word, to: scenario === "unchanged" ? word : replacement, coverage: "1" },
@@ -2264,6 +2272,39 @@ test("paired initial drafts share one fetch and preserve each original group's e
   assert.equal(truncated.completionCapacity().used, calls);
 });
 
+test("extended reviewers name the register explicitly and still reject missing evidence or a foreign value", async () => {
+  const base = minimalVerificationRequest();
+  const names = ["operative", "experiential", "interpretive", "mixed", "accessibility"];
+  for (const value of [...names, "unknown", 1, null]) {
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 64, fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.deepEqual(body.response_format.json_schema.schema.properties.p.properties[0].properties.l.enum, names);
+      assert.equal(body.messages[0].content.includes("Layer indices are zero-based"), false);
+      const wire = structuredClone(acceptingVerificationWire(base)); wire.p[0].l = value ?? "operative";
+      if (value === null) wire.p[0].x = "0";
+      return successfulProviderResponse(wire);
+    } });
+    const reply = await adapter.verify(base);
+    if (names.includes(value)) assert.equal(reply.passages[0].independentLayer, value);
+    else assert.notEqual(reply.decision, "accept");
+  }
+});
+
+test("equally valid wording choices favor source-line ownership without accepting an invalid alternative", async () => {
+  const [home, away, neutral] = [1, 2, 3].map(i => "z" + i);
+  const base = minimalVerificationRequest(home + ".");
+  const a = base.batch.passages[0], b = { ...a, id: "p002", text: away + ".", startUtf16: a.text.length + 2 };
+  const cost = latticeBoundaryChoiceCost(a.text + "\r\n" + b.text, [{ ...a, startUtf16: 0 }, b]);
+  assert.equal(cost(a.id, away + "."), 1);
+  assert.equal(cost(b.id, away + "."), 0);
+  for (const coverage of ["0", "1"]) {
+    const adapter = createHuggingFaceLatticeAdapter({ token: "fixture", providerCallLimit: 64, fetchImpl: async () =>
+      successfulProviderResponse({ [a.id]: [{ wording: away + ".", coverage: "1" }, { wording: neutral + ".", coverage }] }) });
+    const result = await adapter.generate({ ...base, candidate: undefined, boundaryChoiceCost: cost });
+    assert.equal(result.passages[0].text, (coverage === "1" ? neutral : away) + ".");
+  }
+});
+
 test("paired reviewer replies bind each verdict and evidence to its own group and assembly", async () => {
   const base = minimalVerificationRequest();
   const first = { ...base, sourceFingerprint: "one-source", candidateFingerprint: "one-assembly" };
@@ -2280,7 +2321,7 @@ test("paired reviewer replies bind each verdict and evidence to its own group an
       calls++;
       const body = JSON.parse(init.body);
       assert.equal(body.max_tokens, 2048);
-      assert.equal(body.response_format.json_schema.name, "lattice_paired_verification_v2");
+      assert.equal(body.response_format.json_schema.name, "lattice_paired_named_register_v1");
       const payload = inertModelPayload(body);
       assert.deepEqual(Object.keys(payload), [first.batch.id, second.batch.id]);
       assert.equal(payload[second.batch.id].batchId, second.batch.id);
@@ -2288,7 +2329,9 @@ test("paired reviewer replies bind each verdict and evidence to its own group an
       assert.equal(payload[second.batch.id].candidate[0][0], passage.id);
       if (scenario === "truncated") return providerChoiceResponse({ finish_reason: "length", message: { role: "assistant", content: "{" } });
       if (scenario === "upstream") return new Response(null, { status: 429 });
-      const result = { [first.batch.id]: acceptingVerificationWire(first), [second.batch.id]: acceptingVerificationWire(second) };
+      const result = structuredClone({ [first.batch.id]: acceptingVerificationWire(first), [second.batch.id]: acceptingVerificationWire(second) });
+      result[first.batch.id].p[0].l = "operative";
+      result[second.batch.id].p[0].l = "experiential";
       if (scenario === "foreign") result.another = {};
       if (scenario === "invalid-second") result[second.batch.id] = {};
       if (scenario === "refused") result[second.batch.id] = { ...result[second.batch.id], d: 2, g: "1" + "0".repeat(10) };
@@ -2311,6 +2354,7 @@ test("paired reviewer replies bind each verdict and evidence to its own group an
         if (scenario === "invalid-second") assert.notEqual(replies[1].decision, "accept");
         else {
           assert.equal(replies[1].decision, scenario === "refused" ? "reject" : "accept");
+          assert.equal(replies[1].passages[0].independentLayer, "experiential");
           assert.deepEqual(replies[1].passages[0].checkedAtomIds, ["second"]);
         }
       }
@@ -2565,7 +2609,7 @@ test("688-word narrative fits the production Worker, strict provider adapters an
           passageId: plan[0], layer: "operative", text: byId.get(plan[0]), preservedAtomIds: plan[5].map(([id]) => id),
         })) });
       }
-      if (isVerificationBody(body)) {
+      if (body.response_format?.json_schema?.name === "lattice_named_register_verification_v1") {
         counts.verification += 1;
         assert.deepEqual(body.response_format.json_schema.schema.required, ["g", "p", "i", "d"]);
         assert.deepEqual(payload.wireLayout.rootFields, ["g", "p", "i", "d"]);
@@ -2582,7 +2626,7 @@ test("688-word narrative fits the production Worker, strict provider adapters an
           assert.match(body.messages[0].content, /sourceAtomsByPosition/u);
           const atoms = "1".repeat(plan[5].length);
           const evidence = "1".repeat(count);
-          return [String(i), { a: atoms, u: false, s: "0".repeat(count), f: "000000000", l: 0,
+          return [String(i), { a: atoms, u: false, s: "0".repeat(count), f: "000000000", l: "operative",
             x: atoms, y: evidence, c: { v: true, s: evidence, k: plan[7].map(() => ({ v: true, s: evidence })) } }];
         }));
         if (counts.verification === 1) {

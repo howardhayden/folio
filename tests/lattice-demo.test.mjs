@@ -526,12 +526,12 @@ test("replanned long rewrites receive their specific review findings and must pa
 test("register-only long repairs keep the checked graph and individually confirmed retentions", async () => {
   const source = Array.from({ length: 28 }, (_, index) => opaqueWords(22, `p${index}w`)).join("\n\n");
   const plan = preflightLatticeInput(source, { providerCallLimit: 32 });
-  for (const mode of ["grounded", "second-refusal", "ungrounded", "missing-atom", "source-gap", "global-only", "ordinary"]) {
+  for (const mode of ["grounded", "second-refusal", "ungrounded", "missing-atom", "extended-omission", "extended-uncited", "extended-unaccounted", "source-gap", "global-only", "ordinary"]) {
     let initial;
     let reanalyses = 0;
     let targetReviews = 0;
     let certifications = 0;
-    const reuse = mode === "grounded" || mode === "second-refusal";
+    const reuse = mode === "grounded" || mode === "second-refusal" || mode === "extended-omission";
     const adapter = scriptedAdapter({
       analyze(request) {
         if (request.reanalysisFeedback) reanalyses += 1;
@@ -560,13 +560,19 @@ test("register-only long repairs keep the checked graph and individually confirm
           passage.conformanceConfirmed = false;
         }
         if (mode === "ungrounded") passage.layerEvidenceAtomIds = [passage.checkedAtomIds[0]];
-        if (mode === "missing-atom") passage.missingAtomIds = [passage.checkedAtomIds.pop()];
+        if (mode === "missing-atom" || mode === "extended-omission") passage.missingAtomIds = [passage.checkedAtomIds.pop()];
+        if (mode === "extended-uncited") {
+          const omitted = passage.checkedAtomIds.pop();
+          passage.missingAtomIds = [omitted];
+          passage.layerEvidenceSpanIds = initial.passages[0].atoms.find(({ id }) => id === omitted).evidenceSpanIds;
+        }
+        if (mode === "extended-unaccounted") passage.checkedAtomIds.pop();
         if (mode === "source-gap") passage.unmodeledSpanIds = [passage.layerEvidenceSpanIds[0]];
         return failure;
       },
       certify() { certifications += 1; },
     });
-    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: mode === "ordinary" ? 32 : 48, allowClarification: false });
+    const result = await executeLatticePlan(plan, { adapter, providerCallLimit: mode.startsWith("extended-") ? 64 : mode === "ordinary" ? 32 : 48, allowClarification: false });
     assert.equal(reanalyses, reuse ? 0 : 1, mode);
     assert.equal(targetReviews, 2, mode);
     assert.equal(certifications, mode === "second-refusal" ? 0 : 1, mode);
