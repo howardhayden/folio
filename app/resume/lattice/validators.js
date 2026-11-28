@@ -392,18 +392,33 @@ function uniqueStructuralAnchors(value, signatureAt) {
   return anchors;
 }
 
-function hasRelocatedUniqueBoundaryAnchor(source, candidate) {
-  if (!sameLineBreakStructure(source, candidate) || lineBreakSignature(source).length === 0) return false;
+// Offsets stay private to the request. The document gate and its repair
+// locations use the identical definition of a unique word on a different line.
+export function relocatedLatticeBoundaryWords(source, candidate, limit = Infinity) {
+  if (!sameLineBreakStructure(source, candidate) || lineBreakSignature(source).length === 0) return [];
   const sourceOrdinals = lineBreakOrdinalTable(source);
   const candidateOrdinals = lineBreakOrdinalTable(candidate);
-  const sourceAnchors = uniqueStructuralAnchors(source, (index) => sourceOrdinals[index]);
-  const candidateAnchors = uniqueStructuralAnchors(candidate, (index) => candidateOrdinals[index]);
-  for (const [anchor, sourceOrdinal] of sourceAnchors) {
-    if (sourceOrdinal === null || !candidateAnchors.has(anchor)) continue;
-    const candidateOrdinal = candidateAnchors.get(anchor);
-    if (candidateOrdinal !== null && candidateOrdinal !== sourceOrdinal) return true;
+  const sourceAnchors = uniqueStructuralAnchors(source, index => index);
+  const candidateAnchors = uniqueStructuralAnchors(candidate, index => index);
+  const moves = [];
+  for (const [word, sourceOffset] of sourceAnchors) {
+    const candidateOffset = candidateAnchors.get(word);
+    if (sourceOffset == null || candidateOffset == null || sourceOrdinals[sourceOffset] === candidateOrdinals[candidateOffset]) continue;
+    moves.push({ word, sourceOffset, candidateOffset });
+    if (moves.length >= limit) break;
+  }
+  return moves;
+}
+
+export function containsLatticeBoundaryWord(text, word) {
+  for (const match of text.matchAll(BOUNDARY_ANCHOR_WORD)) {
+    if (normalizedMaterialRepresentation(match[0]) === word) return true;
   }
   return false;
+}
+
+function hasRelocatedUniqueBoundaryAnchor(source, candidate) {
+  return relocatedLatticeBoundaryWords(source, candidate, 1).length > 0;
 }
 
 function questionScopeTable(value) {

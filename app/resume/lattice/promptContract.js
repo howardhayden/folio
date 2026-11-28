@@ -392,6 +392,8 @@ export function shortLatticeDialogueFrame({ spans, literalAnnotations = [], dire
   return spans.map(span => span.kind === "literal" ? ["fixed", span.id] : ["edit", span.text]);
 }
 
+const DOCUMENT_BOUNDARY_REPAIR_GUIDE = " documentBoundaryMoves lists [normalized source word, original passage ID, passage ID in the previous draft]. Ground each passage in its own source. Restore any misplaced commitment to its original line and remove any unsupported import from the other line. Where two different expressions coincided lexically, choose faithful local wording. Never duplicate a word merely to clear a comparison. Preserve exact quotations and line breaks.";
+
 function priorDraftFeedbackForModel(request) {
   const prior = request.priorReviewedDraft;
   return prior ? { candidate: rejectedCandidateForRepair(prior.candidate), feedback: verificationFeedbackForModel(prior.verification) } : null;
@@ -408,13 +410,14 @@ export function editableFrameRepairMessages(frames, request) {
         plan.atoms.map(atom => [atom.kind, atom.value]), plan.discourseFunction, plan.rationale, choiceCount,
       ]),
       wholePassages: [...wholeIds],
+      ...(request.documentBoundaryMoves?.length ? { documentBoundaryMoves: request.documentBoundaryMoves.slice(0, 12) } : {}),
       ...(wholeIds.size ? { wholePassageSources: repairSourcePassagesForModel(request).filter(([id]) => wholeIds.has(id)) } : {}),
       ...(prior ? { previouslyReviewed: prior } : {}),
       sourceBoundaries: sourceBoundariesForModel(request),
       documentLedger: documentLedgerForModel(request.documentLedger),
       ...(request.context ? { context: contextForModel(request.context) } : {}),
     },
-    "Each frame is [ID, register, fixed before, editable wording, fixed after, ordered meaning units, discourse function, plan, number of alternatives]. For a quoted frame, read the whole sentence. Return two natural alternatives for the editable wording only. In the first, replace the reporting verb or other principal predicate with an equivalent expression; in the second, recast the clause structure. Keep its speaker, addressee, intensity, manner, time, question and line. Keep the quotation on the same side. Neither alternative should simply copy the editable words or add detail. For a wholePassages ID, write complete prose from its ordered meaning units. Recast the clause structure in its selected register. Preserve each substantive detail, designated literal in wholePassageSources, and boundary. Return exactly the requested number of alternatives; when two are requested, give genuinely different constructions. PreviouslyReviewed, when present, reports findings on the paired earlier candidate only. Address its grounded omissions or errors in the fresh wording. In every alternative, coverage is one bit per listed meaning unit in order. Set a bit to 1 only if that unit is genuinely preserved by the reconstructed passage, including its fixed text. Mark any missing or uncertain unit 0.",
+    "Each frame is [ID, register, fixed before, editable wording, fixed after, ordered meaning units, discourse function, plan, number of alternatives]. For a quoted frame, read the whole sentence. Return two natural alternatives for the editable wording only. In the first, replace the reporting verb or other principal predicate with an equivalent expression; in the second, recast the clause structure. Keep its speaker, addressee, intensity, manner, time, question and line. Keep the quotation on the same side. Neither alternative should simply copy the editable words or add detail. For a wholePassages ID, write complete prose from its ordered meaning units. Recast the clause structure in its selected register. Preserve each substantive detail, designated literal in wholePassageSources, and boundary. Return exactly the requested number of alternatives; when two are requested, give genuinely different constructions. PreviouslyReviewed, when present, reports findings on the paired earlier candidate only. Address its grounded omissions or errors in the fresh wording. In every alternative, coverage is one bit per listed meaning unit in order. Set a bit to 1 only if that unit is genuinely preserved by the reconstructed passage, including its fixed text. Mark any missing or uncertain unit 0." + (request.documentBoundaryMoves?.length ? DOCUMENT_BOUNDARY_REPAIR_GUIDE : ""),
   );
 }
 
@@ -1095,6 +1098,7 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
   const requiredRewrites = compactPlan ? requiredRewritePositionsForModel(sourceGroups, request.analysis) : [];
   const dialogueFrames = draftAtomKeys ? dialogueFramesForModel(request) : [];
   const realizationInstruction = candidateRealizationInstruction(draftAtomKeys !== null)
+    + (request.documentBoundaryMoves?.length ? DOCUMENT_BOUNDARY_REPAIR_GUIDE : "")
     + (dialogueFrames.length ? DIALOGUE_FRAME_INSTRUCTION : "")
     + (requiredRewrites.length ? REQUIRED_REWRITE_CHECKLIST_INSTRUCTION : "");
   return messages(
@@ -1102,6 +1106,7 @@ export function candidateMessages(request, { analysisPlanDialect = "host-schema"
     {
       version: PUBLIC_REGISTER_VERSION,
       batchId: request.batch.id,
+      ...(request.documentBoundaryMoves?.length ? { documentBoundaryMoves: request.documentBoundaryMoves.slice(0, 12) } : {}),
       passages: sourceGroups,
       ...(draftAtomKeys ? { draftAtomKeys } : {}),
       ...(dialogueFrames.length ? { dialogueFrames } : {}),
@@ -1148,9 +1153,9 @@ export function verificationMessages(request, { responseDialect = "host-schema",
     : wireCorrection === "issue-alignment"
     ? " Rebuild issue/check/scope alignment: the prior result included an issue that did not identify a failed check in its reported scope. Independently re-evaluate the source and candidate, preserving every actual failure in g or the corresponding passage record. Resolve each issue's c through wireLayout.issueCheckBindings, never a mask position; p must identify the passage with that failed check, or -1 only for a failed global gate. Use i=[] when the failed conditions are fully represented and no additional issue is needed. Never invent or erase a failure or change the independent verdict merely to make an issue consistent. Complete g and every passage in p from the source and candidate. Reference only supported failures in i. Choose d last from that fresh assessment. Report accept when every condition passes, and preserve each genuine failure when choosing repair or reject."
     : wireCorrection === "atom-verdict"
-    ? " Reassess the unchanged source and candidate independently. Two previous replies disagreed with their own evidence: one accepted while marking a unit missing, then another gave a negative verdict while recording no failed condition. disputedAtomPositions locates the original disputes. Check each commitment against the candidate, including those positions. Preserve every actual omission or failure in its evidence field. Derive d last: 0 for accept only when all evidence passes, 1 for repair or 2 for reject with a real failed condition. No earlier verdict prescribes the answer."
+    ? " Reassess the unchanged source and candidate independently. Two previous replies disagreed with their own evidence: one accepted while leaving a unit missing or unaccounted for, then another gave a negative verdict while recording no failed condition. disputedAtomPositions locates the original disputes. Check each commitment against the candidate, including those positions. Preserve every actual omission or failure in its evidence field. Derive d last: 0 for accept only when all evidence passes, 1 for repair or 2 for reject with a real failed condition. No earlier verdict prescribes the answer."
     : wireCorrection === "atom-decision"
-    ? " Your prior acceptance conflicted with its missing-unit findings. disputedAtomPositions identifies passage and atom positions in their supplied order, starting at zero. Re-read each cited source commitment and compare with the actual candidate. A missing or changed commitment must keep status 2 and produce repair or reject. Use 1 only for verified equivalent meaning. Use 0 when unaccounted. Re-evaluate the entire result and derive the verdict last."
+    ? " Your prior acceptance left meaning units missing or unaccounted for. disputedAtomPositions identifies passage and atom positions in their supplied order, starting at zero. Re-read each cited source commitment and compare with the actual candidate. A missing or changed commitment must keep status 2 and produce repair or reject. An unaccounted commitment requires a fresh comparison; use 0 if it remains unaccounted and keep the verdict negative. Use 1 only for verified equivalent meaning. Use 0 when unaccounted. Re-evaluate the entire result and derive the verdict last."
     : wireCorrection === "decision-alignment"
     ? " Rebuild decision/check alignment: the prior negative decision had no failed condition in its detailed gates or passage records and no issue. Independently re-evaluate the same source and candidate. Reconcile d/g/p/i from that fresh judgment, preserving every real failure in g or the corresponding passage record and aligning any issue with its actual failed condition. Never invent or erase a failure, or promote or change a verdict merely to make the fields consistent. Complete g and every passage in p from the source and candidate. Reference only supported failures in i. Choose d last from that fresh assessment. Report accept when every condition passes, and preserve each genuine failure when choosing repair or reject."
     : wireCorrection === "retained-conformance"
@@ -1308,6 +1313,7 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema", d
   const copiedPositions = sourceGroups.flatMap(([id], index) => nonmaterialIds.has(id) ? [index] : []);
   const dialogueFrames = draftAtomKeys ? dialogueFramesForModel(request) : [];
   const realizationInstruction = candidateRealizationInstruction(draftAtomKeys !== null)
+    + (request.documentBoundaryMoves?.length ? DOCUMENT_BOUNDARY_REPAIR_GUIDE : "")
     + (dialogueFrames.length ? DIALOGUE_FRAME_INSTRUCTION : "")
     + (copiedPositions.length ? " For each copiedRewritePosition, compose a fresh expression of the same speech act or assertion. Recast its clause structure or choose an equivalent predicate. Preserve the speaker, referents, facts, certainty, and designated exact literals. Merely changing punctuation, typography, or word case fails. Return the complete candidate." : "")
     + (requiredRewrites.length ? REQUIRED_REWRITE_CHECKLIST_INSTRUCTION : "");
@@ -1332,6 +1338,7 @@ export function repairMessages(request, { analysisPlanDialect = "host-schema", d
     {
       version: PUBLIC_REGISTER_VERSION,
       sourcePassages: sourceGroups,
+      ...(request.documentBoundaryMoves?.length ? { documentBoundaryMoves: request.documentBoundaryMoves.slice(0, 12) } : {}),
       ...(copiedPositions.length ? { copiedRewritePositions: copiedPositions } : {}),
       ...(draftAtomKeys ? { draftAtomKeys } : {}),
       ...(dialogueFrames.length ? { dialogueFrames } : {}),
